@@ -47,6 +47,7 @@ class DashboardEditStateTest {
         assertEquals("s1", state.sessionId)
         assertEquals(DashboardEditField.STATUS, state.field)
         assertEquals("COMPLETED", state.draft)
+        assertEquals("COMPLETED", state.baselineValue)
         assertEquals(3, state.baselineVersion)
         assertFalse(state.inFlight)
         assertNull(state.error)
@@ -59,6 +60,15 @@ class DashboardEditStateTest {
 
         assertFalse(draftChanged(state, same))
         assertTrue(draftChanged(state, row(status = "PENDING")))
+    }
+
+    @Test
+    fun draft_changed_uses_edit_start_value_when_row_is_newer() {
+        val state =
+            beginEdit(row(status = "PENDING", version = 1), DashboardEditField.STATUS)
+                .withDraft("COMPLETED")
+
+        assertTrue(draftChanged(state, row(status = "NO_SHOW", version = 2)))
     }
 
     @Test

@@ -64,6 +64,7 @@ object SessionTable : Table("session") {
                 obj
             },
         ).default(SessionStatus.PENDING)
+    val isVoided = bool("is_voided").default(false)
     val basePrice = decimal("base_price", PRECISION, SCALE)
     val finalPrice = decimal("final_price", PRECISION, SCALE)
     val remarks = text("remarks").nullable()
@@ -81,6 +82,7 @@ object SessionTable : Table("session") {
             "clientId" to entity.clientId.toString(),
             "branchDayId" to entity.branchDayId.toString(),
             "sessionType" to entity.sessionType.name,
+            "sessionStatus" to entity.sessionStatus.name,
             "finalPrice" to entity.finalPrice.toPlainString(),
         )
 }

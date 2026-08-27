@@ -42,6 +42,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.dto.DashboardSessionResponse
@@ -57,6 +58,9 @@ internal actual fun SessionList(
     modifier: Modifier,
 ) {
     Column(modifier = modifier) {
+        if (args.dayStatus != null && args.dayStatus != DayStatus.OPEN) {
+            DayStatusWarning(args.dayStatus)
+        }
         TableHeaderRow(onRefresh = args.onRefresh)
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         Column(
@@ -71,6 +75,8 @@ internal actual fun SessionList(
                     onClick = { args.onSessionClick(session) },
                     onSessionSelect = args.onSessionClick,
                     canEdit = args.canEdit,
+                    canCorrectStatus = args.canCorrectStatus,
+                    dayStatus = args.dayStatus,
                     edit = args.edit,
                     onEditStart = args.onEditStart,
                     onEditDraftChange = args.onEditDraftChange,
@@ -138,6 +144,8 @@ private fun DashboardTableRow(
     isSelected: Boolean,
     onClick: () -> Unit,
     canEdit: Boolean,
+    canCorrectStatus: Boolean,
+    dayStatus: DayStatus?,
     edit: DashboardEditState?,
     onSessionSelect: (DashboardSessionResponse) -> Unit,
     onEditStart: (String, DashboardEditField) -> Unit,
@@ -188,14 +196,26 @@ private fun DashboardTableRow(
                 WalkInDot(voided = session.isVoided, modifier = Modifier.padding(start = Spacing.xs))
             }
         }
-        // Session type is a creation-time snapshot; status and final price remain editable.
+        // Session type is a creation-time snapshot; status and final price remain day-gated.
         Box(modifier = Modifier.weight(1f)) {
             SessionTypeBadge(session)
         }
+        val canEditOnDay =
+            canEdit && dayStatus != null && (dayStatus == DayStatus.OPEN || canCorrectStatus)
+        val canEditStatus =
+            canEditOnDay &&
+                statusEditAllowed(
+                    isWalkIn = session.isWalkIn,
+                    currentStatus = session.sessionStatus,
+                    hasCorrectionAuthority = canCorrectStatus,
+                    dayStatus = dayStatus,
+                )
         DashboardEditableCell(
             session = session,
             field = DashboardEditField.STATUS,
-            canEdit = canEdit,
+            canEdit = canEditStatus,
+            hasCorrectionAuthority = canCorrectStatus,
+            dayStatus = dayStatus,
             edit = edit,
             onSessionClick = onSessionSelect,
             onEditStart = onEditStart,
@@ -212,7 +232,8 @@ private fun DashboardTableRow(
             field = DashboardEditField.FINAL_PRICE,
             // #405 — a medical-mission session is always ₱0 (BR §Session types): no price
             // editor; the disabled clickable passes the tap through to row selection.
-            canEdit = canEdit && !missionPriceLocked(session.sessionType),
+            canEdit = canEditOnDay && !missionPriceLocked(session.sessionType),
+            dayStatus = dayStatus,
             edit = edit,
             onSessionClick = onSessionSelect,
             onEditStart = onEditStart,
@@ -257,6 +278,8 @@ private fun DashboardEditableCell(
     modifier: Modifier = Modifier,
     requiresReason: Boolean = false,
     onEditReasonChange: (String) -> Unit = {},
+    hasCorrectionAuthority: Boolean = false,
+    dayStatus: DayStatus? = null,
 ) {
     val isEditing = edit != null && edit.sessionId == session.id && edit.field == field
     Column(modifier = modifier) {
@@ -266,7 +289,14 @@ private fun DashboardEditableCell(
             isEditing && requiresReason -> {
                 RemittedReasonDialog(
                     edit = edit,
-                    statusValues = statusOptionsFor(session.isWalkIn),
+                    canEdit = canEdit,
+                    statusValues =
+                        statusOptionsFor(
+                            isWalkIn = session.isWalkIn,
+                            currentStatus = session.sessionStatus,
+                            hasCorrectionAuthority = hasCorrectionAuthority,
+                            dayStatus = dayStatus,
+                        ),
                     actions =
                         RemittedEditActions(
                             onDraftChange = onEditDraftChange,
@@ -281,7 +311,14 @@ private fun DashboardEditableCell(
             isEditing -> {
                 EditControl(
                     edit = edit,
-                    statusValues = statusOptionsFor(session.isWalkIn),
+                    canEdit = canEdit,
+                    statusValues =
+                        statusOptionsFor(
+                            isWalkIn = session.isWalkIn,
+                            currentStatus = session.sessionStatus,
+                            hasCorrectionAuthority = hasCorrectionAuthority,
+                            dayStatus = dayStatus,
+                        ),
                     onDraftChange = onEditDraftChange,
                     onCommit = onEditCommit,
                     onDiscard = onEditDiscard,
@@ -356,6 +393,7 @@ private fun CellDisplay(
 @Composable
 private fun EditControl(
     edit: DashboardEditState,
+    canEdit: Boolean,
     statusValues: List<String>,
     onDraftChange: (String) -> Unit,
     onCommit: () -> Unit,
@@ -366,6 +404,7 @@ private fun EditControl(
             SelectEditor(
                 values = statusValues,
                 edit = edit,
+                canEdit = canEdit,
                 onDraftChange = onDraftChange,
                 onCommit = onCommit,
                 onDiscard = onDiscard,
@@ -373,7 +412,7 @@ private fun EditControl(
         }
 
         DashboardEditField.FINAL_PRICE -> {
-            PriceEditor(edit, onDraftChange, onCommit, onDiscard)
+            PriceEditor(edit, onDraftChange, onCommit, onDiscard, canEdit = canEdit)
         }
     }
 }
@@ -392,6 +431,7 @@ internal fun SelectEditor(
     onCommit: () -> Unit,
     onDiscard: () -> Unit,
     autoCommit: Boolean = true,
+    canEdit: Boolean = true,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     Box {
@@ -400,17 +440,17 @@ internal fun SelectEditor(
             onValueChange = {},
             readOnly = true,
             singleLine = true,
-            enabled = !edit.inFlight,
+            enabled = canEdit && !edit.inFlight,
             isError = edit.error != null,
             textStyle = MaterialTheme.typography.bodyMedium,
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .clickable(enabled = !edit.inFlight) { menuOpen = true }
+                    .clickable(enabled = canEdit && !edit.inFlight) { menuOpen = true }
                     .onPreviewKeyEvent {
                         // Menu-open Esc is consumed by the popup (dismiss); only a
                         // menu-closed Esc discards the edit.
-                        if (it.key == Key.Escape && !menuOpen) {
+                        if (it.key == Key.Escape && (!menuOpen || !canEdit)) {
                             onDiscard()
                             true
                         } else {
@@ -429,12 +469,13 @@ internal fun SelectEditor(
             )
         }
         DropdownMenu(
-            expanded = menuOpen,
+            expanded = menuOpen && canEdit,
             onDismissRequest = { menuOpen = false },
         ) {
             values.forEach { value ->
                 DropdownMenuItem(
                     text = { Text(value) },
+                    enabled = canEdit,
                     onClick = {
                         menuOpen = false
                         onDraftChange(value)
@@ -456,12 +497,13 @@ internal fun PriceEditor(
     onCommit: () -> Unit,
     onDiscard: () -> Unit,
     autoCommit: Boolean = true,
+    canEdit: Boolean = true,
 ) {
     OutlinedTextField(
         value = edit.draft,
         onValueChange = onDraftChange,
         singleLine = true,
-        enabled = !edit.inFlight,
+        enabled = canEdit && !edit.inFlight,
         isError = edit.error != null,
         textStyle = MaterialTheme.typography.bodyMedium,
         keyboardOptions =
@@ -470,7 +512,7 @@ internal fun PriceEditor(
             ),
         keyboardActions =
             KeyboardActions(
-                onDone = { if (autoCommit) onCommit() },
+                onDone = { if (canEdit && autoCommit) onCommit() },
             ),
         trailingIcon = {
             if (edit.inFlight) {
@@ -488,8 +530,11 @@ internal fun PriceEditor(
                 // PATCH (pass-1 finding: it swallowed the first Reload click).
                 // #403 — the dialog's reason field takes focus, so there autoCommit is off
                 // and the Confirm button owns the commit.
-                .onFocusChanged { if (!it.isFocused && !edit.conflict && autoCommit) onCommit() }
-                .onPreviewKeyEvent {
+                .onFocusChanged {
+                    if (canEdit && !it.isFocused) {
+                        if (!edit.conflict && autoCommit) onCommit()
+                    }
+                }.onPreviewKeyEvent {
                     if (it.key == Key.Escape) {
                         onDiscard()
                         true

@@ -25,6 +25,7 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -53,7 +54,7 @@ private const val DASHBOARD_PATH = "/api/branches/b1/dashboard/today"
 private const val DASHBOARD_JSON =
     """{"sessions":[
         {"id":"s1","clientId":"c1","clientName":"Test Client","sessionType":"REGULAR","isWalkIn":false,
-         "sessionStatus":"COMPLETED","basePrice":"2500.00","finalPrice":"2500.00","remarks":null,
+         "sessionStatus":"PENDING","basePrice":"2500.00","finalPrice":"2500.00","remarks":null,
          "otherConcerns":null,"bookedAt":"2026-08-12T08:00:00+08:00","nextAppointmentDate":null,
          "version":1,"isVoided":false,"practitioners":[],"concerns":[]}],
        "commission":{"amount":"200.0000","productSalesCount":1}}"""
@@ -76,14 +77,14 @@ private const val PATCH_PRICE_JSON =
 
 private const val PATCH_STATUS_JSON =
     """{"id":"s1","clientId":"c1","branchDayId":"bd1","requestedPractitionerId":null,
-        "sessionType":"REGULAR","isWalkIn":false,"sessionStatus":"PENDING",
+        "sessionType":"REGULAR","isWalkIn":false,"sessionStatus":"COMPLETED",
         "basePrice":"2500.00","finalPrice":"2500.00","remarks":null,"otherConcerns":null,
         "bookedAt":null,"nextAppointmentDate":null,"version":2}"""
 
 private const val DASHBOARD_JSON_V2 =
     """{"sessions":[
         {"id":"s1","clientId":"c1","clientName":"Test Client","sessionType":"REGULAR","isWalkIn":false,
-         "sessionStatus":"COMPLETED","basePrice":"2500.00","finalPrice":"2500.00","remarks":null,
+         "sessionStatus":"PENDING","basePrice":"2500.00","finalPrice":"2500.00","remarks":null,
          "otherConcerns":null,"bookedAt":"2026-08-12T08:00:00+08:00","nextAppointmentDate":null,
          "version":2,"isVoided":false,"practitioners":[],"concerns":[]}],
        "commission":{"amount":"200.0000","productSalesCount":1}}"""
@@ -130,6 +131,15 @@ class SessionDashboardViewModelTest {
                 com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
             ),
         )
+
+    private fun coordinatorEditRow(): List<UserCapabilityResponse> =
+        editRow() +
+            UserCapabilityResponse(
+                CapabilityCodes.EDIT_PAST_DAY,
+                com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+                "b1",
+                com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+            )
 
     @Test
     fun init_fires_first_poll_and_writes_data() =
@@ -555,11 +565,12 @@ class SessionDashboardViewModelTest {
         patchResponse: (path: String) -> Pair<HttpStatusCode, String>,
         getJson: () -> String = { DASHBOARD_JSON },
         todayJson: String? = null,
+        todayStatus: () -> HttpStatusCode = { HttpStatusCode.OK },
     ): MockRequestHandler =
         {
             if (it.method == HttpMethod.Get) {
-                if (it.url.encodedPath == DAY_TODAY_PATH && todayJson != null) {
-                    respondOk(todayJson)
+                if (it.url.encodedPath == DAY_TODAY_PATH) {
+                    respond(body = todayJson ?: TODAY_OPEN_JSON, status = todayStatus())
                 } else {
                     respondOk(getJson())
                 }
@@ -606,6 +617,238 @@ class SessionDashboardViewModelTest {
             revoked.pause()
         }
     }
+
+    @Test
+    fun can_edit_tracks_capability_state_changes() =
+        runTest(testScheduler) {
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        dashboardHandler { null },
+                    ),
+                )
+            try {
+                runCurrent()
+                assertFalse(vm.canEdit.value)
+
+                SessionState.setCapabilities(editRow())
+                runCurrent()
+
+                assertTrue(vm.canEdit.value)
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun capability_revocation_discards_open_editor() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(editRow())
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        dashboardHandler { null },
+                    ),
+                )
+            try {
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("PENDING")
+                assertNotNull(vm.editState.value)
+
+                SessionState.setCapabilities(emptyList())
+                runCurrent()
+
+                assertNull(vm.editState.value)
+                assertFalse(vm.canEdit.value)
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun late_edit_response_cannot_overwrite_editor_started_after_revocation() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(editRow())
+            val requestStarted = CompletableDeferred<Unit>()
+            val releaseResponse = CompletableDeferred<Unit>()
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient { request ->
+                        if (request.method == HttpMethod.Get) {
+                            if (request.url.encodedPath == DAY_TODAY_PATH) {
+                                respond(body = TODAY_OPEN_JSON, status = HttpStatusCode.OK)
+                            } else {
+                                respondOk(DASHBOARD_JSON)
+                            }
+                        } else {
+                            requestStarted.complete(Unit)
+                            releaseResponse.await()
+                            respond(body = PATCH_STATUS_RESPONSE_JSON, status = HttpStatusCode.OK)
+                        }
+                    },
+                )
+            try {
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("COMPLETED")
+                vm.commitEdit()
+                runCurrent()
+                assertTrue(requestStarted.isCompleted)
+
+                SessionState.setCapabilities(emptyList())
+                runCurrent()
+                assertNull(vm.editState.value)
+
+                SessionState.setCapabilities(editRow())
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.FINAL_PRICE)
+                assertEquals(DashboardEditField.FINAL_PRICE, vm.editState.value?.field)
+
+                releaseResponse.complete(Unit)
+                runCurrent()
+
+                assertEquals(DashboardEditField.FINAL_PRICE, vm.editState.value?.field)
+                assertFalse(vm.editState.value?.inFlight == true)
+            } finally {
+                releaseResponse.complete(Unit)
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun coordinator_revocation_discards_open_correction_editor() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(coordinatorEditRow())
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        editDashboardHandler(
+                            patchResponse = { HttpStatusCode.OK to PATCH_STATUS_RESPONSE_JSON },
+                            getJson = { DASHBOARD_JSON.replace("PENDING", "NO_SHOW") },
+                        ),
+                    ),
+                )
+            try {
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("CANCELLED")
+                assertNotNull(vm.editState.value)
+
+                SessionState.setCapabilities(editRow())
+                runCurrent()
+
+                assertNull(vm.editState.value)
+                assertTrue(vm.canEdit.value)
+                assertFalse(vm.canCorrectStatus.value)
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun dashboard_poll_refreshes_day_status() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(editRow())
+            var todayJson = TODAY_OPEN_JSON
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        dashboardHandler(
+                            todayJson = { todayJson },
+                            onHit = { null },
+                        ),
+                    ),
+                )
+            try {
+                runCurrent()
+                assertEquals(DayStatus.OPEN, vm.dayStatus.value)
+
+                todayJson = TODAY_REMITTED_JSON
+                advanceTimeBy(30_000.milliseconds)
+                runCurrent()
+
+                assertEquals(DayStatus.REMITTED, vm.dayStatus.value)
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun view_only_dashboard_does_not_poll_capability_gated_day_status() =
+        runTest(testScheduler) {
+            var dayHits = 0
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient { request ->
+                        if (request.url.encodedPath == DAY_TODAY_PATH) {
+                            dayHits++
+                        }
+                        respondOk(DASHBOARD_JSON)
+                    },
+                )
+            try {
+                runCurrent()
+                assertEquals(0, dayHits)
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun failed_day_status_read_disables_editing_until_refresh() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(editRow())
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        editDashboardHandler(
+                            patchResponse = { HttpStatusCode.OK to PATCH_STATUS_RESPONSE_JSON },
+                            todayStatus = { HttpStatusCode.BadRequest },
+                        ),
+                    ),
+                )
+            try {
+                runCurrent()
+                assertNull(vm.dayStatus.value)
+
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                assertNull(vm.editState.value)
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun failed_day_status_refresh_keeps_active_draft() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(editRow())
+            var todayStatus = HttpStatusCode.OK
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        editDashboardHandler(
+                            patchResponse = { HttpStatusCode.OK to PATCH_STATUS_RESPONSE_JSON },
+                            todayStatus = { todayStatus },
+                        ),
+                    ),
+                )
+            try {
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("COMPLETED")
+                todayStatus = HttpStatusCode.BadRequest
+
+                vm.refresh()
+                runCurrent()
+
+                assertEquals("COMPLETED", vm.editState.value?.draft)
+                assertFalse(vm.editState.value?.inFlight == true)
+                assertNull(vm.dayStatus.value)
+            } finally {
+                vm.pause()
+            }
+        }
 
     @Test
     fun commit_final_price_success_recomputes_gross() =
@@ -692,6 +935,43 @@ class SessionDashboardViewModelTest {
         }
 
     @Test
+    fun concurrent_status_change_surfaces_conflict_instead_of_client_invalid_status() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(editRow())
+            var json = DASHBOARD_JSON
+            var patchHits = 0
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        editDashboardHandler(
+                            patchResponse = {
+                                patchHits++
+                                HttpStatusCode.Conflict to "{\"error\":\"version mismatch\"}"
+                            },
+                            getJson = { json },
+                        ),
+                    ),
+                )
+            try {
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("COMPLETED")
+
+                json = DASHBOARD_JSON_V2.replace("\"sessionStatus\":\"PENDING\"", "\"sessionStatus\":\"NO_SHOW\"")
+                advanceTimeBy(30_000.milliseconds)
+                runCurrent()
+
+                vm.commitEdit()
+                runCurrent()
+
+                assertEquals(1, patchHits, "the edit-start baseline keeps COMPLETED dispatchable")
+                assertTrue(vm.editState.value!!.conflict)
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
     fun commit_403_clears_edit_silently_and_hides_affordance() =
         runTest(testScheduler) {
             SessionState.setCapabilities(editRow())
@@ -711,7 +991,7 @@ class SessionDashboardViewModelTest {
                 runCurrent()
                 assertTrue(vm.canEdit.value)
                 vm.startEdit("s1", DashboardEditField.STATUS)
-                vm.updateDraft("PENDING")
+                vm.updateDraft("COMPLETED")
                 vm.commitEdit()
                 runCurrent()
 
@@ -719,6 +999,65 @@ class SessionDashboardViewModelTest {
                 assertNull(vm.editState.value, "403 must exit the edit silently")
                 assertFalse(vm.canEdit.value, "the affordance must vanish (Q4)")
                 assertFalse(vm.isForbidden.value, "an edit 403 is capability revocation, not the attendance gate")
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun edit_403_remains_revoked_after_pause_and_resume() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(coordinatorEditRow())
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        editDashboardHandler(
+                            patchResponse = { HttpStatusCode.Forbidden to "{\"error\":\"forbidden\"}" },
+                        ),
+                    ),
+                )
+            try {
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("COMPLETED")
+                vm.commitEdit()
+                runCurrent()
+
+                vm.pause()
+                vm.resume()
+                runCurrent()
+
+                assertFalse(vm.canEdit.value)
+                assertFalse(vm.canCorrectStatus.value)
+                assertNull(vm.editState.value)
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun correction_403_revokes_all_status_edit_authority_fail_closed() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(coordinatorEditRow())
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        editDashboardHandler(
+                            patchResponse = { HttpStatusCode.Forbidden to "{\"error\":\"forbidden\"}" },
+                            getJson = { DASHBOARD_JSON.replace("PENDING", "NO_SHOW") },
+                        ),
+                    ),
+                )
+            try {
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("PENDING")
+                vm.commitEdit()
+                runCurrent()
+
+                assertFalse(vm.canEdit.value)
+                assertFalse(vm.canCorrectStatus.value)
+                assertNull(vm.editState.value)
             } finally {
                 vm.pause()
             }
@@ -745,7 +1084,7 @@ class SessionDashboardViewModelTest {
             try {
                 runCurrent()
                 vm.startEdit("s1", DashboardEditField.STATUS)
-                vm.updateDraft("PENDING")
+                vm.updateDraft("COMPLETED")
                 vm.commitEdit()
                 runCurrent()
 
@@ -753,7 +1092,7 @@ class SessionDashboardViewModelTest {
                 assertNotNull(conflicted)
                 assertTrue(conflicted.conflict)
                 assertNotNull(conflicted.error)
-                assertEquals("PENDING", conflicted.draft, "the draft stays in the input (ADR-0022)")
+                assertEquals("COMPLETED", conflicted.draft, "the draft stays in the input (ADR-0022)")
 
                 // The reload lands a v2 row whose status differs from the attempted draft.
                 json = DASHBOARD_JSON_V2
@@ -765,7 +1104,7 @@ class SessionDashboardViewModelTest {
                 assertEquals(2, reloaded.baselineVersion, "the retry commits against the fresh version")
                 assertFalse(reloaded.conflict)
                 assertNull(reloaded.error)
-                assertTrue(reloaded.fieldChangedRemotely, "fresh COMPLETED != attempted PENDING")
+                assertTrue(reloaded.fieldChangedRemotely, "fresh PENDING != attempted COMPLETED")
             } finally {
                 vm.pause()
             }
@@ -790,7 +1129,7 @@ class SessionDashboardViewModelTest {
             try {
                 runCurrent()
                 vm.startEdit("s1", DashboardEditField.STATUS)
-                vm.updateDraft("PENDING")
+                vm.updateDraft("COMPLETED")
                 vm.commitEdit()
                 runCurrent()
 
@@ -803,7 +1142,7 @@ class SessionDashboardViewModelTest {
                 assertEquals(4, patchHits, "initial attempt + 3 retries")
                 val state = vm.editState.value
                 assertNotNull(state, "Model A: stay in edit mode")
-                assertEquals("PENDING", state.draft)
+                assertEquals("COMPLETED", state.draft)
                 assertNotNull(state.error)
                 assertFalse(state.inFlight)
             } finally {
@@ -863,7 +1202,7 @@ class SessionDashboardViewModelTest {
             try {
                 runCurrent()
                 vm.startEdit("s1", DashboardEditField.STATUS)
-                vm.updateDraft("PENDING")
+                vm.updateDraft("COMPLETED")
                 // The synchronous inFlight pre-set must hold from the caller's frame
                 // (the #135 double-tap pattern — the second commit sees inFlight).
                 vm.commitEdit()
@@ -897,7 +1236,7 @@ class SessionDashboardViewModelTest {
             try {
                 runCurrent()
                 vm.startEdit("s1", DashboardEditField.STATUS)
-                vm.updateDraft("PENDING")
+                vm.updateDraft("COMPLETED")
                 vm.commitEdit()
                 runCurrent()
                 assertEquals(1, patchHits)
@@ -943,7 +1282,7 @@ class SessionDashboardViewModelTest {
             try {
                 runCurrent()
                 vm.startEdit("s1", DashboardEditField.STATUS)
-                vm.updateDraft("PENDING")
+                vm.updateDraft("COMPLETED")
                 vm.commitEdit()
                 runCurrent()
                 assertTrue(vm.editState.value!!.conflict)
@@ -981,7 +1320,7 @@ class SessionDashboardViewModelTest {
             try {
                 runCurrent()
                 vm.startEdit("s1", DashboardEditField.STATUS)
-                vm.updateDraft("PENDING")
+                vm.updateDraft("COMPLETED")
                 vm.commitEdit()
                 runCurrent()
                 advanceTimeBy(10_000.milliseconds)
@@ -992,7 +1331,7 @@ class SessionDashboardViewModelTest {
                 // field-switch draft-drop class) — the failed editor stays until discarded.
                 vm.startEdit("s1", DashboardEditField.STATUS)
                 assertEquals(DashboardEditField.STATUS, vm.editState.value!!.field)
-                assertEquals("PENDING", vm.editState.value!!.draft)
+                assertEquals("COMPLETED", vm.editState.value!!.draft)
             } finally {
                 vm.pause()
             }
@@ -1015,7 +1354,7 @@ class SessionDashboardViewModelTest {
             try {
                 runCurrent()
                 vm.startEdit("s1", DashboardEditField.STATUS)
-                vm.updateDraft("PENDING")
+                vm.updateDraft("COMPLETED")
                 vm.commitEdit()
                 runCurrent()
                 assertTrue(vm.editState.value!!.conflict)
@@ -1034,7 +1373,7 @@ class SessionDashboardViewModelTest {
                 val reloaded = vm.editState.value!!
                 assertFalse(reloaded.conflict)
                 assertEquals("NO_SHOW", reloaded.draft)
-                assertTrue(reloaded.fieldChangedRemotely, "fresh COMPLETED != attempted NO_SHOW")
+                assertTrue(reloaded.fieldChangedRemotely, "fresh PENDING != attempted NO_SHOW")
             } finally {
                 vm.pause()
             }
@@ -1057,7 +1396,7 @@ class SessionDashboardViewModelTest {
             try {
                 runCurrent()
                 vm.startEdit("s1", DashboardEditField.STATUS)
-                vm.updateDraft("PENDING")
+                vm.updateDraft("COMPLETED")
                 vm.commitEdit()
                 runCurrent()
                 advanceTimeBy(10_000.milliseconds)
@@ -1140,13 +1479,13 @@ class SessionDashboardViewModelTest {
             try {
                 runCurrent()
                 vm.startEdit("s1", DashboardEditField.STATUS)
-                vm.updateDraft("PENDING")
+                vm.updateDraft("COMPLETED")
                 vm.commitEdit()
                 runCurrent()
 
                 assertEquals("/api/sessions/s1/status", patchPath)
                 assertEquals(
-                    "PENDING",
+                    "COMPLETED",
                     vm.lastData.value!!
                         .sessions
                         .single()
@@ -1170,7 +1509,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun remitted_day_blocks_blank_reason_before_dispatch() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            SessionState.setCapabilities(coordinatorEditRow())
             var patchHits = 0
             val vm =
                 SessionDashboardViewModel(
@@ -1206,7 +1545,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun remitted_day_commit_with_reason_dispatches_and_clears() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            SessionState.setCapabilities(coordinatorEditRow())
             var patchHits = 0
             val vm =
                 SessionDashboardViewModel(
@@ -1258,7 +1597,7 @@ class SessionDashboardViewModelTest {
                 runCurrent()
                 assertEquals(DayStatus.OPEN, vm.dayStatus.value)
 
-                vm.updateDraft("PENDING")
+                vm.updateDraft("COMPLETED")
                 vm.commitEdit()
                 runCurrent()
 
@@ -1334,14 +1673,19 @@ class SessionDashboardViewModelTest {
     private fun dashboardHandler(
         responseDelayMs: Long = 0,
         dispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
+        todayJson: () -> String = { TODAY_OPEN_JSON },
         onHit: MockRequestHandleScope.() -> HttpResponseData? = { null },
     ): MockRequestHandler =
-        {
-            if (responseDelayMs > 0) {
-                withContext(dispatcher) { delay(responseDelayMs) }
+        { request ->
+            if (request.url.encodedPath == DAY_TODAY_PATH) {
+                respondOk(todayJson())
+            } else {
+                if (responseDelayMs > 0) {
+                    withContext(dispatcher) { delay(responseDelayMs) }
+                }
+                // The test block's response wins (error/forbidden cases); null falls back to OK.
+                onHit() ?: respondOk(DASHBOARD_JSON)
             }
-            // The test block's response wins (error/forbidden cases); null falls back to OK.
-            onHit() ?: respondOk(DASHBOARD_JSON)
         }
 
     private fun MockRequestHandleScope.respondOk(json: String) =

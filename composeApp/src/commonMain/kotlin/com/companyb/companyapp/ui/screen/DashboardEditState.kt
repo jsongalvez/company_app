@@ -2,6 +2,8 @@ package com.companyb.companyapp.ui.screen
 
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.SessionStatus
+import com.companyb.companyapp.domain.isStatusCorrection
+import com.companyb.companyapp.domain.isStatusTransitionAllowed
 import com.companyb.companyapp.dto.DashboardSessionResponse
 
 /**
@@ -26,6 +28,7 @@ data class DashboardEditState(
     val sessionId: String,
     val field: DashboardEditField,
     val draft: String,
+    val baselineValue: String = draft,
     val baselineVersion: Int,
     val inFlight: Boolean = false,
     val error: String? = null,
@@ -43,15 +46,44 @@ fun DashboardSessionResponse.fieldValue(field: DashboardEditField): String =
     }
 
 /**
- * #423 — client mirror of the backend walk-in status prohibition (the DB
- * `walk_in_status` constraint, service 400): NO_SHOW/CANCELLED are offered as status options
- * for booked sessions only. A walk-in row's dropdown simply never shows them instead of
- * letting the server reject the commit.
+ * #425 — client mirror of backend session status transitions. The current value remains in the
+ * list for display, but only legal targets are offered. Correction targets are fail-closed
+ * unless caller has Coordinator authority; COMPLETED rows have no status edit affordance.
  */
-internal fun statusOptionsFor(isWalkIn: Boolean): List<String> =
-    SessionStatus.entries.map { it.name }.filter { !isWalkIn || it !in WALK_IN_FORBIDDEN_STATUS_OPTIONS }
+internal fun statusOptionsFor(
+    isWalkIn: Boolean,
+    currentStatus: SessionStatus,
+    hasCorrectionAuthority: Boolean,
+    dayStatus: DayStatus?,
+): List<String> =
+    SessionStatus.entries
+        .filter { target -> statusTargetAllowed(target, isWalkIn, currentStatus, hasCorrectionAuthority, dayStatus) }
+        .map { it.name }
 
-private val WALK_IN_FORBIDDEN_STATUS_OPTIONS = setOf(SessionStatus.NO_SHOW.name, SessionStatus.CANCELLED.name)
+private fun statusTargetAllowed(
+    target: SessionStatus,
+    isWalkIn: Boolean,
+    currentStatus: SessionStatus,
+    hasCorrectionAuthority: Boolean,
+    dayStatus: DayStatus?,
+): Boolean =
+    when {
+        target == currentStatus -> true
+        dayStatus == null -> false
+        dayStatus != DayStatus.OPEN && !hasCorrectionAuthority -> false
+        !isStatusTransitionAllowed(currentStatus, target, isWalkIn) -> false
+        isStatusCorrection(currentStatus, target) && !hasCorrectionAuthority -> false
+        else -> true
+    }
+
+internal fun statusEditAllowed(
+    isWalkIn: Boolean,
+    currentStatus: SessionStatus,
+    hasCorrectionAuthority: Boolean,
+    dayStatus: DayStatus?,
+): Boolean =
+    statusOptionsFor(isWalkIn, currentStatus, hasCorrectionAuthority, dayStatus)
+        .any { it != currentStatus.name }
 
 /**
  * Semantic price equality: "2750" == "2750.00" == "2750.0" (the backend normalizes to
@@ -88,7 +120,15 @@ internal fun fieldValuesEqual(
 fun draftChanged(
     state: DashboardEditState,
     row: DashboardSessionResponse,
-): Boolean = !fieldValuesEqual(state.draft, row.fieldValue(state.field), state.field)
+): Boolean {
+    val baseline =
+        if (row.version == state.baselineVersion) {
+            row.fieldValue(state.field)
+        } else {
+            state.baselineValue
+        }
+    return !fieldValuesEqual(state.draft, baseline, state.field)
+}
 
 fun beginEdit(
     row: DashboardSessionResponse,
@@ -100,6 +140,7 @@ fun beginEdit(
         // The editor opens showing the current committed value; the draft owns the cell
         // from here (Q4: mid-edit polling must not overwrite the edited field).
         draft = row.fieldValue(field),
+        baselineValue = row.fieldValue(field),
         baselineVersion = row.version,
     )
 
@@ -145,6 +186,7 @@ fun DashboardEditState.asFailed(message: String): DashboardEditState = copy(inFl
 fun DashboardEditState.afterReload(row: DashboardSessionResponse): DashboardEditState =
     copy(
         baselineVersion = row.version,
+        baselineValue = row.fieldValue(field),
         error = null,
         conflict = false,
         fieldChangedRemotely = !fieldValuesEqual(row.fieldValue(field), draft, field),

@@ -21,6 +21,7 @@ import org.jetbrains.exposed.v1.core.greaterEq
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.like
 import org.jetbrains.exposed.v1.core.or
+import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -104,6 +105,15 @@ object ClientRepository {
         transaction {
             findByIdInTransaction(id)
         }.also { logger.info { "[FIND-CLIENT] Client ${id.toString().maskUUID()} found=${it != null}" } }
+
+    /** Locks and reads client row on caller's open transaction. */
+    fun acquireLockInTransaction(clientId: UUID): Client? =
+        ClientTable
+            .selectAll()
+            .where { ClientTable.id eq clientId }
+            .forUpdate(ForUpdateOption.ForUpdate)
+            .singleOrNull()
+            ?.toClient()
 
     /**
      * In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction.

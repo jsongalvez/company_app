@@ -6,14 +6,18 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.domain.SessionStatus
+import com.companyb.companyapp.domain.isStatusCorrection
 import com.companyb.companyapp.dto.BranchDayTodayResponse
 import com.companyb.companyapp.dto.DashboardResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.dto.SessionResponse
 import com.companyb.companyapp.dto.UpdateSessionFinalPriceRequest
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
+import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.SessionState
+import com.companyb.companyapp.state.hasBranchOrDayCapability
 import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.ui.screen.DashboardEditField
 import com.companyb.companyapp.ui.screen.DashboardEditState
@@ -27,6 +31,8 @@ import com.companyb.companyapp.ui.screen.finalPriceInputValid
 import com.companyb.companyapp.ui.screen.mergeDashboardRows
 import com.companyb.companyapp.ui.screen.normalizedReason
 import com.companyb.companyapp.ui.screen.remittedReasonRequired
+import com.companyb.companyapp.ui.screen.statusEditAllowed
+import com.companyb.companyapp.ui.screen.statusOptionsFor
 import com.companyb.companyapp.ui.screen.withDraft
 import com.companyb.companyapp.ui.screen.withReason
 import com.companyb.companyapp.util.logInfo
@@ -40,6 +46,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
@@ -94,36 +102,60 @@ class SessionDashboardViewModel(
     val isForbidden: StateFlow<Boolean> = _isForbidden.asStateFlow()
 
     // #149 — inline editing (#97 Q4 + ADR-0022 pessimistic model). canEdit mirrors the
-    // per-element capability guard (#92): EDIT_BRANCH_DATA held at the selected branch
-    // (strict BRANCH triple, #156 — matching the backend's strict branch gate on the
-    // session PATCH endpoints); a PATCH 403 sets it false (Q4: silent exit + affordance
-    // vanishes — no capability-refetch machinery exists, Q2 of #155 deferred it).
+    // per-element capability guard (#92): EDIT_BRANCH_DATA held at the selected branch or
+    // clocked-in branch day, matching the status PATCH route's branch-or-day gate; a PATCH 403
+    // sets it false (Q4: silent exit + affordance vanishes).
     private val _canEdit =
         MutableStateFlow(
+            SessionState.capabilities.value.hasBranchOrDayCapability(
+                code = CapabilityCodes.EDIT_BRANCH_DATA,
+                branchId = SessionState.selectedBranchId.value,
+                dayId = SessionState.branchDayId.value,
+            ),
+        )
+    val canEdit: StateFlow<Boolean> = _canEdit.asStateFlow()
+
+    // #425 — correction affordance mirrors the backend's Coordinator authority check. A
+    // missing branch context fails closed through hasCapability's null-context behavior.
+    private val _canCorrectStatus =
+        MutableStateFlow(
             SessionState.capabilities.value.hasCapability(
-                CapabilityCodes.EDIT_BRANCH_DATA,
+                CapabilityCodes.EDIT_PAST_DAY,
                 CapabilityContextType.BRANCH,
                 SessionState.selectedBranchId.value,
             ),
         )
-    val canEdit: StateFlow<Boolean> = _canEdit.asStateFlow()
+    val canCorrectStatus: StateFlow<Boolean> = _canCorrectStatus.asStateFlow()
 
     private val _editState = MutableStateFlow<DashboardEditState?>(null)
     val editState: StateFlow<DashboardEditState?> = _editState.asStateFlow()
 
     // #403 — today's effective day status at the branch (the same evaluateStatus shape the
-    // backend's write gate applies). Null = unknown: the reason stays optional and the
-    // server 400 remains the guard. A failed read keeps the last-known value — a stale
-    // REMITTED keeps prompting for a reason, which the server accepts.
+    // backend's write gate applies). Null = unknown: mutation affordances fail closed. A failed
+    // read clears the value so mutation affordances fail closed until a fresh state lands.
     private val _dayStatus = MutableStateFlow<DayStatus?>(null)
     val dayStatus: StateFlow<DayStatus?> = _dayStatus.asStateFlow()
 
     // #403 — only the newest day read commits (a superseded OPEN landing must never
     // overwrite a fresh REMITTED one).
     private var dayGeneration = 0L
+    private var dayStatusBranchId: String? = SessionState.selectedBranchId.value
+    private var capabilityContext = SessionState.selectedBranchId.value to SessionState.branchDayId.value
+    private var capabilitySnapshot = SessionState.capabilities.value
+    private var locallyRevokedEditContext: Pair<String?, String?>? = null
+    private var locallyRevokedCorrectionBranch: String? = null
 
     private var consecutiveFailures = 0
     private var pollJob: Job? = null
+    private var capabilityJob: Job? = null
+    private var editGeneration = 0L
+
+    private data class CapabilityUpdate(
+        val contextChanged: Boolean,
+        val wasCanEdit: Boolean,
+        val canEdit: Boolean,
+        val canCorrectStatus: Boolean,
+    )
 
     // #382 — set synchronously when refresh() is called while a landing is in flight; drained
     // (once) by that landing's invokeOnCompletion.
@@ -131,7 +163,112 @@ class SessionDashboardViewModel(
     private var pendingRefresh = false
 
     init {
+        observeCapabilities()
         resume()
+    }
+
+    private fun observeCapabilities() {
+        if (capabilityJob?.isActive == true) return
+        capabilityJob =
+            viewModelScope.launch {
+                combine(
+                    SessionState.capabilities,
+                    SessionState.selectedBranchId,
+                    SessionState.branchDayId,
+                ) { capabilities, branchId, dayId ->
+                    capabilities to
+                        Triple(
+                            capabilities.hasBranchOrDayCapability(
+                                code = CapabilityCodes.EDIT_BRANCH_DATA,
+                                branchId = branchId,
+                                dayId = dayId,
+                            ),
+                            capabilities.hasCapability(
+                                CapabilityCodes.EDIT_PAST_DAY,
+                                CapabilityContextType.BRANCH,
+                                branchId,
+                            ),
+                            branchId to dayId,
+                        )
+                }.collect { (capabilities, state) ->
+                    val (baseCanEdit, baseCanCorrectStatus, context) = state
+                    val update =
+                        updateCapabilities(
+                            capabilities = capabilities,
+                            baseCanEdit = baseCanEdit,
+                            baseCanCorrectStatus = baseCanCorrectStatus,
+                            context = context,
+                        )
+                    applyCapabilityUpdate(update)
+                }
+            }
+    }
+
+    private fun updateCapabilities(
+        capabilities: List<UserCapabilityResponse>,
+        baseCanEdit: Boolean,
+        baseCanCorrectStatus: Boolean,
+        context: Pair<String?, String?>,
+    ): CapabilityUpdate {
+        val wasCanEdit = _canEdit.value
+        val contextChanged = capabilityContext != context
+        val branchChanged = capabilityContext.first != context.first
+        val capabilitiesChanged = capabilitySnapshot != capabilities
+        resetLocalRevocations(contextChanged, branchChanged, capabilitiesChanged)
+        capabilitySnapshot = capabilities
+        val canEdit = baseCanEdit && locallyRevokedEditContext != context
+        val canCorrectStatus = baseCanCorrectStatus && locallyRevokedCorrectionBranch != context.first
+        if (contextChanged || capabilitiesChanged || wasCanEdit != canEdit) {
+            dayGeneration++
+        }
+        capabilityContext = context
+        _canEdit.value = canEdit
+        _canCorrectStatus.value = canCorrectStatus
+        return CapabilityUpdate(contextChanged, wasCanEdit, canEdit, canCorrectStatus)
+    }
+
+    private fun resetLocalRevocations(
+        contextChanged: Boolean,
+        branchChanged: Boolean,
+        capabilitiesChanged: Boolean,
+    ) {
+        if (contextChanged || capabilitiesChanged) {
+            locallyRevokedEditContext = null
+        }
+        if (branchChanged || capabilitiesChanged) {
+            locallyRevokedCorrectionBranch = null
+        }
+    }
+
+    private fun applyCapabilityUpdate(update: CapabilityUpdate) {
+        when {
+            !update.canEdit -> {
+                _dayStatus.value = null
+                clearEdit()
+            }
+
+            update.contextChanged || !update.wasCanEdit -> {
+                _dayStatus.value = null
+                clearEdit()
+                loadDayStatus()
+            }
+
+            _dayStatus.value != null && _dayStatus.value != DayStatus.OPEN && !update.canCorrectStatus -> {
+                clearEdit()
+            }
+
+            !update.canCorrectStatus && isCorrectionEdit() -> {
+                clearEdit()
+            }
+        }
+    }
+
+    private fun isCorrectionEdit(): Boolean {
+        val state = _editState.value ?: return false
+        if (state.field != DashboardEditField.STATUS) return false
+        val row = _lastData.value?.sessions?.firstOrNull { it.id == state.sessionId } ?: return false
+        val target = runCatching { SessionStatus.valueOf(state.draft) }.getOrNull() ?: return false
+        return isStatusCorrection(baselineStatus(state, row), target)
     }
 
     private fun countFailure() {
@@ -151,6 +288,7 @@ class SessionDashboardViewModel(
 
     fun resume() {
         if (pollJob?.isActive == true) return
+        observeCapabilities()
         logInfo("DashboardVM", "poll resume")
         pollJob =
             viewModelScope.launch {
@@ -167,6 +305,8 @@ class SessionDashboardViewModel(
         }
         pollJob?.cancel()
         pollJob = null
+        capabilityJob?.cancel()
+        capabilityJob = null
     }
 
     fun refresh(): Job {
@@ -185,6 +325,7 @@ class SessionDashboardViewModel(
         if (_dashboardState.value is UiState.Loading) {
             return Job().also { it.cancel() }
         }
+        loadDayStatus()
         _dashboardState.value = UiState.Loading
         return launchReload(branchId)
     }
@@ -202,6 +343,7 @@ class SessionDashboardViewModel(
             pendingRefresh = true
             return Job().also { it.cancel() }
         }
+        loadDayStatus()
         _dashboardState.value = UiState.Loading
         return launchReload(branchId)
     }
@@ -286,22 +428,42 @@ class SessionDashboardViewModel(
         field: DashboardEditField,
     ) {
         val current = _editState.value
-        if (current != null && current.inFlight) return
-        if (current != null && current.error != null) {
-            // A failed edit (Model-A error still showing) is not silently replaced by a cell
-            // switch — the user discards (Esc) or retries first, so an attempted draft is
-            // never dropped without resolution (the #142 field-switch draft-drop class).
-            // EXCEPT when the machine's row has vanished from the list (e.g. the day
-            // rollover drops the edited row): the editor is already invisible, and a parked
-            // machine would wedge every future edit (pass-3 finding).
-            val rowStillPresent = _lastData.value?.sessions?.any { it.id == current.sessionId } == true
-            if (rowStillPresent) return
-            _editState.value = null
+        if (!_canEdit.value || !canReplaceEdit(current)) return
+        val row = _lastData.value?.sessions?.firstOrNull { it.id == sessionId }
+        if (row == null) {
+            if (current != null && _lastData.value?.sessions?.none { it.id == current.sessionId } == true) {
+                clearEdit()
+            }
+            return
         }
-        val row = _lastData.value?.sessions?.firstOrNull { it.id == sessionId } ?: return
-        loadDayStatus()
+        if (!fieldEditAllowed(row, field)) return
+        if (current?.error != null) clearEdit()
+        editGeneration++
         _editState.value = beginEdit(row, field)
     }
+
+    private fun fieldEditAllowed(
+        row: DashboardSessionResponse,
+        field: DashboardEditField,
+    ): Boolean =
+        dayEditAllowed() &&
+            (
+                field != DashboardEditField.STATUS ||
+                    statusEditAllowed(
+                        isWalkIn = row.isWalkIn,
+                        currentStatus = row.sessionStatus,
+                        hasCorrectionAuthority = _canCorrectStatus.value,
+                        dayStatus = _dayStatus.value,
+                    )
+            )
+
+    private fun canReplaceEdit(current: DashboardEditState?): Boolean =
+        current?.inFlight != true &&
+            (
+                current?.error == null ||
+                    // Keep a failed draft until it is discarded, unless its row vanished from the list.
+                    _lastData.value?.sessions?.none { it.id == current.sessionId } == true
+            )
 
     fun updateDraft(draft: String) {
         _editState.value = _editState.value?.withDraft(draft)
@@ -315,7 +477,14 @@ class SessionDashboardViewModel(
     fun discardEdit() {
         val state = _editState.value ?: return
         if (state.inFlight) return
-        _editState.value = null
+        clearEdit()
+    }
+
+    private fun clearEdit() {
+        if (_editState.value != null) {
+            editGeneration++
+            _editState.value = null
+        }
     }
 
     /**
@@ -334,25 +503,43 @@ class SessionDashboardViewModel(
         // blur-commit on the Reload click re-dispatched the doomed PATCH and swallowed
         // the first Reload click). In-flight commits are likewise single-shot.
         if (state.inFlight || state.conflict) return
-        // A vanished row (no session-deletion path exists, but fail closed rather than
-        // park an editor on a row that can no longer be committed).
+        if (prepareEdit(state) == null) return
+        dispatchEdit(state)
+    }
+
+    private fun prepareEdit(state: DashboardEditState): DashboardSessionResponse? {
         val row =
-            _lastData.value?.sessions?.firstOrNull { it.id == state.sessionId }
-                ?: run {
-                    _editState.value = null
-                    return
-                }
-        if (!draftChanged(state, row)) {
-            logInfo("DashboardVM", "edit discarded — draft unchanged")
-            _editState.value = null
-            return
+            if (_canEdit.value) {
+                _lastData.value?.sessions?.firstOrNull { it.id == state.sessionId }
+            } else {
+                null
+            }
+        val failure = row?.let { draftValidationFailure(state, it) }
+        return when {
+            row == null -> {
+                clearEdit()
+                null
+            }
+
+            !draftChanged(state, row) -> {
+                logInfo("DashboardVM", "edit discarded — draft unchanged")
+                clearEdit()
+                null
+            }
+
+            failure == null -> {
+                row
+            }
+
+            else -> {
+                _editState.value = state.asFailed(failure)
+                null
+            }
         }
-        // Client-side mirrors of the backend 400s (#135) — invalid price draft or missing
-        // REMITTED-day reason never reach the wire.
-        draftValidationFailure(state)?.let { failure ->
-            _editState.value = state.asFailed(failure)
-            return
-        }
+    }
+
+    private fun dispatchEdit(state: DashboardEditState) {
+        val requestGeneration = editGeneration
         _editState.value = state.asInFlight()
         val request = editRequest(state)
         handler.launchStateless(
@@ -368,16 +555,22 @@ class SessionDashboardViewModel(
                 // renders — the #168 state-less launch has no result flow to write).
                 val updated = it.body<SessionResponse>()
                 commitRow(updated)
-                _editState.value = null
+                clearEdit()
             },
             onNonSuccess = { response ->
                 when (response.status.value) {
-                    // Q4: 403 — capability revoked mid-edit: silent exit + the affordance
-                    // vanishes (no optimistic state to reconcile, ADR-0022).
+                    // Q4: 403 — capability revoked mid-edit: silent exit + all status-edit
+                    // affordances vanish. The route checks base edit authority before correction
+                    // authority, so a status 403 must revoke both locally (fail closed).
                     403 -> {
                         logWarn("DashboardVM", "edit forbidden (403) — affordance hidden")
-                        _editState.value = null
+                        clearEdit()
+                        locallyRevokedEditContext = capabilityContext
                         _canEdit.value = false
+                        if (state.field == DashboardEditField.STATUS) {
+                            locallyRevokedCorrectionBranch = capabilityContext.first
+                            _canCorrectStatus.value = false
+                        }
                     }
 
                     // ADR-0022: 409 — version conflict: keep the draft + inline error +
@@ -397,6 +590,7 @@ class SessionDashboardViewModel(
             onError = {
                 _editState.value = _editState.value?.asFailed("Update failed — check your connection and retry")
             },
+            stale = { editGeneration != requestGeneration },
         )
     }
 
@@ -470,12 +664,37 @@ class SessionDashboardViewModel(
      * The client-side mirrors of the backend 400s (#135): an invalid price draft or a
      * missing REMITTED-day reason fail the edit before any request is sent.
      */
-    private fun draftValidationFailure(state: DashboardEditState): String? =
+    private fun draftValidationFailure(
+        state: DashboardEditState,
+        row: DashboardSessionResponse,
+    ): String? =
         when {
+            state.field == DashboardEditField.STATUS && !dayEditAllowed() -> DAY_STATE_UNAVAILABLE_MESSAGE
+
+            state.field == DashboardEditField.STATUS &&
+                state.draft !in
+                statusOptionsFor(
+                    isWalkIn = row.isWalkIn,
+                    currentStatus = baselineStatus(state, row),
+                    hasCorrectionAuthority = _canCorrectStatus.value,
+                    dayStatus = _dayStatus.value,
+                ) -> INVALID_STATUS_MESSAGE
+
+            state.field == DashboardEditField.FINAL_PRICE && !dayEditAllowed() -> DAY_STATE_UNAVAILABLE_MESSAGE
+
             state.field == DashboardEditField.FINAL_PRICE && !finalPriceInputValid(state.draft) -> INVALID_PRICE_MESSAGE
+
             remittedReasonRequired(_dayStatus.value) && state.reason.isBlank() -> REASON_REQUIRED_MESSAGE
+
             else -> null
         }
+
+    private fun baselineStatus(
+        state: DashboardEditState,
+        row: DashboardSessionResponse,
+    ): SessionStatus =
+        runCatching { SessionStatus.valueOf(state.baselineValue) }
+            .getOrElse { row.sessionStatus }
 
     private fun editRequest(state: DashboardEditState): EditRequest {
         val reason = normalizedReason(state.reason).ifEmpty { null }
@@ -502,12 +721,18 @@ class SessionDashboardViewModel(
     }
 
     /**
-     * #403 — the day-status read behind the reason-required gate. Fired when an edit opens;
-     * a failure logs and keeps the last-known status (never blocks the edit — the server
-     * 400 is the authoritative backstop).
+     * #403 — the day-status read behind the reason-required gate. Fired with each dashboard
+     * refresh; a failure clears status so the desktop affordance fails closed until a fresh
+     * state lands.
      */
     private fun loadDayStatus() {
         val branchId = SessionState.selectedBranchId.value ?: return
+        if (!_canEdit.value) return
+        _dayStatus.value = null
+        if (dayStatusBranchId != branchId) {
+            dayStatusBranchId = branchId
+            clearEdit()
+        }
         ++dayGeneration
         val generation = dayGeneration
         handler.launchStateless(
@@ -515,21 +740,35 @@ class SessionDashboardViewModel(
             endpoint = "GET /api/branches/$branchId/today",
             block = { apiClient.httpClient.get(ApiRoutes.branchToday(branchId)) },
             transform = { response ->
-                _dayStatus.value = response.body<BranchDayTodayResponse>().status
+                val status = response.body<BranchDayTodayResponse>().status
+                _dayStatus.value = status
+                if (status != DayStatus.OPEN && !_canCorrectStatus.value) {
+                    clearEdit()
+                }
             },
             onNonSuccess = { response ->
-                // 401 is the global auth path (ApiClient.onUnauthorized); 403 = grant revoked —
-                // both leave the last-known value rather than degrading it.
-                if (response.status.value != 401 && response.status.value != 403) {
-                    logWarn("DashboardVM", "day-status read failed (${response.status.value}) — keeping last-known")
+                // 401 is the global auth path (ApiClient.onUnauthorized); 403 = grant revoked.
+                if (response.status.value == 401 || response.status.value == 403) {
+                    _dayStatus.value = null
+                    locallyRevokedEditContext = capabilityContext
+                    locallyRevokedCorrectionBranch = capabilityContext.first
+                    _canEdit.value = false
+                    _canCorrectStatus.value = false
+                    clearEdit()
+                } else {
+                    _dayStatus.value = null
+                    logWarn("DashboardVM", "day-status read failed (${response.status.value}) — edit disabled")
                 }
             },
             onError = {
-                logWarn("DashboardVM", "day-status read failed — keeping last-known")
+                _dayStatus.value = null
             },
             stale = { generation != dayGeneration },
         )
     }
+
+    private fun dayEditAllowed(): Boolean =
+        _dayStatus.value?.let { it == DayStatus.OPEN || _canCorrectStatus.value } == true
 
     fun retryAfterForbidden() {
         _isForbidden.value = false
@@ -543,7 +782,9 @@ class SessionDashboardViewModel(
         private const val ERROR_THRESHOLD = 5
         private const val CONFLICT_MESSAGE =
             "This session was updated by someone else — reload to see the latest changes"
+        private const val INVALID_STATUS_MESSAGE = "Choose a legal status transition"
         private const val INVALID_PRICE_MESSAGE = "Enter a valid amount (digits only, e.g. 2500.00)"
+        private const val DAY_STATE_UNAVAILABLE_MESSAGE = "Day state unavailable — refresh before retrying"
         private const val REASON_REQUIRED_MESSAGE = "A reason is required to write on a REMITTED day"
     }
 }

@@ -22,6 +22,7 @@ import com.companyb.companyapp.ui.theme.Spacing
 @Composable
 internal fun RemittedReasonDialog(
     edit: DashboardEditState,
+    canEdit: Boolean = true,
     statusValues: List<String>,
     actions: RemittedEditActions,
 ) {
@@ -41,6 +42,7 @@ internal fun RemittedReasonDialog(
                         SelectEditor(
                             values = statusValues,
                             edit = edit,
+                            canEdit = canEdit,
                             onDraftChange = actions.onDraftChange,
                             onCommit = {},
                             onDiscard = actions.onDiscard,
@@ -55,6 +57,7 @@ internal fun RemittedReasonDialog(
                             onCommit = {},
                             onDiscard = actions.onDiscard,
                             autoCommit = false,
+                            canEdit = canEdit,
                         )
                     }
                 }
@@ -63,7 +66,7 @@ internal fun RemittedReasonDialog(
                     onValueChange = actions.onReasonChange,
                     label = { Text("Reason") },
                     singleLine = true,
-                    enabled = !edit.inFlight,
+                    enabled = canEdit && !edit.inFlight,
                     isError = edit.error != null,
                     textStyle = MaterialTheme.typography.bodyMedium,
                 )
@@ -71,7 +74,7 @@ internal fun RemittedReasonDialog(
             }
         },
         confirmButton = {
-            Button(onClick = actions.onCommit, enabled = !edit.inFlight) {
+            Button(onClick = actions.onCommit, enabled = canEdit && !edit.inFlight) {
                 Text("Save")
             }
         },

@@ -3,6 +3,9 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.SessionStatus
+import com.companyb.companyapp.domain.isStatusCorrection
+import com.companyb.companyapp.dto.UpdateSessionStatusRequest
 import com.companyb.companyapp.repository.ExpenseRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.service.CapabilityService
@@ -10,6 +13,7 @@ import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import io.javalin.http.Context
 import io.javalin.http.NotFoundResponse
+import io.javalin.http.bodyAsClass
 import java.util.UUID
 
 /**
@@ -289,6 +293,24 @@ object CapabilityFilter {
             SessionRepository.findById(sessionId)
                 ?: throw NotFoundResponse("Session not found")
         requireBranchOrBranchDayCapability(context, session.branchDayId, capabilityCode)
+    }
+
+    /**
+     * Enforces Coordinator authority on status corrections at the HTTP boundary. The command
+     * repeats this check after locking the branch day so direct service callers and concurrent day
+     * transitions remain safe.
+     */
+    fun requireStatusCorrectionCapability(
+        context: Context,
+        sessionId: UUID,
+        newStatus: SessionStatus,
+    ) {
+        val session =
+            SessionRepository.findById(sessionId)
+                ?: throw NotFoundResponse("Session not found")
+        if (isStatusCorrection(session.sessionStatus, newStatus)) {
+            requireBranchCapabilityForSession(context, sessionId, CapabilityCodes.EDIT_PAST_DAY)
+        }
     }
 
     /**

@@ -8,6 +8,7 @@ import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -45,6 +46,7 @@ import kotlin.test.assertTrue
 class SessionEditAuthzTest : BasePostgresTest() {
     private val editorUser = TestFixtures.uuid()
     private val noGrantUser = TestFixtures.uuid()
+    private val coordinatorUser = TestFixtures.uuid()
     private val wrongBranchUser = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val otherBranchId = TestFixtures.uuid()
@@ -55,6 +57,7 @@ class SessionEditAuthzTest : BasePostgresTest() {
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(editorUser, "session-editor")
         DatabaseTestHelper.insertTestUser(noGrantUser, "session-no-grant")
+        DatabaseTestHelper.insertTestUser(coordinatorUser, "session-coordinator")
         DatabaseTestHelper.insertTestUser(wrongBranchUser, "session-wrong-branch")
         DatabaseTestHelper.insertTestBranch(branchId, "Branch A")
         DatabaseTestHelper.insertTestBranch(otherBranchId, "Branch B")
@@ -62,6 +65,7 @@ class SessionEditAuthzTest : BasePostgresTest() {
 
         trackOwned(AppUserTable, AppUserTable.id, editorUser)
         trackOwned(AppUserTable, AppUserTable.id, noGrantUser)
+        trackOwned(AppUserTable, AppUserTable.id, coordinatorUser)
         trackOwned(AppUserTable, AppUserTable.id, wrongBranchUser)
         trackOwned(BranchTable, BranchTable.id, branchId)
         trackOwned(BranchTable, BranchTable.id, otherBranchId)
@@ -70,14 +74,16 @@ class SessionEditAuthzTest : BasePostgresTest() {
         trackOwned(ClientTable, ClientTable.id, clientId)
         trackOwned(SessionTable, SessionTable.id, sessionId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, editorUser)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, coordinatorUser)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, wrongBranchUser)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, editorUser)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, noGrantUser)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, coordinatorUser)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, wrongBranchUser)
 
         val branchDay =
             BranchDayService.resolveOrCreate(branchId, TestFixtures.today)
-        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDay.id)
+        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDay.id, sessionStatus = SessionStatus.NO_SHOW)
 
         DatabaseTestHelper.grantCapability(
             userId = editorUser,
@@ -91,6 +97,20 @@ class SessionEditAuthzTest : BasePostgresTest() {
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
             contextId = otherBranchId,
+            sourceId = sourceId,
+        )
+        DatabaseTestHelper.grantCapability(
+            userId = coordinatorUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+        DatabaseTestHelper.grantCapability(
+            userId = coordinatorUser,
+            capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
             sourceId = sourceId,
         )
     }
@@ -160,6 +180,30 @@ class SessionEditAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body = mapOf("finalPrice" to "-100.00", "version" to 1)
             assertEquals(400, client.patch("/api/sessions/$sessionId/final-price", body, asUser(editorUser)).code)
+        }
+    }
+
+    @Test
+    fun `status correction is forbidden without Coordinator capability`() {
+        testServer.client.let { client ->
+            val body = mapOf("status" to "PENDING", "version" to 1)
+            assertEquals(403, client.patch("/api/sessions/$sessionId/status", body, asUser(editorUser)).code)
+        }
+    }
+
+    @Test
+    fun `Coordinator can patch status correction`() {
+        testServer.client.let { client ->
+            val body = mapOf("status" to "PENDING", "version" to 1)
+            val response = client.patch("/api/sessions/$sessionId/status", body, asUser(coordinatorUser))
+
+            assertEquals(200, response.code)
+            assertTrue(
+                response.body
+                    .string()
+                    .orEmpty()
+                    .contains("\"sessionStatus\":\"PENDING\""),
+            )
         }
     }
 

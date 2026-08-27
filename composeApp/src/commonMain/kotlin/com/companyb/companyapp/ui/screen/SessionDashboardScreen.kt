@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
@@ -51,6 +52,10 @@ data class SessionListArgs(
     // #149 — desktop inline editing (#97 Q4, ADR-0022). Mobile stays read-only; the
     // defaults keep the androidMain actual's call site untouched.
     val canEdit: Boolean = false,
+    // #425 — Coordinator-only status corrections; false is the fail-closed default.
+    val canCorrectStatus: Boolean = false,
+    // #425 — unknown day state is fail-closed for desktop mutation affordances.
+    val dayStatus: DayStatus? = null,
     val edit: DashboardEditState? = null,
     val onEditStart: (sessionId: String, field: DashboardEditField) -> Unit = { _, _ -> },
     val onEditDraftChange: (String) -> Unit = {},
@@ -164,6 +169,7 @@ fun SessionDashboardScreen(
     val pollStatus by viewModel.pollStatus.collectAsState()
     val isForbidden by viewModel.isForbidden.collectAsState()
     val canEdit by viewModel.canEdit.collectAsState()
+    val canCorrectStatus by viewModel.canCorrectStatus.collectAsState()
     val edit by viewModel.editState.collectAsState()
     val dayStatus by viewModel.dayStatus.collectAsState()
     // Q5 "silent polling": the pull-to-refresh indicator must show ONLY for a user-initiated
@@ -260,6 +266,8 @@ fun SessionDashboardScreen(
                                         onRefresh = onManualRefresh,
                                         isRefreshing = isManualRefreshing && state is UiState.Loading,
                                         canEdit = canEdit,
+                                        canCorrectStatus = canCorrectStatus,
+                                        dayStatus = dayStatus,
                                         edit = edit,
                                         onEditStart = viewModel::startEdit,
                                         onEditDraftChange = viewModel::updateDraft,

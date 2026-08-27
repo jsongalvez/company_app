@@ -122,7 +122,7 @@ object BranchDayService {
 
     /**
      * Resolves the branch day and asserts it is editable by [callerId].
-     * Covers the branch-day lookup, [EDIT_PAST_DAY] capability check, and day-state validation.
+     * Covers branch-day lookup, [EDIT_PAST_DAY] capability checks, and day-state validation.
      *
      * @return the resolved [BranchDay] so callers can use it without a second lookup.
      * @throws NotFoundException if the branch day does not exist.
@@ -133,15 +133,42 @@ object BranchDayService {
         callerId: UUID,
         branchDayId: UUID,
         reason: String? = null,
+        requiresEditPastDay: Boolean = false,
+    ): Pair<BranchDay, Boolean> =
+        assertEditableBranchDay(callerId, requireBranchDayExists(branchDayId), reason, requiresEditPastDay)
+
+    /**
+     * Transaction-owned variant for mutations whose day status must not change between the
+     * authorization check and the write. The row lock serializes this command with remittance's
+     * REMITTED transition; callers must already be inside [transaction].
+     */
+    fun checkBranchDayEditableInTransaction(
+        callerId: UUID,
+        branchDayId: UUID,
+        reason: String? = null,
+        requiresEditPastDay: Boolean = false,
+    ): Pair<BranchDay, Boolean> =
+        assertEditableBranchDay(
+            callerId,
+            BranchDayRepository.acquireLockInTransaction(branchDayId)
+                ?: throw NotFoundException("Branch day not found"),
+            reason,
+            requiresEditPastDay,
+        )
+
+    private fun assertEditableBranchDay(
+        callerId: UUID,
+        branchDay: BranchDay,
+        reason: String?,
+        requiresEditPastDay: Boolean,
     ): Pair<BranchDay, Boolean> {
-        val branchDay = requireBranchDayExists(branchDayId)
         val today = currentOperationalDate()
         val effectiveStatus = evaluateStatus(branchDay.status, branchDay.date, today)
         val isRemitted = effectiveStatus == DayStatus.REMITTED
         val hasEditPastDay = hasEditPastDayCapability(callerId, branchDay.branchId)
-        assertEditableState(effectiveStatus, hasEditPastDay, reason)
+        assertEditableState(effectiveStatus, hasEditPastDay, reason, requiresEditPastDay)
         logger.info {
-            "[CHECK-BRANCH-DAY-EDITABLE] branch_day=$branchDayId" +
+            "[CHECK-BRANCH-DAY-EDITABLE] branch_day=${branchDay.id}" +
                 " effectiveStatus=$effectiveStatus allowed isRemitted=$isRemitted"
         }
         return branchDay to isRemitted
@@ -202,8 +229,9 @@ object BranchDayService {
         effectiveStatus: DayStatus,
         hasEditPastDay: Boolean,
         reason: String?,
+        requiresEditPastDay: Boolean = false,
     ) {
-        if (effectiveStatus == DayStatus.OPEN) {
+        if (effectiveStatus == DayStatus.OPEN && !requiresEditPastDay) {
             return
         }
         if (!hasEditPastDay) {

@@ -9,7 +9,6 @@ import com.companyb.companyapp.repository.ClientCreateParams
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.ClientRepository
 import com.companyb.companyapp.repository.ClientUpdateParams
-import com.companyb.companyapp.repository.acquireClientLock
 import com.companyb.companyapp.repository.hasActivePendingSessionInTransaction
 import com.companyb.companyapp.repository.model.Client
 import com.companyb.companyapp.repository.model.ClientTable
@@ -129,12 +128,11 @@ object ClientService {
     ) {
         transaction {
             val before =
-                ClientRepository.findByIdInTransaction(clientId)
+                ClientRepository.acquireLockInTransaction(clientId)
                     ?: throw NotFoundException("Client not found")
 
             // Atomic check+write guards (CR-018 C2): lock the client row, then reject when an
             // active PENDING session exists — both inside this command transaction.
-            acquireClientLock(clientId)
             if (hasActivePendingSessionInTransaction(clientId)) {
                 throw ConflictException(
                     "Client has an active PENDING session; complete or cancel it before anonymizing",

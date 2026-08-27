@@ -214,7 +214,7 @@ Base rates are per session type and per branch, editable by Coordinators.
 
 ### Session Status
 
-- Completed sessions are always editable by Coordinators (with appropriate day-state warnings — see Day State Machine)
+- Completed session status is immutable through status edits; Coordinators use session void/unvoid for corrections
 - Booked sessions can be marked as no-show or cancelled
 - Walk-in sessions cannot be marked as no-show or cancelled
 - Next appointment date is approximate — the Coordinator is notified 2 days before a scheduled next appointment

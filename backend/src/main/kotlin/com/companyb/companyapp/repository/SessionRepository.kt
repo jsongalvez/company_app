@@ -10,11 +10,9 @@ import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -140,7 +138,7 @@ object SessionRepository {
             return idempotentResult(existingBeforeLock, params)
         }
 
-        val clientRow = acquireClientLock(params.clientId)
+        val client = ClientRepository.acquireLockInTransaction(params.clientId)
         val existingAfterLock = findSessionByIdInTransaction(params.id)
         if (existingAfterLock != null) {
             return idempotentResult(existingAfterLock, params)
@@ -150,7 +148,7 @@ object SessionRepository {
         if (hasActive) {
             throw ConflictException("Client already has an active PENDING session")
         }
-        if (clientRow != null && clientRow[ClientTable.deletedAt] != null) {
+        if (client?.deletedAt != null) {
             throw ConflictException("Cannot create a session for an anonymized client")
         }
 
@@ -253,25 +251,41 @@ object SessionRepository {
         transaction {
             findSessionByIdInTransaction(id)
         }
+
+    /** Locks and reads session row on caller's open transaction. */
+    fun acquireLockInTransaction(id: UUID): Session? =
+        SessionTable
+            .selectAll()
+            .where { SessionTable.id eq id }
+            .forUpdate(ForUpdateOption.ForUpdate)
+            .singleOrNull()
+            ?.toSession()
+
+    /** In-transaction void-state store operation. */
+    fun setVoidedInTransaction(
+        sessionId: UUID,
+        isVoided: Boolean,
+    ): Int =
+        SessionTable.update({ SessionTable.id eq sessionId }) {
+            it[SessionTable.isVoided] = isVoided
+        }
 }
 
-fun acquireClientLock(clientId: UUID): ResultRow? {
-    // Row-level lock on client to serialize concurrent client mutation (CR-018 C2).
-    return ClientTable
+fun hasActivePendingSessionInTransaction(
+    clientId: UUID,
+    excludedSessionId: UUID? = null,
+): Boolean {
+    val condition =
+        (SessionTable.clientId eq clientId) and
+            (SessionTable.sessionStatus eq SessionStatus.PENDING) and
+            (SessionTable.isVoided eq false)
+    val scopedCondition = excludedSessionId?.let { condition and (SessionTable.id neq it) } ?: condition
+    return SessionTable
         .selectAll()
-        .where { ClientTable.id eq clientId }
-        .forUpdate(ForUpdateOption.ForUpdate)
-        .singleOrNull()
-}
-
-fun hasActivePendingSessionInTransaction(clientId: UUID): Boolean =
-    SessionTable
-        .selectAll()
-        .where {
-            (SessionTable.clientId eq clientId) and
-                (SessionTable.sessionStatus eq SessionStatus.PENDING)
-        }.empty()
+        .where { scopedCondition }
+        .empty()
         .not()
+}
 
 /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
 fun findSessionByIdInTransaction(id: UUID): Session? =

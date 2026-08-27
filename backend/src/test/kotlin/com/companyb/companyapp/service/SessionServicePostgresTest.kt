@@ -1,10 +1,12 @@
 package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
@@ -531,6 +533,273 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
         val updated = SessionService.updateStatus(callerId, bookedSessionId, SessionStatus.NO_SHOW, 1)
         assertEquals(SessionStatus.NO_SHOW, updated.sessionStatus)
+    }
+
+    @Test
+    fun `booked pending session can be marked CANCELLED without Coordinator authority`() {
+        val bookedSessionId = insertSessionWithStatus(SessionStatus.PENDING)
+
+        val updated = SessionService.updateStatus(callerId, bookedSessionId, SessionStatus.CANCELLED, 1)
+
+        assertEquals(SessionStatus.CANCELLED, updated.sessionStatus)
+    }
+
+    @Test
+    fun `booked status corrections require Coordinator authority`() {
+        val correctionSessionId = insertSessionWithStatus(SessionStatus.NO_SHOW)
+
+        assertFailsWith<ForbiddenException> {
+            SessionService.updateStatus(callerId, correctionSessionId, SessionStatus.PENDING, 1)
+        }
+    }
+
+    @Test
+    fun `booked corrections require Coordinator authority across every day state`() {
+        correctionDays().forEach { (_, dayId) ->
+            listOf(
+                SessionStatus.NO_SHOW to SessionStatus.PENDING,
+                SessionStatus.NO_SHOW to SessionStatus.CANCELLED,
+                SessionStatus.CANCELLED to SessionStatus.PENDING,
+                SessionStatus.CANCELLED to SessionStatus.NO_SHOW,
+            ).forEach { (from, to) ->
+                val correctionSessionId = TestFixtures.uuid()
+                insertSessionOnDay(correctionSessionId, dayId, from)
+
+                assertFailsWith<ForbiddenException> {
+                    SessionService.updateStatus(callerId, correctionSessionId, to, 1)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `Coordinator can apply every booked correction edge and audit status before and after`() {
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+
+        val edges =
+            listOf(
+                SessionStatus.NO_SHOW to SessionStatus.PENDING,
+                SessionStatus.NO_SHOW to SessionStatus.CANCELLED,
+                SessionStatus.CANCELLED to SessionStatus.PENDING,
+                SessionStatus.CANCELLED to SessionStatus.NO_SHOW,
+            )
+
+        correctionDays().forEach { (dayStatus, dayId) ->
+            edges.forEach { (from, to) ->
+                val correctionSessionId = TestFixtures.uuid()
+                insertSessionOnDay(correctionSessionId, dayId, from)
+                val reason = if (dayStatus == DayStatus.REMITTED) "Corrected attendance mark" else null
+                val updated = SessionService.updateStatus(callerId, correctionSessionId, to, 1, reason)
+
+                assertEquals(to, updated.sessionStatus)
+                val audit = auditEntry(SessionTable.tableName, correctionSessionId)
+                assertEquals(
+                    from.name,
+                    DatabaseTestHelper.extractJsonField(audit[AuditLogTable.oldValue].orEmpty(), "sessionStatus"),
+                )
+                assertEquals(
+                    to.name,
+                    DatabaseTestHelper.extractJsonField(audit[AuditLogTable.newValue].orEmpty(), "sessionStatus"),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `reopening session conflicts when client already has a pending session`() {
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        val day = BranchDayService.resolveOrCreate(branchId, TestFixtures.today)
+        val sharedClientId = DatabaseTestHelper.insertTestClient()
+        trackOwned(ClientTable, ClientTable.id, sharedClientId)
+        val pendingSessionId = TestFixtures.uuid()
+        val noShowSessionId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestSession(pendingSessionId, sharedClientId, day.id)
+        DatabaseTestHelper.insertTestSession(
+            noShowSessionId,
+            sharedClientId,
+            day.id,
+            sessionStatus = SessionStatus.NO_SHOW,
+        )
+        trackOwned(SessionTable, SessionTable.id, pendingSessionId)
+        trackOwned(SessionTable, SessionTable.id, noShowSessionId)
+
+        assertFailsWith<ConflictException> {
+            SessionService.updateStatus(callerId, noShowSessionId, SessionStatus.PENDING, 1)
+        }
+    }
+
+    @Test
+    fun `completed status cannot be corrected through status endpoint`() {
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        val completedSessionId = insertSessionWithStatus(SessionStatus.COMPLETED)
+
+        assertFailsWith<ValidationException> {
+            SessionService.updateStatus(callerId, completedSessionId, SessionStatus.PENDING, 1)
+        }
+    }
+
+    @Test
+    fun `reopening a session for an anonymized client is rejected`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        SessionService.updateStatus(callerId, sessionId, SessionStatus.NO_SHOW, 1)
+        ClientService.anonymize(callerId, clientId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+
+        assertFailsWith<ConflictException> {
+            SessionService.updateStatus(callerId, sessionId, SessionStatus.PENDING, 2)
+        }
+        assertEquals(SessionStatus.NO_SHOW, SessionRepository.findById(sessionId)?.sessionStatus)
+    }
+
+    @Test
+    fun `voided session status remains editable`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
+        SessionService.voidSession(callerId, sessionId, TestFixtures.uuid(), "Created in error")
+
+        val updated = SessionService.updateStatus(callerId, sessionId, SessionStatus.NO_SHOW, 1)
+
+        assertEquals(SessionStatus.NO_SHOW, updated.sessionStatus)
+    }
+
+    @Test
+    fun `voided pending session does not block replacement pending session`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        SessionService.voidSession(callerId, sessionId, TestFixtures.uuid(), "Created in error")
+
+        val replacementId = TestFixtures.uuid()
+        val replacement = createSession(callerId, replacementId, clientId = clientId)
+        trackOwned(SessionTable, SessionTable.id, replacementId)
+
+        assertEquals(SessionStatus.PENDING, replacement.session.sessionStatus)
+    }
+
+    @Test
+    fun `voided pending session does not block client anonymization`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        SessionService.voidSession(callerId, sessionId, TestFixtures.uuid(), "Created in error")
+
+        ClientService.anonymize(callerId, clientId)
+
+        assertNotNull(
+            transaction {
+                ClientTable
+                    .selectAll()
+                    .where { ClientTable.id eq clientId }
+                    .single()[ClientTable.deletedAt]
+            },
+        )
+    }
+
+    @Test
+    fun `unvoiding pending session conflicts with replacement pending session`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        val voidId = TestFixtures.uuid()
+        SessionService.voidSession(callerId, sessionId, voidId, "Created in error")
+
+        val replacementId = TestFixtures.uuid()
+        createSession(callerId, replacementId, clientId = clientId)
+        trackOwned(SessionTable, SessionTable.id, replacementId)
+
+        assertFailsWith<ConflictException> {
+            SessionService.unvoidSession(callerId, sessionId, "Resolved in error")
+        }
+        assertNull(
+            transaction {
+                SessionVoidTable
+                    .selectAll()
+                    .where { SessionVoidTable.id eq voidId }
+                    .single()[SessionVoidTable.unvoidedAt]
+            },
+        )
+    }
+
+    @Test
+    fun `status endpoint rejects illegal completed and no-op transitions`() {
+        val illegalEdges =
+            listOf(
+                SessionStatus.COMPLETED to SessionStatus.PENDING,
+                SessionStatus.NO_SHOW to SessionStatus.COMPLETED,
+                SessionStatus.CANCELLED to SessionStatus.COMPLETED,
+                SessionStatus.PENDING to SessionStatus.PENDING,
+            )
+
+        illegalEdges.forEach { (from, to) ->
+            val sessionId = insertSessionWithStatus(from)
+
+            assertFailsWith<ValidationException> {
+                SessionService.updateStatus(callerId, sessionId, to, 1)
+            }
+        }
+    }
+
+    @Test
+    fun `past-day correction remains Coordinator-only`() {
+        val pastDayId =
+            DatabaseTestHelper.createBranchDayForDate(
+                branchId,
+                TestFixtures.today.minusDays(1),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, pastDayId)
+        val pastSessionId = TestFixtures.uuid()
+        insertSessionOnDay(pastSessionId, pastDayId, SessionStatus.NO_SHOW)
+
+        assertFailsWith<ForbiddenException> {
+            SessionService.updateStatus(callerId, pastSessionId, SessionStatus.PENDING, 1)
+        }
+
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        val updated = SessionService.updateStatus(callerId, pastSessionId, SessionStatus.PENDING, 1)
+
+        assertEquals(SessionStatus.PENDING, updated.sessionStatus)
+    }
+
+    @Test
+    fun `remitted correction requires reason and audits flagged status change`() {
+        val remittedDayId = insertRemittedDay()
+        val remittedSessionId = TestFixtures.uuid()
+        insertSessionOnDay(remittedSessionId, remittedDayId, SessionStatus.NO_SHOW)
+
+        assertFailsWith<ForbiddenException> {
+            SessionService.updateStatus(callerId, remittedSessionId, SessionStatus.PENDING, 1)
+        }
+
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+
+        assertFailsWith<ValidationException> {
+            SessionService.updateStatus(callerId, remittedSessionId, SessionStatus.PENDING, 1)
+        }
+
+        val updated =
+            SessionService.updateStatus(
+                callerId,
+                remittedSessionId,
+                SessionStatus.PENDING,
+                1,
+                "Corrected attendance mark",
+            )
+
+        assertEquals(SessionStatus.PENDING, updated.sessionStatus)
+        val audit = auditEntry(SessionTable.tableName, remittedSessionId)
+        assertEquals(true, audit[AuditLogTable.isFlagged])
+        assertEquals("Corrected attendance mark", audit[AuditLogTable.reason])
+        assertEquals(
+            "NO_SHOW",
+            DatabaseTestHelper.extractJsonField(audit[AuditLogTable.oldValue].orEmpty(), "sessionStatus"),
+        )
+        assertEquals(
+            "PENDING",
+            DatabaseTestHelper.extractJsonField(audit[AuditLogTable.newValue].orEmpty(), "sessionStatus"),
+        )
     }
 
     @Test
@@ -1088,14 +1357,39 @@ class SessionServicePostgresTest : BasePostgresTest() {
         return dayId
     }
 
+    private fun correctionDays(): List<Pair<DayStatus, UUID>> {
+        val pastDayId =
+            DatabaseTestHelper.createBranchDayForDate(
+                branchId,
+                TestFixtures.today.minusDays(1),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, pastDayId)
+        return listOf(
+            DayStatus.OPEN to BranchDayService.resolveOrCreate(branchId, TestFixtures.today).id,
+            DayStatus.PAST to pastDayId,
+            DayStatus.REMITTED to insertRemittedDay(),
+        )
+    }
+
     private fun insertSessionOnDay(
         id: UUID,
         dayId: UUID,
+        sessionStatus: SessionStatus = SessionStatus.PENDING,
     ) {
         val sessionClientId = DatabaseTestHelper.insertTestClient()
         trackOwned(ClientTable, ClientTable.id, sessionClientId)
-        DatabaseTestHelper.insertTestSession(id, sessionClientId, dayId)
+        DatabaseTestHelper.insertTestSession(id, sessionClientId, dayId, sessionStatus = sessionStatus)
         trackOwned(SessionTable, SessionTable.id, id)
+    }
+
+    private fun insertSessionWithStatus(status: SessionStatus): UUID {
+        val day = BranchDayService.resolveOrCreate(branchId, TestFixtures.today)
+        val id = TestFixtures.uuid()
+        val sessionClientId = DatabaseTestHelper.insertTestClient()
+        trackOwned(ClientTable, ClientTable.id, sessionClientId)
+        DatabaseTestHelper.insertTestSession(id, sessionClientId, day.id, sessionStatus = status)
+        trackOwned(SessionTable, SessionTable.id, id)
+        return id
     }
 
     private fun auditEntry(

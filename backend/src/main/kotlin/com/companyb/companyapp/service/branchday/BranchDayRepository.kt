@@ -58,13 +58,18 @@ internal object BranchDayRepository {
 
     fun acquireLock(branchDayId: UUID) {
         transaction {
-            BranchDayTable
-                .selectAll()
-                .where { BranchDayTable.id eq branchDayId }
-                .forUpdate(ForUpdateOption.ForUpdate)
-                .singleOrNull()
+            acquireLockInTransaction(branchDayId)
         }
     }
+
+    /** Locks and reads a branch day on the caller's open transaction. */
+    fun acquireLockInTransaction(branchDayId: UUID): BranchDay? =
+        BranchDayTable
+            .selectAll()
+            .where { BranchDayTable.id eq branchDayId }
+            .forUpdate(ForUpdateOption.ForUpdate)
+            .singleOrNull()
+            ?.toBranchDay()
 
     /**
      * Find-only branch-day lookup by (branch, date) — never creates. Used by gates that must

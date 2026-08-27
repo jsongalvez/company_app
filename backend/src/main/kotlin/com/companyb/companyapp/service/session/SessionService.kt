@@ -3,6 +3,8 @@ package com.companyb.companyapp.service.session
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.domain.isStatusCorrection
+import com.companyb.companyapp.domain.isStatusTransitionAllowed
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
@@ -19,6 +21,7 @@ import com.companyb.companyapp.repository.SessionVoidRepository
 import com.companyb.companyapp.repository.SetRateResult
 import com.companyb.companyapp.repository.VoidResult
 import com.companyb.companyapp.repository.findSessionByIdInTransaction
+import com.companyb.companyapp.repository.hasActivePendingSessionInTransaction
 import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionBaseRate
@@ -37,8 +40,6 @@ import java.util.UUID
 @Suppress("TooManyFunctions")
 object SessionService {
     private val logger = KotlinLogging.logger {}
-
-    private val WALK_IN_FORBIDDEN_STATUSES = setOf(SessionStatus.NO_SHOW, SessionStatus.CANCELLED)
 
     @Suppress("ReturnCount", "ThrowsCount")
     fun computeSessionType(
@@ -195,17 +196,42 @@ object SessionService {
         reason: String? = null,
     ): Session =
         transaction {
-            // Transaction-local before-state (ADR-0019): read inside the command's transaction.
-            val session = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
+            val initial = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
+            // Client-first lock order matches create, anonymize, void, and unvoid commands.
+            val client =
+                ClientRepository.acquireLockInTransaction(initial.clientId)
+                    ?: throw NotFoundException("Client not found")
+            val session =
+                SessionRepository.acquireLockInTransaction(sessionId)
+                    ?: throw NotFoundException("Session not found")
 
             if (session.version != expectedVersion) {
                 throw ConflictException("Session version mismatch")
             }
 
-            val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId, reason)
+            if (!isStatusTransitionAllowed(session.sessionStatus, newStatus, session.isWalkIn)) {
+                throw ValidationException(
+                    "Illegal session status transition from ${session.sessionStatus} to $newStatus",
+                )
+            }
 
-            if (session.isWalkIn && newStatus in WALK_IN_FORBIDDEN_STATUSES) {
-                throw ValidationException("Walk-in sessions cannot transition to NO_SHOW or CANCELLED")
+            val requiresEditPastDay = isStatusCorrection(session.sessionStatus, newStatus)
+            val (branchDay, isRemitted) =
+                BranchDayService.checkBranchDayEditableInTransaction(
+                    callerId,
+                    session.branchDayId,
+                    reason,
+                    requiresEditPastDay,
+                )
+
+            if (newStatus == SessionStatus.PENDING && client.deletedAt != null) {
+                throw ConflictException("Cannot reopen a session for an anonymized client")
+            }
+
+            if (newStatus == SessionStatus.PENDING &&
+                hasActivePendingSessionInTransaction(session.clientId, sessionId)
+            ) {
+                throw ConflictException("Client already has an active PENDING session")
             }
 
             val updated = SessionRepository.updateStatusInTransaction(sessionId, newStatus, expectedVersion)
@@ -234,13 +260,20 @@ object SessionService {
     ): Session =
         transaction {
             // Transaction-local before-state (ADR-0019): read inside the command's transaction.
-            val session = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
+            val initial = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
+            // Keep every session mutation's lock order client -> session -> branch day.
+            ClientRepository.acquireLockInTransaction(initial.clientId)
+                ?: throw NotFoundException("Client not found")
+            val session =
+                SessionRepository.acquireLockInTransaction(sessionId)
+                    ?: throw NotFoundException("Session not found")
 
             if (session.version != expectedVersion) {
                 throw ConflictException("Session version mismatch")
             }
 
-            val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId, reason)
+            val (branchDay, isRemitted) =
+                BranchDayService.checkBranchDayEditableInTransaction(callerId, session.branchDayId, reason)
 
             // #405 — same invariant as create (BR §Session types): a medical-mission session
             // carries MEDICAL_MISSION for life, so its price normalizes to ₱0 no matter what
@@ -272,18 +305,23 @@ object SessionService {
         voidId: UUID,
         voidReason: String,
     ): VoidResult {
-        val existing = SessionVoidRepository.findBySessionId(sessionId)
-        if (existing != null && existing.unvoidedAt == null) {
-            logger.info { "[VOID-SESSION] Session $sessionId already voided, returning existing (idempotent)" }
-            return VoidResult(existing, false)
-        }
-
         return transaction {
-            // Transaction-local before-state (ADR-0019): read inside the command's transaction.
-            val session = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
+            val initial = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
+            // Client-first lock order serializes a PENDING void with create and anonymize guards.
+            ClientRepository.acquireLockInTransaction(initial.clientId)
+                ?: throw NotFoundException("Client not found")
+            val session =
+                SessionRepository.acquireLockInTransaction(sessionId)
+                    ?: throw NotFoundException("Session not found")
+            val existing = SessionVoidRepository.findBySessionIdInTransaction(sessionId)
+            if (existing != null && existing.unvoidedAt == null) {
+                SessionRepository.setVoidedInTransaction(sessionId, true)
+                logger.info { "[VOID-SESSION] Session $sessionId already voided, returning existing (idempotent)" }
+                return@transaction VoidResult(existing, false)
+            }
 
             val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayEditable(
+                BranchDayService.checkBranchDayEditableInTransaction(
                     callerId,
                     session.branchDayId,
                     voidReason,
@@ -296,6 +334,9 @@ object SessionService {
                     voidReason = voidReason,
                     voidedBy = callerId,
                 )
+            if (result.sessionVoid.unvoidedAt == null) {
+                SessionRepository.setVoidedInTransaction(sessionId, true)
+            }
             if (result.created) {
                 SessionAudit.voidInserted(
                     AuditContext(callerId, branchDay.branchId, isFlagged = isRemitted, reason = voidReason),
@@ -316,24 +357,36 @@ object SessionService {
         unvoidedReason: String,
     ): SessionVoid =
         transaction {
-            // Transaction-local before-state (ADR-0019): reads inside the command's transaction.
-            val session = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
+            val initial = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
+            // Client-first lock order matches create, anonymize, status, and void commands.
+            ClientRepository.acquireLockInTransaction(initial.clientId)
+                ?: throw NotFoundException("Client not found")
+            val session =
+                SessionRepository.acquireLockInTransaction(sessionId)
+                    ?: throw NotFoundException("Session not found")
 
             val sessionVoid =
                 SessionVoidRepository.findBySessionIdInTransaction(sessionId)
                     ?: throw NotFoundException("Session is not voided")
 
             if (sessionVoid.unvoidedAt != null) {
+                SessionRepository.setVoidedInTransaction(sessionId, false)
                 logger.info { "[UNVOID-SESSION] Session $sessionId already unvoided, returning existing (idempotent)" }
                 return@transaction sessionVoid
             }
 
             val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayEditable(
+                BranchDayService.checkBranchDayEditableInTransaction(
                     callerId,
                     session.branchDayId,
                     unvoidedReason,
                 )
+
+            if (session.sessionStatus == SessionStatus.PENDING &&
+                hasActivePendingSessionInTransaction(session.clientId, excludedSessionId = sessionId)
+            ) {
+                throw ConflictException("Client already has an active PENDING session")
+            }
 
             val updated =
                 SessionVoidRepository.unvoidInTransaction(
@@ -341,6 +394,8 @@ object SessionService {
                     unvoidedBy = callerId,
                     unvoidedReason = unvoidedReason,
                 ) ?: throw NotFoundException("Session void record not found after unvoid")
+
+            SessionRepository.setVoidedInTransaction(sessionId, false)
 
             SessionAudit.voidUpdated(
                 AuditContext(callerId, branchDay.branchId, isFlagged = isRemitted, reason = unvoidedReason),

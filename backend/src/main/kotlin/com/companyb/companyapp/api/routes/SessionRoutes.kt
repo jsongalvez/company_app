@@ -206,11 +206,13 @@ object SessionRoutes {
 
         config.routes.before(ApiRoutes.SESSION_STATUS_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
+            val request = context.bodyAsClass<UpdateSessionStatusRequest>()
             CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
             )
+            CapabilityFilter.requireStatusCorrectionCapability(context, sessionId, request.status)
         }
 
         config.routes.before(ApiRoutes.SESSION_FINAL_PRICE_PATH) { context ->
