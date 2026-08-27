@@ -7,6 +7,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.companyb.companyapp.ui.screen.SessionCreatePrototypeApp
 
 private fun detectProjectRoot(dir: java.io.File): String {
     val markers = listOf(".git", "settings.gradle.kts")
@@ -23,6 +24,7 @@ fun main() {
         System.setProperty("companyApp.logDir", "$root/logs/client")
     }
     java.io.File(System.getProperty("companyApp.logDir")).mkdirs()
+    val launchPrototype = System.getenv("COMPANYAPP_SESSION_CREATE_PROTOTYPE") == "true"
     application {
         val windowState =
             rememberWindowState(
@@ -35,7 +37,11 @@ fun main() {
             title = "CompanyApp",
             state = windowState,
         ) {
-            App()
+            if (launchPrototype) {
+                SessionCreatePrototypeApp(onBack = ::exitApplication)
+            } else {
+                App()
+            }
         }
     }
 }

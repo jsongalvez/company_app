@@ -13,8 +13,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -54,7 +56,7 @@ import com.companyb.companyapp.ui.screen.ReliefDayScreen
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
 import com.companyb.companyapp.ui.screen.RemittanceListScreen
 import com.companyb.companyapp.ui.screen.RouteGateCard
-import com.companyb.companyapp.ui.screen.SessionCreateScreen
+import com.companyb.companyapp.ui.screen.SessionCreatePrototypeScreen
 import com.companyb.companyapp.ui.screen.SessionDashboardScreen
 import com.companyb.companyapp.ui.screen.SessionDetailPane
 import com.companyb.companyapp.ui.screen.SessionDetailScreen
@@ -76,7 +78,6 @@ import com.companyb.companyapp.viewmodel.ReliefDayViewModel
 import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
-import com.companyb.companyapp.viewmodel.SessionCreateViewModel
 import com.companyb.companyapp.viewmodel.SessionDashboardViewModel
 import com.companyb.companyapp.viewmodel.SessionDetailViewModel
 import com.companyb.companyapp.viewmodel.UserViewModel
@@ -104,6 +105,8 @@ actual fun AppNavHost(
     // structural always-on rendering (no parent-swap of NavHost — keeps NavController back-stack
     // stable across the boundary).
     val currentRoute = navController.currentRoute()
+    // Prototype choice stays above NavHost so returning from the dashboard keeps selected layout.
+    var sessionCreatePrototypeVariant by rememberSaveable { mutableIntStateOf(0) }
     val isPostClockIn =
         currentRoute != null && currentRoute !is Route.Login && currentRoute !is Route.BranchSelect
     NotificationBadgeHost(apiClient, isPostClockIn)
@@ -400,7 +403,11 @@ actual fun AppNavHost(
                 // platform); the dashboard's inline pane is untouched. Entry-scoped VM (#112):
                 // a fresh VM per push — the one-shot fetch state self-cleans on pop.
                 composable<Route.SessionCreate> {
-                    SessionCreateDestination(apiClient, navController)
+                    SessionCreateDestination(
+                        navController = navController,
+                        variantIndex = sessionCreatePrototypeVariant,
+                        onVariantChange = { newVariant -> sessionCreatePrototypeVariant = newVariant },
+                    )
                 }
                 composable<Route.SessionDetail> { entry ->
                     val route = entry.toRoute<Route.SessionDetail>()
@@ -519,8 +526,9 @@ private fun DashboardDestination(
 // gate stays authoritative. No clocked-in branch → gate card: sessions belong to a branch day.
 @Composable
 private fun SessionCreateDestination(
-    apiClient: ApiClient,
     navController: NavHostController,
+    variantIndex: Int,
+    onVariantChange: (Int) -> Unit,
 ) {
     val capabilities by SessionState.capabilities.collectAsState()
     val selectedBranchId by SessionState.selectedBranchId.collectAsState()
@@ -529,23 +537,11 @@ private fun SessionCreateDestination(
     if (capabilities.hasCapabilityAnyContext(CapabilityCodes.EDIT_BRANCH_DATA) &&
         clockedBranchId != null
     ) {
-        val sessionCreateViewModel: SessionCreateViewModel =
-            viewModel { SessionCreateViewModel(apiClient, clockedBranchId) }
-        val clientViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
-        SessionCreateScreen(
-            viewModel = sessionCreateViewModel,
-            clientViewModel = clientViewModel,
+        SessionCreatePrototypeScreen(
             branchName = selectedBranchName,
+            variantIndex = variantIndex,
+            onVariantChange = onVariantChange,
             onBack = { navController.popBackStack() },
-            // #386 — created sessions carry the creator no notification row, so a
-            // bearer-only SessionDetail push dead-ends in 404; land on a fresh Dashboard
-            // instead (inclusive popUpTo rebuilds the entry-scoped VM so the new session
-            // is in the day's list immediately).
-            onSessionCreated = { _ ->
-                navController.navigate(Route.Dashboard()) {
-                    popUpTo(Route.Dashboard()) { inclusive = true }
-                }
-            },
         )
     } else {
         RouteGateCard(label = "New session")
