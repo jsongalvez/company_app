@@ -161,8 +161,9 @@ private fun RequestLeg(
             Spacer(modifier = Modifier.height(Spacing.md))
             Text(
                 text =
-                    "Request received. If a reset code was created for you, " +
-                        "get it from the operator and enter it below.",
+                    "Request received. If an account matches and email delivery is available, " +
+                        "check its email for a reset code and enter it below. If no email arrives, " +
+                        "contact your owner.",
                 style = MaterialTheme.typography.bodyMedium,
             )
         }

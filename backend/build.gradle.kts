@@ -27,6 +27,9 @@ dependencies {
     // Authentication
     implementation(libs.jwt)
 
+    // Password-reset email delivery
+    implementation(libs.jakarta.mail)
+
     // Logging
     implementation(libs.kotlin.logging)
     implementation(libs.logback.classic)

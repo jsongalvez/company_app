@@ -4,6 +4,8 @@ import com.companyb.companyapp.auth.CredentialTokens
 import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
+import com.companyb.companyapp.auth.PasswordResetDelivery
+import com.companyb.companyapp.auth.PasswordResetSender
 import com.companyb.companyapp.auth.RateLimiter
 import com.companyb.companyapp.domain.CredentialTokenPurpose
 import com.companyb.companyapp.domain.LoginResult
@@ -25,6 +27,11 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 object AuthService {
+    private data class MintedResetCode(
+        val recipient: String,
+        val rawCode: String,
+    )
+
     private val logger = KotlinLogging.logger { }
     private const val TOKEN_TABLE_NAME = "credential_token"
     private const val WEAK_PASSWORD_MESSAGE =
@@ -133,12 +140,19 @@ object AuthService {
      * 24h PASSWORD_RESET token; any of its outstanding reset codes are invalidated first
      * (#350 re-invite pattern). False means the caller's IP exceeded its rate budget.
      *
-     * Delivery interim decision (#353, no mail infra exists): the raw code is logged
-     * server-side for operator relay; a real delivery channel is separate discovery.
+     * Delivery happens after the token transaction commits. Missing configuration uses the
+     * existing operator log relay; SMTP failures do not change token or rate-limit semantics.
      */
     fun requestPasswordReset(
         identifier: String,
         ip: String,
+    ): Boolean = requestPasswordReset(identifier, ip, senderOverride = null)
+
+    /** Test seam for exercising delivery failures without making network calls. */
+    internal fun requestPasswordReset(
+        identifier: String,
+        ip: String,
+        senderOverride: PasswordResetSender?,
     ): Boolean {
         if (!RateLimiter.isAllowed(RESET_RATE_KEY_PREFIX + ip)) {
             logger.warn { "[PASSWORD-RESET] Rate limiting reset requests from $ip" }
@@ -148,10 +162,15 @@ object AuthService {
         if (trimmed.isEmpty()) {
             return true
         }
-        val rawCode = mintResetCode(trimmed)
-        // The only copy leaves the transaction here — into the server log for operator relay.
-        if (rawCode != null) {
-            logger.warn { "[PASSWORD-RESET] Reset code for '$trimmed': $rawCode (valid ${RESET_VALID_HOURS}h)" }
+        val minted = mintResetCodeForDelivery(trimmed)
+        if (minted != null) {
+            PasswordResetDelivery.deliver(
+                identifier = trimmed,
+                recipient = minted.recipient,
+                rawCode = minted.rawCode,
+                validityHours = RESET_VALID_HOURS,
+                senderOverride = senderOverride,
+            )
         }
         return true
     }
@@ -161,7 +180,9 @@ object AuthService {
      * logs (#353): production callers go through [requestPasswordReset], whose uniform true
      * response carries the enumeration resistance. Null when no account matches.
      */
-    internal fun mintResetCode(identifier: String): String? =
+    internal fun mintResetCode(identifier: String): String? = mintResetCodeForDelivery(identifier)?.rawCode
+
+    private fun mintResetCodeForDelivery(identifier: String): MintedResetCode? =
         transaction {
             val existing =
                 UserRepository.findByUsernameOrEmailInTransaction(identifier, identifier) ?: return@transaction null
@@ -201,7 +222,10 @@ object AuthService {
                         "createdBy" to "(self-requested)",
                     ),
             )
-            rawCode
+            MintedResetCode(
+                recipient = existing.email,
+                rawCode = rawCode,
+            )
         }
 
     /**

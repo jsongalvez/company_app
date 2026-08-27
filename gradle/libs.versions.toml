@@ -21,6 +21,7 @@ hikaricp = "7.0.2"
 jansi = "2.4.3"
 jmh = "1.37"
 jmhPlugin = "0.7.3"
+jakartaMail = "2.0.2"
 javalin = "7.2.2"
 javalinOpenapi = "7.2.2"
 junit = "4.13.2"
@@ -56,6 +57,7 @@ javalin-testtools = { module = "io.javalin:javalin-testtools", version.ref = "ja
 javalin-openapi-processor = { module = "io.javalin.community.openapi:openapi-annotation-processor", version.ref = "javalinOpenapi" }
 javalin-openapi-plugin = { module = "io.javalin.community.openapi:javalin-openapi-plugin", version.ref = "javalinOpenapi" }
 javalin-swagger-plugin = { module = "io.javalin.community.openapi:javalin-swagger-plugin", version.ref = "javalinOpenapi" }
+jakarta-mail = { module = "com.sun.mail:jakarta.mail", version.ref = "jakartaMail" }
 jwt = { module = "com.auth0:java-jwt", version.ref = "jwt" }
 kotlin-logging = { module = "io.github.oshai:kotlin-logging-jvm", version.ref = "kotlin-logging" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }

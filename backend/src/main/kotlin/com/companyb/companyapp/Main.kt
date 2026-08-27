@@ -33,6 +33,7 @@ import com.companyb.companyapp.api.routes.UserRoutes
 import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
+import com.companyb.companyapp.auth.PasswordResetDelivery
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.database.DatabaseConfig
@@ -206,6 +207,7 @@ fun main(config: AppConfig) {
 
     JwtService.init(config)
     Password.init(config.authDummyPassword)
+    PasswordResetDelivery.configure(config.smtp)
 
     DatabaseConfig.initialize(config)
     runCatching {

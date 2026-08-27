@@ -136,15 +136,21 @@ object UserRepository {
         email: String,
     ): ExistingUser? =
         AppUserTable
-            .selectAll()
+            .select(AppUserTable.id, AppUserTable.email)
             .where {
                 (AppUserTable.username eq username) or (AppUserTable.email eq email)
             }.singleOrNull()
-            ?.let { ExistingUser(it[AppUserTable.id]) }
+            ?.let {
+                ExistingUser(
+                    id = it[AppUserTable.id],
+                    email = it[AppUserTable.email],
+                )
+            }
 
     /** Minimal projection for existence/re-invite checks — no credential material. */
     data class ExistingUser(
         val id: UUID,
+        val email: String,
     )
 
     /** Store half of the accept-invite password set (#350). Runs on the caller's command transaction. */

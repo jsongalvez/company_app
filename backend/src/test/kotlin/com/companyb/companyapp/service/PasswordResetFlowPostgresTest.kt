@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.auth.DenyList
+import com.companyb.companyapp.auth.PasswordResetSender
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.CredentialTokenPurpose
 import com.companyb.companyapp.domain.LoginResult
@@ -165,6 +166,32 @@ class PasswordResetFlowPostgresTest : BasePostgresTest() {
             }
         assertTrue(inserted >= 1L, "the self-requested mint audit row must exist")
         assertTrue(auditUpdateCount(userId) >= 2L, "redemption writes user + token UPDATE rows")
+    }
+
+    @Test
+    fun `SMTP failure leaves issued code redeemable`() {
+        val userId = newUser("reset-delivery-failure")
+        val expectedRecipient = email(userId)
+        var deliveredRecipient: String? = null
+        var deliveredCode: String? = null
+        val sender =
+            PasswordResetSender { recipient, rawCode, _ ->
+                deliveredRecipient = recipient
+                deliveredCode = rawCode
+                error("SMTP unavailable")
+            }
+
+        assertTrue(
+            AuthService.requestPasswordReset(
+                identifier = username(userId),
+                ip = "198.51.100.42",
+                senderOverride = sender,
+            ),
+        )
+
+        assertEquals(expectedRecipient, deliveredRecipient)
+        AuthService.resetPassword(assertNotNull(deliveredCode), "valid-password")
+        assertIs<LoginResult.Success>(AuthService.login(username(userId), "valid-password", "127.0.0.1"))
     }
 
     private fun auditUpdateCount(changedBy: UUID): Long =

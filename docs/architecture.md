@@ -514,8 +514,12 @@ Secrets loaded from `.env` via `dotenv-kotlin`. Never commit `.env`.
 ```
 POSTGRES_DB=, POSTGRES_USER=, POSTGRES_PASSWORD=
 APP_PORT=, JWT_SECRET=, JWT_ISSUER=, JWT_AUDIENCE=
+SMTP_HOST=, SMTP_PORT=, SMTP_USERNAME=, SMTP_PASSWORD=, SMTP_FROM=
 TZ=Asia/Manila
 ```
+
+All `SMTP_*` values are required for email delivery. If absent or incomplete, password-reset
+codes use the server-log relay and startup emits a warning.
 
 ---
 
