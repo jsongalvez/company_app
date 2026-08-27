@@ -7,6 +7,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.companyb.companyapp.ui.screen.DashboardPrototypeApp
 
 private fun detectProjectRoot(dir: java.io.File): String {
     val markers = listOf(".git", "settings.gradle.kts")
@@ -35,7 +36,11 @@ fun main() {
             title = "CompanyApp",
             state = windowState,
         ) {
-            App()
+            if (System.getenv("COMPANYAPP_DASHBOARD_PROTOTYPE") == "true") {
+                DashboardPrototypeApp(onBack = ::exitApplication)
+            } else {
+                App()
+            }
         }
     }
 }
