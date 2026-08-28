@@ -17,7 +17,10 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.RoleTable
+import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
@@ -48,6 +51,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
     private val manageUsersUser = TestFixtures.uuid()
     private val manageProductsUser = TestFixtures.uuid()
     private val globalViewUser = TestFixtures.uuid()
+    private val ownerUser = TestFixtures.uuid()
     private val branchA = TestFixtures.uuid()
     private val branchB = TestFixtures.uuid()
     private val sourceId = TestFixtures.uuid()
@@ -71,6 +75,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
             manageUsersUser to "manage-users",
             manageProductsUser to "manage-products",
             globalViewUser to "global-view",
+            ownerUser to "owner",
             noneUser to "no-caps",
         ).forEach { (id, prefix) ->
             DatabaseTestHelper.insertTestUser(id, prefix)
@@ -81,6 +86,16 @@ class AuditLogAuthzTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestBranch(branchA, "Audit Branch A $branchA")
         trackOwned(BranchTable, BranchTable.id, branchB)
         DatabaseTestHelper.insertTestBranch(branchB, "Audit Branch B $branchB")
+
+        assignRole(ownerUser, "OWNER")
+        val ownerAssignment =
+            DatabaseTestHelper.insertTestAssignment(
+                userId = ownerUser,
+                branchId = branchA,
+                slot = 1,
+                assignedBy = ownerUser,
+            )
+        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, ownerAssignment)
 
         DatabaseTestHelper.grantCapability(
             userId = editorA,
@@ -162,7 +177,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
             insert("product", TestFixtures.uuid(), AuditAction.INSERT, editorA, at(4), null)
             insert("product_category", TestFixtures.uuid(), AuditAction.INSERT, editorA, at(3), null)
             insert("concern", TestFixtures.uuid(), AuditAction.INSERT, editorA, at(2), null)
-            // Unlisted table with NULL branch — Owner/Accountant (global view) only.
+            // Unlisted table with NULL branch — global VIEW_BRANCH_DATA only.
             insert("mystery_table", TestFixtures.uuid(), AuditAction.INSERT, editorA, at(1), null)
             // Flagged rows for acknowledge tests.
             selfAckId =
@@ -198,6 +213,23 @@ class AuditLogAuthzTest : BasePostgresTest() {
                 acknowledgedAt = at(-1),
             )
         }
+    }
+
+    private fun assignRole(
+        userId: UUID,
+        roleName: String,
+    ) {
+        val roleId =
+            transaction {
+                RoleTable.selectAll().where { RoleTable.name eq roleName }.single()[RoleTable.id]
+            }
+        transaction {
+            UserRoleTable.insert {
+                it[UserRoleTable.userId] = userId
+                it[UserRoleTable.roleId] = roleId
+            }
+        }
+        trackOwned(UserRoleTable, UserRoleTable.userId, userId)
     }
 
     private fun at(hourOffset: Int): OffsetDateTime =
@@ -309,6 +341,18 @@ class AuditLogAuthzTest : BasePostgresTest() {
     @Test
     fun `browse global VIEW_BRANCH_DATA holder sees everything including NULL unlisted`() {
         val (_, body) = browse(globalViewUser)
+        val tableNames = body.entries.map { it.tableName }.toSet()
+        assertTrue("session" in tableNames)
+        assertTrue("client" in tableNames)
+        assertTrue("app_user" in tableNames)
+        assertTrue("product" in tableNames)
+        assertTrue("mystery_table" in tableNames)
+        assertEquals(11, body.entries.size)
+    }
+
+    @Test
+    fun `browse OWNER role holder sees everything including NULL unlisted`() {
+        val (_, body) = browse(ownerUser)
         val tableNames = body.entries.map { it.tableName }.toSet()
         assertTrue("session" in tableNames)
         assertTrue("client" in tableNames)

@@ -132,7 +132,7 @@ object CapabilityFilter {
     /**
      * Enforces [capabilityCode] at the given [branchId] — either BRANCH-scoped
      * at that branch OR GLOBAL (the #131 all-branches window: a GLOBAL
-     * `VIEW_BRANCH_DATA` holder reads every branch, e.g. Accountant/SUPERUSER).
+     * `VIEW_BRANCH_DATA` holder reads every branch, e.g. Owner/Accountant/SUPERUSER).
      *
      * Throws [com.companyb.companyapp.exception.ForbiddenException] (403) if
      * the caller holds neither form.

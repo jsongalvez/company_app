@@ -180,7 +180,7 @@ Moved to [`docs/deep-modules.md`](deep-modules.md) — the authoritative map of 
 
 **Rule:** Never check a role name in service logic. Always check a capability code.
 
-Roles are predefined bundles of capabilities — seeded in V2, then resolved at runtime exclusively through the view (GLOBAL management codes derive from the role; all other codes derive BRANCH-scoped from ACTIVE assignments, V21/#417). The only query that matters is:
+Roles are predefined bundles of capabilities — seeded in V2, then resolved at runtime exclusively through the view (GLOBAL management codes and all-branch `VIEW_BRANCH_DATA` for SUPERUSER/OWNER/ACCOUNTANT derive from the role; branch-scoped codes derive from ACTIVE assignments, V21/#417; V25/#431 adds OWNER's global read). The only query that matters is:
 
 ```sql
 SELECT 1 FROM active_user_capabilities
@@ -207,14 +207,15 @@ Called at the top of every mutating service method — not in routes, not in rep
 Capability codes are fixed contract values, not runtime-created values. V2 seeds the initial
 capability catalog in `backend/src/main/resources/db/migration/V2__seed_roles_capabilities.sql`.
 Later feature migrations may add codes: V5 adds
-`RECEIVE_NEXT_APPOINTMENT_ALERTS`, and V21 widens the view's branch-derived leg so every
-assigned role's non-management bundle derives BRANCH-scoped from ACTIVE assignments. The application references codes through
+`RECEIVE_NEXT_APPOINTMENT_ALERTS`, V21 widens the view's branch-derived leg so every
+assigned role's non-management bundle derives BRANCH-scoped from ACTIVE assignments, and
+V25 adds OWNER to the GLOBAL `VIEW_BRANCH_DATA` leg. The application references codes through
 `shared/src/commonMain/kotlin/com/companyb/companyapp/domain/CapabilityCodes.kt`; migration SQL
 keeps its database-owned string literals.
 
 | Code | Scope | Who holds it |
 |------|-------|--------------|
-| `VIEW_BRANCH_DATA` | BRANCH | Coordinator, Owner, Practitioner, Accountant |
+| `VIEW_BRANCH_DATA` | BRANCH / GLOBAL (SUPERUSER, OWNER, ACCOUNTANT) | Coordinator, Owner, Practitioner, Accountant |
 | `EDIT_BRANCH_DATA` | BRANCH / BRANCH_DAY | Coordinator, Owner (OPEN days only), relief users |
 | `VOID_SESSION` | BRANCH | Coordinator |
 | `SUBMIT_REMITTANCE` | BRANCH | Coordinator |
@@ -233,7 +234,7 @@ it is not a GLOBAL role-derived capability because role membership alone cannot 
 
 ### 9.4 context_type Enum Usage
 
-`MEDICAL_MISSION` and `PROVINCIAL_TOUR` values in `capability_context_type` are reserved for future differentiation only. All current capability grants use `BRANCH` with the relevant `branch.id` as `context_id`.
+`MEDICAL_MISSION` and `PROVINCIAL_TOUR` values in `capability_context_type` are reserved for future differentiation only. Current BRANCH grants use the relevant `branch.id` as `context_id`; GLOBAL grants use the nil UUID.
 
 ### 9.5 Medical Mission Delegate Hook
 
@@ -283,8 +284,8 @@ Flyway SQL files live at `backend/src/main/resources/db/migration/`. Flyway runs
 
 **Migration rules:**
 - The non-seed chain is squashed: `V1__full_schema.sql` is the canonical structural
-  baseline; `V2`/`V5` are the only seed migrations. Together they represent the
-  effective current schema — inspect V1 (not a chain) when reasoning about schema.
+  baseline; `V2`/`V5` are the seed migrations, followed by live post-baseline feature
+  migrations (`V20` onward). Inspect V1 plus those add-ons when reasoning about schema.
 - Evolve the schema by adding new versioned migrations on top of the baseline. Never
   edit committed migration files — the one sanctioned exception was the #370 squash
   itself, executed under a verified-empty-database recreate (ticket #370 records the
@@ -295,7 +296,7 @@ Flyway SQL files live at `backend/src/main/resources/db/migration/`. Flyway runs
   migration history; repair is never an automatic startup action.
 
 The migration directory is authoritative. Reason about current schema from
-`V1__full_schema.sql` plus the seed migrations in
+`V1__full_schema.sql`, seed migrations, and live post-baseline migrations in
 `backend/src/main/resources/db/migration/`.
 
 ---

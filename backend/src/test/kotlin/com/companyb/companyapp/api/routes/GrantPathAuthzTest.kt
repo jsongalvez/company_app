@@ -184,6 +184,14 @@ class GrantPathAuthzTest : BasePostgresTest() {
             ownerCaps.filter { it.capabilityCode == CapabilityCodes.MANAGE_USERS }.all { it.sourceType.name == "ROLE" },
             "derived rows must carry sourceType ROLE",
         )
+        assertTrue(
+            ownerCaps.any {
+                it.capabilityCode == CapabilityCodes.VIEW_BRANCH_DATA &&
+                    it.contextType.name == "GLOBAL" &&
+                    it.contextId == "00000000-0000-0000-0000-000000000000"
+            },
+            "OWNER must see role-derived GLOBAL VIEW_BRANCH_DATA for all-branches read",
+        )
     }
 
     @Test

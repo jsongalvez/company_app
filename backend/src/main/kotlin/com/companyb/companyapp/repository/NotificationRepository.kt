@@ -20,7 +20,7 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object NotificationRepository {
-    // #356 — storage widening moved uniqueness out of the schema (V25 dropped
+    // #356 — storage widening moved uniqueness out of the schema (pre-squash V25 dropped
     // idx_notification_unique), so the write path owns event identity instead: appointment
     // reminders stay one-per-(session,user) — a scheduler re-run or an in-batch duplicate
     // updates nothing — while null-session events (relief, #358) bypass pair identity and

@@ -19,7 +19,10 @@ import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceTable
+import com.companyb.companyapp.repository.model.RoleTable
+import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -29,8 +32,10 @@ import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.junit.ClassRule
 import java.math.BigDecimal
@@ -64,6 +69,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
     private val viewA = TestFixtures.uuid()
     private val editB = TestFixtures.uuid()
     private val globalViewUser = TestFixtures.uuid()
+    private val ownerUser = TestFixtures.uuid()
     private val noneUser = TestFixtures.uuid()
     private val branchA = TestFixtures.uuid()
     private val branchB = TestFixtures.uuid()
@@ -79,6 +85,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
             viewA to "reports-view-a",
             editB to "reports-edit-b",
             globalViewUser to "reports-global",
+            ownerUser to "reports-owner",
             noneUser to "no-caps",
         ).forEach { (id, prefix) ->
             DatabaseTestHelper.insertTestUser(id, prefix)
@@ -89,6 +96,16 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestBranch(branchA, "Reports Branch 131 A")
         trackOwned(BranchTable, BranchTable.id, branchB)
         DatabaseTestHelper.insertTestBranch(branchB, "Reports Branch 131 B")
+
+        assignRole(ownerUser, "OWNER")
+        val ownerAssignment =
+            DatabaseTestHelper.insertTestAssignment(
+                userId = ownerUser,
+                branchId = branchA,
+                slot = 1,
+                assignedBy = ownerUser,
+            )
+        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, ownerAssignment)
 
         // Branch-scoped VIEW_BRANCH_DATA at branchA only.
         DatabaseTestHelper.grantCapability(
@@ -117,6 +134,23 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         listOf(viewA, editB, globalViewUser).forEach {
             trackOwned(UserCapabilityTable, UserCapabilityTable.userId, it)
         }
+    }
+
+    private fun assignRole(
+        userId: UUID,
+        roleName: String,
+    ) {
+        val roleId =
+            transaction {
+                RoleTable.selectAll().where { RoleTable.name eq roleName }.single()[RoleTable.id]
+            }
+        transaction {
+            UserRoleTable.insert {
+                it[UserRoleTable.userId] = userId
+                it[UserRoleTable.roleId] = roleId
+            }
+        }
+        trackOwned(UserRoleTable, UserRoleTable.userId, userId)
     }
 
     companion object {
@@ -391,6 +425,17 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         }
     }
 
+    @Test
+    fun `OWNER role holder passes on unassigned branch`() {
+        branchBExportPaths.forEach { path ->
+            assertEquals(
+                404,
+                getStatus(ownerUser, path),
+                "OWNER GLOBAL VIEW_BRANCH_DATA must pass on unassigned branch for $path",
+            )
+        }
+    }
+
     // ──────────────────────────────────────────────
     // Gate: paged daily-summaries feed
     // (gate-pass = 200 empty feed, NOT 404 — a browse feed is 200 when
@@ -425,6 +470,11 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         assertEquals(200, getStatus(globalViewUser, "/api/branches/$branchB/daily-summaries"))
     }
 
+    @Test
+    fun `OWNER role holder passes on zero-grant branch daily-summaries`() {
+        assertEquals(200, getStatus(ownerUser, "/api/branches/$branchB/daily-summaries"))
+    }
+
     // ──────────────────────────────────────────────
     // GET /api/branches/accessible — the picker window
     // ──────────────────────────────────────────────
@@ -455,6 +505,13 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         assertEquals(200, status)
         assertEquals(setOf(branchA.toString(), branchB.toString()), branches.map { it.id }.toSet())
         assertEquals("Reports Branch 131 A", branches.first { it.id == branchA.toString() }.name)
+    }
+
+    @Test
+    fun `accessible branches OWNER role holder sees all branches`() {
+        val (status, branches) = accessibleBranches(ownerUser)
+        assertEquals(200, status)
+        assertEquals(setOf(branchA.toString(), branchB.toString()), branches.map { it.id }.toSet())
     }
 
     @Test

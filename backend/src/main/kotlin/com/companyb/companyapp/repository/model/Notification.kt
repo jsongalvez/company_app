@@ -11,7 +11,7 @@ import java.util.UUID
 
 // #356 — session_id is nullable: appointment reminders carry it (session access rides the
 // row, #151), while non-session events (relief, #358) have none. Uniqueness is no longer a
-// schema constraint (V25 dropped idx_notification_unique) — one person can hold many rows.
+// schema constraint (pre-squash V25 dropped idx_notification_unique) — one person can hold many rows.
 //
 // #358 — relief rows carry the event family (event_type), the causing record (source_id —
 // polymorphic: grant_relief_access or relief_invite id, no FK), and the branch day the tap

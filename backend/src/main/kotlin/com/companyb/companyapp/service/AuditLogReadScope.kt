@@ -12,8 +12,8 @@ import java.util.UUID
  * sourced from [CapabilityService.findBranchWindow]). Branchless (global)
  * tables get a declared per-table capability policy; rows on unlisted tables
  * with a NULL branch (legacy backfill rows) fall back to the
- * Owner/Accountant-only proxy: a GLOBAL `VIEW_BRANCH_DATA` grant ("read-only
- * across all branches", V2 seed for ACCOUNTANT; OWNER holds it globally in dev).
+ * global-view proxy: a GLOBAL `VIEW_BRANCH_DATA` grant ("read-only
+ * across all branches", role-derived for SUPERUSER, OWNER, and ACCOUNTANT).
  */
 object AuditLogReadScope {
     /** Branchless-table policy: DB table name -> required capability + context flavor. */
@@ -44,7 +44,7 @@ object AuditLogReadScope {
      * Branch ids in the caller's read window — distinct branches where the
      * caller holds any active grant (#98 union pattern, capability-sourced).
      * `null` = all branches: the caller holds a GLOBAL `VIEW_BRANCH_DATA` grant
-     * (the Accountant "read-only across all branches" shape; the dev Owner).
+     * (the read-only-across-all-branches shape for SUPERUSER, OWNER, or ACCOUNTANT).
      * Delegates to [BranchReadScope] — the shared all-branches window (#131).
      */
     fun windowBranchIds(callerId: UUID): List<UUID>? = BranchReadScope.windowBranchIds(callerId)
@@ -73,7 +73,7 @@ object AuditLogReadScope {
             }.keys
 
     /**
-     * NULL-branch rows on unlisted tables (legacy backfill) — Owner/Accountant
+     * NULL-branch rows on unlisted tables (legacy backfill) — global-view
      * proxy per #104 D6: a GLOBAL `VIEW_BRANCH_DATA` grant.
      */
     fun canReadNullRows(callerId: UUID): Boolean = BranchReadScope.hasGlobalView(callerId)

@@ -32,7 +32,7 @@ longer performs capability checks.
 `DELETE /api/expenses/{expenseId}`). Proves the pattern before wider rollout.
 
 **Full rollout (completed):**
-All Group B services converted from GLOBAL to BRANCH scope:
+All Group B services converted to explicit branch-aware gates; report/export reads retain the GLOBAL all-branch fallback:
 
 - **SessionRoutes** (7 of 8 filters): `POST /api/sessions`, `PATCH /api/sessions/{sessionId}/status`,
   `POST …/void`, `POST …/unvoid`, `POST …/practitioners`, `GET|POST|DELETE /api/sessions/{sessionId}/concerns`,
@@ -42,10 +42,12 @@ All Group B services converted from GLOBAL to BRANCH scope:
 - **CompensationRoutes**: `ASSIGN_COMPENSATION` on BRANCH via `requireBranchCapability` (resolves branch from `branchDayId` in body).
 - **ProductSaleRoutes**: `EDIT_BRANCH_DATA` on BRANCH via `requireBranchCapability` (resolves branch from `branchDayId` in body).
 - **AllowanceRoutes**: `ASSIGN_COMPENSATION` on BRANCH via `requireBranchCapability` (resolves branch from `branchDayId` in body).
-- **ExportRoutes** (per-branch): `VIEW_BRANCH_DATA` via `requireBranchCapabilityForBranchId`
-  for `{branchId}/export/*`; branch-type exports (`/api/branches/export/*`) stay GLOBAL.
-- **DailySalesSummaryRoutes**: `VIEW_BRANCH_DATA` on BRANCH via `requireBranchCapabilityForBranchId`.
-- **MonthlyRemittanceSummaryRoutes**: `VIEW_BRANCH_DATA` on BRANCH via `requireBranchCapabilityForBranchId`.
+- **ExportRoutes** (per-branch): `VIEW_BRANCH_DATA` via `requireBranchOrGlobalCapabilityForBranchId`
+  for `{branchId}/export/*`; branch-type exports (`/api/branches/export/*`) are JWT-only.
+- **DailySalesSummaryRoutes**: `VIEW_BRANCH_DATA` on BRANCH or GLOBAL via
+  `requireBranchOrGlobalCapabilityForBranchId`.
+- **MonthlyRemittanceSummaryRoutes**: `VIEW_BRANCH_DATA` on BRANCH or GLOBAL via
+  `requireBranchOrGlobalCapabilityForBranchId`.
 
 **Filter registration pattern:**
 
@@ -78,6 +80,7 @@ config.routes.before("/api/expenses/{expenseId}") { context ->
 - The `CapabilityFilter` utility provides a growing family of helpers:
   `requireBranchCapability` (from branchDayId), `requireBranchCapabilityForExpense`,
   `requireBranchCapabilityForRemittance`, `requireBranchCapabilityForBranchId` (from direct branch UUID),
+  `requireBranchOrGlobalCapabilityForBranchId` (branch UUID plus all-branch read window),
   `requireBranchCapabilityForSession` (from sessionId), and `requireGlobalCapability` for system-wide checks.
   (#157 replaced the expense filters' `requireBranchCapabilityForExpense` with the day-scoped
   `requireBranchOrBranchDayCapability` family — see the amendment below; the branch-only variant

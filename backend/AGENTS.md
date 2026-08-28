@@ -16,11 +16,11 @@ Before coding, read the relevant doc(s):
 
 ## Schema
 
-`V1__full_schema.sql` (squashed structural baseline, #370) plus the seed migrations
-(`V2__seed_roles_capabilities.sql`, `V5__add_next_appointment_alerts_capability.sql`)
-in `backend/src/main/resources/db/migration/` are the authoritative current schema —
-one structural baseline, no incremental chain to replay mentally. Evolve by adding
-new versioned migrations on top.
+`V1__full_schema.sql` (squashed structural baseline, #370), the seed migrations
+(`V2__seed_roles_capabilities.sql`, `V5__add_next_appointment_alerts_capability.sql`),
+and post-baseline feature migrations in `backend/src/main/resources/db/migration/`
+(`V20` onward) are the authoritative current schema. Inspect V1 plus the live add-ons
+when reasoning about schema; evolve by adding new versioned migrations on top.
 
 Package root: `com.companyb.companyapp`. Layers: `api/routes`, `api/middleware`, `service`, `repository`
 (+ `repository/model` for Exposed `Table` objects), `auth`, `database`, `logging`.
@@ -171,11 +171,13 @@ val existing = Table.selectAll().where {
 All operational permission checks MUST go through
 `CapabilityService.hasCapability(userId, capabilityCode, contextType, contextId)`, which queries the
 `active_user_capabilities` SQL view (baseline definition in `V1__full_schema.sql`; V21 widens its
-branch-derived leg — see the migration-chain rule above). **Never check roles directly
-in business logic** — roles only seed capabilities in the V2 migration. The view already excludes
+branch-derived leg and V25 adds OWNER's GLOBAL read leg — see the migration-chain rule above).
+**Never check roles directly in business logic** — roles seed capabilities in the V2/V5 migrations.
+The view already excludes
 INACTIVE users and out-of-window grants.
 
-GLOBAL-scoped capabilities (`MANAGE_USERS`, `ASSIGN_DELEGATE`) have no specific branch/day; pass
+GLOBAL-scoped capabilities (`MANAGE_USERS`, `ASSIGN_DELEGATE`, GLOBAL `VIEW_BRANCH_DATA`, and
+GLOBAL `ASSIGN_COMPENSATION`) have no specific branch/day; pass
 `CapabilityContextType.GLOBAL` with `contextId = CapabilityService.GLOBAL_CONTEXT_ID` (the nil
 all-zero UUID).
 

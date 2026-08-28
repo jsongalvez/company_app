@@ -205,7 +205,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
         assertTrue(NotificationService.listUnread(callerId).isEmpty())
     }
 
-    // #356 — storage widened (V25 dropped idx_notification_unique): a repeat event inserts a
+    // #356 — storage widened (pre-squash V25 dropped idx_notification_unique): a repeat event inserts a
     // new row rather than vanishing, and history lists read + unread indefinitely.
     @Test
     fun `repeat event inserts a new row rather than vanishing`() {

@@ -219,7 +219,7 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `OWNER assignment derives home-branch operational codes while keeping GLOBAL management`() {
+    fun `OWNER assignment derives home-branch operational codes and GLOBAL read`() {
         assertTrue(hasBranch(ownerUser, CapabilityCodes.VIEW_BRANCH_DATA))
         assertTrue(hasBranch(ownerUser, CapabilityCodes.EDIT_BRANCH_DATA))
         assertTrue(hasBranch(ownerUser, CapabilityCodes.ASSIGN_COMPENSATION))
@@ -236,14 +236,14 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
             ),
             "GLOBAL management derivation must be unchanged",
         )
-        assertFalse(
+        assertTrue(
             CapabilityService.hasCapability(
                 ownerUser,
                 CapabilityCodes.VIEW_BRANCH_DATA,
                 CapabilityContextType.GLOBAL,
                 CapabilityService.GLOBAL_CONTEXT_ID,
             ),
-            "OWNER still must not derive GLOBAL VIEW_BRANCH_DATA",
+            "OWNER must derive GLOBAL VIEW_BRANCH_DATA for all-branches read",
         )
     }
 

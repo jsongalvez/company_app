@@ -131,21 +131,21 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
     // ── Role-derived GLOBAL grants ─────────────────────────────────────────
 
     @Test
-    fun `OWNER role derives the management GLOBAL bundle`() {
+    fun `OWNER role derives the management GLOBAL bundle plus all-branches read`() {
         assertTrue(has(ownerUser, CapabilityCodes.MANAGE_USERS), "OWNER should derive MANAGE_USERS GLOBAL")
         assertTrue(has(ownerUser, CapabilityCodes.ASSIGN_DELEGATE), "OWNER should derive ASSIGN_DELEGATE GLOBAL")
         assertTrue(
             has(ownerUser, CapabilityCodes.ASSIGN_COMPENSATION),
             "OWNER should derive ASSIGN_COMPENSATION GLOBAL",
         )
+        assertTrue(
+            has(ownerUser, CapabilityCodes.VIEW_BRANCH_DATA),
+            "OWNER should derive GLOBAL VIEW_BRANCH_DATA for all-branches read",
+        )
     }
 
     @Test
-    fun `OWNER role does not derive branch-scoped or all-branches read grants`() {
-        assertFalse(
-            has(ownerUser, CapabilityCodes.VIEW_BRANCH_DATA),
-            "OWNER must not derive GLOBAL VIEW_BRANCH_DATA (branch-scoped staff)",
-        )
+    fun `OWNER role does not derive global write grants`() {
         assertFalse(has(ownerUser, CapabilityCodes.EDIT_BRANCH_DATA), "OWNER must not derive GLOBAL EDIT_BRANCH_DATA")
         assertFalse(has(ownerUser, CapabilityCodes.MANAGE_PRODUCTS), "OWNER must not derive GLOBAL MANAGE_PRODUCTS")
         assertFalse(has(ownerUser, CapabilityCodes.SUBMIT_REMITTANCE), "OWNER must not derive GLOBAL SUBMIT_REMITTANCE")
@@ -192,6 +192,7 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
             "INACTIVE users must be excluded from derived rows",
         )
         assertFalse(has(inactiveOwnerUser, CapabilityCodes.ASSIGN_DELEGATE))
+        assertFalse(has(inactiveOwnerUser, CapabilityCodes.VIEW_BRANCH_DATA))
         assertTrue(
             CapabilityService.getCapabilitiesForUser(inactiveOwnerUser).isEmpty(),
             "INACTIVE user must have zero capabilities",
@@ -239,13 +240,22 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
     fun `derived rows are reported with ROLE source and GLOBAL context`() {
         val caps = CapabilityService.getCapabilitiesForUser(ownerUser)
         val derived = caps.filter { it.sourceType == com.companyb.companyapp.domain.CapabilitySourceType.ROLE }
-        assertEquals(3, derived.size, "OWNER derives exactly MANAGE_USERS + ASSIGN_DELEGATE + ASSIGN_COMPENSATION")
+        assertEquals(
+            4,
+            derived.size,
+            "OWNER derives management GLOBAL capabilities plus all-branches VIEW_BRANCH_DATA",
+        )
         derived.forEach {
             assertEquals(com.companyb.companyapp.domain.CapabilityContextType.GLOBAL, it.contextType)
             assertEquals(CapabilityService.GLOBAL_CONTEXT_ID.toString(), it.contextId)
         }
         assertEquals(
-            setOf(CapabilityCodes.MANAGE_USERS, CapabilityCodes.ASSIGN_DELEGATE, CapabilityCodes.ASSIGN_COMPENSATION),
+            setOf(
+                CapabilityCodes.MANAGE_USERS,
+                CapabilityCodes.ASSIGN_DELEGATE,
+                CapabilityCodes.ASSIGN_COMPENSATION,
+                CapabilityCodes.VIEW_BRANCH_DATA,
+            ),
             derived.map { it.capabilityCode }.toSet(),
         )
     }
@@ -253,6 +263,7 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
     @Test
     fun `any-context and branch-window helpers respect the union`() {
         assertTrue(CapabilityService.hasCapabilityAnyContext(ownerUser, CapabilityCodes.MANAGE_USERS))
+        assertTrue(CapabilityService.hasCapabilityAnyContext(ownerUser, CapabilityCodes.VIEW_BRANCH_DATA))
         assertTrue(CapabilityService.hasCapabilityAnyContext(accountantUser, CapabilityCodes.VIEW_BRANCH_DATA))
         assertFalse(CapabilityService.hasCapabilityAnyContext(noRoleUser, CapabilityCodes.VIEW_BRANCH_DATA))
         assertTrue(
