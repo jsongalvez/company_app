@@ -100,7 +100,7 @@ fun ClientDetailScreen(
 
     LaunchedEffect(Unit) {
         logInfo("ClientDetailScreen", "composable entered: clientId=$clientId")
-        viewModel.loadClient(clientId)
+        viewModel.loadClient(clientId, publishMutation = true)
     }
 
     // D1 — 204 → pop back to search; the confirmation snackbar is shown by ClientsScreen
@@ -159,7 +159,7 @@ fun ClientDetailScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
-                            TextButton(onClick = { viewModel.loadClient(clientId) }) {
+                            TextButton(onClick = { viewModel.loadClient(clientId, publishMutation = true) }) {
                                 Text("Retry")
                             }
                         }
@@ -180,6 +180,7 @@ fun ClientDetailScreen(
                     client = state.data,
                     updateState = updateState,
                     anonymizeState = anonymizeState,
+                    navigationLocked = navigationLocked,
                     viewModel = viewModel,
                 )
             }
@@ -192,6 +193,7 @@ private fun ClientDetailContent(
     client: ClientResponse,
     updateState: UiState<ClientResponse>,
     anonymizeState: UiState<Unit>,
+    navigationLocked: Boolean,
     viewModel: ClientViewModel,
 ) {
     // D10 — null name pair is the only in-band anonymized signal (F3): render the husk, no edit
@@ -319,6 +321,7 @@ private fun ClientDetailContent(
     // silently dropped, and the error write is not instantly wiped).
     fun commitEdit(field: ClientField): Boolean {
         if (editingField != field) return true
+        if (navigationLocked) return true
         if (updateState is UiState.Loading) return true
         if (anonymizeState is UiState.Loading) return true
         // 409/404 reload guard: the reload's own PATCH already failed and the detail is being
@@ -347,6 +350,7 @@ private fun ClientDetailContent(
     // Returns false on invalid drafts (see [commitEdit]).
     fun commitBpDrafts(): Boolean {
         if (editingField != ClientField.BP_PAIR) return true
+        if (navigationLocked) return true
         if (updateState is UiState.Loading) return true
         if (anonymizeState is UiState.Loading) return true
         if (shouldBailOnReload(viewModel.clientDetail.value)) return true
@@ -383,6 +387,7 @@ private fun ClientDetailContent(
     }
 
     fun startEdit(field: ClientField) {
+        if (navigationLocked) return
         if (updateState is UiState.Loading) return
         if (anonymizeState is UiState.Loading) return
         if (editingField != null && editingField != field) {
@@ -449,6 +454,7 @@ private fun ClientDetailContent(
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
+                        enabled = !navigationLocked,
                     )
                     ClientFieldEditor(
                         label = "Middle name",
@@ -461,6 +467,7 @@ private fun ClientDetailContent(
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
+                        enabled = !navigationLocked,
                     )
                     ClientFieldEditor(
                         label = "Last name",
@@ -473,6 +480,7 @@ private fun ClientDetailContent(
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
+                        enabled = !navigationLocked,
                     )
                     ClientFieldEditor(
                         label = "Suffix",
@@ -485,6 +493,7 @@ private fun ClientDetailContent(
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
+                        enabled = !navigationLocked,
                     )
                     GenderFieldEditor(
                         value = client.gender.displayName(),
@@ -495,6 +504,7 @@ private fun ClientDetailContent(
                         onDraftChange = ::handleDraftChange,
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
+                        enabled = !navigationLocked,
                     )
                     ClientFieldEditor(
                         label = "Age",
@@ -507,6 +517,7 @@ private fun ClientDetailContent(
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
+                        enabled = !navigationLocked,
                         keyboardType = KeyboardType.Number,
                     )
                 },
@@ -524,6 +535,7 @@ private fun ClientDetailContent(
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
+                        enabled = !navigationLocked,
                         keyboardType = KeyboardType.Phone,
                     )
                     ClientFieldEditor(
@@ -537,6 +549,7 @@ private fun ClientDetailContent(
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
+                        enabled = !navigationLocked,
                     )
                     // D4 BP pair rule — both fields or neither (backend 400s otherwise): the pair
                     // is one editor, committed together, so a null-BP client can gain BP values.
@@ -550,6 +563,7 @@ private fun ClientDetailContent(
                         onCommit = ::commitBpDrafts,
                         onCancel = ::exitEdit,
                         onDraftChanged = { fieldError = null },
+                        enabled = !navigationLocked,
                     )
                     ClientFieldEditor(
                         label = "Medical conditions",
@@ -562,6 +576,7 @@ private fun ClientDetailContent(
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
+                        enabled = !navigationLocked,
                     )
                 },
                 actions = {
@@ -570,7 +585,7 @@ private fun ClientDetailContent(
                     // second destructive request (a redundant 404 after the first 204).
                     OutlinedButton(
                         onClick = { showAnonymizeDialog = true },
-                        enabled = anonymizeState !is UiState.Loading,
+                        enabled = !navigationLocked && anonymizeState !is UiState.Loading,
                         colors =
                             ButtonDefaults.outlinedButtonColors(
                                 contentColor = MaterialTheme.colorScheme.error,
@@ -604,7 +619,7 @@ private fun ClientDetailContent(
             // anonymize POST (a slow PATCH could land after the anonymize and re-populate PII on
             // the soft-deleted row). Confirm stays disabled until the blur-committed PATCH
             // resolves.
-            editInFlight = updateState is UiState.Loading,
+            editInFlight = navigationLocked || updateState is UiState.Loading,
             onConfirm = {
                 showAnonymizeDialog = false
                 viewModel.anonymizeClient(client.id)
@@ -775,6 +790,7 @@ private fun ClientFieldEditor(
     onStartEdit: (ClientField) -> Unit,
     onCommit: (ClientField) -> Unit,
     onCancel: () -> Unit,
+    enabled: Boolean,
     keyboardType: KeyboardType = KeyboardType.Text,
 ) {
     val editing = editingField == field
@@ -801,6 +817,7 @@ private fun ClientFieldEditor(
                     onValueChange = onDraftChange,
                     singleLine = true,
                     isError = error != null,
+                    enabled = enabled,
                     keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { onCommit(field) }),
                     modifier =
@@ -826,7 +843,7 @@ private fun ClientFieldEditor(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier =
                         Modifier
-                            .clickable { onStartEdit(field) }
+                            .clickable(enabled = enabled) { onStartEdit(field) }
                             .padding(start = Spacing.xs),
                 )
             }
@@ -884,6 +901,7 @@ private fun BpPairEditor(
     onCommit: () -> Unit,
     onCancel: () -> Unit,
     onDraftChanged: () -> Unit,
+    enabled: Boolean,
 ) {
     // Re-seed drafts each time edit mode is entered. No value-change key needed: any reload
     // (409/404 reload, entry re-fetch) writes UiState.Loading into the detail flow, which
@@ -933,6 +951,7 @@ private fun BpPairEditor(
                     },
                     singleLine = true,
                     isError = fieldError != null,
+                    enabled = enabled,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { onCommit() }),
                     modifier = Modifier.weight(1f),
@@ -951,6 +970,7 @@ private fun BpPairEditor(
                     },
                     singleLine = true,
                     isError = fieldError != null,
+                    enabled = enabled,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { onCommit() }),
                     modifier = Modifier.weight(1f),
@@ -983,7 +1003,7 @@ private fun BpPairEditor(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier =
                         Modifier
-                            .clickable(onClick = onStartEdit)
+                            .clickable(enabled = enabled, onClick = onStartEdit)
                             .padding(start = Spacing.xs),
                 )
             }
@@ -1009,6 +1029,7 @@ private fun GenderFieldEditor(
     onDraftChange: (String) -> Unit,
     onStartEdit: (ClientField) -> Unit,
     onCommit: (ClientField) -> Unit,
+    enabled: Boolean,
 ) {
     val editing = editingField == field
     val error = if (editing) fieldError else null
@@ -1036,7 +1057,8 @@ private fun GenderFieldEditor(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .clickable { menuOpen = true },
+                            .clickable(enabled = enabled) { menuOpen = true },
+                    enabled = enabled,
                 )
                 DropdownMenu(
                     expanded = menuOpen,
@@ -1044,6 +1066,7 @@ private fun GenderFieldEditor(
                 ) {
                     DropdownMenuItem(
                         text = { Text(Gender.M.displayName()) },
+                        enabled = enabled,
                         onClick = {
                             menuOpen = false
                             onDraftChange(Gender.M.name)
@@ -1052,6 +1075,7 @@ private fun GenderFieldEditor(
                     )
                     DropdownMenuItem(
                         text = { Text(Gender.F.displayName()) },
+                        enabled = enabled,
                         onClick = {
                             menuOpen = false
                             onDraftChange(Gender.F.name)
@@ -1074,7 +1098,7 @@ private fun GenderFieldEditor(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier =
                         Modifier
-                            .clickable { onStartEdit(field) }
+                            .clickable(enabled = enabled) { onStartEdit(field) }
                             .padding(start = Spacing.xs),
                 )
             }

@@ -19,9 +19,10 @@ import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
-import io.ktor.http.isSuccess
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -225,7 +226,7 @@ class SessionCreateViewModel(
 
     // Concern selection + add-posting live in [ConcernPoster]; the flows surface as properties
     // (the detekt function budget — #348's VM grew past the class threshold).
-    private val concernPoster = ConcernPoster(apiClient)
+    private val concernPoster = ConcernPoster(apiClient, viewModelScope)
     val selectedConcernIds: StateFlow<Set<String>> = concernPoster.selectedIds
 
     val toggleConcern: (String) -> Unit = { concernId ->
@@ -277,10 +278,15 @@ class SessionCreateViewModel(
 
     /**
      * Concern ids whose POST failed after the session itself was created. The session EXISTS at
-     * that point — navigation proceeds and the detail screen shows server truth; failures are
-     * surfaced inline rather than pretending the whole submit failed.
+     * that point — the entry keeps the user present and offers retry or explicit continuation
+     * rather than pretending the whole submit failed.
      */
     val concernAddFailures: StateFlow<Int> = concernPoster.failures.asStateFlow()
+
+    private val _concernRetryState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val concernRetryState: StateFlow<UiState<Unit>> = _concernRetryState.asStateFlow()
+    private var createdSessionId: String? = null
+    private var concernRetryJob: Job? = null
 
     fun createSession(
         finalPrice: String,
@@ -293,6 +299,8 @@ class SessionCreateViewModel(
         if (isSubmissionLocked()) return
         val requestedPractitionerId = _selectedPractitioner.value?.id
         val concernIds = concernPoster.selectedIds.value.toSet()
+        createdSessionId = null
+        _concernRetryState.value = UiState.Idle
         _createResult.value = UiState.Loading
         handler.launch(
             state = _createResult,
@@ -318,6 +326,7 @@ class SessionCreateViewModel(
             },
             transform = { response ->
                 val session = response.body<SessionResponse>()
+                createdSessionId = session.id
                 concernPoster.postSelected(session.id, concernIds)
                 session
             },
@@ -330,6 +339,38 @@ class SessionCreateViewModel(
                 true
             },
         )
+    }
+
+    fun retryConcernAdds() {
+        val sessionId = createdSessionId ?: return
+        if (_createResult.value !is UiState.Success ||
+            concernPoster.failedIds.value.isEmpty() ||
+            _concernRetryState.value is UiState.Loading
+        ) {
+            return
+        }
+        _concernRetryState.value = UiState.Loading
+        concernRetryJob?.cancel()
+        concernRetryJob =
+            viewModelScope
+                .launch {
+                    concernPoster.retryFailed(sessionId)
+                    _concernRetryState.value =
+                        if (concernPoster.failedIds.value.isEmpty()) {
+                            UiState.Success(Unit)
+                        } else {
+                            UiState.Error(
+                                "Could not add ${concernPoster.failedIds.value.size} concern(s). " +
+                                    "Try again or continue without them.",
+                            )
+                        }
+                }.also { job ->
+                    job.invokeOnCompletion { cause ->
+                        if (cause is CancellationException && _concernRetryState.value is UiState.Loading) {
+                            _concernRetryState.value = UiState.Idle
+                        }
+                    }
+                }
     }
 
     private fun isSubmissionLocked(): Boolean =
@@ -494,13 +535,16 @@ private class ClientSearcher(
 
 /**
  * Owns the concern multi-select (#348): the picked ids and the posts onto the created session.
- * Failures only count — the session itself exists by then, so navigation proceeds and the
- * screen surfaces [failures] inline.
+ * Failed ids are retained — the session exists by then, so the screen can retry or explicitly
+ * continue without failed links.
  */
 private class ConcernPoster(
     private val apiClient: ApiClient,
+    scope: CoroutineScope,
 ) {
+    private val handler = ApiCallHandler(scope, "SessionCreateVM")
     val failures = MutableStateFlow(0)
+    val failedIds = MutableStateFlow<Set<String>>(emptySet())
 
     private val _selectedIds = MutableStateFlow<Set<String>>(emptySet())
     val selectedIds: StateFlow<Set<String>> = _selectedIds.asStateFlow()
@@ -514,20 +558,38 @@ private class ConcernPoster(
     suspend fun postSelected(
         sessionId: String,
         ids: Set<String>,
+    ) = coroutineScope { post(sessionId, ids, this) }
+
+    suspend fun retryFailed(sessionId: String) = coroutineScope { post(sessionId, failedIds.value, this) }
+
+    private suspend fun post(
+        sessionId: String,
+        ids: Set<String>,
+        requestScope: CoroutineScope,
     ) {
-        if (ids.isEmpty()) return
-        var failed = 0
+        val failed = mutableSetOf<String>()
         ids.forEach { concernId ->
-            runCatching {
-                val response =
-                    apiClient.httpClient.post(ApiRoutes.sessionConcerns(sessionId)) {
-                        setBody(AddSessionConcernRequest(concernId = concernId))
-                    }
-                if (!response.status.isSuccess()) failed++
-            }.onFailure {
-                failed++
-            }
+            var requestFailed = false
+            val requestJob =
+                handler
+                    .launchStateless(
+                        scope = requestScope,
+                        operation = "addConcern",
+                        endpoint = "POST /api/sessions/$sessionId/concerns",
+                        block = {
+                            apiClient.httpClient.post(ApiRoutes.sessionConcerns(sessionId)) {
+                                setBody(AddSessionConcernRequest(concernId = concernId))
+                            }
+                        },
+                        transform = {},
+                        onNonSuccess = { requestFailed = true },
+                        onError = { requestFailed = true },
+                    )
+            requestJob.join()
+            if (requestJob.isCancelled) requestFailed = true
+            if (requestFailed) failed += concernId
         }
-        failures.value = failed
+        failedIds.value = failed.toSet()
+        failures.value = failed.size
     }
 }

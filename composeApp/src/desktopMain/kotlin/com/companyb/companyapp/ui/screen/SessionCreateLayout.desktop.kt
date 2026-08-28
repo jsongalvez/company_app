@@ -126,6 +126,7 @@ private fun SessionWorkspacePane(
                     draft = args.draft,
                     isSubmissionLocked = args.isSubmissionLocked,
                     onSubmissionStarted = args.onSubmissionStarted,
+                    onContinueAfterConcernFailure = args.onContinueAfterConcernFailure,
                 )
             }
         }

@@ -63,8 +63,8 @@ import kotlin.time.Clock
  * search comes up empty. Client chosen: the server-previewed session type + defaulted base
  * price (never replicated client-side), concern multi-select, optional other-concerns and
  * remarks, and the walk-in submit. Success navigates to the new session's detail via
- * [onSessionCreated] — concern-add failures do NOT block navigation (the detail shows server
- * truth); they are logged here.
+ * [onSessionCreated]. If concern adds fail, the entry stays open until retry succeeds or the
+ * practitioner explicitly continues without the failed links.
  */
 @Composable
 @Suppress("LongParameterList")
@@ -89,12 +89,19 @@ fun SessionCreateScreen(
     val createState by clientViewModel.createClientResult.collectAsState()
 
     var showCreateDialog by remember { mutableStateOf(false) }
+    var sessionNavigationStarted by remember { mutableStateOf(false) }
+    val navigateToCreatedSession: (String) -> Unit = { sessionId ->
+        if (!sessionNavigationStarted) {
+            sessionNavigationStarted = true
+            onSessionCreated(sessionId)
+        }
+    }
     SessionCreateEffects(
         viewModel = viewModel,
         clientViewModel = clientViewModel,
         createState = createState,
         onClientCreated = { showCreateDialog = false },
-        onSessionCreated = onSessionCreated,
+        onSessionCreated = navigateToCreatedSession,
     )
 
     Column(
@@ -104,19 +111,7 @@ fun SessionCreateScreen(
                 .padding(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        TextButton(
-            onClick = onBack,
-            enabled = createResult !is UiState.Loading && createResult !is UiState.Success,
-        ) {
-            Text("‹ Back")
-        }
-        if (branchName != null) {
-            Text(
-                text = branchName,
-                style = MaterialTheme.typography.bodySmall,
-                color = InkSubtle,
-            )
-        }
+        SessionCreateHeader(branchName, isSubmissionLocked, onBack)
 
         SessionCreateBodyLayout(
             args =
@@ -130,6 +125,9 @@ fun SessionCreateScreen(
                     isSubmissionLocked = isSubmissionLocked,
                     onClientProfileClick = onClientProfileClick,
                     onSubmissionStarted = { onSubmissionLockChanged(true) },
+                    onContinueAfterConcernFailure = {
+                        (createResult as? UiState.Success)?.data?.id?.let(navigateToCreatedSession)
+                    },
                 ),
             onCreateNewClick = { showCreateDialog = true },
             modifier = Modifier.fillMaxWidth().weight(1f),
@@ -138,6 +136,24 @@ fun SessionCreateScreen(
 
     CreateClientDialogHost(showCreateDialog, createState, clientViewModel::createClient) {
         showCreateDialog = false
+    }
+}
+
+@Composable
+private fun SessionCreateHeader(
+    branchName: String?,
+    isSubmissionLocked: Boolean,
+    onBack: () -> Unit,
+) {
+    TextButton(onClick = onBack, enabled = !isSubmissionLocked) {
+        Text("‹ Back")
+    }
+    branchName?.let {
+        Text(
+            text = it,
+            style = MaterialTheme.typography.bodySmall,
+            color = InkSubtle,
+        )
     }
 }
 
@@ -183,6 +199,9 @@ internal fun SessionCreateEffects(
     onClientCreated: () -> Unit,
     onSessionCreated: (String) -> Unit,
 ) {
+    val createResult by viewModel.createResult.collectAsState()
+    val concernAddFailures by viewModel.concernAddFailures.collectAsState()
+
     LaunchedEffect(Unit) {
         logInfo("SessionCreateScreen", "composable entered (first composition)")
         // Retry-loop lesson: Idle-only load fires once per entry; Error gets a manual retry.
@@ -213,9 +232,7 @@ internal fun SessionCreateEffects(
     val previewData = (viewModel.preview.collectAsState().value as? UiState.Success)?.data
     LaunchedEffect(previewData) { viewModel.applyPreviewPrice(previewData) }
 
-    val createResult by viewModel.createResult.collectAsState()
-    val concernAddFailures by viewModel.concernAddFailures.collectAsState()
-    LaunchedEffect(createResult) {
+    LaunchedEffect(createResult, concernAddFailures) {
         when (val state = createResult) {
             is UiState.Success -> {
                 if (concernAddFailures > 0) {
@@ -223,8 +240,9 @@ internal fun SessionCreateEffects(
                         "SessionCreateScreen",
                         "session ${state.data.id} created; $concernAddFailures concern add(s) failed",
                     )
+                } else {
+                    onSessionCreated(state.data.id)
                 }
-                onSessionCreated(state.data.id)
             }
 
             is UiState.Error -> {
@@ -254,7 +272,13 @@ internal fun SessionFormSection(args: SessionCreateBodyArgs) {
         }
     }
 
-    SessionFormFields(args.viewModel, args.draft, args.isSubmissionLocked, args.onSubmissionStarted)
+    SessionFormFields(
+        viewModel = args.viewModel,
+        draft = args.draft,
+        isSubmissionLocked = args.isSubmissionLocked,
+        onSubmissionStarted = args.onSubmissionStarted,
+        onContinueAfterConcernFailure = args.onContinueAfterConcernFailure,
+    )
 }
 
 /** Shared form controls used by mobile and desktop layouts. */
@@ -264,6 +288,7 @@ internal fun SessionFormFields(
     draft: SessionCreateDraft,
     isSubmissionLocked: Boolean,
     onSubmissionStarted: () -> Unit,
+    onContinueAfterConcernFailure: () -> Unit,
 ) {
     val preview by viewModel.preview.collectAsState()
     val controlsEnabled = !isSubmissionLocked
@@ -325,7 +350,7 @@ internal fun SessionFormFields(
         modifier = Modifier.fillMaxWidth(),
     )
 
-    SubmitArea(viewModel, draft, onSubmissionStarted)
+    SubmitArea(viewModel, draft, onSubmissionStarted, onContinueAfterConcernFailure)
 }
 
 @Composable
@@ -541,9 +566,12 @@ private fun SubmitArea(
     viewModel: SessionCreateViewModel,
     draft: SessionCreateDraft,
     onSubmissionStarted: () -> Unit,
+    onContinueAfterConcernFailure: () -> Unit,
 ) {
     val preview by viewModel.preview.collectAsState()
     val createResult by viewModel.createResult.collectAsState()
+    val concernAddFailures by viewModel.concernAddFailures.collectAsState()
+    val concernRetryState by viewModel.concernRetryState.collectAsState()
 
     val priceValue = draft.finalPrice.trim().toDoubleOrNull()
     // #423 — a booked draft with an unparseable date shapes to null: submit disabled.
@@ -567,6 +595,44 @@ private fun SubmitArea(
         Text(if (createResult is UiState.Loading) "Starting…" else "Start session")
     }
     (createResult as? UiState.Error)?.let { state ->
+        Text(
+            text = state.message,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+    if (concernAddFailures > 0) {
+        ConcernAddFailureActions(
+            failureCount = concernAddFailures,
+            retryState = concernRetryState,
+            onRetry = viewModel::retryConcernAdds,
+            onContinue = onContinueAfterConcernFailure,
+        )
+    }
+}
+
+@Composable
+private fun ConcernAddFailureActions(
+    failureCount: Int,
+    retryState: UiState<Unit>,
+    onRetry: () -> Unit,
+    onContinue: () -> Unit,
+) {
+    Text(
+        text = "Session created, but $failureCount concern(s) could not be recorded.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+    )
+    val retryEnabled = retryState !is UiState.Loading
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = onRetry, enabled = retryEnabled) {
+            Text(if (retryState is UiState.Loading) "Retrying…" else "Retry concerns")
+        }
+        TextButton(onClick = onContinue, enabled = retryEnabled) {
+            Text("Continue without concerns")
+        }
+    }
+    (retryState as? UiState.Error)?.let { state ->
         Text(
             text = state.message,
             style = MaterialTheme.typography.bodySmall,

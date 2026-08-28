@@ -24,6 +24,7 @@ internal data class SessionCreateBodyArgs(
     val isSubmissionLocked: Boolean,
     val onClientProfileClick: (String) -> Unit,
     val onSubmissionStarted: () -> Unit,
+    val onContinueAfterConcernFailure: () -> Unit,
 )
 
 /** Only the client-picker/form arrangement diverges between mobile and desktop. */

@@ -7,6 +7,7 @@ import com.companyb.companyapp.dto.CreateClientRequest
 import com.companyb.companyapp.dto.UpdateClientRequest
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.ClientMutation
+import com.companyb.companyapp.state.ClientMutationLease
 import com.companyb.companyapp.state.ClientState
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -150,7 +151,7 @@ class ClientViewModel(
     fun loadClient(
         clientId: String,
         resetNotice: Boolean = true,
-        clearMutationLockOnLanding: Boolean = false,
+        mutationLease: ClientMutationLease? = null,
         publishMutation: Boolean = false,
     ) {
         // Reset the changed-elsewhere notice on entry loads; the 409 conflict-reload passes
@@ -158,41 +159,53 @@ class ClientViewModel(
         if (resetNotice) {
             _detailChangedNotice.value = false
         }
+        val snapshotLease = if (publishMutation) ClientState.beginClientSnapshot(clientId) else null
         // Tracked so a PATCH commit can cancel an in-flight reload (see updateClient): the detail
         // flow has two writers, and a stale GET landing after a fresher PATCH commit would
         // revert the display to pre-edit data.
         detailJob?.cancel()
         _clientDetail.value = UiState.Loading
         detailJob =
-            handler.launch(
-                state = _clientDetail,
-                operation = "loadClient",
-                endpoint = "GET /api/clients/$clientId",
-                entryMessage = "loadClient called: clientId=$clientId",
-                block = { apiClient.httpClient.get(ApiRoutes.client(clientId)) },
-                transform = {
-                    val client = it.body<ClientResponse>()
-                    if (publishMutation) {
-                        ClientState.setClientMutation(
-                            clientId,
-                            client.takeIf { it.firstName != null && it.lastName != null },
-                        )
+            handler
+                .launch(
+                    state = _clientDetail,
+                    operation = "loadClient",
+                    endpoint = "GET /api/clients/$clientId",
+                    entryMessage = "loadClient called: clientId=$clientId",
+                    block = { apiClient.httpClient.get(ApiRoutes.client(clientId)) },
+                    transform = {
+                        val client = it.body<ClientResponse>()
+                        if (publishMutation) {
+                            val snapshot = client.takeIf { it.firstName != null && it.lastName != null }
+                            if (mutationLease != null) {
+                                ClientState.publishClientMutation(mutationLease, clientId, snapshot)
+                            } else {
+                                snapshotLease?.let { ClientState.publishClientSnapshot(it, snapshot) }
+                            }
+                        }
+                        mutationLease?.let(ClientState::finishClientMutation)
+                        client
+                    },
+                    onNonSuccess = {
+                        mutationLease?.let(ClientState::finishClientMutation)
+                        false
+                    },
+                    onError = {
+                        mutationLease?.let(ClientState::finishClientMutation)
+                    },
+                ).also { job ->
+                    job.invokeOnCompletion { cause ->
+                        if (cause is CancellationException) mutationLease?.let(ClientState::finishClientMutation)
                     }
-                    if (clearMutationLockOnLanding) ClientState.setClientMutationInFlight(false)
-                    client
-                },
-                onNonSuccess = {
-                    if (clearMutationLockOnLanding) ClientState.setClientMutationInFlight(false)
-                    false
-                },
-                onError = {
-                    if (clearMutationLockOnLanding) ClientState.setClientMutationInFlight(false)
-                },
-            )
+                }
     }
 
     fun applyClientMutation(mutation: ClientMutation) {
         if (lastAppliedMutation == mutation) return
+        if (!mutation.refreshSearch) {
+            lastAppliedMutation = mutation
+            return
+        }
         if (latestQuery.trim().length >= MIN_SEARCH_CHARS) {
             if (mutation.client == null) {
                 keptResults.mutateRemoved { it.id == mutation.clientId }
@@ -215,8 +228,8 @@ class ClientViewModel(
         request: UpdateClientRequest,
     ) {
         if (_updateClientState.value is UiState.Loading) return
+        val mutationLease = ClientState.tryStartClientMutation() ?: return
         _updateClientState.value = UiState.Loading
-        ClientState.setClientMutationInFlight(true)
         handler
             .launch(
                 state = _updateClientState,
@@ -237,8 +250,8 @@ class ClientViewModel(
                     detailJob?.cancel()
                     _detailChangedNotice.value = false
                     val updated = response.body<ClientResponse>()
-                    ClientState.setClientMutation(clientId, updated)
-                    ClientState.setClientMutationInFlight(false)
+                    ClientState.publishClientMutation(mutationLease, clientId, updated)
+                    ClientState.finishClientMutation(mutationLease)
                     _clientDetail.value = UiState.Success(updated)
                     updated
                 },
@@ -253,7 +266,7 @@ class ClientViewModel(
                 onNonSuccess = { response ->
                     when (response.status) {
                         HttpStatusCode.Forbidden -> {
-                            ClientState.setClientMutationInFlight(false)
+                            ClientState.finishClientMutation(mutationLease)
                             _updateClientState.value = UiState.Idle
                             true
                         }
@@ -266,30 +279,30 @@ class ClientViewModel(
                             loadClient(
                                 clientId,
                                 resetNotice = false,
-                                clearMutationLockOnLanding = true,
+                                mutationLease = mutationLease,
                                 publishMutation = true,
                             )
                             true
                         }
 
                         else -> {
-                            ClientState.setClientMutationInFlight(false)
+                            ClientState.finishClientMutation(mutationLease)
                             false
                         }
                     }
                 },
-                onError = { ClientState.setClientMutationInFlight(false) },
+                onError = { ClientState.finishClientMutation(mutationLease) },
             ).also { job ->
                 job.invokeOnCompletion { cause ->
-                    if (cause is CancellationException) ClientState.setClientMutationInFlight(false)
+                    if (cause is CancellationException) ClientState.finishClientMutation(mutationLease)
                 }
             }
     }
 
     fun anonymizeClient(clientId: String) {
         if (_anonymizeState.value is UiState.Loading) return
+        val mutationLease = ClientState.tryStartClientMutation() ?: return
         _anonymizeState.value = UiState.Loading
-        ClientState.setClientMutationInFlight(true)
         handler
             .launch(
                 state = _anonymizeState,
@@ -301,19 +314,20 @@ class ClientViewModel(
                 // the search screen's snackbar via ClientState (D1; the detail entry's VM is a
                 // different instance than the search entry's — see ClientState doc comment).
                 transform = {
-                    ClientState.setClientMutation(clientId, null)
-                    ClientState.setAnonymizeNotice("Client anonymized")
-                    ClientState.setClientMutationInFlight(false)
+                    if (ClientState.publishClientMutation(mutationLease, clientId, null)) {
+                        ClientState.setAnonymizeNotice("Client anonymized")
+                    }
+                    ClientState.finishClientMutation(mutationLease)
                     Unit
                 },
                 onNonSuccess = {
-                    ClientState.setClientMutationInFlight(false)
+                    ClientState.finishClientMutation(mutationLease)
                     false
                 },
-                onError = { ClientState.setClientMutationInFlight(false) },
+                onError = { ClientState.finishClientMutation(mutationLease) },
             ).also { job ->
                 job.invokeOnCompletion { cause ->
-                    if (cause is CancellationException) ClientState.setClientMutationInFlight(false)
+                    if (cause is CancellationException) ClientState.finishClientMutation(mutationLease)
                 }
             }
     }

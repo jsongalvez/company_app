@@ -326,6 +326,54 @@ class SessionCreateViewModelTest {
         }
 
     @Test
+    fun failed_concern_adds_are_visible_and_retryable_without_duplicate_session_create() =
+        runTest(testScheduler) {
+            var sessionPosts = 0
+            var concernPosts = 0
+            val vm =
+                SessionCreateViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Post && request.url.encodedPath == "/api/sessions" -> {
+                                sessionPosts++
+                                jsonRespond(status = HttpStatusCode.OK, body = SESSION_JSON)
+                            }
+
+                            request.method == HttpMethod.Post &&
+                                request.url.encodedPath == "/api/sessions/s1/concerns" -> {
+                                concernPosts++
+                                val status = if (concernPosts == 1) HttpStatusCode.BadRequest else HttpStatusCode.OK
+                                jsonRespond(status = status, body = "{}")
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                    BRANCH_ID,
+                )
+
+            vm.selectClient(client("c1"))
+            runCurrent()
+            vm.toggleConcern("con1")
+            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            runCurrent()
+
+            assertEquals(expected = 1, actual = sessionPosts)
+            assertEquals(expected = 1, actual = vm.concernAddFailures.value)
+            assertIs<UiState.Success<SessionResponse>>(vm.createResult.value)
+
+            vm.retryConcernAdds()
+            runCurrent()
+
+            assertEquals(expected = 1, actual = sessionPosts)
+            assertEquals(expected = 2, actual = concernPosts)
+            assertEquals(expected = 0, actual = vm.concernAddFailures.value)
+            assertIs<UiState.Success<Unit>>(vm.concernRetryState.value)
+        }
+
+    @Test
     fun createSession_double_submit_while_loading_fires_one_post() =
         runTest(testScheduler) {
             var posts = 0

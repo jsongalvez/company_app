@@ -30,6 +30,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -367,6 +369,85 @@ class ClientViewModelTest {
         }
 
     @Test
+    fun loadClient_can_publish_authoritative_snapshot_for_other_entries() =
+        runTest(testScheduler) {
+            val vm = ClientViewModel(mockApiClient(clientHandler()))
+
+            vm.loadClient("c1", publishMutation = true)
+            runCurrent()
+
+            val mutation = assertNotNull(ClientState.clientMutation.value)
+            assertEquals(expected = "c1", actual = mutation.clientId)
+            assertEquals(expected = 0, actual = mutation.client?.sessionCount)
+        }
+
+    @Test
+    fun profile_snapshot_does_not_refresh_clients_search() =
+        runTest(testScheduler) {
+            val searchQueries = mutableListOf<String>()
+            val vm = ClientViewModel(mockApiClient(clientHandler(searchQueries = searchQueries)))
+
+            vm.onQueryChange("jo")
+            advanceTimeByAndRun(300)
+            vm.loadClient("c1", publishMutation = true)
+            runCurrent()
+
+            val mutation = assertNotNull(ClientState.clientMutation.value)
+            assertFalse(mutation.refreshSearch)
+            vm.applyClientMutation(mutation)
+
+            assertEquals(expected = listOf("jo"), actual = searchQueries)
+        }
+
+    @Test
+    fun older_profile_snapshot_cannot_overwrite_newer_snapshot() =
+        runTest(testScheduler) {
+            val older = ClientState.beginClientSnapshot("c1")
+            val newer = ClientState.beginClientSnapshot("c1")
+
+            assertFalse(ClientState.publishClientSnapshot(older, fixtureClient("c1")))
+            assertTrue(
+                ClientState.publishClientSnapshot(
+                    newer,
+                    fixtureClient("c1").copy(firstName = "Jane"),
+                ),
+            )
+            assertEquals(
+                expected = "Jane",
+                actual =
+                    ClientState.clientMutation.value
+                        ?.client
+                        ?.firstName,
+            )
+        }
+
+    @Test
+    fun clearing_client_state_rejects_late_mutation_completion() =
+        runTest(testScheduler) {
+            val lease = assertNotNull(ClientState.tryStartClientMutation())
+
+            ClientState.clear()
+
+            assertFalse(ClientState.publishClientMutation(lease, "c1", fixtureClient("c1")))
+            assertFalse(ClientState.clientMutationInFlight.value)
+        }
+
+    @Test
+    fun client_mutation_leases_serialize_cross_entry_writes() =
+        runTest(testScheduler) {
+            val first = assertNotNull(ClientState.tryStartClientMutation())
+
+            assertTrue(ClientState.clientMutationInFlight.value)
+            assertNull(ClientState.tryStartClientMutation())
+
+            ClientState.finishClientMutation(first)
+
+            assertFalse(ClientState.clientMutationInFlight.value)
+            val second = assertNotNull(ClientState.tryStartClientMutation())
+            ClientState.finishClientMutation(second)
+        }
+
+    @Test
     fun updateClient_success_emits_updated_detail() =
         runTest(testScheduler) {
             val vm = ClientViewModel(mockApiClient(clientHandler()))
@@ -612,6 +693,23 @@ class ClientViewModelTest {
         testScheduler.advanceTimeBy(millis)
         runCurrent()
     }
+
+    private fun fixtureClient(id: String): ClientResponse =
+        ClientResponse(
+            id = id,
+            firstName = "John",
+            lastName = "Doe",
+            middleName = null,
+            suffix = null,
+            phoneNumber = null,
+            address = null,
+            gender = Gender.M,
+            age = 30,
+            systolicBp = null,
+            diastolicBp = null,
+            medicalConditions = null,
+            sessionCount = 0,
+        )
 
     @Test
     fun onQueryChange_sets_query_state_synchronously() =
