@@ -315,7 +315,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"id\": \"SESS-001\",\n    \"clientId\": \"CLIENT-001\",\n    \"branchId\": \"BRANCH-001\",\n    \"isWalkIn\": false,\n    \"requestedPractitionerId\": null,\n    \"finalPrice\": \"500.00\",\n    \"remarks\": \"Regular checkup\",\n    \"otherConcerns\": null,\n    \"bookedAt\": null,\n    \"nextAppointmentDate\": null\n}"
+               "raw": "{\n    \"id\": \"SESS-001\",\n    \"clientId\": \"CLIENT-001\",\n    \"branchId\": \"BRANCH-001\",\n    \"isWalkIn\": false,\n    \"requestedPractitionerId\": null,\n    \"finalPrice\": \"500.00\",\n    \"remarks\": \"Regular checkup\",\n    \"otherConcerns\": null,\n    \"nextAppointmentDate\": null\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/sessions",

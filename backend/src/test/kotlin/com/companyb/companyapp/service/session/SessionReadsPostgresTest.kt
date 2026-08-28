@@ -236,7 +236,6 @@ class SessionReadsPostgresTest : BasePostgresTest() {
                 finalPrice = BigDecimal("1234.56"),
                 remarks = null,
                 otherConcerns = null,
-                bookedAt = null,
                 nextAppointmentDate = null,
             )
         trackOwned(SessionTable, SessionTable.id, newSessionId)

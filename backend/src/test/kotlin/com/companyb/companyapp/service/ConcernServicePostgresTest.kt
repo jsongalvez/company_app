@@ -381,7 +381,6 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         finalPrice = finalPrice,
         remarks = "Test session",
         otherConcerns = null,
-        bookedAt = null,
         nextAppointmentDate = null,
     )
 

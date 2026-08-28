@@ -100,7 +100,7 @@ function testSessionPendingGuard(headers, branchId) {
   if (client.status >= 400) return;
 
   const requests = [1, 2].map(() => ["POST", `${BASE_URL}/api/sessions`, JSON.stringify({
-    id: uuid(), clientId, branchId, isWalkIn: false, finalPrice: "2500.00", bookedAt: new Date().toISOString(),
+    id: uuid(), clientId, branchId, isWalkIn: false, finalPrice: "2500.00",
   }), { headers }]);
   const sessions = http.batch(requests);
   sessions.forEach((res) => observe(res, tags, "pending guard", (r) => r.status === 201 || r.status === 200 || r.status === 409));

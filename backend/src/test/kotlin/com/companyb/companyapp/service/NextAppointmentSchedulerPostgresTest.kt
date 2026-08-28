@@ -338,7 +338,6 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
             finalPrice = BigDecimal("2500.00"),
             remarks = null,
             otherConcerns = null,
-            bookedAt = null,
             nextAppointmentDate = appointmentDate,
         )
         SessionService.updateStatus(callerId, sessionId, SessionStatus.COMPLETED, 1)
@@ -357,7 +356,6 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
             finalPrice = BigDecimal("2500.00"),
             remarks = null,
             otherConcerns = null,
-            bookedAt = null,
             nextAppointmentDate = appointmentDate,
         )
         return sessionId

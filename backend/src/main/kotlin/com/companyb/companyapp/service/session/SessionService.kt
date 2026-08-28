@@ -34,7 +34,6 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.LocalDate
-import java.time.OffsetDateTime
 import java.util.UUID
 
 @Suppress("TooManyFunctions")
@@ -68,7 +67,6 @@ object SessionService {
         finalPrice: BigDecimal,
         remarks: String?,
         otherConcerns: String?,
-        bookedAt: OffsetDateTime?,
         nextAppointmentDate: LocalDate?,
         // #157: the branch day the route gate resolved (find-only). When provided, the create
         // writes to THIS day instead of re-resolving today — the gate and the write share one
@@ -136,7 +134,6 @@ object SessionService {
                         finalPrice = effectiveFinalPrice,
                         remarks = remarks,
                         otherConcerns = otherConcerns,
-                        bookedAt = bookedAt,
                         nextAppointmentDate = nextAppointmentDate,
                         changedBy = callerId,
                     ),

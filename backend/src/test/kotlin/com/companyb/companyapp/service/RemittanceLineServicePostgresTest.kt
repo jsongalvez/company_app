@@ -1216,7 +1216,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             finalPrice = BigDecimal("2500.00"),
             remarks = null,
             otherConcerns = null,
-            bookedAt = null,
             nextAppointmentDate = null,
         )
     }

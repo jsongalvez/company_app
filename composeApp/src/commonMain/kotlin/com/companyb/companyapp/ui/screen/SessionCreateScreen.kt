@@ -55,7 +55,6 @@ import com.companyb.companyapp.viewmodel.SessionCreateDraft
 import com.companyb.companyapp.viewmodel.SessionCreateViewModel
 import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.bookingFields
-import kotlin.time.Clock
 
 /**
  * #348 — start a client's session end-to-end. No client chosen: the debounced picker (the
@@ -575,7 +574,7 @@ private fun SubmitArea(
 
     val priceValue = draft.finalPrice.trim().toDoubleOrNull()
     // #423 — a booked draft with an unparseable date shapes to null: submit disabled.
-    val booking = bookingFields(draft.isBooked, draft.nextAppointmentDate, Clock.System.now())
+    val booking = bookingFields(draft.isBooked, draft.nextAppointmentDate)
     val canSubmit =
         preview is UiState.Success && priceValue != null && priceValue >= 0 &&
             booking != null && createResult !is UiState.Loading && createResult !is UiState.Success
@@ -661,7 +660,7 @@ private fun BookingSection(
     if (!draft.isBooked) return
     val dateInvalid =
         draft.nextAppointmentDate.isNotBlank() &&
-            bookingFields(true, draft.nextAppointmentDate, Clock.System.now()) == null
+            bookingFields(true, draft.nextAppointmentDate) == null
     OutlinedTextField(
         value = draft.nextAppointmentDate,
         onValueChange = onDateChange,

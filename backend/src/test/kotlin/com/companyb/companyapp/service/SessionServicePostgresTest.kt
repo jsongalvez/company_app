@@ -34,15 +34,14 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNotNull
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.time.LocalDate
-import java.time.OffsetDateTime
-import java.time.ZoneOffset
-import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -168,6 +167,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertTrue(first.created)
         assertFalse(duplicate.created)
         assertEquals(first.session.id, duplicate.session.id)
+        assertNotNull(first.session.bookedAt)
+        assertEquals(first.session.bookedAt, duplicate.session.bookedAt)
         assertEquals(1L, auditEntryCount(SessionTable.tableName, sessionId))
     }
 
@@ -279,7 +280,6 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 finalPrice = BigDecimal("2500.00"),
                 remarks = null,
                 otherConcerns = null,
-                bookedAt = null,
                 nextAppointmentDate = null,
             )
         }
@@ -311,7 +311,6 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 finalPrice = BigDecimal.ZERO,
                 remarks = null,
                 otherConcerns = null,
-                bookedAt = null,
                 nextAppointmentDate = null,
             )
         trackOwned(SessionTable, SessionTable.id, mmSessionId)
@@ -344,7 +343,6 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 finalPrice = BigDecimal.ZERO,
                 remarks = null,
                 otherConcerns = null,
-                bookedAt = null,
                 nextAppointmentDate = null,
             )
         trackOwned(SessionTable, SessionTable.id, mmSessionId)
@@ -509,26 +507,27 @@ class SessionServicePostgresTest : BasePostgresTest() {
     // walk-in prohibition above — BR §Session Status "Booked sessions can be marked as
     // no-show or cancelled").
     @Test
-    fun `booked session create persists booking fields and reaches NO_SHOW`() {
+    fun `booked session create stamps booking time on the database clock and reaches NO_SHOW`() {
         val bookedSessionId = TestFixtures.uuid()
-        // Micros: timestamptz stores microseconds — compare at stored precision.
-        val bookedAt = OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS)
         val nextAppointmentDate = TestFixtures.today.plusDays(2)
+        val beforeCreate = databaseNow()
 
         val result =
             createSession(
                 callerId,
                 bookedSessionId,
                 isWalkIn = false,
-                bookedAt = bookedAt,
                 nextAppointmentDate = nextAppointmentDate,
             )
+        val afterCreate = databaseNow()
         trackOwned(SessionTable, SessionTable.id, bookedSessionId)
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, bookedSessionId)
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, bookedSessionId)
 
         assertFalse(result.session.isWalkIn)
-        assertEquals(bookedAt, result.session.bookedAt)
+        val bookedAt = assertNotNull(result.session.bookedAt)
+        assertTrue(bookedAt >= beforeCreate)
+        assertTrue(bookedAt <= afterCreate)
         assertEquals(nextAppointmentDate, result.session.nextAppointmentDate)
 
         val updated = SessionService.updateStatus(callerId, bookedSessionId, SessionStatus.NO_SHOW, 1)
@@ -1280,7 +1279,6 @@ class SessionServicePostgresTest : BasePostgresTest() {
         requestedPractitionerId: UUID? = null,
         finalPrice: BigDecimal = BigDecimal("2500.00"),
         gatedBranchDayId: UUID? = null,
-        bookedAt: OffsetDateTime? = null,
         nextAppointmentDate: LocalDate? = null,
     ) = SessionService.create(
         callerId = callerId,
@@ -1292,10 +1290,16 @@ class SessionServicePostgresTest : BasePostgresTest() {
         finalPrice = finalPrice,
         remarks = "Test session",
         otherConcerns = null,
-        bookedAt = bookedAt,
         nextAppointmentDate = nextAppointmentDate,
         gatedBranchDayId = gatedBranchDayId,
     )
+
+    private fun databaseNow() =
+        transaction {
+            BranchTable
+                .select(CurrentTimestampWithTimeZone)
+                .first()[CurrentTimestampWithTimeZone]
+        }
 
     private fun insertAssignment(userId: UUID) {
         transaction {

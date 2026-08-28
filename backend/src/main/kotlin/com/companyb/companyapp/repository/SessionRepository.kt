@@ -21,13 +21,13 @@ import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.leftJoin
 import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.time.LocalDate
-import java.time.OffsetDateTime
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -43,7 +43,6 @@ data class SessionCreateParams(
     val finalPrice: BigDecimal,
     val remarks: String?,
     val otherConcerns: String?,
-    val bookedAt: OffsetDateTime?,
     val nextAppointmentDate: LocalDate?,
     val changedBy: UUID,
 )
@@ -167,7 +166,7 @@ object SessionRepository {
                     it[SessionTable.finalPrice] = params.finalPrice
                     if (params.remarks != null) it[SessionTable.remarks] = params.remarks
                     if (params.otherConcerns != null) it[SessionTable.otherConcerns] = params.otherConcerns
-                    if (params.bookedAt != null) it[SessionTable.bookedAt] = params.bookedAt
+                    if (!params.isWalkIn) it[SessionTable.bookedAt] = CurrentTimestampWithTimeZone
                     if (params.nextAppointmentDate !=
                         null
                     ) {

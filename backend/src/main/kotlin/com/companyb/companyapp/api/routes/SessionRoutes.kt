@@ -39,7 +39,6 @@ import io.javalin.openapi.OpenApi
 import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
-import java.time.OffsetDateTime
 import java.util.UUID
 
 @Suppress("TooManyFunctions")
@@ -396,11 +395,6 @@ object SessionRoutes {
         val practitionerId =
             request.requestedPractitionerId?.let { uuidOrThrow(it, "practitioner id") }
         val finalPrice = parseNonNegativeBigDecimal(request.finalPrice, "finalPrice")
-        val bookedAt =
-            request.bookedAt?.let {
-                runCatching { OffsetDateTime.parse(it) }
-                    .getOrElse { throw BadRequestResponse("Invalid bookedAt format") }
-            }
         val nextAppt =
             request.nextAppointmentDate?.let {
                 runCatching { LocalDate.parse(it) }
@@ -418,7 +412,6 @@ object SessionRoutes {
                 finalPrice = finalPrice,
                 remarks = request.remarks,
                 otherConcerns = request.otherConcerns,
-                bookedAt = bookedAt,
                 nextAppointmentDate = nextAppt,
                 gatedBranchDayId = context.attribute(GATED_BRANCH_DAY_ATTR),
             )

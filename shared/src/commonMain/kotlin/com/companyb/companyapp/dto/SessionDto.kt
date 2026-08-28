@@ -14,7 +14,6 @@ data class CreateSessionRequest(
     val finalPrice: String,
     val remarks: String? = null,
     val otherConcerns: String? = null,
-    val bookedAt: String? = null,
     val nextAppointmentDate: String? = null,
 )
 

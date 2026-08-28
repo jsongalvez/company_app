@@ -30,7 +30,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
-import kotlin.time.Instant
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -292,8 +291,8 @@ class SessionCreateViewModel(
         finalPrice: String,
         remarks: String?,
         otherConcerns: String?,
-        // Default: today's shipped walk-in shape — pre-#423 callers keep byte-identical requests.
-        booking: BookingFields = BookingFields(isWalkIn = true, bookedAt = null, nextAppointmentDate = null),
+        // Default: today's shipped walk-in shape — existing callers keep the same semantics.
+        booking: BookingFields = BookingFields(isWalkIn = true, nextAppointmentDate = null),
     ) {
         val client = _selectedClient.value ?: return
         if (isSubmissionLocked()) return
@@ -318,7 +317,6 @@ class SessionCreateViewModel(
                             finalPrice = finalPrice,
                             remarks = remarks?.trim()?.ifBlank { null },
                             otherConcerns = otherConcerns?.trim()?.ifBlank { null },
-                            bookedAt = booking.bookedAt,
                             nextAppointmentDate = booking.nextAppointmentDate,
                         ),
                     )
@@ -385,29 +383,27 @@ class SessionCreateViewModel(
 /**
  * #423 — the booking half of the create request, shaped once and shaped pure so desktopTest
  * can pin the gating: a walk-in sends no booking fields (BR §Clients "treated identically
- * once started"); a booked session stamps `bookedAt` = now (client clock; the server re-parses
- * it authoritatively) and carries the optional ISO `yyyy-MM-dd` next-appointment date.
+ * once started"); a booked session leaves `bookedAt` server-owned and carries the optional ISO
+ * `yyyy-MM-dd` next-appointment date.
  * `null` return = booked with an unparseable date draft — submit stays disabled and the
  * screen surfaces the inline error.
  */
 internal fun bookingFields(
     isBooked: Boolean,
     nextAppointmentDraft: String,
-    now: Instant,
 ): BookingFields? {
-    if (!isBooked) return BookingFields(isWalkIn = true, bookedAt = null, nextAppointmentDate = null)
+    if (!isBooked) return BookingFields(isWalkIn = true, nextAppointmentDate = null)
     val trimmed = nextAppointmentDraft.trim()
     val date =
         trimmed.takeIf { it.isNotEmpty() }?.let {
             runCatching { LocalDate.parse(it) }.getOrNull()?.toString() ?: return null
         }
-    return BookingFields(isWalkIn = false, bookedAt = now.toString(), nextAppointmentDate = date)
+    return BookingFields(isWalkIn = false, nextAppointmentDate = date)
 }
 
 /** The booking half of a create-session request (#423); see [bookingFields]. */
 data class BookingFields(
     val isWalkIn: Boolean,
-    val bookedAt: String?,
     val nextAppointmentDate: String?,
 )
 
