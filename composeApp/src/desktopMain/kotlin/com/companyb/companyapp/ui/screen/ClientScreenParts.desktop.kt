@@ -108,3 +108,8 @@ actual fun ClientDetailLayout(
         }
     }
 }
+
+@Composable
+actual fun ClientDetailBackHandler(enabled: Boolean) {
+    if (!enabled) return
+}

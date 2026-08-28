@@ -1,10 +1,16 @@
 package com.companyb.companyapp.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.toRoute
+import com.companyb.companyapp.state.SessionState
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.serializer
 import kotlin.reflect.KClass
@@ -34,7 +40,29 @@ fun NavHostController.currentRoute(): Route? {
     return entry.toRoute(routeClass)
 }
 
+fun NavHostController.previousRoute(): Route? {
+    val entry = previousBackStackEntry ?: return null
+    val pattern = entry.destination.route ?: return null
+    val routeClass = ROUTES_BY_SERIAL_NAME[serialNameFromPattern(pattern)] ?: return null
+    return entry.toRoute(routeClass)
+}
+
+@Composable
+internal fun rememberSessionCreateNavigationLock(): MutableState<Boolean> {
+    val locked = remember { mutableStateOf(false) }
+    val authenticatedUser by SessionState.currentUser.collectAsState()
+    LaunchedEffect(authenticatedUser) {
+        if (authenticatedUser == null) locked.value = false
+    }
+    return locked
+}
+
 internal fun serialNameFromPattern(pattern: String): String = pattern.substringBefore('?').substringBefore('/')
+
+internal fun shellNavigationEnabled(
+    sessionCreateNavigationLocked: Boolean,
+    clientMutationInFlight: Boolean,
+): Boolean = !sessionCreateNavigationLocked && !clientMutationInFlight
 
 @OptIn(InternalSerializationApi::class)
 internal val ROUTES_BY_SERIAL_NAME: Map<String, KClass<out Route>> =

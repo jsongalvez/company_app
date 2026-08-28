@@ -1,11 +1,13 @@
 package com.companyb.companyapp.viewmodel
 
 import com.companyb.companyapp.domain.Gender
+import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.dto.BranchMemberResponse
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.SessionPreviewResponse
 import com.companyb.companyapp.dto.SessionResponse
 import com.companyb.companyapp.network.mockApiClient
+import com.companyb.companyapp.state.ClientMutation
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond
@@ -15,6 +17,7 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -154,6 +157,97 @@ class SessionCreateViewModelTest {
         }
 
     @Test
+    fun clearSelectedClient_preserves_draft_except_client_specific_price() =
+        runTest(testScheduler) {
+            val vm = SessionCreateViewModel(mockApiClient(handler()), BRANCH_ID)
+
+            vm.setFinalPrice("900")
+            vm.setOtherConcerns("Shoulder history")
+            vm.setRemarks("Keep this note")
+            vm.setBooked(true)
+            vm.setNextAppointmentDate("2026-09-01")
+            vm.clearSelectedClient()
+
+            assertEquals(
+                expected =
+                    SessionCreateDraft(
+                        finalPrice = "",
+                        otherConcerns = "Shoulder history",
+                        remarks = "Keep this note",
+                        isBooked = true,
+                        nextAppointmentDate = "2026-09-01",
+                    ),
+                actual = vm.draft.value,
+            )
+        }
+
+    @Test
+    fun profile_mutation_refreshes_selected_client_and_anonymization_clears_it() =
+        runTest(testScheduler) {
+            val vm = SessionCreateViewModel(mockApiClient(handler()), BRANCH_ID)
+
+            vm.selectClient(client("c1"))
+            runCurrent()
+            val updated = client("c1").copy(firstName = "Jane", sessionCount = 4)
+            vm.applyClientMutation(ClientMutation(clientId = "c1", client = updated))
+
+            assertEquals(expected = updated, actual = vm.selectedClient.value)
+
+            vm.applyClientMutation(ClientMutation(clientId = "c1", client = null))
+
+            assertEquals(expected = null, actual = vm.selectedClient.value)
+            assertIs<UiState.Idle>(vm.preview.value)
+        }
+
+    @Test
+    fun selecting_another_directory_client_resets_client_specific_price_draft() =
+        runTest(testScheduler) {
+            val vm = SessionCreateViewModel(mockApiClient(handler()), BRANCH_ID)
+
+            vm.selectClient(client("c1"))
+            runCurrent()
+            vm.setFinalPrice("900")
+            vm.selectClient(client("c2"))
+
+            assertEquals(expected = "", actual = vm.draft.value.finalPrice)
+        }
+
+    @Test
+    fun preview_replaces_automatic_price_but_keeps_manual_price() =
+        runTest(testScheduler) {
+            val vm = SessionCreateViewModel(mockApiClient(handler()), BRANCH_ID)
+            val firstPreview = SessionPreviewResponse(SessionType.REGULAR, "250.00")
+            val secondPreview = SessionPreviewResponse(SessionType.SECOND_SESSION, "400.00")
+
+            vm.applyPreviewPrice(firstPreview)
+            vm.applyPreviewPrice(secondPreview)
+            assertEquals(expected = "400.00", actual = vm.draft.value.finalPrice)
+
+            vm.setFinalPrice("900")
+            vm.applyPreviewPrice(firstPreview)
+
+            assertEquals(expected = "900", actual = vm.draft.value.finalPrice)
+
+            vm.setFinalPrice("")
+            vm.applyPreviewPrice(secondPreview)
+
+            assertEquals(expected = "", actual = vm.draft.value.finalPrice)
+        }
+
+    @Test
+    fun includeCreatedClient_updates_existing_picker_results() =
+        runTest(testScheduler) {
+            val vm = SessionCreateViewModel(mockApiClient(searchHandler(mutableListOf())), BRANCH_ID)
+
+            vm.onQueryChange("jo")
+            advanceTimeByAndRun(300)
+            vm.includeClientInSearchResults(client("c9"))
+
+            val results = assertIs<UiState.Success<List<ClientResponse>>>(vm.searchResults.value).data
+            assertEquals(expected = listOf("c9", "c1"), actual = results.map { it.id })
+        }
+
+    @Test
     fun createSession_posts_walkin_create_and_reaches_success() =
         runTest(testScheduler) {
             val bodies = mutableListOf<kotlin.Pair<String, Boolean>>()
@@ -188,6 +282,10 @@ class SessionCreateViewModelTest {
             assertTrue(bodies.single().first.contains("\"remarks\":\"ok\""))
             val state = assertIs<UiState.Success<SessionResponse>>(vm.createResult.value)
             assertEquals(expected = "s1", actual = state.data.id)
+
+            vm.createSession(finalPrice = "300.00", remarks = null, otherConcerns = null)
+            runCurrent()
+            assertEquals(expected = 1, actual = bodies.size)
         }
 
     @Test
@@ -256,6 +354,95 @@ class SessionCreateViewModelTest {
             advanceTimeByAndRun(20_000)
 
             assertEquals(expected = 1, actual = posts)
+        }
+
+    @Test
+    fun selecting_client_while_create_is_loading_keeps_original_client() =
+        runTest(testScheduler) {
+            val vm =
+                SessionCreateViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Get &&
+                                request.url.encodedPath == "/api/branches/$BRANCH_ID/session-preview" -> {
+                                jsonRespond(status = HttpStatusCode.OK, body = PREVIEW_JSON)
+                            }
+
+                            request.method == HttpMethod.Post && request.url.encodedPath == "/api/sessions" -> {
+                                delay(10_000)
+                                jsonRespond(status = HttpStatusCode.OK, body = SESSION_JSON)
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                    BRANCH_ID,
+                )
+
+            vm.selectClient(client("c1"))
+            runCurrent()
+            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            runCurrent()
+
+            vm.selectClient(client("c2"))
+            assertEquals(expected = "c1", actual = vm.selectedClient.value?.id)
+        }
+
+    @Test
+    fun createSession_snapshots_practitioner_and_concerns_before_post_lands() =
+        runTest(testScheduler) {
+            val releaseSessionPost = CompletableDeferred<Unit>()
+            var sessionBody = ""
+            var concernBody = ""
+            val vm =
+                SessionCreateViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Get &&
+                                request.url.encodedPath == "/api/branches/$BRANCH_ID/session-preview" -> {
+                                jsonRespond(status = HttpStatusCode.OK, body = PREVIEW_JSON)
+                            }
+
+                            request.method == HttpMethod.Post && request.url.encodedPath == "/api/sessions" -> {
+                                sessionBody = (request.body as io.ktor.http.content.TextContent).text
+                                releaseSessionPost.await()
+                                jsonRespond(status = HttpStatusCode.OK, body = SESSION_JSON)
+                            }
+
+                            request.method == HttpMethod.Post &&
+                                request.url.encodedPath == "/api/sessions/s1/concerns" -> {
+                                concernBody = (request.body as io.ktor.http.content.TextContent).text
+                                jsonRespond(status = HttpStatusCode.OK, body = "{}")
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                    BRANCH_ID,
+                )
+
+            vm.selectClient(client("c1"))
+            runCurrent()
+            vm.selectPractitioner(BranchMemberResponse("p1", "First"))
+            vm.toggleConcern("con1")
+            assertEquals(expected = setOf("con1"), actual = vm.selectedConcernIds.value)
+            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            runCurrent()
+
+            vm.selectPractitioner(BranchMemberResponse("p2", "Second"))
+            vm.toggleConcern("con2")
+            releaseSessionPost.complete(Unit)
+            testScheduler.advanceUntilIdle()
+
+            assertTrue(sessionBody.contains("\"requestedPractitionerId\":\"p1\""))
+            assertTrue(!sessionBody.contains("\"requestedPractitionerId\":\"p2\""))
+            assertTrue(concernBody.contains("\"concernId\":\"con1\""))
+            assertTrue(!concernBody.contains("\"concernId\":\"con2\""))
+            assertIs<UiState.Success<SessionResponse>>(vm.createResult.value)
         }
 
     @Test
@@ -328,7 +515,7 @@ class SessionCreateViewModelTest {
             val state = assertIs<UiState.Success<List<BranchMemberResponse>>>(vm.members.value)
             assertEquals(expected = "Test usera", actual = state.data.single().displayName)
 
-            // Selection flows into the POST; picking None drops the field back to null.
+            // Selection flows into the POST; a fresh session defaults to no practitioner.
             vm.selectClient(client("c1"))
             runCurrent()
             vm.selectPractitioner(state.data.single())
@@ -336,15 +523,33 @@ class SessionCreateViewModelTest {
             runCurrent()
             assertTrue(bodies.single().contains("\"requestedPractitionerId\":\"p1\""))
 
-            vm.selectPractitioner(null)
-            vm.clearSelectedClient()
+            var secondBody = ""
+            val secondVm =
+                SessionCreateViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Get &&
+                                request.url.encodedPath == "/api/branches/$BRANCH_ID/session-preview" -> {
+                                jsonRespond(status = HttpStatusCode.OK, body = PREVIEW_JSON)
+                            }
+
+                            request.method == HttpMethod.Post && request.url.encodedPath == "/api/sessions" -> {
+                                secondBody = (request.body as io.ktor.http.content.TextContent).text
+                                jsonRespond(status = HttpStatusCode.OK, body = SESSION_JSON)
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                    BRANCH_ID,
+                )
+            secondVm.selectClient(client("c1"))
             runCurrent()
-            vm.selectClient(client("c1"))
+            secondVm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
             runCurrent()
-            bodies.clear()
-            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
-            runCurrent()
-            assertTrue(bodies.single().contains("\"requestedPractitionerId\":null"))
+            assertTrue(secondBody.contains("\"requestedPractitionerId\":null"))
             assertEquals(expected = 1, actual = membersRequests)
         }
 
@@ -459,6 +664,7 @@ class SessionCreateViewModelTest {
             systolicBp = null,
             diastolicBp = null,
             medicalConditions = null,
+            sessionCount = 0,
         )
 
     private companion object {
@@ -468,7 +674,7 @@ class SessionCreateViewModelTest {
 
         const val SEARCH_JSON =
             """[
-                {"id":"c1","firstName":"John","lastName":"Doe","middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"M","age":30,"systolicBp":null,"diastolicBp":null,"medicalConditions":null}
+                {"id":"c1","firstName":"John","lastName":"Doe","middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"M","age":30,"systolicBp":null,"diastolicBp":null,"medicalConditions":null,"sessionCount":0}
             ]"""
 
         const val PREVIEW_JSON = """{"sessionType":"REGULAR","basePrice":"250.00"}"""

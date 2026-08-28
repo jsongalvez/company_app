@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.UpdateClientRequest
+import com.companyb.companyapp.state.ClientState
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
@@ -94,6 +95,8 @@ fun ClientDetailScreen(
     val updateState by viewModel.updateClientState.collectAsState()
     val anonymizeState by viewModel.anonymizeState.collectAsState()
     val changedNotice by viewModel.detailChangedNotice.collectAsState()
+    val navigationLocked by ClientState.clientMutationInFlight.collectAsState()
+    ClientDetailBackHandler(navigationLocked)
 
     LaunchedEffect(Unit) {
         logInfo("ClientDetailScreen", "composable entered: clientId=$clientId")
@@ -135,7 +138,7 @@ fun ClientDetailScreen(
                 .padding(Spacing.md),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) {
+            TextButton(onClick = onBack, enabled = !navigationLocked) {
                 Text("Back")
             }
         }

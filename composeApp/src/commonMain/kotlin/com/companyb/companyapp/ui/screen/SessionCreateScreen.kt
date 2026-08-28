@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions")
+
 package com.companyb.companyapp.ui.screen
 
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +28,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -41,13 +44,14 @@ import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.ConcernResponse
 import com.companyb.companyapp.dto.CreateClientRequest
 import com.companyb.companyapp.dto.SessionPreviewResponse
-import com.companyb.companyapp.dto.SessionResponse
+import com.companyb.companyapp.state.ClientState
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.ClientViewModel
+import com.companyb.companyapp.viewmodel.SessionCreateDraft
 import com.companyb.companyapp.viewmodel.SessionCreateViewModel
 import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.bookingFields
@@ -63,27 +67,32 @@ import kotlin.time.Clock
  * truth); they are logged here.
  */
 @Composable
+@Suppress("LongParameterList")
 fun SessionCreateScreen(
     viewModel: SessionCreateViewModel,
     clientViewModel: ClientViewModel,
     branchName: String?,
     onBack: () -> Unit,
     onSessionCreated: (String) -> Unit,
+    onClientProfileClick: (String) -> Unit = {},
+    onSubmissionLockChanged: (Boolean) -> Unit = {},
 ) {
     val query by viewModel.query.collectAsState()
     val searchState by viewModel.searchResults.collectAsState()
     val cachedResults by viewModel.freshestResults.collectAsState()
     val selectedClient by viewModel.selectedClient.collectAsState()
+    val draft by viewModel.draft.collectAsState()
+    val createResult by viewModel.createResult.collectAsState()
+    val isSubmissionLocked = createResult is UiState.Loading || createResult is UiState.Success
+    SessionCreateNavigationGuard(isSubmissionLocked, onSubmissionLockChanged)
     // The dialog's create path lives in the caller-provided ClientViewModel (entry-scoped).
     val createState by clientViewModel.createClientResult.collectAsState()
 
     var showCreateDialog by remember { mutableStateOf(false) }
-    val form = remember { SessionFormState() }
-
     SessionCreateEffects(
         viewModel = viewModel,
+        clientViewModel = clientViewModel,
         createState = createState,
-        form = form,
         onClientCreated = { showCreateDialog = false },
         onSessionCreated = onSessionCreated,
     )
@@ -95,7 +104,10 @@ fun SessionCreateScreen(
                 .padding(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        TextButton(onClick = onBack) {
+        TextButton(
+            onClick = onBack,
+            enabled = createResult !is UiState.Loading && createResult !is UiState.Success,
+        ) {
             Text("‹ Back")
         }
         if (branchName != null) {
@@ -106,31 +118,41 @@ fun SessionCreateScreen(
             )
         }
 
-        val client = selectedClient
-        if (client == null) {
-            ClientPickerSection(
-                viewModel = viewModel,
-                query = query,
-                searchState = searchState,
-                cachedResults = cachedResults,
-                onCreateNewClick = { showCreateDialog = true },
-            )
-        } else {
-            SessionFormSection(
-                viewModel = viewModel,
-                client = client,
-                form = form,
-                onChangeClient = {
-                    form.price = ""
-                    viewModel.clearSelectedClient()
-                },
-            )
-        }
+        SessionCreateBodyLayout(
+            args =
+                SessionCreateBodyArgs(
+                    viewModel = viewModel,
+                    selectedClient = selectedClient,
+                    query = query,
+                    searchState = searchState,
+                    cachedResults = cachedResults,
+                    draft = draft,
+                    isSubmissionLocked = isSubmissionLocked,
+                    onClientProfileClick = onClientProfileClick,
+                    onSubmissionStarted = { onSubmissionLockChanged(true) },
+                ),
+            onCreateNewClick = { showCreateDialog = true },
+            modifier = Modifier.fillMaxWidth().weight(1f),
+        )
     }
 
     CreateClientDialogHost(showCreateDialog, createState, clientViewModel::createClient) {
         showCreateDialog = false
     }
+}
+
+@Composable
+private fun SessionCreateNavigationGuard(
+    isSubmissionLocked: Boolean,
+    onSubmissionLockChanged: (Boolean) -> Unit,
+) {
+    LaunchedEffect(isSubmissionLocked) {
+        onSubmissionLockChanged(isSubmissionLocked)
+    }
+    DisposableEffect(Unit) {
+        onDispose { onSubmissionLockChanged(false) }
+    }
+    SessionCreateBackHandler(isSubmissionLocked)
 }
 
 /** The on-the-spot create-client dialog host (#348): dismiss stays blocked mid-flight. */
@@ -149,27 +171,15 @@ private fun CreateClientDialogHost(
     )
 }
 
-/** The form's text fields; one holder so the section reads/writes them through a single param. */
-private class SessionFormState {
-    var price by mutableStateOf("")
-    var otherConcerns by mutableStateOf("")
-    var remarks by mutableStateOf("")
-
-    // #423 — booked vs walk-in (default walk-in, today's shipped shape) and the optional
-    // ISO next-appointment date, surfaced only when Booked is selected.
-    var isBooked by mutableStateOf(false)
-    var nextAppointmentDate by mutableStateOf("")
-}
-
 /**
  * Entry + landing effects for the create flow: the Idle-only concern load, the created-client
  * select-and-close, the preview-driven price default (blank field only), and success navigation.
  */
 @Composable
-private fun SessionCreateEffects(
+internal fun SessionCreateEffects(
     viewModel: SessionCreateViewModel,
+    clientViewModel: ClientViewModel,
     createState: UiState<ClientResponse>,
-    form: SessionFormState,
     onClientCreated: () -> Unit,
     onSessionCreated: (String) -> Unit,
 ) {
@@ -180,12 +190,20 @@ private fun SessionCreateEffects(
         viewModel.loadMembers()
     }
 
+    LaunchedEffect(Unit) {
+        ClientState.clientMutation.collect { mutation ->
+            mutation?.let(viewModel::applyClientMutation)
+        }
+    }
+
     // Created-on-the-spot client: select it (drives the preview load) and close the dialog —
     // the create-user shape's "Success closes through the caller's UiState effect".
     LaunchedEffect(createState) {
         (createState as? UiState.Success)?.data?.let { created ->
+            viewModel.includeClientInSearchResults(created)
             viewModel.selectClient(created)
             onClientCreated()
+            clientViewModel.consumeCreateClientResult()
         }
     }
 
@@ -193,14 +211,7 @@ private fun SessionCreateEffects(
     // an explicit user value always wins. #405 — a medical-mission visit is always free,
     // so the locked ₱0 replaces any draft the user managed to type before the preview landed.
     val previewData = (viewModel.preview.collectAsState().value as? UiState.Success)?.data
-    LaunchedEffect(previewData) {
-        val basePrice = previewData?.basePrice
-        if (previewData != null && missionPriceLocked(previewData.sessionType)) {
-            form.price = "0"
-        } else if (basePrice != null && form.price.isBlank()) {
-            form.price = basePrice
-        }
-    }
+    LaunchedEffect(previewData) { viewModel.applyPreviewPrice(previewData) }
 
     val createResult by viewModel.createResult.collectAsState()
     val concernAddFailures by viewModel.concernAddFailures.collectAsState()
@@ -229,12 +240,8 @@ private fun SessionCreateEffects(
 
 /** The form half: previewed type + price, concerns, optional notes, submit. */
 @Composable
-private fun SessionFormSection(
-    viewModel: SessionCreateViewModel,
-    client: ClientResponse,
-    form: SessionFormState,
-    onChangeClient: () -> Unit,
-) {
+internal fun SessionFormSection(args: SessionCreateBodyArgs) {
+    val client = args.selectedClient ?: return
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Text(
             text = listOfNotNull(client.firstName, client.lastName).joinToString(" "),
@@ -242,21 +249,33 @@ private fun SessionFormSection(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = onChangeClient) {
+        TextButton(onClick = args.viewModel::clearSelectedClient, enabled = !args.isSubmissionLocked) {
             Text("Change")
         }
     }
 
+    SessionFormFields(args.viewModel, args.draft, args.isSubmissionLocked, args.onSubmissionStarted)
+}
+
+/** Shared form controls used by mobile and desktop layouts. */
+@Composable
+internal fun SessionFormFields(
+    viewModel: SessionCreateViewModel,
+    draft: SessionCreateDraft,
+    isSubmissionLocked: Boolean,
+    onSubmissionStarted: () -> Unit,
+) {
     val preview by viewModel.preview.collectAsState()
-    PreviewCard(viewModel, preview)
+    val controlsEnabled = !isSubmissionLocked
+    PreviewCard(viewModel, preview, controlsEnabled)
 
     // #405 — the mission price is not editable input; ₱0 is shown locked (server normalizes
     // authoritatively regardless).
-    val previewData = (viewModel.preview.collectAsState().value as? UiState.Success)?.data
+    val previewData = (preview as? UiState.Success)?.data
     val missionPrice = previewData != null && missionPriceLocked(previewData.sessionType)
     OutlinedTextField(
-        value = form.price,
-        onValueChange = { form.price = it },
+        value = draft.finalPrice,
+        onValueChange = viewModel::setFinalPrice,
         label = { Text("Final price (₱)") },
         supportingText =
             if (missionPrice) {
@@ -265,16 +284,21 @@ private fun SessionFormSection(
                 null
             },
         singleLine = true,
-        enabled = !missionPrice,
+        enabled = !missionPrice && controlsEnabled,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = Modifier.fillMaxWidth(),
     )
 
-    BookingSection(form)
+    BookingSection(
+        draft = draft,
+        onBookedChange = viewModel::setBooked,
+        onDateChange = viewModel::setNextAppointmentDate,
+        enabled = controlsEnabled,
+    )
 
     val concernsState by viewModel.concerns.collectAsState()
     val selectedConcernIds by viewModel.selectedConcernIds.collectAsState()
-    ConcernsBlock(viewModel, concernsState, selectedConcernIds)
+    ConcernsBlock(viewModel, concernsState, selectedConcernIds, controlsEnabled)
 
     val membersState by viewModel.members.collectAsState()
     val selectedPractitioner by viewModel.selectedPractitioner.collectAsState()
@@ -283,28 +307,32 @@ private fun SessionFormSection(
         selected = selectedPractitioner,
         onSelect = viewModel::selectPractitioner,
         onRetry = viewModel::retryMembers,
+        enabled = controlsEnabled,
     )
 
     OutlinedTextField(
-        value = form.otherConcerns,
-        onValueChange = { form.otherConcerns = it },
+        value = draft.otherConcerns,
+        onValueChange = viewModel::setOtherConcerns,
         label = { Text("Other concerns (optional)") },
+        enabled = controlsEnabled,
         modifier = Modifier.fillMaxWidth(),
     )
     OutlinedTextField(
-        value = form.remarks,
-        onValueChange = { form.remarks = it },
+        value = draft.remarks,
+        onValueChange = viewModel::setRemarks,
         label = { Text("Remarks (optional)") },
+        enabled = controlsEnabled,
         modifier = Modifier.fillMaxWidth(),
     )
 
-    SubmitArea(viewModel, form)
+    SubmitArea(viewModel, draft, onSubmissionStarted)
 }
 
 @Composable
 private fun PreviewCard(
     viewModel: SessionCreateViewModel,
     preview: UiState<SessionPreviewResponse>,
+    enabled: Boolean,
 ) {
     when (preview) {
         is UiState.Idle, is UiState.Loading -> {
@@ -314,7 +342,11 @@ private fun PreviewCard(
         }
 
         is UiState.Error -> {
-            ErrorCard(message = preview.message, onRetry = { viewModel.retryPreview() })
+            ErrorCard(
+                message = preview.message,
+                onRetry = { viewModel.retryPreview() },
+                retryEnabled = enabled,
+            )
         }
 
         is UiState.Success -> {
@@ -362,6 +394,7 @@ private fun RequestedPractitionerPicker(
     selected: BranchMemberResponse?,
     onSelect: (BranchMemberResponse?) -> Unit,
     onRetry: () -> Unit,
+    enabled: Boolean,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val options = (membersState as? UiState.Success)?.data.orEmpty()
@@ -371,7 +404,9 @@ private fun RequestedPractitionerPicker(
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = {
-            if (isError) {
+            if (!enabled) {
+                return@ExposedDropdownMenuBox
+            } else if (isError) {
                 onRetry()
             } else if (!isLoading) {
                 expanded = !expanded
@@ -391,14 +426,15 @@ private fun RequestedPractitionerPicker(
             label = { Text("Requested practitioner (optional)") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-            enabled = !isLoading && !isError,
+            enabled = enabled && !isLoading && !isError,
         )
         ExposedDropdownMenu(
-            expanded = expanded,
+            expanded = expanded && enabled,
             onDismissRequest = { expanded = false },
         ) {
             DropdownMenuItem(
                 text = { Text("None") },
+                enabled = enabled,
                 onClick = {
                     onSelect(null)
                     expanded = false
@@ -407,6 +443,7 @@ private fun RequestedPractitionerPicker(
             options.forEach { member ->
                 DropdownMenuItem(
                     text = { Text(member.displayName) },
+                    enabled = enabled,
                     onClick = {
                         onSelect(member)
                         expanded = false
@@ -422,10 +459,15 @@ private fun ConcernsBlock(
     viewModel: SessionCreateViewModel,
     concernsState: UiState<List<ConcernResponse>>,
     selectedConcernIds: Set<String>,
+    enabled: Boolean,
 ) {
     when (concernsState) {
         is UiState.Idle -> {
-            Unit
+            Text(
+                text = "Loading concerns…",
+                style = MaterialTheme.typography.bodySmall,
+                color = InkSubtle,
+            )
         }
 
         is UiState.Loading -> {
@@ -443,33 +485,52 @@ private fun ConcernsBlock(
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(Spacing.sm))
-                TextButton(onClick = { viewModel.retryConcerns() }) {
+                TextButton(onClick = { viewModel.retryConcerns() }, enabled = enabled) {
                     Text("Retry")
                 }
             }
         }
 
         is UiState.Success -> {
-            Text(
-                text = "Concerns",
-                style = MaterialTheme.typography.labelSmall,
-                color = InkSubtle,
-            )
-            concernsState.data.forEach { concern ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Checkbox(
-                        checked = concern.id in selectedConcernIds,
-                        onCheckedChange = { viewModel.toggleConcern(concern.id) },
-                    )
-                    Text(
-                        text = concern.label,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
+            ConcernOptions(viewModel, concernsState.data, selectedConcernIds, enabled)
+        }
+    }
+}
+
+@Composable
+private fun ConcernOptions(
+    viewModel: SessionCreateViewModel,
+    concerns: List<ConcernResponse>,
+    selectedConcernIds: Set<String>,
+    enabled: Boolean,
+) {
+    Text(
+        text = "Concerns",
+        style = MaterialTheme.typography.labelSmall,
+        color = InkSubtle,
+    )
+    if (concerns.isEmpty()) {
+        Text(
+            text = "No common concerns available",
+            style = MaterialTheme.typography.bodySmall,
+            color = InkSubtle,
+        )
+    } else {
+        concerns.forEach { concern ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Checkbox(
+                    checked = concern.id in selectedConcernIds,
+                    onCheckedChange = { viewModel.toggleConcern(concern.id) },
+                    enabled = enabled,
+                )
+                Text(
+                    text = concern.label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
             }
         }
     }
@@ -478,23 +539,25 @@ private fun ConcernsBlock(
 @Composable
 private fun SubmitArea(
     viewModel: SessionCreateViewModel,
-    form: SessionFormState,
+    draft: SessionCreateDraft,
+    onSubmissionStarted: () -> Unit,
 ) {
     val preview by viewModel.preview.collectAsState()
     val createResult by viewModel.createResult.collectAsState()
 
-    val priceValue = form.price.trim().toDoubleOrNull()
+    val priceValue = draft.finalPrice.trim().toDoubleOrNull()
     // #423 — a booked draft with an unparseable date shapes to null: submit disabled.
-    val booking = bookingFields(form.isBooked, form.nextAppointmentDate, Clock.System.now())
+    val booking = bookingFields(draft.isBooked, draft.nextAppointmentDate, Clock.System.now())
     val canSubmit =
         preview is UiState.Success && priceValue != null && priceValue >= 0 &&
-            booking != null && createResult !is UiState.Loading
+            booking != null && createResult !is UiState.Loading && createResult !is UiState.Success
     Button(
         onClick = {
+            onSubmissionStarted()
             viewModel.createSession(
-                form.price.trim(),
-                form.remarks,
-                form.otherConcerns,
+                draft.finalPrice.trim(),
+                draft.remarks,
+                draft.otherConcerns,
                 requireNotNull(booking),
             )
         },
@@ -518,21 +581,24 @@ private fun SubmitArea(
  * Booked submit.
  */
 @Composable
-private fun BookingSection(form: SessionFormState) {
+private fun BookingSection(
+    draft: SessionCreateDraft,
+    onBookedChange: (Boolean) -> Unit,
+    onDateChange: (String) -> Unit,
+    enabled: Boolean,
+) {
     BookingTypePicker(
-        isBooked = form.isBooked,
-        onSelect = { booked ->
-            form.isBooked = booked
-            if (!booked) form.nextAppointmentDate = ""
-        },
+        isBooked = draft.isBooked,
+        onSelect = onBookedChange,
+        enabled = enabled,
     )
-    if (!form.isBooked) return
+    if (!draft.isBooked) return
     val dateInvalid =
-        form.nextAppointmentDate.isNotBlank() &&
-            bookingFields(true, form.nextAppointmentDate, Clock.System.now()) == null
+        draft.nextAppointmentDate.isNotBlank() &&
+            bookingFields(true, draft.nextAppointmentDate, Clock.System.now()) == null
     OutlinedTextField(
-        value = form.nextAppointmentDate,
-        onValueChange = { form.nextAppointmentDate = it },
+        value = draft.nextAppointmentDate,
+        onValueChange = onDateChange,
         label = { Text("Next appointment date (optional)") },
         placeholder = { Text("yyyy-MM-dd") },
         supportingText =
@@ -543,6 +609,7 @@ private fun BookingSection(form: SessionFormState) {
             },
         isError = dateInvalid,
         singleLine = true,
+        enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
     )
 }
@@ -556,11 +623,12 @@ private fun BookingSection(form: SessionFormState) {
 private fun BookingTypePicker(
     isBooked: Boolean,
     onSelect: (Boolean) -> Unit,
+    enabled: Boolean,
 ) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
+        onExpandedChange = { if (enabled) expanded = !expanded },
         modifier = Modifier.fillMaxWidth(),
     ) {
         OutlinedTextField(
@@ -570,13 +638,15 @@ private fun BookingTypePicker(
             label = { Text("Session start") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+            enabled = enabled,
         )
         ExposedDropdownMenu(
-            expanded = expanded,
+            expanded = expanded && enabled,
             onDismissRequest = { expanded = false },
         ) {
             DropdownMenuItem(
                 text = { Text("Walk-in") },
+                enabled = enabled,
                 onClick = {
                     onSelect(false)
                     expanded = false
@@ -584,6 +654,7 @@ private fun BookingTypePicker(
             )
             DropdownMenuItem(
                 text = { Text("Booked") },
+                enabled = enabled,
                 onClick = {
                     onSelect(true)
                     expanded = false

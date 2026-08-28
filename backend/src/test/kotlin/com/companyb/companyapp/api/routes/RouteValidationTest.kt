@@ -11,6 +11,7 @@ import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
+import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.DailySalesSummaryBrowseResponse
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
@@ -428,6 +429,18 @@ class RouteValidationTest : BasePostgresTest() {
     fun `GET clients missing search query returns 400`() {
         testServer.client.let { client ->
             assertEquals(400, client.get("/api/clients").code)
+        }
+    }
+
+    @Test
+    fun `GET clients includes authoritative session count`() {
+        testServer.client.let { client ->
+            val response = client.get("/api/clients?q=Test")
+            val clients = json.decodeFromString<List<ClientResponse>>(response.body.string())
+
+            assertEquals(200, response.code)
+            assertEquals(1, clients.single { it.id == testClientId.toString() }.sessionCount)
+            assertEquals(0, clients.single { it.id == testClientNoSessionsId.toString() }.sessionCount)
         }
     }
 

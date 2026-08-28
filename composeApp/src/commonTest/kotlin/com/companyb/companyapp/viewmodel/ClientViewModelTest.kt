@@ -690,24 +690,24 @@ class ClientViewModelTest {
     private companion object {
         const val SEARCH_JSON =
             """[
-                {"id":"c1","firstName":"John","lastName":"Doe","middleName":null,"suffix":null,"phoneNumber":"09171234567","address":null,"gender":"M","age":30,"systolicBp":120,"diastolicBp":80,"medicalConditions":null}
+                {"id":"c1","firstName":"John","lastName":"Doe","middleName":null,"suffix":null,"phoneNumber":"09171234567","address":null,"gender":"M","age":30,"systolicBp":120,"diastolicBp":80,"medicalConditions":null,"sessionCount":0}
             ]"""
 
         // Distinct payload for the stale-retry test: if the stale "jo" response ever commits
         // after "joh", the list would show c2 instead of c1.
         const val STALE_JSON =
             """[
-                {"id":"c2","firstName":"Old","lastName":"Result","middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"M","age":50,"systolicBp":null,"diastolicBp":null,"medicalConditions":null}
+                {"id":"c2","firstName":"Old","lastName":"Result","middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"M","age":50,"systolicBp":null,"diastolicBp":null,"medicalConditions":null,"sessionCount":0}
             ]"""
 
         const val DETAIL_JSON =
-            """{"id":"c1","firstName":"John","lastName":"Doe","middleName":"A","suffix":null,"phoneNumber":"09171234567","address":"Manila","gender":"M","age":30,"systolicBp":120,"diastolicBp":80,"medicalConditions":null}"""
+            """{"id":"c1","firstName":"John","lastName":"Doe","middleName":"A","suffix":null,"phoneNumber":"09171234567","address":"Manila","gender":"M","age":30,"systolicBp":120,"diastolicBp":80,"medicalConditions":null,"sessionCount":0}"""
 
         const val UPDATED_JSON =
-            """{"id":"c1","firstName":"John","lastName":"Doe","middleName":"A","suffix":null,"phoneNumber":"0999","address":"Manila","gender":"M","age":30,"systolicBp":120,"diastolicBp":80,"medicalConditions":null}"""
+            """{"id":"c1","firstName":"John","lastName":"Doe","middleName":"A","suffix":null,"phoneNumber":"0999","address":"Manila","gender":"M","age":30,"systolicBp":120,"diastolicBp":80,"medicalConditions":null,"sessionCount":0}"""
 
         // F3/D10 — anonymized: all PII null, gender + age retained.
         const val ANONYMIZED_JSON =
-            """{"id":"c1","firstName":null,"lastName":null,"middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"F","age":44,"systolicBp":null,"diastolicBp":null,"medicalConditions":null}"""
+            """{"id":"c1","firstName":null,"lastName":null,"middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"F","age":44,"systolicBp":null,"diastolicBp":null,"medicalConditions":null,"sessionCount":0}"""
     }
 }

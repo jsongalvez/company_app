@@ -75,6 +75,20 @@ class ClientCreateFlowTest {
         }
 
     @Test
+    fun consumeCreateClientResult_retires_handled_success() =
+        runTest(testScheduler) {
+            val vm = ClientViewModel(mockApiClient(createHandler()))
+
+            vm.createClient(request())
+            runCurrent()
+            assertIs<UiState.Success<ClientResponse>>(vm.createClientResult.value)
+
+            vm.consumeCreateClientResult()
+
+            assertIs<UiState.Idle>(vm.createClientResult.value)
+        }
+
+    @Test
     fun createClient_400_policy_body_extracts_error_message() =
         runTest(testScheduler) {
             val vm =
@@ -168,11 +182,11 @@ class ClientCreateFlowTest {
     private companion object {
         const val SEARCH_JSON =
             """[
-                {"id":"c1","firstName":"John","lastName":"Doe","middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"M","age":30,"systolicBp":null,"diastolicBp":null,"medicalConditions":null}
+                {"id":"c1","firstName":"John","lastName":"Doe","middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"M","age":30,"systolicBp":null,"diastolicBp":null,"medicalConditions":null,"sessionCount":0}
             ]"""
 
         const val CREATED_JSON =
-            """{"id":"c9","firstName":"New","lastName":"Client","middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"M","age":30,"systolicBp":null,"diastolicBp":null,"medicalConditions":null}"""
+            """{"id":"c9","firstName":"New","lastName":"Client","middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"M","age":30,"systolicBp":null,"diastolicBp":null,"medicalConditions":null,"sessionCount":0}"""
 
         const val CREATE_ERROR_JSON = """{"error":"A client with this name already exists"}"""
     }

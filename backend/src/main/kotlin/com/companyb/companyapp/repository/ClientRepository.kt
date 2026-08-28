@@ -1,9 +1,12 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.domain.Gender
+import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
 import com.companyb.companyapp.repository.model.Client
 import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.ComparisonOp
@@ -16,14 +19,19 @@ import org.jetbrains.exposed.v1.core.QueryParameter
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.VarCharColumnType
 import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greaterEq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.leftJoin
 import org.jetbrains.exposed.v1.core.like
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -198,6 +206,27 @@ object ClientRepository {
                 ).limit(SEARCH_LIMIT)
                 .map { it.toClient() }
         }.also { logger.info { "[SEARCH-CLIENTS] Matched ${it.size} result(s) for query '$query'" } }
+
+    /** Total session history per client for authoritative client read models. */
+    fun countSessions(clientIds: Collection<UUID>): Map<UUID, Int> {
+        if (clientIds.isEmpty()) return emptyMap()
+        val ids = clientIds.toList()
+        return transaction {
+            val sessionCount = SessionTable.id.count()
+            SessionTable
+                .leftJoin(
+                    ActiveSessionVoidsView,
+                    { SessionTable.id },
+                    { ActiveSessionVoidsView.sessionId },
+                ).select(SessionTable.clientId, sessionCount)
+                .where {
+                    (SessionTable.clientId inList ids) and
+                        (SessionTable.sessionType neq SessionType.MEDICAL_MISSION) and
+                        (ActiveSessionVoidsView.sessionId.isNull())
+                }.groupBy(SessionTable.clientId)
+                .associate { row -> row[SessionTable.clientId] to row[sessionCount].toInt() }
+        }.let { counts -> ids.associateWith { counts[it] ?: 0 } }
+    }
 
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
     fun findByIdInTransaction(id: UUID): Client? =

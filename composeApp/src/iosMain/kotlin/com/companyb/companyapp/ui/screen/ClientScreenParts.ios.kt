@@ -1,7 +1,11 @@
+@file:Suppress("DEPRECATION")
+
 package com.companyb.companyapp.ui.screen
 
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.backhandler.BackHandler
 import com.companyb.companyapp.dto.ClientResponse
 
 @Composable
@@ -16,3 +20,9 @@ actual fun ClientDetailLayout(
     contactHealth: @Composable ColumnScope.() -> Unit,
     actions: @Composable ColumnScope.() -> Unit,
 ) = MobileClientDetailLayout(identity, contactHealth, actions)
+
+@Composable
+@OptIn(ExperimentalComposeUiApi::class)
+actual fun ClientDetailBackHandler(enabled: Boolean) {
+    BackHandler(enabled = enabled) {}
+}

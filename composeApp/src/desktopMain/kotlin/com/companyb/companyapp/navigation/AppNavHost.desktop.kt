@@ -27,6 +27,7 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
+import com.companyb.companyapp.state.ClientState
 import com.companyb.companyapp.state.GLOBAL_CAPABILITY_CONTEXT_ID
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.state.hasCapability
@@ -106,6 +107,8 @@ actual fun AppNavHost(
     val currentRoute = navController.currentRoute()
     val isPostClockIn =
         currentRoute != null && currentRoute !is Route.Login && currentRoute !is Route.BranchSelect
+    val sessionCreateNavigationLocked = rememberSessionCreateNavigationLock()
+    val clientMutationInFlight by ClientState.clientMutationInFlight.collectAsState()
     NotificationBadgeHost(apiClient, isPostClockIn)
 
     CompositionLocalProvider(LocalNavHostController provides navController) {
@@ -118,6 +121,11 @@ actual fun AppNavHost(
                     // provides these defaults.
                     DrawerContent(
                         apiClient = apiClient,
+                        navigationEnabled =
+                            shellNavigationEnabled(
+                                sessionCreateNavigationLocked.value,
+                                clientMutationInFlight,
+                            ),
                         modifier =
                             Modifier
                                 .fillMaxHeight()
@@ -199,7 +207,12 @@ actual fun AppNavHost(
                 // a pushed `Route.SessionDetail` for the NOTIFICATION entry point only — the
                 // dashboard pane below stays untouched.
                 composable<Route.Dashboard> { entry ->
-                    DashboardDestination(entry.toRoute<Route.Dashboard>(), apiClient, navController)
+                    DashboardDestination(
+                        deepLink = entry.toRoute<Route.Dashboard>(),
+                        apiClient = apiClient,
+                        navController = navController,
+                        resetSessionCreateNavigationLock = { sessionCreateNavigationLocked.value = false },
+                    )
                 }
                 composable<Route.Clients> {
                     // #113 D7 — code-only route gate, now the #156 any-context check
@@ -223,11 +236,15 @@ actual fun AppNavHost(
                 // entry point only — #151 Q6).
                 composable<Route.ClientDetail> { entry ->
                     val clientDetailViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
+                    val noticeReturnsToClients = navController.previousRoute() is Route.Clients
                     ClientDetailScreen(
                         clientId = entry.toRoute<Route.ClientDetail>().clientId,
                         viewModel = clientDetailViewModel,
                         onBack = { navController.popBackStack() },
-                        onAnonymized = { navController.popBackStack() },
+                        onAnonymized = {
+                            if (!noticeReturnsToClients) ClientState.consumeAnonymizeNotice()
+                            navController.popBackStack()
+                        },
                     )
                 }
                 composable<Route.Inventory> {
@@ -400,7 +417,11 @@ actual fun AppNavHost(
                 // platform); the dashboard's inline pane is untouched. Entry-scoped VM (#112):
                 // a fresh VM per push — the one-shot fetch state self-cleans on pop.
                 composable<Route.SessionCreate> {
-                    SessionCreateDestination(apiClient, navController)
+                    SessionCreateDestination(
+                        apiClient = apiClient,
+                        navController = navController,
+                        onSubmissionLockChanged = { locked -> sessionCreateNavigationLocked.value = locked },
+                    )
                 }
                 composable<Route.SessionDetail> { entry ->
                     val route = entry.toRoute<Route.SessionDetail>()
@@ -433,6 +454,7 @@ private fun DashboardDestination(
     deepLink: Route.Dashboard,
     apiClient: ApiClient,
     navController: NavHostController,
+    resetSessionCreateNavigationLock: () -> Unit,
 ) {
     if (deepLink.branchId != null && deepLink.date != null) {
         val reliefDayViewModel: ReliefDayViewModel =
@@ -470,7 +492,10 @@ private fun DashboardDestination(
                     ),
                 onSessionClick = { session -> selectedSessionId = session.id },
                 // #348 — the dashboard's entry into the start-a-session flow.
-                onSessionCreateClick = { navController.navigate(Route.SessionCreate) },
+                onSessionCreateClick = {
+                    resetSessionCreateNavigationLock()
+                    navController.navigate(Route.SessionCreate)
+                },
                 reliefAccessContent = {
                     val dayId = branchDayId
                     if (dayId != null) {
@@ -521,6 +546,7 @@ private fun DashboardDestination(
 private fun SessionCreateDestination(
     apiClient: ApiClient,
     navController: NavHostController,
+    onSubmissionLockChanged: (Boolean) -> Unit,
 ) {
     val capabilities by SessionState.capabilities.collectAsState()
     val selectedBranchId by SessionState.selectedBranchId.collectAsState()
@@ -536,16 +562,22 @@ private fun SessionCreateDestination(
             viewModel = sessionCreateViewModel,
             clientViewModel = clientViewModel,
             branchName = selectedBranchName,
-            onBack = { navController.popBackStack() },
+            onBack = {
+                onSubmissionLockChanged(false)
+                navController.popBackStack()
+            },
+            onClientProfileClick = { clientId -> navController.navigate(Route.ClientDetail(clientId)) },
             // #386 — created sessions carry the creator no notification row, so a
             // bearer-only SessionDetail push dead-ends in 404; land on a fresh Dashboard
             // instead (inclusive popUpTo rebuilds the entry-scoped VM so the new session
             // is in the day's list immediately).
             onSessionCreated = { _ ->
+                onSubmissionLockChanged(false)
                 navController.navigate(Route.Dashboard()) {
                     popUpTo(Route.Dashboard()) { inclusive = true }
                 }
             },
+            onSubmissionLockChanged = onSubmissionLockChanged,
         )
     } else {
         RouteGateCard(label = "New session")

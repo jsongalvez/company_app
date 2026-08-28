@@ -115,12 +115,15 @@ object ClientRoutes {
         val query = context.queryParam("q") ?: throw BadRequestResponse("Query parameter 'q' is required")
         val trimmedQuery = query.trim()
         if (trimmedQuery.isEmpty()) throw BadRequestResponse("Search query cannot be blank")
-        context.json(ClientService.search(trimmedQuery).map { it.toResponse() })
+        val clients = ClientService.search(trimmedQuery)
+        val sessionCounts = ClientService.countSessions(clients.map { it.id })
+        context.json(clients.map { it.toResponse(sessionCounts[it.id] ?: 0) })
     }
 
     private fun handleGetById(context: Context) {
         val clientId = context.pathParamAsUuid(CLIENT_ID_PARAM)
-        context.json(ClientService.findById(clientId).toResponse())
+        val client = ClientService.findById(clientId)
+        context.json(client.toResponse())
     }
 
     @Suppress("ThrowsCount")
@@ -176,7 +179,9 @@ object ClientRoutes {
         context.status(HttpStatus.NO_CONTENT)
     }
 
-    private fun Client.toResponse(): ClientResponse =
+    private fun Client.toResponse(): ClientResponse = toResponse(ClientService.countSessions(listOf(id))[id] ?: 0)
+
+    private fun Client.toResponse(sessionCount: Int): ClientResponse =
         ClientResponse(
             id = id.toString(),
             firstName = firstName,
@@ -190,5 +195,6 @@ object ClientRoutes {
             systolicBp = systolicBp,
             diastolicBp = diastolicBp,
             medicalConditions = medicalConditions,
+            sessionCount = sessionCount,
         )
 }

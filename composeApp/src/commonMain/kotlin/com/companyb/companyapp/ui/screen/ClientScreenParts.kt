@@ -92,6 +92,9 @@ expect fun ClientDetailLayout(
     actions: @Composable ColumnScope.() -> Unit,
 )
 
+@Composable
+expect fun ClientDetailBackHandler(enabled: Boolean)
+
 // Shared display helpers — used by both platform actuals + the commonMain screens.
 // D10 — a null firstName/lastName pair is the only in-band anonymized signal (F3): blank display.
 internal fun clientDisplayName(client: ClientResponse): String {

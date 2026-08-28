@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionStatus
+import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.ClientCreateResult
@@ -10,6 +11,7 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -17,6 +19,7 @@ import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -38,6 +41,9 @@ class ClientServicePostgresTest : BasePostgresTest() {
     private val completedSessionId = TestFixtures.uuid()
     private val noShowSessionId = TestFixtures.uuid()
     private val cancelledSessionId = TestFixtures.uuid()
+    private val medicalMissionSessionId = TestFixtures.uuid()
+    private val voidedSessionId = TestFixtures.uuid()
+    private val sessionVoidId = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "client-caller")
@@ -54,6 +60,9 @@ class ClientServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionTable, SessionTable.id, completedSessionId)
         trackOwned(SessionTable, SessionTable.id, noShowSessionId)
         trackOwned(SessionTable, SessionTable.id, cancelledSessionId)
+        trackOwned(SessionTable, SessionTable.id, medicalMissionSessionId)
+        trackOwned(SessionTable, SessionTable.id, voidedSessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.id, sessionVoidId)
     }
 
     @Test
@@ -222,6 +231,24 @@ class ClientServicePostgresTest : BasePostgresTest() {
         assertTrue(results.any { it.id == clientBId }, "Exact ILIKE match 'John' should match 'John Bravo'")
         assertTrue(results.any { it.id == clientAId }, "Fuzzy match 'Jon Smith' should match via trigram for 'John'")
         assertEquals(clientBId, results.first().id, "Exact match should rank first")
+    }
+
+    @Test
+    fun `session counts exclude medical missions and active voids`() {
+        createClient(callerId, clientAId)
+        createClient(callerId, clientBId)
+        seedSession(pendingSessionId, clientAId, SessionStatus.PENDING)
+        seedSession(completedSessionId, clientAId, SessionStatus.COMPLETED)
+        seedSession(noShowSessionId, clientAId, SessionStatus.NO_SHOW)
+        seedSession(cancelledSessionId, clientAId, SessionStatus.CANCELLED)
+        seedSession(medicalMissionSessionId, clientAId, SessionStatus.COMPLETED, SessionType.MEDICAL_MISSION)
+        seedSession(voidedSessionId, clientAId, SessionStatus.COMPLETED)
+        seedSessionVoid(voidedSessionId)
+
+        val counts = ClientService.countSessions(listOf(clientAId, clientBId))
+
+        assertEquals(expected = 4, actual = counts[clientAId])
+        assertEquals(expected = 0, actual = counts[clientBId])
     }
 
     @Test
@@ -552,12 +579,25 @@ class ClientServicePostgresTest : BasePostgresTest() {
         sessionId: UUID,
         clientId: UUID,
         status: SessionStatus,
+        sessionType: SessionType = SessionType.REGULAR,
     ) {
         DatabaseTestHelper.insertTestSession(
             id = sessionId,
             clientId = clientId,
             branchDayId = branchDayId,
+            sessionType = sessionType,
             sessionStatus = status,
         )
+    }
+
+    private fun seedSessionVoid(sessionId: UUID) {
+        transaction {
+            SessionVoidTable.insert {
+                it[SessionVoidTable.id] = sessionVoidId
+                it[SessionVoidTable.sessionId] = sessionId
+                it[SessionVoidTable.voidedBy] = callerId
+                it[SessionVoidTable.voidReason] = "Test void"
+            }
+        }
     }
 }

@@ -22,6 +22,7 @@ import com.companyb.companyapp.ui.theme.Spacing
 internal fun ErrorCard(
     message: String,
     onRetry: () -> Unit,
+    retryEnabled: Boolean = true,
 ) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Surface(
@@ -38,7 +39,7 @@ internal fun ErrorCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                TextButton(onClick = onRetry) {
+                TextButton(onClick = onRetry, enabled = retryEnabled) {
                     Text("Retry")
                 }
             }

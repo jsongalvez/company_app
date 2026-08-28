@@ -4,6 +4,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +24,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.companyb.companyapp.dto.ClockOutRequest
 import com.companyb.companyapp.navigation.LocalNavHostController
@@ -63,12 +67,14 @@ import com.companyb.companyapp.viewmodel.UiState
  * affordance (footer row + confirm dialog) — a session-lifecycle action, wired through an
  * AttendanceViewModel remembered here (the #109 host-pattern: VM created at the composition
  * that needs it; the badge host precedent gates on isPostClockIn, the drawer content is
- * only composed post-clock-in by both shell actuals).
+ * only composed post-clock-in by both shell actuals). [navigationEnabled] is false while the
+ * session-create entry is submitting, so drawer navigation cannot destroy its entry-scoped draft.
  */
 @Composable
 fun DrawerContent(
     apiClient: ApiClient,
     modifier: Modifier = Modifier,
+    navigationEnabled: Boolean = true,
     // #389 — host hook fired after every drawer-initiated navigation (item tap, clock-out
     // landing). Mobile closes its modal drawer; the desktop permanent drawer no-ops.
     onItemNavigated: () -> Unit = {},
@@ -82,24 +88,6 @@ fun DrawerContent(
     val unreadCount: Int? by NotificationState.unreadCount.collectAsState()
     val inviteCount: Int? by NotificationState.inviteCount.collectAsState()
     val selectedRoute = navController.currentRoute()
-    val attendanceViewModel = remember { AttendanceViewModel(apiClient) }
-    val clockOutState by attendanceViewModel.clockOutState.collectAsState()
-    var showClockOutDialog by remember { mutableStateOf(false) }
-
-    // #147 — clock-out success → session-end transition: partial state clear (user stays
-    // logged in; branch + caps reset per the Q3 decision), badge count cleared (the map's
-    // logged maintenance point — the badge poll stops via the shell gate, the singleton
-    // count must not linger), land on BranchSelect with the whole stack popped.
-    LaunchedEffect(clockOutState) {
-        if (clockOutState is UiState.Success) {
-            SessionState.clearClockState()
-            NotificationState.clear()
-            navController.navigate(Route.BranchSelect) {
-                popUpTo(0) { inclusive = true }
-            }
-            onItemNavigated()
-        }
-    }
 
     Column(modifier = modifier) {
         // Q4 — header: username above selectedBranchName (who-then-where), no app name
@@ -137,6 +125,7 @@ fun DrawerContent(
                 DrawerRow(
                     item = item,
                     isSelected = isSelected,
+                    enabled = navigationEnabled,
                     onItemClicked = { route ->
                         // #389 — section-switch semantics: collapse to the Dashboard root
                         // before pushing, so back from a section returns straight home and
@@ -144,57 +133,90 @@ fun DrawerContent(
                         // pops its existing instance (a relief deep-link panel included)
                         // and pushes a fresh home — popUpTo matches the destination pattern,
                         // not the entry args (SessionCreate landing precedent).
-                        navController.navigate(route) {
-                            popUpTo(Route.Dashboard()) { inclusive = route is Route.Dashboard }
+                        if (navigationEnabled) {
+                            navController.navigate(route) {
+                                popUpTo(Route.Dashboard()) { inclusive = route is Route.Dashboard }
+                            }
+                            onItemNavigated()
                         }
-                        onItemNavigated()
                     },
                     badge = notificationBadge,
                 )
             }
-        // #147 (Q1) — clock-out footer: shell-level session-lifecycle action, reachable from
-        // every post-clock-in screen. Hidden if no attendance id is recorded (only possible
-        // pre-clock-in, where the drawer isn't composed anyway — fail closed).
-        if (attendanceId != null) {
-            Spacer(Modifier.weight(1f))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-            NavigationDrawerItem(
-                label = { Text("Clock out") },
-                selected = false,
-                onClick = {
-                    // pass-2 — reset any stale error from a previous failed attempt before
-                    // the dialog opens (the dialog's inline error must describe THIS attempt).
+        ClockOutSection(
+            apiClient = apiClient,
+            attendanceId = attendanceId,
+            branchName = selectedBranchName,
+            navigationEnabled = navigationEnabled,
+            onClockedOut = {
+                SessionState.clearClockState()
+                NotificationState.clear()
+                navController.navigate(Route.BranchSelect) {
+                    popUpTo(0) { inclusive = true }
+                }
+                onItemNavigated()
+            },
+        )
+    }
+}
+
+@Composable
+private fun ColumnScope.ClockOutSection(
+    apiClient: ApiClient,
+    attendanceId: String?,
+    branchName: String?,
+    navigationEnabled: Boolean,
+    onClockedOut: () -> Unit,
+) {
+    val attendanceViewModel = remember { AttendanceViewModel(apiClient) }
+    val clockOutState by attendanceViewModel.clockOutState.collectAsState()
+    var showClockOutDialog by remember { mutableStateOf(false) }
+
+    // #147 — successful clock-out clears session state and lands on BranchSelect.
+    LaunchedEffect(clockOutState) {
+        if (clockOutState is UiState.Success) onClockedOut()
+    }
+
+    // Hide footer when attendance is absent; fail closed.
+    if (attendanceId != null) {
+        Spacer(Modifier.weight(1f))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        NavigationDrawerItem(
+            label = { Text("Clock out") },
+            selected = false,
+            modifier =
+                Modifier
+                    .alpha(if (navigationEnabled) 1f else 0.5f)
+                    .semantics { if (!navigationEnabled) disabled() },
+            onClick = {
+                if (navigationEnabled) {
                     attendanceViewModel.resetClockOut()
                     showClockOutDialog = true
-                },
-                colors =
-                    NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = MaterialTheme.colorScheme.secondary,
-                        unselectedContainerColor = MaterialTheme.colorScheme.surface,
-                        selectedTextColor = InkSubtle,
-                        unselectedTextColor = InkSubtle,
-                        selectedBadgeColor = InkSubtle,
-                        unselectedBadgeColor = InkSubtle,
-                    ),
-            )
-        }
+                }
+            },
+            colors =
+                NavigationDrawerItemDefaults.colors(
+                    selectedContainerColor = MaterialTheme.colorScheme.secondary,
+                    unselectedContainerColor = MaterialTheme.colorScheme.surface,
+                    selectedTextColor = InkSubtle,
+                    unselectedTextColor = InkSubtle,
+                    selectedBadgeColor = InkSubtle,
+                    unselectedBadgeColor = InkSubtle,
+                ),
+        )
     }
 
     if (showClockOutDialog) {
         ClockOutDialog(
-            branchName = selectedBranchName,
+            branchName = branchName,
             clockOutState = clockOutState,
+            navigationEnabled = navigationEnabled,
             onConfirm = {
-                // pass-3 — LIVE state read (the #140 clockIn guard precedent): the
-                // collectAsState() snapshot below would be stale within the same frame —
-                // a second tap before recomposition reads the pre-dispatch value and the
-                // guard would no-op in exactly the window it exists to close. The VM's
-                // sync Loading pre-set makes this read airtight from the caller's frame.
-                if (attendanceViewModel.clockOutState.value is UiState.Loading) return@ClockOutDialog
-                val id = attendanceId
-                if (id != null) {
-                    attendanceViewModel.clockOut(ClockOutRequest(attendanceId = id))
+                if (!navigationEnabled || attendanceViewModel.clockOutState.value is UiState.Loading) {
+                    return@ClockOutDialog
                 }
+                val id = attendanceId
+                if (id != null) attendanceViewModel.clockOut(ClockOutRequest(attendanceId = id))
             },
             onDismiss = {
                 if (attendanceViewModel.clockOutState.value !is UiState.Loading) {
@@ -209,6 +231,7 @@ fun DrawerContent(
 private fun ClockOutDialog(
     branchName: String?,
     clockOutState: UiState<com.companyb.companyapp.dto.ClockOutResponse>,
+    navigationEnabled: Boolean,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -236,7 +259,7 @@ private fun ClockOutDialog(
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
-                enabled = clockOutState !is UiState.Loading,
+                enabled = navigationEnabled && clockOutState !is UiState.Loading,
             ) {
                 Text("Clock out")
             }
@@ -271,6 +294,7 @@ private fun ClockOutDialog(
 private fun DrawerRow(
     item: DrawerItem,
     isSelected: Boolean,
+    enabled: Boolean,
     onItemClicked: (Route) -> Unit,
     badge: (@Composable () -> Unit)? = null,
 ) {
@@ -298,7 +322,11 @@ private fun DrawerRow(
     NavigationDrawerItem(
         label = { Text(item.label) },
         selected = isSelected,
-        onClick = { onItemClicked(item.route) },
+        modifier =
+            Modifier
+                .alpha(if (enabled) 1f else 0.5f)
+                .semantics { if (!enabled) disabled() },
+        onClick = { if (enabled) onItemClicked(item.route) },
         colors =
             NavigationDrawerItemDefaults.colors(
                 selectedContainerColor = MaterialTheme.colorScheme.secondary,

@@ -27,7 +27,8 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "repository/BranchRepository.kt" to 3,
                 "repository/ProductCategoryRepository.kt" to 2,
                 "repository/ProductRepository.kt" to 3,
-                "repository/ClientRepository.kt" to 2,
+                // Three read wrappers after the authoritative session-count query.
+                "repository/ClientRepository.kt" to 3,
                 "repository/AllowanceRepository.kt" to 1,
                 "repository/CompensationRepository.kt" to 3,
                 // Six read-only wrappers after #424's most-recent-price query.

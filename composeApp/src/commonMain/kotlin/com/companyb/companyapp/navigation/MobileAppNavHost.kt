@@ -26,6 +26,7 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
+import com.companyb.companyapp.state.ClientState
 import com.companyb.companyapp.state.GLOBAL_CAPABILITY_CONTEXT_ID
 import com.companyb.companyapp.state.NotificationState
 import com.companyb.companyapp.state.SessionState
@@ -106,6 +107,8 @@ internal fun MobileAppNavHost(
     val currentRoute = navController.currentRoute()
     val isPostClockIn =
         currentRoute != null && currentRoute !is Route.Login && currentRoute !is Route.BranchSelect
+    val sessionCreateNavigationLocked = rememberSessionCreateNavigationLock()
+    val clientMutationInFlight by ClientState.clientMutationInFlight.collectAsState()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     NotificationBadgeHost(apiClient, isPostClockIn)
@@ -126,6 +129,11 @@ internal fun MobileAppNavHost(
                         // chosen section is actually visible.
                         DrawerContent(
                             apiClient = apiClient,
+                            navigationEnabled =
+                                shellNavigationEnabled(
+                                    sessionCreateNavigationLocked.value,
+                                    clientMutationInFlight,
+                                ),
                             onItemNavigated = { scope.launch { drawerState.close() } },
                         )
                     }
@@ -229,7 +237,12 @@ internal fun MobileAppNavHost(
                         )
                     }
                     composable<Route.Dashboard> { entry ->
-                        DashboardDestination(apiClient, navController, entry)
+                        DashboardDestination(
+                            apiClient = apiClient,
+                            navController = navController,
+                            entry = entry,
+                            resetSessionCreateNavigationLock = { sessionCreateNavigationLocked.value = false },
+                        )
                     }
                     composable<Route.Clients> {
                         // #113 D7 — code-only route gate, now the #156 any-context check
@@ -249,14 +262,10 @@ internal fun MobileAppNavHost(
                         }
                     }
                     composable<Route.ClientDetail> { entry ->
-                        // Entry-scoped per #112: fresh VM per detail entry; the search entry's VM
-                        // stays alive under the push so D9's stale-list + D1's notice work.
-                        val clientDetailViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
-                        ClientDetailScreen(
+                        ClientDetailDestination(
+                            apiClient = apiClient,
+                            navController = navController,
                             clientId = entry.toRoute<Route.ClientDetail>().clientId,
-                            viewModel = clientDetailViewModel,
-                            onBack = { navController.popBackStack() },
-                            onAnonymized = { navController.popBackStack() },
                         )
                     }
                     composable<Route.Inventory> {
@@ -428,7 +437,11 @@ internal fun MobileAppNavHost(
                         )
                     }
                     composable<Route.SessionCreate> {
-                        SessionCreateDestination(apiClient, navController)
+                        SessionCreateDestination(
+                            apiClient = apiClient,
+                            navController = navController,
+                            onSubmissionLockChanged = { locked -> sessionCreateNavigationLocked.value = locked },
+                        )
                     }
                     composable<Route.SessionDetail> { entry ->
                         val route = entry.toRoute<Route.SessionDetail>()
@@ -457,6 +470,7 @@ internal fun MobileAppNavHost(
 private fun SessionCreateDestination(
     apiClient: ApiClient,
     navController: NavHostController,
+    onSubmissionLockChanged: (Boolean) -> Unit,
 ) {
     val capabilities by SessionState.capabilities.collectAsState()
     val selectedBranchId by SessionState.selectedBranchId.collectAsState()
@@ -472,16 +486,21 @@ private fun SessionCreateDestination(
             viewModel = sessionCreateViewModel,
             clientViewModel = clientViewModel,
             branchName = selectedBranchName,
-            onBack = { navController.popBackStack() },
+            onBack = {
+                onSubmissionLockChanged(false)
+                navController.popBackStack()
+            },
             // #386 — created sessions carry the creator no notification row, so a
             // bearer-only SessionDetail push dead-ends in 404; land on a fresh Dashboard
             // instead (inclusive popUpTo rebuilds the entry-scoped VM so the new session
             // is in the day's list immediately).
             onSessionCreated = { _ ->
+                onSubmissionLockChanged(false)
                 navController.navigate(Route.Dashboard()) {
                     popUpTo(Route.Dashboard()) { inclusive = true }
                 }
             },
+            onSubmissionLockChanged = onSubmissionLockChanged,
         )
     } else {
         RouteGateCard(label = "New session")
@@ -489,10 +508,32 @@ private fun SessionCreateDestination(
 }
 
 @Composable
+private fun ClientDetailDestination(
+    apiClient: ApiClient,
+    navController: NavHostController,
+    clientId: String,
+) {
+    // Entry-scoped per #112: fresh VM per detail entry; the search entry's VM stays alive under
+    // the push so D9's stale-list + D1's notice work.
+    val clientDetailViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
+    val noticeReturnsToClients = navController.previousRoute() is Route.Clients
+    ClientDetailScreen(
+        clientId = clientId,
+        viewModel = clientDetailViewModel,
+        onBack = { navController.popBackStack() },
+        onAnonymized = {
+            if (!noticeReturnsToClients) ClientState.consumeAnonymizeNotice()
+            navController.popBackStack()
+        },
+    )
+}
+
+@Composable
 private fun DashboardDestination(
     apiClient: ApiClient,
     navController: NavHostController,
     entry: NavBackStackEntry,
+    resetSessionCreateNavigationLock: () -> Unit,
 ) {
     // #358 — relief deep link: a (branchId, date) pair renders the
     // branch-day panel instead of the clock-in-gated live dashboard.
@@ -529,7 +570,10 @@ private fun DashboardDestination(
             navController.navigate(Route.SessionDetail(row.id, row))
         },
         // #348 — the dashboard's entry into the start-a-session flow.
-        onSessionCreateClick = { navController.navigate(Route.SessionCreate) },
+        onSessionCreateClick = {
+            resetSessionCreateNavigationLock()
+            navController.navigate(Route.SessionCreate)
+        },
         reliefAccessContent = {
             val dayId = branchDayId
             if (dayId != null) {

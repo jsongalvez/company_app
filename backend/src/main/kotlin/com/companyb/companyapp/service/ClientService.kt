@@ -72,6 +72,8 @@ object ClientService {
 
     fun search(query: String): List<Client> = ClientRepository.search(query)
 
+    fun countSessions(clientIds: Collection<UUID>): Map<UUID, Int> = ClientRepository.countSessions(clientIds)
+
     fun findById(clientId: UUID): Client =
         ClientRepository.findById(clientId) ?: throw NotFoundException("Client not found")
 

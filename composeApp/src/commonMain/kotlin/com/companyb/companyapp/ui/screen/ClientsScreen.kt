@@ -77,6 +77,12 @@ fun ClientsScreen(
         logInfo("ClientsScreen", "composable entered (first composition)")
     }
 
+    LaunchedEffect(Unit) {
+        ClientState.clientMutation.collect { mutation ->
+            mutation?.let(viewModel::applyClientMutation)
+        }
+    }
+
     LaunchedEffect(createState) {
         if (createState is UiState.Success) showCreateDialog = false
     }

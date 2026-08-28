@@ -48,4 +48,5 @@ data class ClientResponse(
     val systolicBp: Short?,
     val diastolicBp: Short?,
     val medicalConditions: String?,
+    val sessionCount: Int,
 )
