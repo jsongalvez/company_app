@@ -75,6 +75,36 @@ class ClientCreateFlowTest {
         }
 
     @Test
+    fun createClient_after_search_clear_does_not_resurrect_results() =
+        runTest(testScheduler) {
+            val vm = ClientViewModel(mockApiClient(createHandler()))
+
+            vm.onQueryChange("jo")
+            advanceTimeByAndRun(300)
+            vm.onQueryChange("")
+            vm.createClient(request())
+            runCurrent()
+
+            assertIs<UiState.Idle>(vm.searchResults.value)
+        }
+
+    @Test
+    fun createClient_during_pending_search_keeps_latest_search_scheduled() =
+        runTest(testScheduler) {
+            val queries = mutableListOf<String>()
+            val vm = ClientViewModel(mockApiClient(createHandler(searchQueries = queries)))
+
+            vm.onQueryChange("jo")
+            advanceTimeByAndRun(300)
+            vm.onQueryChange("joh")
+            vm.createClient(request())
+            runCurrent()
+            advanceTimeByAndRun(300)
+
+            assertEquals(expected = listOf("jo", "joh"), actual = queries)
+        }
+
+    @Test
     fun consumeCreateClientResult_retires_handled_success() =
         runTest(testScheduler) {
             val vm = ClientViewModel(mockApiClient(createHandler()))
@@ -153,6 +183,7 @@ class ClientCreateFlowTest {
     private fun createHandler(
         status: HttpStatusCode = HttpStatusCode.OK,
         body: String = CREATED_JSON,
+        searchQueries: MutableList<String>? = null,
     ): MockRequestHandler =
         { request ->
             when {
@@ -161,6 +192,7 @@ class ClientCreateFlowTest {
                 }
 
                 request.method == HttpMethod.Get && request.url.encodedPath == "/api/clients" -> {
+                    searchQueries?.add(request.url.parameters["q"].orEmpty())
                     jsonRespond(status = HttpStatusCode.OK, body = SEARCH_JSON)
                 }
 

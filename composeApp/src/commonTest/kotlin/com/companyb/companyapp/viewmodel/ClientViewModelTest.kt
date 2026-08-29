@@ -2,6 +2,7 @@ package com.companyb.companyapp.viewmodel
 
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.dto.ClientResponse
+import com.companyb.companyapp.dto.CreateClientRequest
 import com.companyb.companyapp.dto.UpdateClientRequest
 import com.companyb.companyapp.network.mockApiClient
 import com.companyb.companyapp.state.ClientState
@@ -14,8 +15,10 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
@@ -24,6 +27,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -307,6 +311,64 @@ class ClientViewModelTest {
             state = assertIs<UiState.Success<List<ClientResponse>>>(vm.searchResults.value)
             assertEquals(expected = listOf("c1"), actual = state.data.map { it.id })
             assertEquals(expected = listOf("jo", "jo", "joh"), actual = recorded)
+        }
+
+    @Test
+    fun createClient_cache_mutation_survives_non_cancellable_stale_search() =
+        runTest(testScheduler) {
+            val releaseStaleSearch = CompletableDeferred<Unit>()
+            var searchCount = 0
+            val vm =
+                ClientViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Get &&
+                                request.url.encodedPath == "/api/clients" -> {
+                                searchCount++
+                                if (searchCount == 2) {
+                                    withContext(NonCancellable) { releaseStaleSearch.await() }
+                                    jsonRespond(status = HttpStatusCode.OK, body = STALE_JSON)
+                                } else {
+                                    jsonRespond(status = HttpStatusCode.OK, body = SEARCH_JSON)
+                                }
+                            }
+
+                            request.method == HttpMethod.Post &&
+                                request.url.encodedPath == "/api/clients" -> {
+                                jsonRespond(status = HttpStatusCode.OK, body = CREATED_JSON)
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                )
+
+            vm.onQueryChange("jo")
+            advanceTimeByAndRun(300)
+            vm.onQueryChange("joh")
+            advanceTimeByAndRun(300)
+            assertIs<UiState.Loading>(vm.searchResults.value)
+
+            vm.createClient(
+                CreateClientRequest(
+                    id = "c9",
+                    firstName = "New",
+                    lastName = "Client",
+                    middleName = null,
+                    gender = Gender.M,
+                    age = 30,
+                    systolicBp = null,
+                    diastolicBp = null,
+                ),
+            )
+            runCurrent()
+            releaseStaleSearch.complete(Unit)
+            testScheduler.advanceUntilIdle()
+
+            val state = assertIs<UiState.Success<List<ClientResponse>>>(vm.searchResults.value)
+            assertEquals(expected = listOf("c9", "c1"), actual = state.data.map { it.id })
         }
 
     @Test
@@ -797,6 +859,9 @@ class ClientViewModelTest {
             """[
                 {"id":"c2","firstName":"Old","lastName":"Result","middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"M","age":50,"systolicBp":null,"diastolicBp":null,"medicalConditions":null,"sessionCount":0}
             ]"""
+
+        const val CREATED_JSON =
+            """{"id":"c9","firstName":"New","lastName":"Client","middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"M","age":30,"systolicBp":null,"diastolicBp":null,"medicalConditions":null,"sessionCount":0}"""
 
         const val DETAIL_JSON =
             """{"id":"c1","firstName":"John","lastName":"Doe","middleName":"A","suffix":null,"phoneNumber":"09171234567","address":"Manila","gender":"M","age":30,"systolicBp":120,"diastolicBp":80,"medicalConditions":null,"sessionCount":0}"""

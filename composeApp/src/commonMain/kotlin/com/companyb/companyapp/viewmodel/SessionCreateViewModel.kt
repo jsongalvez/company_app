@@ -23,7 +23,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -50,13 +49,12 @@ class SessionCreateViewModel(
 ) : ViewModel() {
     private val handler = ApiCallHandler(viewModelScope, "SessionCreateVM")
 
-    // --- Client picker: keep-last debounced search (the D2/#162 port, entry-scoped). ---
-    // Search lives in [ClientSearcher]; the flows surface as properties (the detekt function
-    // budget — same shape as ConcernPoster below).
-    private val clientSearcher = ClientSearcher(apiClient, viewModelScope)
+    // --- Client picker: keep-last debounced search, entry-scoped. ---
+    private val clientSearcher = ClientSearcher(apiClient, viewModelScope, "SessionCreateVM")
     val searchResults: StateFlow<UiState<List<ClientResponse>>> = clientSearcher.state
     val freshestResults: StateFlow<List<ClientResponse>?> = clientSearcher.freshest
     val query: StateFlow<String> = clientSearcher.query
+    val lastFiredQuery: StateFlow<String> = clientSearcher.lastFiredQuery
 
     val onQueryChange: (String) -> Unit = clientSearcher::onQueryChange
     val retrySearch: () -> Unit = clientSearcher::retrySearch
@@ -73,8 +71,7 @@ class SessionCreateViewModel(
     val preview: StateFlow<UiState<SessionPreviewResponse>> = _preview.asStateFlow()
 
     /**
-     * #405 review fix — the preview load is keep-last via structured cancellation (the
-     * [ClientSearcher] D2 guard, same file): a newer select cancels the in-flight load, so a
+     * #405 review fix — the preview load is keep-last via structured cancellation: a
      * superseded body can never land and paint a previous client's type/price onto the newly
      * selected one.
      */
@@ -373,11 +370,6 @@ class SessionCreateViewModel(
 
     private fun isSubmissionLocked(): Boolean =
         _createResult.value is UiState.Loading || _createResult.value is UiState.Success
-
-    private companion object {
-        const val SEARCH_DEBOUNCE_MS = 300L
-        const val MIN_SEARCH_CHARS = 2
-    }
 }
 
 /**
@@ -416,118 +408,6 @@ data class SessionCreateDraft(
     val isBooked: Boolean = false,
     val nextAppointmentDate: String = "",
 )
-
-/**
- * The client-picker search (the D2/#162 port, entry-scoped): keep-last debounced query over
- * `GET /api/clients`. Extracted from [SessionCreateViewModel] for the detekt function budget
- * (the ConcernPoster precedent).
- */
-private class ClientSearcher(
-    private val apiClient: ApiClient,
-    private val scope: CoroutineScope,
-) {
-    private val handler = ApiCallHandler(scope, "SessionCreateVM")
-
-    private val keptResults = KeepLast<List<ClientResponse>>(scope)
-    val state: StateFlow<UiState<List<ClientResponse>>> = keptResults.state
-    val freshest: StateFlow<List<ClientResponse>?> = keptResults.freshest
-
-    private val _query = MutableStateFlow("")
-    val query: StateFlow<String> = _query.asStateFlow()
-
-    private var searchJob: Job? = null
-    private var latestQuery: String = ""
-
-    fun onQueryChange(query: String) {
-        _query.value = query
-        latestQuery = query
-        searchJob?.cancel()
-        val trimmed = query.trim()
-        if (trimmed.length < MIN_SEARCH_CHARS) {
-            keptResults.stateFlow.value = UiState.Idle
-            return
-        }
-        searchJob =
-            scope.launch {
-                delay(SEARCH_DEBOUNCE_MS)
-                launchSearch(trimmed, this, "search called: query=$trimmed")
-            }
-    }
-
-    fun retrySearch() {
-        val trimmed = latestQuery.trim()
-        if (trimmed.length < MIN_SEARCH_CHARS) return
-        searchJob?.cancel()
-        searchJob =
-            scope.launch {
-                launchSearch(trimmed, this, "search retried: query=$trimmed")
-            }
-    }
-
-    fun include(client: ClientResponse) {
-        keptResults.mutate { clients ->
-            listOf(client) + clients.filterNot { it.id == client.id }
-        }
-    }
-
-    fun replace(client: ClientResponse) {
-        if (latestQuery.trim().length >= MIN_SEARCH_CHARS) {
-            keptResults.mutate { clients ->
-                if (clients.none { it.id == client.id }) {
-                    null
-                } else {
-                    clients.map { if (it.id == client.id) client else it }
-                }
-            }
-        }
-        refreshSearchAfterClientMutation()
-    }
-
-    fun remove(clientId: String) {
-        if (latestQuery.trim().length >= MIN_SEARCH_CHARS) {
-            keptResults.mutateRemoved { it.id == clientId }
-        }
-        refreshSearchAfterClientMutation()
-    }
-
-    private fun refreshSearchAfterClientMutation() {
-        searchJob?.cancel()
-        val trimmed = latestQuery.trim()
-        if (trimmed.length < MIN_SEARCH_CHARS) {
-            keptResults.stateFlow.value = UiState.Idle
-            return
-        }
-        searchJob =
-            scope.launch {
-                launchSearch(trimmed, this, "search refreshed after client mutation: query=$trimmed")
-            }
-    }
-
-    // Structured cancellation (the ClientViewModel D2 guard): each request is a child of the
-    // caller's job, so a newer keystroke cancels the in-flight one and only the latest commits.
-    private fun launchSearch(
-        query: String,
-        scope: CoroutineScope,
-        entryMessage: String,
-    ) {
-        handler.launch(
-            scope = scope,
-            state = keptResults.stateFlow,
-            operation = "search",
-            endpoint = "GET /api/clients",
-            entryMessage = entryMessage,
-            block = {
-                apiClient.httpClient.get(ApiRoutes.CLIENTS) { parameter("q", query) }
-            },
-            transform = { it.body() },
-        )
-    }
-
-    private companion object {
-        const val SEARCH_DEBOUNCE_MS = 300L
-        const val MIN_SEARCH_CHARS = 2
-    }
-}
 
 /**
  * Owns the concern multi-select (#348): the picked ids and the posts onto the created session.

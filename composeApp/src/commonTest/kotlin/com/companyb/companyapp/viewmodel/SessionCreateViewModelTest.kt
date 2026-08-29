@@ -248,6 +248,24 @@ class SessionCreateViewModelTest {
         }
 
     @Test
+    fun client_search_instances_keep_query_and_results_independent() =
+        runTest(testScheduler) {
+            val firstQueries = mutableListOf<String>()
+            val secondQueries = mutableListOf<String>()
+            val first = SessionCreateViewModel(mockApiClient(searchHandler(firstQueries)), BRANCH_ID)
+            val second = SessionCreateViewModel(mockApiClient(searchHandler(secondQueries)), BRANCH_ID)
+
+            first.onQueryChange("jo")
+            advanceTimeByAndRun(300)
+
+            assertEquals(expected = "jo", actual = first.query.value)
+            assertEquals(expected = "", actual = second.query.value)
+            assertEquals(expected = listOf("jo"), actual = firstQueries)
+            assertEquals(expected = emptyList(), actual = secondQueries)
+            assertIs<UiState.Idle>(second.searchResults.value)
+        }
+
+    @Test
     fun createSession_posts_walkin_create_and_reaches_success() =
         runTest(testScheduler) {
             val bodies = mutableListOf<kotlin.Pair<String, Boolean>>()

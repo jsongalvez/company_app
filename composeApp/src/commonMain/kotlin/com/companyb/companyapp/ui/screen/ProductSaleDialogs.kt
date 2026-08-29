@@ -155,6 +155,8 @@ private fun SaleClientPicker(
 ) {
     val query by clientViewModel.query.collectAsState()
     val results by clientViewModel.searchResults.collectAsState()
+    val cachedResults by clientViewModel.freshestResults.collectAsState()
+    val cached = cachedResults
 
     OutlinedTextField(
         value = query,
@@ -165,46 +167,81 @@ private fun SaleClientPicker(
     )
     when (val state = results) {
         is UiState.Loading -> {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                CircularProgressIndicator(Modifier.heightIn(max = 24.dp))
+            if (cached == null) {
+                SaleClientSearchSpinner()
+            } else {
+                SaleClientResultList(cached, selectedClient, onSelect)
+                SaleClientSearchSpinner()
             }
         }
 
         is UiState.Error -> {
-            TextButton(onClick = clientViewModel::retrySearch) { Text("Retry search") }
+            if (cached.isNullOrEmpty()) {
+                Text(
+                    text = state.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                TextButton(onClick = clientViewModel::retrySearch) { Text("Retry search") }
+            } else {
+                SaleClientResultList(cached, selectedClient, onSelect)
+                Text(
+                    text = state.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                TextButton(onClick = clientViewModel::retrySearch) { Text("Retry search") }
+            }
         }
 
         is UiState.Success -> {
-            if (state.data.isEmpty()) {
+            val clients = cached ?: state.data
+            if (clients.isEmpty()) {
                 Text(
                     text = "No clients found",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                Column(
-                    modifier =
-                        Modifier
-                            .heightIn(max = 200.dp)
-                            .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-                ) {
-                    state.data.forEach { client ->
-                        FilterChip(
-                            selected = selectedClient?.id == client.id,
-                            onClick = { onSelect(client) },
-                            label = { Text(listOfNotNull(client.firstName, client.lastName).joinToString(" ")) },
-                        )
-                    }
-                }
+                SaleClientResultList(clients, selectedClient, onSelect)
             }
         }
 
         is UiState.Idle -> {
             Unit
+        }
+    }
+}
+
+@Composable
+private fun SaleClientSearchSpinner() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        CircularProgressIndicator(Modifier.heightIn(max = 24.dp))
+    }
+}
+
+@Composable
+private fun SaleClientResultList(
+    clients: List<ClientResponse>,
+    selectedClient: ClientResponse?,
+    onSelect: (ClientResponse) -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier
+                .heightIn(max = 200.dp)
+                .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        clients.forEach { client ->
+            FilterChip(
+                selected = selectedClient?.id == client.id,
+                onClick = { onSelect(client) },
+                label = { Text(listOfNotNull(client.firstName, client.lastName).joinToString(" ")) },
+            )
         }
     }
 }
