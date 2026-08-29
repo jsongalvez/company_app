@@ -5,6 +5,7 @@ import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -23,6 +24,7 @@ import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -131,6 +133,7 @@ object SessionRepository {
             ?.get(AuditLogTable.changedBy)
 
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    @Suppress("ThrowsCount")
     fun createInTransaction(params: SessionCreateParams): SessionCreateResult {
         val existingBeforeLock = findSessionByIdInTransaction(params.id)
         if (existingBeforeLock != null) {
@@ -141,6 +144,18 @@ object SessionRepository {
         val existingAfterLock = findSessionByIdInTransaction(params.id)
         if (existingAfterLock != null) {
             return idempotentResult(existingAfterLock, params)
+        }
+
+        // Keep this atomic with the insert: both the precheck and booked_at use the DB transaction clock.
+        if (!params.isWalkIn && params.nextAppointmentDate != null) {
+            val bookingDate =
+                BranchTable
+                    .select(CurrentTimestampWithTimeZone)
+                    .first()[CurrentTimestampWithTimeZone]
+                    .toLocalDate()
+            if (params.nextAppointmentDate.isBefore(bookingDate)) {
+                throw ValidationException("Next appointment date cannot be before booking date")
+            }
         }
 
         val hasActive = hasActivePendingSessionInTransaction(params.clientId)

@@ -30,9 +30,11 @@ import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.junit.ClassRule
 import java.math.BigDecimal
@@ -132,6 +134,7 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
                     walkInClientId,
                     isWalkIn = true,
                     bookedAt = "2099-12-31T23:59:59Z",
+                    nextAppointmentDate = databaseNow().toLocalDate().minusDays(1).toString(),
                 ),
                 asUser(callerId),
             )
@@ -143,11 +146,38 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
         assertNull(walkIn.bookedAt)
     }
 
+    @Test
+    fun `booked create with past next appointment returns 400 without persistence`() {
+        val sessionId = TestFixtures.uuid()
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+
+        val response =
+            testServer.client.post(
+                ApiRoutes.SESSIONS,
+                sessionBody(
+                    sessionId,
+                    bookedClientId,
+                    isWalkIn = false,
+                    nextAppointmentDate = databaseNow().toLocalDate().minusDays(1).toString(),
+                ),
+                asUser(callerId),
+            )
+        val error = json.decodeFromString<Map<String, String>>(response.body.string())
+
+        assertEquals(400, response.code)
+        assertEquals("Next appointment date cannot be before booking date", error["error"])
+        transaction {
+            assertTrue(SessionTable.selectAll().where { SessionTable.id eq sessionId }.empty())
+            assertTrue(AuditLogTable.selectAll().where { AuditLogTable.recordId eq sessionId }.empty())
+        }
+    }
+
     private fun sessionBody(
         sessionId: UUID,
         clientId: UUID,
         isWalkIn: Boolean,
         bookedAt: String? = null,
+        nextAppointmentDate: String? = null,
     ): Map<String, Any> =
         buildMap {
             put("id", sessionId.toString())
@@ -156,6 +186,7 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
             put("isWalkIn", isWalkIn)
             put("finalPrice", "2500.00")
             if (bookedAt != null) put("bookedAt", bookedAt)
+            if (nextAppointmentDate != null) put("nextAppointmentDate", nextAppointmentDate)
         }
 
     private fun databaseNow(): OffsetDateTime =
