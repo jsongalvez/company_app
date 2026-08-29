@@ -144,6 +144,8 @@ internal class ClientSearcher(
                 apiClient.httpClient.get(ApiRoutes.CLIENTS) { parameter("q", query) }
             },
             transform = { response ->
+                // The handler gate runs before this transform; decoding can suspend, so guard
+                // again before writing a response against a newer cache mutation or clear.
                 val clients = response.body<List<ClientResponse>>()
                 if (searchGeneration == generation) {
                     keptResults.stateFlow.value = UiState.Success(clients)

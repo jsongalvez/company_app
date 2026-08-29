@@ -54,7 +54,6 @@ class SessionCreateViewModel(
     val searchResults: StateFlow<UiState<List<ClientResponse>>> = clientSearcher.state
     val freshestResults: StateFlow<List<ClientResponse>?> = clientSearcher.freshest
     val query: StateFlow<String> = clientSearcher.query
-    val lastFiredQuery: StateFlow<String> = clientSearcher.lastFiredQuery
 
     val onQueryChange: (String) -> Unit = clientSearcher::onQueryChange
     val retrySearch: () -> Unit = clientSearcher::retrySearch
