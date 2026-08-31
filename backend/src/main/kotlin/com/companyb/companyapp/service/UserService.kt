@@ -121,6 +121,7 @@ object UserService {
                     ),
                 )
         }
+        check(UserRepository.acquireLockInTransaction(targetId)) { "User row not found after invite target resolution" }
         val beforeRoles =
             if (createdNew) {
                 emptyList()
@@ -214,7 +215,7 @@ object UserService {
             throw ValidationException(SUPERUSER_GUARD_MESSAGE)
         }
         transaction {
-            if (!UserRepository.existsById(targetUserId)) {
+            if (!UserRepository.acquireLockInTransaction(targetUserId)) {
                 throw NotFoundException("User not found")
             }
             val before = RoleRepository.findRoleNamesForUserInTransaction(targetUserId)

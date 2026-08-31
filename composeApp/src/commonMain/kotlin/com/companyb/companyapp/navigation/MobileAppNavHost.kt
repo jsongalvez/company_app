@@ -429,6 +429,9 @@ internal fun MobileAppNavHost(
                             RouteGateCard(label = "User Management")
                         }
                     }
+                    composable<Route.MedicalMissionDelegates> {
+                        MedicalMissionDelegatesDestination(apiClient)
+                    }
                     // #381 — own profile: no route gate (every authenticated user), pushed
                     // route, entry-scoped VM (#112).
                     composable<Route.Profile> {

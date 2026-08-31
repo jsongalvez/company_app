@@ -2,6 +2,7 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditContext
@@ -9,6 +10,7 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.MedicalMissionDelegateRepository
+import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.MedicalMissionDelegate
 import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -42,23 +44,83 @@ object MedicalMissionDelegateService {
 
         val delegate =
             transaction {
-                val result =
-                    MedicalMissionDelegateRepository.assignInTransaction(
-                        delegateId = delegateId,
-                        targetUserId = targetUserId,
-                        assignedBy = callerId,
-                        branchId = branchId,
-                        capabilityId = capabilityId,
-                    )
-                if (result.inserted) {
-                    MedicalMissionDelegateAudit.inserted(AuditContext(callerId, branchId), result.delegate)
-                }
-                result.delegate
+                assignDelegateInTransaction(
+                    delegateId = delegateId,
+                    targetUserId = targetUserId,
+                    branchId = branchId,
+                    callerId = callerId,
+                    capabilityId = capabilityId,
+                )
             }
 
         logger.info { "[DELEGATE-ASSIGN] Delegate $delegateId: user=$targetUserId, branch=$branchId" }
 
         return delegate
+    }
+
+    private fun assignDelegateInTransaction(
+        delegateId: UUID,
+        targetUserId: UUID,
+        branchId: UUID,
+        callerId: UUID,
+        capabilityId: UUID,
+    ): MedicalMissionDelegate {
+        val existing = MedicalMissionDelegateRepository.findByIdInTransaction(delegateId)
+        if (existing != null) {
+            requireRequestOwnership(existing, targetUserId, branchId, callerId)
+            return existing
+        }
+
+        val activeManager = UserRepository.isActiveManagerInTransaction(targetUserId)
+        val existingAfterTargetLock = MedicalMissionDelegateRepository.findByIdInTransaction(delegateId)
+        if (existingAfterTargetLock != null) {
+            requireRequestOwnership(existingAfterTargetLock, targetUserId, branchId, callerId)
+            return existingAfterTargetLock
+        }
+        if (!activeManager) {
+            throw ValidationException("Delegate target must be an active MANAGER")
+        }
+        if (MedicalMissionDelegateRepository.findActiveByTargetAndBranchInTransaction(targetUserId, branchId) != null) {
+            throw ConflictException("User already has an active medical mission delegate at this branch")
+        }
+
+        val result =
+            MedicalMissionDelegateRepository.assignInTransaction(
+                delegateId = delegateId,
+                targetUserId = targetUserId,
+                assignedBy = callerId,
+                branchId = branchId,
+                capabilityId = capabilityId,
+            )
+        if (!result.inserted) {
+            requireRequestOwnership(result.delegate, targetUserId, branchId, callerId)
+        }
+        if (result.inserted) {
+            MedicalMissionDelegateAudit.inserted(AuditContext(callerId, branchId), result.delegate)
+        }
+        return result.delegate
+    }
+
+    private fun requireRequestOwnership(
+        delegate: MedicalMissionDelegate,
+        targetUserId: UUID,
+        branchId: UUID,
+        callerId: UUID,
+    ) {
+        if (delegate.targetUser != targetUserId ||
+            delegate.branchId != branchId ||
+            delegate.assignedBy != callerId
+        ) {
+            throw ConflictException("Delegate id already belongs to another request")
+        }
+    }
+
+    fun listDelegates(branchId: UUID): List<MedicalMissionDelegate> {
+        val branch = BranchRepository.findById(branchId) ?: throw NotFoundException("Branch not found")
+        if (branch.branchType != BranchType.MEDICAL_MISSION) {
+            throw ValidationException("Medical mission delegate requires a medical mission Branch")
+        }
+        return MedicalMissionDelegateRepository.findByBranchId(branchId)
     }
 
     fun revokeDelegate(
@@ -70,10 +132,12 @@ object MedicalMissionDelegateService {
                 MedicalMissionDelegateRepository.findByIdInTransaction(delegateId)
                     ?: throw NotFoundException("Medical mission delegate not found")
 
-            val revoked = MedicalMissionDelegateRepository.revokeInTransaction(delegateId)
+            val result = MedicalMissionDelegateRepository.revokeInTransaction(delegateId)
 
-            MedicalMissionDelegateAudit.updated(AuditContext(callerId, before.branchId), before, revoked)
-            revoked
+            if (result.changed) {
+                MedicalMissionDelegateAudit.updated(AuditContext(callerId, before.branchId), before, result.delegate)
+            }
+            result.delegate
         }.also { logger.info { "[DELEGATE-REVOKE] Delegate $delegateId revoked by $callerId" } }
 }
 

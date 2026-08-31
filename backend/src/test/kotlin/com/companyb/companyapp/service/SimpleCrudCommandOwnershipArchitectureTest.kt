@@ -44,7 +44,8 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "repository/ReliefAccessRepository.kt" to 7,
                 // 13 = twelve find/isActive read wrappers + the #374 accepted-duty scan + the #401 by-date read
                 "repository/ReliefInviteRepository.kt" to 13,
-                "repository/MedicalMissionDelegateRepository.kt" to 1,
+                // findById + branch list read wrappers; mutation stores remain in-transaction.
+                "repository/MedicalMissionDelegateRepository.kt" to 2,
                 // Batch 5 — inventory/product-sale cluster.
                 "repository/ProductSaleRepository.kt" to 2,
                 "repository/BranchInventoryRepository.kt" to 4,

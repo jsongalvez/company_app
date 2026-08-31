@@ -7,7 +7,9 @@ import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AppUser
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
+import com.companyb.companyapp.repository.model.UserRoleTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -17,6 +19,7 @@ import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.or
+import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.select
@@ -27,6 +30,8 @@ import java.time.Instant
 import java.util.UUID
 
 private val logger = KotlinLogging.logger { }
+
+private const val MANAGER_ROLE = "MANAGER"
 
 /** Active assignment projected with its branch name — the user-list shape. */
 data class UserBranchAssignmentSummary(
@@ -247,6 +252,29 @@ object UserRepository {
                     AppUserTable.username to SortOrder.ASC,
                 ).map { it.toAppUser() }
         }.also { logger.info { "[FIND-ALL-USERS] Fetched ${it.size} user(s)" } }
+
+    /** Locks target user row for eligibility and concurrent role replacement decisions. */
+    fun acquireLockInTransaction(userId: UUID): Boolean =
+        AppUserTable
+            .selectAll()
+            .where { AppUserTable.id eq userId }
+            .forUpdate(ForUpdateOption.ForUpdate)
+            .singleOrNull() != null
+
+    /** In-transaction eligibility check for medical-mission delegates. Locks target for pair uniqueness. */
+    fun isActiveManagerInTransaction(userId: UUID): Boolean {
+        if (!acquireLockInTransaction(userId)) return false
+        return AppUserTable
+            .innerJoin(UserRoleTable, { AppUserTable.id }, { UserRoleTable.userId })
+            .innerJoin(RoleTable, { UserRoleTable.roleId }, { RoleTable.id })
+            .selectAll()
+            .where {
+                (AppUserTable.id eq userId) and
+                    (AppUserTable.status eq UserStatus.ACTIVE) and
+                    (RoleTable.name eq MANAGER_ROLE)
+            }.empty()
+            .not()
+    }
 
     /** Active assignments (ended_at IS NULL) with branch names, slot ASC — the user-list join. */
     fun findActiveAssignmentsWithBranch(): List<UserBranchAssignmentSummary> =

@@ -74,6 +74,9 @@ sealed class Route {
     @Serializable
     data object UserManagement : Route()
 
+    @Serializable
+    data object MedicalMissionDelegates : Route()
+
     // #381 — the signed-in user's own profile (identity, assignments, capabilities, self slot
     // edit). No route gate: any authenticated user reaches their own surface.
     @Serializable

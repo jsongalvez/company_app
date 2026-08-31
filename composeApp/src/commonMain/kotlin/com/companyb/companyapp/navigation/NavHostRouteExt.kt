@@ -7,10 +7,20 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.toRoute
+import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.network.ApiClient
+import com.companyb.companyapp.state.GLOBAL_CAPABILITY_CONTEXT_ID
 import com.companyb.companyapp.state.SessionState
+import com.companyb.companyapp.state.hasCapability
+import com.companyb.companyapp.ui.screen.MedicalMissionDelegateScreen
+import com.companyb.companyapp.ui.screen.RouteGateCard
+import com.companyb.companyapp.viewmodel.DelegateViewModel
+import com.companyb.companyapp.viewmodel.UserViewModel
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.serializer
 import kotlin.reflect.KClass
@@ -64,6 +74,26 @@ internal fun shellNavigationEnabled(
     clientMutationInFlight: Boolean,
 ): Boolean = !sessionCreateNavigationLocked && !clientMutationInFlight
 
+@Composable
+internal fun MedicalMissionDelegatesDestination(apiClient: ApiClient) {
+    val capabilities by SessionState.capabilities.collectAsState()
+    if (capabilities.hasCapability(
+            CapabilityCodes.ASSIGN_DELEGATE,
+            CapabilityContextType.GLOBAL,
+            GLOBAL_CAPABILITY_CONTEXT_ID,
+        )
+    ) {
+        val delegateViewModel: DelegateViewModel = viewModel { DelegateViewModel(apiClient) }
+        val userViewModel: UserViewModel = viewModel { UserViewModel(apiClient) }
+        MedicalMissionDelegateScreen(
+            delegateViewModel = delegateViewModel,
+            userViewModel = userViewModel,
+        )
+    } else {
+        RouteGateCard(label = "Mission Delegates")
+    }
+}
+
 @OptIn(InternalSerializationApi::class)
 internal val ROUTES_BY_SERIAL_NAME: Map<String, KClass<out Route>> =
     mapOf(
@@ -83,6 +113,7 @@ internal val ROUTES_BY_SERIAL_NAME: Map<String, KClass<out Route>> =
         Route.AuditLog to Route.AuditLog::class,
         Route.AuditLogHistory to Route.AuditLogHistory::class,
         Route.UserManagement to Route.UserManagement::class,
+        Route.MedicalMissionDelegates to Route.MedicalMissionDelegates::class,
         Route.Profile to Route.Profile::class,
         Route.SessionCreate to Route.SessionCreate::class,
         Route.SessionDetail to Route.SessionDetail::class,

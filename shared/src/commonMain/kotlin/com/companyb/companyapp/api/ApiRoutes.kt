@@ -142,6 +142,8 @@ object ApiRoutes {
     // #366 — active-member directory (id + display name) for the requested-practitioner picker.
     fun branchMembers(id: String) = "$BRANCHES/$id/members"
 
+    fun branchDelegates(id: String) = "$BRANCHES/$id/delegates"
+
     fun branchExport(
         id: String,
         format: String,
@@ -241,6 +243,7 @@ object ApiRoutes {
     const val BRANCH_RELIEF_INVITES_BY_DATE_PATH = "$BRANCH_RELIEF_INVITES_PATH/by-date"
     const val BRANCH_RELIEF_CANDIDATES_PATH = "$BRANCH_PATH/relief-candidates"
     const val BRANCH_MEMBERS_PATH = "$BRANCH_PATH/members"
+    const val BRANCH_DELEGATES_PATH = "$BRANCH_PATH/delegates"
     const val BRANCH_ATTENDANCE_TODAY_PATH = "$BRANCH_PATH/attendance/today"
     const val BRANCH_ATTENDANCE_MARKS_PATH = "$BRANCH_PATH/attendance/marks"
     const val BRANCH_ASSIGNMENTS_PATH = "$BRANCH_PATH/assignments"

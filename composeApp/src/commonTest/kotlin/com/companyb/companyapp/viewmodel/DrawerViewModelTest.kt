@@ -39,6 +39,14 @@ class DrawerViewModelTest {
             com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
         )
 
+    private fun globalRow(code: String): UserCapabilityResponse =
+        UserCapabilityResponse(
+            code,
+            com.companyb.companyapp.domain.CapabilityContextType.GLOBAL,
+            com.companyb.companyapp.state.GLOBAL_CAPABILITY_CONTEXT_ID,
+            com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+        )
+
     @Test
     fun allCapabilityCodesVisible_allItemsVisible() {
         SessionState.setCapabilities(
@@ -48,6 +56,7 @@ class DrawerViewModelTest {
                 row(CapabilityCodes.SUBMIT_REMITTANCE),
                 row(CapabilityCodes.VIEW_BRANCH_DATA),
                 row(CapabilityCodes.MANAGE_USERS),
+                globalRow(CapabilityCodes.ASSIGN_DELEGATE),
                 // #418 — the Base Rates item's gate.
                 row(CapabilityCodes.MANAGE_PRODUCTS),
             ),
@@ -59,9 +68,9 @@ class DrawerViewModelTest {
         // #105 D1 — Finance & Reports collapsed into one item (8 total, was 8 with separate Reports);
         // #381 — Profile added as the always-visible self surface.
         // #389 — Dashboard added as the always-visible home surface (9 total).
-        // #418 — Base Rates added as a MANAGE_PRODUCTS-gated item (10 total).
-        assertEquals(expected = 10, actual = items.size)
-        assertTrue(items.all { it.visible }, "All 10 items should be visible when all capabilities are set")
+        // #418 — Base Rates added as a MANAGE_PRODUCTS-gated item; #438 adds Mission Delegates.
+        assertEquals(expected = 11, actual = items.size)
+        assertTrue(items.all { it.visible }, "All 11 items should be visible when all capabilities are set")
     }
 
     @Test
@@ -199,5 +208,24 @@ class DrawerViewModelTest {
                 .map { it.label }
 
         assertFalse("Finance & Reports" in labels)
+    }
+
+    @Test
+    fun missionDelegates_requiresGlobalAssignDelegate() {
+        SessionState.setCapabilities(listOf(row(CapabilityCodes.ASSIGN_DELEGATE)))
+        val branchScopedLabels =
+            DrawerViewModel()
+                .uiState.value.drawerItems
+                .filter { it.visible }
+                .map { it.label }
+        assertFalse("Mission Delegates" in branchScopedLabels)
+
+        SessionState.setCapabilities(listOf(globalRow(CapabilityCodes.ASSIGN_DELEGATE)))
+        val globalLabels =
+            DrawerViewModel()
+                .uiState.value.drawerItems
+                .filter { it.visible }
+                .map { it.label }
+        assertTrue("Mission Delegates" in globalLabels)
     }
 }

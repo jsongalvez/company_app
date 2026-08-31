@@ -150,6 +150,7 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     ReliefAccessRoutes.listMine(config)
     ReliefAccessRoutes.listBranchOptions(config)
     ReliefInviteRoutes.register(config)
+    MedicalMissionDelegateRoutes.listDelegates(config)
     MedicalMissionDelegateRoutes.assignDelegate(config)
     MedicalMissionDelegateRoutes.revokeDelegate(config)
     ClientRoutes.register(config)

@@ -3,8 +3,11 @@ package com.companyb.companyapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.navigation.Route
+import com.companyb.companyapp.state.GLOBAL_CAPABILITY_CONTEXT_ID
 import com.companyb.companyapp.state.SessionState
+import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.state.hasCapabilityAnyContext
 import com.companyb.companyapp.state.hasDayGrant
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +24,7 @@ data class DrawerItem(
     // BRANCH_DAY context (the relief day-grant shape: a relief delegate reaches the
     // Finance day-scoped surface without any BRANCH/VIEW grant).
     val dayGrantCode: String? = null,
+    val globalCapabilityOnly: Boolean = false,
 )
 
 data class DrawerUiState(
@@ -53,6 +57,13 @@ class DrawerViewModel : ViewModel() {
             DrawerItem(Route.Notifications, "Notifications", null, visible = true),
             DrawerItem(Route.AuditLog, "Audit Log", null, visible = true),
             DrawerItem(Route.UserManagement, "User Management", CapabilityCodes.MANAGE_USERS, visible = false),
+            DrawerItem(
+                Route.MedicalMissionDelegates,
+                "Mission Delegates",
+                CapabilityCodes.ASSIGN_DELEGATE,
+                visible = false,
+                globalCapabilityOnly = true,
+            ),
             // #381 — own profile: reachable by every authenticated user, no capability gate.
             DrawerItem(Route.Profile, "Profile", null, visible = true),
         )
@@ -70,25 +81,24 @@ class DrawerViewModel : ViewModel() {
             SessionState.capabilities.collect { caps ->
                 _uiState.value =
                     DrawerUiState(
-                        drawerItems =
-                            allItems.map { item ->
-                                item.copy(
-                                    // #156 — any-context membership per drawer item (#92 Q3
-                                    // "some branch": the drawer shows the item if the user holds
-                                    // the code at any context). #158 — the day-grant OR.
-                                    visible =
-                                        item.capabilityCode == null ||
-                                            caps.hasCapabilityAnyContext(
-                                                item.capabilityCode,
-                                            ) ||
-                                            (
-                                                item.dayGrantCode != null &&
-                                                    caps.hasDayGrant(item.dayGrantCode)
-                                            ),
-                                )
-                            },
+                        drawerItems = allItems.map { item -> item.copy(visible = item.isVisible(caps)) },
                     )
             }
         }
+    }
+
+    private fun DrawerItem.isVisible(caps: List<com.companyb.companyapp.dto.UserCapabilityResponse>): Boolean {
+        val capabilityVisible =
+            capabilityCode != null &&
+                if (globalCapabilityOnly) {
+                    caps.hasCapability(
+                        capabilityCode,
+                        CapabilityContextType.GLOBAL,
+                        GLOBAL_CAPABILITY_CONTEXT_ID,
+                    )
+                } else {
+                    caps.hasCapabilityAnyContext(capabilityCode)
+                }
+        return capabilityCode == null || capabilityVisible || (dayGrantCode != null && caps.hasDayGrant(dayGrantCode))
     }
 }

@@ -6,6 +6,7 @@ import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.AssignDelegateRequest
 import com.companyb.companyapp.dto.DelegateResponse
+import com.companyb.companyapp.repository.model.MedicalMissionDelegate
 import com.companyb.companyapp.service.MedicalMissionDelegateService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
@@ -30,7 +31,28 @@ import java.util.UUID
     operationId = "delegate_delete",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
+@OpenApi(
+    path = ApiRoutes.BRANCH_DELEGATES_PATH,
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    operationId = "branch_delegates",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object MedicalMissionDelegateRoutes {
+    fun listDelegates(config: JavalinConfig) {
+        config.routes.before(ApiRoutes.BRANCH_DELEGATES_PATH) { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.ASSIGN_DELEGATE,
+            )
+        }
+
+        config.routes.get(ApiRoutes.BRANCH_DELEGATES_PATH) { context ->
+            val branchId = context.pathParamAsUuid("branchId")
+            context.json(MedicalMissionDelegateService.listDelegates(branchId).map { it.toResponse() })
+        }
+    }
+
     @Suppress("ThrowsCount")
     fun assignDelegate(config: JavalinConfig) {
         config.routes.before(ApiRoutes.DELEGATES) { context ->
@@ -51,16 +73,7 @@ object MedicalMissionDelegateRoutes {
             val result = MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
 
             context.status(HttpStatus.CREATED)
-            context.json(
-                DelegateResponse(
-                    id = result.id.toString(),
-                    targetUser = result.targetUser.toString(),
-                    assignedAt = result.assignedAt.toString(),
-                    assignedBy = result.assignedBy.toString(),
-                    branchId = result.branchId.toString(),
-                    endedAt = result.endedAt?.toString(),
-                ),
-            )
+            context.json(result.toResponse())
         }
     }
 
@@ -80,16 +93,17 @@ object MedicalMissionDelegateRoutes {
             val result = MedicalMissionDelegateService.revokeDelegate(delegateId, callerId)
 
             context.status(HttpStatus.OK)
-            context.json(
-                DelegateResponse(
-                    id = result.id.toString(),
-                    targetUser = result.targetUser.toString(),
-                    assignedAt = result.assignedAt.toString(),
-                    assignedBy = result.assignedBy.toString(),
-                    branchId = result.branchId.toString(),
-                    endedAt = result.endedAt?.toString(),
-                ),
-            )
+            context.json(result.toResponse())
         }
     }
+
+    private fun MedicalMissionDelegate.toResponse(): DelegateResponse =
+        DelegateResponse(
+            id = id.toString(),
+            targetUser = targetUser.toString(),
+            assignedAt = assignedAt.toString(),
+            assignedBy = assignedBy.toString(),
+            branchId = branchId.toString(),
+            endedAt = endedAt?.toString(),
+        )
 }
