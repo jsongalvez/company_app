@@ -61,6 +61,7 @@ object ProductTable : Table("product") {
             "id" to entity.id.toString(),
             "name" to entity.name,
             "productCategoryId" to entity.productCategoryId.toString(),
+            "isActive" to entity.isActive.toString(),
             "unitPrice" to entity.unitPrice.toPlainString(),
             "commissionAmount" to entity.commissionAmount.toPlainString(),
         )

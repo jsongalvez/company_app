@@ -1,4 +1,5 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -56,6 +57,9 @@ class ProductServicePostgresTest : BasePostgresTest() {
         assertEquals(BigDecimal("25.00"), result.product.commissionAmount)
         assertTrue(result.product.isActive)
         assertEquals(1L, auditEntryCount(productId))
+        val insertStates = auditActiveStateChanges(productId, AuditAction.INSERT)
+        assertEquals(1, insertStates.size)
+        assertEquals("true", insertStates.single().second)
         trackOwned(ProductTable, ProductTable.id, productId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
@@ -170,7 +174,27 @@ class ProductServicePostgresTest : BasePostgresTest() {
         assertEquals("Updated Name", updated.name)
         assertEquals(BigDecimal("200.00"), updated.unitPrice)
         assertFalse(updated.isActive)
-        assertEquals(2L, auditEntryCount(productId))
+        val updateStates = auditActiveStateChanges(productId, AuditAction.UPDATE)
+        assertEquals(1, updateStates.size)
+        assertTrue(updateStates.contains("true" to "false"))
+
+        val reactivated =
+            ProductService.update(
+                callerId = callerId,
+                productId = productId,
+                name = null,
+                productCategoryId = null,
+                unitPrice = null,
+                commissionAmount = null,
+                isActive = true,
+            )
+
+        assertTrue(reactivated.isActive)
+        assertEquals(3L, auditEntryCount(productId))
+        val allUpdateStates = auditActiveStateChanges(productId, AuditAction.UPDATE)
+        assertEquals(2, allUpdateStates.size)
+        assertTrue(allUpdateStates.contains("true" to "false"))
+        assertTrue(allUpdateStates.contains("false" to "true"))
         trackOwned(ProductTable, ProductTable.id, productId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
@@ -248,5 +272,29 @@ class ProductServicePostgresTest : BasePostgresTest() {
                     (AuditLogTable.auditTableName eq "product") and
                         (AuditLogTable.recordId eq productId)
                 }.count()
+        }
+
+    private fun auditActiveStateChanges(
+        productId: UUID,
+        action: AuditAction,
+    ): List<Pair<String?, String?>> =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where {
+                    (AuditLogTable.auditTableName eq ProductTable.tableName) and
+                        (AuditLogTable.recordId eq productId) and
+                        (AuditLogTable.action eq action)
+                }.map { row ->
+                    val oldState =
+                        row[AuditLogTable.oldValue]?.let {
+                            DatabaseTestHelper.extractJsonField(it, "isActive")
+                        }
+                    val newState =
+                        row[AuditLogTable.newValue]?.let {
+                            DatabaseTestHelper.extractJsonField(it, "isActive")
+                        }
+                    oldState to newState
+                }
         }
 }
