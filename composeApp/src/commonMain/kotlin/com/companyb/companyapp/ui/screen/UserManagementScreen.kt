@@ -108,6 +108,7 @@ fun UserManagementScreen(
     val rolesState by viewModel.roles.collectAsState()
     val createBranchState by branchViewModel.createBranchState.collectAsState()
     val assignmentResult by branchViewModel.assignmentResult.collectAsState()
+    val deleteAssignmentState by branchViewModel.deleteAssignmentState.collectAsState()
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedBranchId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -122,8 +123,14 @@ fun UserManagementScreen(
 
     LaunchedEffect(Unit) {
         logInfo("UserManagementScreen", "composable entered (first composition)")
-        viewModel.loadUsers()
-        viewModel.loadBranches()
+        // Avoid starting a pre-mutation reload when a retained admin VM is re-entered. The
+        // mutation's success effect owns the authoritative post-mutation reload.
+        if (assignmentResult !is UiState.Loading && deleteAssignmentState !is UiState.Loading) {
+            viewModel.loadUsers()
+        }
+        if (createBranchState !is UiState.Loading) {
+            viewModel.loadBranches()
+        }
         viewModel.loadRoles()
     }
 
@@ -145,7 +152,8 @@ fun UserManagementScreen(
             users is UiState.Loading ||
             branches is UiState.Loading ||
             createBranchState is UiState.Loading ||
-            assignmentResult is UiState.Loading
+            assignmentResult is UiState.Loading ||
+            deleteAssignmentState is UiState.Loading
 
     LaunchedEffect(createBranchState) {
         when (val state = createBranchState) {
@@ -170,12 +178,28 @@ fun UserManagementScreen(
                 logInfo("UserManagementScreen", "assignmentResult=Success; reloading users")
                 viewModel.loadUsers()
                 showAssignUserDialog = false
-                removeAssignmentTarget = null
                 branchViewModel.resetAdministrationState()
             }
 
             is UiState.Error -> {
                 logWarn("UserManagementScreen", "assignmentResult=Error: ${state.message}")
+            }
+
+            else -> {}
+        }
+    }
+
+    LaunchedEffect(deleteAssignmentState) {
+        when (val state = deleteAssignmentState) {
+            is UiState.Success -> {
+                logInfo("UserManagementScreen", "deleteAssignmentState=Success; reloading users")
+                viewModel.loadUsers()
+                removeAssignmentTarget = null
+                branchViewModel.resetAdministrationState()
+            }
+
+            is UiState.Error -> {
+                logWarn("UserManagementScreen", "deleteAssignmentState=Error: ${state.message}")
             }
 
             else -> {}
@@ -522,7 +546,7 @@ fun UserManagementScreen(
     removeAssignmentTarget?.let { target ->
         RemoveAssignmentDialog(
             target = target,
-            state = assignmentResult,
+            state = deleteAssignmentState,
             onRemove = { branchViewModel.deleteAssignment(target.assignment.branchId, target.userId) },
             onDismiss = {
                 branchViewModel.resetAdministrationState()

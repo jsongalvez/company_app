@@ -188,7 +188,7 @@ internal fun AssignUserDialog(
 @Composable
 internal fun RemoveAssignmentDialog(
     target: AssignmentRemovalTarget,
-    state: UiState<AssignmentResponse>,
+    state: UiState<Unit>,
     onRemove: () -> Unit,
     onDismiss: () -> Unit,
 ) {

@@ -125,7 +125,7 @@ class BranchViewModelTest {
             vm.deleteAssignment(branchId = "b1", userId = "u1")
             advanceUntilIdle()
 
-            assertIs<UiState.Success<AssignmentResponse>>(vm.assignmentResult.value)
+            assertIs<UiState.Success<Unit>>(vm.deleteAssignmentState.value)
             assertEquals(1, harness.deleteCount)
         }
 
@@ -139,7 +139,7 @@ class BranchViewModelTest {
             vm.deleteAssignment(branchId = "b1", userId = "u1")
             advanceUntilIdle()
 
-            val failure = assertIs<UiState.Error>(vm.assignmentResult.value)
+            val failure = assertIs<UiState.Error>(vm.deleteAssignmentState.value)
             assertEquals("Active assignment not found", failure.message)
         }
 

@@ -17,6 +17,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,15 @@ class BranchViewModel(
     private val apiClient: ApiClient,
 ) : ViewModel() {
     private val handler = ApiCallHandler(viewModelScope, "BranchVM")
+    private val handleApiError: suspend (HttpResponse, (UiState.Error) -> Unit) -> Boolean = { response, setError ->
+        val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+        if (detail == null) {
+            false
+        } else {
+            setError(UiState.Error(detail))
+            true
+        }
+    }
 
     private val _branchDetail = MutableStateFlow<UiState<BranchResponse>>(UiState.Idle)
     val branchDetail: StateFlow<UiState<BranchResponse>> = _branchDetail.asStateFlow()
@@ -38,6 +48,9 @@ class BranchViewModel(
 
     private val _assignmentResult = MutableStateFlow<UiState<AssignmentResponse>>(UiState.Idle)
     val assignmentResult: StateFlow<UiState<AssignmentResponse>> = _assignmentResult.asStateFlow()
+
+    private val _deleteAssignmentState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val deleteAssignmentState: StateFlow<UiState<Unit>> = _deleteAssignmentState.asStateFlow()
 
     private val _slotSwapState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val slotSwapState: StateFlow<UiState<Unit>> = _slotSwapState.asStateFlow()
@@ -72,13 +85,7 @@ class BranchViewModel(
             },
             transform = { it.body() },
             onNonSuccess = { response ->
-                val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
-                if (detail == null) {
-                    false
-                } else {
-                    _createBranchState.value = UiState.Error(detail)
-                    true
-                }
+                handleApiError(response) { _createBranchState.value = it }
             },
         )
     }
@@ -89,6 +96,9 @@ class BranchViewModel(
         }
         if (_assignmentResult.value !is UiState.Loading) {
             _assignmentResult.value = UiState.Idle
+        }
+        if (_deleteAssignmentState.value !is UiState.Loading) {
+            _deleteAssignmentState.value = UiState.Idle
         }
     }
 
@@ -109,13 +119,7 @@ class BranchViewModel(
             },
             transform = { it.body() },
             onNonSuccess = { response ->
-                val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
-                if (detail == null) {
-                    false
-                } else {
-                    _assignmentResult.value = UiState.Error(detail)
-                    true
-                }
+                handleApiError(response) { _assignmentResult.value = it }
             },
         )
     }
@@ -124,10 +128,10 @@ class BranchViewModel(
         branchId: String,
         userId: String,
     ) {
-        if (_assignmentResult.value is UiState.Loading) return
-        _assignmentResult.value = UiState.Loading
-        handler.launch(
-            state = _assignmentResult,
+        if (_deleteAssignmentState.value is UiState.Loading) return
+        _deleteAssignmentState.value = UiState.Loading
+        handler.launchUnit(
+            state = _deleteAssignmentState,
             operation = "deleteAssignment",
             endpoint = "DELETE /api/branches/$branchId/assignments/$userId",
             block = {
@@ -135,24 +139,8 @@ class BranchViewModel(
                     ApiRoutes.branchAssignment(branchId, userId),
                 )
             },
-            transform = {
-                AssignmentResponse(
-                    id = "",
-                    userId = userId,
-                    branchId = branchId,
-                    slot = 0,
-                    assignedBy = "",
-                    assignedAt = "",
-                )
-            },
             onNonSuccess = { response ->
-                val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
-                if (detail == null) {
-                    false
-                } else {
-                    _assignmentResult.value = UiState.Error(detail)
-                    true
-                }
+                handleApiError(response) { _deleteAssignmentState.value = it }
             },
         )
     }
