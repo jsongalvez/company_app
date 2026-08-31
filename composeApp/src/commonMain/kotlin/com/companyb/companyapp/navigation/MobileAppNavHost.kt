@@ -418,8 +418,11 @@ internal fun MobileAppNavHost(
                         if (capabilities.hasCapabilityAnyContext(CapabilityCodes.MANAGE_USERS)) {
                             val userViewModel: UserViewModel =
                                 viewModel { UserViewModel(apiClient) }
+                            val branchViewModel: BranchViewModel =
+                                viewModel { BranchViewModel(apiClient) }
                             UserManagementScreen(
                                 viewModel = userViewModel,
+                                branchViewModel = branchViewModel,
                                 currentUserId = currentUser?.id,
                             )
                         } else {

@@ -17,6 +17,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -58,6 +59,8 @@ class BranchViewModel(
     }
 
     fun createBranch(request: CreateBranchRequest) {
+        if (_createBranchState.value is UiState.Loading) return
+        _createBranchState.value = UiState.Loading
         handler.launch(
             state = _createBranchState,
             operation = "createBranch",
@@ -68,23 +71,33 @@ class BranchViewModel(
                 }
             },
             transform = { it.body() },
+            onNonSuccess = { response ->
+                val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                if (detail == null) {
+                    false
+                } else {
+                    _createBranchState.value = UiState.Error(detail)
+                    true
+                }
+            },
         )
     }
 
-    fun loadAssignments(branchId: String) {
-        handler.launch(
-            state = _assignments,
-            operation = "loadAssignments",
-            endpoint = "GET /api/branches/$branchId/assignments",
-            block = { apiClient.httpClient.get(ApiRoutes.branchAssignments(branchId)) },
-            transform = { it.body() },
-        )
+    fun resetAdministrationState() {
+        if (_createBranchState.value !is UiState.Loading) {
+            _createBranchState.value = UiState.Idle
+        }
+        if (_assignmentResult.value !is UiState.Loading) {
+            _assignmentResult.value = UiState.Idle
+        }
     }
 
     fun createAssignment(
         branchId: String,
         request: CreateAssignmentRequest,
     ) {
+        if (_assignmentResult.value is UiState.Loading) return
+        _assignmentResult.value = UiState.Loading
         handler.launch(
             state = _assignmentResult,
             operation = "createAssignment",
@@ -95,6 +108,15 @@ class BranchViewModel(
                 }
             },
             transform = { it.body() },
+            onNonSuccess = { response ->
+                val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                if (detail == null) {
+                    false
+                } else {
+                    _assignmentResult.value = UiState.Error(detail)
+                    true
+                }
+            },
         )
     }
 
@@ -102,6 +124,8 @@ class BranchViewModel(
         branchId: String,
         userId: String,
     ) {
+        if (_assignmentResult.value is UiState.Loading) return
+        _assignmentResult.value = UiState.Loading
         handler.launch(
             state = _assignmentResult,
             operation = "deleteAssignment",
@@ -121,6 +145,16 @@ class BranchViewModel(
                     assignedAt = "",
                 )
             },
+        )
+    }
+
+    fun loadAssignments(branchId: String) {
+        handler.launch(
+            state = _assignments,
+            operation = "loadAssignments",
+            endpoint = "GET /api/branches/$branchId/assignments",
+            block = { apiClient.httpClient.get(ApiRoutes.branchAssignments(branchId)) },
+            transform = { it.body() },
         )
     }
 
@@ -145,6 +179,8 @@ class BranchViewModel(
         userId: String,
         request: UpdateSlotRequest,
     ) {
+        if (_assignmentResult.value is UiState.Loading) return
+        _assignmentResult.value = UiState.Loading
         handler.launch(
             state = _assignmentResult,
             operation = "updateSlot",

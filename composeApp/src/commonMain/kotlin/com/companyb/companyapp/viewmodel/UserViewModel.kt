@@ -201,6 +201,8 @@ class UserViewModel(
     }
 
     fun loadBranches() {
+        if (_branches.value is UiState.Loading) return
+        _branches.value = UiState.Loading
         handler.launch(
             state = _branches,
             operation = "loadBranches",

@@ -55,6 +55,7 @@ import com.companyb.companyapp.ui.theme.rowHover
 import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
+import com.companyb.companyapp.viewmodel.BranchViewModel
 import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.UserSlotRow
 import com.companyb.companyapp.viewmodel.UserViewModel
@@ -90,6 +91,7 @@ import com.companyb.companyapp.viewmodel.slotOrderForBranch
 @Composable
 fun UserManagementScreen(
     viewModel: UserViewModel,
+    branchViewModel: BranchViewModel,
     currentUserId: String?,
 ) {
     val users by viewModel.users.collectAsState()
@@ -104,6 +106,8 @@ fun UserManagementScreen(
     // #350 — invite-mint + role-picker state.
     val mintState by viewModel.mintInviteResult.collectAsState()
     val rolesState by viewModel.roles.collectAsState()
+    val createBranchState by branchViewModel.createBranchState.collectAsState()
+    val assignmentResult by branchViewModel.assignmentResult.collectAsState()
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedBranchId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -112,6 +116,9 @@ fun UserManagementScreen(
     var slotEditTarget by remember { mutableStateOf<SlotEditTarget?>(null) }
     var showCreateUserDialog by rememberSaveable { mutableStateOf(false) }
     var roleEditTarget by remember { mutableStateOf<UserSummaryResponse?>(null) }
+    var showCreateBranchDialog by rememberSaveable { mutableStateOf(false) }
+    var showAssignUserDialog by rememberSaveable { mutableStateOf(false) }
+    var removeAssignmentTarget by remember { mutableStateOf<AssignmentRemovalTarget?>(null) }
 
     LaunchedEffect(Unit) {
         logInfo("UserManagementScreen", "composable entered (first composition)")
@@ -123,16 +130,57 @@ fun UserManagementScreen(
     val loadedUsers = heldList.orEmpty()
     val filteredUsers = remember(loadedUsers, searchQuery) { filterUsers(loadedUsers, searchQuery) }
     val loadedBranches = (branches as? UiState.Success<List<BranchResponse>>)?.data.orEmpty()
+    val selectedBranch = loadedBranches.firstOrNull { it.id == selectedBranchId }
     val slotRows =
         remember(loadedUsers, selectedBranchId) {
             selectedBranchId?.let { slotOrderForBranch(loadedUsers, it) }.orEmpty()
         }
-    val selectedBranchName = loadedBranches.firstOrNull { it.id == selectedBranchId }?.name
+    val selectedBranchName = selectedBranch?.name
     // Mutations disabled while one is in flight (ADR-0022) OR while a reload is in flight: the
     // keep-last gate renders live rows during Loading, and a mutation landing mid-load would be
     // clobbered by the load's pre-mutation snapshot (pass-1 HARD — the VM guard covers the
     // same-frame tap; this gate is the visible affordance).
-    val mutationsDisabled = inFlight.isNotEmpty() || users is UiState.Loading
+    val mutationsDisabled =
+        inFlight.isNotEmpty() ||
+            users is UiState.Loading ||
+            branches is UiState.Loading ||
+            createBranchState is UiState.Loading ||
+            assignmentResult is UiState.Loading
+
+    LaunchedEffect(createBranchState) {
+        when (val state = createBranchState) {
+            is UiState.Success -> {
+                logInfo("UserManagementScreen", "createBranchState=Success; reloading branches")
+                viewModel.loadBranches()
+                showCreateBranchDialog = false
+                branchViewModel.resetAdministrationState()
+            }
+
+            is UiState.Error -> {
+                logWarn("UserManagementScreen", "createBranchState=Error: ${state.message}")
+            }
+
+            else -> {}
+        }
+    }
+
+    LaunchedEffect(assignmentResult) {
+        when (val state = assignmentResult) {
+            is UiState.Success -> {
+                logInfo("UserManagementScreen", "assignmentResult=Success; reloading users")
+                viewModel.loadUsers()
+                showAssignUserDialog = false
+                removeAssignmentTarget = null
+                branchViewModel.resetAdministrationState()
+            }
+
+            is UiState.Error -> {
+                logWarn("UserManagementScreen", "assignmentResult=Error: ${state.message}")
+            }
+
+            else -> {}
+        }
+    }
 
     Column(
         modifier =
@@ -196,6 +244,44 @@ fun UserManagementScreen(
             onBranchSelected = { selectedBranchId = it },
             onRetryBranches = { viewModel.loadBranches() },
         )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Branch administration",
+                style = MaterialTheme.typography.titleMedium,
+            )
+            TextButton(
+                onClick = {
+                    branchViewModel.resetAdministrationState()
+                    showCreateBranchDialog = true
+                },
+                enabled = !mutationsDisabled,
+            ) {
+                Text("Create branch")
+            }
+        }
+        if (selectedBranch != null) {
+            TextButton(
+                onClick = {
+                    branchViewModel.resetAdministrationState()
+                    showAssignUserDialog = true
+                },
+                enabled = !mutationsDisabled,
+            ) {
+                Text("Assign user to ${selectedBranch.name}")
+            }
+        }
+        if (assignmentResult is UiState.Error && removeAssignmentTarget == null && !showAssignUserDialog) {
+            Text(
+                text = (assignmentResult as UiState.Error).message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
 
         Spacer(Modifier.size(Spacing.sm))
 
@@ -281,6 +367,15 @@ fun UserManagementScreen(
                                             userId = user.id,
                                             displayName = user.displayName,
                                             currentSlot = assignment.slot,
+                                        )
+                                },
+                                onRemoveAssignment = { assignment ->
+                                    branchViewModel.resetAdministrationState()
+                                    removeAssignmentTarget =
+                                        AssignmentRemovalTarget(
+                                            userId = user.id,
+                                            displayName = user.displayName,
+                                            assignment = assignment,
                                         )
                                 },
                                 errors =
@@ -373,6 +468,42 @@ fun UserManagementScreen(
                         viewModel.replaceRoles(target.id, selected)
                     },
                 ),
+        )
+    }
+
+    if (showCreateBranchDialog) {
+        CreateBranchDialog(
+            state = createBranchState,
+            onCreate = branchViewModel::createBranch,
+            onDismiss = {
+                branchViewModel.resetAdministrationState()
+                showCreateBranchDialog = false
+            },
+        )
+    }
+
+    if (showAssignUserDialog && selectedBranch != null) {
+        AssignUserDialog(
+            branch = selectedBranch,
+            users = loadedUsers,
+            state = assignmentResult,
+            onAssign = { request -> branchViewModel.createAssignment(selectedBranch.id, request) },
+            onDismiss = {
+                branchViewModel.resetAdministrationState()
+                showAssignUserDialog = false
+            },
+        )
+    }
+
+    removeAssignmentTarget?.let { target ->
+        RemoveAssignmentDialog(
+            target = target,
+            state = assignmentResult,
+            onRemove = { branchViewModel.deleteAssignment(target.assignment.branchId, target.userId) },
+            onDismiss = {
+                branchViewModel.resetAdministrationState()
+                removeAssignmentTarget = null
+            },
         )
     }
 }
@@ -563,6 +694,7 @@ private fun UserRow(
     onReactivate: () -> Unit,
     onEditRoles: () -> Unit,
     onEditSlot: (UserAssignmentResponse) -> Unit,
+    onRemoveAssignment: (UserAssignmentResponse) -> Unit,
     errors: List<String>,
 ) {
     val isDeactivated = user.status == UserStatus.INACTIVE
@@ -645,6 +777,12 @@ private fun UserRow(
                                 enabled = !isDeactivated && !mutationsDisabled,
                             ) {
                                 Text("Edit slot")
+                            }
+                            TextButton(
+                                onClick = { onRemoveAssignment(assignment) },
+                                enabled = !mutationsDisabled,
+                            ) {
+                                Text("Remove")
                             }
                         }
                     }
