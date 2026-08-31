@@ -5,16 +5,24 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
 spec="${1:-$repo_root/backend/build/tmp/kapt3/classes/main/openapi-plugin/openapi-default.json}"
 test -f "$spec"
-if [ "${OPENAPI_VERIFY_SKIP_FRESHNESS:-0}" != "1" ] && find "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/routes" \
-    "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/service" \
-    "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/mapping" \
-    "$repo_root/shared/src/commonMain/kotlin/com/companyb/companyapp/dto" \
-    "$repo_root/shared/src/commonMain/kotlin/com/companyb/companyapp/domain" \
-      "$repo_root/scripts/normalize-openapi-spec.mjs" \
-      "$repo_root/scripts/openapi-source-parser.mjs" \
-      "$repo_root/scripts/openapi-route-contract.json" \
-     "$repo_root/scripts/verify-openapi-spec.sh" \
-    -type f -newer "$spec" -print -quit | grep -q .; then
+freshness_inputs=(
+  "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/routes"
+  "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/service"
+)
+mapping_dir="$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/mapping"
+if [ -d "$mapping_dir" ]; then
+  freshness_inputs+=("$mapping_dir")
+fi
+freshness_inputs+=(
+  "$repo_root/shared/src/commonMain/kotlin/com/companyb/companyapp/dto"
+  "$repo_root/shared/src/commonMain/kotlin/com/companyb/companyapp/domain"
+  "$repo_root/scripts/normalize-openapi-spec.mjs"
+  "$repo_root/scripts/openapi-source-parser.mjs"
+  "$repo_root/scripts/openapi-route-contract.json"
+  "$repo_root/scripts/verify-openapi-spec.sh"
+)
+if [ "${OPENAPI_VERIFY_SKIP_FRESHNESS:-0}" != "1" ] && find "${freshness_inputs[@]}" \
+     -type f -newer "$spec" -print -quit | grep -q .; then
   echo "Generated OpenAPI artifact is older than source inputs" >&2
   exit 1
 fi
