@@ -35,6 +35,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,6 +44,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.InviteMintRequest
@@ -119,7 +121,13 @@ fun UserManagementScreen(
     var roleEditTarget by remember { mutableStateOf<UserSummaryResponse?>(null) }
     var showCreateBranchDialog by rememberSaveable { mutableStateOf(false) }
     var showAssignUserDialog by rememberSaveable { mutableStateOf(false) }
-    var removeAssignmentTarget by remember { mutableStateOf<AssignmentRemovalTarget?>(null) }
+    var assignmentBranch by rememberSaveable(stateSaver = BranchResponseSaver) {
+        mutableStateOf<BranchResponse?>(null)
+    }
+    var removeAssignmentTarget by
+        rememberSaveable(stateSaver = AssignmentRemovalTargetSaver) {
+            mutableStateOf<AssignmentRemovalTarget?>(null)
+        }
 
     LaunchedEffect(Unit) {
         logInfo("UserManagementScreen", "composable entered (first composition)")
@@ -139,8 +147,8 @@ fun UserManagementScreen(
     val loadedBranches = (branches as? UiState.Success<List<BranchResponse>>)?.data.orEmpty()
     val selectedBranch = loadedBranches.firstOrNull { it.id == selectedBranchId }
     val slotRows =
-        remember(loadedUsers, selectedBranchId) {
-            selectedBranchId?.let { slotOrderForBranch(loadedUsers, it) }.orEmpty()
+        remember(loadedUsers, selectedBranchId, selectedBranch) {
+            if (selectedBranch == null) emptyList() else slotOrderForBranch(loadedUsers, selectedBranch.id)
         }
     val selectedBranchName = selectedBranch?.name
     // Mutations disabled while one is in flight (ADR-0022) OR while a reload is in flight: the
@@ -178,6 +186,7 @@ fun UserManagementScreen(
                 logInfo("UserManagementScreen", "assignmentResult=Success; reloading users")
                 viewModel.loadUsers()
                 showAssignUserDialog = false
+                assignmentBranch = null
                 branchViewModel.resetAdministrationState()
             }
 
@@ -292,6 +301,7 @@ fun UserManagementScreen(
             TextButton(
                 onClick = {
                     branchViewModel.resetAdministrationState()
+                    assignmentBranch = selectedBranch
                     showAssignUserDialog = true
                 },
                 enabled = !mutationsDisabled && heldList != null,
@@ -315,17 +325,17 @@ fun UserManagementScreen(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    if (selectedBranchId != null) {
+                    if (selectedBranch != null) {
                         item(key = "slot-order") {
                             UserSlotOrderList(
                                 branchName = selectedBranchName ?: "",
                                 rows = slotRows,
                                 mutationsDisabled = mutationsDisabled,
-                                onSwap = { a, b -> viewModel.swapSlots(selectedBranchId!!, a, b) },
+                                onSwap = { a, b -> viewModel.swapSlots(selectedBranch.id, a, b) },
                                 onEditSlot = { row ->
                                     slotEditTarget =
                                         SlotEditTarget(
-                                            branchId = selectedBranchId!!,
+                                            branchId = selectedBranch.id,
                                             branchName = selectedBranchName ?: "",
                                             userId = row.userId,
                                             displayName = row.displayName,
@@ -531,18 +541,20 @@ fun UserManagementScreen(
         )
     }
 
-    if (showAssignUserDialog && selectedBranch != null) {
+    val assignmentDialogBranch = assignmentBranch
+    if (showAssignUserDialog && assignmentDialogBranch != null) {
         AssignUserDialog(
-            branch = selectedBranch,
+            branch = assignmentDialogBranch,
             users = loadedUsers,
             state = assignmentResult,
             mutationsDisabled = mutationsDisabled,
             actions =
                 AssignmentDialogActions(
-                    onAssign = { request -> branchViewModel.createAssignment(selectedBranch.id, request) },
+                    onAssign = { request -> branchViewModel.createAssignment(assignmentDialogBranch.id, request) },
                     onDismiss = {
                         branchViewModel.resetAdministrationState()
                         showAssignUserDialog = false
+                        assignmentBranch = null
                     },
                 ),
         )
@@ -912,6 +924,55 @@ private fun StatusBadge(status: UserStatus) {
         )
     }
 }
+
+private val BranchResponseSaver =
+    Saver<BranchResponse?, List<String>>(
+        save = { branch ->
+            branch?.let { listOf(it.id, it.name, it.branchType.name) } ?: emptyList()
+        },
+        restore = { values ->
+            if (values.size != 3) {
+                null
+            } else {
+                BranchType.entries
+                    .firstOrNull { it.name == values[2] }
+                    ?.let { BranchResponse(id = values[0], name = values[1], branchType = it) }
+            }
+        },
+    )
+
+private val AssignmentRemovalTargetSaver =
+    Saver<AssignmentRemovalTarget?, List<String>>(
+        save = { target ->
+            target?.let {
+                listOf(
+                    it.userId,
+                    it.displayName,
+                    it.assignment.branchId,
+                    it.assignment.branchName,
+                    it.assignment.slot.toString(),
+                )
+            } ?: emptyList()
+        },
+        restore = { values ->
+            if (values.size != 5) {
+                null
+            } else {
+                values[4].toShortOrNull()?.let { slot ->
+                    AssignmentRemovalTarget(
+                        userId = values[0],
+                        displayName = values[1],
+                        assignment =
+                            UserAssignmentResponse(
+                                branchId = values[2],
+                                branchName = values[3],
+                                slot = slot,
+                            ),
+                    )
+                }
+            }
+        },
+    )
 
 // Shared across common + both platform actuals (#135 D2 dimmed-rows treatment).
 internal const val DEACTIVATED_ROW_ALPHA = 0.55f
