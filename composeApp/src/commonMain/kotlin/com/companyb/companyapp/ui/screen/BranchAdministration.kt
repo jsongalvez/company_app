@@ -39,7 +39,26 @@ import com.companyb.companyapp.viewmodel.slotInputError
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-internal fun branchNameError(name: String): String? = if (name.trim().isBlank()) "Branch name is required" else null
+internal fun branchNameError(
+    name: String,
+    branchType: BranchType = BranchType.CLINIC,
+    existingBranches: List<BranchResponse> = emptyList(),
+): String? {
+    val trimmed = name.trim()
+    return when {
+        trimmed.isBlank() -> {
+            "Branch name is required"
+        }
+
+        existingBranches.any { it.branchType == branchType && it.name == trimmed } -> {
+            "A branch with this name and type already exists"
+        }
+
+        else -> {
+            null
+        }
+    }
+}
 
 internal data class AssignmentRemovalTarget(
     val userId: String,
@@ -50,6 +69,7 @@ internal data class AssignmentRemovalTarget(
 @Composable
 internal fun CreateBranchDialog(
     state: UiState<BranchResponse>,
+    existingBranches: List<BranchResponse>,
     onCreate: (CreateBranchRequest) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -57,7 +77,7 @@ internal fun CreateBranchDialog(
     var typeMenuOpen by remember { mutableStateOf(false) }
     var attempted by remember { mutableStateOf(false) }
     val loading = state is UiState.Loading
-    val nameError = branchNameError(form.name).takeIf { attempted }
+    val nameError = branchNameError(form.name, form.branchType, existingBranches).takeIf { attempted }
 
     AlertDialog(
         onDismissRequest = { if (!loading) onDismiss() },
@@ -79,7 +99,7 @@ internal fun CreateBranchDialog(
             TextButton(
                 onClick = {
                     attempted = true
-                    if (branchNameError(form.name) == null) {
+                    if (branchNameError(form.name, form.branchType, existingBranches) == null) {
                         onCreate(
                             CreateBranchRequest(
                                 id = form.id,

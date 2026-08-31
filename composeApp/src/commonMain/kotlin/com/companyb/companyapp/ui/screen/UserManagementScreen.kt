@@ -270,7 +270,7 @@ fun UserManagementScreen(
                     branchViewModel.resetAdministrationState()
                     showAssignUserDialog = true
                 },
-                enabled = !mutationsDisabled,
+                enabled = !mutationsDisabled && heldList != null,
             ) {
                 Text("Assign user to ${selectedBranch.name}")
             }
@@ -330,6 +330,29 @@ fun UserManagementScreen(
                             text = "All users",
                             style = MaterialTheme.typography.titleMedium,
                         )
+                    }
+
+                    if (users is UiState.Error) {
+                        val errorState = users as UiState.Error
+                        item(key = "users-reload-error") {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = errorState.message,
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                TextButton(
+                                    onClick = { viewModel.loadUsers() },
+                                    enabled = !mutationsDisabled,
+                                ) {
+                                    Text("Retry")
+                                }
+                            }
+                        }
                     }
 
                     if (filteredUsers.isEmpty()) {
@@ -474,6 +497,7 @@ fun UserManagementScreen(
     if (showCreateBranchDialog) {
         CreateBranchDialog(
             state = createBranchState,
+            existingBranches = loadedBranches,
             onCreate = branchViewModel::createBranch,
             onDismiss = {
                 branchViewModel.resetAdministrationState()

@@ -130,6 +130,20 @@ class BranchViewModelTest {
         }
 
     @Test
+    fun deleteAssignment_failure_surfaces_backend_error() =
+        runTest(testScheduler) {
+            val harness = BranchHarness(deleteStatus = HttpStatusCode.NotFound)
+            harness.deleteBody = """{"error":"Active assignment not found"}"""
+            val vm = BranchViewModel(mockApiClient(harness.handler()))
+
+            vm.deleteAssignment(branchId = "b1", userId = "u1")
+            advanceUntilIdle()
+
+            val failure = assertIs<UiState.Error>(vm.assignmentResult.value)
+            assertEquals("Active assignment not found", failure.message)
+        }
+
+    @Test
     fun assignment_failure_emits_error_and_can_retry() =
         runTest(testScheduler) {
             val harness = BranchHarness(assignmentStatus = HttpStatusCode.BadRequest)
@@ -154,12 +168,14 @@ class BranchViewModelTest {
     private class BranchHarness(
         var branchStatus: HttpStatusCode = HttpStatusCode.Created,
         var assignmentStatus: HttpStatusCode = HttpStatusCode.Created,
+        var deleteStatus: HttpStatusCode = HttpStatusCode.NoContent,
     ) {
         var branchCount = 0
         var assignmentCount = 0
         var deleteCount = 0
         var branchBody = BRANCH_JSON
         var assignmentBody = ASSIGNMENT_JSON
+        var deleteBody = ""
         val branchBodies = mutableListOf<String>()
         val assignmentBodies = mutableListOf<String>()
 
@@ -181,7 +197,7 @@ class BranchViewModelTest {
                     request.method == HttpMethod.Delete &&
                         request.url.encodedPath == "/api/branches/b1/assignments/u1" -> {
                         deleteCount++
-                        jsonResponse(HttpStatusCode.NoContent, "")
+                        jsonResponse(deleteStatus, deleteBody)
                     }
 
                     else -> {

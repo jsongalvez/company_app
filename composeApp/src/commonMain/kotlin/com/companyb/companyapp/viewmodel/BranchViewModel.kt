@@ -145,6 +145,15 @@ class BranchViewModel(
                     assignedAt = "",
                 )
             },
+            onNonSuccess = { response ->
+                val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                if (detail == null) {
+                    false
+                } else {
+                    _assignmentResult.value = UiState.Error(detail)
+                    true
+                }
+            },
         )
     }
 
