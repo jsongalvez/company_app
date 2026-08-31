@@ -522,6 +522,7 @@ fun UserManagementScreen(
         CreateBranchDialog(
             state = createBranchState,
             existingBranches = loadedBranches,
+            mutationsDisabled = mutationsDisabled,
             onCreate = branchViewModel::createBranch,
             onDismiss = {
                 branchViewModel.resetAdministrationState()
@@ -535,11 +536,15 @@ fun UserManagementScreen(
             branch = selectedBranch,
             users = loadedUsers,
             state = assignmentResult,
-            onAssign = { request -> branchViewModel.createAssignment(selectedBranch.id, request) },
-            onDismiss = {
-                branchViewModel.resetAdministrationState()
-                showAssignUserDialog = false
-            },
+            mutationsDisabled = mutationsDisabled,
+            actions =
+                AssignmentDialogActions(
+                    onAssign = { request -> branchViewModel.createAssignment(selectedBranch.id, request) },
+                    onDismiss = {
+                        branchViewModel.resetAdministrationState()
+                        showAssignUserDialog = false
+                    },
+                ),
         )
     }
 
@@ -547,6 +552,7 @@ fun UserManagementScreen(
         RemoveAssignmentDialog(
             target = target,
             state = deleteAssignmentState,
+            mutationsDisabled = mutationsDisabled,
             onRemove = { branchViewModel.deleteAssignment(target.assignment.branchId, target.userId) },
             onDismiss = {
                 branchViewModel.resetAdministrationState()

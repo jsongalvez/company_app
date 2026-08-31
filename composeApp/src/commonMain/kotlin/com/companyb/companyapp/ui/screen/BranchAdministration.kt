@@ -66,10 +66,16 @@ internal data class AssignmentRemovalTarget(
     val assignment: UserAssignmentResponse,
 )
 
+internal data class AssignmentDialogActions(
+    val onAssign: (CreateAssignmentRequest) -> Unit,
+    val onDismiss: () -> Unit,
+)
+
 @Composable
 internal fun CreateBranchDialog(
     state: UiState<BranchResponse>,
     existingBranches: List<BranchResponse>,
+    mutationsDisabled: Boolean,
     onCreate: (CreateBranchRequest) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -77,10 +83,11 @@ internal fun CreateBranchDialog(
     var typeMenuOpen by remember { mutableStateOf(false) }
     var attempted by remember { mutableStateOf(false) }
     val loading = state is UiState.Loading
+    val disabled = mutationsDisabled
     val nameError = branchNameError(form.name, form.branchType, existingBranches).takeIf { attempted }
 
     AlertDialog(
-        onDismissRequest = { if (!loading) onDismiss() },
+        onDismissRequest = { if (!disabled) onDismiss() },
         title = { Text("Create branch") },
         text = {
             CreateBranchDialogContent(
@@ -88,7 +95,7 @@ internal fun CreateBranchDialog(
                     CreateBranchContentState(
                         form = form,
                         typeMenuOpen = typeMenuOpen,
-                        loading = loading,
+                        disabled = disabled,
                         nameError = nameError,
                         state = state,
                     ),
@@ -109,13 +116,13 @@ internal fun CreateBranchDialog(
                         )
                     }
                 },
-                enabled = !loading,
+                enabled = !disabled,
             ) {
                 Text(if (loading) "Creating…" else "Create")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !loading) {
+            TextButton(onClick = onDismiss, enabled = !disabled) {
                 Text("Cancel")
             }
         },
@@ -127,18 +134,19 @@ internal fun AssignUserDialog(
     branch: BranchResponse,
     users: List<UserSummaryResponse>,
     state: UiState<AssignmentResponse>,
-    onAssign: (CreateAssignmentRequest) -> Unit,
-    onDismiss: () -> Unit,
+    mutationsDisabled: Boolean,
+    actions: AssignmentDialogActions,
 ) {
     val form = remember(branch.id) { AssignmentForm() }
     var userMenuOpen by remember { mutableStateOf(false) }
     val loading = state is UiState.Loading
+    val disabled = mutationsDisabled
     val selectedUser = users.firstOrNull { it.id == form.userId }
     val userError = if (form.attempted && selectedUser == null) "Select a user" else null
     val slotError = slotInputError(form.slot).takeIf { form.attempted }
 
     AlertDialog(
-        onDismissRequest = { if (!loading) onDismiss() },
+        onDismissRequest = { if (!disabled) actions.onDismiss() },
         title = { Text("Assign user — ${branch.name}") },
         text = {
             AssignUserDialogContent(
@@ -151,7 +159,7 @@ internal fun AssignUserDialog(
                         selectedUser = selectedUser,
                         userError = userError,
                         slotError = slotError,
-                        loading = loading,
+                        disabled = disabled,
                         state = state,
                     ),
                 onUserMenuOpenChange = { userMenuOpen = it },
@@ -163,7 +171,7 @@ internal fun AssignUserDialog(
                     form.attempted = true
                     val parsedSlot = parseSlotInput(form.slot)
                     if (selectedUser != null && parsedSlot != null) {
-                        onAssign(
+                        actions.onAssign(
                             CreateAssignmentRequest(
                                 id = form.id,
                                 userId = selectedUser.id,
@@ -172,13 +180,13 @@ internal fun AssignUserDialog(
                         )
                     }
                 },
-                enabled = !loading && users.isNotEmpty(),
+                enabled = !disabled && users.isNotEmpty(),
             ) {
                 Text(if (loading) "Assigning…" else "Assign")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !loading) {
+            TextButton(onClick = actions.onDismiss, enabled = !disabled) {
                 Text("Cancel")
             }
         },
@@ -189,12 +197,14 @@ internal fun AssignUserDialog(
 internal fun RemoveAssignmentDialog(
     target: AssignmentRemovalTarget,
     state: UiState<Unit>,
+    mutationsDisabled: Boolean,
     onRemove: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val loading = state is UiState.Loading
+    val disabled = mutationsDisabled
     AlertDialog(
-        onDismissRequest = { if (!loading) onDismiss() },
+        onDismissRequest = { if (!disabled) onDismiss() },
         title = { Text("Remove assignment?") },
         text = {
             Column {
@@ -215,12 +225,12 @@ internal fun RemoveAssignmentDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onRemove, enabled = !loading) {
+            TextButton(onClick = onRemove, enabled = !disabled) {
                 Text(if (loading) "Removing…" else "Remove")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !loading) {
+            TextButton(onClick = onDismiss, enabled = !disabled) {
                 Text("Cancel")
             }
         },
@@ -243,7 +253,7 @@ private class AssignmentForm {
 private data class CreateBranchContentState(
     val form: CreateBranchForm,
     val typeMenuOpen: Boolean,
-    val loading: Boolean,
+    val disabled: Boolean,
     val nameError: String?,
     val state: UiState<BranchResponse>,
 )
@@ -256,7 +266,7 @@ private data class AssignUserContentState(
     val selectedUser: UserSummaryResponse?,
     val userError: String?,
     val slotError: String?,
-    val loading: Boolean,
+    val disabled: Boolean,
     val state: UiState<AssignmentResponse>,
 )
 
@@ -297,7 +307,7 @@ private fun CreateBranchDialogContent(
             onValueChange = { content.form.name = it },
             label = { Text("Branch name") },
             singleLine = true,
-            enabled = !content.loading,
+            enabled = !content.disabled,
             isError = content.nameError != null,
             supportingText = { content.nameError?.let { Text(it) } },
             modifier = Modifier.fillMaxWidth(),
@@ -306,7 +316,7 @@ private fun CreateBranchDialogContent(
         BranchTypePicker(
             selectedType = content.form.branchType,
             expanded = content.typeMenuOpen,
-            enabled = !content.loading,
+            enabled = !content.disabled,
             onExpandedChange = onTypeMenuOpenChange,
             onTypeSelected = { content.form.branchType = it },
         )
@@ -341,7 +351,7 @@ private fun AssignUserDialogContent(
                         users = content.users,
                         selectedUser = content.selectedUser,
                         expanded = content.userMenuOpen,
-                        enabled = !content.loading,
+                        enabled = !content.disabled,
                         userError = content.userError,
                     ),
                 onExpandedChange = onUserMenuOpenChange,
@@ -365,7 +375,7 @@ private fun AssignUserDialogContent(
             onValueChange = { content.form.slot = it },
             label = { Text("Slot number") },
             singleLine = true,
-            enabled = !content.loading,
+            enabled = !content.disabled,
             isError = content.slotError != null,
             supportingText = { content.slotError?.let { Text(it) } },
             modifier = Modifier.fillMaxWidth(),
