@@ -1,12 +1,14 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.Branch
 import com.companyb.companyapp.repository.model.BranchCreateParams
 import com.companyb.companyapp.repository.model.BranchTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -32,7 +34,19 @@ object BranchRepository {
                 }.insertedCount
         val branch =
             findByIdInTransaction(params.id)
-                ?: error("branch row not found after idempotent insert for ${params.id}")
+                ?: run {
+                    val duplicate =
+                        BranchTable
+                            .selectAll()
+                            .where {
+                                (BranchTable.branchType eq params.branchType) and
+                                    (BranchTable.name eq params.name)
+                            }.singleOrNull()
+                    if (duplicate != null) {
+                        throw ConflictException("A branch with this name and type already exists")
+                    }
+                    error("branch row not found after idempotent insert for ${params.id}")
+                }
         return BranchCreateResult(branch, created = insertedCount > 0)
     }
 

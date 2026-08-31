@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
@@ -17,6 +18,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -79,6 +81,22 @@ class BranchServicePostgresTest : BasePostgresTest() {
         assertEquals("Main Clinic", duplicate.branch.name)
         assertEquals(BranchType.CLINIC, duplicate.branch.branchType)
         assertEquals(1L, auditEntryCount(clinicId))
+    }
+
+    @Test
+    fun `duplicate branch name and type is rejected`() {
+        val first = BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
+        trackOwned(BranchTable, BranchTable.id, clinicId)
+        trackChildRowsOfParent(SessionBaseRateTable, SessionBaseRateTable.branchId, clinicId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+
+        val failure =
+            assertFailsWith<ConflictException> {
+                BranchService.create(callerId, TestFixtures.uuid(), "Main Clinic", BranchType.CLINIC)
+            }
+
+        assertTrue(first.created)
+        assertEquals("A branch with this name and type already exists", failure.message)
     }
 
     @Test
