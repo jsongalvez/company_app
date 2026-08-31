@@ -51,7 +51,7 @@ data class EnsureCardResult(
 
 @Suppress("TooManyFunctions")
 object BranchInventoryRepository {
-    fun requireCardForUpdate(
+    fun requireCardForUpdateInTransaction(
         oldCard: BranchInventory,
         expectedVersion: Int,
         delta: Int,
@@ -208,13 +208,19 @@ object BranchInventoryRepository {
                     BranchDayTable,
                     { InventoryMovementTable.branchDayId },
                     { BranchDayTable.id },
+                ).innerJoin(
+                    ProductTable,
+                    { InventoryMovementTable.productId },
+                    { ProductTable.id },
                 ).selectAll()
                 .where {
                     if (date != null) {
                         (InventoryMovementTable.branchId eq branchId) and
-                            (BranchDayTable.date eq date)
+                            (BranchDayTable.date eq date) and
+                            (ProductTable.isActive eq true)
                     } else {
-                        InventoryMovementTable.branchId eq branchId
+                        (InventoryMovementTable.branchId eq branchId) and
+                            (ProductTable.isActive eq true)
                     }
                 }.orderBy(
                     InventoryMovementTable.movedAt to SortOrder.DESC,
@@ -235,8 +241,10 @@ object BranchInventoryRepository {
                     { BranchInventoryTable.productId },
                     { ProductTable.id },
                 ).selectAll()
-                .where { BranchInventoryTable.branchId eq branchId }
-                .orderBy(ProductTable.name to SortOrder.ASC)
+                .where {
+                    (BranchInventoryTable.branchId eq branchId) and
+                        (ProductTable.isActive eq true)
+                }.orderBy(ProductTable.name to SortOrder.ASC)
                 .map { row ->
                     BranchInventoryWithProduct(
                         inventory = row.toBranchInventory(),
@@ -260,6 +268,7 @@ object BranchInventoryRepository {
                 ).selectAll()
                 .where {
                     (BranchInventoryTable.branchId eq branchId) and
+                        (ProductTable.isActive eq true) and
                         (BranchInventoryTable.currentStock lessEq threshold)
                 }.orderBy(ProductTable.name to SortOrder.ASC)
                 .map { row ->

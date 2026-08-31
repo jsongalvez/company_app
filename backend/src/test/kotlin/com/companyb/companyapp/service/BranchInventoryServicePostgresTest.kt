@@ -26,6 +26,7 @@ import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
@@ -159,6 +160,151 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             InventoryService.ensureCard(callerId, branchId, TestFixtures.uuid())
         }
+    }
+
+    @Suppress("LongMethod")
+    @Test
+    fun `inactive product is hidden from inventory reads and preserves history`() {
+        val activeProductId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestProduct(
+            id = activeProductId,
+            categoryId = categoryId,
+            name = "Active Inventory Product",
+        )
+        trackOwned(ProductTable, ProductTable.id, activeProductId)
+        InventoryService.ensureCard(callerId, branchId, productId)
+        InventoryService.ensureCard(callerId, branchId, activeProductId)
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        val movementId = TestFixtures.uuid()
+        val firstMovement =
+            InventoryService.recordMovement(
+                callerId = callerId,
+                movementId = movementId,
+                branchId = branchId,
+                productId = productId,
+                movementType = MovementType.Restock,
+                quantityChange = 10,
+                notes = null,
+                branchDayId = branchDayId,
+            )
+        deactivateProduct()
+
+        val stock = InventoryService.getStock(branchId)
+        assertEquals(1, stock.size)
+        assertEquals(activeProductId, stock.single().inventory.productId)
+        val lowStock = InventoryService.getLowStockAlerts(branchId)
+        assertEquals(1, lowStock.size)
+        assertEquals(activeProductId, lowStock.single().inventory.productId)
+        assertTrue(InventoryService.getMovementHistory(branchId).isEmpty())
+        assertFailsWith<NotFoundException> {
+            InventoryService.ensureCard(callerId, branchId, productId)
+        }
+        assertEquals(
+            firstMovement,
+            InventoryService.recordMovement(
+                callerId = callerId,
+                movementId = movementId,
+                branchId = branchId,
+                productId = productId,
+                movementType = MovementType.Restock,
+                quantityChange = 10,
+                notes = null,
+                branchDayId = branchDayId,
+            ),
+        )
+        assertFailsWith<NotFoundException> {
+            InventoryService.recordMovement(
+                callerId = callerId,
+                movementId = TestFixtures.uuid(),
+                branchId = branchId,
+                productId = productId,
+                movementType = MovementType.Restock,
+                quantityChange = 5,
+                notes = null,
+                branchDayId = branchDayId,
+            )
+        }
+
+        val cardCount =
+            transaction {
+                BranchInventoryTable
+                    .selectAll()
+                    .where {
+                        (BranchInventoryTable.branchId eq branchId) and
+                            (BranchInventoryTable.productId eq productId)
+                    }.count()
+            }
+        val movementCount =
+            transaction {
+                InventoryMovementTable
+                    .selectAll()
+                    .where {
+                        (InventoryMovementTable.branchId eq branchId) and
+                            (InventoryMovementTable.productId eq productId)
+                    }.count()
+            }
+        assertEquals(1L, cardCount)
+        val card =
+            transaction {
+                BranchInventoryTable
+                    .selectAll()
+                    .where {
+                        (BranchInventoryTable.branchId eq branchId) and
+                            (BranchInventoryTable.productId eq productId)
+                    }.single()
+            }
+        assertEquals(10, card[BranchInventoryTable.currentStock])
+        assertEquals(2, card[BranchInventoryTable.version])
+        assertEquals(1L, movementCount)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    @Test
+    fun `inactive product rejects inventory card and movement creation`() {
+        deactivateProduct()
+
+        assertFailsWith<NotFoundException> {
+            InventoryService.ensureCard(callerId, branchId, productId)
+        }
+
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        assertFailsWith<NotFoundException> {
+            InventoryService.recordMovement(
+                callerId = callerId,
+                movementId = TestFixtures.uuid(),
+                branchId = branchId,
+                productId = productId,
+                movementType = MovementType.Restock,
+                quantityChange = 10,
+                notes = null,
+                branchDayId = branchDayId,
+            )
+        }
+
+        val cardCount =
+            transaction {
+                BranchInventoryTable
+                    .selectAll()
+                    .where {
+                        (BranchInventoryTable.branchId eq branchId) and
+                            (BranchInventoryTable.productId eq productId)
+                    }.count()
+            }
+        val movementCount =
+            transaction {
+                InventoryMovementTable
+                    .selectAll()
+                    .where {
+                        (InventoryMovementTable.branchId eq branchId) and
+                            (InventoryMovementTable.productId eq productId)
+                    }.count()
+            }
+        assertEquals(0L, cardCount)
+        assertEquals(0L, movementCount)
     }
 
     @Test
@@ -1314,5 +1460,13 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
         trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    private fun deactivateProduct() {
+        transaction {
+            ProductTable.update({ ProductTable.id eq productId }) {
+                it[ProductTable.isActive] = false
+            }
+        }
     }
 }

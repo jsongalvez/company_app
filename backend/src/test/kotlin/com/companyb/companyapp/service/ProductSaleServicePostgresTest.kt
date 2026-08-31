@@ -27,6 +27,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
@@ -172,6 +173,54 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
                     .single()[InventoryMovementTable.reason]
             }
         assertEquals(InventoryMovementReason.SALE, movementReason)
+    }
+
+    @Test
+    fun `sell rejects inactive product without changing inventory`() {
+        transaction {
+            ProductTable.update({ ProductTable.id eq productId }) {
+                it[ProductTable.isActive] = false
+            }
+        }
+        val saleId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            ProductSaleService.sell(
+                callerId = callerId,
+                id = saleId,
+                branchDayId = branchDayId,
+                sessionId = null,
+                clientId = null,
+                isWalkIn = true,
+                productId = productId,
+                quantity = 1,
+                expectedVersion = 1,
+            )
+        }
+
+        val stock =
+            transaction {
+                BranchInventoryTable
+                    .selectAll()
+                    .where {
+                        (BranchInventoryTable.branchId eq branchId) and
+                            (BranchInventoryTable.productId eq productId)
+                    }.single()[BranchInventoryTable.currentStock]
+            }
+        assertEquals(20, stock)
+        assertEquals(
+            0,
+            transaction { ProductSaleTable.selectAll().where { ProductSaleTable.id eq saleId }.count() },
+        )
+        assertEquals(
+            0,
+            transaction {
+                InventoryMovementTable
+                    .selectAll()
+                    .where { InventoryMovementTable.productSaleId eq saleId }
+                    .count()
+            },
+        )
     }
 
     @Test

@@ -99,7 +99,7 @@ intentionally shallow.
 **Public seam:** `recordMovement` / `ensureCard` / `getStock` / `getLowStockAlerts` / `getMovementHistory` · `MovementType` sealed class.
 **Depends on:** Branch Day gate (via `StockValidator`, inside the command tx), Products, Branch existence. Not relief-eligible — branch-scoped only (#157 scoping trap documented in routes).
 **Expansion triggers:** card version conflicts; movement reason enum/schema; FOR UPDATE materialization pattern (terminal-op rule).
-**Search:** `requireCardForUpdate` (consumed by Product Sales' sell transaction), `currentStock`, `insertIgnore`.
+**Search:** `requireCardForUpdateInTransaction` (consumed by Product Sales' sell transaction), `currentStock`, `insertIgnore`.
 
 ## Product Sales
 

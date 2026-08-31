@@ -72,7 +72,7 @@ object ProductSaleService {
                 }
 
                 val product =
-                    ProductRepository.findById(productId)
+                    ProductRepository.findByIdForUpdateInTransaction(productId)
                         ?: throw NotFoundException("Product not found")
 
                 if (!product.isActive) {
@@ -119,7 +119,7 @@ object ProductSaleService {
                 if (beforeCard.currentStock < params.quantity) throw ValidationException("Insufficient stock")
 
                 val newCard =
-                    BranchInventoryRepository.requireCardForUpdate(
+                    BranchInventoryRepository.requireCardForUpdateInTransaction(
                         beforeCard,
                         params.expectedVersion,
                         -params.quantity,

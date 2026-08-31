@@ -51,6 +51,7 @@ object InventoryService {
             transaction {
                 val existingMovement = BranchInventoryRepository.findMovementInTransaction(movementId)
                 if (existingMovement != null) {
+                    // Idempotent retries remain safe no-ops even if product was later deactivated.
                     ensureRequestOwnership(
                         existingMovement,
                         branchId,
@@ -65,7 +66,7 @@ object InventoryService {
                 }
 
                 if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
-                if (ProductRepository.findById(productId) == null) throw NotFoundException("Product not found")
+                requireActiveProductInTransaction(productId)
                 BranchDayService.requireBranchDayForBranch(branchDayId, branchId)
 
                 val isRemitted =
@@ -98,7 +99,7 @@ object InventoryService {
                 if (!inserted.created) return@transaction inserted
 
                 val newCard =
-                    BranchInventoryRepository.requireCardForUpdate(
+                    BranchInventoryRepository.requireCardForUpdateInTransaction(
                         oldCard,
                         oldCard.version,
                         quantityChange,
@@ -192,7 +193,7 @@ object InventoryService {
     ): BranchInventory =
         transaction {
             if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
-            if (ProductRepository.findById(productId) == null) throw NotFoundException("Product not found")
+            requireActiveProductInTransaction(productId)
 
             val result = BranchInventoryRepository.ensureCardInTransaction(branchId, productId)
             val context = AuditContext(callerId, branchId)
@@ -205,6 +206,12 @@ object InventoryService {
         }.also {
             logger.info { "[ENSURE-CARD] Inventory card ensured for branch=$branchId product=$productId" }
         }
+
+    private fun requireActiveProductInTransaction(productId: UUID): Product =
+        ProductRepository
+            .findByIdForUpdateInTransaction(productId)
+            ?.takeIf { it.isActive }
+            ?: throw NotFoundException("Product not found")
 }
 
 /**
