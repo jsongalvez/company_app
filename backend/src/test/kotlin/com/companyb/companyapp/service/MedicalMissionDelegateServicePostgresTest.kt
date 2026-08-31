@@ -1,4 +1,5 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
@@ -9,6 +10,7 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.MedicalMissionDelegate
 import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
 import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
@@ -28,7 +30,9 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 import java.util.concurrent.Callable
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -364,6 +368,41 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `concurrent revoke is idempotent and closes capability once`() {
+        val delegateId = TestFixtures.uuid()
+        MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
+        trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
+
+        val executor = Executors.newFixedThreadPool(CONCURRENT_REVOKES)
+        val ready = CountDownLatch(CONCURRENT_REVOKES)
+        val start = CountDownLatch(1)
+        val futures =
+            (1..CONCURRENT_REVOKES).map {
+                executor.submit<Result<MedicalMissionDelegate>> {
+                    ready.countDown()
+                    start.await()
+                    runCatching { MedicalMissionDelegateService.revokeDelegate(delegateId, callerId) }
+                }
+            }
+        val outcomes =
+            try {
+                assertTrue(ready.await(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
+                start.countDown()
+                futures.map { it.get(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS) }
+            } finally {
+                executor.shutdownNow()
+                assertTrue(executor.awaitTermination(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
+            }
+
+        assertTrue(outcomes.all { it.isSuccess && it.getOrNull()?.endedAt != null })
+        assertEquals(2L, delegateAuditCount(delegateId))
+        assertEquals(1L, delegateUpdateAuditCount(delegateId))
+        assertEquals(0L, activeCapabilityCount(delegateId))
+        assertTrue(capabilityIsExpired(delegateId))
+    }
+
+    @Test
     fun `revoke on non-existent delegate fails with 404`() {
         assertFailsWith<NotFoundException> {
             MedicalMissionDelegateService.revokeDelegate(TestFixtures.uuid(), callerId)
@@ -523,4 +562,20 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
                         (AuditLogTable.recordId eq delegateId)
                 }.count()
         }
+
+    private fun delegateUpdateAuditCount(delegateId: UUID): Long =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where {
+                    (AuditLogTable.auditTableName eq "medical_mission_delegate") and
+                        (AuditLogTable.recordId eq delegateId) and
+                        (AuditLogTable.action eq AuditAction.UPDATE)
+                }.count()
+        }
+
+    private companion object {
+        const val CONCURRENT_REVOKES = 2
+        const val EXECUTOR_TERMINATION_SECONDS = 5L
+    }
 }

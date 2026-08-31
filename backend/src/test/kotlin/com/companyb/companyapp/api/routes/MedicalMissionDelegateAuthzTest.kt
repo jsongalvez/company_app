@@ -40,6 +40,7 @@ import kotlin.test.assertTrue
 class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
     private val managerUser = TestFixtures.uuid()
     private val noGrantUser = TestFixtures.uuid()
+    private val ownerUser = TestFixtures.uuid()
     private val targetUser = TestFixtures.uuid()
     private val missionBranch = TestFixtures.uuid()
     private val clinicBranch = TestFixtures.uuid()
@@ -48,11 +49,12 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
     private val json = Json { ignoreUnknownKeys = true }
 
     override fun initTestData() {
-        listOf(managerUser, noGrantUser, targetUser).forEach { userId ->
+        listOf(managerUser, noGrantUser, ownerUser, targetUser).forEach { userId ->
             DatabaseTestHelper.insertTestUser(userId, "delegate-${userId.toString().take(6)}")
             trackOwned(AppUserTable, AppUserTable.id, userId)
         }
-        assignManagerRole(targetUser)
+        assignRole(targetUser, "MANAGER")
+        assignRole(ownerUser, "OWNER")
         DatabaseTestHelper.grantAssignDelegate(managerUser, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, managerUser)
         insertBranch(missionBranch, BranchType.MEDICAL_MISSION)
@@ -60,6 +62,7 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
         trackOwned(BranchTable, BranchTable.id, missionBranch)
         trackOwned(BranchTable, BranchTable.id, clinicBranch)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, managerUser)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, ownerUser)
     }
 
     companion object {
@@ -165,6 +168,24 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
     }
 
     @Test
+    fun `POST delegate accepts role-derived global ASSIGN_DELEGATE`() {
+        val delegateId = TestFixtures.uuid()
+        val body =
+            mapOf(
+                "delegateId" to delegateId.toString(),
+                "targetUserId" to targetUser.toString(),
+                "branchId" to missionBranch.toString(),
+            )
+        trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUser)
+
+        testServer.client.let { client ->
+            val response = client.post("/api/delegates", body, asUser(ownerUser))
+            assertEquals(201, response.code)
+        }
+    }
+
+    @Test
     fun `DELETE delegate is forbidden without global ASSIGN_DELEGATE`() {
         val delegateId = TestFixtures.uuid()
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUser, missionBranch, managerUser)
@@ -175,13 +196,16 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
         }
     }
 
-    private fun assignManagerRole(userId: UUID) {
+    private fun assignRole(
+        userId: UUID,
+        roleName: String,
+    ) {
         trackOwned(UserRoleTable, UserRoleTable.userId, userId)
         transaction {
             UserRoleTable.insert {
                 it[UserRoleTable.userId] = userId
                 it[UserRoleTable.roleId] =
-                    RoleTable.selectAll().where { RoleTable.name eq "MANAGER" }.single()[RoleTable.id]
+                    RoleTable.selectAll().where { RoleTable.name eq roleName }.single()[RoleTable.id]
             }
         }
     }
