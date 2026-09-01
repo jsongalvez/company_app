@@ -31,6 +31,7 @@ data class MeBranchResponse(
     val branchType: BranchType,
     val clockInStatus: BranchClockInStatus,
     val isRelief: Boolean,
+    val assignmentId: String? = null,
     // #381 — own-assignment slot (Branch Slot, 1 = senior); null for relief rows, which
     // have no branch assignment to order.
     val slot: Short? = null,

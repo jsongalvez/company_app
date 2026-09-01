@@ -32,6 +32,7 @@ data class AssignmentMutation(
     val after: UserBranchAssignment,
 )
 
+@Suppress("TooManyFunctions")
 object UserBranchAssignmentRepository {
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: UserBranchAssignmentCreateParams): AssignmentCreateResult {
@@ -95,6 +96,23 @@ object UserBranchAssignmentRepository {
                 .where {
                     (UserBranchAssignmentTable.branchId eq branchId) and
                         (UserBranchAssignmentTable.userId eq userId) and
+                        (UserBranchAssignmentTable.endedAt.isNull())
+                }
+        val materialized = if (forUpdate) query.forUpdate(ForUpdateOption.ForUpdate) else query
+        return materialized.singleOrNull()?.toAssignment()
+    }
+
+    fun findActiveByIdInTransaction(
+        branchId: UUID,
+        assignmentId: UUID,
+        forUpdate: Boolean,
+    ): UserBranchAssignment? {
+        val query =
+            UserBranchAssignmentTable
+                .selectAll()
+                .where {
+                    (UserBranchAssignmentTable.id eq assignmentId) and
+                        (UserBranchAssignmentTable.branchId eq branchId) and
                         (UserBranchAssignmentTable.endedAt.isNull())
                 }
         val materialized = if (forUpdate) query.forUpdate(ForUpdateOption.ForUpdate) else query

@@ -79,13 +79,13 @@ object ApiRoutes {
 
     fun branchAssignment(
         branchId: String,
-        userId: String,
-    ) = "${branchAssignments(branchId)}/$userId"
+        assignmentId: String,
+    ) = "${branchAssignments(branchId)}/$assignmentId"
 
     fun branchAssignmentSlot(
         branchId: String,
-        userId: String,
-    ) = "${branchAssignment(branchId, userId)}/slot"
+        assignmentId: String,
+    ) = "${branchAssignment(branchId, assignmentId)}/slot"
 
     fun branchSlotsSwap(id: String) = "$BRANCHES/$id/slots/swap"
 
@@ -286,8 +286,8 @@ object ApiRoutes {
     const val RELIEF_INVITE_DECLINE_PATH = "$RELIEF_INVITES/{inviteId}/decline"
     const val RELIEF_INVITE_RETRACT_PATH = "$RELIEF_INVITES/{inviteId}/retract"
     const val RELIEF_INVITE_REVOKE_PATH = "$RELIEF_INVITES/{inviteId}/revoke"
-    const val BRANCH_ASSIGNMENT_USER_PATH = "$BRANCH_ASSIGNMENTS_PATH/{userId}"
-    const val BRANCH_ASSIGNMENT_SLOT_PATH = "$BRANCH_ASSIGNMENT_USER_PATH/slot"
+    const val BRANCH_ASSIGNMENT_PATH = "$BRANCH_ASSIGNMENTS_PATH/{assignmentId}"
+    const val BRANCH_ASSIGNMENT_SLOT_PATH = "$BRANCH_ASSIGNMENT_PATH/slot"
     const val USER_DEACTIVATE_PATH = "$USERS/{userId}/deactivate"
     const val USER_REACTIVATE_PATH = "$USERS/{userId}/reactivate"
     const val USER_ROLES_PATH = "$USERS/{userId}/roles"

@@ -58,6 +58,7 @@ data class AttendanceMarkResponse(
 /** #404 — one home-branch member's live attendance state at the branch today. */
 @Serializable
 data class MemberAttendanceResponse(
+    val assignmentId: String,
     val userId: String,
     val displayName: String,
     /** Branch Slot ordering (1 = senior); cosmetic, mirrored from the assignment. */

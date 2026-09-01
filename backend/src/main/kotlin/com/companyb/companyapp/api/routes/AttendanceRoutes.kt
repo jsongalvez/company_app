@@ -109,6 +109,7 @@ object AttendanceRoutes {
             context.json(
                 AttendanceService.rosterToday(callerId, branchId).map { entry ->
                     MemberAttendanceResponse(
+                        assignmentId = entry.assignmentId.toString(),
                         userId = entry.userId.toString(),
                         displayName = entry.displayName,
                         slot = entry.slot,

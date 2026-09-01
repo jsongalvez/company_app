@@ -42,6 +42,8 @@ internal object MeRepository {
         val clockedInHereToday: Boolean,
         /** #381 — the active assignment's slot; null for relief rows (no assignment). */
         val slot: Short?,
+        /** The active assignment id; null for relief rows. */
+        val assignmentId: UUID?,
     )
 
     fun findUser(userId: UUID): MeUser? =
@@ -64,14 +66,17 @@ internal object MeRepository {
         operationalDay: LocalDate,
     ): List<MeBranchRow> {
         // #381 — the active assignments carry the Branch Slot per branch.
-        val slotsByBranchId =
+        val assignmentsByBranchId =
             UserBranchAssignmentTable
                 .selectAll()
                 .where {
                     (UserBranchAssignmentTable.userId eq userId) and
                         (UserBranchAssignmentTable.endedAt.isNull())
-                }.associate { it[UserBranchAssignmentTable.branchId] to it[UserBranchAssignmentTable.slot] }
-        val assignedBranchIds = slotsByBranchId.keys
+                }.associate {
+                    it[UserBranchAssignmentTable.branchId] to
+                        (it[UserBranchAssignmentTable.id] to it[UserBranchAssignmentTable.slot])
+                }
+        val assignedBranchIds = assignmentsByBranchId.keys
         val clockedInTodayBranchIds =
             AttendanceTable
                 .innerJoin(BranchDayTable, { AttendanceTable.branchDayId }, { BranchDayTable.id })
@@ -98,7 +103,8 @@ internal object MeRepository {
                     branchType = row[BranchTable.branchType],
                     assigned = branchId in assignedBranchIds,
                     clockedInHereToday = branchId in clockedInTodayBranchIds,
-                    slot = slotsByBranchId[branchId],
+                    assignmentId = assignmentsByBranchId[branchId]?.first,
+                    slot = assignmentsByBranchId[branchId]?.second,
                 )
             }
     }

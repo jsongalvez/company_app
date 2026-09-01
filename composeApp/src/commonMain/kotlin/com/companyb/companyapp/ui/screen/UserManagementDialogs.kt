@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,10 +55,53 @@ import com.companyb.companyapp.viewmodel.slotInputError
 internal data class SlotEditTarget(
     val branchId: String,
     val branchName: String,
-    val userId: String,
+    val assignmentId: String,
     val displayName: String,
     val currentSlot: Short,
 )
+
+internal data class SlotDialogOptions(
+    val mutationsDisabled: Boolean,
+    val errorMessage: String? = null,
+    val dismissEnabled: Boolean = !mutationsDisabled,
+)
+
+internal val SlotEditTargetSaver =
+    Saver<SlotEditTarget?, List<String>>(
+        save = { target ->
+            target?.let {
+                listOf(
+                    it.branchId,
+                    it.branchName,
+                    it.assignmentId,
+                    it.displayName,
+                    it.currentSlot.toString(),
+                )
+            } ?: emptyList()
+        },
+        restore = { values ->
+            if (values.size != SLOT_EDIT_TARGET_VALUE_COUNT) {
+                null
+            } else {
+                values[SLOT_EDIT_SLOT_INDEX].toShortOrNull()?.let { slot ->
+                    SlotEditTarget(
+                        branchId = values[SLOT_EDIT_BRANCH_ID_INDEX],
+                        branchName = values[SLOT_EDIT_BRANCH_NAME_INDEX],
+                        assignmentId = values[SLOT_EDIT_ASSIGNMENT_ID_INDEX],
+                        displayName = values[SLOT_EDIT_DISPLAY_NAME_INDEX],
+                        currentSlot = slot,
+                    )
+                }
+            }
+        },
+    )
+
+private const val SLOT_EDIT_TARGET_VALUE_COUNT = 5
+private const val SLOT_EDIT_BRANCH_ID_INDEX = 0
+private const val SLOT_EDIT_BRANCH_NAME_INDEX = 1
+private const val SLOT_EDIT_ASSIGNMENT_ID_INDEX = 2
+private const val SLOT_EDIT_DISPLAY_NAME_INDEX = 3
+private const val SLOT_EDIT_SLOT_INDEX = 4
 
 /** D3 — deactivate confirmation stating the consequences; reactivate stays a direct action. */
 @Composable
@@ -119,15 +163,15 @@ internal fun DeactivateConfirmDialog(
 @Composable
 internal fun EditSlotDialog(
     target: SlotEditTarget,
-    mutationsDisabled: Boolean,
+    options: SlotDialogOptions,
     onDismiss: () -> Unit,
     onSave: (Short) -> Unit,
 ) {
-    var input by remember { mutableStateOf(target.currentSlot.toString()) }
+    var input by remember(target.assignmentId) { mutableStateOf(target.currentSlot.toString()) }
     var inputError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (options.dismissEnabled) onDismiss() },
         title = { Text("Edit slot — ${target.displayName}") },
         text = {
             Column {
@@ -146,8 +190,16 @@ internal fun EditSlotDialog(
                     supportingText = { inputError?.let { Text(it) } },
                     // Gated with the Save button (pass-3 SOFT): typing into a field whose action
                     // is dead mid-load has no affordance — the field goes inert with it.
-                    enabled = !mutationsDisabled,
+                    enabled = !options.mutationsDisabled,
                 )
+                options.errorMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = Spacing.sm),
+                    )
+                }
             }
         },
         confirmButton = {
@@ -161,13 +213,13 @@ internal fun EditSlotDialog(
                     }
                 },
                 // Gated like the row actions (pass-2 HARD — see DeactivateConfirmDialog).
-                enabled = !mutationsDisabled,
+                enabled = !options.mutationsDisabled,
             ) {
                 Text("Save")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, enabled = options.dismissEnabled) {
                 Text("Cancel")
             }
         },

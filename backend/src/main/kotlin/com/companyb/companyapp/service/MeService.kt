@@ -51,6 +51,7 @@ object MeService {
                             else -> BranchClockInStatus.NOT_CLOCKED_IN
                         },
                     isRelief = !row.assigned,
+                    assignmentId = row.assignmentId?.toString(),
                     slot = row.slot,
                 )
             }

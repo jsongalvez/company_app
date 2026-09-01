@@ -9,6 +9,7 @@ import com.companyb.companyapp.dto.InviteMintResponse
 import com.companyb.companyapp.dto.RoleResponse
 import com.companyb.companyapp.dto.SwapSlotsRequest
 import com.companyb.companyapp.dto.UpdateSlotRequest
+import com.companyb.companyapp.dto.UserAssignmentResponse
 import com.companyb.companyapp.dto.UserRoleReplaceRequest
 import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.network.ApiClient
@@ -36,6 +37,7 @@ import kotlin.time.Clock
  */
 data class UserSlotRow(
     val userId: String,
+    val assignmentId: String,
     val displayName: String,
     val isDeactivated: Boolean,
     val slot: Short,
@@ -51,6 +53,7 @@ fun slotOrderForBranch(
             user.assignments.firstOrNull { it.branchId == branchId }?.let { assignment ->
                 UserSlotRow(
                     userId = user.id,
+                    assignmentId = assignment.assignmentId,
                     displayName = user.displayName,
                     isDeactivated = user.status == UserStatus.INACTIVE,
                     slot = assignment.slot,
@@ -151,8 +154,8 @@ class UserViewModel(
     val mintInviteResult: StateFlow<UiState<InviteMintResponse>> = _mintInviteResult.asStateFlow()
 
     // Per-action in-flight guard + inline errors (ADR-0022 pessimistic axis). Keys:
-    // "deactivate:$userId", "reactivate:$userId", "swap:$branchId:$userIdA:$userIdB",
-    // "slot:$branchId:$userId", "roles:$userId", "mint-invite".
+    // "deactivate:$userId", "reactivate:$userId", "swap:$branchId:$assignmentIdA:$assignmentIdB",
+    // "slot:$branchId:$assignmentId", "roles:$userId", "mint-invite".
     private val actionTracker = ActionTracker<String>()
     val inFlight: StateFlow<Set<String>> = actionTracker.inFlight
     val actionErrors: StateFlow<Map<String, String>> = actionTracker.errors
@@ -186,17 +189,16 @@ class UserViewModel(
         // at VM teardown (the load holds no cancelable handle), where the guard dies with the
         // VM.
         keptUsers.stateFlow.value = UiState.Loading
-        // A reload replaces the list; the errors describe actions against the pre-reload list
-        // (pass-1 P4: "Deactivate failed: 500" persisting beside fresh data is stale). Errors
-        // only — markers are untouched (empty here anyway: the guard above skips while any
-        // mutation is in flight).
-        actionTracker.clearErrors()
         handler.launch(
             state = keptUsers.stateFlow,
             operation = "loadUsers",
             endpoint = "GET /api/users",
             block = { apiClient.httpClient.get(ApiRoutes.USERS) },
-            transform = { it.body() },
+            transform = {
+                val users = it.body<List<UserSummaryResponse>>()
+                actionTracker.clearErrors()
+                users
+            },
         )
     }
 
@@ -318,20 +320,20 @@ class UserViewModel(
     // P3 finding — benign when both land, but concurrent duplicates are still waste).
     fun swapSlots(
         branchId: String,
-        userIdA: String,
-        userIdB: String,
+        assignmentIdA: String,
+        assignmentIdB: String,
     ) {
-        val (first, second) = listOf(userIdA, userIdB).sorted()
+        val (first, second) = listOf(assignmentIdA, assignmentIdB).sorted()
         runMutation(
             key = "swap:$branchId:$first:$second",
             operation = "swapSlots",
             endpoint = "POST /api/branches/$branchId/slots/swap",
             block = {
                 apiClient.httpClient.post(ApiRoutes.branchSlotsSwap(branchId)) {
-                    setBody(SwapSlotsRequest(userIdA, userIdB))
+                    setBody(SwapSlotsRequest(assignmentIdA, assignmentIdB))
                 }
             },
-            onSuccess = { keptUsers.swapSlotsInPlace(branchId, userIdA, userIdB) },
+            onSuccess = { keptUsers.swapSlotsInPlace(assignmentIdA, assignmentIdB) },
             statusMessage = { "Swap failed: ${it.value}" },
         )
     }
@@ -339,22 +341,25 @@ class UserViewModel(
     // D4 — tap-to-edit slot number (mobile primary; manual number fallback on both platforms).
     fun updateSlot(
         branchId: String,
-        userId: String,
+        assignmentId: String,
         slot: Short,
-    ) {
+        afterSuccess: () -> Unit = {},
+    ): Boolean =
         runMutation(
-            key = "slot:$branchId:$userId",
+            key = "slot:$branchId:$assignmentId",
             operation = "updateSlot",
-            endpoint = "PATCH /api/branches/$branchId/assignments/$userId/slot",
+            endpoint = "PATCH /api/branches/$branchId/assignments/$assignmentId/slot",
             block = {
-                apiClient.httpClient.patch(ApiRoutes.branchAssignmentSlot(branchId, userId)) {
+                apiClient.httpClient.patch(ApiRoutes.branchAssignmentSlot(branchId, assignmentId)) {
                     setBody(UpdateSlotRequest(slot))
                 }
             },
-            onSuccess = { keptUsers.mutateUser(userId) { it.withSlot(branchId, slot) } },
+            onSuccess = {
+                keptUsers.mutateAssignment(assignmentId) { it.copy(slot = slot) }
+                afterSuccess()
+            },
             statusMessage = { "Slot update failed: ${it.value}" },
         )
-    }
 
     // #345 — full-replace role bundle (PUT; backend idempotent). On 204 the row's roles update
     // in place from the request (the ADR-0022 pessimistic shape — no reload round-trip). 400
@@ -390,7 +395,7 @@ class UserViewModel(
         // #345 — preferred message built from the full response (the `{"error": ...}` body);
         // when it returns null the status-code [statusMessage] renders.
         responseMessage: (suspend (HttpResponse) -> String?)? = null,
-    ) {
+    ): Boolean {
         // A mutation landing while a reload is in flight would be clobbered by the load's
         // pre-mutation snapshot (the pass-1 HARD interleave the keep-last gate opened: rows
         // render live during Loading now, and the load's last-writer Success would silently
@@ -398,8 +403,8 @@ class UserViewModel(
         // skipping restores the pre-port invariant (rows were untappable during Loading). Belt:
         // the screen disables the row actions + dialog confirms while Loading; this guard covers
         // the same-frame tap that slips past the composition gate.
-        if (keptUsers.state.value is UiState.Loading) return
-        if (!actionTracker.tryBegin(key)) return
+        if (keptUsers.state.value is UiState.Loading) return false
+        if (!actionTracker.tryBegin(key)) return false
         handler.launchStateless(
             operation = operation,
             endpoint = endpoint,
@@ -423,22 +428,9 @@ class UserViewModel(
                 actionTracker.fail(key, e.message ?: "$operation failed")
             },
         )
+        return true
     }
 }
-
-/**
- * The slot-copy shape shared by the D4 slot edit and the swap's two rows.
- */
-private fun UserSummaryResponse.withSlot(
-    branchId: String,
-    slot: Short,
-): UserSummaryResponse =
-    copy(
-        assignments =
-            assignments.map {
-                if (it.branchId == branchId) it.copy(slot = slot) else it
-            },
-    )
 
 private fun UserSummaryResponse.withStatus(status: UserStatus): UserSummaryResponse =
     when (status) {
@@ -471,6 +463,22 @@ private fun KeepLast<List<UserSummaryResponse>>.mutateUser(
     }
 }
 
+private fun KeepLast<List<UserSummaryResponse>>.mutateAssignment(
+    assignmentId: String,
+    transform: (UserAssignmentResponse) -> UserAssignmentResponse,
+) {
+    mutate { users ->
+        users.map { user ->
+            user.copy(
+                assignments =
+                    user.assignments.map { assignment ->
+                        if (assignment.assignmentId == assignmentId) transform(assignment) else assignment
+                    },
+            )
+        }
+    }
+}
+
 /**
  * One mutate instead of two sequential writes: an intermediate frame (A with B's slot) never
  * reaches a screen — deferred composition conflates sequential writes into the final swapped
@@ -478,31 +486,33 @@ private fun KeepLast<List<UserSummaryResponse>>.mutateUser(
  * no assignment at the branch) map to no-write.
  */
 private fun KeepLast<List<UserSummaryResponse>>.swapSlotsInPlace(
-    branchId: String,
-    userIdA: String,
-    userIdB: String,
+    assignmentIdA: String,
+    assignmentIdB: String,
 ) {
     mutate { users ->
         val slotA =
             users
-                .firstOrNull { it.id == userIdA }
-                ?.assignments
-                ?.firstOrNull { it.branchId == branchId }
+                .flatMap { it.assignments }
+                .firstOrNull { it.assignmentId == assignmentIdA }
                 ?.slot
                 ?: return@mutate null
         val slotB =
             users
-                .firstOrNull { it.id == userIdB }
-                ?.assignments
-                ?.firstOrNull { it.branchId == branchId }
+                .flatMap { it.assignments }
+                .firstOrNull { it.assignmentId == assignmentIdB }
                 ?.slot
                 ?: return@mutate null
         users.map { user ->
-            when (user.id) {
-                userIdA -> user.withSlot(branchId, slotB)
-                userIdB -> user.withSlot(branchId, slotA)
-                else -> user
-            }
+            user.copy(
+                assignments =
+                    user.assignments.map { assignment ->
+                        when (assignment.assignmentId) {
+                            assignmentIdA -> assignment.copy(slot = slotB)
+                            assignmentIdB -> assignment.copy(slot = slotA)
+                            else -> assignment
+                        }
+                    },
+            )
         }
     }
 }

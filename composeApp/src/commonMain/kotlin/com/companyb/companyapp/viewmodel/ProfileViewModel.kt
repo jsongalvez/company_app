@@ -76,15 +76,17 @@ class ProfileViewModel(
      */
     fun updateSlot(
         branchId: String,
-        userId: String,
+        assignmentId: String,
         slot: Short,
     ) {
+        if (_slotUpdate.value is UiState.Loading) return
+        _slotUpdate.value = UiState.Loading
         handler.launch(
             state = _slotUpdate,
             operation = "updateSlot",
-            endpoint = "PATCH ${ApiRoutes.branchAssignmentSlot(branchId, userId)}",
+            endpoint = "PATCH ${ApiRoutes.branchAssignmentSlot(branchId, assignmentId)}",
             block = {
-                apiClient.httpClient.patch(ApiRoutes.branchAssignmentSlot(branchId, userId)) {
+                apiClient.httpClient.patch(ApiRoutes.branchAssignmentSlot(branchId, assignmentId)) {
                     setBody(UpdateSlotRequest(slot))
                 }
             },
@@ -104,6 +106,8 @@ class ProfileViewModel(
 
     /** Clears the slot-edit attempt state so the next dialog opens without a stale error. */
     fun resetSlotUpdate() {
-        _slotUpdate.value = UiState.Idle
+        if (_slotUpdate.value !is UiState.Loading) {
+            _slotUpdate.value = UiState.Idle
+        }
     }
 }

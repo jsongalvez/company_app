@@ -38,6 +38,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+@Suppress("LargeClass")
 class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val sourceId = TestFixtures.uuid()
@@ -259,12 +260,30 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         val assignmentId = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
-        UserBranchAssignmentService.remove(callerId, branchId, userAId)
+        UserBranchAssignmentService.remove(callerId, branchId, assignmentId)
 
         assertNotNull(assignmentEndedAt(assignmentId))
         assertEquals(2L, auditEntryCount(assignmentId))
         val auditRow = latestAuditEntry(assignmentId)
         assertEquals("UPDATE", auditRow.action)
+    }
+
+    @Test
+    fun `stale remove identity cannot end replacement assignment`() {
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val staleAssignmentId = TestFixtures.uuid()
+        val replacementAssignmentId = TestFixtures.uuid()
+        UserBranchAssignmentService.create(callerId, staleAssignmentId, branchId, userAId, 1)
+        UserBranchAssignmentService.remove(callerId, branchId, staleAssignmentId)
+        UserBranchAssignmentService.create(callerId, replacementAssignmentId, branchId, userAId, 2)
+
+        assertFailsWith<NotFoundException> {
+            UserBranchAssignmentService.remove(callerId, branchId, staleAssignmentId)
+        }
+
+        assertNull(assignmentEndedAt(replacementAssignmentId))
+        assertEquals(2, assignedSlot(replacementAssignmentId))
     }
 
     @Test
@@ -275,7 +294,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
         assertFailsWith<ForbiddenException> {
-            UserBranchAssignmentService.remove(nonManagerId, branchId, userAId)
+            UserBranchAssignmentService.remove(nonManagerId, branchId, assignmentId)
         }
 
         assertNull(assignmentEndedAt(assignmentId))
@@ -288,7 +307,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         val unknownBranchId = TestFixtures.uuid()
 
         assertFailsWith<NotFoundException> {
-            UserBranchAssignmentService.remove(callerId, unknownBranchId, userAId)
+            UserBranchAssignmentService.remove(callerId, unknownBranchId, TestFixtures.uuid())
         }
     }
 
@@ -298,7 +317,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         assertFailsWith<NotFoundException> {
-            UserBranchAssignmentService.remove(callerId, branchId, userAId)
+            UserBranchAssignmentService.remove(callerId, branchId, TestFixtures.uuid())
         }
     }
 
@@ -309,7 +328,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         val assignmentId = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
-        UserBranchAssignmentService.updateSlot(callerId, branchId, userAId, 5)
+        UserBranchAssignmentService.updateSlot(callerId, branchId, assignmentId, 5)
 
         assertEquals(5, assignedSlot(assignmentId))
         val audit = latestAuditEntry(assignmentId)
@@ -325,7 +344,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         val assignmentId = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, nonManagerId, 2)
 
-        UserBranchAssignmentService.updateSlot(nonManagerId, branchId, nonManagerId, 7)
+        UserBranchAssignmentService.updateSlot(nonManagerId, branchId, assignmentId, 7)
 
         assertEquals(7, assignedSlot(assignmentId))
     }
@@ -336,7 +355,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         assertFailsWith<NotFoundException> {
-            UserBranchAssignmentService.updateSlot(callerId, branchId, userAId, 1)
+            UserBranchAssignmentService.updateSlot(callerId, branchId, TestFixtures.uuid(), 1)
         }
     }
 
@@ -348,10 +367,27 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
         assertFailsWith<ForbiddenException> {
-            UserBranchAssignmentService.updateSlot(nonManagerId, branchId, userAId, 3)
+            UserBranchAssignmentService.updateSlot(nonManagerId, branchId, assignmentId, 3)
         }
 
         assertEquals(1, assignedSlot(assignmentId))
+    }
+
+    @Test
+    fun `stale slot update identity cannot edit replacement assignment`() {
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val staleAssignmentId = TestFixtures.uuid()
+        val replacementAssignmentId = TestFixtures.uuid()
+        UserBranchAssignmentService.create(callerId, staleAssignmentId, branchId, userAId, 1)
+        UserBranchAssignmentService.remove(callerId, branchId, staleAssignmentId)
+        UserBranchAssignmentService.create(callerId, replacementAssignmentId, branchId, userAId, 2)
+
+        assertFailsWith<NotFoundException> {
+            UserBranchAssignmentService.updateSlot(callerId, branchId, staleAssignmentId, 9)
+        }
+
+        assertEquals(2, assignedSlot(replacementAssignmentId))
     }
 
     @Test
@@ -363,7 +399,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 2)
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 8)
 
-        UserBranchAssignmentService.swapSlots(callerId, branchId, userAId, userBId)
+        UserBranchAssignmentService.swapSlots(callerId, branchId, idA, idB)
 
         assertEquals(8, assignedSlot(idA))
         assertEquals(2, assignedSlot(idB))
@@ -380,7 +416,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 2)
 
         assertFailsWith<ForbiddenException> {
-            UserBranchAssignmentService.swapSlots(nonManagerId, branchId, userAId, userBId)
+            UserBranchAssignmentService.swapSlots(nonManagerId, branchId, idA, idB)
         }
 
         assertEquals(1, assignedSlot(idA))
@@ -396,7 +432,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 2)
 
-        UserBranchAssignmentService.swapSlots(userAId, branchId, userAId, userBId)
+        UserBranchAssignmentService.swapSlots(userAId, branchId, idA, idB)
 
         assertEquals(2, assignedSlot(idA))
         assertEquals(1, assignedSlot(idB))
@@ -410,7 +446,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
 
         assertFailsWith<ValidationException> {
-            UserBranchAssignmentService.swapSlots(callerId, branchId, userAId, userAId)
+            UserBranchAssignmentService.swapSlots(callerId, branchId, idA, idA)
         }
 
         assertEquals(1, assignedSlot(idA))
@@ -425,7 +461,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 1)
 
         assertFailsWith<NotFoundException> {
-            UserBranchAssignmentService.swapSlots(callerId, branchId, userAId, userBId)
+            UserBranchAssignmentService.swapSlots(callerId, branchId, idB, TestFixtures.uuid())
         }
     }
 
@@ -437,8 +473,28 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
 
         assertFailsWith<NotFoundException> {
-            UserBranchAssignmentService.swapSlots(callerId, branchId, userAId, userBId)
+            UserBranchAssignmentService.swapSlots(callerId, branchId, idA, TestFixtures.uuid())
         }
+    }
+
+    @Test
+    fun `stale swap identity cannot edit replacement assignment`() {
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val staleAssignmentId = TestFixtures.uuid()
+        val replacementAssignmentId = TestFixtures.uuid()
+        val otherAssignmentId = TestFixtures.uuid()
+        UserBranchAssignmentService.create(callerId, staleAssignmentId, branchId, userAId, 1)
+        UserBranchAssignmentService.remove(callerId, branchId, staleAssignmentId)
+        UserBranchAssignmentService.create(callerId, replacementAssignmentId, branchId, userAId, 3)
+        UserBranchAssignmentService.create(callerId, otherAssignmentId, branchId, userBId, 7)
+
+        assertFailsWith<NotFoundException> {
+            UserBranchAssignmentService.swapSlots(callerId, branchId, staleAssignmentId, otherAssignmentId)
+        }
+
+        assertEquals(3, assignedSlot(replacementAssignmentId))
+        assertEquals(7, assignedSlot(otherAssignmentId))
     }
 
     @Test
@@ -464,7 +520,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userAId, 1)
         val idB = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 2)
-        UserBranchAssignmentService.remove(callerId, branchId, userBId)
+        UserBranchAssignmentService.remove(callerId, branchId, idB)
 
         val assignments = UserBranchAssignmentService.findActiveByBranch(callerId, branchId)
 

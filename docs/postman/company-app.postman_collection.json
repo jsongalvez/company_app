@@ -148,9 +148,9 @@
           "request": {
             "method": "DELETE",
             "url": {
-              "raw": "{{base_url}}/api/branches/{{branch_id}}/assignments/{{user_id}}",
+              "raw": "{{base_url}}/api/branches/{{branch_id}}/assignments/{{assignment_id}}",
               "host": ["{{base_url}}"],
-              "path": ["api", "branches", "{{branch_id}}", "assignments", "{{user_id}}"]
+              "path": ["api", "branches", "{{branch_id}}", "assignments", "{{assignment_id}}"]
             }
           }
         },
@@ -166,9 +166,9 @@
               "raw": "{\n    \"slot\": 2\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/branches/{{branch_id}}/assignments/{{user_id}}/slot",
+              "raw": "{{base_url}}/api/branches/{{branch_id}}/assignments/{{assignment_id}}/slot",
               "host": ["{{base_url}}"],
-              "path": ["api", "branches", "{{branch_id}}", "assignments", "{{user_id}}", "slot"]
+              "path": ["api", "branches", "{{branch_id}}", "assignments", "{{assignment_id}}", "slot"]
             }
           }
         },
@@ -181,7 +181,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"userIdA\": \"USER-001\",\n    \"userIdB\": \"USER-002\"\n}"
+              "raw": "{\n    \"assignmentIdA\": \"ASSIGN-001\",\n    \"assignmentIdB\": \"ASSIGN-002\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/branches/{{branch_id}}/slots/swap",

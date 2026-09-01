@@ -116,7 +116,10 @@ fun UserManagementScreen(
     var selectedBranchId by rememberSaveable { mutableStateOf<String?>(null) }
     var expandedIds by remember { mutableStateOf(emptySet<String>()) }
     var deactivateTarget by remember { mutableStateOf<UserSummaryResponse?>(null) }
-    var slotEditTarget by remember { mutableStateOf<SlotEditTarget?>(null) }
+    var slotEditTarget by
+        rememberSaveable(stateSaver = SlotEditTargetSaver) {
+            mutableStateOf<SlotEditTarget?>(null)
+        }
     var showCreateUserDialog by rememberSaveable { mutableStateOf(false) }
     var roleEditTarget by remember { mutableStateOf<UserSummaryResponse?>(null) }
     var showCreateBranchDialog by rememberSaveable { mutableStateOf(false) }
@@ -162,6 +165,7 @@ fun UserManagementScreen(
             createBranchState is UiState.Loading ||
             assignmentResult is UiState.Loading ||
             deleteAssignmentState is UiState.Loading
+    val slotEditKey = slotEditTarget?.let { "slot:${it.branchId}:${it.assignmentId}" }
 
     LaunchedEffect(createBranchState) {
         when (val state = createBranchState) {
@@ -276,6 +280,7 @@ fun UserManagementScreen(
             selectedBranchId = selectedBranchId,
             onBranchSelected = { selectedBranchId = it },
             onRetryBranches = { viewModel.loadBranches() },
+            disabled = mutationsDisabled,
         )
 
         Row(
@@ -337,7 +342,7 @@ fun UserManagementScreen(
                                         SlotEditTarget(
                                             branchId = selectedBranch.id,
                                             branchName = selectedBranchName ?: "",
-                                            userId = row.userId,
+                                            assignmentId = row.assignmentId,
                                             displayName = row.displayName,
                                             currentSlot = row.slot,
                                         )
@@ -421,7 +426,7 @@ fun UserManagementScreen(
                                         SlotEditTarget(
                                             branchId = assignment.branchId,
                                             branchName = assignment.branchName,
-                                            userId = user.id,
+                                            assignmentId = assignment.assignmentId,
                                             displayName = user.displayName,
                                             currentSlot = assignment.slot,
                                         )
@@ -442,7 +447,13 @@ fun UserManagementScreen(
                                                 // Slot errors for the selected branch are claimed
                                                 // by the slot card (see the card's filter above).
                                                 !it.startsWith("slot:$selectedBranchId:") &&
-                                                it.endsWith(":${user.id}")
+                                                (
+                                                    it.endsWith(":${user.id}") ||
+                                                        user.assignments.any { assignment ->
+                                                            it ==
+                                                                "slot:${assignment.branchId}:${assignment.assignmentId}"
+                                                        }
+                                                )
                                         }.values
                                         .toList(),
                             )
@@ -484,11 +495,16 @@ fun UserManagementScreen(
     slotEditTarget?.let { target ->
         EditSlotDialog(
             target = target,
-            mutationsDisabled = mutationsDisabled,
+            options =
+                SlotDialogOptions(
+                    mutationsDisabled = mutationsDisabled,
+                    errorMessage = slotEditKey?.let { actionErrors[it] },
+                ),
             onDismiss = { slotEditTarget = null },
             onSave = { slot ->
-                slotEditTarget = null
-                viewModel.updateSlot(target.branchId, target.userId, slot)
+                viewModel.updateSlot(target.branchId, target.assignmentId, slot) {
+                    slotEditTarget = null
+                }
             },
         )
     }
@@ -565,7 +581,7 @@ fun UserManagementScreen(
             target = target,
             state = deleteAssignmentState,
             mutationsDisabled = mutationsDisabled,
-            onRemove = { branchViewModel.deleteAssignment(target.assignment.branchId, target.userId) },
+            onRemove = { branchViewModel.deleteAssignment(target.assignment.branchId, target.assignment.assignmentId) },
             onDismiss = {
                 branchViewModel.resetAdministrationState()
                 removeAssignmentTarget = null
@@ -588,7 +604,7 @@ fun MobileUserSlotOrderList(
     branchName: String,
     rows: List<UserSlotRow>,
     mutationsDisabled: Boolean,
-    onSwap: (userIdA: String, userIdB: String) -> Unit,
+    onSwap: (assignmentIdA: String, assignmentIdB: String) -> Unit,
     onEditSlot: (row: UserSlotRow) -> Unit,
     errors: List<String>,
 ) {
@@ -629,7 +645,7 @@ expect fun UserSlotOrderList(
     branchName: String,
     rows: List<UserSlotRow>,
     mutationsDisabled: Boolean,
-    onSwap: (userIdA: String, userIdB: String) -> Unit,
+    onSwap: (assignmentIdA: String, assignmentIdB: String) -> Unit,
     onEditSlot: (row: UserSlotRow) -> Unit,
     errors: List<String>,
 )
@@ -684,6 +700,7 @@ private fun BranchPicker(
     selectedBranchId: String?,
     onBranchSelected: (String?) -> Unit,
     onRetryBranches: () -> Unit,
+    disabled: Boolean,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val isError = branches is UiState.Error
@@ -703,10 +720,12 @@ private fun BranchPicker(
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = {
-            if (isError || isIdle) {
-                onRetryBranches()
-            } else if (!isLoading) {
-                expanded = !expanded
+            if (!disabled) {
+                if (isError || isIdle) {
+                    onRetryBranches()
+                } else if (!isLoading) {
+                    expanded = !expanded
+                }
             }
         },
         modifier = Modifier.fillMaxWidth(),
@@ -723,7 +742,7 @@ private fun BranchPicker(
             label = { Text("Slot order — branch") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-            enabled = !isLoading && !isIdle,
+            enabled = !disabled && !isLoading && !isIdle,
         )
         ExposedDropdownMenu(
             expanded = expanded,
@@ -951,21 +970,23 @@ private val AssignmentRemovalTargetSaver =
                     it.assignment.branchId,
                     it.assignment.branchName,
                     it.assignment.slot.toString(),
+                    it.assignment.assignmentId,
                 )
             } ?: emptyList()
         },
         restore = { values ->
-            if (values.size != 5) {
+            if (values.size != ASSIGNMENT_REMOVAL_TARGET_VALUE_COUNT) {
                 null
             } else {
-                values[4].toShortOrNull()?.let { slot ->
+                values[ASSIGNMENT_REMOVAL_SLOT_INDEX].toShortOrNull()?.let { slot ->
                     AssignmentRemovalTarget(
-                        userId = values[0],
-                        displayName = values[1],
+                        userId = values[ASSIGNMENT_REMOVAL_USER_ID_INDEX],
+                        displayName = values[ASSIGNMENT_REMOVAL_DISPLAY_NAME_INDEX],
                         assignment =
                             UserAssignmentResponse(
-                                branchId = values[2],
-                                branchName = values[3],
+                                assignmentId = values[ASSIGNMENT_REMOVAL_ASSIGNMENT_ID_INDEX],
+                                branchId = values[ASSIGNMENT_REMOVAL_BRANCH_ID_INDEX],
+                                branchName = values[ASSIGNMENT_REMOVAL_BRANCH_NAME_INDEX],
                                 slot = slot,
                             ),
                     )
@@ -973,6 +994,14 @@ private val AssignmentRemovalTargetSaver =
             }
         },
     )
+
+private const val ASSIGNMENT_REMOVAL_TARGET_VALUE_COUNT = 6
+private const val ASSIGNMENT_REMOVAL_USER_ID_INDEX = 0
+private const val ASSIGNMENT_REMOVAL_DISPLAY_NAME_INDEX = 1
+private const val ASSIGNMENT_REMOVAL_BRANCH_ID_INDEX = 2
+private const val ASSIGNMENT_REMOVAL_BRANCH_NAME_INDEX = 3
+private const val ASSIGNMENT_REMOVAL_SLOT_INDEX = 4
+private const val ASSIGNMENT_REMOVAL_ASSIGNMENT_ID_INDEX = 5
 
 // Shared across common + both platform actuals (#135 D2 dimmed-rows treatment).
 internal const val DEACTIVATED_ROW_ALPHA = 0.55f

@@ -5,6 +5,7 @@ import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.CreateAssignmentRequest
 import com.companyb.companyapp.dto.CreateBranchRequest
+import com.companyb.companyapp.dto.UpdateSlotRequest
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.MockRequestHandler
@@ -122,7 +123,7 @@ class BranchViewModelTest {
             val harness = BranchHarness()
             val vm = BranchViewModel(mockApiClient(harness.handler()))
 
-            vm.deleteAssignment(branchId = "b1", userId = "u1")
+            vm.deleteAssignment(branchId = "b1", assignmentId = "a1")
             advanceUntilIdle()
 
             assertIs<UiState.Success<Unit>>(vm.deleteAssignmentState.value)
@@ -136,11 +137,24 @@ class BranchViewModelTest {
             harness.deleteBody = """{"error":"Active assignment not found"}"""
             val vm = BranchViewModel(mockApiClient(harness.handler()))
 
-            vm.deleteAssignment(branchId = "b1", userId = "u1")
+            vm.deleteAssignment(branchId = "b1", assignmentId = "a1")
             advanceUntilIdle()
 
             val failure = assertIs<UiState.Error>(vm.deleteAssignmentState.value)
             assertEquals("Active assignment not found", failure.message)
+        }
+
+    @Test
+    fun updateSlot_success_accepts_no_content_response() =
+        runTest(testScheduler) {
+            val harness = BranchHarness()
+            val vm = BranchViewModel(mockApiClient(harness.handler()))
+
+            vm.updateSlot("b1", "a1", UpdateSlotRequest(slot = 4))
+            advanceUntilIdle()
+
+            assertIs<UiState.Success<Unit>>(vm.slotUpdate.value)
+            assertEquals(1, harness.updateSlotCount)
         }
 
     @Test
@@ -173,6 +187,7 @@ class BranchViewModelTest {
         var branchCount = 0
         var assignmentCount = 0
         var deleteCount = 0
+        var updateSlotCount = 0
         var branchBody = BRANCH_JSON
         var assignmentBody = ASSIGNMENT_JSON
         var deleteBody = ""
@@ -195,9 +210,15 @@ class BranchViewModelTest {
                     }
 
                     request.method == HttpMethod.Delete &&
-                        request.url.encodedPath == "/api/branches/b1/assignments/u1" -> {
+                        request.url.encodedPath == "/api/branches/b1/assignments/a1" -> {
                         deleteCount++
                         jsonResponse(deleteStatus, deleteBody)
+                    }
+
+                    request.method == HttpMethod.Patch &&
+                        request.url.encodedPath == "/api/branches/b1/assignments/a1/slot" -> {
+                        updateSlotCount++
+                        jsonResponse(HttpStatusCode.NoContent, "")
                     }
 
                     else -> {

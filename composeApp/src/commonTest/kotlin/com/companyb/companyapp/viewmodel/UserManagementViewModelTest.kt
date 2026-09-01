@@ -109,7 +109,7 @@ class UserManagementViewModelTest {
             // A reload mid-mutation would let the swap transform re-apply on the fresh list
             // (pass-2 HARD class: non-click triggers like LaunchedEffect refires on rotation/
             // re-entry bypass the Refresh-button gate). The guard skips the fetch entirely.
-            vm.swapSlots(branchId = "b1", userIdA = "u1", userIdB = "u2")
+            vm.swapSlots(branchId = "b1", assignmentIdA = "a1", assignmentIdB = "a2")
             assertTrue(vm.inFlight.value.isNotEmpty())
             vm.loadUsers()
             advanceUntilIdle()
@@ -145,7 +145,7 @@ class UserManagementViewModelTest {
             // A skipped load leaves the list untouched — the guard sits BEFORE the error clear
             // (pass-3 P2), so a completed failure's error survives a mid-mutation reload attempt
             // and still describes current state once the mutation lands.
-            vm.swapSlots(branchId = "b1", userIdA = "u1", userIdB = "u2")
+            vm.swapSlots(branchId = "b1", assignmentIdA = "a1", assignmentIdB = "a2")
             vm.loadUsers()
             advanceUntilIdle()
 
@@ -201,6 +201,27 @@ class UserManagementViewModelTest {
             val held = vm.freshestUsers.value
             assertNotNull(held)
             assertEquals(expected = listOf("u1", "u2", "u3"), actual = held.map { it.id })
+        }
+
+    @Test
+    fun loadUsers_failure_keeps_action_error_with_held_rows() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+
+            vm.loadUsers()
+            advanceUntilIdle()
+            harness.deactivateStatus = HttpStatusCode.InternalServerError
+            vm.setUserStatus("u2", UserStatus.INACTIVE)
+            advanceUntilIdle()
+            harness.usersStatus = HttpStatusCode.BadRequest
+
+            vm.loadUsers()
+            advanceUntilIdle()
+
+            assertEquals("Deactivate failed: 500", vm.actionErrors.value["deactivate:u2"])
+            assertIs<UiState.Error>(vm.users.value)
+            assertTrue(vm.freshestUsers.value != null)
         }
 
     @Test
@@ -412,7 +433,7 @@ class UserManagementViewModelTest {
 
             vm.loadUsers()
             advanceUntilIdle()
-            vm.swapSlots(branchId = "b1", userIdA = "u1", userIdB = "u2")
+            vm.swapSlots(branchId = "b1", assignmentIdA = "a1", assignmentIdB = "a2")
             advanceUntilIdle()
 
             val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
@@ -434,10 +455,10 @@ class UserManagementViewModelTest {
             vm.loadUsers()
             advanceUntilIdle()
             harness.swapStatus = HttpStatusCode.Forbidden
-            vm.swapSlots(branchId = "b1", userIdA = "u1", userIdB = "u2")
+            vm.swapSlots(branchId = "b1", assignmentIdA = "a1", assignmentIdB = "a2")
             advanceUntilIdle()
 
-            assertEquals(expected = "Swap failed: 403", actual = vm.actionErrors.value["swap:b1:u1:u2"])
+            assertEquals(expected = "Swap failed: 403", actual = vm.actionErrors.value["swap:b1:a1:a2"])
             val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
             assertEquals(
                 expected = 1,
@@ -478,7 +499,7 @@ class UserManagementViewModelTest {
             // missing user) would throw inside the transform, and the state-less handler's
             // onError no-op swallows it (the #168 launch) — unobservable through the public
             // surface, so no-crash is unpinnable here (the list-unchanged assert is the pin).
-            vm.swapSlots(branchId = "b1", userIdA = "ghost", userIdB = "u2")
+            vm.swapSlots(branchId = "b1", assignmentIdA = "ghost", assignmentIdB = "a2")
             advanceUntilIdle()
 
             assertEquals(
@@ -508,12 +529,12 @@ class UserManagementViewModelTest {
 
             vm.loadUsers()
             advanceUntilIdle()
-            vm.swapSlots(branchId = "b1", userIdA = "u1", userIdB = "u2")
+            vm.swapSlots(branchId = "b1", assignmentIdA = "a1", assignmentIdB = "a2")
             advanceUntilIdle()
 
             val body = harness.swapBodies.single()
-            assertTrue("u1" in body, "expected userIdA in body, got $body")
-            assertTrue("u2" in body, "expected userIdB in body, got $body")
+            assertTrue("a1" in body, "expected assignmentIdA in body, got $body")
+            assertTrue("a2" in body, "expected assignmentIdB in body, got $body")
         }
 
     @Test
@@ -526,8 +547,8 @@ class UserManagementViewModelTest {
             advanceUntilIdle()
             // Row-B ▼ dispatches (u1,u2); row-C ▲ in the same frame dispatches (u2,u1) — the
             // normalized in-flight key must dedupe them (pass-1 P3 finding).
-            vm.swapSlots(branchId = "b1", userIdA = "u1", userIdB = "u2")
-            vm.swapSlots(branchId = "b1", userIdA = "u2", userIdB = "u1")
+            vm.swapSlots(branchId = "b1", assignmentIdA = "a1", assignmentIdB = "a2")
+            vm.swapSlots(branchId = "b1", assignmentIdA = "a2", assignmentIdB = "a1")
             advanceUntilIdle()
 
             assertEquals(expected = 1, actual = harness.swapBodies.size)
@@ -542,7 +563,7 @@ class UserManagementViewModelTest {
 
             vm.loadUsers()
             advanceUntilIdle()
-            vm.updateSlot(branchId = "b1", userId = "u2", slot = 5)
+            vm.updateSlot(branchId = "b1", assignmentId = "a2", slot = 5)
             advanceUntilIdle()
 
             val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
@@ -561,10 +582,10 @@ class UserManagementViewModelTest {
             vm.loadUsers()
             advanceUntilIdle()
             harness.updateSlotStatus = HttpStatusCode.Conflict
-            vm.updateSlot(branchId = "b1", userId = "u2", slot = 5)
+            vm.updateSlot(branchId = "b1", assignmentId = "a2", slot = 5)
             advanceUntilIdle()
 
-            assertEquals(expected = "Slot update failed: 409", actual = vm.actionErrors.value["slot:b1:u2"])
+            assertEquals(expected = "Slot update failed: 409", actual = vm.actionErrors.value["slot:b1:a2"])
             val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
             assertEquals(
                 expected = 2,
@@ -588,7 +609,7 @@ class UserManagementViewModelTest {
 
             vm.loadUsers()
             advanceUntilIdle()
-            vm.updateSlot(branchId = "b1", userId = "u2", slot = 5)
+            vm.updateSlot(branchId = "b1", assignmentId = "a2", slot = 5)
             advanceUntilIdle()
 
             assertTrue("5" in harness.updateSlotBodies.single())
@@ -964,8 +985,10 @@ class UserManagementViewModelTest {
         branchId: String,
         branchName: String,
         slot: Short,
+        assignmentId: String = "$branchId-$slot",
     ): UserAssignmentResponse =
         UserAssignmentResponse(
+            assignmentId = assignmentId,
             branchId = branchId,
             branchName = branchName,
             slot = slot,
@@ -1082,9 +1105,9 @@ class UserManagementViewModelTest {
     private companion object {
         const val USERS_JSON =
             """[
-                {"id":"u1","username":"ana","displayName":"Ana Cruz","status":"ACTIVE","deactivatedAt":null,"assignments":[{"branchId":"b1","branchName":"Main Branch","slot":1}],"roles":["MANAGER"]},
-                {"id":"u2","username":"ben","displayName":"Ben Diaz","status":"ACTIVE","deactivatedAt":null,"assignments":[{"branchId":"b1","branchName":"Main Branch","slot":2},{"branchId":"b2","branchName":"Provincial","slot":1}]},
-                {"id":"u3","username":"cal","displayName":"Cal Lim","status":"INACTIVE","deactivatedAt":"2026-08-01T02:00:00Z","assignments":[{"branchId":"b1","branchName":"Main Branch","slot":4}]}
+                {"id":"u1","username":"ana","displayName":"Ana Cruz","status":"ACTIVE","deactivatedAt":null,"assignments":[{"assignmentId":"a1","branchId":"b1","branchName":"Main Branch","slot":1}],"roles":["MANAGER"]},
+                {"id":"u2","username":"ben","displayName":"Ben Diaz","status":"ACTIVE","deactivatedAt":null,"assignments":[{"assignmentId":"a2","branchId":"b1","branchName":"Main Branch","slot":2},{"assignmentId":"a3","branchId":"b2","branchName":"Provincial","slot":1}]},
+                {"id":"u3","username":"cal","displayName":"Cal Lim","status":"INACTIVE","deactivatedAt":"2026-08-01T02:00:00Z","assignments":[{"assignmentId":"a4","branchId":"b1","branchName":"Main Branch","slot":4}]}
             ]"""
 
         const val ROLES_JSON =

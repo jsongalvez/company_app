@@ -316,6 +316,7 @@ object UserService {
                         .orEmpty()
                         .map { assignment ->
                             UserAssignmentResponse(
+                                assignmentId = assignment.assignmentId.toString(),
                                 branchId = assignment.branchId.toString(),
                                 branchName = assignment.branchName,
                                 slot = assignment.slot,

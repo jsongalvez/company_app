@@ -35,27 +35,27 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/assignments/{userId}",
+    path = "/api/branches/{branchId}/assignments/{assignmentId}",
     methods = [HttpMethod.DELETE],
     pathParams = [
         OpenApiParam(
             name = "branchId",
             type = UUID::class,
             required = true,
-        ), OpenApiParam(name = "userId", type = UUID::class, required = true),
+        ), OpenApiParam(name = "assignmentId", type = UUID::class, required = true),
     ],
     operationId = "branch_assignment_delete",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/assignments/{userId}/slot",
+    path = "/api/branches/{branchId}/assignments/{assignmentId}/slot",
     methods = [HttpMethod.PATCH],
     pathParams = [
         OpenApiParam(
             name = "branchId",
             type = UUID::class,
             required = true,
-        ), OpenApiParam(name = "userId", type = UUID::class, required = true),
+        ), OpenApiParam(name = "assignmentId", type = UUID::class, required = true),
     ],
     operationId = "branch_assignment_slot",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -76,12 +76,12 @@ import java.util.UUID
 )
 object UserBranchAssignmentRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
-    private const val USER_ID_PARAM = "userId"
+    private const val ASSIGNMENT_ID_PARAM = "assignmentId"
 
     fun register(config: JavalinConfig) {
         config.routes.post(ApiRoutes.BRANCH_ASSIGNMENTS_PATH, ::handleCreateAssignment)
         config.routes.get(ApiRoutes.BRANCH_ASSIGNMENTS_PATH, ::handleGetAssignments)
-        config.routes.delete(ApiRoutes.BRANCH_ASSIGNMENT_USER_PATH, ::handleRemoveAssignment)
+        config.routes.delete(ApiRoutes.BRANCH_ASSIGNMENT_PATH, ::handleRemoveAssignment)
         config.routes.patch(ApiRoutes.BRANCH_ASSIGNMENT_SLOT_PATH, ::handleUpdateSlot)
         config.routes.post(ApiRoutes.BRANCH_SLOTS_SWAP_PATH, ::handleSwapSlots)
         config.routes.get(ApiRoutes.BRANCH_MEMBERS_PATH, ::handleGetMembers)
@@ -135,20 +135,20 @@ object UserBranchAssignmentRoutes {
     private fun handleRemoveAssignment(context: Context) {
         val callerId = context.callerUuid()
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-        val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
+        val assignmentId = context.pathParamAsUuid(ASSIGNMENT_ID_PARAM)
 
-        UserBranchAssignmentService.remove(callerId, branchId, targetUserId)
+        UserBranchAssignmentService.remove(callerId, branchId, assignmentId)
         context.status(HttpStatus.NO_CONTENT)
     }
 
     private fun handleUpdateSlot(context: Context) {
         val callerId = context.callerUuid()
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-        val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
+        val assignmentId = context.pathParamAsUuid(ASSIGNMENT_ID_PARAM)
         val request = context.bodyAsClass<UpdateSlotRequest>()
 
         if (request.slot < 1) throw BadRequestResponse("Slot must be 1 or greater")
-        UserBranchAssignmentService.updateSlot(callerId, branchId, targetUserId, request.slot)
+        UserBranchAssignmentService.updateSlot(callerId, branchId, assignmentId, request.slot)
         context.status(HttpStatus.NO_CONTENT)
     }
 
@@ -156,10 +156,10 @@ object UserBranchAssignmentRoutes {
         val callerId = context.callerUuid()
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val request = context.bodyAsClass<SwapSlotsRequest>()
-        val userIdA = uuidOrThrow(request.userIdA, "userIdA")
-        val userIdB = uuidOrThrow(request.userIdB, "userIdB")
+        val assignmentIdA = uuidOrThrow(request.assignmentIdA, "assignmentIdA")
+        val assignmentIdB = uuidOrThrow(request.assignmentIdB, "assignmentIdB")
 
-        UserBranchAssignmentService.swapSlots(callerId, branchId, userIdA, userIdB)
+        UserBranchAssignmentService.swapSlots(callerId, branchId, assignmentIdA, assignmentIdB)
         context.status(HttpStatus.NO_CONTENT)
     }
 

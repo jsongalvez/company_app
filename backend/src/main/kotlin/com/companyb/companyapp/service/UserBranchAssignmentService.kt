@@ -24,7 +24,7 @@ import java.util.UUID
  * Assignment feature commands (#323, ADR-0024). Each mutating command owns exactly one
  * transaction: persistence runs on it via `UserBranchAssignmentRepository.*InTransaction`
  * store operations and the audit row is inserted into the same transaction. The slot-swap
- * lock ordering (ascending user id) lives inside the command's transaction.
+ * lock ordering (ascending assignment id) lives inside the command's transaction.
  */
 object UserBranchAssignmentService {
     private val logger = KotlinLogging.logger {}
@@ -102,7 +102,7 @@ object UserBranchAssignmentService {
     fun remove(
         callerId: UUID,
         branchId: UUID,
-        userId: UUID,
+        assignmentId: UUID,
     ) {
         requireManageUsers(callerId, "MANAGE_USERS capability required to remove assignments")
 
@@ -115,20 +115,20 @@ object UserBranchAssignmentService {
             transaction {
                 val target =
                     UserBranchAssignmentRepository
-                        .findActiveByBranchAndUserInTransaction(branchId, userId, forUpdate = false)
+                        .findActiveByIdInTransaction(branchId, assignmentId, forUpdate = true)
                         ?: throw NotFoundException("Active assignment not found")
                 val mutation = UserBranchAssignmentRepository.setEndedAtInTransaction(target.id)
                 UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), mutation.before, mutation.after)
                 mutation.after
             }
-        logger.info { "[REMOVE-ASSIGNMENT] Ended assignment ${assignment.id} for user $userId at branch $branchId" }
+        logger.info { "[REMOVE-ASSIGNMENT] Ended assignment ${assignment.id} at branch $branchId" }
     }
 
     @Suppress("ThrowsCount")
     fun updateSlot(
         callerId: UUID,
         branchId: UUID,
-        targetUserId: UUID,
+        assignmentId: UUID,
         newSlot: Short,
     ) {
         val canManage =
@@ -138,18 +138,15 @@ object UserBranchAssignmentService {
                 contextType = CapabilityContextType.GLOBAL,
                 contextId = CapabilityService.GLOBAL_CONTEXT_ID,
             )
-        val isSelf = callerId == targetUserId
-
-        if (!canManage && !isSelf) {
-            throw ForbiddenException("MANAGE_USERS capability required to change another user's slot")
-        }
-
         val assignment =
             transaction {
                 val target =
                     UserBranchAssignmentRepository
-                        .findActiveByBranchAndUserInTransaction(branchId, targetUserId, forUpdate = false)
+                        .findActiveByIdInTransaction(branchId, assignmentId, forUpdate = true)
                         ?: throw NotFoundException("Active assignment not found for user at this branch")
+                if (!canManage && callerId != target.userId) {
+                    throw ForbiddenException("MANAGE_USERS capability required to change another user's slot")
+                }
                 val mutation = UserBranchAssignmentRepository.updateSlotInTransaction(target.id, newSlot)
                 UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), mutation.before, mutation.after)
                 mutation.after
@@ -157,15 +154,15 @@ object UserBranchAssignmentService {
         logger.info { "[UPDATE-SLOT] Changed slot for assignment ${assignment.id} to $newSlot" }
     }
 
-    @Suppress("ReturnCount")
+    @Suppress("ReturnCount", "ThrowsCount")
     fun swapSlots(
         callerId: UUID,
         branchId: UUID,
-        userIdA: UUID,
-        userIdB: UUID,
+        assignmentIdA: UUID,
+        assignmentIdB: UUID,
     ) {
-        if (userIdA == userIdB) {
-            throw ValidationException("Cannot swap a user with themselves")
+        if (assignmentIdA == assignmentIdB) {
+            throw ValidationException("Cannot swap an assignment with itself")
         }
 
         val canManage =
@@ -175,33 +172,33 @@ object UserBranchAssignmentService {
                 contextType = CapabilityContextType.GLOBAL,
                 contextId = CapabilityService.GLOBAL_CONTEXT_ID,
             )
-        val isParticipant = callerId == userIdA || callerId == userIdB
-
-        if (!canManage && !isParticipant) {
-            throw ForbiddenException("MANAGE_USERS capability required to swap slots")
-        }
-
         transaction {
             // FOR UPDATE on both rows (materialized via singleOrNull — the #136 lazy-lock
             // lesson) serializes swap against concurrent remove/updateSlot on either user.
-            // Locks are taken in ascending user-ID order so concurrent opposite-direction
+            // Locks are taken in ascending assignment-ID order so concurrent opposite-direction
             // swaps (A,B vs B,A) cannot cross-deadlock.
-            val lockOrder = listOf(userIdA, userIdB).sorted()
+            val lockOrder = listOf(assignmentIdA, assignmentIdB).sorted()
             val assignments =
                 lockOrder.associateWith { id ->
                     UserBranchAssignmentRepository
-                        .findActiveByBranchAndUserInTransaction(branchId, id, forUpdate = true)
-                        ?: throw NotFoundException("Active assignment not found for user $id at this branch")
+                        .findActiveByIdInTransaction(branchId, id, forUpdate = true)
+                        ?: throw NotFoundException("Active assignment not found at this branch")
                 }
-            val a = assignments.getValue(userIdA)
-            val b = assignments.getValue(userIdB)
+            val a = assignments.getValue(assignmentIdA)
+            val b = assignments.getValue(assignmentIdB)
+            if (a.userId == b.userId) {
+                throw ValidationException("Cannot swap a user with themselves")
+            }
+            if (!canManage && callerId != a.userId && callerId != b.userId) {
+                throw ForbiddenException("MANAGE_USERS capability required to swap slots")
+            }
 
             UserBranchAssignmentRepository.swapSlotsInTransaction(a.id, a.slot, b.id, b.slot)
 
             UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), a, a.copy(slot = b.slot))
             UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), b, b.copy(slot = a.slot))
         }
-        logger.info { "[SWAP-SLOTS] Swapped slots at branch $branchId: user $userIdA <-> user $userIdB" }
+        logger.info { "[SWAP-SLOTS] Swapped assignments at branch $branchId: $assignmentIdA <-> $assignmentIdB" }
     }
 
     fun findActiveByBranch(

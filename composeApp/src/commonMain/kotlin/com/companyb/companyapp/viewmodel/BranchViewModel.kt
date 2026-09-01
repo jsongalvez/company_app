@@ -49,6 +49,9 @@ class BranchViewModel(
     private val _assignmentResult = MutableStateFlow<UiState<AssignmentResponse>>(UiState.Idle)
     val assignmentResult: StateFlow<UiState<AssignmentResponse>> = _assignmentResult.asStateFlow()
 
+    private val _slotUpdate = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val slotUpdate: StateFlow<UiState<Unit>> = _slotUpdate.asStateFlow()
+
     private val _deleteAssignmentState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val deleteAssignmentState: StateFlow<UiState<Unit>> = _deleteAssignmentState.asStateFlow()
 
@@ -97,6 +100,9 @@ class BranchViewModel(
         if (_assignmentResult.value !is UiState.Loading) {
             _assignmentResult.value = UiState.Idle
         }
+        if (_slotUpdate.value !is UiState.Loading) {
+            _slotUpdate.value = UiState.Idle
+        }
         if (_deleteAssignmentState.value !is UiState.Loading) {
             _deleteAssignmentState.value = UiState.Idle
         }
@@ -126,17 +132,17 @@ class BranchViewModel(
 
     fun deleteAssignment(
         branchId: String,
-        userId: String,
+        assignmentId: String,
     ) {
         if (_deleteAssignmentState.value is UiState.Loading) return
         _deleteAssignmentState.value = UiState.Loading
         handler.launchUnit(
             state = _deleteAssignmentState,
             operation = "deleteAssignment",
-            endpoint = "DELETE /api/branches/$branchId/assignments/$userId",
+            endpoint = "DELETE /api/branches/$branchId/assignments/$assignmentId",
             block = {
                 apiClient.httpClient.delete(
-                    ApiRoutes.branchAssignment(branchId, userId),
+                    ApiRoutes.branchAssignment(branchId, assignmentId),
                 )
             },
             onNonSuccess = { response ->
@@ -173,23 +179,25 @@ class BranchViewModel(
 
     fun updateSlot(
         branchId: String,
-        userId: String,
+        assignmentId: String,
         request: UpdateSlotRequest,
     ) {
-        if (_assignmentResult.value is UiState.Loading) return
-        _assignmentResult.value = UiState.Loading
-        handler.launch(
-            state = _assignmentResult,
+        if (_slotUpdate.value is UiState.Loading) return
+        _slotUpdate.value = UiState.Loading
+        handler.launchUnit(
+            state = _slotUpdate,
             operation = "updateSlot",
-            endpoint = "PATCH /api/branches/$branchId/assignments/$userId/slot",
+            endpoint = "PATCH /api/branches/$branchId/assignments/$assignmentId/slot",
             block = {
                 apiClient.httpClient.patch(
-                    ApiRoutes.branchAssignmentSlot(branchId, userId),
+                    ApiRoutes.branchAssignmentSlot(branchId, assignmentId),
                 ) {
                     setBody(request)
                 }
             },
-            transform = { it.body() },
+            onNonSuccess = { response ->
+                handleApiError(response) { _slotUpdate.value = it }
+            },
         )
     }
 

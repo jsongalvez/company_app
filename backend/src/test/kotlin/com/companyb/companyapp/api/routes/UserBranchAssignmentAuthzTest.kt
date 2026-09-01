@@ -141,6 +141,31 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
                 .single()[UserBranchAssignmentTable.endedAt] != null
         }
 
+    private fun replaceAssignmentA(slot: Short): UUID {
+        val removeResponse =
+            testServer.client.delete(
+                "/api/branches/$branchId/assignments/$assignmentAId",
+                null,
+                asUser(managerUser),
+            )
+        assertEquals(204, removeResponse.code)
+
+        val replacementId = TestFixtures.uuid()
+        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, replacementId)
+        val createResponse =
+            testServer.client.post(
+                "/api/branches/$branchId/assignments",
+                CreateAssignmentRequest(
+                    id = replacementId.toString(),
+                    userId = userAId.toString(),
+                    slot = slot,
+                ),
+                asUser(managerUser),
+            )
+        assertEquals(201, createResponse.code)
+        return replacementId
+    }
+
     @Test
     fun `POST assignments is forbidden without MANAGE_USERS`() {
         var status = 0
@@ -201,6 +226,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
         }
         assertEquals(200, status)
         assertEquals(2, assignments.size)
+        assertEquals(listOf(assignmentAId, assignmentBId).map(UUID::toString), assignments.map { it.id })
         assertEquals(listOf<Short>(1, 2), assignments.map { it.slot })
     }
 
@@ -208,7 +234,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     fun `DELETE assignment is forbidden without MANAGE_USERS`() {
         var status = 0
         testServer.client.let { client ->
-            status = client.delete("/api/branches/$branchId/assignments/$userAId", null, asUser(noGrantUser)).code
+            status = client.delete("/api/branches/$branchId/assignments/$assignmentAId", null, asUser(noGrantUser)).code
         }
         assertEquals(403, status)
     }
@@ -217,7 +243,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     fun `DELETE own assignment is forbidden without MANAGE_USERS`() {
         var status = 0
         testServer.client.let { client ->
-            status = client.delete("/api/branches/$branchId/assignments/$userAId", null, asUser(userAId)).code
+            status = client.delete("/api/branches/$branchId/assignments/$assignmentAId", null, asUser(userAId)).code
         }
         assertEquals(403, status)
     }
@@ -226,11 +252,27 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     fun `DELETE assignment by manager ends it`() {
         var status = 0
         testServer.client.let { client ->
-            status = client.delete("/api/branches/$branchId/assignments/$userAId", null, asUser(managerUser)).code
+            status = client.delete("/api/branches/$branchId/assignments/$assignmentAId", null, asUser(managerUser)).code
         }
         assertEquals(204, status)
         assertNotNull(assignedSlot(assignmentAId))
         assertTrue(hasEnded(assignmentAId))
+    }
+
+    @Test
+    fun `DELETE stale assignment identity does not end replacement through HTTP`() {
+        val replacementId = replaceAssignmentA(slot = 5)
+
+        val response =
+            testServer.client.delete(
+                "/api/branches/$branchId/assignments/$assignmentAId",
+                null,
+                asUser(managerUser),
+            )
+
+        assertEquals(404, response.code)
+        assertEquals(5, assignedSlot(replacementId))
+        assertTrue(!hasEnded(replacementId))
     }
 
     @Test
@@ -246,7 +288,13 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
 
         var status = 0
         testServer.client.let { client ->
-            status = client.delete("/api/branches/$branchId/assignments/$managerUser", null, asUser(managerUser)).code
+            status =
+                client
+                    .delete(
+                        "/api/branches/$branchId/assignments/$managerAssignmentId",
+                        null,
+                        asUser(managerUser),
+                    ).code
         }
         assertEquals(204, status)
         assertTrue(hasEnded(managerAssignmentId))
@@ -259,7 +307,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
             status =
                 client
                     .patch(
-                        "/api/branches/$branchId/assignments/$userAId/slot",
+                        "/api/branches/$branchId/assignments/$assignmentAId/slot",
                         UpdateSlotRequest(slot = 4),
                         asUser(noGrantUser),
                     ).code
@@ -274,13 +322,28 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
             status =
                 client
                     .patch(
-                        "/api/branches/$branchId/assignments/$userAId/slot",
+                        "/api/branches/$branchId/assignments/$assignmentAId/slot",
                         UpdateSlotRequest(slot = 4),
                         asUser(userAId),
                     ).code
         }
         assertEquals(204, status)
         assertEquals(4, assignedSlot(assignmentAId))
+    }
+
+    @Test
+    fun `PATCH stale assignment identity does not edit replacement through HTTP`() {
+        val replacementId = replaceAssignmentA(slot = 5)
+
+        val response =
+            testServer.client.patch(
+                "/api/branches/$branchId/assignments/$assignmentAId/slot",
+                UpdateSlotRequest(slot = 9),
+                asUser(managerUser),
+            )
+
+        assertEquals(404, response.code)
+        assertEquals(5, assignedSlot(replacementId))
     }
 
     @Test
@@ -291,7 +354,10 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
                 client
                     .post(
                         "/api/branches/$branchId/slots/swap",
-                        SwapSlotsRequest(userIdA = userAId.toString(), userIdB = userBId.toString()),
+                        SwapSlotsRequest(
+                            assignmentIdA = assignmentAId.toString(),
+                            assignmentIdB = assignmentBId.toString(),
+                        ),
                         asUser(noGrantUser),
                     ).code
         }
@@ -306,7 +372,10 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
                 client
                     .post(
                         "/api/branches/$branchId/slots/swap",
-                        SwapSlotsRequest(userIdA = userAId.toString(), userIdB = userBId.toString()),
+                        SwapSlotsRequest(
+                            assignmentIdA = assignmentAId.toString(),
+                            assignmentIdB = assignmentBId.toString(),
+                        ),
                         asUser(managerUser),
                     ).code
         }
@@ -323,12 +392,34 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
                 client
                     .post(
                         "/api/branches/$branchId/slots/swap",
-                        SwapSlotsRequest(userIdA = userAId.toString(), userIdB = userBId.toString()),
+                        SwapSlotsRequest(
+                            assignmentIdA = assignmentAId.toString(),
+                            assignmentIdB = assignmentBId.toString(),
+                        ),
                         asUser(userAId),
                     ).code
         }
         assertEquals(204, status)
         assertEquals(2, assignedSlot(assignmentAId))
         assertEquals(1, assignedSlot(assignmentBId))
+    }
+
+    @Test
+    fun `POST swap with stale assignment identity does not edit replacement through HTTP`() {
+        val replacementId = replaceAssignmentA(slot = 5)
+
+        val response =
+            testServer.client.post(
+                "/api/branches/$branchId/slots/swap",
+                SwapSlotsRequest(
+                    assignmentIdA = assignmentAId.toString(),
+                    assignmentIdB = assignmentBId.toString(),
+                ),
+                asUser(managerUser),
+            )
+
+        assertEquals(404, response.code)
+        assertEquals(5, assignedSlot(replacementId))
+        assertEquals(2, assignedSlot(assignmentBId))
     }
 }

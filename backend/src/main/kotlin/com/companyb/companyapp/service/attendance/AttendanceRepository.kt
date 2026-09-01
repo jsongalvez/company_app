@@ -45,6 +45,7 @@ data class BranchDayUser(
 
 /** #404 — one active home member projected for the attendance roster. */
 data class RosterMember(
+    val assignmentId: UUID,
     val userId: UUID,
     val displayName: String,
     val slot: Short,
@@ -272,6 +273,7 @@ internal object AttendanceRepository {
             Slice(
                 join,
                 listOf(
+                    UserBranchAssignmentTable.id,
                     UserBranchAssignmentTable.userId,
                     AppUserTable.displayName,
                     UserBranchAssignmentTable.slot,
@@ -287,6 +289,7 @@ internal object AttendanceRepository {
                     UserBranchAssignmentTable.userId to SortOrder.ASC,
                 ).map { row ->
                     RosterMember(
+                        assignmentId = row[UserBranchAssignmentTable.id],
                         userId = row[UserBranchAssignmentTable.userId],
                         displayName = row[AppUserTable.displayName],
                         slot = row[UserBranchAssignmentTable.slot],

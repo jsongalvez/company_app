@@ -67,7 +67,7 @@ class ProfileViewModelTest {
     private fun branchesJson(slot: Short) =
         """
         [
-          {"branchId":"b1","branchName":"Main Branch","branchType":"CLINIC","clockInStatus":"NOT_CLOCKED_IN","isRelief":false,"slot":$slot},
+          {"branchId":"b1","branchName":"Main Branch","branchType":"CLINIC","clockInStatus":"NOT_CLOCKED_IN","isRelief":false,"assignmentId":"a1","slot":$slot},
           {"branchId":"b2","branchName":"Relief Branch","branchType":"CLINIC","clockInStatus":"NOT_CLOCKED_IN","isRelief":true}
         ]
         """.trimIndent()
@@ -166,7 +166,7 @@ class ProfileViewModelTest {
             vm.loadAll()
             advanceUntilIdle()
 
-            vm.updateSlot(branchId = "b1", userId = "u1", slot = 5)
+            vm.updateSlot(branchId = "b1", assignmentId = "a1", slot = 5)
             advanceUntilIdle()
 
             assertIs<UiState.Success<Unit>>(vm.slotUpdate.value)
@@ -191,7 +191,7 @@ class ProfileViewModelTest {
             vm.loadAll()
             advanceUntilIdle()
 
-            vm.updateSlot(branchId = "b1", userId = "u1", slot = 0)
+            vm.updateSlot(branchId = "b1", assignmentId = "a1", slot = 0)
             advanceUntilIdle()
 
             val error = assertIs<UiState.Error>(vm.slotUpdate.value)

@@ -16,6 +16,7 @@ data class UserSummaryResponse(
 
 @Serializable
 data class UserAssignmentResponse(
+    val assignmentId: String,
     val branchId: String,
     val branchName: String,
     val slot: Short,

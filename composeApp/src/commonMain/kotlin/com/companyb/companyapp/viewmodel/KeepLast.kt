@@ -38,9 +38,9 @@ class KeepLast<T>(
 
     /**
      * The freshest renderable payload: Success data when the state is Success, else the last
-     * successful payload. Null only when nothing has ever loaded (screens show a spinner /
-     * error card then). Collect this; do NOT read `.value` for VM-internal decisions — use
-     * [freshestValue] (under test dispatchers this flow's value can lag a just-made state
+     * successful payload. Null before first load or after an explicit [clear] (screens show a
+     * spinner / error card then). Collect this; do NOT read `.value` for VM-internal decisions —
+     * use [freshestValue] (under test dispatchers this flow's value can lag a just-made state
      * assignment by one collector hop; on Main.immediate it converges inline).
      */
     val freshest: StateFlow<T?> = _freshest.asStateFlow()
@@ -75,6 +75,12 @@ class KeepLast<T>(
         val updated = transform(current) ?: return false
         stateFlow.value = UiState.Success(updated)
         return true
+    }
+
+    /** Drop retained payload and return surface to its initial state (for revoked access). */
+    fun clear() {
+        _freshest.value = null
+        stateFlow.value = UiState.Idle
     }
 
     init {

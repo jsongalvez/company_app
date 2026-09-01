@@ -14,6 +14,7 @@ import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +28,7 @@ import kotlin.uuid.Uuid
  * semantics (present = clock-in on behalf, absent = close the open window).
  *
  * Entry-scoped at each call site (the #112 self-cleaning pattern). The roster read is
- * membership-gated server-side: a 403 lands as [roster] Error and the section renders
+ * membership-gated server-side: a 403 clears the retained roster and the section renders
  * nothing (the #149/#113 silent-exit shape — no affordance for unauthorized callers).
  */
 class AttendanceRosterViewModel(
@@ -63,34 +64,59 @@ class AttendanceRosterViewModel(
     private var mutationJob: Job? = null
 
     fun load(branchId: String): Job {
-        if (keptRoster.stateFlow.value is UiState.Loading) return Job()
+        if (keptRoster.stateFlow.value is UiState.Loading) return Job().apply { complete() }
         return refreshRoster(branchId)
+    }
+
+    fun resetSlotUpdate() {
+        if (_slotUpdate.value !is UiState.Loading) {
+            _slotUpdate.value = UiState.Idle
+        }
+    }
+
+    fun resetSwapUpdate() {
+        if (_swapUpdate.value !is UiState.Loading) {
+            _swapUpdate.value = UiState.Idle
+        }
     }
 
     /**
      * Unconditional reload for mark follow-ups: a mark landing while a load was in flight must
      * converge server truth even though the public [load] guard would swallow it.
      */
-    private fun refreshRoster(branchId: String): Job =
-        handler.launch(
+    private fun refreshRoster(branchId: String): Job {
+        // Set synchronously so retry and mutation controls cannot dispatch twice in one frame.
+        keptRoster.stateFlow.value = UiState.Loading
+        return handler.launch(
             state = keptRoster.stateFlow,
             operation = "loadRoster",
             endpoint = "GET /api/branches/{branchId}/attendance/today",
             block = { apiClient.httpClient.get(ApiRoutes.branchAttendanceToday(branchId)) },
             transform = { it.body() },
+            onNonSuccess = { response ->
+                if (response.status == HttpStatusCode.Forbidden) {
+                    keptRoster.clear()
+                    true
+                } else {
+                    false
+                }
+            },
             stamp = { actionStamp },
             fallback = {
                 refreshRoster(branchId)
                 keptRoster.freshestValue() ?: emptyList()
             },
         )
+    }
 
     fun mark(
         branchId: String,
         targetUserId: String,
         present: Boolean,
     ): Job {
-        if (mutationJob?.isActive == true) return Job()
+        if (mutationJob?.isActive == true || keptRoster.stateFlow.value is UiState.Loading) {
+            return Job().apply { complete() }
+        }
         return handler
             .launch(
                 state = _markResult,
@@ -128,17 +154,17 @@ class AttendanceRosterViewModel(
      */
     fun updateSlot(
         branchId: String,
-        userId: String,
+        assignmentId: String,
         slot: Short,
     ) {
-        if (mutationJob?.isActive == true) return
+        if (mutationJob?.isActive == true || keptRoster.stateFlow.value is UiState.Loading) return
         handler
             .launch(
                 state = _slotUpdate,
                 operation = "updateSlot",
-                endpoint = "PATCH ${ApiRoutes.branchAssignmentSlot(branchId, userId)}",
+                endpoint = "PATCH ${ApiRoutes.branchAssignmentSlot(branchId, assignmentId)}",
                 block = {
-                    apiClient.httpClient.patch(ApiRoutes.branchAssignmentSlot(branchId, userId)) {
+                    apiClient.httpClient.patch(ApiRoutes.branchAssignmentSlot(branchId, assignmentId)) {
                         setBody(UpdateSlotRequest(slot))
                     }
                 },
@@ -163,10 +189,10 @@ class AttendanceRosterViewModel(
      */
     fun swapSlots(
         branchId: String,
-        userIdA: String,
-        userIdB: String,
+        assignmentIdA: String,
+        assignmentIdB: String,
     ) {
-        if (mutationJob?.isActive == true) return
+        if (mutationJob?.isActive == true || keptRoster.stateFlow.value is UiState.Loading) return
         handler
             .launch(
                 state = _swapUpdate,
@@ -174,7 +200,7 @@ class AttendanceRosterViewModel(
                 endpoint = "POST ${ApiRoutes.branchSlotsSwap(branchId)}",
                 block = {
                     apiClient.httpClient.post(ApiRoutes.branchSlotsSwap(branchId)) {
-                        setBody(SwapSlotsRequest(userIdA, userIdB))
+                        setBody(SwapSlotsRequest(assignmentIdA, assignmentIdB))
                     }
                 },
                 transform = {

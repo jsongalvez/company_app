@@ -22,6 +22,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,9 +62,6 @@ fun AttendanceRosterCard(
 ) {
     val freshest by viewModel.freshestRoster.collectAsState()
     val rosterState by viewModel.roster.collectAsState()
-    val markState by viewModel.markResult.collectAsState()
-    val slotState by viewModel.slotUpdate.collectAsState()
-    val swapState by viewModel.swapUpdate.collectAsState()
 
     LaunchedEffect(branchId) {
         viewModel.load(branchId)
@@ -72,17 +71,63 @@ fun AttendanceRosterCard(
     val rows = freshest.orEmpty()
     // Silent exit while unauthorized or not yet loaded — the card only exists for members.
     if (rows.isEmpty()) return
+    AttendanceRosterLoadedCard(
+        viewModel = viewModel,
+        branchId = branchId,
+        branchName = branchName,
+        currentUserId = currentUserId,
+        data = RosterLoadedData(rosterState = rosterState, rows = rows),
+    )
+}
 
-    val selfSlot = remember { RosterSelfSlotState() }
+private data class RosterLoadedData(
+    val rosterState: UiState<List<MemberAttendanceResponse>>,
+    val rows: List<MemberAttendanceResponse>,
+)
+
+@Composable
+private fun AttendanceRosterLoadedCard(
+    viewModel: AttendanceRosterViewModel,
+    branchId: String,
+    branchName: String?,
+    currentUserId: String?,
+    data: RosterLoadedData,
+) {
+    val rosterState = data.rosterState
+    val rows = data.rows
+    val markState by viewModel.markResult.collectAsState()
+    val slotState by viewModel.slotUpdate.collectAsState()
+    val swapState by viewModel.swapUpdate.collectAsState()
+    (rosterState as? UiState.Error)?.let { error ->
+        RosterLoadError(message = error.message, onRetry = { viewModel.load(branchId) })
+    }
+
+    val selfSlot = rememberSaveable(branchId, saver = RosterSelfSlotStateSaver) { RosterSelfSlotState() }
     // One in-flight notion for the whole card: any busy leg — including the post-mutation
     // roster reload (its Loading rides [AttendanceRosterViewModel.roster]) — disables every
     // sibling action, so a stale-row second swap can never dispatch behind a landing refresh.
     val mutationsDisabled =
         rosterState is UiState.Loading ||
+            rosterState is UiState.Error ||
             markState is UiState.Loading ||
             slotState is UiState.Loading ||
             swapState is UiState.Loading
-    val swapAvailable = AttendanceRosterLogic.swapCandidates(rows, currentUserId).isNotEmpty()
+    val dialogDismissEnabled =
+        rosterState !is UiState.Loading &&
+            markState !is UiState.Loading &&
+            slotState !is UiState.Loading &&
+            swapState !is UiState.Loading
+    val swapCandidates = AttendanceRosterLogic.swapCandidates(rows, currentUserId)
+    val selfSlotContext =
+        RosterSelfSlotContext(
+            branchId = branchId,
+            branchName = branchName,
+            currentUserId = currentUserId,
+            swapCandidates = swapCandidates,
+            state = selfSlot,
+            resetSlotUpdate = viewModel::resetSlotUpdate,
+            resetSwapUpdate = viewModel::resetSwapUpdate,
+        )
 
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md)) {
         SectionHeader(rows)
@@ -98,8 +143,7 @@ fun AttendanceRosterCard(
                         row = row,
                         canToggle = AttendanceRosterLogic.canToggle(row, currentUserId),
                         busy = mutationsDisabled,
-                        selfService =
-                            row.ownRowAffordance(branchId, branchName, currentUserId, swapAvailable, selfSlot),
+                        selfService = row.ownRowAffordance(selfSlotContext),
                         onToggle = { viewModel.mark(branchId, row.userId, present = !row.present) },
                     )
                 }
@@ -108,45 +152,122 @@ fun AttendanceRosterCard(
     }
 
     RosterActionErrors(listOf(markState, slotState, swapState))
-    SelfSlotDialogs(selfSlot, viewModel, rows, currentUserId, branchId)
+    SelfSlotDialogs(selfSlot, viewModel, rows)
 }
 
 /**
  * Mutable self-service surface state (#416): which row's slot editor is open and whether the
- * swap picker is showing. Remembered per card instance; leaving composition discards it.
+ * swap picker is showing. Assignment IDs are captured when the picker opens so refreshed rows
+ * cannot retarget the action. Saveable for process recreation.
  */
 internal class RosterSelfSlotState {
     var editTarget: SlotEditTarget? by mutableStateOf(null)
-    var swapOpen: Boolean by mutableStateOf(false)
+    var swapTarget: RosterSwapTarget? by mutableStateOf(null)
 }
+
+private data class RosterSelfSlotContext(
+    val branchId: String,
+    val branchName: String?,
+    val currentUserId: String?,
+    val swapCandidates: List<MemberAttendanceResponse>,
+    val state: RosterSelfSlotState,
+    val resetSlotUpdate: () -> Unit,
+    val resetSwapUpdate: () -> Unit,
+)
+
+internal data class RosterSwapTarget(
+    val branchId: String,
+    val ownAssignmentId: String,
+    val candidateAssignmentIds: List<String>,
+)
+
+internal val RosterSelfSlotStateSaver =
+    Saver<RosterSelfSlotState, List<String>>(
+        save = { state ->
+            val editTarget = state.editTarget
+            val swapTarget = state.swapTarget
+            listOf(
+                if (editTarget == null) "0" else "1",
+                editTarget?.branchId.orEmpty(),
+                editTarget?.branchName.orEmpty(),
+                editTarget?.assignmentId.orEmpty(),
+                editTarget?.displayName.orEmpty(),
+                editTarget?.currentSlot?.toString().orEmpty(),
+                if (swapTarget == null) "0" else "1",
+                swapTarget?.branchId.orEmpty(),
+                swapTarget?.ownAssignmentId.orEmpty(),
+                swapTarget?.candidateAssignmentIds?.joinToString(",").orEmpty(),
+            )
+        },
+        restore = { values ->
+            if (values.size != ROSTER_STATE_VALUE_COUNT) {
+                RosterSelfSlotState()
+            } else {
+                RosterSelfSlotState().apply {
+                    editTarget =
+                        if (values[EDIT_PRESENT_INDEX] == "1") {
+                            values[EDIT_SLOT_INDEX].toShortOrNull()?.let { slot ->
+                                SlotEditTarget(
+                                    branchId = values[EDIT_BRANCH_ID_INDEX],
+                                    branchName = values[EDIT_BRANCH_NAME_INDEX],
+                                    assignmentId = values[EDIT_ASSIGNMENT_ID_INDEX],
+                                    displayName = values[EDIT_DISPLAY_NAME_INDEX],
+                                    currentSlot = slot,
+                                )
+                            }
+                        } else {
+                            null
+                        }
+                    swapTarget =
+                        if (
+                            values[SWAP_PRESENT_INDEX] == "1" &&
+                            values[SWAP_BRANCH_ID_INDEX].isNotEmpty() &&
+                            values[SWAP_OWN_ASSIGNMENT_ID_INDEX].isNotEmpty()
+                        ) {
+                            RosterSwapTarget(
+                                branchId = values[SWAP_BRANCH_ID_INDEX],
+                                ownAssignmentId = values[SWAP_OWN_ASSIGNMENT_ID_INDEX],
+                                candidateAssignmentIds =
+                                    values[SWAP_CANDIDATE_IDS_INDEX].split(",").filter(String::isNotEmpty),
+                            )
+                        } else {
+                            null
+                        }
+                }
+            }
+        },
+    )
 
 /**
  * The caller's own-row actions (#416); null keeps every other member's row read-only display
  * (the own-row-static rule's mirror).
  */
-private fun MemberAttendanceResponse.ownRowAffordance(
-    branchId: String,
-    branchName: String?,
-    currentUserId: String?,
-    swapAvailable: Boolean,
-    state: RosterSelfSlotState,
-): SelfSlotAffordance? =
-    if (!AttendanceRosterLogic.canEditOwnSlot(this, currentUserId)) {
+private fun MemberAttendanceResponse.ownRowAffordance(context: RosterSelfSlotContext): SelfSlotAffordance? =
+    if (!AttendanceRosterLogic.canEditOwnSlot(this, context.currentUserId)) {
         null
     } else {
         SelfSlotAffordance(
-            swapAvailable = swapAvailable,
+            swapAvailable = context.swapCandidates.isNotEmpty(),
             onEditSlot = {
-                state.editTarget =
+                context.resetSlotUpdate()
+                context.state.editTarget =
                     SlotEditTarget(
-                        branchId = branchId,
-                        branchName = branchName?.ifEmpty { "Branch" } ?: "Branch",
-                        userId = userId,
+                        branchId = context.branchId,
+                        branchName = context.branchName?.ifEmpty { "Branch" } ?: "Branch",
+                        assignmentId = this@ownRowAffordance.assignmentId,
                         displayName = displayName,
                         currentSlot = slot,
                     )
             },
-            onSwap = { state.swapOpen = true },
+            onSwap = {
+                context.resetSwapUpdate()
+                context.state.swapTarget =
+                    RosterSwapTarget(
+                        branchId = context.branchId,
+                        ownAssignmentId = assignmentId,
+                        candidateAssignmentIds = context.swapCandidates.map { it.assignmentId },
+                    )
+            },
         )
     }
 
@@ -170,8 +291,6 @@ private fun SelfSlotDialogs(
     state: RosterSelfSlotState,
     viewModel: AttendanceRosterViewModel,
     rows: List<MemberAttendanceResponse>,
-    currentUserId: String?,
-    branchId: String,
 ) {
     // All three legs collected reactively — a .value read here can go stale when the parent
     // skips this call with unchanged parameters (the P4 non-reactive-read finding).
@@ -181,32 +300,55 @@ private fun SelfSlotDialogs(
     val swapState by viewModel.swapUpdate.collectAsState()
     val mutationsDisabled =
         rosterState is UiState.Loading ||
+            rosterState is UiState.Error ||
             markState is UiState.Loading ||
             slotState is UiState.Loading ||
             swapState is UiState.Loading
+    val dialogDismissEnabled =
+        rosterState !is UiState.Loading &&
+            markState !is UiState.Loading &&
+            slotState !is UiState.Loading &&
+            swapState !is UiState.Loading
+
+    LaunchedEffect(slotState) {
+        if (slotState is UiState.Success) {
+            state.editTarget = null
+        }
+    }
+    LaunchedEffect(swapState) {
+        if (swapState is UiState.Success) {
+            state.swapTarget = null
+        }
+    }
 
     state.editTarget?.let { target ->
         EditSlotDialog(
             target = target,
-            mutationsDisabled = mutationsDisabled,
+            options =
+                SlotDialogOptions(
+                    mutationsDisabled = mutationsDisabled,
+                    errorMessage = (slotState as? UiState.Error)?.message,
+                    dismissEnabled = dialogDismissEnabled,
+                ),
             onDismiss = { state.editTarget = null },
             onSave = { slot ->
-                // Save closes immediately (the Profile/User Management precedent); failure
-                // surfaces inline and success refreshes the roster.
-                state.editTarget = null
-                viewModel.updateSlot(target.branchId, target.userId, slot)
+                viewModel.updateSlot(target.branchId, target.assignmentId, slot)
             },
         )
     }
 
-    if (state.swapOpen) {
+    state.swapTarget?.let { target ->
         SwapSlotDialog(
-            candidates = AttendanceRosterLogic.swapCandidates(rows, currentUserId),
-            mutationsDisabled = mutationsDisabled,
-            onDismiss = { state.swapOpen = false },
+            candidates = target.candidateAssignmentIds.mapNotNull { id -> rows.firstOrNull { it.assignmentId == id } },
+            options =
+                SlotDialogOptions(
+                    mutationsDisabled = mutationsDisabled,
+                    errorMessage = (swapState as? UiState.Error)?.message,
+                    dismissEnabled = dialogDismissEnabled,
+                ),
+            onDismiss = { state.swapTarget = null },
             onPick = { candidate ->
-                state.swapOpen = false
-                currentUserId?.let { viewModel.swapSlots(branchId, it, candidate.userId) }
+                viewModel.swapSlots(target.branchId, target.ownAssignmentId, candidate.assignmentId)
             },
         )
     }
@@ -272,6 +414,30 @@ private fun RosterRow(
     }
 }
 
+@Composable
+private fun RosterLoadError(
+    message: String,
+    onRetry: () -> Unit,
+) {
+    LaunchedEffect(message) {
+        logWarn(TAG, "roster load error: $message")
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onRetry) {
+            Text("Retry")
+        }
+    }
+}
+
 /** The caller's own-row overflow affordance (#416) — absent on every other member's row. */
 @Composable
 private fun OwnSlotMenu(
@@ -315,27 +481,47 @@ private fun OwnSlotMenu(
 @Composable
 private fun SwapSlotDialog(
     candidates: List<MemberAttendanceResponse>,
-    mutationsDisabled: Boolean,
+    options: SlotDialogOptions,
     onDismiss: () -> Unit,
     onPick: (MemberAttendanceResponse) -> Unit,
 ) {
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (options.dismissEnabled) onDismiss() },
         title = { Text("Swap my slot with…") },
         text = {
             Column {
                 candidates.forEach { candidate ->
-                    TextButton(enabled = !mutationsDisabled, onClick = { onPick(candidate) }) {
+                    TextButton(enabled = !options.mutationsDisabled, onClick = { onPick(candidate) }) {
                         Text(AttendanceRosterLogic.swapCandidateLabel(candidate))
                     }
+                }
+                options.errorMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = Spacing.sm),
+                    )
                 }
             }
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, enabled = options.dismissEnabled) {
                 Text("Cancel")
             }
         },
     )
 }
+
+private const val EDIT_PRESENT_INDEX = 0
+private const val EDIT_BRANCH_ID_INDEX = 1
+private const val EDIT_BRANCH_NAME_INDEX = 2
+private const val EDIT_ASSIGNMENT_ID_INDEX = 3
+private const val EDIT_DISPLAY_NAME_INDEX = 4
+private const val EDIT_SLOT_INDEX = 5
+private const val ROSTER_STATE_VALUE_COUNT = 10
+private const val SWAP_PRESENT_INDEX = 6
+private const val SWAP_BRANCH_ID_INDEX = 7
+private const val SWAP_OWN_ASSIGNMENT_ID_INDEX = 8
+private const val SWAP_CANDIDATE_IDS_INDEX = 9

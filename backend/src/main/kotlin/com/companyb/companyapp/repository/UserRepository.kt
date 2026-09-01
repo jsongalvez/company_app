@@ -35,6 +35,7 @@ private const val MANAGER_ROLE = "MANAGER"
 
 /** Active assignment projected with its branch name — the user-list shape. */
 data class UserBranchAssignmentSummary(
+    val assignmentId: UUID,
     val userId: UUID,
     val branchId: UUID,
     val branchName: String,
@@ -288,6 +289,7 @@ object UserRepository {
                     UserBranchAssignmentTable.userId to SortOrder.ASC,
                 ).map { row ->
                     UserBranchAssignmentSummary(
+                        assignmentId = row[UserBranchAssignmentTable.id],
                         userId = row[UserBranchAssignmentTable.userId],
                         branchId = row[UserBranchAssignmentTable.branchId],
                         branchName = row[BranchTable.name],

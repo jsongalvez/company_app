@@ -17,7 +17,9 @@ class AttendanceRosterLogicTest {
         userId: String,
         present: Boolean,
         slot: Short = 1,
+        assignmentId: String = "assignment-$userId",
     ) = MemberAttendanceResponse(
+        assignmentId = assignmentId,
         userId = userId,
         displayName = userId,
         slot = slot,

@@ -7,10 +7,13 @@ class ApiRoutesTest {
     @Test
     fun migrated_routes_preserve_request_url_bytes() {
         assertEquals("/api/branch-days/day-1/users", ApiRoutes.branchDayUsers("day-1"))
-        assertEquals("/api/branches/branch-1/assignments/user-1", ApiRoutes.branchAssignment("branch-1", "user-1"))
         assertEquals(
-            "/api/branches/branch-1/assignments/user-1/slot",
-            ApiRoutes.branchAssignmentSlot("branch-1", "user-1"),
+            "/api/branches/branch-1/assignments/assignment-1",
+            ApiRoutes.branchAssignment("branch-1", "assignment-1"),
+        )
+        assertEquals(
+            "/api/branches/branch-1/assignments/assignment-1/slot",
+            ApiRoutes.branchAssignmentSlot("branch-1", "assignment-1"),
         )
         assertEquals("/api/sessions/session-1/status", ApiRoutes.sessionStatus("session-1"))
         assertEquals("/api/sessions/session-1/final-price", ApiRoutes.sessionFinalPrice("session-1"))

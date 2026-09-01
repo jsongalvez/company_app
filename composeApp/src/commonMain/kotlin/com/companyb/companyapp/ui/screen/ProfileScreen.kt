@@ -20,7 +20,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,12 +47,55 @@ fun ProfileScreen(
 ) {
     val me by viewModel.me.collectAsState()
     val slotUpdate by viewModel.slotUpdate.collectAsState()
-    var slotEditTarget by remember { mutableStateOf<SlotEditTarget?>(null) }
+    var slotEditTarget by
+        rememberSaveable(stateSaver = SlotEditTargetSaver) {
+            mutableStateOf<SlotEditTarget?>(null)
+        }
+    LaunchedEffect(slotUpdate) {
+        if (slotUpdate is UiState.Success) {
+            slotEditTarget = null
+        }
+    }
 
     // Load once per VM lifetime; re-fire wholesale from an error state (the
     // AuditLogHistory entry policy — retry re-fetches all three sections).
     LaunchedEffect(Unit) { if (me is UiState.Idle || me is UiState.Error) viewModel.loadAll() }
 
+    ProfileScreenBody(
+        me = me,
+        viewModel = viewModel,
+        slotUpdate = slotUpdate,
+        onBack = onBack,
+        onSlotEdit = { target ->
+            viewModel.resetSlotUpdate()
+            slotEditTarget = target
+        },
+    )
+
+    slotEditTarget?.let { target ->
+        EditSlotDialog(
+            target = target,
+            onDismiss = { slotEditTarget = null },
+            onSave = { slot ->
+                viewModel.updateSlot(target.branchId, target.assignmentId, slot)
+            },
+            options =
+                SlotDialogOptions(
+                    mutationsDisabled = slotUpdate is UiState.Loading,
+                    errorMessage = (slotUpdate as? UiState.Error)?.message,
+                ),
+        )
+    }
+}
+
+@Composable
+private fun ProfileScreenBody(
+    me: UiState<MeResponse>,
+    viewModel: ProfileViewModel,
+    slotUpdate: UiState<Unit>,
+    onBack: () -> Unit,
+    onSlotEdit: (SlotEditTarget) -> Unit,
+) {
     Column(
         modifier =
             Modifier
@@ -84,7 +127,7 @@ fun ProfileScreen(
                     user = meState.data,
                     viewModel = viewModel,
                     slotUpdate = slotUpdate,
-                    onSlotEdit = { target -> slotEditTarget = target },
+                    onSlotEdit = onSlotEdit,
                 )
             }
 
@@ -94,20 +137,6 @@ fun ProfileScreen(
                 }
             }
         }
-    }
-
-    slotEditTarget?.let { target ->
-        EditSlotDialog(
-            target = target,
-            mutationsDisabled = slotUpdate is UiState.Loading,
-            onDismiss = { slotEditTarget = null },
-            onSave = { slot ->
-                // Save closes immediately (the User Management precedent); the VM refreshes
-                // the rows on success and a failure surfaces inline above the list.
-                slotEditTarget = null
-                viewModel.updateSlot(target.branchId, target.userId, slot)
-            },
-        )
     }
 }
 
@@ -138,7 +167,9 @@ private fun ProfileContent(
             style = MaterialTheme.typography.bodyMedium,
             color = InkSubtle,
         )
-        SectionDivider()
+        Spacer(Modifier.height(Spacing.md))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        Spacer(Modifier.height(Spacing.sm))
 
         Text("Branch assignments", style = MaterialTheme.typography.titleMedium)
         AssignmentsSectionBody(
@@ -146,9 +177,14 @@ private fun ProfileContent(
             slotUpdate = slotUpdate,
             user = user,
             onSlotEdit = onSlotEdit,
-            onRetry = viewModel::loadBranches,
+            onRetry = {
+                viewModel.resetSlotUpdate()
+                viewModel.loadBranches()
+            },
         )
-        SectionDivider()
+        Spacer(Modifier.height(Spacing.md))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        Spacer(Modifier.height(Spacing.sm))
 
         Text("Capabilities", style = MaterialTheme.typography.titleMedium)
         CapabilitiesSectionBody(
@@ -175,27 +211,25 @@ private fun AssignmentsSectionBody(
         is UiState.Success -> {
             val error = slotUpdate as? UiState.Error
             if (error != null) {
-                InlineSectionError(message = error.message, onRetry = null)
+                InlineSectionError(message = error.message, onRetry = onRetry)
             }
-            // Relief rows carry no assignment (slot = null server-side), so mapNotNull on
-            // the slot yields exactly the own assignments.
-            val assignments =
-                branchState.data.mapNotNull { row ->
-                    row.slot?.let { Triple(row.branchId, row.branchName, it) }
-                }
+            // Relief rows carry no assignment (assignmentId and slot are null server-side).
+            val assignments = branchState.data.filter { it.assignmentId != null && it.slot != null }
             if (assignments.isEmpty()) {
                 EmptySectionText("No branch assignments yet — an admin assigns you from User Management.")
             } else {
-                assignments.forEach { (branchId, branchName, slot) ->
+                assignments.forEach { row ->
+                    val assignmentId = row.assignmentId ?: return@forEach
+                    val slot = row.slot ?: return@forEach
                     AssignmentRow(
-                        branchName = branchName,
+                        branchName = row.branchName,
                         slot = slot,
                         onEdit = {
                             onSlotEdit(
                                 SlotEditTarget(
-                                    branchId = branchId,
-                                    branchName = branchName,
-                                    userId = user.id,
+                                    branchId = row.branchId,
+                                    branchName = row.branchName,
+                                    assignmentId = assignmentId,
                                     displayName = user.displayName,
                                     currentSlot = slot,
                                 ),
@@ -297,7 +331,7 @@ private fun CapabilityRow(
     }
 }
 
-/** Inline section error; [onRetry] null for action failures (no reload fixes them). */
+/** Inline section error; retry reloads owning read so stale assignment targets can be refreshed. */
 @Composable
 private fun InlineSectionError(
     message: String,
@@ -319,13 +353,6 @@ private fun EmptySectionText(message: String) {
         color = InkSubtle,
         modifier = Modifier.padding(top = Spacing.sm),
     )
-}
-
-@Composable
-private fun SectionDivider() {
-    Spacer(Modifier.height(Spacing.md))
-    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-    Spacer(Modifier.height(Spacing.sm))
 }
 
 /**

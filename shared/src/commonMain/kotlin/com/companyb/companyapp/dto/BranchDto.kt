@@ -31,8 +31,8 @@ data class UpdateSlotRequest(
 
 @Serializable
 data class SwapSlotsRequest(
-    val userIdA: String,
-    val userIdB: String,
+    val assignmentIdA: String,
+    val assignmentIdB: String,
 )
 
 @Serializable

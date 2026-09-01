@@ -1,9 +1,11 @@
 package com.companyb.companyapp.ui.screen
 
+import androidx.compose.runtime.saveable.SaverScope
 import com.companyb.companyapp.dto.MemberAttendanceResponse
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -16,7 +18,9 @@ class AttendanceRosterSelfSlotTest {
         userId: String,
         slot: Short,
         present: Boolean = true,
+        assignmentId: String = "assignment-$userId",
     ) = MemberAttendanceResponse(
+        assignmentId = assignmentId,
         userId = userId,
         displayName = "Member $userId",
         slot = slot,
@@ -59,4 +63,34 @@ class AttendanceRosterSelfSlotTest {
     fun `candidate label names the member and the slot it trades with`() {
         assertEquals("Member a · slot 2", AttendanceRosterLogic.swapCandidateLabel(row("a", 2)))
     }
+
+    @Test
+    fun `captured assignment identities survive process state restoration`() {
+        val original = RosterSelfSlotState()
+        original.editTarget =
+            SlotEditTarget(
+                branchId = "b1",
+                branchName = "Main",
+                assignmentId = "assignment-me-old",
+                displayName = "Member me",
+                currentSlot = 1,
+            )
+        original.swapTarget =
+            RosterSwapTarget(
+                branchId = "b1",
+                ownAssignmentId = "assignment-me-old",
+                candidateAssignmentIds = listOf("assignment-other-old"),
+            )
+
+        val saved = checkNotNull(with(RosterSelfSlotStateSaver) { with(SaveEverythingScope) { save(original) } })
+        val restored = assertNotNull(RosterSelfSlotStateSaver.restore(saved))
+
+        assertEquals("assignment-me-old", restored.editTarget?.assignmentId)
+        assertEquals("assignment-me-old", restored.swapTarget?.ownAssignmentId)
+        assertEquals(listOf("assignment-other-old"), restored.swapTarget?.candidateAssignmentIds)
+    }
+}
+
+private object SaveEverythingScope : SaverScope {
+    override fun canBeSaved(value: Any): Boolean = true
 }

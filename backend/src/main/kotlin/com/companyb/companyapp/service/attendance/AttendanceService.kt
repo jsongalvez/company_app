@@ -205,6 +205,7 @@ object AttendanceService {
                     ?: emptySet()
             AttendanceRepository.rosterRows(branchId).map { member ->
                 AttendanceRosterEntry(
+                    assignmentId = member.assignmentId,
                     userId = member.userId,
                     displayName = member.displayName,
                     slot = member.slot,
@@ -351,6 +352,7 @@ data class AttendanceMarkResult(
 
 /** #404 — one roster row for the membership-gated attendance read. */
 data class AttendanceRosterEntry(
+    val assignmentId: UUID,
     val userId: UUID,
     val displayName: String,
     val slot: Short,

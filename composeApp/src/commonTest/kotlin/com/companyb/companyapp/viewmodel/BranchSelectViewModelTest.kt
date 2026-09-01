@@ -61,6 +61,7 @@ class BranchSelectViewModelTest {
             branchType = BranchType.CLINIC,
             clockInStatus = BranchClockInStatus.NOT_CLOCKED_IN,
             isRelief = false,
+            assignmentId = "a1",
         )
 
     private val branchesJson =
