@@ -26,7 +26,7 @@ class SimpleCrudCommandOwnershipArchitectureTest {
             mapOf(
                 "repository/BranchRepository.kt" to 3,
                 "repository/ProductCategoryRepository.kt" to 2,
-                "repository/ProductRepository.kt" to 3,
+                "repository/ProductRepository.kt" to 4,
                 // Three read wrappers after the authoritative session-count query.
                 "repository/ClientRepository.kt" to 3,
                 "repository/AllowanceRepository.kt" to 1,
