@@ -45,6 +45,7 @@ private val DEV_CAPABILITIES =
         "SUBMIT_REMITTANCE",
         "ASSIGN_COMPENSATION",
         "MANAGE_PRODUCTS",
+        "MANAGE_CATALOG",
         "MANAGE_USERS",
         "ASSIGN_DELEGATE",
     )

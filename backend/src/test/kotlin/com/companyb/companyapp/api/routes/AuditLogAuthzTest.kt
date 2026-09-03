@@ -120,7 +120,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
         )
         DatabaseTestHelper.grantCapability(
             userId = manageProductsUser,
-            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
+            capabilityCode = CapabilityCodes.MANAGE_CATALOG,
             contextType = CapabilityContextType.GLOBAL,
             contextId = com.companyb.companyapp.service.CapabilityService.GLOBAL_CONTEXT_ID,
             sourceId = sourceId,
@@ -320,7 +320,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `browse MANAGE_PRODUCTS holder sees product and category rows`() {
+    fun `browse MANAGE_CATALOG holder sees product and category rows`() {
         val (_, body) = browse(manageProductsUser)
         val tableNames = body.entries.map { it.tableName }.toSet()
         assertTrue("product" in tableNames)

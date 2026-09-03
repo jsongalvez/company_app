@@ -176,8 +176,9 @@ branch-derived leg and V25 adds OWNER's GLOBAL read leg — see the migration-ch
 The view already excludes
 INACTIVE users and out-of-window grants.
 
-GLOBAL-scoped capabilities (`MANAGE_USERS`, `ASSIGN_DELEGATE`, GLOBAL `VIEW_BRANCH_DATA`, and
-GLOBAL `ASSIGN_COMPENSATION`) have no specific branch/day; pass
+GLOBAL-scoped capabilities (`MANAGE_USERS`, `ASSIGN_DELEGATE`, GLOBAL `VIEW_BRANCH_DATA`,
+GLOBAL `ASSIGN_COMPENSATION`, and GLOBAL `MANAGE_CATALOG` — the shared product/category
+catalog authority, derived for SUPERUSER/OWNER/MANAGER/COORDINATOR per V26) have no specific branch/day; pass
 `CapabilityContextType.GLOBAL` with `contextId = CapabilityService.GLOBAL_CONTEXT_ID` (the nil
 all-zero UUID).
 

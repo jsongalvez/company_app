@@ -34,6 +34,7 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
     private val superuserUser = TestFixtures.uuid()
     private val accountantUser = TestFixtures.uuid()
     private val coordinatorUser = TestFixtures.uuid()
+    private val managerUser = TestFixtures.uuid()
     private val inactiveOwnerUser = TestFixtures.uuid()
     private val noRoleUser = TestFixtures.uuid()
     private val directUser = TestFixtures.uuid()
@@ -47,6 +48,7 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
             superuserUser to "superuser",
             accountantUser to "accountant",
             coordinatorUser to "coordinator",
+            managerUser to "manager",
             noRoleUser to "no-role",
             directUser to "direct",
             dedupUser to "dedup",
@@ -71,6 +73,7 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
         assignRole(superuserUser, "SUPERUSER")
         assignRole(accountantUser, "ACCOUNTANT")
         assignRole(coordinatorUser, "COORDINATOR")
+        assignRole(managerUser, "MANAGER")
         assignRole(inactiveOwnerUser, "OWNER")
         assignRole(dedupUser, "OWNER")
 
@@ -142,6 +145,10 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
             has(ownerUser, CapabilityCodes.VIEW_BRANCH_DATA),
             "OWNER should derive GLOBAL VIEW_BRANCH_DATA for all-branches read",
         )
+        assertTrue(
+            has(ownerUser, CapabilityCodes.MANAGE_CATALOG),
+            "OWNER should derive GLOBAL MANAGE_CATALOG for catalog management (#436)",
+        )
     }
 
     @Test
@@ -160,6 +167,10 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
             has(superuserUser, CapabilityCodes.VIEW_BRANCH_DATA),
             "SUPERUSER full access includes GLOBAL VIEW_BRANCH_DATA",
         )
+        assertTrue(
+            has(superuserUser, CapabilityCodes.MANAGE_CATALOG),
+            "SUPERUSER full access includes GLOBAL MANAGE_CATALOG (#436)",
+        )
     }
 
     @Test
@@ -169,18 +180,31 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
             "ACCOUNTANT all-branches read intent (#105 F1)",
         )
         assertFalse(has(accountantUser, CapabilityCodes.MANAGE_USERS))
+        assertFalse(has(accountantUser, CapabilityCodes.MANAGE_CATALOG))
         assertFalse(has(accountantUser, CapabilityCodes.ASSIGN_COMPENSATION))
         assertFalse(has(accountantUser, CapabilityCodes.EDIT_BRANCH_DATA))
     }
 
     @Test
-    fun `COORDINATOR role derives nothing GLOBAL`() {
+    fun `COORDINATOR role derives only catalog GLOBAL`() {
+        assertTrue(
+            has(coordinatorUser, CapabilityCodes.MANAGE_CATALOG),
+            "COORDINATOR should derive GLOBAL MANAGE_CATALOG for catalog management (#436)",
+        )
         assertFalse(
             has(coordinatorUser, CapabilityCodes.ASSIGN_COMPENSATION),
             "COORDINATOR ASSIGN_COMPENSATION is branch-scoped (V2) — must not over-grant",
         )
         assertFalse(has(coordinatorUser, CapabilityCodes.MANAGE_USERS))
         assertFalse(has(coordinatorUser, CapabilityCodes.VIEW_BRANCH_DATA))
+    }
+
+    @Test
+    fun `MANAGER role derives catalog GLOBAL as Coordinator superset`() {
+        assertTrue(
+            has(managerUser, CapabilityCodes.MANAGE_CATALOG),
+            "MANAGER should derive GLOBAL MANAGE_CATALOG like Coordinators (#436)",
+        )
     }
 
     // ── Exclusion + regression ─────────────────────────────────────────────
@@ -241,9 +265,9 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
         val caps = CapabilityService.getCapabilitiesForUser(ownerUser)
         val derived = caps.filter { it.sourceType == com.companyb.companyapp.domain.CapabilitySourceType.ROLE }
         assertEquals(
-            4,
+            5,
             derived.size,
-            "OWNER derives management GLOBAL capabilities plus all-branches VIEW_BRANCH_DATA",
+            "OWNER derives management GLOBAL capabilities plus catalog plus all-branches VIEW_BRANCH_DATA",
         )
         derived.forEach {
             assertEquals(com.companyb.companyapp.domain.CapabilityContextType.GLOBAL, it.contextType)
@@ -254,6 +278,7 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
                 CapabilityCodes.MANAGE_USERS,
                 CapabilityCodes.ASSIGN_DELEGATE,
                 CapabilityCodes.ASSIGN_COMPENSATION,
+                CapabilityCodes.MANAGE_CATALOG,
                 CapabilityCodes.VIEW_BRANCH_DATA,
             ),
             derived.map { it.capabilityCode }.toSet(),

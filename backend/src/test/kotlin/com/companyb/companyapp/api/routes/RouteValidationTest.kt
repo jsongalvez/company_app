@@ -80,6 +80,7 @@ class RouteValidationTest : BasePostgresTest() {
                 CapabilityCodes.SUBMIT_REMITTANCE,
                 CapabilityCodes.ASSIGN_COMPENSATION,
                 CapabilityCodes.MANAGE_PRODUCTS,
+                CapabilityCodes.MANAGE_CATALOG,
                 CapabilityCodes.MANAGE_USERS,
                 CapabilityCodes.ASSIGN_DELEGATE,
             )

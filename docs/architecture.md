@@ -209,7 +209,12 @@ capability catalog in `backend/src/main/resources/db/migration/V2__seed_roles_ca
 Later feature migrations may add codes: V5 adds
 `RECEIVE_NEXT_APPOINTMENT_ALERTS`, V21 widens the view's branch-derived leg so every
 assigned role's non-management bundle derives BRANCH-scoped from ACTIVE assignments, and
-V25 adds OWNER to the GLOBAL `VIEW_BRANCH_DATA` leg. The application references codes through
+V25 adds OWNER to the GLOBAL `VIEW_BRANCH_DATA` leg. V26 introduces
+`MANAGE_CATALOG` as the GLOBAL-scoped shared-catalog authority (map #422
+decision #436, Option 3): product/category collection and detail routes gate
+GLOBAL `MANAGE_CATALOG`, derived GLOBALly for SUPERUSER/OWNER/MANAGER/COORDINATOR
+and excluded from the BRANCH-derived leg, so catalog writes stay global while
+BRANCH `MANAGE_PRODUCTS` keeps governing branch inventory and base rates. The application references codes through
 `shared/src/commonMain/kotlin/com/companyb/companyapp/domain/CapabilityCodes.kt`; migration SQL
 keeps its database-owned string literals.
 
@@ -221,7 +226,8 @@ keeps its database-owned string literals.
 | `SUBMIT_REMITTANCE` | BRANCH | Coordinator |
 | `ASSIGN_COMPENSATION` | BRANCH | Coordinator, Owner |
 | `MANAGE_USERS` | GLOBAL | Owner, Manager |
-| `MANAGE_PRODUCTS` | BRANCH | Owner (home branch only), Coordinator (assigned branches) |
+| `MANAGE_PRODUCTS` | BRANCH | Owner (home branch only), Coordinator (assigned branches) — branch inventory and base rates only, never the shared catalog |
+| `MANAGE_CATALOG` | GLOBAL | Coordinator, Owner, Manager, Superuser — shared product/category catalog |
 | `ASSIGN_DELEGATE` | GLOBAL | Owner, Manager |
 | `EDIT_PAST_DAY` | BRANCH | Coordinator only (PAST/REMITTED days) |
 | `RECEIVE_NEXT_APPOINTMENT_ALERTS` | BRANCH | Coordinator with an active assignment to the branch |

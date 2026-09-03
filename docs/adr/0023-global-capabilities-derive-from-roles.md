@@ -45,3 +45,9 @@ The Context paragraph above ("no production path assigns roles or capabilities",
 The business rule for OWNER is view-only access across all branches. The role-derived GLOBAL `VIEW_BRANCH_DATA` whitelist now includes OWNER alongside SUPERUSER and ACCOUNTANT. The capability remains read-only: OWNER's branch-scoped operational grants still come from ACTIVE assignments, and GLOBAL `VIEW_BRANCH_DATA` does not satisfy branch or branch-day write gates.
 
 Shipped in `V25__derive_owner_global_view_capability.sql`; the no-assignment derivation is pinned by `CapabilityGrantPathPostgresTest`, and the unassigned-second-branch HTTP read window by `ReportsReadScopeAuthzTest`.
+
+## Amendment (2026-09-03, #436) — GLOBAL catalog authority
+
+The shared product catalog leaves BRANCH-scoped `MANAGE_PRODUCTS` (map #422 decision #436, Option 3). `MANAGE_CATALOG` is the distinct GLOBAL-scoped catalog authority: product/category collection and detail routes gate GLOBAL `MANAGE_CATALOG`, derived GLOBALly for SUPERUSER/OWNER/MANAGER/COORDINATOR and excluded from the BRANCH-derived leg beside the other management codes, so no branch-qualified catalog grant ever derives. BRANCH `MANAGE_PRODUCTS` keeps governing branch inventory and #418 base rates; GLOBAL `MANAGE_PRODUCTS` still derives for nobody.
+
+Shipped in `V26__derive_global_catalog_capability.sql`; derivation pinned by `CapabilityGrantPathPostgresTest` plus the leg-(c) exclusion pin in `StaffRoleBranchDerivationPostgresTest`, route gates by `CatalogAuthzTest`.

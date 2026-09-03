@@ -27,7 +27,7 @@ import kotlin.test.assertTrue
  * #417: staff-role branch-scoped provisioning. Leg (c) of the
  * active_user_capabilities union derives each assigned role's branch-scoped
  * bundle at every branch holding an ACTIVE assignment (management codes
- * MANAGE_USERS/ASSIGN_DELEGATE never derive BRANCH-scoped). Covers every
+ * MANAGE_USERS/ASSIGN_DELEGATE/MANAGE_CATALOG never derive BRANCH-scoped). Covers every
  * seeded role's ACTIVE-assignment bundle plus the assignment state machine
  * (ended → revoked, reassignment → restored) on COORDINATOR, explicit-grant
  * precedence, INACTIVE exclusion, and multi-role/multi-branch unions.
@@ -226,6 +226,10 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
         assertTrue(hasBranch(ownerUser, CapabilityCodes.MANAGE_PRODUCTS))
         assertFalse(hasBranch(ownerUser, CapabilityCodes.SUBMIT_REMITTANCE), "not in the OWNER bundle")
         assertFalse(hasBranch(ownerUser, CapabilityCodes.MANAGE_USERS), "management codes never derive BRANCH-scoped")
+        assertFalse(
+            hasBranch(ownerUser, CapabilityCodes.MANAGE_CATALOG),
+            "catalog authority never derives BRANCH-scoped (#436)",
+        )
 
         assertTrue(
             CapabilityService.hasCapability(

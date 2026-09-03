@@ -44,8 +44,16 @@ object ProductCategoryRoutes {
         config.routes.before(ApiRoutes.PRODUCT_CATEGORIES) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
-                CapabilityCodes.MANAGE_PRODUCTS,
-                "MANAGE_PRODUCTS capability required to manage product categories",
+                CapabilityCodes.MANAGE_CATALOG,
+                "MANAGE_CATALOG capability required to manage product categories",
+            )
+        }
+
+        config.routes.before(ApiRoutes.PRODUCT_CATEGORY_PATH) { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.MANAGE_CATALOG,
+                "MANAGE_CATALOG capability required to manage product categories",
             )
         }
 

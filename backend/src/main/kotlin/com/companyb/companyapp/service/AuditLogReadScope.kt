@@ -32,9 +32,9 @@ object AuditLogReadScope {
             // gates branch-scoped — any holder passes).
             "concern" to TablePolicy(CapabilityCodes.EDIT_BRANCH_DATA, global = false),
             // Global catalog management (ProductRoutes / ProductCategoryRoutes
-            // gate GLOBAL MANAGE_PRODUCTS).
-            "product" to TablePolicy(CapabilityCodes.MANAGE_PRODUCTS, global = true),
-            "product_category" to TablePolicy(CapabilityCodes.MANAGE_PRODUCTS, global = true),
+            // gate GLOBAL MANAGE_CATALOG).
+            "product" to TablePolicy(CapabilityCodes.MANAGE_CATALOG, global = true),
+            "product_category" to TablePolicy(CapabilityCodes.MANAGE_CATALOG, global = true),
             // User/branch management (UserRoutes / BranchRoutes gate GLOBAL MANAGE_USERS).
             "app_user" to TablePolicy(CapabilityCodes.MANAGE_USERS, global = true),
             "branch" to TablePolicy(CapabilityCodes.MANAGE_USERS, global = true),
