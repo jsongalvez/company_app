@@ -124,6 +124,20 @@ object InventoryService {
         return BranchInventoryRepository.findByBranch(branchId)
     }
 
+    /**
+     * #442 — branch-scoped all-history breakdown per product, derived from the movement
+     * ledger (legacy rows included). Available stays the persisted live count
+     * (`currentStock`, the low-stock/sale-guard authority); the map reconciles it as
+     * Stock - Sales - TesterSample - Missing + Adjustment.
+     */
+    fun getBreakdowns(branchId: UUID): Map<UUID, InventoryBreakdown> {
+        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+        return BranchInventoryRepository
+            .findMovements(branchId)
+            .groupBy { it.productId }
+            .mapValues { (_, movements) -> breakdownFromMovements(movements) }
+    }
+
     fun getMovementHistory(
         branchId: UUID,
         date: LocalDate? = null,

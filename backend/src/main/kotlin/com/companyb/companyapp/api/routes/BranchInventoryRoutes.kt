@@ -12,6 +12,7 @@ import com.companyb.companyapp.dto.InventoryMovementResponse
 import com.companyb.companyapp.dto.RestockRequest
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
 import com.companyb.companyapp.repository.model.InventoryMovement
+import com.companyb.companyapp.service.inventory.InventoryBreakdown
 import com.companyb.companyapp.service.inventory.InventoryService
 import com.companyb.companyapp.service.inventory.MovementType
 import io.javalin.config.JavalinConfig
@@ -210,19 +211,19 @@ object BranchInventoryRoutes {
 
     private fun handleGetInventory(context: Context) {
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+        val breakdowns = InventoryService.getBreakdowns(branchId)
+        val cards = InventoryService.getStock(branchId)
 
-        context.json(
-            InventoryService.getStock(branchId).map { it.toResponse() },
-        )
+        context.json(cards.map { it.toResponse(breakdowns[it.inventory.productId]) })
     }
 
     private fun handleGetLowStock(context: Context) {
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val thresholdOverride = context.queryParam("threshold")?.toIntOrNull()
+        val breakdowns = InventoryService.getBreakdowns(branchId)
+        val cards = InventoryService.getLowStockAlerts(branchId, thresholdOverride)
 
-        context.json(
-            InventoryService.getLowStockAlerts(branchId, thresholdOverride).map { it.toResponse() },
-        )
+        context.json(cards.map { it.toResponse(breakdowns[it.inventory.productId]) })
     }
 
     private fun handleGetMovements(context: Context) {
@@ -308,7 +309,7 @@ object BranchInventoryRoutes {
             notes = notes,
         )
 
-    private fun BranchInventoryWithProduct.toResponse(): BranchInventoryResponse =
+    private fun BranchInventoryWithProduct.toResponse(breakdown: InventoryBreakdown? = null): BranchInventoryResponse =
         BranchInventoryResponse(
             id = inventory.id.toString(),
             branchId = inventory.branchId.toString(),
@@ -318,5 +319,11 @@ object BranchInventoryRoutes {
             version = inventory.version,
             unitPrice = unitPrice.toPlainString(),
             commissionAmount = commissionAmount.toPlainString(),
+            available = inventory.currentStock,
+            stock = breakdown?.stock ?: 0,
+            sales = breakdown?.sales ?: 0,
+            testerSample = breakdown?.testerSample ?: 0,
+            missing = breakdown?.missing ?: 0,
+            adjustment = breakdown?.adjustment ?: 0,
         )
 }

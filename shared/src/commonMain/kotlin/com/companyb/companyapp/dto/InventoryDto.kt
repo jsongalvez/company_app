@@ -26,6 +26,19 @@ data class BranchInventoryResponse(
     val version: Int,
     val unitPrice: String,
     val commissionAmount: String,
+    // #442 — 5-value inventory sheet breakdown (owner 5-value decision 2026-09-03).
+    // Available is the live sellable count (equals currentStock, the low-stock authority).
+    // Stock = RESTOCK sum baseline; Sales = SALE units (positive); TesterSample = TESTER+SAMPLE
+    // combined display (movements stay separate); Missing = MISSING units (positive, notes-mandated);
+    // Adjustment = signed ADJUSTMENT net so Available reconciles when corrections exist:
+    // Available = Stock - Sales - TesterSample - Missing + Adjustment.
+    // Branch-scoped all-history; legacy rows included.
+    val available: Int = 0,
+    val stock: Int = 0,
+    val sales: Int = 0,
+    val testerSample: Int = 0,
+    val missing: Int = 0,
+    val adjustment: Int = 0,
 )
 
 @Serializable

@@ -8,6 +8,10 @@ import com.companyb.companyapp.dto.InventoryMovementResponse
  * display-line mapping. #396 — cards whose product id appears in the low-stock read's response
  * render marked; membership is backend-authoritative (per-product reorderPoint with a server
  * default) and the client mirrors nothing.
+ * #442 — 5-value sheet (owner decision 2026-09-03): Available (live sellable = currentStock,
+ * the low-stock authority) · Stock (restock baseline) · Sales · Tester/Sample combined
+ * (movements stay separate) · Missing. Adjustment rides the ledger so Available reconciles;
+ * appended only when non-zero to keep the default 5-value display.
  */
 internal fun List<BranchInventoryResponse>.toInventoryRows(
     lowStockIds: Set<String> = emptySet(),
@@ -16,11 +20,20 @@ internal fun List<BranchInventoryResponse>.toInventoryRows(
         InventoryRowModel(
             id = card.id,
             productName = card.productName,
-            stockLine = "In stock: ${card.currentStock}",
+            stockLine = inventoryBreakdownLine(card),
             priceLine = "₱${card.unitPrice}",
             isLow = card.productId in lowStockIds,
         )
     }
+
+internal fun inventoryBreakdownLine(card: BranchInventoryResponse): String {
+    val base =
+        "Available: ${card.currentStock} · Stock: ${card.stock}" +
+            " · Sales: ${card.sales} · Tester/Sample: ${card.testerSample} · Missing: ${card.missing}"
+    if (card.adjustment == 0) return base
+    val signed = if (card.adjustment > 0) "+${card.adjustment}" else card.adjustment.toString()
+    return "$base · Adjustment: $signed"
+}
 
 internal data class InventoryRowModel(
     val id: String,
