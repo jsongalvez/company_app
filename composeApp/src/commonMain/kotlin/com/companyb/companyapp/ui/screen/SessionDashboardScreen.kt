@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -223,14 +225,16 @@ fun SessionDashboardScreen(
             else -> {
                 val data = lastData
                 if (data != null) {
+                    // #446 — Variant A pulse board: income metrics first, then the
+                    // Today's-flow list (wide) beside the team-context column
+                    // (narrow roster + relief slots, #351 pattern — rearranged only).
                     Column(modifier = Modifier.fillMaxSize()) {
                         SummaryCardsRow(
                             grossCents = grossIncomeCents(data.sessions),
                             commissionCents = moneyToCents(data.commission.amount),
                             productSalesCount = data.commission.productSalesCount,
+                            sessionCount = data.sessions.size,
                         )
-                        reliefAccessContent()
-                        attendanceContent()
                         LastUpdatedRow(
                             lastUpdatedAt,
                             // #348 — "New session" lives beside the timestamp row (trailing).
@@ -248,36 +252,56 @@ fun SessionDashboardScreen(
                                 actionLabel = "Retry",
                                 onAction = viewModel::refresh,
                             )
-                        } else if (data.sessions.isEmpty()) {
-                            // Q6b — empty state participates in polling (auto-transitions
-                            // when sessions appear); ₱0 cards stay visible above. The
-                            // desktop actual adds the manual Refresh (#150).
-                            DashboardEmptyState(
-                                selectedBranchName = selectedBranchName,
-                                onRefresh = onManualRefresh,
-                            )
                         } else {
-                            SessionList(
-                                args =
-                                    SessionListArgs(
-                                        sessions = data.sessions,
-                                        selectedSessionId = selectedSessionId,
-                                        onSessionClick = onSessionClick,
-                                        onRefresh = onManualRefresh,
-                                        isRefreshing = isManualRefreshing && state is UiState.Loading,
-                                        canEdit = canEdit,
-                                        canCorrectStatus = canCorrectStatus,
-                                        dayStatus = dayStatus,
-                                        edit = edit,
-                                        onEditStart = viewModel::startEdit,
-                                        onEditDraftChange = viewModel::updateDraft,
-                                        requiresReason = remittedReasonRequired(dayStatus),
-                                        onEditReasonChange = viewModel::updateReason,
-                                        onEditCommit = viewModel::commitEdit,
-                                        onEditDiscard = viewModel::discardEdit,
-                                        onEditReload = viewModel::reloadAfterConflict,
-                                    ),
-                            )
+                            Row(
+                                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = Spacing.md),
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                            ) {
+                                Column(modifier = Modifier.weight(PULSE_FLOW_WEIGHT).fillMaxHeight()) {
+                                    if (data.sessions.isEmpty()) {
+                                        // Q6b — empty state participates in polling (auto-transitions
+                                        // when sessions appear); ₱0 cards stay visible above. The
+                                        // desktop actual adds the manual Refresh (#150).
+                                        DashboardEmptyState(
+                                            selectedBranchName = selectedBranchName,
+                                            onRefresh = onManualRefresh,
+                                        )
+                                    } else {
+                                        SessionList(
+                                            args =
+                                                SessionListArgs(
+                                                    sessions = data.sessions,
+                                                    selectedSessionId = selectedSessionId,
+                                                    onSessionClick = onSessionClick,
+                                                    onRefresh = onManualRefresh,
+                                                    isRefreshing = isManualRefreshing && state is UiState.Loading,
+                                                    canEdit = canEdit,
+                                                    canCorrectStatus = canCorrectStatus,
+                                                    dayStatus = dayStatus,
+                                                    edit = edit,
+                                                    onEditStart = viewModel::startEdit,
+                                                    onEditDraftChange = viewModel::updateDraft,
+                                                    requiresReason = remittedReasonRequired(dayStatus),
+                                                    onEditReasonChange = viewModel::updateReason,
+                                                    onEditCommit = viewModel::commitEdit,
+                                                    onEditDiscard = viewModel::discardEdit,
+                                                    onEditReload = viewModel::reloadAfterConflict,
+                                                ),
+                                        )
+                                    }
+                                }
+                                Column(
+                                    modifier =
+                                        Modifier
+                                            .weight(PULSE_CONTEXT_WEIGHT)
+                                            .fillMaxHeight()
+                                            .verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                                ) {
+                                    attendanceContent()
+                                    reliefAccessContent()
+                                }
+                            }
                         }
                     }
                 }
@@ -291,6 +315,7 @@ private fun SummaryCardsRow(
     grossCents: Long,
     commissionCents: Long,
     productSalesCount: Int,
+    sessionCount: Int,
 ) {
     Row(
         // IntrinsicSize.Min: the VerticalDivider's fillMaxHeight must size the Row to the
@@ -303,8 +328,9 @@ private fun SummaryCardsRow(
                 .height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
-        // #97 Q2 Variant A — equal peers: two equal-weight cards + thin vertical hairline
+        // #97 Q2 Variant A — equal peers: equal-weight cards + thin vertical hairlines
         // between them, hairline border each (pass-2 restored the locked treatment).
+        // #446 — third peer: session count from the same dashboard fetch.
         SummaryCard(
             label = "Gross income",
             value = "₱${centsToMoney(grossCents)}",
@@ -321,6 +347,16 @@ private fun SummaryCardsRow(
             label = "Your commission",
             value = "₱${centsToMoney(commissionCents)}",
             sublabel = commissionLabel(productSalesCount),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+        )
+        VerticalDivider(
+            color = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.fillMaxHeight(),
+        )
+        SummaryCard(
+            label = "Sessions",
+            value = sessionCount.toString(),
+            sublabel = "Today · total sessions",
             modifier = Modifier.weight(1f).fillMaxHeight(),
         )
     }
@@ -437,3 +473,8 @@ private fun InPlaceCard(
 }
 
 private const val STALE_BANNER_ALPHA = 0.22f
+
+// #446 — Variant A pulse-board column weights (prototype shape): the Today's-flow
+// list reads wide, the roster/relief context column stays narrow.
+private const val PULSE_FLOW_WEIGHT = 1.25f
+private const val PULSE_CONTEXT_WEIGHT = 0.75f
