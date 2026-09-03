@@ -1,8 +1,10 @@
 package com.companyb.companyapp.ui.screen
 
+import com.companyb.companyapp.domain.RemittanceLineType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.dto.RemittanceLineResponse
 import kotlin.math.abs
 
 /**
@@ -37,6 +39,16 @@ internal fun grossIncomeCents(sessions: List<DashboardSessionResponse>): Long =
     sessions
         .filter { it.sessionStatus == SessionStatus.COMPLETED && !it.isVoided }
         .sumOf { moneyToCents(it.finalPrice) }
+
+/**
+ * #447 — SESSION submit gross previews from the loaded lines: the server freezes
+ * SESSION-type lines only (`sumGrossIncomeInTransaction`), while the line total covers
+ * every line — a mixed draft's gross-to-freeze differs from its total.
+ */
+internal fun sessionLinesGrossCents(lines: List<RemittanceLineResponse>): Long =
+    lines
+        .filter { it.type == RemittanceLineType.SESSION }
+        .sumOf { moneyToCents(it.amount) }
 
 internal fun commissionLabel(productSalesCount: Int): String =
     "from $productSalesCount product sale${if (productSalesCount == 1) "" else "s"}"

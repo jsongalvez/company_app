@@ -3,10 +3,13 @@ package com.companyb.companyapp.ui.screen
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -41,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.dto.AddDayBreakdownRequest
 import com.companyb.companyapp.dto.CreateRemittanceLineRequest
 import com.companyb.companyapp.dto.RemittanceDayBreakdownResponse
@@ -64,6 +68,7 @@ import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.UiState
+import com.companyb.companyapp.viewmodel.remittanceListKey
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 import androidx.compose.ui.geometry.CornerRadius as GeometryCornerRadius
@@ -93,6 +98,13 @@ fun RemittanceDetailScreen(
     branchId: String?,
     viewModel: RemittanceViewModel,
     onBack: () -> Unit,
+    // #447 — desk queue selection (desktop NavHost navigates; mobile keeps the default:
+    // the queue rail only renders on wide desktop layouts, so narrow destinations and
+    // non-desktop targets are untouched).
+    onRemittanceClick: (String) -> Unit = {},
+    // #447 — Variant B control desk engages only where the host opts in (desktop) AND
+    // the window is wide enough for queue + editor + brief side by side.
+    deskEnabled: Boolean = false,
 ) {
     val detailState by viewModel.remittanceDetail.collectAsState()
     val sessionPickerState by viewModel.sessionPicker.collectAsState()
@@ -107,6 +119,10 @@ fun RemittanceDetailScreen(
     val headerUpdateState by viewModel.headerUpdateResult.collectAsState()
     val driftState by viewModel.drift.collectAsState()
     val changedNotice by viewModel.detailChangedNotice.collectAsState()
+    // #447 — desk queue mirrors (the existing drafts source, keyed per status like the
+    // list screen's keep-last gate — a SUBMITTED landing can never paint the drafts rail).
+    val queueState by viewModel.remittanceList.collectAsState()
+    val queueMirrors by viewModel.lastByTab.collectAsState()
 
     var showHeaderDialog by remember { mutableStateOf(false) }
     var showSessionPicker by remember { mutableStateOf(false) }
@@ -114,10 +130,23 @@ fun RemittanceDetailScreen(
     var showDayPicker by remember { mutableStateOf(false) }
     var showSubmitDialog by remember { mutableStateOf(false) }
     var showUndoDialog by remember { mutableStateOf(false) }
+    // #447 — the range the picker caches were loaded for; a header range edit invalidates
+    // them (stale Success caches would offer the old range's sessions, sales, and days).
+    var pickerRange by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     LaunchedEffect(Unit) {
         logInfo("RemittanceDetailScreen", "composable entered: remittanceId=$remittanceId")
         viewModel.loadRemittance(remittanceId)
+    }
+
+    // #447 — status/header mutations move rows between queue sections; refresh the desk
+    // mirrors so the rails stop showing submitted items as drafts (desk hosts only —
+    // classic surfaces never load the mirrors, so this is a no-op for them).
+    fun refreshDeskQueue() {
+        if (deskEnabled && branchId != null) {
+            viewModel.loadRemittances(branchId, DESK_QUEUE_DRAFTS_STATUS)
+            viewModel.loadRemittances(branchId, DESK_QUEUE_SUBMITTED_STATUS)
+        }
     }
 
     // D6 — line/day labels come from the pickers' join data (F7 bare lines): load the three
@@ -127,6 +156,15 @@ fun RemittanceDetailScreen(
     LaunchedEffect(detailState) {
         val detail = (detailState as? UiState.Success)?.data ?: return@LaunchedEffect
         if (branchId == null) return@LaunchedEffect
+        val range = detail.dateRangeStart to detail.dateRangeEnd
+        if (pickerRange != null && pickerRange != range) {
+            viewModel.loadSessionPicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
+            viewModel.loadProductSalePicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
+            viewModel.loadDayPicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
+            pickerRange = range
+            return@LaunchedEffect
+        }
+        pickerRange = range
         val needsLoad: (UiState<*>) -> Boolean = { it is UiState.Idle || it is UiState.Error }
         if (needsLoad(sessionPickerState)) {
             viewModel.loadSessionPicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
@@ -168,6 +206,7 @@ fun RemittanceDetailScreen(
             is UiState.Success -> {
                 showHeaderDialog = false
                 viewModel.loadRemittance(remittanceId)
+                refreshDeskQueue()
             }
 
             is UiState.Error -> {
@@ -186,6 +225,7 @@ fun RemittanceDetailScreen(
                 // D5 — the frozen breakdown appears right away (the reloaded detail carries the
                 // snapshot block).
                 viewModel.loadRemittance(remittanceId)
+                refreshDeskQueue()
             }
 
             is UiState.Error -> {
@@ -202,6 +242,7 @@ fun RemittanceDetailScreen(
             is UiState.Success -> {
                 showUndoDialog = false
                 viewModel.loadRemittance(remittanceId)
+                refreshDeskQueue()
             }
 
             is UiState.Error -> {
@@ -214,76 +255,121 @@ fun RemittanceDetailScreen(
         }
     }
 
-    Column(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(Spacing.md),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) {
-                Text("Back")
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // #447 — Variant B control desk renders on opted-in hosts (desktop) with a wide
+        // window only; everywhere else keeps the classic single column. The queue
+        // prefetch is desk-gated so other surfaces issue no extra reads.
+        val wideDesk = deskEnabled && maxWidth >= CONTROL_DESK_MIN_WIDTH
+        LaunchedEffect(wideDesk, branchId) {
+            if (wideDesk && branchId != null) {
+                logInfo("RemittanceDetailScreen", "desk queue prefetch for branch $branchId")
+                viewModel.loadRemittances(branchId, DESK_QUEUE_DRAFTS_STATUS)
+                viewModel.loadRemittances(branchId, DESK_QUEUE_SUBMITTED_STATUS)
+            }
+        }
+        LaunchedEffect(queueState) {
+            (queueState as? UiState.Error)?.let {
+                logWarn("RemittanceDetailScreen", "queueState=Error: ${it.message}")
             }
         }
 
-        when (val state = detailState) {
-            is UiState.Idle, is UiState.Loading -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(Spacing.md),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onBack) {
+                    Text("Back")
                 }
             }
 
-            is UiState.Error -> {
-                ErrorCard(
-                    message = state.message,
-                    onRetry = { viewModel.loadRemittance(remittanceId) },
-                )
-            }
+            when (val state = detailState) {
+                is UiState.Idle, is UiState.Loading -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
 
-            is UiState.Success -> {
-                if (changedNotice) {
-                    Text(
-                        text = "Remittance was changed elsewhere — changes reloaded",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(bottom = Spacing.sm),
+                is UiState.Error -> {
+                    ErrorCard(
+                        message = state.message,
+                        onRetry = { viewModel.loadRemittance(remittanceId) },
                     )
                 }
-                RemittanceDetailContent(
-                    detail = state.data,
-                    branchId = branchId,
-                    remittanceId = remittanceId,
-                    sessionPickerState = sessionPickerState,
-                    productSalePickerState = productSalePickerState,
-                    dayPickerState = dayPickerState,
-                    lineState = lineState,
-                    deleteLineState = deleteLineState,
-                    dayBreakdownState = dayBreakdownState,
-                    deleteDayBreakdownState = deleteDayBreakdownState,
-                    submitState = submitState,
-                    undoState = undoState,
-                    headerUpdateState = headerUpdateState,
-                    driftState = driftState,
-                    viewModel = viewModel,
-                    showHeaderDialog = showHeaderDialog,
-                    showSessionPicker = showSessionPicker,
-                    showProductSalePicker = showProductSalePicker,
-                    showDayPicker = showDayPicker,
-                    showSubmitDialog = showSubmitDialog,
-                    showUndoDialog = showUndoDialog,
-                    onOpenHeaderDialog = { showHeaderDialog = true },
-                    onOpenSessionPicker = { showSessionPicker = true },
-                    onOpenProductSalePicker = { showProductSalePicker = true },
-                    onOpenDayPicker = { showDayPicker = true },
-                    onOpenSubmitDialog = { showSubmitDialog = true },
-                    onOpenUndoDialog = { showUndoDialog = true },
-                    onCloseHeaderDialog = { showHeaderDialog = false },
-                    onCloseSessionPicker = { showSessionPicker = false },
-                    onCloseProductSalePicker = { showProductSalePicker = false },
-                    onCloseDayPicker = { showDayPicker = false },
-                    onCloseSubmitDialog = { showSubmitDialog = false },
-                    onCloseUndoDialog = { showUndoDialog = false },
-                )
+
+                is UiState.Success -> {
+                    if (changedNotice) {
+                        Text(
+                            text = "Remittance was changed elsewhere — changes reloaded",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = Spacing.sm),
+                        )
+                    }
+
+                    @Composable
+                    fun Center() {
+                        RemittanceDetailContent(
+                            detail = state.data,
+                            branchId = branchId,
+                            remittanceId = remittanceId,
+                            sessionPickerState = sessionPickerState,
+                            productSalePickerState = productSalePickerState,
+                            dayPickerState = dayPickerState,
+                            lineState = lineState,
+                            deleteLineState = deleteLineState,
+                            dayBreakdownState = dayBreakdownState,
+                            deleteDayBreakdownState = deleteDayBreakdownState,
+                            submitState = submitState,
+                            undoState = undoState,
+                            headerUpdateState = headerUpdateState,
+                            driftState = driftState,
+                            viewModel = viewModel,
+                            showHeaderDialog = showHeaderDialog,
+                            showSessionPicker = showSessionPicker,
+                            showProductSalePicker = showProductSalePicker,
+                            showDayPicker = showDayPicker,
+                            showSubmitDialog = showSubmitDialog,
+                            showUndoDialog = showUndoDialog,
+                            onOpenHeaderDialog = { showHeaderDialog = true },
+                            onOpenSessionPicker = { showSessionPicker = true },
+                            onOpenProductSalePicker = { showProductSalePicker = true },
+                            onOpenDayPicker = { showDayPicker = true },
+                            onOpenSubmitDialog = { showSubmitDialog = true },
+                            onOpenUndoDialog = { showUndoDialog = true },
+                            onCloseHeaderDialog = { showHeaderDialog = false },
+                            onCloseSessionPicker = { showSessionPicker = false },
+                            onCloseProductSalePicker = { showProductSalePicker = false },
+                            onCloseDayPicker = { showDayPicker = false },
+                            onCloseSubmitDialog = { showSubmitDialog = false },
+                            onCloseUndoDialog = { showUndoDialog = false },
+                        )
+                    }
+                    if (wideDesk && branchId != null) {
+                        RemittanceControlDesk(
+                            detail = state.data,
+                            branchId = branchId,
+                            currentId = remittanceId,
+                            queueMirrors = queueMirrors,
+                            queueState = queueState,
+                            dayEntries =
+                                (dayPickerState as? UiState.Success)
+                                    ?.data
+                                    ?.associate { it.id to it }
+                                    .orEmpty(),
+                            onQueueClick = onRemittanceClick,
+                            onRetryQueue = {
+                                viewModel.loadRemittances(branchId, DESK_QUEUE_DRAFTS_STATUS)
+                                viewModel.loadRemittances(branchId, DESK_QUEUE_SUBMITTED_STATUS)
+                            },
+                            center = { Center() },
+                        )
+                    } else {
+                        Center()
+                    }
+                }
             }
         }
     }
@@ -902,12 +988,9 @@ private fun HeaderEditDialog(
 
     fun commit() {
         if (inFlight) return
-        if (!isValidIsoDate(startDate) || !isValidIsoDate(endDate)) {
-            dateError = "Dates must be yyyy-MM-dd"
-            return
-        }
-        if (startDate > endDate) {
-            dateError = "Start date must be on or before end date"
+        val rangeProblem = remittanceRangeError(startDate, endDate)
+        if (rangeProblem != null) {
+            dateError = rangeProblem
             return
         }
         dateError = null
@@ -947,12 +1030,12 @@ private fun HeaderEditDialog(
                         method = RemittanceMethodChoice.entries.first { it.label == label }
                     },
                 )
-                LabeledDateField(
+                RemittanceDatePickerField(
                     label = "Date range start",
                     value = startDate,
                     onValueChange = { startDate = it },
                 )
-                LabeledDateField(
+                RemittanceDatePickerField(
                     label = "Date range end",
                     value = endDate,
                     onValueChange = { endDate = it },
@@ -1507,6 +1590,11 @@ private fun SubmitConfirmDialog(
                     )
                 }
                 Spacer(Modifier.size(Spacing.sm))
+                // #447 — snapshot-review step (money UX requirement): the numbers that
+                // freeze are reviewed here, before confirm, in every submit path. The
+                // submit itself still writes the existing snapshot path unchanged.
+                SubmitSnapshotReview(detail = detail)
+                Spacer(Modifier.size(Spacing.sm))
                 Text(
                     text =
                         "After submit, these days lock (REMITTED) and the amounts freeze. " +
@@ -1542,6 +1630,391 @@ private fun SubmitConfirmDialog(
         },
     )
 }
+
+/**
+ * #447 — snapshot-review step inside the submit confirm (money UX requirement): the
+ * amounts that freeze at submit, reviewed before confirm. SESSION freezes gross (the
+ * line total), compensation, and expenses into the immutable snapshot; PRODUCT writes
+ * no SESSION snapshot and excludes commission. Read-only review — the submit still
+ * writes the existing snapshot path unchanged.
+ */
+@Composable
+private fun SubmitSnapshotReview(detail: RemittanceDetailResponse) {
+    val isSession = detail.type == com.companyb.companyapp.domain.RemittanceType.SESSION
+    Surface(
+        shape = RoundedCornerShape(CornerRadius.sm),
+        border = BorderStroke(width = 1.dp, color = MaterialTheme.colorScheme.outline),
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(Spacing.sm)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Snapshot review",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = "LOCKS ON SUBMIT",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Spacer(Modifier.size(Spacing.xs))
+            if (isSession) {
+                // The server freezes SESSION-type lines only — a mixed draft's gross-to-freeze
+                // differs from its line total (both previewed from the loaded lines).
+                val sessionGrossCents = sessionLinesGrossCents(detail.lines)
+                SnapshotRow("Gross to freeze", peso(centsToMoney(sessionGrossCents)))
+                if (moneyToCents(detail.totalAmount) != sessionGrossCents) {
+                    SnapshotRow("Line total (incl. product lines)", peso(detail.totalAmount))
+                    Text(
+                        text = "Only session lines freeze into gross.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    text = "Compensation and expenses freeze from the branch-day records at submit.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                SnapshotRow("Product total", peso(detail.totalAmount))
+                Text(
+                    text = "Product flows write no SESSION snapshot; commission is excluded.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * #447 — Variant B control desk (owner verdict on #429): draft queue | editable center
+ * column | persistent submission brief. Wide layouts only; the center is the unchanged
+ * detail content (every flow and state preserved), the rails are read-only
+ * rearrangements of existing sources — no new endpoints, DTOs, or routes.
+ */
+@Composable
+private fun RemittanceControlDesk(
+    detail: RemittanceDetailResponse,
+    branchId: String,
+    currentId: String,
+    queueMirrors: Map<String, List<RemittanceResponse>>,
+    queueState: UiState<List<RemittanceResponse>>,
+    dayEntries: Map<String, RemittanceDayPickerEntryResponse>,
+    onQueueClick: (String) -> Unit,
+    onRetryQueue: () -> Unit,
+    center: @Composable () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxSize(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        Surface(
+            shape = RoundedCornerShape(CornerRadius.md),
+            border = BorderStroke(width = 1.dp, color = MaterialTheme.colorScheme.outline),
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.width(CONTROL_DESK_RAIL_WIDTH).fillMaxHeight(),
+        ) {
+            DraftQueueRail(
+                branchId = branchId,
+                currentId = currentId,
+                mirrors = queueMirrors,
+                queueState = queueState,
+                onQueueClick = onQueueClick,
+                onRetryQueue = onRetryQueue,
+            )
+        }
+        Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            center()
+        }
+        Surface(
+            shape = RoundedCornerShape(CornerRadius.md),
+            border = BorderStroke(width = 1.dp, color = MaterialTheme.colorScheme.outline),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.width(CONTROL_DESK_RAIL_WIDTH).fillMaxHeight(),
+        ) {
+            SubmissionBriefRail(detail = detail, dayEntries = dayEntries)
+        }
+    }
+}
+
+/** #447 — desk left rail: drafts to review plus submitted history, from the drafts source. */
+@Composable
+private fun DraftQueueRail(
+    branchId: String,
+    currentId: String,
+    mirrors: Map<String, List<RemittanceResponse>>,
+    queueState: UiState<List<RemittanceResponse>>,
+    onQueueClick: (String) -> Unit,
+    onRetryQueue: () -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Text(
+            text = "Draft queue",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = "Choose a flow to review",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        QueueSection(
+            title = "Drafts",
+            rows = mirrors[remittanceListKey(branchId, DESK_QUEUE_DRAFTS_STATUS)],
+            emptyText = "No drafts",
+            currentId = currentId,
+            queueState = queueState,
+            onQueueClick = onQueueClick,
+            onRetryQueue = onRetryQueue,
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        QueueSection(
+            title = "Submitted history",
+            rows = mirrors[remittanceListKey(branchId, DESK_QUEUE_SUBMITTED_STATUS)],
+            emptyText = "No submitted remittances",
+            currentId = currentId,
+            queueState = queueState,
+            onQueueClick = onQueueClick,
+            onRetryQueue = onRetryQueue,
+        )
+    }
+}
+
+/**
+ * #447 — one queue section: the selected status key's mirror renders (a response for the
+ * other status can never paint here); without a mirror yet, spinner / error + Retry.
+ */
+@Composable
+private fun QueueSection(
+    title: String,
+    rows: List<RemittanceResponse>?,
+    emptyText: String,
+    currentId: String,
+    queueState: UiState<List<RemittanceResponse>>,
+    onQueueClick: (String) -> Unit,
+    onRetryQueue: () -> Unit,
+) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    when {
+        rows != null -> {
+            if (rows.isEmpty()) {
+                Text(
+                    text = emptyText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                rows.forEach { item ->
+                    QueueRow(
+                        item = item,
+                        selected = item.id == currentId,
+                        onClick = { onQueueClick(item.id) },
+                    )
+                }
+            }
+        }
+
+        // The list flow is shared across statuses: a Success here may belong to the OTHER
+        // section's landing while this key's load failed — Retry instead of spinning forever.
+        queueState is UiState.Error || queueState is UiState.Success -> {
+            Text(
+                text = (queueState as? UiState.Error)?.message ?: "Couldn't load this section",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            TextButton(onClick = onRetryQueue) {
+                Text("Retry")
+            }
+        }
+
+        else -> {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+    }
+}
+
+@Composable
+private fun QueueRow(
+    item: RemittanceResponse,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        enabled = !selected,
+        shape = RoundedCornerShape(CornerRadius.sm),
+        color =
+            if (selected) {
+                MaterialTheme.colorScheme.primary.copy(alpha = QUEUE_SELECTED_ALPHA)
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            },
+        border =
+            BorderStroke(
+                width = 1.dp,
+                color =
+                    if (selected) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = QUEUE_SELECTED_BORDER_ALPHA)
+                    } else {
+                        MaterialTheme.colorScheme.outline
+                    },
+            ),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = remittanceTypeLabel(item.type.name),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = item.status.name,
+                    style = MaterialTheme.typography.labelSmall,
+                    color =
+                        if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                )
+            }
+            Text(
+                text = "${item.dateRangeStart} – ${item.dateRangeEnd}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = remittanceMethodLabel(item.method.name),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * #447 — desk right rail: the covered range, line items, day states, and frozen-snapshot
+ * review at a glance. Read-only; every number comes from the loaded detail (rearranged,
+ * not re-sourced).
+ */
+@Composable
+private fun SubmissionBriefRail(
+    detail: RemittanceDetailResponse,
+    dayEntries: Map<String, RemittanceDayPickerEntryResponse>,
+) {
+    Column(
+        modifier =
+            Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Text(
+            text = "Submission brief",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = remittanceTypeLabel(detail.type.name),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            text = "${detail.dateRangeStart} – ${detail.dateRangeEnd}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = "Method: ${remittanceMethodLabel(detail.method.name)}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        SnapshotRow("Lines", detail.lines.size.toString())
+        SnapshotRow("Line total", peso(detail.totalAmount))
+        SnapshotRow("Days covered", detail.dayBreakdowns.size.toString())
+        detail.dayBreakdowns.forEach { breakdown ->
+            val day = dayEntries[breakdown.branchDayId]
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = day?.date ?: breakdown.branchDayId,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = day?.status?.name.orEmpty(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        val snapshot = detail.snapshot
+        if (snapshot != null) {
+            Text(
+                text = "Frozen at submission",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            SnapshotRow("Gross", peso(snapshot.grossIncome))
+            SnapshotRow("Compensation", peso(snapshot.totalCompensation))
+            SnapshotRow("Expenses", peso(snapshot.totalExpenses))
+            SnapshotRow("Net", peso(snapshot.netIncome))
+        } else if (detail.type == com.companyb.companyapp.domain.RemittanceType.SESSION) {
+            Text(
+                text = "Freezes on submit",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val sessionGrossCents = sessionLinesGrossCents(detail.lines)
+            SnapshotRow("Gross to freeze", peso(centsToMoney(sessionGrossCents)))
+            if (moneyToCents(detail.totalAmount) != sessionGrossCents) {
+                SnapshotRow("Line total (incl. product lines)", peso(detail.totalAmount))
+            }
+        } else {
+            SnapshotRow("Product total", peso(detail.totalAmount))
+            Text(
+                text = "Product flows write no SESSION snapshot; commission is excluded.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+// #447 — control-desk geometry + queue statuses (backend enum names, mirroring the list tabs).
+// The editor column needs room for the money-review rows: rails stay narrow so the desk
+// engages from ~1220px desktop windows (drawer + rails + editor).
+private val CONTROL_DESK_MIN_WIDTH = 860.dp
+private val CONTROL_DESK_RAIL_WIDTH = 210.dp
+private val DESK_QUEUE_DRAFTS_STATUS = RemittanceStatus.DRAFT.name
+private val DESK_QUEUE_SUBMITTED_STATUS = RemittanceStatus.SUBMITTED.name
+private const val QUEUE_SELECTED_ALPHA = 0.14f
+private const val QUEUE_SELECTED_BORDER_ALPHA = 0.6f
 
 /** D10 — undo confirm: reason required, one line (Void discipline precedent; server enforces). */
 @Composable

@@ -333,11 +333,17 @@ actual fun AppNavHost(
                     val selectedBranchId by SessionState.selectedBranchId.collectAsState()
                     val remittanceViewModel: RemittanceViewModel =
                         viewModel { RemittanceViewModel(apiClient) }
+                    val detailRoute = entry.toRoute<Route.RemittanceDetail>()
                     RemittanceDetailScreen(
-                        remittanceId = entry.toRoute<Route.RemittanceDetail>().id,
+                        remittanceId = detailRoute.id,
                         branchId = selectedBranchId,
                         viewModel = remittanceViewModel,
                         onBack = { navController.popBackStack() },
+                        // #447 — desk queue selection stays on the existing detail route.
+                        onRemittanceClick = { id ->
+                            navigateDeskQueue(navController, detailRoute.id, id)
+                        },
+                        deskEnabled = true,
                     )
                 }
                 composable<Route.Notifications> {
@@ -449,6 +455,18 @@ actual fun AppNavHost(
 
 private const val DESKTOP_MASTER_WEIGHT = 0.6f
 private const val DESKTOP_DETAIL_WEIGHT = 0.4f
+
+// #447 — desk queue selection: re-clicking the open draft is a no-op, anything else
+// pushes the existing detail route (no re-routing; the branch keeps its own decision).
+private fun navigateDeskQueue(
+    navController: NavHostController,
+    currentId: String,
+    id: String,
+) {
+    if (id != currentId) {
+        navController.navigate(Route.RemittanceDetail(id))
+    }
+}
 
 /**
  * #407 — the desktop Dashboard destination, extracted from [AppNavHost] (the #394 mechanical

@@ -12,14 +12,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -231,12 +235,9 @@ private fun CreateRemittanceDialog(
 
     fun commit() {
         if (inFlight) return
-        if (!isValidIsoDate(startDate) || !isValidIsoDate(endDate)) {
-            dateError = "Dates must be yyyy-MM-dd"
-            return
-        }
-        if (startDate > endDate) {
-            dateError = "Start date must be on or before end date"
+        val rangeProblem = remittanceRangeError(startDate, endDate)
+        if (rangeProblem != null) {
+            dateError = rangeProblem
             return
         }
         dateError = null
@@ -277,12 +278,12 @@ private fun CreateRemittanceDialog(
                         method = RemittanceMethodChoice.entries.first { it.label == label }
                     },
                 )
-                LabeledDateField(
+                RemittanceDatePickerField(
                     label = "Date range start",
                     value = startDate,
                     onValueChange = { startDate = it },
                 )
-                LabeledDateField(
+                RemittanceDatePickerField(
                     label = "Date range end",
                     value = endDate,
                     onValueChange = { endDate = it },
@@ -372,13 +373,21 @@ internal fun LabeledDropdown(
     }
 }
 
-/** D2/D9 — yyyy-MM-dd text input (deterministic; backend-validated — #123 date-field precedent). */
+/**
+ * #447 — date-picker range entry (owner verdict on #429): the raw yyyy-MM-dd text inputs
+ * die. Read-only field + Material3 DatePickerDialog; the value only ever changes to a
+ * calendar-picked valid ISO date, and the dialog's submit path still fails closed via
+ * [remittanceRangeError]. No preset-range buttons (prototype fakes, never carried over).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun LabeledDateField(
+internal fun RemittanceDatePickerField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
 ) {
+    var pickerOpen by remember { mutableStateOf(false) }
+
     Column(
         modifier =
             Modifier
@@ -392,11 +401,42 @@ internal fun LabeledDateField(
         )
         OutlinedTextField(
             value = value,
-            onValueChange = onValueChange,
+            onValueChange = {},
             singleLine = true,
-            placeholder = { Text("yyyy-MM-dd") },
-            modifier = Modifier.fillMaxWidth(),
+            readOnly = true,
+            placeholder = { Text("Pick a date") },
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { pickerOpen = true },
         )
+    }
+
+    if (pickerOpen) {
+        val pickerState =
+            rememberDatePickerState(
+                initialSelectedDateMillis = isoToPickerMillis(value),
+            )
+        DatePickerDialog(
+            onDismissRequest = { pickerOpen = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pickerMillisToIso(pickerState.selectedDateMillis)?.let(onValueChange)
+                        pickerOpen = false
+                    },
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pickerOpen = false }) {
+                    Text("Cancel")
+                }
+            },
+        ) {
+            DatePicker(state = pickerState)
+        }
     }
 }
 
