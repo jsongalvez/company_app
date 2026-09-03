@@ -24,7 +24,7 @@ internal fun catalogMoneyError(
     return if (value < 0) "$label must be non-negative" else null
 }
 
-/** Display name for a product's category; unknown ids fail closed to a placeholder. */
+/** Display name for a product's category; unknown ids fail closed to a fallback label. */
 internal fun catalogCategoryName(
     productCategoryId: String,
     categories: List<ProductCategoryResponse>,

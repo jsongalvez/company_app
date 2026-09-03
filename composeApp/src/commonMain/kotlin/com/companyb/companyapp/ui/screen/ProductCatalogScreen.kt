@@ -69,7 +69,7 @@ import kotlin.uuid.Uuid
  * ViewModel synchronous single-flight backstop).
  */
 @Composable
-@Suppress("LongMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 fun ProductCatalogScreen(
     viewModel: ProductViewModel,
     modifier: Modifier = Modifier,
@@ -261,6 +261,7 @@ fun ProductCatalogScreen(
 }
 
 @Composable
+@Suppress("LongMethod")
 private fun CatalogCategorySection(
     categoriesState: UiState<List<ProductCategoryResponse>>,
     createState: UiState<ProductCategoryResponse>,
@@ -338,6 +339,7 @@ private fun CatalogCategorySection(
 }
 
 @Composable
+@Suppress("LongParameterList")
 private fun CatalogProductSection(
     productsState: UiState<List<ProductResponse>>,
     categories: List<ProductCategoryResponse>,
@@ -500,7 +502,7 @@ private fun CatalogProductRow(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-@Suppress("LongMethod", "CyclomaticComplexMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod", "LongParameterList")
 private fun ProductFormDialog(
     product: ProductResponse?,
     categories: List<ProductCategoryResponse>,

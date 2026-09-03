@@ -17,8 +17,6 @@ import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.time.OffsetDateTime
-import java.time.ZoneOffset
 import java.util.UUID
 
 /** Store result for delegate assign (#323): `inserted=false` marks an idempotent same-id retry. */
@@ -89,7 +87,7 @@ object MedicalMissionDelegateRepository {
                     it[MedicalMissionDelegateTable.targetUser] = targetUserId
                     it[MedicalMissionDelegateTable.assignedBy] = assignedBy
                     it[MedicalMissionDelegateTable.branchId] = branchId
-                    it[MedicalMissionDelegateTable.assignedAt] = OffsetDateTime.now(ZoneOffset.UTC)
+                    it[MedicalMissionDelegateTable.assignedAt] = CurrentTimestampWithTimeZone
                 }.insertedCount > 0
 
         if (inserted) {
