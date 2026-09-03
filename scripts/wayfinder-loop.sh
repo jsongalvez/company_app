@@ -14,6 +14,8 @@
 #
 # Env:
 #   WAYFINDER_NTFY_TOPIC   ntfy.sh topic for phone push (unset = desktop only)
+#   WAYFINDER_MODEL        provider/model for spawned sessions (unset = server default)
+#   WAYFINDER_VARIANT      model variant (default max; xhigh for muse-spark reasoning)
 #   WAYFINDER_POLL_SECS    doc poll interval (default 15)
 #   WAYFINDER_TICK_SECS    session poll interval — form/permission/completion checks (default 5)
 #   WAYFINDER_STALL_SECS   no-progress zombie threshold in seconds (default 540 = old WAIT_SECS×STALL_SLICES)
@@ -35,6 +37,7 @@ STALL_SECS="${WAYFINDER_STALL_SECS:-540}"
 # are the recovery; the loop is the tripwire.
 DISK_FLOOR_GB="${WAYFINDER_DISK_FLOOR_GB:-5}"
 DRY_RUN="${WAYFINDER_DRY_RUN:-}"
+VARIANT="${WAYFINDER_VARIANT:-max}"
 OC_BIN="${OPENCODE_BIN:-$(command -v opencode2 || command -v opencode || true)}"
 
 # THE canonical in-place recovery prompt (#355). Every in-place recovery path —
@@ -388,7 +391,7 @@ spawn_session() {
     pid="$(jq -r --arg id "$model_id" --arg provider "$model_provider" '.data[] | select(.id == $id) | select(($provider == "") or (.providerID == $provider)) | .providerID' "$models_json" 2>/dev/null | head -1)" || true
     rm -f "$models_json"
     [ -n "$pid" ] || die "WAYFINDER_MODEL '$WAYFINDER_MODEL' lookup failed via /api/model (model/provider absent, or the API errored)"
-    model_ref="$(jq -nc --arg id "$model_id" --arg p "$pid" '{id: $id, providerID: $p, variant: "max"}')"
+    model_ref="$(jq -nc --arg id "$model_id" --arg p "$pid" --arg v "$VARIANT" '{id: $id, providerID: $p, variant: $v}')"
   fi
   sid="$(api post /api/session --data "$(jq -nc --arg d "$doc" --arg dir "$REPO" --argjson ref "$model_ref" \
     '{title: ("wayfinder-loop: " + $d), location: {directory: $dir}, model: $ref}')" | jq -r '.data.id' || true)"
