@@ -63,12 +63,16 @@ object UserBranchAssignmentRepository {
                 .where { UserBranchAssignmentTable.id eq params.id }
                 .empty()
                 .not()
-        // Same-ID retries are idempotent. A different row means the active
-        // business key won the race, so expose a deterministic domain error.
+        // Same-ID reuse is idempotent only for the owning request (branch+user+slot);
+        // a different owner reusing the id fails closed with 409. A different row means
+        // the active business key won the race, so expose a deterministic domain error.
         if (!sameIdExists) {
             throw ConflictException("User already has an active assignment at this branch")
         }
         val existing = findByIdInTransaction(params.id) ?: error("Assignment not found after create for ${params.id}")
+        if (existing.userId != params.userId || existing.branchId != params.branchId || existing.slot != params.slot) {
+            throw ConflictException("Assignment id already belongs to another assignment request")
+        }
         return AssignmentCreateResult(existing, created = false)
     }
 

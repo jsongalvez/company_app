@@ -2,6 +2,7 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
@@ -28,6 +29,13 @@ import java.util.UUID
  */
 object UserBranchAssignmentService {
     private val logger = KotlinLogging.logger {}
+
+    private fun isSameAssignmentRequest(
+        existing: UserBranchAssignment,
+        userId: UUID,
+        branchId: UUID,
+        slot: Short,
+    ): Boolean = existing.userId == userId && existing.branchId == branchId && existing.slot == slot
 
     private fun requireManageUsers(
         callerId: UUID,
@@ -66,10 +74,18 @@ object UserBranchAssignmentService {
             throw NotFoundException("User not found")
         }
 
+        val reused = UserBranchAssignmentRepository.findById(id)
+        if (reused != null && !isSameAssignmentRequest(reused, userId, branchId, slot)) {
+            throw ConflictException("Assignment id already belongs to another assignment request")
+        }
+
         val existing = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userId)
         if (existing != null) {
             if (existing.id == id) {
-                return CreateResult(existing, created = false)
+                if (existing.slot == slot) {
+                    return CreateResult(existing, created = false)
+                }
+                throw ConflictException("Assignment id already belongs to another assignment request")
             }
             throw ValidationException("User already has an active assignment at this branch")
         }

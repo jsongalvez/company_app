@@ -86,19 +86,18 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `duplicate assignment id returns existing row without extra audit`() {
+    fun `same id for another user conflicts without mutation or audit`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val assignmentId = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
-        val duplicate = UserBranchAssignmentService.create(callerId, assignmentId, branchId, userBId, 5)
+        assertFailsWith<ConflictException> {
+            UserBranchAssignmentService.create(callerId, assignmentId, branchId, userBId, 5)
+        }
 
-        assertTrue(duplicate.created.not())
-        assertEquals(assignmentId, duplicate.assignment.id)
-        assertEquals(userAId, duplicate.assignment.userId)
-        assertEquals(1, duplicate.assignment.slot)
         assertEquals(1L, auditEntryCount(assignmentId))
+        assertEquals(0L, activeAssignmentCount(userBId))
     }
 
     @Test
@@ -113,6 +112,135 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         assertTrue(retry.created.not())
         assertEquals(assignmentId, retry.assignment.id)
         assertEquals(userAId, retry.assignment.userId)
+        assertEquals(1L, auditEntryCount(assignmentId))
+    }
+
+    @Test
+    fun `same id for another branch conflicts without mutation or audit`() {
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val otherBranchId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestBranch(otherBranchId)
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
+        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.branchId, otherBranchId)
+        val assignmentId = TestFixtures.uuid()
+        UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
+
+        assertFailsWith<ConflictException> {
+            UserBranchAssignmentService.create(callerId, assignmentId, otherBranchId, userAId, 1)
+        }
+
+        assertEquals(1L, auditEntryCount(assignmentId))
+        assertNull(UserBranchAssignmentRepository.findActiveByBranchAndUser(otherBranchId, userAId))
+    }
+
+    @Test
+    fun `same id reuse when target key occupied conflicts`() {
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val assignmentId = TestFixtures.uuid()
+        UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
+        val otherId = TestFixtures.uuid()
+        UserBranchAssignmentService.create(callerId, otherId, branchId, userBId, 2)
+
+        assertFailsWith<ConflictException> {
+            UserBranchAssignmentService.create(callerId, assignmentId, branchId, userBId, 2)
+        }
+
+        assertEquals(1L, auditEntryCount(assignmentId))
+        assertEquals(1L, auditEntryCount(otherId))
+        assertEquals(otherId, UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userBId)?.id)
+    }
+
+    @Test
+    fun `same id with different slot conflicts without mutation or audit`() {
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val assignmentId = TestFixtures.uuid()
+        UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
+
+        assertFailsWith<ConflictException> {
+            UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 2)
+        }
+
+        assertEquals(1, assignedSlot(assignmentId))
+        assertEquals(1L, auditEntryCount(assignmentId))
+    }
+
+    @Test
+    fun `concurrent same id for different owners classifies deterministically`() {
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val sharedId = TestFixtures.uuid()
+        val executor = Executors.newFixedThreadPool(CONCURRENT_ASSIGNMENTS)
+        val ready = CountDownLatch(CONCURRENT_ASSIGNMENTS)
+        val start = CountDownLatch(1)
+        val targets = listOf(userAId, userBId)
+        val futures =
+            targets.map { target ->
+                executor.submit<Result<UserBranchAssignmentService.CreateResult>> {
+                    ready.countDown()
+                    start.await()
+                    runCatching {
+                        UserBranchAssignmentService.create(callerId, sharedId, branchId, target, 1)
+                    }
+                }
+            }
+        val results =
+            try {
+                ready.await()
+                start.countDown()
+                futures.map { it.get() }
+            } finally {
+                executor.shutdownNow()
+                assertTrue(executor.awaitTermination(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
+            }
+
+        assertEquals(1, results.count { it.isSuccess })
+        assertTrue(results.single { it.isFailure }.exceptionOrNull() is ConflictException)
+        val winner = results.single { it.isSuccess }.getOrThrow()
+        assertEquals(sharedId, winner.assignment.id)
+        assertEquals(1L, auditEntryCount(sharedId))
+        val loserId = targets.single { it != winner.assignment.userId }
+        assertEquals(0L, activeAssignmentCount(loserId))
+    }
+
+    @Test
+    fun `repository same id with different owner throws conflict`() {
+        val assignmentId = TestFixtures.uuid()
+        transaction {
+            val result =
+                UserBranchAssignmentRepository.createInTransaction(
+                    UserBranchAssignmentCreateParams(
+                        id = assignmentId,
+                        userId = userAId,
+                        branchId = branchId,
+                        slot = 1,
+                        assignedBy = callerId,
+                    ),
+                )
+            if (result.created) {
+                UserBranchAssignmentAudit.inserted(
+                    AuditContext(callerId, branchId),
+                    result.assignment,
+                )
+            }
+        }
+
+        assertFailsWith<ConflictException> {
+            transaction {
+                UserBranchAssignmentRepository.createInTransaction(
+                    UserBranchAssignmentCreateParams(
+                        id = assignmentId,
+                        userId = userBId,
+                        branchId = branchId,
+                        slot = 1,
+                        assignedBy = callerId,
+                    ),
+                )
+            }
+        }
+
         assertEquals(1L, auditEntryCount(assignmentId))
     }
 
