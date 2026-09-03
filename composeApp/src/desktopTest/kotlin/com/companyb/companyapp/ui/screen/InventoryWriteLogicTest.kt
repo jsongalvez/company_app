@@ -139,10 +139,21 @@ class InventoryWriteLogicTest {
         assertFalse(canEnsureCard(emptyList(), branchId))
         assertFalse(canEnsureCard(emptyList(), null))
 
-        // MANAGE_PRODUCTS at the branch → the affordance shows.
+        // #441 — the picker source (GET /api/products) needs GLOBAL MANAGE_CATALOG: branch
+        // MANAGE_PRODUCTS alone would only land on the picker's 403, so no affordance.
         val manager =
             listOf(cap("MANAGE_PRODUCTS", CapabilityContextType.BRANCH, branchId))
-        assertTrue(canEnsureCard(manager, branchId))
+        assertFalse(canEnsureCard(manager, branchId))
+
+        // Both legs (branch ensure right + global catalog read) → the affordance shows.
+        val catalogManager =
+            manager +
+                cap(
+                    "MANAGE_CATALOG",
+                    CapabilityContextType.GLOBAL,
+                    com.companyb.companyapp.state.GLOBAL_CAPABILITY_CONTEXT_ID,
+                )
+        assertTrue(canEnsureCard(catalogManager, branchId))
 
         // Exact-scope: another branch or a day grant never matches; a held branch with a null
         // selection hides it (#156). NOTE — unlike restock/movement there is deliberately NO

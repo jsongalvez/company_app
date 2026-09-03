@@ -57,6 +57,8 @@ class DrawerViewModelTest {
                 row(CapabilityCodes.VIEW_BRANCH_DATA),
                 row(CapabilityCodes.MANAGE_USERS),
                 globalRow(CapabilityCodes.ASSIGN_DELEGATE),
+                // #441 — the Product Catalog item's gate.
+                globalRow(CapabilityCodes.MANAGE_CATALOG),
                 // #418 — the Base Rates item's gate.
                 row(CapabilityCodes.MANAGE_PRODUCTS),
             ),
@@ -69,8 +71,9 @@ class DrawerViewModelTest {
         // #381 — Profile added as the always-visible self surface.
         // #389 — Dashboard added as the always-visible home surface (9 total).
         // #418 — Base Rates added as a MANAGE_PRODUCTS-gated item; #438 adds Mission Delegates.
-        assertEquals(expected = 11, actual = items.size)
-        assertTrue(items.all { it.visible }, "All 11 items should be visible when all capabilities are set")
+        // #441 — Product Catalog added as a MANAGE_CATALOG-gated item.
+        assertEquals(expected = 12, actual = items.size)
+        assertTrue(items.all { it.visible }, "All 12 items should be visible when all capabilities are set")
     }
 
     @Test
@@ -227,5 +230,26 @@ class DrawerViewModelTest {
                 .filter { it.visible }
                 .map { it.label }
         assertTrue("Mission Delegates" in globalLabels)
+    }
+
+    @Test
+    fun productCatalog_requiresGlobalManageCatalog() {
+        // #441 — MANAGE_CATALOG never derives branch-scoped (#436); only the GLOBAL leg
+        // shows the item (the Mission Delegates globalCapabilityOnly shape).
+        SessionState.setCapabilities(listOf(row(CapabilityCodes.MANAGE_CATALOG)))
+        val branchScopedLabels =
+            DrawerViewModel()
+                .uiState.value.drawerItems
+                .filter { it.visible }
+                .map { it.label }
+        assertFalse("Product Catalog" in branchScopedLabels)
+
+        SessionState.setCapabilities(listOf(globalRow(CapabilityCodes.MANAGE_CATALOG)))
+        val globalLabels =
+            DrawerViewModel()
+                .uiState.value.drawerItems
+                .filter { it.visible }
+                .map { it.label }
+        assertTrue("Product Catalog" in globalLabels)
     }
 }

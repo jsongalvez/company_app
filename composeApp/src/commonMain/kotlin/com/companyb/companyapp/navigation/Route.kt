@@ -45,6 +45,11 @@ sealed class Route {
     @Serializable
     data object BaseRates : Route()
 
+    // #441 — shared product/category catalog admin (GLOBAL MANAGE_CATALOG, #436); pushed as
+    // a top-level section on both hosts.
+    @Serializable
+    data object ProductCatalog : Route()
+
     @Serializable
     data object Finance : Route()
 

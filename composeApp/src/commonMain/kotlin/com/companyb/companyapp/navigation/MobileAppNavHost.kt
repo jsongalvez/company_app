@@ -432,6 +432,9 @@ internal fun MobileAppNavHost(
                     composable<Route.MedicalMissionDelegates> {
                         MedicalMissionDelegatesDestination(apiClient)
                     }
+                    composable<Route.ProductCatalog> {
+                        ProductCatalogDestination(apiClient)
+                    }
                     // #381 — own profile: no route gate (every authenticated user), pushed
                     // route, entry-scoped VM (#112).
                     composable<Route.Profile> {

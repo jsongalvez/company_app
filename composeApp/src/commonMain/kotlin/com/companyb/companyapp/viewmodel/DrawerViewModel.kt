@@ -42,6 +42,15 @@ class DrawerViewModel : ViewModel() {
             // #418 — rate admin: any-context MANAGE_PRODUCTS shows the item (drawer convention);
             // the screen itself re-checks exact scope against the clocked-in branch.
             DrawerItem(Route.BaseRates, "Base Rates", CapabilityCodes.MANAGE_PRODUCTS, visible = false),
+            // #441 — shared catalog admin: exact GLOBAL MANAGE_CATALOG shows the item (the
+            // Mission Delegates globalCapabilityOnly shape); backend gates authoritative.
+            DrawerItem(
+                Route.ProductCatalog,
+                "Product Catalog",
+                CapabilityCodes.MANAGE_CATALOG,
+                visible = false,
+                globalCapabilityOnly = true,
+            ),
             // #105 D1 — Finance and Reports merge into one item, gate widened to the widest
             // read capability (VIEW_BRANCH_DATA): Accountant (GLOBAL view) sees the item.
             // #158 — day-grant holders (BRANCH_DAY EDIT_BRANCH_DATA) also see it: the Finance

@@ -8,6 +8,7 @@ import com.companyb.companyapp.dto.InventoryMovementRequest
 import com.companyb.companyapp.dto.ProductResponse
 import com.companyb.companyapp.dto.RestockRequest
 import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.state.GLOBAL_CAPABILITY_CONTEXT_ID
 import com.companyb.companyapp.state.hasCapability
 import java.util.UUID
 
@@ -32,11 +33,21 @@ internal fun canRestock(
  * branch-scoped exact-scope) mirrored for the Add-card affordance. Happens to equal
  * [canRestock] today; kept separate so the two routes can diverge without a silent drift.
  * Unlike restock/movement there is NO day-state leg: the backend command opens no branch day.
+ *
+ * #441 — the picker source (`GET /api/products`) additionally requires GLOBAL MANAGE_CATALOG
+ * (#436), so the affordance requires both: a branch-MANAGE_PRODUCTS holder without the catalog
+ * grant would only land on the picker's 403 (fail closed, no dead-end affordance).
  */
 internal fun canEnsureCard(
     capabilities: List<UserCapabilityResponse>,
     selectedBranchId: String?,
-): Boolean = capabilities.hasCapability(CapabilityCodes.MANAGE_PRODUCTS, CapabilityContextType.BRANCH, selectedBranchId)
+): Boolean =
+    capabilities.hasCapability(CapabilityCodes.MANAGE_PRODUCTS, CapabilityContextType.BRANCH, selectedBranchId) &&
+        capabilities.hasCapability(
+            CapabilityCodes.MANAGE_CATALOG,
+            CapabilityContextType.GLOBAL,
+            GLOBAL_CAPABILITY_CONTEXT_ID,
+        )
 
 /** Catalog products that don't yet have a card at this branch, in picker display order (#395). */
 internal fun productsWithoutCards(

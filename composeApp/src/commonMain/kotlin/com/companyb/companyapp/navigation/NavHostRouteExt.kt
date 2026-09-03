@@ -18,8 +18,10 @@ import com.companyb.companyapp.state.GLOBAL_CAPABILITY_CONTEXT_ID
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.ui.screen.MedicalMissionDelegateScreen
+import com.companyb.companyapp.ui.screen.ProductCatalogScreen
 import com.companyb.companyapp.ui.screen.RouteGateCard
 import com.companyb.companyapp.viewmodel.DelegateViewModel
+import com.companyb.companyapp.viewmodel.ProductViewModel
 import com.companyb.companyapp.viewmodel.UserViewModel
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.serializer
@@ -94,6 +96,24 @@ internal fun MedicalMissionDelegatesDestination(apiClient: ApiClient) {
     }
 }
 
+// #441 — shared catalog admin; gate mirrors ProductRoutes/ProductCategoryRoutes exactly
+// (GLOBAL MANAGE_CATALOG, #436 — no BRANCH leg, #131 strictness). Backend authoritative.
+@Composable
+internal fun ProductCatalogDestination(apiClient: ApiClient) {
+    val capabilities by SessionState.capabilities.collectAsState()
+    if (capabilities.hasCapability(
+            CapabilityCodes.MANAGE_CATALOG,
+            CapabilityContextType.GLOBAL,
+            GLOBAL_CAPABILITY_CONTEXT_ID,
+        )
+    ) {
+        val productViewModel: ProductViewModel = viewModel { ProductViewModel(apiClient) }
+        ProductCatalogScreen(viewModel = productViewModel)
+    } else {
+        RouteGateCard(label = "Product Catalog")
+    }
+}
+
 @OptIn(InternalSerializationApi::class)
 internal val ROUTES_BY_SERIAL_NAME: Map<String, KClass<out Route>> =
     mapOf(
@@ -114,6 +134,7 @@ internal val ROUTES_BY_SERIAL_NAME: Map<String, KClass<out Route>> =
         Route.AuditLogHistory to Route.AuditLogHistory::class,
         Route.UserManagement to Route.UserManagement::class,
         Route.MedicalMissionDelegates to Route.MedicalMissionDelegates::class,
+        Route.ProductCatalog to Route.ProductCatalog::class,
         Route.Profile to Route.Profile::class,
         Route.SessionCreate to Route.SessionCreate::class,
         Route.SessionDetail to Route.SessionDetail::class,

@@ -13,6 +13,8 @@ import io.ktor.client.request.get
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +23,15 @@ class ProductViewModel(
     private val apiClient: ApiClient,
 ) : ViewModel() {
     private val handler = ApiCallHandler(viewModelScope, "ProductVM")
+    private val handleApiError: suspend (HttpResponse, (UiState.Error) -> Unit) -> Boolean = { response, setError ->
+        val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+        if (detail == null) {
+            false
+        } else {
+            setError(UiState.Error(detail))
+            true
+        }
+    }
 
     private val _products = MutableStateFlow<UiState<List<ProductResponse>>>(UiState.Idle)
     val products: StateFlow<UiState<List<ProductResponse>>> = _products.asStateFlow()
@@ -61,6 +72,11 @@ class ProductViewModel(
     }
 
     fun createProduct(request: CreateProductRequest) {
+        // Single-flight like BranchViewModel.createBranch: the Loading preset is synchronous so
+        // a double-tap before recomposition cannot mint two product ids (the second POST would
+        // 200-overwrite the first's row).
+        if (_createProductResult.value is UiState.Loading) return
+        _createProductResult.value = UiState.Loading
         handler.launch(
             state = _createProductResult,
             operation = "createProduct",
@@ -71,6 +87,9 @@ class ProductViewModel(
                 }
             },
             transform = { it.body() },
+            onNonSuccess = { response ->
+                handleApiError(response) { _createProductResult.value = it }
+            },
         )
     }
 
@@ -78,6 +97,8 @@ class ProductViewModel(
         productId: String,
         request: UpdateProductRequest,
     ) {
+        if (_updateProductResult.value is UiState.Loading) return
+        _updateProductResult.value = UiState.Loading
         handler.launch(
             state = _updateProductResult,
             operation = "updateProduct",
@@ -88,6 +109,9 @@ class ProductViewModel(
                 }
             },
             transform = { it.body() },
+            onNonSuccess = { response ->
+                handleApiError(response) { _updateProductResult.value = it }
+            },
         )
     }
 
@@ -102,6 +126,8 @@ class ProductViewModel(
     }
 
     fun createCategory(request: CreateProductCategoryRequest) {
+        if (_createCategoryResult.value is UiState.Loading) return
+        _createCategoryResult.value = UiState.Loading
         handler.launch(
             state = _createCategoryResult,
             operation = "createCategory",
@@ -112,6 +138,26 @@ class ProductViewModel(
                 }
             },
             transform = { it.body() },
+            onNonSuccess = { response ->
+                handleApiError(response) { _createCategoryResult.value = it }
+            },
         )
+    }
+
+    /**
+     * Clears terminal mutation ERRORS so a reopened dialog starts clean. Success rows are kept:
+     * they overlay the active-only collection read ([mergeCatalogProducts] gap-fill), so clearing
+     * them would drop freshly deactivated rows with no path back.
+     */
+    fun resetCatalogMutationErrors() {
+        if (_createProductResult.value is UiState.Error) {
+            _createProductResult.value = UiState.Idle
+        }
+        if (_updateProductResult.value is UiState.Error) {
+            _updateProductResult.value = UiState.Idle
+        }
+        if (_createCategoryResult.value is UiState.Error) {
+            _createCategoryResult.value = UiState.Idle
+        }
     }
 }
