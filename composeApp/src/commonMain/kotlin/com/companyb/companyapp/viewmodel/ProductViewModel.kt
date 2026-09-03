@@ -51,12 +51,13 @@ class ProductViewModel(
     private val _createCategoryResult = MutableStateFlow<UiState<ProductCategoryResponse>>(UiState.Idle)
     val createCategoryResult: StateFlow<UiState<ProductCategoryResponse>> = _createCategoryResult.asStateFlow()
 
-    fun loadProducts() {
+    fun loadProducts(includeInactive: Boolean = false) {
+        val path = ApiRoutes.productsList(includeInactive)
         handler.launch(
             state = _products,
             operation = "loadProducts",
-            endpoint = "GET /api/products",
-            block = { apiClient.httpClient.get(ApiRoutes.PRODUCTS) },
+            endpoint = "GET $path",
+            block = { apiClient.httpClient.get(path) },
             transform = { it.body() },
         )
     }
@@ -146,8 +147,7 @@ class ProductViewModel(
 
     /**
      * Clears terminal mutation ERRORS so a reopened dialog starts clean. Success rows are kept:
-     * they overlay the active-only collection read ([mergeCatalogProducts] gap-fill), so clearing
-     * them would drop freshly deactivated rows with no path back.
+     * the inclusive collection read already returns deactivated rows, so no overlay is needed.
      */
     fun resetCatalogMutationErrors() {
         if (_createProductResult.value is UiState.Error) {

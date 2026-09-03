@@ -75,6 +75,10 @@ object ApiRoutes {
 
     fun product(id: String) = "$PRODUCTS/$id"
 
+    /** #445 — admin catalog read opts into inactive rows; default stays active-only. */
+    fun productsList(includeInactive: Boolean = false) =
+        if (includeInactive) "$PRODUCTS?includeInactive=true" else PRODUCTS
+
     fun branchAssignments(id: String) = "$BRANCHES/$id/assignments"
 
     fun branchAssignment(

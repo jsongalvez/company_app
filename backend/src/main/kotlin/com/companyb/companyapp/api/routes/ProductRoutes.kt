@@ -23,6 +23,7 @@ import java.util.UUID
     path = ApiRoutes.PRODUCTS,
     methods = [HttpMethod.GET],
     operationId = "products_get",
+    queryParams = [OpenApiParam(name = "includeInactive", type = Boolean::class, required = false)],
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
@@ -47,6 +48,7 @@ import java.util.UUID
 )
 object ProductRoutes {
     private const val PRODUCT_ID_PARAM = "productId"
+    private const val INCLUDE_INACTIVE_PARAM = "includeInactive"
 
     @Suppress("ThrowsCount", "LongMethod")
     fun register(config: JavalinConfig) {
@@ -90,7 +92,14 @@ object ProductRoutes {
         }
 
         config.routes.get(ApiRoutes.PRODUCTS) { context ->
-            context.json(ProductService.findAllActive().map { it.toResponse() })
+            val includeInactive = context.queryParam(INCLUDE_INACTIVE_PARAM)?.toBooleanStrictOrNull() == true
+            val products =
+                if (includeInactive) {
+                    ProductService.findAll()
+                } else {
+                    ProductService.findAllActive()
+                }
+            context.json(products.map { it.toResponse() })
         }
 
         config.routes.get(ApiRoutes.PRODUCT_PATH) { context ->

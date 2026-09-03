@@ -252,7 +252,7 @@ internal fun EnsureCardDialog(
                 }
 
                 is UiState.Error -> {
-                    DialogErrorRetry(state.message, onRetry = productViewModel::loadProducts)
+                    DialogErrorRetry(state.message, onRetry = { productViewModel.loadProducts() })
                 }
 
                 is UiState.Success -> {

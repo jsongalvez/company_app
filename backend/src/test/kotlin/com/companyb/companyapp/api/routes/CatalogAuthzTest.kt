@@ -16,6 +16,7 @@ import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.CapabilityService
+import com.companyb.companyapp.service.ProductService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
@@ -33,6 +34,8 @@ import java.util.UUID
 import java.util.function.Consumer
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * #436: shared catalog routes gate GLOBAL MANAGE_CATALOG on collections and
@@ -147,6 +150,63 @@ class CatalogAuthzTest : BasePostgresTest() {
     @Test
     fun `GET products allowed for MANAGE_CATALOG holder`() {
         assertEquals(200, testServer.client.get("/api/products", asUser(catalogUser)).code)
+    }
+
+    @Test
+    fun `GET products defaults to active-only omitting deactivated row`() {
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, catalogUser)
+        ProductService.update(
+            callerId = catalogUser,
+            productId = productId,
+            name = null,
+            productCategoryId = null,
+            unitPrice = null,
+            commissionAmount = null,
+            isActive = false,
+        )
+        val body =
+            testServer.client
+                .get("/api/products", asUser(catalogUser))
+                .body
+                .string()
+                .orEmpty()
+        assertFalse(body.contains(productId.toString()), body)
+    }
+
+    @Test
+    fun `GET products includeInactive returns deactivated row for catalog holder`() {
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, catalogUser)
+        ProductService.update(
+            callerId = catalogUser,
+            productId = productId,
+            name = null,
+            productCategoryId = null,
+            unitPrice = null,
+            commissionAmount = null,
+            isActive = false,
+        )
+        val response = testServer.client.get("/api/products?includeInactive=true", asUser(catalogUser))
+        assertEquals(200, response.code)
+        val body = response.body.string().orEmpty()
+        assertTrue(body.contains(productId.toString()), body)
+    }
+
+    @Test
+    fun `GET products includeInactive forbidden without catalog grant`() {
+        assertEquals(403, testServer.client.get("/api/products?includeInactive=true", asUser(noneUser)).code)
+    }
+
+    @Test
+    fun `GET products includeInactive forbidden for BRANCH MANAGE_PRODUCTS holder`() {
+        assertEquals(
+            403,
+            testServer.client.get("/api/products?includeInactive=true", asUser(branchProductsUser)).code,
+        )
+    }
+
+    @Test
+    fun `GET products includeInactive unauthenticated gets 401`() {
+        assertEquals(401, testServer.client.get("/api/products?includeInactive=true").code)
     }
 
     @Test

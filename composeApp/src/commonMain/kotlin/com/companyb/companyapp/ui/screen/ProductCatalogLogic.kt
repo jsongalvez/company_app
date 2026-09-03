@@ -30,24 +30,6 @@ internal fun catalogCategoryName(
     categories: List<ProductCategoryResponse>,
 ): String = categories.firstOrNull { it.id == productCategoryId }?.name ?: "Unknown category"
 
-/**
- * Gap-fills the active-only collection read with this session's mutation landings.
- * `GET /api/products` returns active products only, so a freshly deactivated row would vanish
- * from the list with no path back (no all-products endpoint — out of scope for #441); rows the
- * server still returns always win (freshest truth, including concurrent edits), and overlays
- * only fill ids the collection omits (deactivated rows, a created row pre-reload).
- */
-internal fun mergeCatalogProducts(
-    loaded: List<ProductResponse>,
-    overlays: Map<String, ProductResponse>,
-): List<ProductResponse> {
-    val merged = loaded.associateBy { it.id }.toMutableMap()
-    overlays.forEach { (id, row) ->
-        if (id !in merged) merged[id] = row
-    }
-    return merged.values.sortedBy { it.name.lowercase() }
-}
-
 /** Category filter for the product list; null means all categories. */
 internal fun filterCatalogProducts(
     products: List<ProductResponse>,

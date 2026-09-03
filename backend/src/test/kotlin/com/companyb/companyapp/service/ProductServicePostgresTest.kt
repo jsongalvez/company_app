@@ -129,6 +129,48 @@ class ProductServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `findAll includes deactivated row while findAllActive omits it`() {
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        ProductService.create(
+            callerId = callerId,
+            id = productId,
+            name = "Active Product",
+            productCategoryId = categoryId,
+            unitPrice = BigDecimal("100.00"),
+            commissionAmount = BigDecimal("10.00"),
+        )
+        ProductService.create(
+            callerId = callerId,
+            id = productId2,
+            name = "Soon Inactive",
+            productCategoryId = categoryId,
+            unitPrice = BigDecimal("200.00"),
+            commissionAmount = BigDecimal("20.00"),
+        )
+        ProductService.update(
+            callerId = callerId,
+            productId = productId2,
+            name = null,
+            productCategoryId = null,
+            unitPrice = null,
+            commissionAmount = null,
+            isActive = false,
+        )
+
+        val activeIds = ProductService.findAllActive().map { it.id }.toSet()
+        assertTrue(productId in activeIds)
+        assertFalse(productId2 in activeIds)
+
+        val allIds = ProductService.findAll().map { it.id }.toSet()
+        assertTrue(productId in allIds)
+        assertTrue(productId2 in allIds)
+        trackOwned(ProductTable, ProductTable.id, productId)
+        trackOwned(ProductTable, ProductTable.id, productId2)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    @Test
     fun `find by id returns persisted product`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)

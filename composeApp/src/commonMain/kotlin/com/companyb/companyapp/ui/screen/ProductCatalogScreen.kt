@@ -30,7 +30,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -59,11 +58,12 @@ import kotlin.uuid.Uuid
  * previously orphaned [ProductViewModel] category/product legs: category loading/creation,
  * product loading/creation/editing including active-state toggling.
  *
- * Behavior: entry loads categories + products; each terminal mutation reloads its own
+ * Behavior: entry loads categories + products (inclusive read — active and inactive, so
+ * deactivated rows stay listed with their Inactive badge and reactivate affordance, including
+ * rows deactivated by a concurrent admin); each terminal mutation reloads its own
  * collection authoritatively (pessimistic, ADR-0022 — split effects so one mutation's
- * retained terminal never refires another's reload). The collection read is active-only, so
- * this session's mutation landings gap-fill it ([mergeCatalogProducts] — deactivated rows
- * stay visible with their Inactive badge); server-returned rows always win. Failures surface
+ * retained terminal never refires another's reload). Server truth is the single source.
+ * Failures surface
  * inline with retry (loads via [ErrorCard], mutations by re-submitting the same idempotency
  * id); in-flight mutations disable their affordances (repeated-submission guard, with the
  * ViewModel synchronous single-flight backstop).
@@ -87,12 +87,11 @@ fun ProductCatalogScreen(
     // an open dialog's dropdown or closes it by emptying the edited row's lookup.
     var lastProducts by remember { mutableStateOf(emptyList<ProductResponse>()) }
     var lastCategories by remember { mutableStateOf(emptyList<ProductCategoryResponse>()) }
-    val overlays = remember { mutableStateMapOf<String, ProductResponse>() }
 
     LaunchedEffect(Unit) {
         logInfo("ProductCatalogScreen", "composable entered (first composition)")
         viewModel.loadCategories()
-        viewModel.loadProducts()
+        viewModel.loadProducts(includeInactive = true)
     }
     LaunchedEffect(productsState) {
         when (val state = productsState) {
@@ -129,14 +128,13 @@ fun ProductCatalogScreen(
         when (val state = createProductState) {
             is UiState.Success -> {
                 logInfo("ProductCatalogScreen", "createProduct succeeded")
-                overlays[state.data.id] = state.data
                 creatingProduct = false
-                viewModel.loadProducts()
+                viewModel.loadProducts(includeInactive = true)
             }
 
             is UiState.Error -> {
                 logWarn("ProductCatalogScreen", "createProduct failed: ${state.message}")
-                viewModel.loadProducts()
+                viewModel.loadProducts(includeInactive = true)
             }
 
             else -> {
@@ -148,14 +146,13 @@ fun ProductCatalogScreen(
         when (val state = updateProductState) {
             is UiState.Success -> {
                 logInfo("ProductCatalogScreen", "updateProduct succeeded")
-                overlays[state.data.id] = state.data
                 editingProductId = null
-                viewModel.loadProducts()
+                viewModel.loadProducts(includeInactive = true)
             }
 
             is UiState.Error -> {
                 logWarn("ProductCatalogScreen", "updateProduct failed: ${state.message}")
-                viewModel.loadProducts()
+                viewModel.loadProducts(includeInactive = true)
             }
 
             else -> {
@@ -165,8 +162,8 @@ fun ProductCatalogScreen(
     }
 
     val displayedProducts =
-        remember(lastProducts, overlays.toMap(), selectedCategoryId) {
-            filterCatalogProducts(mergeCatalogProducts(lastProducts, overlays), selectedCategoryId)
+        remember(lastProducts, selectedCategoryId) {
+            filterCatalogProducts(lastProducts, selectedCategoryId)
         }
     val editingProduct = displayedProducts.firstOrNull { it.id == editingProductId }
 
@@ -197,7 +194,7 @@ fun ProductCatalogScreen(
             updateSaving = updateProductState is UiState.Loading,
             updateError = (updateProductState as? UiState.Error)?.message,
             onFilterChange = { selectedCategoryId = it },
-            onRetry = viewModel::loadProducts,
+            onRetry = { viewModel.loadProducts(includeInactive = true) },
             onCreateClick = {
                 viewModel.resetCatalogMutationErrors()
                 creatingProduct = true

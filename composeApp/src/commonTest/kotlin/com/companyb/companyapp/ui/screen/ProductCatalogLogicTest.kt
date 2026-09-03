@@ -61,39 +61,6 @@ class ProductCatalogLogicTest {
     }
 
     @Test
-    fun merge_createdRowFillsGapAndSorts() {
-        val merged =
-            mergeCatalogProducts(
-                loaded = listOf(product(name = "Zed")),
-                overlays = mapOf("p2" to product(id = "p2", name = "Alpha")),
-            )
-        assertEquals(listOf("Alpha", "Zed"), merged.map { it.name })
-    }
-
-    @Test
-    fun merge_serverRowWinsOverOverlay() {
-        // A reload that returns the row supersedes the overlay (freshest truth, no masking).
-        val merged =
-            mergeCatalogProducts(
-                loaded = listOf(product(name = "Server Name")),
-                overlays = mapOf("p1" to product(name = "Stale Name")),
-            )
-        assertEquals(listOf("Server Name"), merged.map { it.name })
-    }
-
-    @Test
-    fun merge_deactivatedRowStaysVisible() {
-        // The collection read is active-only: the update landing keeps the row present as inactive.
-        val merged =
-            mergeCatalogProducts(
-                loaded = emptyList(),
-                overlays = mapOf("p1" to product(isActive = false)),
-            )
-        assertEquals(1, merged.size)
-        assertEquals(false, merged.single().isActive)
-    }
-
-    @Test
     fun filter_nullReturnsAll() {
         val products = listOf(product(), product(id = "p2", categoryId = "c2"))
         assertEquals(2, filterCatalogProducts(products, null).size)

@@ -76,6 +76,15 @@ object ProductRepository {
                 .map { it.toProduct() }
         }.also { logger.info { "[FIND-PRODUCTS] Fetched ${it.size} active product(s)" } }
 
+    /** Admin catalog read (#445): active + inactive, same ordering as [findAllActive]. */
+    fun findAll(): List<Product> =
+        transaction {
+            ProductTable
+                .selectAll()
+                .orderBy(ProductTable.name to SortOrder.ASC, ProductTable.id to SortOrder.ASC)
+                .map { it.toProduct() }
+        }.also { logger.info { "[FIND-PRODUCTS] Fetched ${it.size} product(s) including inactive" } }
+
     /**
      * In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction.
      * Returns the updated row count and the post-write row (null when the product does not exist);

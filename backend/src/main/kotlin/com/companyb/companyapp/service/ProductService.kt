@@ -59,6 +59,9 @@ object ProductService {
 
     fun findAllActive(): List<Product> = ProductRepository.findAllActive()
 
+    /** Admin catalog read (#445): active + inactive; branch/sale guards keep [findAllActive]. */
+    fun findAll(): List<Product> = ProductRepository.findAll()
+
     fun findById(productId: UUID): Product =
         ProductRepository.findById(productId) ?: throw NotFoundException("Product not found")
 
