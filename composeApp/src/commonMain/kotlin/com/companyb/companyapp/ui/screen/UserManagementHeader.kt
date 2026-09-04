@@ -3,8 +3,10 @@ package com.companyb.companyapp.ui.screen
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -16,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
+import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.UserSlotRow
@@ -322,6 +325,57 @@ internal fun UserManagementLoadFallback(
             CircularProgressIndicator()
         }
     }
+}
+
+/**
+ * Title/search + branch-admin block hoisted out of [UserManagementScreen] for the #462
+ * LongMethod burn-down. Lives here (not same-file) because UserManagementScreen.kt sits
+ * at the detekt file-function wall — a same-file helper trips TooManyFunctions; this is
+ * the last safe slot (10/11). Forwards into [UserManagementHeader] +
+ * [UserManagementBranchAdmin] so the Screen keeps one slim call (plus the trailing gap);
+ * gates + setters ride [UserManagementTopSectionsActions] so the signature stays
+ * LongParameterList-clean (5 params).
+ */
+@Composable
+internal fun UserManagementTopSections(
+    searchQuery: String,
+    branches: UiState<List<BranchResponse>>,
+    selectedBranchId: String?,
+    selectedBranch: BranchResponse?,
+    actions: UserManagementTopSectionsActions,
+) {
+    UserManagementHeader(
+        searchQuery = searchQuery,
+        onSearchChange = actions.onSearchChange,
+        searchEnabled = actions.searchEnabled,
+        actions =
+            UserManagementHeaderActions(
+                onInvite = actions.onInvite,
+                onRefresh = actions.onRefresh,
+                inviteEnabled = actions.inviteEnabled,
+                refreshEnabled = actions.refreshEnabled,
+            ),
+    )
+    Spacer(Modifier.size(Spacing.sm))
+    UserManagementBranchAdmin(
+        branches = branches,
+        selectedBranchId = selectedBranchId,
+        selectedBranch = selectedBranch,
+        actions =
+            UserManagementBranchAdminActions(
+                onBranchSelected = actions.onBranchSelected,
+                onRetryBranches = actions.onRetryBranches,
+                onCreateBranch = actions.onCreateBranch,
+                onAssign = actions.onAssign,
+                pickerDisabled = actions.pickerDisabled,
+                createEnabled = actions.createEnabled,
+                assignEnabled = actions.assignEnabled,
+                assignmentResult = actions.assignmentResult,
+                removeAssignmentTarget = actions.removeAssignmentTarget,
+                showAssignDialog = actions.showAssignDialog,
+            ),
+    )
+    Spacer(Modifier.size(Spacing.sm))
 }
 
 /**

@@ -155,6 +155,30 @@ internal data class UserManagementSlotOrderActions(
     val onEditSlot: (SlotEditTarget) -> Unit,
 )
 
+/**
+ * Callbacks + gates for [UserManagementTopSections] (#462 LongMethod burn — 10th fn in
+ * UserManagementHeader.kt, the last safe slot while UserManagementScreen.kt sits at the
+ * wall; actions object keeps the host LongParameterList-clean).
+ */
+internal data class UserManagementTopSectionsActions(
+    val searchEnabled: Boolean,
+    val onSearchChange: (String) -> Unit,
+    val onInvite: () -> Unit,
+    val onRefresh: () -> Unit,
+    val inviteEnabled: Boolean,
+    val refreshEnabled: Boolean,
+    val onBranchSelected: (String?) -> Unit,
+    val onRetryBranches: () -> Unit,
+    val onCreateBranch: () -> Unit,
+    val onAssign: () -> Unit,
+    val pickerDisabled: Boolean,
+    val createEnabled: Boolean,
+    val assignEnabled: Boolean,
+    val assignmentResult: UiState<AssignmentResponse>,
+    val removeAssignmentTarget: AssignmentRemovalTarget?,
+    val showAssignDialog: Boolean,
+)
+
 internal val SlotEditTargetSaver =
     Saver<SlotEditTarget?, List<String>>(
         save = { target ->

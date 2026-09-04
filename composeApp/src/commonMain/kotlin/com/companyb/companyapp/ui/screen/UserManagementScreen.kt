@@ -7,11 +7,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -177,16 +175,19 @@ fun UserManagementScreen(
                 .fillMaxSize()
                 .padding(Spacing.md),
     ) {
-        UserManagementHeader(
+        UserManagementTopSections(
             searchQuery = searchQuery,
-            onSearchChange = { searchQuery = it },
-            // Typing against an Error state with nothing held does nothing visible (ErrorCard
-            // renders instead of the list) — disable so the field doesn't look interactive
-            // (pass-1 P4 SOFT). With held rows the keep-last gate renders the list, so the
-            // client-side filter stays live over the mirror (#161).
-            searchEnabled = heldList != null || users !is UiState.Error,
+            branches = branches,
+            selectedBranchId = selectedBranchId,
+            selectedBranch = selectedBranch,
             actions =
-                UserManagementHeaderActions(
+                UserManagementTopSectionsActions(
+                    // Typing against an Error state with nothing held does nothing visible (ErrorCard
+                    // renders instead of the list) — disable so the field doesn't look interactive
+                    // (pass-1 P4 SOFT). With held rows the keep-last gate renders the list, so the
+                    // client-side filter stays live over the mirror (#161).
+                    searchEnabled = heldList != null || users !is UiState.Error,
+                    onSearchChange = { searchQuery = it },
                     onInvite = { showCreateUserDialog = true },
                     onRefresh = {
                         viewModel.loadUsers()
@@ -197,17 +198,6 @@ fun UserManagementScreen(
                     // retry path instead (pass-4 P4).
                     inviteEnabled = !mutationsDisabled && heldList != null,
                     refreshEnabled = !mutationsDisabled,
-                ),
-        )
-
-        Spacer(Modifier.size(Spacing.sm))
-
-        UserManagementBranchAdmin(
-            branches = branches,
-            selectedBranchId = selectedBranchId,
-            selectedBranch = selectedBranch,
-            actions =
-                UserManagementBranchAdminActions(
                     onBranchSelected = { selectedBranchId = it },
                     onRetryBranches = { viewModel.loadBranches() },
                     onCreateBranch = {
@@ -227,8 +217,6 @@ fun UserManagementScreen(
                     showAssignDialog = showAssignUserDialog,
                 ),
         )
-
-        Spacer(Modifier.size(Spacing.sm))
 
         val userRowActions =
             userManagementUserRowActions(
