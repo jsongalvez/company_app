@@ -9,7 +9,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.BranchResponse
@@ -277,6 +280,62 @@ internal fun rememberUserManagementDerived(
         selectedBranch = selectedBranch,
         slotRows = slotRows,
         selectedBranchName = selectedBranch?.name,
+    )
+}
+
+/**
+ * Dialog + UI states hoisted out of [UserManagementScreen] for the #462 LongMethod
+ * burn-down. Lives here (not Header.kt) because Header.kt sits at the detekt
+ * file-function wall (10/11) — Overlays.kt has fresh budget. Owns the 11
+ * remember/rememberSaveable states verbatim (incl. custom Savers) so the Screen keeps
+ * one slim call; values + single-line setters ride [UserManagementScreenStates]
+ * (data class so LongParameterList/TooManyFunctions-free). Unconditional call
+ * preserves saveable lifetimes.
+ */
+@Composable
+internal fun rememberUserManagementScreenStates(): UserManagementScreenStates {
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var selectedBranchId by rememberSaveable { mutableStateOf<String?>(null) }
+    var expandedIds by remember { mutableStateOf(emptySet<String>()) }
+    var deactivateTarget by remember { mutableStateOf<UserSummaryResponse?>(null) }
+    var slotEditTarget by
+        rememberSaveable(stateSaver = SlotEditTargetSaver) {
+            mutableStateOf<SlotEditTarget?>(null)
+        }
+    var showCreateUserDialog by rememberSaveable { mutableStateOf(false) }
+    var roleEditTarget by remember { mutableStateOf<UserSummaryResponse?>(null) }
+    var showCreateBranchDialog by rememberSaveable { mutableStateOf(false) }
+    var showAssignUserDialog by rememberSaveable { mutableStateOf(false) }
+    var assignmentBranch by rememberSaveable(stateSaver = BranchResponseSaver) {
+        mutableStateOf<BranchResponse?>(null)
+    }
+    var removeAssignmentTarget by
+        rememberSaveable(stateSaver = AssignmentRemovalTargetSaver) {
+            mutableStateOf<AssignmentRemovalTarget?>(null)
+        }
+    return UserManagementScreenStates(
+        searchQuery = searchQuery,
+        onSearchQueryChange = { searchQuery = it },
+        selectedBranchId = selectedBranchId,
+        onSelectedBranchIdChange = { selectedBranchId = it },
+        expandedIds = expandedIds,
+        onExpandedIdsChange = { expandedIds = it },
+        deactivateTarget = deactivateTarget,
+        onDeactivateTargetChange = { deactivateTarget = it },
+        slotEditTarget = slotEditTarget,
+        onSlotEditTargetChange = { slotEditTarget = it },
+        showCreateUserDialog = showCreateUserDialog,
+        onShowCreateUserChange = { showCreateUserDialog = it },
+        roleEditTarget = roleEditTarget,
+        onRoleEditTargetChange = { roleEditTarget = it },
+        showCreateBranchDialog = showCreateBranchDialog,
+        onShowCreateBranchChange = { showCreateBranchDialog = it },
+        showAssignUserDialog = showAssignUserDialog,
+        onShowAssignDialogChange = { showAssignUserDialog = it },
+        assignmentBranch = assignmentBranch,
+        onAssignmentBranchChange = { assignmentBranch = it },
+        removeAssignmentTarget = removeAssignmentTarget,
+        onRemoveAssignmentTargetChange = { removeAssignmentTarget = it },
     )
 }
 

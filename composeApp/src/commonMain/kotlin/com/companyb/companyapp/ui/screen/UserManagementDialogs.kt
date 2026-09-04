@@ -239,6 +239,38 @@ internal data class UserManagementDerived(
 )
 
 /**
+ * Dialog + UI states for [UserManagementScreen] (#462 LongMethod burn — the Screen keeps
+ * one slim `rememberUserManagementScreenStates` call while this holder carries the 11
+ * remember/rememberSaveable states + single-line setters; data class so
+ * LongParameterList/TooManyFunctions-free, lives here with the other UserManagement
+ * holders — MatchingDeclaration precedent).
+ */
+internal data class UserManagementScreenStates(
+    val searchQuery: String,
+    val onSearchQueryChange: (String) -> Unit,
+    val selectedBranchId: String?,
+    val onSelectedBranchIdChange: (String?) -> Unit,
+    val expandedIds: Set<String>,
+    val onExpandedIdsChange: (Set<String>) -> Unit,
+    val deactivateTarget: UserSummaryResponse?,
+    val onDeactivateTargetChange: (UserSummaryResponse?) -> Unit,
+    val slotEditTarget: SlotEditTarget?,
+    val onSlotEditTargetChange: (SlotEditTarget?) -> Unit,
+    val showCreateUserDialog: Boolean,
+    val onShowCreateUserChange: (Boolean) -> Unit,
+    val roleEditTarget: UserSummaryResponse?,
+    val onRoleEditTargetChange: (UserSummaryResponse?) -> Unit,
+    val showCreateBranchDialog: Boolean,
+    val onShowCreateBranchChange: (Boolean) -> Unit,
+    val showAssignUserDialog: Boolean,
+    val onShowAssignDialogChange: (Boolean) -> Unit,
+    val assignmentBranch: BranchResponse?,
+    val onAssignmentBranchChange: (BranchResponse?) -> Unit,
+    val removeAssignmentTarget: AssignmentRemovalTarget?,
+    val onRemoveAssignmentTargetChange: (AssignmentRemovalTarget?) -> Unit,
+)
+
+/**
  * Callbacks + gates for the member half of [UserManagementDialogHosts] (#462 LongMethod burn —
  * new-file split; UserManagementScreen.kt/Header.kt/Dialogs.kt all sit at the detekt
  * file-function wall). The host collects the dialog flows itself (duplicate StateFlow

@@ -29,7 +29,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,43 +92,25 @@ fun UserManagementScreen(
     val actionErrors by viewModel.actionErrors.collectAsState()
     val assignmentResult by branchViewModel.assignmentResult.collectAsState()
 
-    var searchQuery by rememberSaveable { mutableStateOf("") }
-    var selectedBranchId by rememberSaveable { mutableStateOf<String?>(null) }
-    var expandedIds by remember { mutableStateOf(emptySet<String>()) }
-    var deactivateTarget by remember { mutableStateOf<UserSummaryResponse?>(null) }
-    var slotEditTarget by
-        rememberSaveable(stateSaver = SlotEditTargetSaver) {
-            mutableStateOf<SlotEditTarget?>(null)
-        }
-    var showCreateUserDialog by rememberSaveable { mutableStateOf(false) }
-    var roleEditTarget by remember { mutableStateOf<UserSummaryResponse?>(null) }
-    var showCreateBranchDialog by rememberSaveable { mutableStateOf(false) }
-    var showAssignUserDialog by rememberSaveable { mutableStateOf(false) }
-    var assignmentBranch by rememberSaveable(stateSaver = BranchResponseSaver) {
-        mutableStateOf<BranchResponse?>(null)
-    }
-    var removeAssignmentTarget by
-        rememberSaveable(stateSaver = AssignmentRemovalTargetSaver) {
-            mutableStateOf<AssignmentRemovalTarget?>(null)
-        }
+    val states = rememberUserManagementScreenStates()
 
     UserManagementEntryEffects(
         viewModel = viewModel,
         branchViewModel = branchViewModel,
     )
 
-    val derived = rememberUserManagementDerived(viewModel, searchQuery, selectedBranchId)
+    val derived = rememberUserManagementDerived(viewModel, states.searchQuery, states.selectedBranchId)
     val mutationsDisabled = userManagementMutationsDisabled(viewModel, branchViewModel)
 
     UserManagementMutationEffects(
         viewModel = viewModel,
         branchViewModel = branchViewModel,
-        onCloseCreateBranch = { showCreateBranchDialog = false },
+        onCloseCreateBranch = { states.onShowCreateBranchChange(false) },
         onCloseAssign = {
-            showAssignUserDialog = false
-            assignmentBranch = null
+            states.onShowAssignDialogChange(false)
+            states.onAssignmentBranchChange(null)
         },
-        onClearRemoveTarget = { removeAssignmentTarget = null },
+        onClearRemoveTarget = { states.onRemoveAssignmentTargetChange(null) },
     )
 
     Column(
@@ -139,9 +120,9 @@ fun UserManagementScreen(
                 .padding(Spacing.md),
     ) {
         UserManagementTopSections(
-            searchQuery = searchQuery,
+            searchQuery = states.searchQuery,
             branches = branches,
-            selectedBranchId = selectedBranchId,
+            selectedBranchId = states.selectedBranchId,
             selectedBranch = derived.selectedBranch,
             actions =
                 userManagementTopSectionsActions(
@@ -150,19 +131,19 @@ fun UserManagementScreen(
                     mutationsDisabled = mutationsDisabled,
                     callbacks =
                         UserManagementTopSectionsCallbacks(
-                            onSearchChange = { searchQuery = it },
-                            onShowCreateUser = { showCreateUserDialog = it },
+                            onSearchChange = states.onSearchQueryChange,
+                            onShowCreateUser = states.onShowCreateUserChange,
                             onLoadUsers = viewModel::loadUsers,
                             onLoadBranches = viewModel::loadBranches,
-                            onBranchSelected = { selectedBranchId = it },
+                            onBranchSelected = states.onSelectedBranchIdChange,
                             onResetAdministration = branchViewModel::resetAdministrationState,
-                            onShowCreateBranch = { showCreateBranchDialog = it },
-                            onAssignmentBranchChange = { assignmentBranch = it },
-                            onShowAssignDialog = { showAssignUserDialog = it },
+                            onShowCreateBranch = states.onShowCreateBranchChange,
+                            onAssignmentBranchChange = states.onAssignmentBranchChange,
+                            onShowAssignDialog = states.onShowAssignDialogChange,
                             selectedBranch = derived.selectedBranch,
                             assignmentResult = assignmentResult,
-                            removeAssignmentTarget = removeAssignmentTarget,
-                            showAssignDialog = showAssignUserDialog,
+                            removeAssignmentTarget = states.removeAssignmentTarget,
+                            showAssignDialog = states.showAssignUserDialog,
                         ),
                 ),
         )
@@ -171,16 +152,16 @@ fun UserManagementScreen(
             userManagementUserRowActions(
                 currentUserId = currentUserId,
                 mutationsDisabled = mutationsDisabled,
-                selectedBranchId = selectedBranchId,
+                selectedBranchId = states.selectedBranchId,
                 actionErrors = actionErrors,
                 callbacks =
                     UserManagementUserRowCallbacks(
-                        expandedIds = expandedIds,
-                        onExpandedIdsChange = { expandedIds = it },
-                        onDeactivateTarget = { deactivateTarget = it },
-                        onRoleEditTarget = { roleEditTarget = it },
-                        onSlotEditTarget = { slotEditTarget = it },
-                        onRemoveTarget = { removeAssignmentTarget = it },
+                        expandedIds = states.expandedIds,
+                        onExpandedIdsChange = states.onExpandedIdsChange,
+                        onDeactivateTarget = states.onDeactivateTargetChange,
+                        onRoleEditTarget = states.onRoleEditTargetChange,
+                        onSlotEditTarget = states.onSlotEditTargetChange,
+                        onRemoveTarget = states.onRemoveAssignmentTargetChange,
                         onReactivate = { id -> viewModel.setUserStatus(id, UserStatus.ACTIVE) },
                         onResetAdministration = branchViewModel::resetAdministrationState,
                     ),
@@ -196,12 +177,12 @@ fun UserManagementScreen(
                     selectedBranchName = derived.selectedBranchName ?: "",
                     slotRows = derived.slotRows,
                     mutationsDisabled = mutationsDisabled,
-                    searchQuery = searchQuery,
-                    expandedIds = expandedIds,
+                    searchQuery = states.searchQuery,
+                    expandedIds = states.expandedIds,
                     userRowActions = userRowActions,
                     actionErrors = actionErrors,
                     onSwapSlots = viewModel::swapSlots,
-                    onEditSlotTarget = { slotEditTarget = it },
+                    onEditSlotTarget = states.onSlotEditTargetChange,
                     onRetry = viewModel::loadUsers,
                 ),
         )
@@ -213,25 +194,25 @@ fun UserManagementScreen(
         mutationsDisabled = mutationsDisabled,
         memberActions =
             UserManagementMemberDialogsActions(
-                deactivateTarget = deactivateTarget,
-                onDismissDeactivate = { deactivateTarget = null },
-                slotEditTarget = slotEditTarget,
-                onDismissSlotEdit = { slotEditTarget = null },
-                showCreateUserDialog = showCreateUserDialog,
-                onCloseCreateUser = { showCreateUserDialog = false },
-                roleEditTarget = roleEditTarget,
-                onDismissRoleEdit = { roleEditTarget = null },
+                deactivateTarget = states.deactivateTarget,
+                onDismissDeactivate = { states.onDeactivateTargetChange(null) },
+                slotEditTarget = states.slotEditTarget,
+                onDismissSlotEdit = { states.onSlotEditTargetChange(null) },
+                showCreateUserDialog = states.showCreateUserDialog,
+                onCloseCreateUser = { states.onShowCreateUserChange(false) },
+                roleEditTarget = states.roleEditTarget,
+                onDismissRoleEdit = { states.onRoleEditTargetChange(null) },
             ),
         branchActions =
             UserManagementBranchDialogsActions(
-                showCreateBranchDialog = showCreateBranchDialog,
-                onCloseCreateBranch = { showCreateBranchDialog = false },
-                showAssignUserDialog = showAssignUserDialog,
-                assignmentBranch = assignmentBranch,
-                onAssignDialog = { showAssignUserDialog = it },
-                onAssignmentBranchChange = { assignmentBranch = it },
-                removeAssignmentTarget = removeAssignmentTarget,
-                onClearRemoveTarget = { removeAssignmentTarget = null },
+                showCreateBranchDialog = states.showCreateBranchDialog,
+                onCloseCreateBranch = { states.onShowCreateBranchChange(false) },
+                showAssignUserDialog = states.showAssignUserDialog,
+                assignmentBranch = states.assignmentBranch,
+                onAssignDialog = states.onShowAssignDialogChange,
+                onAssignmentBranchChange = states.onAssignmentBranchChange,
+                removeAssignmentTarget = states.removeAssignmentTarget,
+                onClearRemoveTarget = { states.onRemoveAssignmentTargetChange(null) },
             ),
     )
 }
@@ -689,7 +670,7 @@ private fun UserRowExpandedBody(
     }
 }
 
-private val BranchResponseSaver =
+internal val BranchResponseSaver =
     Saver<BranchResponse?, List<String>>(
         save = { branch ->
             branch?.let { listOf(it.id, it.name, it.branchType.name) } ?: emptyList()
@@ -705,7 +686,7 @@ private val BranchResponseSaver =
         },
     )
 
-private val AssignmentRemovalTargetSaver =
+internal val AssignmentRemovalTargetSaver =
     Saver<AssignmentRemovalTarget?, List<String>>(
         save = { target ->
             target?.let {
