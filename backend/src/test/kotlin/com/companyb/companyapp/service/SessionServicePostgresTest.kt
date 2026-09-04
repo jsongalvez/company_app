@@ -35,6 +35,7 @@ import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -213,6 +214,23 @@ class SessionServicePostgresTest : BasePostgresTest() {
             createSession(TestFixtures.uuid(), sessionId)
         }
         assertEquals(1L, auditEntryCount(SessionTable.tableName, sessionId))
+    }
+
+    @Test
+    fun `idempotent replay classifies by stored creator without audit history`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
+        transaction { AuditLogTable.deleteWhere { AuditLogTable.recordId eq sessionId } }
+
+        val replay = createSession(callerId, sessionId)
+
+        assertFalse(replay.created)
+        assertEquals(callerId, replay.session.createdBy)
+        assertFailsWith<ConflictException> {
+            createSession(TestFixtures.uuid(), sessionId)
+        }
     }
 
     @Test

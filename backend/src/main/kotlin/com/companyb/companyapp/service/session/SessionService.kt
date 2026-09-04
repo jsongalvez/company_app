@@ -90,12 +90,15 @@ object SessionService {
 
         val existing = SessionRepository.findById(id)
         if (existing != null) {
+            // Fast-path replay check (authoritative classification lives in the command
+            // transaction's idempotentResult — this only preserves 409 precedence before
+            // the day resolution below). Ownership is the stored created_by (#453).
             val expectedBranchDayId =
                 gatedBranchDayId ?: BranchDayService.findToday(branchId)?.id
             val sameClient = existing.clientId == clientId
             val sameBranch = SessionRepository.branchDayBelongsToBranch(existing.branchDayId, branchId)
             val sameDay = existing.branchDayId == expectedBranchDayId
-            val sameCaller = SessionRepository.createdBy(id) == callerId
+            val sameCaller = existing.createdBy == callerId
             if (!sameClient || !sameBranch || !sameDay || !sameCaller) {
                 throw ConflictException("Session id already belongs to another create request")
             }

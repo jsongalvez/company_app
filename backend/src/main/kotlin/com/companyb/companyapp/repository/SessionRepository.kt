@@ -1,6 +1,5 @@
 package com.companyb.companyapp.repository
 
-import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
@@ -8,7 +7,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.Session
@@ -117,21 +115,6 @@ object SessionRepository {
                 .not()
         }
 
-    fun createdBy(sessionId: UUID): UUID? =
-        transaction {
-            createdByInTransaction(sessionId)
-        }
-
-    private fun createdByInTransaction(sessionId: UUID): UUID? =
-        AuditLogTable
-            .selectAll()
-            .where {
-                (AuditLogTable.auditTableName eq SessionTable.tableName) and
-                    (AuditLogTable.recordId eq sessionId) and
-                    (AuditLogTable.action eq AuditAction.INSERT)
-            }.singleOrNull()
-            ?.get(AuditLogTable.changedBy)
-
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
     @Suppress("ThrowsCount")
     fun createInTransaction(params: SessionCreateParams): SessionCreateResult {
@@ -179,6 +162,7 @@ object SessionRepository {
                     it[SessionTable.isWalkIn] = params.isWalkIn
                     it[SessionTable.basePrice] = params.basePrice
                     it[SessionTable.finalPrice] = params.finalPrice
+                    it[SessionTable.createdBy] = params.changedBy
                     if (params.remarks != null) it[SessionTable.remarks] = params.remarks
                     if (params.otherConcerns != null) it[SessionTable.otherConcerns] = params.otherConcerns
                     if (!params.isWalkIn) it[SessionTable.bookedAt] = CurrentTimestampWithTimeZone
@@ -200,9 +184,10 @@ object SessionRepository {
         existing: Session,
         params: SessionCreateParams,
     ): SessionCreateResult {
+        // #453 — ownership is transaction-local on the row (created_by); no audit read.
         val sameClient = existing.clientId == params.clientId
         val sameBranchDay = existing.branchDayId == params.branchDayId
-        val sameCaller = createdByInTransaction(existing.id) == params.changedBy
+        val sameCaller = existing.createdBy == params.changedBy
         if (!sameClient || !sameBranchDay || !sameCaller) {
             throw ConflictException("Session id already belongs to another create request")
         }
@@ -324,6 +309,7 @@ fun org.jetbrains.exposed.v1.core.ResultRow.toSession(): Session =
         otherConcerns = this[SessionTable.otherConcerns],
         bookedAt = this[SessionTable.bookedAt],
         nextAppointmentDate = this[SessionTable.nextAppointmentDate],
+        createdBy = this[SessionTable.createdBy],
         createdAt = this[SessionTable.createdAt],
         version = this[SessionTable.version],
     )

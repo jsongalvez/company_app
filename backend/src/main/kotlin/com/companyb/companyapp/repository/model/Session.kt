@@ -27,6 +27,7 @@ data class Session(
     val otherConcerns: String?,
     val bookedAt: OffsetDateTime?,
     val nextAppointmentDate: LocalDate?,
+    val createdBy: UUID?,
     val createdAt: OffsetDateTime,
     val version: Int,
 )
@@ -71,6 +72,10 @@ object SessionTable : Table("session") {
     val otherConcerns = text("other_concerns").nullable()
     val bookedAt = timestampWithTimeZone("booked_at").nullable()
     val nextAppointmentDate = date("next_appointment_date").nullable()
+
+    // #453 — transaction-local idempotency owner (Expense created_by precedent).
+    // Nullable: backfilled from audit INSERT rows; new rows always write it.
+    val createdBy = javaUUID("created_by").references(AppUserTable.id).nullable()
     val createdAt = timestampWithTimeZone("created_at").defaultExpression(CurrentTimestampWithTimeZone)
     val version = integer("version").default(1)
 

@@ -2,6 +2,7 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.UserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
@@ -36,6 +37,21 @@ data class AssignmentMutation(
 object UserBranchAssignmentRepository {
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: UserBranchAssignmentCreateParams): AssignmentCreateResult {
+        // #453 — the single ownership seam: same-ID classification + active-key guard both
+        // live here, transaction-local. Same-ID replay returns idempotent; different owner
+        // reusing the id fails closed with 409; an occupied active key is a 400.
+        findByIdInTransaction(params.id)?.let { existing ->
+            if (existing.userId != params.userId || existing.branchId != params.branchId ||
+                existing.slot != params.slot
+            ) {
+                throw ConflictException("Assignment id already belongs to another assignment request")
+            }
+            return AssignmentCreateResult(existing, created = false)
+        }
+        if (findActiveByBranchAndUserInTransaction(params.branchId, params.userId, forUpdate = true) != null) {
+            throw ValidationException("User already has an active assignment at this branch")
+        }
+
         val insertedCount =
             UserBranchAssignmentTable
                 .insertIgnore {
