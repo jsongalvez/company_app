@@ -88,9 +88,7 @@ fun UserManagementScreen(
     // spinner over held rows and a failed reload never replaces the list with an ErrorCard.
     // null only when nothing has ever loaded (first composition) — spinner/ErrorCard then.
     val heldList by viewModel.freshestUsers.collectAsState()
-    val branches by viewModel.branches.collectAsState()
     val actionErrors by viewModel.actionErrors.collectAsState()
-    val assignmentResult by branchViewModel.assignmentResult.collectAsState()
 
     val states = rememberUserManagementScreenStates()
 
@@ -119,34 +117,7 @@ fun UserManagementScreen(
                 .fillMaxSize()
                 .padding(Spacing.md),
     ) {
-        UserManagementTopSections(
-            searchQuery = states.searchQuery,
-            branches = branches,
-            selectedBranchId = states.selectedBranchId,
-            selectedBranch = derived.selectedBranch,
-            actions =
-                userManagementTopSectionsActions(
-                    users = users,
-                    heldNonNull = heldList != null,
-                    mutationsDisabled = mutationsDisabled,
-                    callbacks =
-                        UserManagementTopSectionsCallbacks(
-                            onSearchChange = states.onSearchQueryChange,
-                            onShowCreateUser = states.onShowCreateUserChange,
-                            onLoadUsers = viewModel::loadUsers,
-                            onLoadBranches = viewModel::loadBranches,
-                            onBranchSelected = states.onSelectedBranchIdChange,
-                            onResetAdministration = branchViewModel::resetAdministrationState,
-                            onShowCreateBranch = states.onShowCreateBranchChange,
-                            onAssignmentBranchChange = states.onAssignmentBranchChange,
-                            onShowAssignDialog = states.onShowAssignDialogChange,
-                            selectedBranch = derived.selectedBranch,
-                            assignmentResult = assignmentResult,
-                            removeAssignmentTarget = states.removeAssignmentTarget,
-                            showAssignDialog = states.showAssignUserDialog,
-                        ),
-                ),
-        )
+        UserManagementTopSectionsHost(viewModel, branchViewModel, states, derived, mutationsDisabled)
 
         val userRowActions =
             userManagementUserRowActions(

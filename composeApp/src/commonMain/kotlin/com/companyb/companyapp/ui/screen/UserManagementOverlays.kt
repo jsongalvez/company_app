@@ -217,6 +217,54 @@ internal fun userManagementTopSectionsActions(
     )
 
 /**
+ * Title/search + branch-admin block call hoisted out of [UserManagementScreen] for the #462
+ * LongMethod burn-down. Lives here (not Header.kt) because Header.kt sits at the detekt
+ * file-function wall (10/11) — Overlays.kt has budget. Self-sufficient: collects the
+ * users/held/branches/assignment flows itself (duplicate StateFlow subscriptions are cheap —
+ * LoginNoticeEffect precedent) and owns the callbacks + actions construction (call-site
+ * construction lines count toward the caller LongMethod); the Screen keeps one slim
+ * single-line call. 5 params so it stays LongParameterList-clean outside the LPL-excluded
+ * Screen file.
+ */
+@Composable
+internal fun UserManagementTopSectionsHost(
+    viewModel: UserViewModel,
+    branchViewModel: BranchViewModel,
+    states: UserManagementScreenStates,
+    derived: UserManagementDerived,
+    mutationsDisabled: Boolean,
+) {
+    val users by viewModel.users.collectAsState()
+    val heldList by viewModel.freshestUsers.collectAsState()
+    val branches by viewModel.branches.collectAsState()
+    val assignmentResult by branchViewModel.assignmentResult.collectAsState()
+    val callbacks =
+        UserManagementTopSectionsCallbacks(
+            onSearchChange = states.onSearchQueryChange,
+            onShowCreateUser = states.onShowCreateUserChange,
+            onLoadUsers = viewModel::loadUsers,
+            onLoadBranches = viewModel::loadBranches,
+            onBranchSelected = states.onSelectedBranchIdChange,
+            onResetAdministration = branchViewModel::resetAdministrationState,
+            onShowCreateBranch = states.onShowCreateBranchChange,
+            onAssignmentBranchChange = states.onAssignmentBranchChange,
+            onShowAssignDialog = states.onShowAssignDialogChange,
+            selectedBranch = derived.selectedBranch,
+            assignmentResult = assignmentResult,
+            removeAssignmentTarget = states.removeAssignmentTarget,
+            showAssignDialog = states.showAssignUserDialog,
+        )
+    val actions = userManagementTopSectionsActions(users, heldList != null, mutationsDisabled, callbacks)
+    UserManagementTopSections(
+        searchQuery = states.searchQuery,
+        branches = branches,
+        selectedBranchId = states.selectedBranchId,
+        selectedBranch = derived.selectedBranch,
+        actions = actions,
+    )
+}
+
+/**
  * Mutations-disabled gate hoisted out of [UserManagementScreen] for the #462 LongMethod
  * burn-down. Lives here (not Header.kt) because Header.kt sits at the detekt file-function
  * wall (10/11) — Overlays.kt has fresh budget. Self-sufficient: collects the in-flight plus
