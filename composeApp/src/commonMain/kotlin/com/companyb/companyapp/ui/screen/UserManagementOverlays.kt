@@ -1,10 +1,17 @@
 package com.companyb.companyapp.ui.screen
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
+import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.viewmodel.BranchViewModel
 import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.UserViewModel
@@ -66,6 +73,86 @@ internal fun UserManagementDialogHosts(
         deleteAssignmentState = deleteAssignmentState,
         onClearRemoveTarget = branchActions.onClearRemoveTarget,
     )
+}
+
+/**
+ * User-list region (status-when + LazyColumn) hoisted out of [UserManagementScreen] for the
+ * #462 LongMethod burn-down. Lives here (not Header.kt) because Header.kt sits at the detekt
+ * file-function wall (10/11) — Overlays.kt has fresh budget. Owns the slot-order actions
+ * construction (the multi-line swap lambda) plus the error/empty/items branches; the Screen
+ * passes derivations + single-line setters via [UserManagementUserListActions] (call-site
+ * lambda bodies count toward the caller's LongMethod). ColumnScope receiver so the LazyColumn
+ * keeps its `weight` (ColumnScope-bound member extension — same reason the LazyItemScope
+ * `item {}` wrappers and `fillParentMaxSize` live inside wherever their scope resolves).
+ * 5 params so it stays LongParameterList-clean outside the LPL-excluded Screen file.
+ */
+@Composable
+internal fun ColumnScope.UserManagementUserList(
+    users: UiState<List<UserSummaryResponse>>,
+    heldNonNull: Boolean,
+    filteredUsers: List<UserSummaryResponse>,
+    selectedBranch: BranchResponse?,
+    actions: UserManagementUserListActions,
+) {
+    if (!heldNonNull) {
+        UserManagementLoadFallback(
+            users = users,
+            onRetry = actions.onRetry,
+        )
+        return
+    }
+    LazyColumn(
+        modifier = Modifier.weight(1f),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        if (selectedBranch != null) {
+            item(key = "slot-order") {
+                UserManagementSlotOrderItem(
+                    selectedBranchId = selectedBranch.id,
+                    branchName = actions.selectedBranchName,
+                    rows = actions.slotRows,
+                    mutationsDisabled = actions.mutationsDisabled,
+                    actions =
+                        UserManagementSlotOrderActions(
+                            actionErrors = actions.actionErrors,
+                            onSwap = { a, b -> actions.onSwapSlots(selectedBranch.id, a, b) },
+                            onEditSlot = actions.onEditSlotTarget,
+                        ),
+                )
+            }
+        }
+
+        item(key = "users-header") {
+            UserManagementListHeader()
+        }
+
+        if (users is UiState.Error) {
+            val errorState = users as UiState.Error
+            item(key = "users-reload-error") {
+                UserManagementListErrorRow(
+                    message = errorState.message,
+                    retryEnabled = !actions.mutationsDisabled,
+                    onRetry = actions.onRetry,
+                )
+            }
+        }
+
+        if (filteredUsers.isEmpty()) {
+            item(key = "users-empty") {
+                Box(Modifier.fillParentMaxSize()) {
+                    UserManagementEmptyContent(searchQuery = actions.searchQuery)
+                }
+            }
+        } else {
+            items(filteredUsers, key = { it.id }) { user ->
+                UserManagementUserRowHost(
+                    user = user,
+                    expanded = user.id in actions.expandedIds,
+                    actions = actions.userRowActions,
+                )
+            }
+        }
+    }
 }
 
 /**

@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -223,71 +221,25 @@ fun UserManagementScreen(
                     ),
             )
 
-        when {
-            heldList != null -> {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    if (selectedBranch != null) {
-                        item(key = "slot-order") {
-                            UserManagementSlotOrderItem(
-                                selectedBranchId = selectedBranch.id,
-                                branchName = selectedBranchName ?: "",
-                                rows = slotRows,
-                                mutationsDisabled = mutationsDisabled,
-                                actions =
-                                    UserManagementSlotOrderActions(
-                                        actionErrors = actionErrors,
-                                        onSwap = { a, b ->
-                                            viewModel.swapSlots(selectedBranch.id, a, b)
-                                        },
-                                        onEditSlot = { slotEditTarget = it },
-                                    ),
-                            )
-                        }
-                    }
-
-                    item(key = "users-header") {
-                        UserManagementListHeader()
-                    }
-
-                    if (users is UiState.Error) {
-                        val errorState = users as UiState.Error
-                        item(key = "users-reload-error") {
-                            UserManagementListErrorRow(
-                                message = errorState.message,
-                                retryEnabled = !mutationsDisabled,
-                                onRetry = { viewModel.loadUsers() },
-                            )
-                        }
-                    }
-
-                    if (filteredUsers.isEmpty()) {
-                        item(key = "users-empty") {
-                            Box(Modifier.fillParentMaxSize()) {
-                                UserManagementEmptyContent(searchQuery = searchQuery)
-                            }
-                        }
-                    } else {
-                        items(filteredUsers, key = { it.id }) { user ->
-                            UserManagementUserRowHost(
-                                user = user,
-                                expanded = user.id in expandedIds,
-                                actions = userRowActions,
-                            )
-                        }
-                    }
-                }
-            }
-
-            else -> {
-                UserManagementLoadFallback(
-                    users = users,
-                    onRetry = { viewModel.loadUsers() },
-                )
-            }
-        }
+        UserManagementUserList(
+            users = users,
+            heldNonNull = heldList != null,
+            filteredUsers = filteredUsers,
+            selectedBranch = selectedBranch,
+            actions =
+                UserManagementUserListActions(
+                    selectedBranchName = selectedBranchName ?: "",
+                    slotRows = slotRows,
+                    mutationsDisabled = mutationsDisabled,
+                    searchQuery = searchQuery,
+                    expandedIds = expandedIds,
+                    userRowActions = userRowActions,
+                    actionErrors = actionErrors,
+                    onSwapSlots = viewModel::swapSlots,
+                    onEditSlotTarget = { slotEditTarget = it },
+                    onRetry = viewModel::loadUsers,
+                ),
+        )
     }
 
     UserManagementDialogHosts(

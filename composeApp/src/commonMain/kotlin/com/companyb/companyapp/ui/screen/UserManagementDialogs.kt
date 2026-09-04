@@ -51,6 +51,7 @@ import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.UiState
+import com.companyb.companyapp.viewmodel.UserSlotRow
 import com.companyb.companyapp.viewmodel.parseSlotInput
 import com.companyb.companyapp.viewmodel.slotInputError
 
@@ -200,6 +201,27 @@ internal data class UserManagementTopSectionsCallbacks(
     val assignmentResult: UiState<AssignmentResponse>,
     val removeAssignmentTarget: AssignmentRemovalTarget?,
     val showAssignDialog: Boolean,
+)
+
+/**
+ * Callbacks + gates for the user-list region ([UserManagementUserList] in
+ * UserManagementOverlays.kt — #462 LongMethod burn; the LazyColumn + status-when moves
+ * there because UserManagementScreen.kt sits at the detekt file-function wall).
+ * The slot-order swap lambda is owned by the host (the Screen passes the
+ * `swapSlots` method ref); single-line setters + derivations ride here so the call site
+ * stays lean (data class so LongParameterList/TooManyFunctions-free).
+ */
+internal data class UserManagementUserListActions(
+    val selectedBranchName: String,
+    val slotRows: List<UserSlotRow>,
+    val mutationsDisabled: Boolean,
+    val searchQuery: String,
+    val expandedIds: Set<String>,
+    val userRowActions: UserManagementUserRowActions,
+    val actionErrors: Map<String, String>,
+    val onSwapSlots: (String, String, String) -> Unit,
+    val onEditSlotTarget: (SlotEditTarget) -> Unit,
+    val onRetry: () -> Unit,
 )
 
 /**
