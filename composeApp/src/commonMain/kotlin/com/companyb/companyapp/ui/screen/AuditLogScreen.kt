@@ -490,6 +490,55 @@ private fun AllActivityTab(
 // dispose the typed values.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+private fun AuditLogDateCallerFields(draft: AuditLogFilterDraft) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(top = Spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        OutlinedTextField(
+            value = draft.dateFrom,
+            onValueChange = {
+                draft.dateFrom = it
+                // Both errors clear: format is per-field, but the ordering violation spans
+                // the pair — a stale To-side error must not outlive its cause.
+                draft.dateFromError = null
+                draft.dateToError = null
+            },
+            label = { Text("From") },
+            placeholder = { Text("yyyy-MM-dd") },
+            isError = draft.dateFromError != null,
+            supportingText = { draft.dateFromError?.let { Text(it) } },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+        )
+        OutlinedTextField(
+            value = draft.dateTo,
+            onValueChange = {
+                draft.dateTo = it
+                draft.dateToError = null
+            },
+            label = { Text("To") },
+            placeholder = { Text("yyyy-MM-dd") },
+            isError = draft.dateToError != null,
+            supportingText = { draft.dateToError?.let { Text(it) } },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+        )
+        OutlinedTextField(
+            value = draft.callerName,
+            onValueChange = { draft.callerName = it },
+            label = { Text("Caller") },
+            singleLine = true,
+            modifier = Modifier.weight(2f),
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun AuditLogFilterBar(
     tables: UiState<List<AuditLogTableResponse>>,
     onRetryTables: () -> Unit,
@@ -544,50 +593,7 @@ private fun AuditLogFilterBar(
                 modifier = Modifier.weight(1f),
             )
         }
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            OutlinedTextField(
-                value = draft.dateFrom,
-                onValueChange = {
-                    draft.dateFrom = it
-                    // Both errors clear: format is per-field, but the ordering violation spans
-                    // the pair — a stale To-side error must not outlive its cause.
-                    draft.dateFromError = null
-                    draft.dateToError = null
-                },
-                label = { Text("From") },
-                placeholder = { Text("yyyy-MM-dd") },
-                isError = draft.dateFromError != null,
-                supportingText = { draft.dateFromError?.let { Text(it) } },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            OutlinedTextField(
-                value = draft.dateTo,
-                onValueChange = {
-                    draft.dateTo = it
-                    draft.dateToError = null
-                },
-                label = { Text("To") },
-                placeholder = { Text("yyyy-MM-dd") },
-                isError = draft.dateToError != null,
-                supportingText = { draft.dateToError?.let { Text(it) } },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            OutlinedTextField(
-                value = draft.callerName,
-                onValueChange = { draft.callerName = it },
-                label = { Text("Caller") },
-                singleLine = true,
-                modifier = Modifier.weight(2f),
-            )
-        }
+        AuditLogDateCallerFields(draft)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
