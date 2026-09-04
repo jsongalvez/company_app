@@ -80,32 +80,12 @@ fun RemittanceListScreen(
                 .fillMaxSize()
                 .padding(Spacing.md),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Remittances",
-                style = MaterialTheme.typography.titleLarge,
-            )
-            Row {
-                TextButton(
-                    onClick = { showCreateDialog = true },
-                    enabled = branchId != null,
-                ) {
-                    Text("New draft")
-                }
-                TextButton(
-                    onClick = {
-                        branchId?.let { viewModel.loadRemittances(it, selectedTab.status) }
-                    },
-                    enabled = branchId != null && listState !is UiState.Loading,
-                ) {
-                    Text("Refresh")
-                }
-            }
-        }
+        RemittanceListHeader(
+            branchId = branchId,
+            listState = listState,
+            onNewDraft = { showCreateDialog = true },
+            onRefresh = { branchId?.let { viewModel.loadRemittances(it, selectedTab.status) } },
+        )
 
         TabRow(selectedTabIndex = selectedTab.ordinal) {
             RemittanceTab.entries.forEach { tab ->
@@ -125,43 +105,76 @@ fun RemittanceListScreen(
         // the single list flow the last-writer fetch owns).
         val mirrorKey = branchId?.let { remittanceListKey(it, selectedTab.status) }
         val held = mirrorKey?.let { lastByTab[it] }
-        when {
-            held != null -> {
-                RemittanceTabContent(
-                    remittances = held,
-                    emptyMessage = selectedTab.emptyMessage,
-                    onRemittanceClick = onRemittanceClick,
-                )
-            }
-
-            listState is UiState.Error -> {
-                ErrorCard(
-                    message = (listState as UiState.Error).message,
-                    onRetry = {
-                        branchId?.let { viewModel.loadRemittances(it, selectedTab.status) }
-                    },
-                )
-            }
-
-            else -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            }
-        }
+        RemittanceTabContent(
+            remittances = held,
+            emptyMessage = selectedTab.emptyMessage,
+            errorMessage = (listState as? UiState.Error)?.message,
+            onRemittanceClick = onRemittanceClick,
+            onRetry = { branchId?.let { viewModel.loadRemittances(it, selectedTab.status) } },
+        )
     }
 
+    RemittanceListDialogHost(
+        branchId = branchId,
+        showCreateDialog = showCreateDialog,
+        createDraftState = createDraftState,
+        onCreate = viewModel::createDraft,
+        onDismiss = {
+            if (createDraftState !is UiState.Loading) {
+                showCreateDialog = false
+            }
+        },
+    )
+}
+
+@Composable
+private fun RemittanceListDialogHost(
+    branchId: String?,
+    showCreateDialog: Boolean,
+    createDraftState: UiState<RemittanceResponse>,
+    onCreate: (CreateRemittanceDraftRequest) -> Unit,
+    onDismiss: () -> Unit,
+) {
     if (showCreateDialog && branchId != null) {
         CreateRemittanceDialog(
             branchId = branchId,
             createState = createDraftState,
-            onCreate = viewModel::createDraft,
-            onDismiss = {
-                if (createDraftState !is UiState.Loading) {
-                    showCreateDialog = false
-                }
-            },
+            onCreate = onCreate,
+            onDismiss = onDismiss,
         )
+    }
+}
+
+@Composable
+private fun RemittanceListHeader(
+    branchId: String?,
+    listState: UiState<List<RemittanceResponse>>,
+    onNewDraft: () -> Unit,
+    onRefresh: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Remittances",
+            style = MaterialTheme.typography.titleLarge,
+        )
+        Row {
+            TextButton(
+                onClick = onNewDraft,
+                enabled = branchId != null,
+            ) {
+                Text("New draft")
+            }
+            TextButton(
+                onClick = onRefresh,
+                enabled = branchId != null && listState !is UiState.Loading,
+            ) {
+                Text("Refresh")
+            }
+        }
     }
 }
 
@@ -215,17 +228,36 @@ private fun RemittanceListDraftEffects(
 
 @Composable
 private fun RemittanceTabContent(
-    remittances: List<RemittanceResponse>,
+    remittances: List<RemittanceResponse>?,
     emptyMessage: String,
+    errorMessage: String?,
     onRemittanceClick: (RemittanceResponse) -> Unit,
+    onRetry: () -> Unit,
 ) {
-    if (remittances.isEmpty()) {
-        EmptyState(emptyMessage)
-    } else {
-        RemittanceRowList(
-            remittances = remittances,
-            onRemittanceClick = onRemittanceClick,
-        )
+    when {
+        remittances != null -> {
+            if (remittances.isEmpty()) {
+                EmptyState(emptyMessage)
+            } else {
+                RemittanceRowList(
+                    remittances = remittances,
+                    onRemittanceClick = onRemittanceClick,
+                )
+            }
+        }
+
+        errorMessage != null -> {
+            ErrorCard(
+                message = errorMessage,
+                onRetry = onRetry,
+            )
+        }
+
+        else -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
     }
 }
 
@@ -283,35 +315,21 @@ private fun CreateRemittanceDialog(
                     label = "Type",
                     displayValue = type.label,
                     options = RemittanceTypeChoice.entries.map { it.label },
-                    onSelect = { label ->
-                        type = RemittanceTypeChoice.entries.first { it.label == label }
-                    },
+                    onSelect = { label -> type = RemittanceTypeChoice.entries.first { it.label == label } },
                 )
                 LabeledDropdown(
                     label = "Method",
                     displayValue = method.label,
                     options = RemittanceMethodChoice.entries.map { it.label },
-                    onSelect = { label ->
-                        method = RemittanceMethodChoice.entries.first { it.label == label }
-                    },
+                    onSelect = { label -> method = RemittanceMethodChoice.entries.first { it.label == label } },
                 )
-                RemittanceDatePickerField(
-                    label = "Date range start",
-                    value = startDate,
-                    onValueChange = { startDate = it },
+                RemittanceDateFields(
+                    startDate = startDate,
+                    endDate = endDate,
+                    onStartChange = { startDate = it },
+                    onEndChange = { endDate = it },
+                    dateError = dateError,
                 )
-                RemittanceDatePickerField(
-                    label = "Date range end",
-                    value = endDate,
-                    onValueChange = { endDate = it },
-                )
-                dateError?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
                 (createState as? UiState.Error)?.let {
                     Text(
                         text = it.message,
@@ -338,6 +356,33 @@ private fun CreateRemittanceDialog(
             }
         },
     )
+}
+
+@Composable
+private fun RemittanceDateFields(
+    startDate: String,
+    endDate: String,
+    onStartChange: (String) -> Unit,
+    onEndChange: (String) -> Unit,
+    dateError: String?,
+) {
+    RemittanceDatePickerField(
+        label = "Date range start",
+        value = startDate,
+        onValueChange = onStartChange,
+    )
+    RemittanceDatePickerField(
+        label = "Date range end",
+        value = endDate,
+        onValueChange = onEndChange,
+    )
+    dateError?.let {
+        Text(
+            text = it,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
 }
 
 /** D2/D9 — dropdown built on the GenderFieldEditor pattern (read-only field + DropdownMenu). */
