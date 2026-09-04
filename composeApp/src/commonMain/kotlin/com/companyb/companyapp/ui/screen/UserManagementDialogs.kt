@@ -75,6 +75,18 @@ internal data class SlotDialogOptions(
     val dismissEnabled: Boolean = !mutationsDisabled,
 )
 
+/**
+ * Callbacks + gates for [UserManagementHeader] (the header lives in its own file under the
+ * #462 file-function budget split; the actions object keeps its signature
+ * LongParameterList-clean — RoleEditActions precedent).
+ */
+internal data class UserManagementHeaderActions(
+    val onInvite: () -> Unit,
+    val onRefresh: () -> Unit,
+    val inviteEnabled: Boolean,
+    val refreshEnabled: Boolean,
+)
+
 internal val SlotEditTargetSaver =
     Saver<SlotEditTarget?, List<String>>(
         save = { target ->

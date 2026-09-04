@@ -178,52 +178,27 @@ fun UserManagementScreen(
                 .fillMaxSize()
                 .padding(Spacing.md),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "User Management",
-                style = MaterialTheme.typography.titleLarge,
-            )
-            Row {
-                TextButton(
-                    onClick = { showCreateUserDialog = true },
-                    // Gated on a rendered list too: with nothing held (failed initial load) an
-                    // appended created row would be invisible behind the ErrorCard — force the
-                    // retry path instead (pass-4 P4).
-                    enabled = !mutationsDisabled && heldList != null,
-                ) {
-                    Text("Invite user")
-                }
-                TextButton(
-                    onClick = {
-                        viewModel.loadUsers()
-                        viewModel.loadBranches()
-                    },
-                    // A refresh landing mid-mutation lets the mutation's in-place transform re-apply
-                    // to the fresh list (swap would double-apply — pass-1 P2/P4 HARD). Belt: the
-                    // button gate here; suspenders: UserViewModel.loadUsers also skips while any
-                    // mutation is in flight (covers non-click triggers like LaunchedEffect refires).
-                    enabled = !mutationsDisabled,
-                ) {
-                    Text("Refresh")
-                }
-            }
-        }
-
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            label = { Text("Search users") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+        UserManagementHeader(
+            searchQuery = searchQuery,
+            onSearchChange = { searchQuery = it },
             // Typing against an Error state with nothing held does nothing visible (ErrorCard
             // renders instead of the list) — disable so the field doesn't look interactive
             // (pass-1 P4 SOFT). With held rows the keep-last gate renders the list, so the
             // client-side filter stays live over the mirror (#161).
-            enabled = heldList != null || users !is UiState.Error,
+            searchEnabled = heldList != null || users !is UiState.Error,
+            actions =
+                UserManagementHeaderActions(
+                    onInvite = { showCreateUserDialog = true },
+                    onRefresh = {
+                        viewModel.loadUsers()
+                        viewModel.loadBranches()
+                    },
+                    // Gated on a rendered list too: with nothing held (failed initial load) an
+                    // appended created row would be invisible behind the ErrorCard — force the
+                    // retry path instead (pass-4 P4).
+                    inviteEnabled = !mutationsDisabled && heldList != null,
+                    refreshEnabled = !mutationsDisabled,
+                ),
         )
 
         Spacer(Modifier.size(Spacing.sm))
