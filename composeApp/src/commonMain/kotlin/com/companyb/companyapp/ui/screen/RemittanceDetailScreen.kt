@@ -1128,19 +1128,16 @@ private fun <T> IncomePickerDialog(
     var amounts by remember { mutableStateOf(emptyMap<String, String>()) }
     var pending by remember { mutableStateOf<List<CreateRemittanceLineRequest>>(emptyList()) }
 
-    IncomePickerPendingHost(
+    PickerPendingHost(
         pending = pending,
         mutationState = mutationState,
         onAdd = onAdd,
         onDismiss = onDismiss,
         onPendingChange = { pending = it },
     )
-
     AlertDialog(
         onDismissRequest = {
-            if (mutationState !is UiState.Loading && pending.isEmpty()) {
-                onDismiss()
-            }
+            if (mutationState !is UiState.Loading && pending.isEmpty()) onDismiss()
         },
         title = { Text(title) },
         text = {
@@ -1189,12 +1186,12 @@ private fun <T> IncomePickerDialog(
 }
 
 @Composable
-private fun IncomePickerPendingHost(
-    pending: List<CreateRemittanceLineRequest>,
-    mutationState: UiState<RemittanceLineResponse>,
-    onAdd: (List<CreateRemittanceLineRequest>) -> Unit,
+private fun <T> PickerPendingHost(
+    pending: List<T>,
+    mutationState: UiState<*>,
+    onAdd: (List<T>) -> Unit,
     onDismiss: () -> Unit,
-    onPendingChange: (List<CreateRemittanceLineRequest>) -> Unit,
+    onPendingChange: (List<T>) -> Unit,
 ) {
     // One POST per selected row, advanced on each success; a failure or the VM's 403/409 Idle
     // reset clears the queue (the dialog stays open showing the error / the reloaded state).
@@ -1247,7 +1244,7 @@ private fun <T> IncomePickerConfirmButton(
 
 @Composable
 private fun IncomePickerDismissButton(
-    mutationState: UiState<RemittanceLineResponse>,
+    mutationState: UiState<*>,
     onDismiss: () -> Unit,
 ) {
     TextButton(
@@ -1451,18 +1448,12 @@ private fun DayPickerDialog(
 
     // One POST per selected day, advanced on each success; a failure or the VM's 403/409 Idle
     // reset clears the queue (the dialog stays open showing the error / the reloaded state).
-    PendingQueueEffect(
+    PickerPendingHost(
         pending = pending,
         mutationState = mutationState,
-        onNext = { remaining ->
-            pending = remaining
-            onAdd(remaining)
-        },
-        onFinished = {
-            pending = emptyList()
-            onDismiss()
-        },
-        onAborted = { pending = emptyList() },
+        onAdd = onAdd,
+        onDismiss = onDismiss,
+        onPendingChange = { pending = it },
     )
 
     AlertDialog(
@@ -1473,125 +1464,171 @@ private fun DayPickerDialog(
         },
         title = { Text("Add days") },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                when (val s = state) {
-                    is UiState.Idle, is UiState.Loading -> {
-                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
-                    }
-
-                    is UiState.Error -> {
-                        Text(
-                            text = s.message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        TextButton(onClick = onLoad) { Text("Retry") }
-                    }
-
-                    is UiState.Success -> {
-                        if (s.data.isEmpty()) {
-                            EmptyState("No days in this date range")
-                        } else {
-                            s.data.forEach { entry ->
-                                val included = entry.id in includedIds
-                                val remitted = entry.status == com.companyb.companyapp.domain.DayStatus.REMITTED
-                                val selectable = !included && !remitted
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .clickable(enabled = selectable) {
-                                                selectedIds =
-                                                    if (entry.id in selectedIds) {
-                                                        selectedIds - entry.id
-                                                    } else {
-                                                        selectedIds + entry.id
-                                                    }
-                                            }.rowHover(enabled = selectable)
-                                            .padding(vertical = Spacing.xs),
-                                ) {
-                                    Text(
-                                        text = if (entry.id in selectedIds) "✓" else "○",
-                                        color =
-                                            if (entry.id in selectedIds) {
-                                                MaterialTheme.colorScheme.primary
-                                            } else {
-                                                MaterialTheme.colorScheme.onSurfaceVariant
-                                            },
-                                    )
-                                    Spacer(Modifier.width(Spacing.xs))
-                                    Text(
-                                        text = entry.date,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color =
-                                            if (selectable) {
-                                                MaterialTheme.colorScheme.onSurface
-                                            } else {
-                                                MaterialTheme.colorScheme.onSurfaceVariant
-                                            },
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                    Text(
-                                        text =
-                                            when {
-                                                included -> "Added"
-                                                remitted -> "Already remitted"
-                                                else -> entry.status.name
-                                            },
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                (mutationState as? UiState.Error)?.let {
-                    Spacer(Modifier.size(Spacing.xs))
-                    Text(
-                        text = it.message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
+            DayPickerBody(
+                state = state,
+                mutationState = mutationState,
+                includedIds = includedIds,
+                selectedIds = selectedIds,
+                onLoad = onLoad,
+                onToggle = { id -> selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id },
+            )
         },
         confirmButton = {
-            TextButton(
-                onClick = {
-                    val addBlocked =
-                        mutationState is UiState.Loading || pending.isNotEmpty() ||
-                            selectedIds.isEmpty() || entries == null
-                    if (addBlocked) {
-                        return@TextButton
-                    }
-                    pending =
-                        selectedIds.map { id ->
-                            AddDayBreakdownRequest(
-                                id = Uuid.random().toString(),
-                                branchDayId = id,
-                            )
-                        }
+            DayPickerConfirmButton(
+                mutationState = mutationState,
+                pending = pending,
+                selectedIds = selectedIds,
+                entries = entries,
+                onConfirm = { requests ->
+                    pending = requests
                     selectedIds = emptySet()
-                    onAdd(pending)
+                    onAdd(requests)
                 },
-                enabled = mutationState !is UiState.Loading && pending.isEmpty() && selectedIds.isNotEmpty(),
-            ) {
-                Text("Add")
-            }
+            )
         },
         dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                enabled = mutationState !is UiState.Loading,
-            ) {
-                Text("Cancel")
-            }
+            IncomePickerDismissButton(mutationState = mutationState, onDismiss = onDismiss)
         },
     )
+}
+
+/** D4 — day-picker text column: load/error/empty/day rows + mutation error. */
+@Composable
+private fun DayPickerBody(
+    state: UiState<List<RemittanceDayPickerEntryResponse>>,
+    mutationState: UiState<RemittanceDayBreakdownResponse>,
+    includedIds: Set<String>,
+    selectedIds: Set<String>,
+    onLoad: () -> Unit,
+    onToggle: (id: String) -> Unit,
+) {
+    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+        when (val s = state) {
+            is UiState.Idle, is UiState.Loading -> {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            is UiState.Error -> {
+                Text(
+                    text = s.message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                TextButton(onClick = onLoad) { Text("Retry") }
+            }
+
+            is UiState.Success -> {
+                if (s.data.isEmpty()) {
+                    EmptyState("No days in this date range")
+                } else {
+                    s.data.forEach { entry ->
+                        DayPickerDayRow(
+                            entry = entry,
+                            includedIds = includedIds,
+                            selectedIds = selectedIds,
+                            onToggle = onToggle,
+                        )
+                    }
+                }
+            }
+        }
+        (mutationState as? UiState.Error)?.let {
+            Spacer(Modifier.size(Spacing.xs))
+            Text(
+                text = it.message,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+/** D4 — one day row: tick glyph + date + status; already-added/remitted rows grey out. */
+@Composable
+private fun DayPickerDayRow(
+    entry: RemittanceDayPickerEntryResponse,
+    includedIds: Set<String>,
+    selectedIds: Set<String>,
+    onToggle: (id: String) -> Unit,
+) {
+    val included = entry.id in includedIds
+    val remitted = entry.status == com.companyb.companyapp.domain.DayStatus.REMITTED
+    val selectable = !included && !remitted
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(enabled = selectable) { onToggle(entry.id) }
+                .rowHover(enabled = selectable)
+                .padding(vertical = Spacing.xs),
+    ) {
+        Text(
+            text = if (entry.id in selectedIds) "✓" else "○",
+            color =
+                if (entry.id in selectedIds) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+        )
+        Spacer(Modifier.width(Spacing.xs))
+        Text(
+            text = entry.date,
+            style = MaterialTheme.typography.bodyMedium,
+            color =
+                if (selectable) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text =
+                when {
+                    included -> "Added"
+                    remitted -> "Already remitted"
+                    else -> entry.status.name
+                },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@OptIn(ExperimentalUuidApi::class)
+@Composable
+private fun DayPickerConfirmButton(
+    mutationState: UiState<RemittanceDayBreakdownResponse>,
+    pending: List<AddDayBreakdownRequest>,
+    selectedIds: Set<String>,
+    entries: List<RemittanceDayPickerEntryResponse>?,
+    onConfirm: (List<AddDayBreakdownRequest>) -> Unit,
+) {
+    TextButton(
+        onClick = {
+            val addBlocked =
+                mutationState is UiState.Loading || pending.isNotEmpty() ||
+                    selectedIds.isEmpty() || entries == null
+            if (addBlocked) {
+                return@TextButton
+            }
+            onConfirm(
+                selectedIds.map { id ->
+                    AddDayBreakdownRequest(
+                        id = Uuid.random().toString(),
+                        branchDayId = id,
+                    )
+                },
+            )
+        },
+        enabled = mutationState !is UiState.Loading && pending.isEmpty() && selectedIds.isNotEmpty(),
+    ) {
+        Text("Add")
+    }
 }
 
 /** D3 — one picker row: tick glyph + label + secondary line + amount (editable when selected). */
