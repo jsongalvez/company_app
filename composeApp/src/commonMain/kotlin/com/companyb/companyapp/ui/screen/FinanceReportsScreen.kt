@@ -551,9 +551,10 @@ private fun FinanceToolbar(
             Spacer(Modifier.weight(1f))
             // #105 D4 — toolbar export = the mode's export (Daily has none — per-day only, in
             // detail). D6: every export point is CSV + PDF.
-            if (!editMode && mode != ReportMode.DAILY && selectedBranchId != null &&
-                (mode != ReportMode.DATE_RANGE || appliedRange != null)
-            ) {
+            val showModeExport =
+                !editMode && mode != ReportMode.DAILY && selectedBranchId != null &&
+                    (mode != ReportMode.DATE_RANGE || appliedRange != null)
+            if (showModeExport) {
                 // #105 D4 — DATE_RANGE has no export until a window is applied (rendered only
                 // when enabled: a disabled button would still eat 360dp toolbar width). The
                 // key carries the branch (a superseded branch's late landing stays inert).
@@ -1313,21 +1314,24 @@ private fun ExpenseSection(
     LaunchedEffect(inFlight, editing) {
         val busyKey = editing?.let { "expense:update:${it.id}" }
         val busy = busyKey != null && busyKey in inFlight
-        if (editWasInFlight && !busy && editing != null && errors[busyKey] == null) editing = null
+        val editDone = editWasInFlight && !busy && editing != null && errors[busyKey] == null
+        if (editDone) editing = null
         editWasInFlight = busy
     }
     var deleteWasInFlight by remember { mutableStateOf(false) }
     LaunchedEffect(inFlight, deleting) {
         val busyKey = deleting?.let { "expense:delete:${it.id}" }
         val busy = busyKey != null && busyKey in inFlight
-        if (deleteWasInFlight && !busy && deleting != null && errors[busyKey] == null) deleting = null
+        val deleteDone = deleteWasInFlight && !busy && deleting != null && errors[busyKey] == null
+        if (deleteDone) deleting = null
         deleteWasInFlight = busy
     }
     var restoreWasInFlight by remember { mutableStateOf(false) }
     LaunchedEffect(inFlight, restoring) {
         val busyKey = restoring?.let { "expense:restore:${it.id}" }
         val busy = busyKey != null && busyKey in inFlight
-        if (restoreWasInFlight && !busy && restoring != null && errors[busyKey] == null) restoring = null
+        val restoreDone = restoreWasInFlight && !busy && restoring != null && errors[busyKey] == null
+        if (restoreDone) restoring = null
         restoreWasInFlight = busy
     }
     // Pass-1/2 HARD — a 409 closes the open edit dialog: it holds a stale expectedVersion, so a
@@ -1696,7 +1700,8 @@ private fun CompensationSection(
     LaunchedEffect(inFlight, editing) {
         val busyKey = editing?.let { "comp:update:${it.id}" }
         val busy = busyKey != null && busyKey in inFlight
-        if (editWasInFlight && !busy && editing != null && errors[busyKey] == null) editing = null
+        val editDone = editWasInFlight && !busy && editing != null && errors[busyKey] == null
+        if (editDone) editing = null
         editWasInFlight = busy
     }
     SectionHeader(
