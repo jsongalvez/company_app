@@ -309,6 +309,7 @@ internal fun UserManagementBranchDialogs(
  * screen builds the edit target straight from it — no id lookup, no silent no-op).
  */
 @Composable
+@Suppress("UnusedParameter") // #135 android tap-to-edit — onSwap kept for UserSlotOrderList symmetry
 fun MobileUserSlotOrderList(
     branchName: String,
     rows: List<UserSlotRow>,
