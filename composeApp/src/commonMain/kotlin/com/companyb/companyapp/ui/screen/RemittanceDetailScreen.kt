@@ -465,28 +465,17 @@ private fun RemittanceDetailContent(
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
-        Spacer(Modifier.size(Spacing.sm))
-        SectionLabel("Lines")
-        detail.lines.forEach { line ->
-            LineRow(
-                line = line,
-                label = lineLabel(line, sessionLabels, productSaleLabels),
-                deletable = isDraft,
-                deleting = deleteLineState is UiState.Loading,
-                onDelete = {
-                    if (deleteLineState !is UiState.Loading) {
-                        viewModel.deleteLine(remittanceId, line.id)
-                    }
-                },
-            )
-        }
-        DetailRow("Total", peso(detail.totalAmount))
-        if (isDraft) {
-            Row {
-                TextButton(onClick = onOpenSessionPicker) { Text("Add session income") }
-                TextButton(onClick = onOpenProductSalePicker) { Text("Add product sales income") }
-            }
-        }
+        RemittanceDetailLinesSection(
+            detail = detail,
+            sessionLabels = sessionLabels,
+            productSaleLabels = productSaleLabels,
+            isDraft = isDraft,
+            deleteLineState = deleteLineState,
+            viewModel = viewModel,
+            remittanceId = remittanceId,
+            onOpenSessionPicker = onOpenSessionPicker,
+            onOpenProductSalePicker = onOpenProductSalePicker,
+        )
 
         Spacer(Modifier.size(Spacing.sm))
         SectionLabel("Days covered")
@@ -684,6 +673,42 @@ private fun RemittanceDetailContent(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun RemittanceDetailLinesSection(
+    detail: RemittanceDetailResponse,
+    sessionLabels: Map<String, String>,
+    productSaleLabels: Map<String, String>,
+    isDraft: Boolean,
+    deleteLineState: UiState<Unit>,
+    viewModel: RemittanceViewModel,
+    remittanceId: String,
+    onOpenSessionPicker: () -> Unit,
+    onOpenProductSalePicker: () -> Unit,
+) {
+    Spacer(Modifier.size(Spacing.sm))
+    SectionLabel("Lines")
+    detail.lines.forEach { line ->
+        LineRow(
+            line = line,
+            label = lineLabel(line, sessionLabels, productSaleLabels),
+            deletable = isDraft,
+            deleting = deleteLineState is UiState.Loading,
+            onDelete = {
+                if (deleteLineState !is UiState.Loading) {
+                    viewModel.deleteLine(remittanceId, line.id)
+                }
+            },
+        )
+    }
+    DetailRow("Total", peso(detail.totalAmount))
+    if (isDraft) {
+        Row {
+            TextButton(onClick = onOpenSessionPicker) { Text("Add session income") }
+            TextButton(onClick = onOpenProductSalePicker) { Text("Add product sales income") }
+        }
     }
 }
 
