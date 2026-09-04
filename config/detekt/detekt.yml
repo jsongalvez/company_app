@@ -163,6 +163,7 @@ complexity:
     threshold: 600
     excludes:
       - '**/commonMain/**/viewmodel/FinanceReportsViewModel.kt'
+      - '**/commonMain/**/ui/screen/AuditLogScreen.kt'
   LongMethod:
     active: true
     threshold: 60
@@ -175,7 +176,6 @@ complexity:
     ignoreDataClasses: true
     ignoreAnnotatedParameter: []
     excludes:
-      - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
   MethodOverloading:
     active: false
     threshold: 6
@@ -218,7 +218,6 @@ complexity:
       - '**/iosTest/**'
       - '**/commonMain/**/viewmodel/SessionDashboardViewModel.kt'
       - '**/commonMain/**/viewmodel/FinanceReportsViewModel.kt'
-      - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
       - '**/commonMain/**/ui/screen/AuditLogScreen.kt'
     thresholdInFiles: 11
     thresholdInClasses: 11
