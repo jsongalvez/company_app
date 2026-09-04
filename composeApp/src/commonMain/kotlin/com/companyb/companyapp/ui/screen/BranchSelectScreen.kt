@@ -1,6 +1,5 @@
 package com.companyb.companyapp.ui.screen
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,13 +32,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.domain.BranchClockInStatus
-import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.MeBranchResponse
 import com.companyb.companyapp.dto.ReliefCandidateResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.ui.theme.Spacing
-import com.companyb.companyapp.ui.theme.rowHover
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.BranchSelectViewModel
@@ -280,51 +276,19 @@ private fun BranchCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = branch.branchName,
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                Text(
-                    text =
-                        when (branch.branchType) {
-                            BranchType.CLINIC -> "Clinic"
-                            BranchType.PROVINCIAL_TOUR -> "Provincial Tour"
-                            BranchType.MEDICAL_MISSION -> "Medical Mission"
-                        },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                Text(
-                    text = statusLabel(branch),
-                    style = MaterialTheme.typography.labelSmall,
-                    color =
-                        if (branch.clockInStatus == BranchClockInStatus.NOT_CLOCKED_IN) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        },
-                )
-            }
+            BranchCardInfo(
+                branch = branch,
+                modifier = Modifier.weight(1f),
+            )
 
             Spacer(modifier = Modifier.width(Spacing.sm))
 
             if (branch.clockInStatus == BranchClockInStatus.NOT_CLOCKED_IN) {
-                Button(
-                    onClick = onClockIn,
-                    enabled = canClockIn,
-                ) {
-                    if (isClockingIn) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    } else {
-                        Text("Clock In")
-                    }
-                }
+                BranchClockInButton(
+                    isClockingIn = isClockingIn,
+                    canClockIn = canClockIn,
+                    onClockIn = onClockIn,
+                )
             }
         }
         // #160 — inviter affordance, independent of clock-in (anyone assigned can invite;
@@ -545,46 +509,12 @@ private fun CandidateResults(
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
                     state.data.forEach { candidate ->
-                        Row(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clickable(enabled = dateValid && !sendBusy) {
-                                        onInvite(candidate)
-                                    }.rowHover(enabled = dateValid && !sendBusy)
-                                    .padding(vertical = Spacing.xs),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = candidate.displayName,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
-                                Text(
-                                    text = candidate.username,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            if (sendBusy) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                )
-                            } else {
-                                Text(
-                                    text = "Invite",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color =
-                                        if (dateValid) {
-                                            MaterialTheme.colorScheme.primary
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                        },
-                                )
-                            }
-                        }
+                        CandidateRow(
+                            candidate = candidate,
+                            dateValid = dateValid,
+                            sendBusy = sendBusy,
+                            onInvite = onInvite,
+                        )
                     }
                 }
             }

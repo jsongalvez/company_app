@@ -1,12 +1,31 @@
 package com.companyb.companyapp.ui.screen
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.domain.BranchClockInStatus
+import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.dto.MeBranchResponse
+import com.companyb.companyapp.dto.ReliefCandidateResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
+import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.ui.theme.rowHover
 import kotlinx.datetime.plus
 
 /** Destructive-action confirm (#377): revocation removes someone's granted access. */
@@ -74,3 +93,111 @@ internal fun statusLabel(branch: MeBranchResponse): String =
             "Not clocked in"
         }
     }
+
+/** Branch card identity block: name, type, and clock-in status lines. */
+@Composable
+internal fun BranchCardInfo(
+    branch: MeBranchResponse,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = branch.branchName,
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        Text(
+            text =
+                when (branch.branchType) {
+                    BranchType.CLINIC -> "Clinic"
+                    BranchType.PROVINCIAL_TOUR -> "Provincial Tour"
+                    BranchType.MEDICAL_MISSION -> "Medical Mission"
+                },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        Text(
+            text = statusLabel(branch),
+            style = MaterialTheme.typography.labelSmall,
+            color =
+                if (branch.clockInStatus == BranchClockInStatus.NOT_CLOCKED_IN) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+        )
+    }
+}
+
+/** Clock-in action with busy spinner; rendered only for NOT_CLOCKED_IN branches. */
+@Composable
+internal fun BranchClockInButton(
+    isClockingIn: Boolean,
+    canClockIn: Boolean,
+    onClockIn: () -> Unit,
+) {
+    Button(
+        onClick = onClockIn,
+        enabled = canClockIn,
+    ) {
+        if (isClockingIn) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Text("Clock In")
+        }
+    }
+}
+
+/** Single candidate row: identity plus Invite affordance gated on a valid date. */
+@Composable
+internal fun CandidateRow(
+    candidate: ReliefCandidateResponse,
+    dateValid: Boolean,
+    sendBusy: Boolean,
+    onInvite: (ReliefCandidateResponse) -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(enabled = dateValid && !sendBusy) {
+                    onInvite(candidate)
+                }.rowHover(enabled = dateValid && !sendBusy)
+                .padding(vertical = Spacing.xs),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = candidate.displayName,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = candidate.username,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (sendBusy) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Text(
+                text = "Invite",
+                style = MaterialTheme.typography.labelMedium,
+                color =
+                    if (dateValid) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+            )
+        }
+    }
+}
