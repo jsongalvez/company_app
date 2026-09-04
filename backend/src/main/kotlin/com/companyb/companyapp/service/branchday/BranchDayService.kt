@@ -110,6 +110,51 @@ object BranchDayService {
     ): BranchDay? = BranchDayRepository.findByBranchAndDate(branchId, date)
 
     /**
+     * Today-scoped edit gate (#452: one gate for session create/preview, the branch-day
+     * status read, and the member directory). Find-only today resolution ([findToday] —
+     * never creates, so a 403'd attempt leaves no day row behind) plus the #157
+     * BRANCH-or-BRANCH_DAY OR: with a day row, a grant at the branch or a relief grant
+     * for today passes; with no day row, the plain BRANCH leg alone governs (no day
+     * grant can exist without its day row). GLOBAL grants never satisfy this gate
+     * (the #131 strictness — the OR adds only the narrower day-scoped form).
+     */
+    fun hasBranchOrDayForToday(
+        userId: UUID,
+        branchId: UUID,
+        capabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
+    ): Boolean {
+        val todayBranchDayId = findToday(branchId)?.id
+        return if (todayBranchDayId != null) {
+            CapabilityService.hasCapabilityForBranchDay(userId, capabilityCode, branchId, todayBranchDayId)
+        } else {
+            CapabilityService.hasCapability(userId, capabilityCode, CapabilityContextType.BRANCH, branchId)
+        }
+    }
+
+    /**
+     * Throwing twin of [hasBranchOrDayForToday]. Returns today's branch-day id (null when
+     * no day row exists yet) so gates whose write must share the resolution — the session
+     * create's midnight-boundary handoff — can reuse it instead of re-resolving.
+     *
+     * @throws ForbiddenException if the caller holds neither the BRANCH nor the
+     * day-scoped grant.
+     */
+    fun requireBranchOrDayForToday(
+        userId: UUID,
+        branchId: UUID,
+        capabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
+        message: String = "$capabilityCode capability required for this branch or day",
+    ): UUID? {
+        val todayBranchDayId = findToday(branchId)?.id
+        if (todayBranchDayId != null) {
+            CapabilityService.requireCapabilityForBranchDay(userId, capabilityCode, branchId, todayBranchDayId, message)
+        } else {
+            CapabilityService.requireCapability(userId, capabilityCode, CapabilityContextType.BRANCH, branchId, message)
+        }
+        return todayBranchDayId
+    }
+
+    /**
      * Returns the effective status of a branch day, applying lazy evaluation:
      * an OPEN day whose date precedes the current operational date is treated as PAST.
      * Returns null if the branch day does not exist.

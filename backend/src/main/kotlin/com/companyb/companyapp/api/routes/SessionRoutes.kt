@@ -25,7 +25,6 @@ import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.service.ConcernService
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.dashboard.DashboardService
 import com.companyb.companyapp.service.session.SessionService
 import io.javalin.config.JavalinConfig
@@ -185,21 +184,13 @@ object SessionRoutes {
             if (context.method() != HandlerType.POST) return@before
             val request = context.bodyAsClass<CreateSessionRequest>()
             val branchId = uuidOrThrow(request.branchId, "branch id")
-            // Day-scoped (#157): a BRANCH_DAY relief grant for today satisfies the create gate.
-            // Find-only (never creates): a missing day means no BRANCH_DAY grant can exist for
-            // it, so the plain branch check covers the no-day case; a 403'd attempt must not
-            // leave a day row behind. The resolved day is handed to the handler so the gate and
-            // the write share one resolution (no midnight-boundary divergence).
-            val todayBranchDay = BranchDayService.findToday(branchId)
-            if (todayBranchDay != null) {
-                CapabilityFilter.requireBranchOrBranchDayCapability(context, todayBranchDay.id)
-                context.attribute(GATED_BRANCH_DAY_ATTR, todayBranchDay.id)
-            } else {
-                CapabilityFilter.requireBranchCapabilityForBranchId(
-                    context,
-                    branchId,
-                    CapabilityCodes.EDIT_BRANCH_DATA,
-                )
+            // Day-scoped (#157) via the shared today gate (#452): a BRANCH_DAY relief
+            // grant for today satisfies the create gate. The resolved day is handed to
+            // the handler so the gate and the write share one resolution (no
+            // midnight-boundary divergence); a 403'd attempt leaves no day row behind.
+            val gatedDayId = CapabilityFilter.requireBranchOrDayForBranch(context, branchId)
+            if (gatedDayId != null) {
+                context.attribute(GATED_BRANCH_DAY_ATTR, gatedDayId)
             }
         }
 
@@ -322,19 +313,9 @@ object SessionRoutes {
         config.routes.post(ApiRoutes.SESSION_PROMOTE_CONCERN_PATH, ::handlePromoteConcern)
         config.routes.before(ApiRoutes.BRANCH_SESSION_PREVIEW_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
-            // Same find-only day shape as the create gate (#157): a BRANCH_DAY relief grant for
-            // today satisfies the preview exactly when it would satisfy the create it previews;
-            // a missing day row means no day grant can exist — the plain branch check covers it.
-            val todayBranchDay = BranchDayService.findToday(branchId)
-            if (todayBranchDay != null) {
-                CapabilityFilter.requireBranchOrBranchDayCapability(context, todayBranchDay.id)
-            } else {
-                CapabilityFilter.requireBranchCapabilityForBranchId(
-                    context,
-                    branchId,
-                    CapabilityCodes.EDIT_BRANCH_DATA,
-                )
-            }
+            // Same gate as the create it previews (#452): the preview passes exactly
+            // when the create would.
+            CapabilityFilter.requireBranchOrDayForBranch(context, branchId)
         }
         config.routes.get(ApiRoutes.BRANCH_SESSION_PREVIEW_PATH, ::handleGetSessionPreview)
     }

@@ -37,24 +37,9 @@ object BranchDayRoutes {
     fun register(config: JavalinConfig) {
         config.routes.before(ApiRoutes.BRANCH_TODAY_PATH) { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            // #158 — the day-status read accepts the relief grant: a BRANCH_DAY
-            // `EDIT_BRANCH_DATA` holder reads today's status for their granted day.
-            // The day resolves find-only; a missing day row means no day grant can
-            // exist for it, and the plain branch gate governs.
-            val todayDay = BranchDayService.findToday(branchId)
-            if (todayDay != null) {
-                CapabilityFilter.requireBranchOrBranchDayCapability(
-                    context,
-                    todayDay.id,
-                    CapabilityCodes.EDIT_BRANCH_DATA,
-                )
-            } else {
-                CapabilityFilter.requireBranchCapabilityForBranchId(
-                    context,
-                    branchId,
-                    CapabilityCodes.EDIT_BRANCH_DATA,
-                )
-            }
+            // #158 via the shared today gate (#452): a BRANCH_DAY relief grant for today
+            // reads today's status for its granted day.
+            CapabilityFilter.requireBranchOrDayForBranch(context, branchId)
         }
 
         config.routes.before(ApiRoutes.BRANCH_DAY_USERS_PATH) { context ->

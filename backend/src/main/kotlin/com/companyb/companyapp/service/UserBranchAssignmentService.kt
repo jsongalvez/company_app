@@ -50,6 +50,14 @@ object UserBranchAssignmentService {
         )
     }
 
+    private fun canManageUsers(callerId: UUID): Boolean =
+        CapabilityService.hasCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.MANAGE_USERS,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+        )
+
     data class CreateResult(
         val assignment: UserBranchAssignment,
         val created: Boolean,
@@ -147,13 +155,7 @@ object UserBranchAssignmentService {
         assignmentId: UUID,
         newSlot: Short,
     ) {
-        val canManage =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = CapabilityCodes.MANAGE_USERS,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
+        val canManage = canManageUsers(callerId)
         val assignment =
             transaction {
                 val target =
@@ -181,13 +183,7 @@ object UserBranchAssignmentService {
             throw ValidationException("Cannot swap an assignment with itself")
         }
 
-        val canManage =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = CapabilityCodes.MANAGE_USERS,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
+        val canManage = canManageUsers(callerId)
         transaction {
             // FOR UPDATE on both rows (materialized via singleOrNull — the #136 lazy-lock
             // lesson) serializes swap against concurrent remove/updateSlot on either user.
@@ -231,13 +227,10 @@ object UserBranchAssignmentService {
      * precedent for this surface): a caller passes with either an ACTIVE assignment row
      * at the branch — no capability code involved, so a practitioner without
      * MANAGE_USERS can still read their own branch's names (#366 rule) — or, since
-     * #402, an `EDIT_BRANCH_DATA` grant at the branch: BRANCH or BRANCH_DAY-for-today
-     * via [CapabilityService.hasCapabilityForBranchDay] when a day row exists, plain
-     * BRANCH when none does yet (the session-create fallback; GLOBAL deliberately
-     * excluded per the #131 strictness). The relief leg mirrors the
-     * session-create gate exactly (#157 find-only day resolution), so anyone allowed to
-     * create sessions or add practitioners at the branch today can load the names those
-     * flows need; off-duty non-members still 403.
+     * #402, the shared today gate (#452): a BRANCH or BRANCH_DAY-for-today
+     * `EDIT_BRANCH_DATA` grant (GLOBAL excluded per #131), mirroring the session-create
+     * gate exactly, so anyone allowed to create sessions at the branch today can load
+     * the names those flows need; off-duty non-members still 403.
      */
     fun listActiveMembers(
         callerId: UUID,
@@ -245,33 +238,11 @@ object UserBranchAssignmentService {
     ): List<BranchMemberRow> {
         val assignment = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId)
         if (assignment == null) {
-            // Same resolution as the session-create gate (#157): find-only day lookup so
-            // gate and downstream writes never disagree about which day governs. With a
-            // day row, BRANCH and BRANCH_DAY grants pass (GLOBAL excluded — #131); with
-            // no day row yet, the plain BRANCH leg alone governs, matching
-            // SessionRoutes' create fallback.
-            val todayBranchDay = BranchDayService.findToday(branchId)
-            val authorized =
-                if (todayBranchDay != null) {
-                    CapabilityService.hasCapabilityForBranchDay(
-                        userId = callerId,
-                        capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-                        branchId = branchId,
-                        branchDayId = todayBranchDay.id,
-                    )
-                } else {
-                    CapabilityService.hasCapability(
-                        userId = callerId,
-                        capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-                        contextType = CapabilityContextType.BRANCH,
-                        contextId = branchId,
-                    )
-                }
-            if (!authorized) {
-                throw ForbiddenException(
-                    "Active membership or a today-scoped edit grant required to view this branch's members",
-                )
-            }
+            BranchDayService.requireBranchOrDayForToday(
+                userId = callerId,
+                branchId = branchId,
+                message = "Active membership or a today-scoped edit grant required to view this branch's members",
+            )
         }
         return BranchMemberRepository.findActiveMemberNames(branchId)
     }

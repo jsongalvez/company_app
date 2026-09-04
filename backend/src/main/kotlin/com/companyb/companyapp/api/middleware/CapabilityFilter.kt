@@ -183,6 +183,27 @@ object CapabilityFilter {
     }
 
     /**
+     * Today-scoped gate for branch-uuid routes (#452): the HTTP entry to
+     * [BranchDayService.requireBranchOrDayForToday] — find-only today resolution plus the
+     * BRANCH-or-BRANCH_DAY OR (GLOBAL excluded per #131). Returns today's branch-day id
+     * (null when no day row exists) so gates sharing the resolution with their write —
+     * the session create's midnight-boundary handoff — can reuse it.
+     *
+     * Throws [com.companyb.companyapp.exception.ForbiddenException] (403) if the caller
+     * holds neither form.
+     */
+    fun requireBranchOrDayForBranch(
+        context: Context,
+        branchId: UUID,
+        capabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
+    ): UUID? =
+        BranchDayService.requireBranchOrDayForToday(
+            userId = context.callerUuid(),
+            branchId = branchId,
+            capabilityCode = capabilityCode,
+        )
+
+    /**
      * Day-scoped variant (#157): enforces [capabilityCode] for the given [branchDayId] —
      * either BRANCH-scoped at the day's branch OR BRANCH_DAY-scoped for the day itself.
      * A relief grant (`BRANCH_DAY` context, day-scoped, windowed) satisfies the branch
