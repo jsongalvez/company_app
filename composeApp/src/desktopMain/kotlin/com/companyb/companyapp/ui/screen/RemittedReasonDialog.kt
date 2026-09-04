@@ -26,6 +26,9 @@ internal fun RemittedReasonDialog(
     statusValues: List<String>,
     actions: RemittedEditActions,
 ) {
+    // #477 — the value control without auto-commit (the Confirm button owns it);
+    // the reason must be collected before submit.
+    val inline = InlineEditActions(actions.onDraftChange, {}, actions.onDiscard)
     AlertDialog(
         onDismissRequest = actions.onDiscard,
         title = { Text("Reason required") },
@@ -37,30 +40,7 @@ internal fun RemittedReasonDialog(
                             "correcting it — the note goes to the audit log.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                when (edit.field) {
-                    DashboardEditField.STATUS -> {
-                        SelectEditor(
-                            values = statusValues,
-                            edit = edit,
-                            canEdit = canEdit,
-                            onDraftChange = actions.onDraftChange,
-                            onCommit = {},
-                            onDiscard = actions.onDiscard,
-                            autoCommit = false,
-                        )
-                    }
-
-                    DashboardEditField.FINAL_PRICE -> {
-                        PriceEditor(
-                            edit = edit,
-                            onDraftChange = actions.onDraftChange,
-                            onCommit = {},
-                            onDiscard = actions.onDiscard,
-                            autoCommit = false,
-                            canEdit = canEdit,
-                        )
-                    }
-                }
+                EditControl(edit, canEdit, statusValues, inline, autoCommit = false)
                 OutlinedTextField(
                     value = edit.reason,
                     onValueChange = actions.onReasonChange,

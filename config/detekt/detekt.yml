@@ -175,7 +175,6 @@ complexity:
     ignoreDataClasses: true
     ignoreAnnotatedParameter: []
     excludes:
-      - '**/desktopMain/**/ui/screen/SessionList.desktop.kt'
       - '**/commonMain/**/viewmodel/ApiCallHandler.kt'
       - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
       - '**/commonMain/**/ui/screen/UserManagementScreen.kt'
@@ -221,7 +220,6 @@ complexity:
       - '**/androidInstrumentedTest/**'
       - '**/jsTest/**'
       - '**/iosTest/**'
-      - '**/desktopMain/**/ui/screen/SessionList.desktop.kt'
       - '**/commonMain/**/viewmodel/AuditLogViewModel.kt'
       - '**/commonMain/**/viewmodel/RemittanceViewModel.kt'
       - '**/commonMain/**/viewmodel/SessionViewModel.kt'
