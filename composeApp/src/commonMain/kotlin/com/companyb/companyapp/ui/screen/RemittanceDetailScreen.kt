@@ -413,6 +413,79 @@ private fun RemittanceDetailContent(
 ) {
     val isDraft = detail.status == com.companyb.companyapp.domain.RemittanceStatus.DRAFT
 
+    val dayLabels =
+        (dayPickerState as? UiState.Success)
+            ?.data
+            ?.associate { it.id to it }
+            .orEmpty()
+
+    RemittanceDetailContentBody(
+        detail = detail,
+        sessionPickerState = sessionPickerState,
+        productSalePickerState = productSalePickerState,
+        dayLabels = dayLabels,
+        isDraft = isDraft,
+        deleteLineState = deleteLineState,
+        deleteDayBreakdownState = deleteDayBreakdownState,
+        driftState = driftState,
+        viewModel = viewModel,
+        remittanceId = remittanceId,
+        onOpenHeaderDialog = onOpenHeaderDialog,
+        onOpenSessionPicker = onOpenSessionPicker,
+        onOpenProductSalePicker = onOpenProductSalePicker,
+        onOpenDayPicker = onOpenDayPicker,
+        onOpenSubmitDialog = onOpenSubmitDialog,
+        onOpenUndoDialog = onOpenUndoDialog,
+    )
+
+    RemittanceDetailContentDialogs(
+        detail = detail,
+        branchId = branchId,
+        sessionPickerState = sessionPickerState,
+        productSalePickerState = productSalePickerState,
+        dayPickerState = dayPickerState,
+        lineState = lineState,
+        dayBreakdownState = dayBreakdownState,
+        submitState = submitState,
+        undoState = undoState,
+        headerUpdateState = headerUpdateState,
+        dayLabels = dayLabels,
+        viewModel = viewModel,
+        remittanceId = remittanceId,
+        showHeaderDialog = showHeaderDialog,
+        showSessionPicker = showSessionPicker,
+        showProductSalePicker = showProductSalePicker,
+        showDayPicker = showDayPicker,
+        showSubmitDialog = showSubmitDialog,
+        showUndoDialog = showUndoDialog,
+        onCloseHeaderDialog = onCloseHeaderDialog,
+        onCloseSessionPicker = onCloseSessionPicker,
+        onCloseProductSalePicker = onCloseProductSalePicker,
+        onCloseDayPicker = onCloseDayPicker,
+        onCloseSubmitDialog = onCloseSubmitDialog,
+        onCloseUndoDialog = onCloseUndoDialog,
+    )
+}
+
+@Composable
+private fun RemittanceDetailContentBody(
+    detail: RemittanceDetailResponse,
+    sessionPickerState: UiState<List<RemittanceSessionPickerEntryResponse>>,
+    productSalePickerState: UiState<List<RemittanceProductSalePickerEntryResponse>>,
+    dayLabels: Map<String, RemittanceDayPickerEntryResponse>,
+    isDraft: Boolean,
+    deleteLineState: UiState<Unit>,
+    deleteDayBreakdownState: UiState<Unit>,
+    driftState: UiState<RemittanceDriftResponse>,
+    viewModel: RemittanceViewModel,
+    remittanceId: String,
+    onOpenHeaderDialog: () -> Unit,
+    onOpenSessionPicker: () -> Unit,
+    onOpenProductSalePicker: () -> Unit,
+    onOpenDayPicker: () -> Unit,
+    onOpenSubmitDialog: () -> Unit,
+    onOpenUndoDialog: () -> Unit,
+) {
     val sessionLabels =
         (sessionPickerState as? UiState.Success)
             ?.data
@@ -422,11 +495,6 @@ private fun RemittanceDetailContent(
         (productSalePickerState as? UiState.Success)
             ?.data
             ?.associate { it.id to it.productName }
-            .orEmpty()
-    val dayLabels =
-        (dayPickerState as? UiState.Success)
-            ?.data
-            ?.associate { it.id to it }
             .orEmpty()
 
     Column(
@@ -472,7 +540,36 @@ private fun RemittanceDetailContent(
             onOpenUndoDialog = onOpenUndoDialog,
         )
     }
+}
 
+@Composable
+private fun RemittanceDetailContentDialogs(
+    detail: RemittanceDetailResponse,
+    branchId: String?,
+    sessionPickerState: UiState<List<RemittanceSessionPickerEntryResponse>>,
+    productSalePickerState: UiState<List<RemittanceProductSalePickerEntryResponse>>,
+    dayPickerState: UiState<List<RemittanceDayPickerEntryResponse>>,
+    lineState: UiState<RemittanceLineResponse>,
+    dayBreakdownState: UiState<RemittanceDayBreakdownResponse>,
+    submitState: UiState<RemittanceSubmitResponse>,
+    undoState: UiState<RemittanceResponse>,
+    headerUpdateState: UiState<RemittanceResponse>,
+    dayLabels: Map<String, RemittanceDayPickerEntryResponse>,
+    viewModel: RemittanceViewModel,
+    remittanceId: String,
+    showHeaderDialog: Boolean,
+    showSessionPicker: Boolean,
+    showProductSalePicker: Boolean,
+    showDayPicker: Boolean,
+    showSubmitDialog: Boolean,
+    showUndoDialog: Boolean,
+    onCloseHeaderDialog: () -> Unit,
+    onCloseSessionPicker: () -> Unit,
+    onCloseProductSalePicker: () -> Unit,
+    onCloseDayPicker: () -> Unit,
+    onCloseSubmitDialog: () -> Unit,
+    onCloseUndoDialog: () -> Unit,
+) {
     RemittanceDetailHeaderEditHost(
         detail = detail,
         headerUpdateState = headerUpdateState,
