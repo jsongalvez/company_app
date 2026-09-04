@@ -1,9 +1,5 @@
 package com.companyb.companyapp.ui.screen
 
-import com.companyb.companyapp.domain.DayStatus
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.isStatusCorrection
-import com.companyb.companyapp.domain.isStatusTransitionAllowed
 import com.companyb.companyapp.dto.DashboardSessionResponse
 
 /**
@@ -45,77 +41,6 @@ fun DashboardSessionResponse.fieldValue(field: DashboardEditField): String =
         DashboardEditField.FINAL_PRICE -> finalPrice
     }
 
-/**
- * #425 — client mirror of backend session status transitions. The current value remains in the
- * list for display, but only legal targets are offered. Correction targets are fail-closed
- * unless caller has Coordinator authority; COMPLETED rows have no status edit affordance.
- */
-internal fun statusOptionsFor(
-    isWalkIn: Boolean,
-    currentStatus: SessionStatus,
-    hasCorrectionAuthority: Boolean,
-    dayStatus: DayStatus?,
-): List<String> =
-    SessionStatus.entries
-        .filter { target -> statusTargetAllowed(target, isWalkIn, currentStatus, hasCorrectionAuthority, dayStatus) }
-        .map { it.name }
-
-private fun statusTargetAllowed(
-    target: SessionStatus,
-    isWalkIn: Boolean,
-    currentStatus: SessionStatus,
-    hasCorrectionAuthority: Boolean,
-    dayStatus: DayStatus?,
-): Boolean =
-    when {
-        target == currentStatus -> true
-        dayStatus == null -> false
-        dayStatus != DayStatus.OPEN && !hasCorrectionAuthority -> false
-        !isStatusTransitionAllowed(currentStatus, target, isWalkIn) -> false
-        isStatusCorrection(currentStatus, target) && !hasCorrectionAuthority -> false
-        else -> true
-    }
-
-internal fun statusEditAllowed(
-    isWalkIn: Boolean,
-    currentStatus: SessionStatus,
-    hasCorrectionAuthority: Boolean,
-    dayStatus: DayStatus?,
-): Boolean =
-    statusOptionsFor(isWalkIn, currentStatus, hasCorrectionAuthority, dayStatus)
-        .any { it != currentStatus.name }
-
-/**
- * Semantic price equality: "2750" == "2750.00" == "2750.0" (the backend normalizes to
- * plain strings of varying scale; the draft is raw input).
- */
-internal fun pricesEqual(
-    a: String,
-    b: String,
-): Boolean = normalizePrice(a) == normalizePrice(b)
-
-internal fun normalizePrice(raw: String): String {
-    var value = raw.trim()
-    if ('.' in value) {
-        value = value.trimEnd('0').trimEnd('.')
-    }
-    return value
-}
-
-/**
- * Client mirror of the backend's price validation (parseNonNegativeBigDecimal): blank /
- * negative / non-numeric drafts are rejected before dispatch (the #135 parseSlotInput
- * mirror pattern — a rejected draft gets the inline error instead of a wire 400).
- * Values with >2 decimals pass (the backend rounds them server-side, authoritative).
- */
-internal fun finalPriceInputValid(raw: String): Boolean = raw.trim().matches(Regex("""\d+(\.\d+)?"""))
-
-internal fun fieldValuesEqual(
-    a: String,
-    b: String,
-    field: DashboardEditField,
-): Boolean = if (field == DashboardEditField.FINAL_PRICE) pricesEqual(a, b) else a == b
-
 /** A commit whose draft equals the displayed value is a no-op exit (no request). */
 fun draftChanged(
     state: DashboardEditState,
@@ -156,16 +81,6 @@ fun DashboardEditState.withDraft(value: String): DashboardEditState =
 /** The PATCH is dispatched: the cell dims + spinners; the draft stays (pessimistic). */
 fun DashboardEditState.asInFlight(): DashboardEditState =
     copy(inFlight = true, error = null, conflict = false, fieldChangedRemotely = false)
-
-/**
- * #403 — the backend demands a non-blank reason for any write on a REMITTED day
- * (BranchDayService.assertEditableState); unknown (null) day state degrades to
- * optional — the server 400 still guards.
- */
-fun remittedReasonRequired(dayStatus: DayStatus?): Boolean = dayStatus == DayStatus.REMITTED
-
-/** Wire form of the reason: trimmed; blank becomes null so non-remitted bodies stay byte-identical. */
-internal fun normalizedReason(raw: String): String = raw.trim()
 
 /** Typing a reason clears the inline error under the same rule as [withDraft]. */
 fun DashboardEditState.withReason(value: String): DashboardEditState =
