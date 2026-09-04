@@ -103,6 +103,75 @@ fun ClientDetailScreen(
         viewModel.loadClient(clientId, publishMutation = true)
     }
 
+    ClientDetailScreenStatusEffects(
+        anonymizeState = anonymizeState,
+        detailState = detailState,
+        updateState = updateState,
+        onAnonymized = onAnonymized,
+    )
+
+    Column(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(Spacing.md),
+    ) {
+        ClientDetailBackRow(onBack = onBack, navigationLocked = navigationLocked)
+
+        when (val state = detailState) {
+            is UiState.Idle, is UiState.Loading -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            is UiState.Error -> {
+                ClientDetailLoadError(
+                    message = state.message,
+                    onRetry = { viewModel.loadClient(clientId, publishMutation = true) },
+                )
+            }
+
+            is UiState.Success -> {
+                if (changedNotice) {
+                    Text(
+                        text = "Client was updated elsewhere — changes reloaded",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = Spacing.sm),
+                    )
+                }
+                ClientDetailContent(
+                    client = state.data,
+                    updateState = updateState,
+                    anonymizeState = anonymizeState,
+                    navigationLocked = navigationLocked,
+                    viewModel = viewModel,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ClientDetailBackRow(
+    onBack: () -> Unit,
+    navigationLocked: Boolean,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = onBack, enabled = !navigationLocked) {
+            Text("Back")
+        }
+    }
+}
+
+@Composable
+private fun ClientDetailScreenStatusEffects(
+    anonymizeState: UiState<Unit>,
+    detailState: UiState<ClientResponse>,
+    updateState: UiState<ClientResponse>,
+    onAnonymized: () -> Unit,
+) {
     // D1 — 204 → pop back to search; the confirmation snackbar is shown by ClientsScreen
     // (ClientState.anonymizeNotice).
     LaunchedEffect(anonymizeState) {
@@ -130,59 +199,24 @@ fun ClientDetailScreen(
             logWarn("ClientDetailScreen", "updateState=Error: ${it.message}")
         }
     }
+}
 
-    Column(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(Spacing.md),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack, enabled = !navigationLocked) {
-                Text("Back")
-            }
-        }
-
-        when (val state = detailState) {
-            is UiState.Idle, is UiState.Loading -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            }
-
-            is UiState.Error -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
-                        Column(modifier = Modifier.padding(Spacing.md)) {
-                            Text(
-                                text = state.message,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            TextButton(onClick = { viewModel.loadClient(clientId, publishMutation = true) }) {
-                                Text("Retry")
-                            }
-                        }
-                    }
-                }
-            }
-
-            is UiState.Success -> {
-                if (changedNotice) {
-                    Text(
-                        text = "Client was updated elsewhere — changes reloaded",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(bottom = Spacing.sm),
-                    )
-                }
-                ClientDetailContent(
-                    client = state.data,
-                    updateState = updateState,
-                    anonymizeState = anonymizeState,
-                    navigationLocked = navigationLocked,
-                    viewModel = viewModel,
+@Composable
+private fun ClientDetailLoadError(
+    message: String,
+    onRetry: () -> Unit,
+) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
+            Column(modifier = Modifier.padding(Spacing.md)) {
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
+                TextButton(onClick = onRetry) {
+                    Text("Retry")
+                }
             }
         }
     }
