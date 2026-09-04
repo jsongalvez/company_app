@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -223,15 +222,9 @@ fun UserManagementScreen(
                     pickerDisabled = mutationsDisabled,
                     createEnabled = !mutationsDisabled,
                     assignEnabled = !mutationsDisabled && heldList != null,
-                    assignmentError =
-                        if (assignmentResult is UiState.Error &&
-                            removeAssignmentTarget == null &&
-                            !showAssignUserDialog
-                        ) {
-                            (assignmentResult as UiState.Error).message
-                        } else {
-                            null
-                        },
+                    assignmentResult = assignmentResult,
+                    removeAssignmentTarget = removeAssignmentTarget,
+                    showAssignDialog = showAssignUserDialog,
                 ),
         )
 
@@ -328,20 +321,11 @@ fun UserManagementScreen(
                 }
             }
 
-            users is UiState.Error -> {
-                val errorState = users as UiState.Error
-                // LaunchedEffect form (not inline) so the sticky error state doesn't re-log
-                // on every recomposition (e.g. search keystrokes) — same guard as BranchPicker.
-                LaunchedEffect(errorState) {
-                    logWarn("UserManagementScreen", "usersState=Error: ${errorState.message}")
-                }
-                ErrorCard(message = errorState.message, onRetry = { viewModel.loadUsers() })
-            }
-
             else -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
+                UserManagementLoadFallback(
+                    users = users,
+                    onRetry = { viewModel.loadUsers() },
+                )
             }
         }
     }

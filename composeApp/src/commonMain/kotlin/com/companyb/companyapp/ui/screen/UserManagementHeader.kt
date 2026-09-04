@@ -1,17 +1,22 @@
 package com.companyb.companyapp.ui.screen
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
+import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.UserSlotRow
 
@@ -117,9 +122,20 @@ internal fun UserManagementBranchAdmin(
             Text("Assign user to ${selectedBranch.name}")
         }
     }
-    if (actions.assignmentError != null) {
+    // Assignment error derivation lives here (not the Screen call site) for the #462
+    // LongMethod burn — the Screen passes the raw states and this host owns the gate.
+    val assignmentError =
+        if (actions.assignmentResult is UiState.Error &&
+            actions.removeAssignmentTarget == null &&
+            !actions.showAssignDialog
+        ) {
+            (actions.assignmentResult as UiState.Error).message
+        } else {
+            null
+        }
+    if (assignmentError != null) {
         Text(
-            text = actions.assignmentError,
+            text = assignmentError,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error,
         )
@@ -278,4 +294,32 @@ internal fun UserManagementEmptyContent(searchQuery: String) {
                 "No users match \"$searchQuery\""
             },
     )
+}
+
+/**
+ * Cold-start fallback hoisted out of [UserManagementScreen] for the #462 LongMethod
+ * burn-down (status-when slimming). Lives here (not same-file) because
+ * UserManagementScreen.kt sits at the detekt file-function wall — a same-file helper
+ * trips TooManyFunctions. Owns the two non-list branches of the Screen's status when:
+ * the users-leg ErrorCard and the cold-start spinner. The retry stays ungated (verbatim —
+ * the reload-error strip inside the list owns the only gated retry).
+ */
+@Composable
+internal fun UserManagementLoadFallback(
+    users: UiState<List<UserSummaryResponse>>,
+    onRetry: () -> Unit,
+) {
+    val errorState = users as? UiState.Error
+    // LaunchedEffect form (not inline) so the sticky error state doesn't re-log
+    // on every recomposition (e.g. search keystrokes) — same guard as BranchPicker.
+    LaunchedEffect(errorState) {
+        errorState?.let { logWarn("UserManagementScreen", "usersState=Error: ${it.message}") }
+    }
+    if (errorState != null) {
+        ErrorCard(message = errorState.message, onRetry = onRetry)
+    } else {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    }
 }

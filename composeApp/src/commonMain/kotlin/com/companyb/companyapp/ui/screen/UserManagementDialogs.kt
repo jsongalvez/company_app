@@ -37,6 +37,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.domain.UserStatus
+import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.InviteMintRequest
 import com.companyb.companyapp.dto.InviteMintResponse
 import com.companyb.companyapp.dto.RoleResponse
@@ -101,7 +102,9 @@ internal data class UserManagementBranchAdminActions(
     val pickerDisabled: Boolean,
     val createEnabled: Boolean,
     val assignEnabled: Boolean,
-    val assignmentError: String?,
+    val assignmentResult: UiState<AssignmentResponse>,
+    val removeAssignmentTarget: AssignmentRemovalTarget?,
+    val showAssignDialog: Boolean,
 )
 
 /**
