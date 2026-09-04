@@ -90,23 +90,10 @@ fun DrawerContent(
     val selectedRoute = navController.currentRoute()
 
     Column(modifier = modifier) {
-        // Q4 — header: username above selectedBranchName (who-then-where), no app name
-        // (identity-over-branding axis per Q4a; app name redundant with desktop window chrome
-        // + Android launcher label). Typography ladder encodes hierarchy: titleLarge = 22sp
-        // semibold (CardTitle slot per LinearTheme.kt:104) over bodyMedium = 14sp regular.
-        Column(Modifier.padding(Spacing.lg)) {
-            Text(
-                text = currentUser?.username ?: "",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            // ink-subtle — #96 Q4b; LinearTheme.kt exposes InkSubtle public for this slot.
-            Text(
-                text = selectedBranchName ?: "",
-                style = MaterialTheme.typography.bodyMedium,
-                color = InkSubtle,
-            )
-        }
+        DrawerHeader(
+            username = currentUser?.username,
+            branchName = selectedBranchName,
+        )
         // Q4 — hairline divider below header (not above — separates header from items);
         // not boxed in a card (drawer is surface-1, card-in-a-card is the noise ADR-0020 avoids).
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
@@ -156,6 +143,30 @@ fun DrawerContent(
                 }
                 onItemNavigated()
             },
+        )
+    }
+}
+
+@Composable
+private fun DrawerHeader(
+    username: String?,
+    branchName: String?,
+) {
+    // Q4 — header: username above branchName (who-then-where), no app name
+    // (identity-over-branding axis per Q4a; app name redundant with desktop window chrome
+    // + Android launcher label). Typography ladder encodes hierarchy: titleLarge = 22sp
+    // semibold (CardTitle slot per LinearTheme.kt:104) over bodyMedium = 14sp regular.
+    Column(Modifier.padding(Spacing.lg)) {
+        Text(
+            text = username ?: "",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        // ink-subtle — #96 Q4b; LinearTheme.kt exposes InkSubtle public for this slot.
+        Text(
+            text = branchName ?: "",
+            style = MaterialTheme.typography.bodyMedium,
+            color = InkSubtle,
         )
     }
 }
