@@ -1478,13 +1478,76 @@ private fun ExpenseSection(
     var editing by remember { mutableStateOf<ExpenseResponse?>(null) }
     var deleting by remember { mutableStateOf<ExpenseResponse?>(null) }
     var restoring by remember { mutableStateOf<ExpenseResponse?>(null) }
+    ExpenseSectionEffects(
+        viewModel = viewModel,
+        conflicts = conflicts,
+        inFlight = inFlight,
+        errors = errors,
+        editing = editing,
+        deleting = deleting,
+        restoring = restoring,
+        onCreateClose = { showExpenseDialog = false },
+        onEditClear = { editing = null },
+        onDeleteClear = { deleting = null },
+        onRestoreClear = { restoring = null },
+    )
+    SectionHeader(
+        title = "Expenses",
+        actionLabel = "Add expense",
+        onAction = { showExpenseDialog = true },
+        showAction = !readOnly,
+    )
+    ExpenseSectionStatus(expenses = expenses, onReload = onReload)
+    if (expenses is UiState.Success) {
+        ExpenseSuccessList(
+            expenses = expenses.data,
+            errors = errors,
+            inFlight = inFlight,
+            readOnly = readOnly,
+            onEdit = { editing = it },
+            onDelete = { deleting = it },
+            onRestore = { restoring = it },
+        )
+    }
+    ExpenseSectionDialogs(
+        showExpenseDialog = showExpenseDialog,
+        editing = editing,
+        deleting = deleting,
+        restoring = restoring,
+        inFlight = inFlight,
+        errors = errors,
+        onCreate = onCreate,
+        onUpdate = onUpdate,
+        onDelete = onDelete,
+        onRestore = onRestore,
+        onCreateDismiss = { showExpenseDialog = false },
+        onEditDismiss = { editing = null },
+        onDeleteDismiss = { deleting = null },
+        onRestoreDismiss = { restoring = null },
+    )
+}
+
+@Composable
+private fun ExpenseSectionEffects(
+    viewModel: FinanceReportsViewModel,
+    conflicts: Set<String>,
+    inFlight: Set<String>,
+    errors: Map<String, String>,
+    editing: ExpenseResponse?,
+    deleting: ExpenseResponse?,
+    restoring: ExpenseResponse?,
+    onCreateClose: () -> Unit,
+    onEditClear: () -> Unit,
+    onDeleteClear: () -> Unit,
+    onRestoreClear: () -> Unit,
+) {
     // Pass-8 HARD — a success closes its dialog: a deliberate re-save would duplicate the
     // row (the POST is idempotent only per client UUID). The transition is in→out of the
     // key's in-flight set with no error for the key (a 409/network failure keeps it open).
     var createWasInFlight by remember { mutableStateOf(false) }
     LaunchedEffect(inFlight) {
         val busy = "expense:create" in inFlight
-        if (createWasInFlight && !busy && errors["expense:create"] == null) showExpenseDialog = false
+        if (createWasInFlight && !busy && errors["expense:create"] == null) onCreateClose()
         createWasInFlight = busy
     }
     var editWasInFlight by remember { mutableStateOf(false) }
@@ -1492,7 +1555,7 @@ private fun ExpenseSection(
         val busyKey = editing?.let { "expense:update:${it.id}" }
         val busy = busyKey != null && busyKey in inFlight
         val editDone = editWasInFlight && !busy && editing != null && errors[busyKey] == null
-        if (editDone) editing = null
+        if (editDone) onEditClear()
         editWasInFlight = busy
     }
     var deleteWasInFlight by remember { mutableStateOf(false) }
@@ -1500,7 +1563,7 @@ private fun ExpenseSection(
         val busyKey = deleting?.let { "expense:delete:${it.id}" }
         val busy = busyKey != null && busyKey in inFlight
         val deleteDone = deleteWasInFlight && !busy && deleting != null && errors[busyKey] == null
-        if (deleteDone) deleting = null
+        if (deleteDone) onDeleteClear()
         deleteWasInFlight = busy
     }
     var restoreWasInFlight by remember { mutableStateOf(false) }
@@ -1508,7 +1571,7 @@ private fun ExpenseSection(
         val busyKey = restoring?.let { "expense:restore:${it.id}" }
         val busy = busyKey != null && busyKey in inFlight
         val restoreDone = restoreWasInFlight && !busy && restoring != null && errors[busyKey] == null
-        if (restoreDone) restoring = null
+        if (restoreDone) onRestoreClear()
         restoreWasInFlight = busy
     }
     // Pass-1/2 HARD — a 409 closes the open edit dialog: it holds a stale expectedVersion, so a
@@ -1518,16 +1581,17 @@ private fun ExpenseSection(
         val e = editing
         val key = e?.let { "expense:update:${it.id}" }
         if (key != null && key in conflicts) {
-            editing = null
+            onEditClear()
             viewModel.consumeConflict(key)
         }
     }
-    SectionHeader(
-        title = "Expenses",
-        actionLabel = "Add expense",
-        onAction = { showExpenseDialog = true },
-        showAction = !readOnly,
-    )
+}
+
+@Composable
+private fun ExpenseSectionStatus(
+    expenses: UiState<List<ExpenseResponse>>,
+    onReload: () -> Unit,
+) {
     when (expenses) {
         is UiState.Idle -> {}
 
@@ -1549,42 +1613,72 @@ private fun ExpenseSection(
             }
         }
 
-        is UiState.Success -> {
-            if (expenses.data.isEmpty()) {
-                Text(
-                    text = "No expenses logged for this day.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = InkSubtle,
-                    modifier = Modifier.padding(Spacing.sm),
-                )
-            }
-            expenses.data.forEach { expense ->
-                ExpenseRow(
-                    expense = expense,
-                    error =
-                        errors["expense:update:${expense.id}"]
-                            ?: errors["expense:delete:${expense.id}"]
-                            ?: errors["expense:restore:${expense.id}"],
-                    busy =
-                        "expense:update:${expense.id}" in inFlight ||
-                            "expense:delete:${expense.id}" in inFlight ||
-                            "expense:restore:${expense.id}" in inFlight,
-                    readOnly = readOnly,
-                    onEdit = { editing = expense },
-                    onDelete = { deleting = expense },
-                    onRestore = { restoring = expense },
-                )
-            }
-            if (errors["expense:create"] != null) {
-                Text(
-                    text = errors.getValue("expense:create"),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(Spacing.xs),
-                )
-            }
-        }
+        is UiState.Success -> {}
     }
+}
+
+@Composable
+private fun ExpenseSuccessList(
+    expenses: List<ExpenseResponse>,
+    errors: Map<String, String>,
+    inFlight: Set<String>,
+    readOnly: Boolean,
+    onEdit: (ExpenseResponse) -> Unit,
+    onDelete: (ExpenseResponse) -> Unit,
+    onRestore: (ExpenseResponse) -> Unit,
+) {
+    if (expenses.isEmpty()) {
+        Text(
+            text = "No expenses logged for this day.",
+            style = MaterialTheme.typography.bodySmall,
+            color = InkSubtle,
+            modifier = Modifier.padding(Spacing.sm),
+        )
+    }
+    expenses.forEach { expense ->
+        ExpenseRow(
+            expense = expense,
+            error =
+                errors["expense:update:${expense.id}"]
+                    ?: errors["expense:delete:${expense.id}"]
+                    ?: errors["expense:restore:${expense.id}"],
+            busy =
+                "expense:update:${expense.id}" in inFlight ||
+                    "expense:delete:${expense.id}" in inFlight ||
+                    "expense:restore:${expense.id}" in inFlight,
+            readOnly = readOnly,
+            onEdit = { onEdit(expense) },
+            onDelete = { onDelete(expense) },
+            onRestore = { onRestore(expense) },
+        )
+    }
+    if (errors["expense:create"] != null) {
+        Text(
+            text = errors.getValue("expense:create"),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(Spacing.xs),
+        )
+    }
+}
+
+@Composable
+private fun ExpenseSectionDialogs(
+    showExpenseDialog: Boolean,
+    editing: ExpenseResponse?,
+    deleting: ExpenseResponse?,
+    restoring: ExpenseResponse?,
+    inFlight: Set<String>,
+    errors: Map<String, String>,
+    onCreate: (String, String, String?, String?) -> Unit,
+    onUpdate: (ExpenseResponse, String, String, String?, String?) -> Unit,
+    onDelete: (ExpenseResponse, String) -> Unit,
+    onRestore: (ExpenseResponse, String?) -> Unit,
+    onCreateDismiss: () -> Unit,
+    onEditDismiss: () -> Unit,
+    onDeleteDismiss: () -> Unit,
+    onRestoreDismiss: () -> Unit,
+) {
     if (showExpenseDialog) {
         ExpenseDialog(
             title = "Log expense",
@@ -1592,40 +1686,43 @@ private fun ExpenseSection(
             busy = "expense:create" in inFlight,
             error = errors["expense:create"],
             onConfirm = { amount, category, notes, reason -> onCreate(amount, category, notes, reason) },
-            onDismiss = { showExpenseDialog = false },
+            onDismiss = onCreateDismiss,
         )
     }
-    if (editing != null) {
+    val currentEdit = editing
+    if (currentEdit != null) {
         ExpenseDialog(
             title = "Edit expense",
-            initial = editing,
-            busy = "expense:update:${editing!!.id}" in inFlight,
-            error = errors["expense:update:${editing!!.id}"],
-            onConfirm = { amount, category, notes, reason -> onUpdate(editing!!, amount, category, notes, reason) },
-            onDismiss = { editing = null },
+            initial = currentEdit,
+            busy = "expense:update:${currentEdit.id}" in inFlight,
+            error = errors["expense:update:${currentEdit.id}"],
+            onConfirm = { amount, category, notes, reason -> onUpdate(currentEdit, amount, category, notes, reason) },
+            onDismiss = onEditDismiss,
         )
     }
-    if (deleting != null) {
+    val currentDelete = deleting
+    if (currentDelete != null) {
         ReasonDialog(
             title = "Delete expense?",
             message = "Deletion requires a reason.",
             requireReason = true,
-            busy = "expense:delete:${deleting!!.id}" in inFlight,
-            error = errors["expense:delete:${deleting!!.id}"],
+            busy = "expense:delete:${currentDelete.id}" in inFlight,
+            error = errors["expense:delete:${currentDelete.id}"],
             // requireReason=true guarantees the confirm never fires with null.
-            onConfirm = { reason -> onDelete(deleting!!, reason ?: "") },
-            onDismiss = { deleting = null },
+            onConfirm = { reason -> onDelete(currentDelete, reason ?: "") },
+            onDismiss = onDeleteDismiss,
         )
     }
-    if (restoring != null) {
+    val currentRestore = restoring
+    if (currentRestore != null) {
         ReasonDialog(
             title = "Restore expense?",
             message = "The row returns to full edit/delete affordances. A reason is required only on remitted days.",
             requireReason = false,
-            busy = "expense:restore:${restoring!!.id}" in inFlight,
-            error = errors["expense:restore:${restoring!!.id}"],
-            onConfirm = { reason -> onRestore(restoring!!, reason) },
-            onDismiss = { restoring = null },
+            busy = "expense:restore:${currentRestore.id}" in inFlight,
+            error = errors["expense:restore:${currentRestore.id}"],
+            onConfirm = { reason -> onRestore(currentRestore, reason) },
+            onDismiss = onRestoreDismiss,
         )
     }
 }
