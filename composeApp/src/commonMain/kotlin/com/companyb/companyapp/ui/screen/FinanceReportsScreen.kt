@@ -1982,30 +1982,10 @@ private fun AllowanceSection(
         }
 
         is UiState.Success -> {
-            if (allowances.data.isEmpty()) {
-                Text(
-                    text = "No allowances for this day.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = InkSubtle,
-                    modifier = Modifier.padding(Spacing.sm),
-                )
-            }
-            allowances.data.forEach { allowance ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xxs),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = userNames[allowance.userId] ?: allowance.userId,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        text = peso(allowance.amount),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
+            AllowanceSuccessList(
+                allowances = allowances.data,
+                userNames = userNames,
+            )
         }
     }
     if (showAssign) {
@@ -2016,6 +1996,37 @@ private fun AllowanceSection(
             onConfirm = { userId, amount, reason -> onCreate(userId, amount, reason) },
             onDismiss = { showAssign = false },
         )
+    }
+}
+
+@Composable
+private fun AllowanceSuccessList(
+    allowances: List<AllowanceResponse>,
+    userNames: Map<String, String>,
+) {
+    if (allowances.isEmpty()) {
+        Text(
+            text = "No allowances for this day.",
+            style = MaterialTheme.typography.bodySmall,
+            color = InkSubtle,
+            modifier = Modifier.padding(Spacing.sm),
+        )
+    }
+    allowances.forEach { allowance ->
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xxs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = userNames[allowance.userId] ?: allowance.userId,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = peso(allowance.amount),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
     }
 }
 
