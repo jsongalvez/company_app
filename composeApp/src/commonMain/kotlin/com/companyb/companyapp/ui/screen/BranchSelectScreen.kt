@@ -43,6 +43,7 @@ import com.companyb.companyapp.viewmodel.BranchSelectViewModel
 import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
 import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
 import com.companyb.companyapp.viewmodel.UiState
+import kotlinx.datetime.LocalDate
 
 /**
  * #94-grad — BranchSelect surface (Phase 3 of the #94 outline): the caller's branches with
@@ -332,18 +333,56 @@ private fun InviteStaffPanel(
 
     var dateText by remember { mutableStateOf(defaultInviteDate()) }
     var query by remember { mutableStateOf("") }
-    // #377 — the destructive revoke needs an explicit confirm (removes someone's granted
-    // access); the tapped row parks here until the dialog resolves it.
-    var pendingRevoke by remember { mutableStateOf<ReliefInviteResponse?>(null) }
 
-    val createError = (createState as? UiState.Error)?.message
-    val retractError = (retractState as? UiState.Error)?.message
-    val revokeError = (revokeState as? UiState.Error)?.message
-    val sendBusy = createState is UiState.Loading
-    val retractBusy = retractState is UiState.Loading
-    val revokeBusy = revokeState is UiState.Loading
     val validDate = parseInviteDate(dateText)
 
+    InvitePanelEffects(
+        viewModel = viewModel,
+        branchId = branchId,
+        query = query,
+        dateText = dateText,
+        validDate = validDate,
+        createState = createState,
+        retractState = retractState,
+        revokeState = revokeState,
+    )
+
+    InvitePanelForm(
+        dateText = dateText,
+        onDateChange = { dateText = it },
+        query = query,
+        onQueryChange = { query = it },
+        validDate = validDate,
+        createState = createState,
+        retractState = retractState,
+        revokeState = revokeState,
+    ) {
+        InvitePanelResults(
+            branchId = branchId,
+            viewModel = viewModel,
+            dateText = dateText,
+            validDate = validDate,
+            candidatesState = candidatesState,
+            lastSent = sentByKey[branchId],
+            createState = createState,
+            retractState = retractState,
+            lastAccepted = acceptedByKey[branchId],
+            revokeState = revokeState,
+        )
+    }
+}
+
+@Composable
+private fun InvitePanelEffects(
+    viewModel: ReliefInviteViewModel,
+    branchId: String,
+    query: String,
+    dateText: String,
+    validDate: LocalDate?,
+    createState: UiState<Unit>,
+    retractState: UiState<Unit>,
+    revokeState: UiState<Unit>,
+) {
     LaunchedEffect(Unit) {
         logInfo("BranchSelectScreen", "invite panel opened for branch $branchId")
         viewModel.loadSent(branchId)
@@ -374,6 +413,23 @@ private fun InviteStaffPanel(
             logWarn("BranchSelectScreen", "revokeInvite=Error: ${error.message}")
         }
     }
+}
+
+@Composable
+private fun InvitePanelForm(
+    dateText: String,
+    onDateChange: (String) -> Unit,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    validDate: LocalDate?,
+    createState: UiState<Unit>,
+    retractState: UiState<Unit>,
+    revokeState: UiState<Unit>,
+    results: @Composable () -> Unit,
+) {
+    val createError = (createState as? UiState.Error)?.message
+    val retractError = (retractState as? UiState.Error)?.message
+    val revokeError = (revokeState as? UiState.Error)?.message
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -392,7 +448,7 @@ private fun InviteStaffPanel(
             )
             OutlinedTextField(
                 value = dateText,
-                onValueChange = { dateText = it },
+                onValueChange = onDateChange,
                 label = { Text("Date (yyyy-MM-dd)") },
                 singleLine = true,
                 isError = dateText.isNotBlank() && validDate == null,
@@ -400,7 +456,7 @@ private fun InviteStaffPanel(
             )
             OutlinedTextField(
                 value = query,
-                onValueChange = { query = it },
+                onValueChange = onQueryChange,
                 label = { Text("Search staff by name") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -428,30 +484,54 @@ private fun InviteStaffPanel(
                 )
             }
 
-            CandidateResults(
-                state = candidatesState,
-                sendBusy = sendBusy,
-                dateValid = validDate != null,
-                onInvite = { candidate ->
-                    if (validDate != null) {
-                        viewModel.sendInvite(branchId, candidate.id, dateText)
-                    }
-                },
-            )
-
-            SentInvitesSection(
-                lastSent = sentByKey[branchId],
-                retractBusy = retractBusy,
-                onRetract = { inviteId -> viewModel.retractInvite(inviteId, branchId) },
-            )
-
-            AcceptedDutiesSection(
-                lastAccepted = acceptedByKey[branchId],
-                revokeBusy = revokeBusy,
-                onRevokeRequest = { invite -> pendingRevoke = invite },
-            )
+            results()
         }
     }
+}
+
+@Composable
+private fun InvitePanelResults(
+    branchId: String,
+    viewModel: ReliefInviteViewModel,
+    dateText: String,
+    validDate: LocalDate?,
+    candidatesState: UiState<List<ReliefCandidateResponse>>,
+    lastSent: List<ReliefInviteResponse>?,
+    createState: UiState<Unit>,
+    retractState: UiState<Unit>,
+    lastAccepted: List<ReliefInviteResponse>?,
+    revokeState: UiState<Unit>,
+) {
+    // #377 — the destructive revoke needs an explicit confirm (removes someone's granted
+    // access); the tapped row parks here until the dialog resolves it.
+    var pendingRevoke by remember { mutableStateOf<ReliefInviteResponse?>(null) }
+
+    val sendBusy = createState is UiState.Loading
+    val retractBusy = retractState is UiState.Loading
+    val revokeBusy = revokeState is UiState.Loading
+
+    CandidateResults(
+        state = candidatesState,
+        sendBusy = sendBusy,
+        dateValid = validDate != null,
+        onInvite = { candidate ->
+            if (validDate != null) {
+                viewModel.sendInvite(branchId, candidate.id, dateText)
+            }
+        },
+    )
+
+    SentInvitesSection(
+        lastSent = lastSent,
+        retractBusy = retractBusy,
+        onRetract = { inviteId -> viewModel.retractInvite(inviteId, branchId) },
+    )
+
+    AcceptedDutiesSection(
+        lastAccepted = lastAccepted,
+        revokeBusy = revokeBusy,
+        onRevokeRequest = { invite -> pendingRevoke = invite },
+    )
 
     pendingRevoke?.let { invite ->
         RevokeDutyConfirmDialog(
