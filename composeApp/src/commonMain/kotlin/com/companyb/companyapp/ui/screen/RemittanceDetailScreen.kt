@@ -149,33 +149,16 @@ fun RemittanceDetailScreen(
         }
     }
 
-    // D6 — line/day labels come from the pickers' join data (F7 bare lines): load the three
-    // pickers once the detail's range is known; later detail reloads skip (pickers are cached).
-    // A failed picker load (Error) retries on the next detail reload — the dialog's Retry is
-    // the immediate path.
-    LaunchedEffect(detailState) {
-        val detail = (detailState as? UiState.Success)?.data ?: return@LaunchedEffect
-        if (branchId == null) return@LaunchedEffect
-        val range = detail.dateRangeStart to detail.dateRangeEnd
-        if (pickerRange != null && pickerRange != range) {
-            viewModel.loadSessionPicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
-            viewModel.loadProductSalePicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
-            viewModel.loadDayPicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
-            pickerRange = range
-            return@LaunchedEffect
-        }
-        pickerRange = range
-        val needsLoad: (UiState<*>) -> Boolean = { it is UiState.Idle || it is UiState.Error }
-        if (needsLoad(sessionPickerState)) {
-            viewModel.loadSessionPicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
-        }
-        if (needsLoad(productSalePickerState)) {
-            viewModel.loadProductSalePicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
-        }
-        if (needsLoad(dayPickerState)) {
-            viewModel.loadDayPicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
-        }
-    }
+    RemittanceDetailPickerLoadEffects(
+        detailState = detailState,
+        branchId = branchId,
+        sessionPickerState = sessionPickerState,
+        productSalePickerState = productSalePickerState,
+        dayPickerState = dayPickerState,
+        pickerRange = pickerRange,
+        onRangeChange = { pickerRange = it },
+        viewModel = viewModel,
+    )
 
     RemittanceDetailLineDayEffects(
         lineState = lineState,
@@ -202,18 +185,12 @@ fun RemittanceDetailScreen(
         // window only; everywhere else keeps the classic single column. The queue
         // prefetch is desk-gated so other surfaces issue no extra reads.
         val wideDesk = deskEnabled && maxWidth >= CONTROL_DESK_MIN_WIDTH
-        LaunchedEffect(wideDesk, branchId) {
-            if (wideDesk && branchId != null) {
-                logInfo("RemittanceDetailScreen", "desk queue prefetch for branch $branchId")
-                viewModel.loadRemittances(branchId, DESK_QUEUE_DRAFTS_STATUS)
-                viewModel.loadRemittances(branchId, DESK_QUEUE_SUBMITTED_STATUS)
-            }
-        }
-        LaunchedEffect(queueState) {
-            (queueState as? UiState.Error)?.let {
-                logWarn("RemittanceDetailScreen", "queueState=Error: ${it.message}")
-            }
-        }
+        RemittanceDetailDeskPrefetchEffects(
+            wideDesk = wideDesk,
+            branchId = branchId,
+            queueState = queueState,
+            viewModel = viewModel,
+        )
 
         Column(
             modifier =
@@ -413,6 +390,67 @@ private fun RemittanceDetailHeaderSubmitUndoEffects(
             else -> {
                 Unit
             }
+        }
+    }
+}
+
+@Composable
+private fun RemittanceDetailPickerLoadEffects(
+    detailState: UiState<RemittanceDetailResponse>,
+    branchId: String?,
+    sessionPickerState: UiState<List<RemittanceSessionPickerEntryResponse>>,
+    productSalePickerState: UiState<List<RemittanceProductSalePickerEntryResponse>>,
+    dayPickerState: UiState<List<RemittanceDayPickerEntryResponse>>,
+    pickerRange: Pair<String, String>?,
+    onRangeChange: (Pair<String, String>?) -> Unit,
+    viewModel: RemittanceViewModel,
+) {
+    // D6 — line/day labels come from the pickers' join data (F7 bare lines): load the three
+    // pickers once the detail's range is known; later detail reloads skip (pickers are cached).
+    // A failed picker load (Error) retries on the next detail reload — the dialog's Retry is
+    // the immediate path.
+    LaunchedEffect(detailState) {
+        val detail = (detailState as? UiState.Success)?.data ?: return@LaunchedEffect
+        if (branchId == null) return@LaunchedEffect
+        val range = detail.dateRangeStart to detail.dateRangeEnd
+        if (pickerRange != null && pickerRange != range) {
+            viewModel.loadSessionPicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
+            viewModel.loadProductSalePicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
+            viewModel.loadDayPicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
+            onRangeChange(range)
+            return@LaunchedEffect
+        }
+        onRangeChange(range)
+        val needsLoad: (UiState<*>) -> Boolean = { it is UiState.Idle || it is UiState.Error }
+        if (needsLoad(sessionPickerState)) {
+            viewModel.loadSessionPicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
+        }
+        if (needsLoad(productSalePickerState)) {
+            viewModel.loadProductSalePicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
+        }
+        if (needsLoad(dayPickerState)) {
+            viewModel.loadDayPicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
+        }
+    }
+}
+
+@Composable
+private fun RemittanceDetailDeskPrefetchEffects(
+    wideDesk: Boolean,
+    branchId: String?,
+    queueState: UiState<List<RemittanceResponse>>,
+    viewModel: RemittanceViewModel,
+) {
+    LaunchedEffect(wideDesk, branchId) {
+        if (wideDesk && branchId != null) {
+            logInfo("RemittanceDetailScreen", "desk queue prefetch for branch $branchId")
+            viewModel.loadRemittances(branchId, DESK_QUEUE_DRAFTS_STATUS)
+            viewModel.loadRemittances(branchId, DESK_QUEUE_SUBMITTED_STATUS)
+        }
+    }
+    LaunchedEffect(queueState) {
+        (queueState as? UiState.Error)?.let {
+            logWarn("RemittanceDetailScreen", "queueState=Error: ${it.message}")
         }
     }
 }
