@@ -55,6 +55,11 @@ import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.AuditLogFilters
 import com.companyb.companyapp.viewmodel.AuditLogViewModel
 import com.companyb.companyapp.viewmodel.UiState
+import com.companyb.companyapp.viewmodel.applyFilters
+import com.companyb.companyapp.viewmodel.loadBrowse
+import com.companyb.companyapp.viewmodel.loadMore
+import com.companyb.companyapp.viewmodel.refreshBrowse
+import com.companyb.companyapp.viewmodel.retryBrowse
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive

@@ -219,7 +219,6 @@ complexity:
       - '**/androidInstrumentedTest/**'
       - '**/jsTest/**'
       - '**/iosTest/**'
-      - '**/commonMain/**/viewmodel/AuditLogViewModel.kt'
       - '**/commonMain/**/viewmodel/SessionDashboardViewModel.kt'
       - '**/commonMain/**/viewmodel/FinanceReportsViewModel.kt'
       - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
