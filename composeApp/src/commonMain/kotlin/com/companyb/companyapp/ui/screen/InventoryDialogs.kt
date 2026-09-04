@@ -37,6 +37,10 @@ import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.viewmodel.InventoryViewModel
 import com.companyb.companyapp.viewmodel.ProductViewModel
 import com.companyb.companyapp.viewmodel.UiState
+import com.companyb.companyapp.viewmodel.movementNotesError
+import com.companyb.companyapp.viewmodel.movementUnitsError
+import com.companyb.companyapp.viewmodel.productsWithoutCards
+import com.companyb.companyapp.viewmodel.restockUnitsError
 
 /**
  * #392 — the Inventory write dialogs (the EditSlotDialog shape: client-side validation mirrors

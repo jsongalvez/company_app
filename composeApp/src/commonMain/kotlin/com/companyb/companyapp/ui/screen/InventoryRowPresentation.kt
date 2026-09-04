@@ -2,6 +2,7 @@ package com.companyb.companyapp.ui.screen
 
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.dto.InventoryMovementResponse
+import com.companyb.companyapp.viewmodel.normalizeOptional
 
 /**
  * #391 — the Inventory presentation rule surface, pinned by the desktopTest packet: sort +

@@ -30,7 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.dto.AddInventoryCardRequest
 import com.companyb.companyapp.dto.BranchInventoryResponse
-import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
@@ -40,16 +39,15 @@ import com.companyb.companyapp.viewmodel.InventoryViewModel
 import com.companyb.companyapp.viewmodel.ProductSaleViewModel
 import com.companyb.companyapp.viewmodel.ProductViewModel
 import com.companyb.companyapp.viewmodel.UiState
+import com.companyb.companyapp.viewmodel.canEnsureCard
+import com.companyb.companyapp.viewmodel.inventoryRowActions
+import com.companyb.companyapp.viewmodel.writesDisabled
 
 /** Which write flow a row tap opens (#392, #419 sale). */
 internal enum class InventoryWriteKind { RESTOCK, MOVEMENT, SELL }
 
-/** Per-row affordance enablement: visibility AND mid-flight disablement merged fail-closed. */
-internal data class InventoryRowActions(
-    val restockEnabled: Boolean,
-    val movementEnabled: Boolean,
-    val sellEnabled: Boolean,
-)
+/** Per-row affordance enablement: owned by the mutation policy ([inventoryRowActions]). */
+internal typealias InventoryRowActions = com.companyb.companyapp.viewmodel.InventoryRowActions
 
 /** One open write dialog (#392); null = none. */
 internal sealed interface InventoryWriteTarget {
@@ -157,10 +155,7 @@ fun InventoryScreen(
     val context =
         InventorySectionContext(viewModel, productViewModel, productSaleViewModel, clientViewModel, branchId)
     val writeResults = InventoryWriteResults(restockResult, movementResult, cardResult, saleResult)
-    val writesDisabled =
-        writeResults.restockResult is UiState.Loading ||
-            writeResults.movementResult is UiState.Loading ||
-            writeResults.saleResult is UiState.Loading
+    val writesDisabled = writesDisabled(restockResult, movementResult, saleResult)
 
     InventoryLoadEffects(viewModel, branchId, writeResults)
     Column(
@@ -194,29 +189,6 @@ fun InventoryScreen(
         onClose = { overlay = null },
     )
 }
-
-/**
- * Per-row affordance enablement (#392/#419): the exact branch-or-day gate mirrors fail-closed
- * without a clocked-in branchDayId, and any in-flight write disables the row's actions.
- */
-private fun inventoryRowActions(
-    capabilities: List<UserCapabilityResponse>,
-    branchId: String?,
-    branchDayId: String?,
-    writesDisabled: Boolean,
-): InventoryRowActions =
-    InventoryRowActions(
-        restockEnabled = branchDayId != null && canRestock(capabilities, branchId) && !writesDisabled,
-        movementEnabled =
-            branchDayId != null &&
-                allowedMovementReasons(capabilities, branchId).isNotEmpty() &&
-                !writesDisabled,
-        sellEnabled =
-            branchId != null &&
-                branchDayId != null &&
-                canSellProducts(capabilities, branchId, branchDayId) &&
-                !writesDisabled,
-    )
 
 /** The row tap → open-overlay mapping (the #392 write kinds plus the #419 sale). */
 private fun writeOverlayFor(

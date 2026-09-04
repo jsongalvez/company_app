@@ -28,6 +28,12 @@ import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.viewmodel.InventoryViewModel
 import com.companyb.companyapp.viewmodel.UiState
+import com.companyb.companyapp.viewmodel.allowedMovementReasons
+import com.companyb.companyapp.viewmodel.consumeWriteSuccess
+import com.companyb.companyapp.viewmodel.firstWriteError
+import com.companyb.companyapp.viewmodel.submitMovement
+import com.companyb.companyapp.viewmodel.submitRestock
+import com.companyb.companyapp.viewmodel.submitWalkInSale
 
 /** Entry load plus the #392 write-success legs (+#395 ensure-card): clear + authoritative refresh. */
 @Composable
@@ -41,34 +47,18 @@ internal fun InventoryLoadEffects(
         if (branchId != null) viewModel.refresh(branchId)
     }
     LaunchedEffect(results.restockResult) {
-        if (results.restockResult is UiState.Success) {
-            logInfo("InventoryScreen", "restock landed — refreshing inventory")
-            viewModel.clearWriteResults()
-            if (branchId != null) viewModel.refresh(branchId)
-        }
+        consumeWriteSuccess(viewModel, branchId, results.restockResult, "restock")
     }
     LaunchedEffect(results.movementResult) {
-        if (results.movementResult is UiState.Success) {
-            logInfo("InventoryScreen", "movement landed — refreshing inventory")
-            viewModel.clearWriteResults()
-            if (branchId != null) viewModel.refresh(branchId)
-        }
+        consumeWriteSuccess(viewModel, branchId, results.movementResult, "movement")
     }
     LaunchedEffect(results.cardResult) {
-        if (results.cardResult is UiState.Success) {
-            logInfo("InventoryScreen", "ensure-card landed — refreshing inventory")
-            viewModel.clearWriteResults()
-            if (branchId != null) viewModel.refresh(branchId)
-        }
+        consumeWriteSuccess(viewModel, branchId, results.cardResult, "ensure-card")
     }
     // #419 — a landed sale refreshes the same legs: the decrement and any new low-stock row
     // repaint without a manual Refresh.
     LaunchedEffect(results.saleResult) {
-        if (results.saleResult is UiState.Success) {
-            logInfo("InventoryScreen", "product sale landed — refreshing inventory")
-            viewModel.clearWriteResults()
-            if (branchId != null) viewModel.refresh(branchId)
-        }
+        consumeWriteSuccess(viewModel, branchId, results.saleResult, "product sale")
     }
 }
 
@@ -137,21 +127,10 @@ internal fun RestockWriteDialog(
         card = card,
         onDismiss = onDone,
         onSave = { units, editReason ->
-            // Save closes immediately (the ProfileScreen precedent); ids are fresh
-            // client-generated UUIDs and branchDayId is the clocked-in day.
+            // Save closes immediately (the ProfileScreen precedent); the policy owns the
+            // fail-closed branch/day guard, the request build, and the VM call.
             onDone()
-            val dayId = branchDayId
-            val branchId = context.branchId
-            if (branchId != null && dayId != null) {
-                context.viewModel.restock(
-                    branchId = branchId,
-                    productId = card.productId,
-                    request =
-                        buildRestockRequest(
-                            RestockDraft(card, units, editReason, dayId),
-                        ),
-                )
-            }
+            submitRestock(context.viewModel, context.branchId, branchDayId, card, units, editReason)
         },
     )
 }
@@ -171,18 +150,16 @@ internal fun MovementWriteDialog(
         onDismiss = onDone,
         onSave = { reason, units, notes, editReason ->
             onDone()
-            val dayId = branchDayId
-            val branchId = context.branchId
-            if (branchId != null && dayId != null) {
-                context.viewModel.recordMovement(
-                    branchId = branchId,
-                    productId = card.productId,
-                    request =
-                        buildMovementRequest(
-                            MovementDraft(card, reason, units, notes, editReason, dayId),
-                        ),
-                )
-            }
+            submitMovement(
+                context.viewModel,
+                context.branchId,
+                branchDayId,
+                card,
+                reason,
+                units,
+                notes,
+                editReason,
+            )
         },
     )
 }
@@ -200,26 +177,18 @@ internal fun WalkInWriteDialog(
         clientViewModel = context.clientViewModel,
         onDismiss = onDone,
         onSave = { quantity, clientId, editReason ->
-            // Save closes immediately (the #392 shape); ids are fresh client-generated
-            // UUIDs and branchDayId is the clocked-in day.
+            // Save closes immediately (the #392 shape); the policy owns the fail-closed
+            // branch/day guard, the walk-in request build, and the sale call.
             onDone()
-            val dayId = branchDayId
-            val branchId = context.branchId
-            if (branchId != null && dayId != null) {
-                context.productSaleViewModel.sell(
-                    buildSaleRequest(
-                        SaleDraft(
-                            card = card,
-                            quantity = quantity,
-                            clientId = clientId,
-                            sessionId = null,
-                            isWalkIn = true,
-                            reason = editReason,
-                            branchDayId = dayId,
-                        ),
-                    ),
-                )
-            }
+            submitWalkInSale(
+                context.productSaleViewModel,
+                context.branchId,
+                branchDayId,
+                card,
+                quantity,
+                clientId,
+                editReason,
+            )
         },
     )
 }
@@ -232,10 +201,7 @@ internal fun WriteErrorBanner(
     onDismissSale: () -> Unit,
 ) {
     val error =
-        (results.restockResult as? UiState.Error)
-            ?: (results.movementResult as? UiState.Error)
-            ?: (results.cardResult as? UiState.Error)
-            ?: (results.saleResult as? UiState.Error)
+        firstWriteError(results.restockResult, results.movementResult, results.cardResult, results.saleResult)
             ?: return
     // The sale leg lives in its own VM (#419) — its Dismiss clears there, the rest here.
     val fromSale = error === (results.saleResult as? UiState.Error)

@@ -4,6 +4,10 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.viewmodel.SaleDraft
+import com.companyb.companyapp.viewmodel.buildSaleRequest
+import com.companyb.companyapp.viewmodel.canSellProducts
+import com.companyb.companyapp.viewmodel.saleQuantityError
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

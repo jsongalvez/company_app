@@ -7,6 +7,17 @@ import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.dto.InventoryMovementResponse
 import com.companyb.companyapp.dto.ProductResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.viewmodel.MovementDraft
+import com.companyb.companyapp.viewmodel.RestockDraft
+import com.companyb.companyapp.viewmodel.allowedMovementReasons
+import com.companyb.companyapp.viewmodel.buildMovementRequest
+import com.companyb.companyapp.viewmodel.buildRestockRequest
+import com.companyb.companyapp.viewmodel.canEnsureCard
+import com.companyb.companyapp.viewmodel.canRestock
+import com.companyb.companyapp.viewmodel.movementNotesError
+import com.companyb.companyapp.viewmodel.movementUnitsError
+import com.companyb.companyapp.viewmodel.productsWithoutCards
+import com.companyb.companyapp.viewmodel.restockUnitsError
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

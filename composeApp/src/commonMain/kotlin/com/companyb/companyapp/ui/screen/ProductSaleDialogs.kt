@@ -38,7 +38,10 @@ import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.InventoryViewModel
 import com.companyb.companyapp.viewmodel.ProductSaleViewModel
+import com.companyb.companyapp.viewmodel.SaleDraft
 import com.companyb.companyapp.viewmodel.UiState
+import com.companyb.companyapp.viewmodel.buildSaleRequest
+import com.companyb.companyapp.viewmodel.saleQuantityError
 
 /**
  * Buyer mode for a walk-in sale: anonymous (no record) or linked to a searched client.
