@@ -387,8 +387,14 @@ spawn_session() {
     # bootstrap FATAL on a configured model. Buffer through a temp file.
     local models_json
     models_json="$(mktemp)"
-    api get /api/model > "$models_json" 2>/dev/null || true
-    pid="$(jq -r --arg id "$model_id" --arg provider "$model_provider" '.data[] | select(.id == $id) | select(($provider == "") or (.providerID == $provider)) | .providerID' "$models_json" 2>/dev/null | head -1)" || true
+    pid=""
+    for _model_try in 1 2 3; do
+      api get /api/model > "$models_json" 2>/dev/null || true
+      pid="$(jq -r --arg id "$model_id" --arg provider "$model_provider" '.data[] | select(.id == $id) | select(($provider == "") or (.providerID == $provider)) | .providerID' "$models_json" 2>/dev/null | head -1)" || true
+      [ -n "$pid" ] && break
+      log "model lookup miss for '$WAYFINDER_MODEL' (try $_model_try/3) — retrying"
+      sleep 10
+    done
     rm -f "$models_json"
     [ -n "$pid" ] || die "WAYFINDER_MODEL '$WAYFINDER_MODEL' lookup failed via /api/model (model/provider absent, or the API errored)"
     model_ref="$(jq -nc --arg id "$model_id" --arg p "$pid" --arg v "$VARIANT" '{id: $id, providerID: $p, variant: $v}')"
