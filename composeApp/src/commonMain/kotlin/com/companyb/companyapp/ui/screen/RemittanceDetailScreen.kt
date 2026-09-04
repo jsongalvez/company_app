@@ -526,24 +526,16 @@ private fun RemittanceDetailContent(
         onCloseProductSalePicker = onCloseProductSalePicker,
     )
 
-    // D4 — days-covered picker: already-remitted greyed (no double-covering a day, F10).
-    if (showDayPicker && branchId != null) {
-        val includedIds = detail.dayBreakdowns.map { it.branchDayId }.toSet()
-        DayPickerDialog(
-            state = dayPickerState,
-            mutationState = dayBreakdownState,
-            includedIds = includedIds,
-            onLoad = {
-                viewModel.loadDayPicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
-            },
-            onAdd = { requests ->
-                if (requests.isNotEmpty() && dayBreakdownState !is UiState.Loading) {
-                    viewModel.addDayBreakdown(remittanceId, requests.first())
-                }
-            },
-            onDismiss = onCloseDayPicker,
-        )
-    }
+    RemittanceDetailDayPickerHost(
+        detail = detail,
+        branchId = branchId,
+        dayPickerState = dayPickerState,
+        dayBreakdownState = dayBreakdownState,
+        viewModel = viewModel,
+        remittanceId = remittanceId,
+        showDayPicker = showDayPicker,
+        onCloseDayPicker = onCloseDayPicker,
+    )
 
     RemittanceDetailSubmitUndoHost(
         detail = detail,
@@ -804,6 +796,37 @@ private fun RemittanceDetailLinePickerHost(
                 }
             },
             onDismiss = onCloseProductSalePicker,
+        )
+    }
+}
+
+@Composable
+private fun RemittanceDetailDayPickerHost(
+    detail: RemittanceDetailResponse,
+    branchId: String?,
+    dayPickerState: UiState<List<RemittanceDayPickerEntryResponse>>,
+    dayBreakdownState: UiState<RemittanceDayBreakdownResponse>,
+    viewModel: RemittanceViewModel,
+    remittanceId: String,
+    showDayPicker: Boolean,
+    onCloseDayPicker: () -> Unit,
+) {
+    // D4 — days-covered picker: already-remitted greyed (no double-covering a day, F10).
+    if (showDayPicker && branchId != null) {
+        val includedIds = detail.dayBreakdowns.map { it.branchDayId }.toSet()
+        DayPickerDialog(
+            state = dayPickerState,
+            mutationState = dayBreakdownState,
+            includedIds = includedIds,
+            onLoad = {
+                viewModel.loadDayPicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
+            },
+            onAdd = { requests ->
+                if (requests.isNotEmpty() && dayBreakdownState !is UiState.Loading) {
+                    viewModel.addDayBreakdown(remittanceId, requests.first())
+                }
+            },
+            onDismiss = onCloseDayPicker,
         )
     }
 }
