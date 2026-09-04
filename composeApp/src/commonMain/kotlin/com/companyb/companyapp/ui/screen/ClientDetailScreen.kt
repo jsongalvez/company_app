@@ -223,6 +223,54 @@ private fun ClientDetailLoadError(
 }
 
 @Composable
+private fun ClientDetailUpdateEffects(
+    updateState: UiState<ClientResponse>,
+    editingField: ClientField?,
+    pendingEditField: ClientField?,
+    onEditClear: () -> Unit,
+    onClearPending: () -> Unit,
+    onFieldError: (String) -> Unit,
+) {
+    var wasUpdateLoading by remember { mutableStateOf(false) }
+    // Whether a landing PATCH outcome concerns the field currently being edited. Both commit
+    // paths set the pending field synchronously before dispatching, so a non-null pending field
+    // always identifies the in-flight PATCH.
+    // D4 pessimistic axes — edit mode exits only on success; failure keeps the attempted value +
+    // inline error and stays in edit; Loading → Idle without Success in between = 403 silent exit.
+    // Per-field ownership: a resolved PATCH touches edit state only when it belongs to the
+    // currently-editing field.
+    LaunchedEffect(updateState) {
+        val resolvesCurrentEdit = editingField == pendingEditField
+        when (val state = updateState) {
+            is UiState.Success -> {
+                if (resolvesCurrentEdit) onEditClear()
+                onClearPending()
+                wasUpdateLoading = false
+            }
+
+            is UiState.Idle -> {
+                if (wasUpdateLoading && resolvesCurrentEdit) onEditClear()
+                onClearPending()
+                wasUpdateLoading = false
+            }
+
+            is UiState.Loading -> {
+                wasUpdateLoading = true
+            }
+
+            is UiState.Error -> {
+                // 409 exits silently via Idle (the VM reloads); a plain failure (400 validation,
+                // 5xx) keeps edit mode with the inline error — but only when the failing PATCH
+                // belongs to the field being edited.
+                if (resolvesCurrentEdit) onFieldError(state.message)
+                onClearPending()
+                wasUpdateLoading = false
+            }
+        }
+    }
+}
+
+@Composable
 private fun ClientDetailContent(
     client: ClientResponse,
     updateState: UiState<ClientResponse>,
@@ -238,7 +286,6 @@ private fun ClientDetailContent(
     var editingField by remember { mutableStateOf<ClientField?>(null) }
     var draftValue by remember { mutableStateOf("") }
     var fieldError by remember { mutableStateOf<String?>(null) }
-    var wasUpdateLoading by remember { mutableStateOf(false) }
     var showAnonymizeDialog by remember { mutableStateOf(false) }
     val bpDraft = remember { BpDraftState() }
     // The field whose PATCH is in flight. With per-field edit ownership, a PATCH's Success/Error
@@ -255,55 +302,19 @@ private fun ClientDetailContent(
     // identical value is a fresh attempt, not the same failure.
     var lastDispatched by remember { mutableStateOf<DispatchedDraft?>(null) }
 
-    // Whether a landing PATCH outcome concerns the field currently being edited. Both commit
-    // paths set the pending field synchronously before dispatching, so a non-null pending field
-    // always identifies the in-flight PATCH.
-    fun resolvesCurrentEdit(): Boolean = editingField == pendingEditField
-
-    // D4 pessimistic axes — edit mode exits only on success; failure keeps the attempted value +
-    // inline error and stays in edit; Loading → Idle without Success in between = 403 silent exit.
-    // Per-field ownership: a resolved PATCH touches edit state only when it belongs to the
-    // currently-editing field.
-    LaunchedEffect(updateState) {
-        when (val state = updateState) {
-            is UiState.Success -> {
-                if (resolvesCurrentEdit()) {
-                    editingField = null
-                    draftValue = ""
-                    fieldError = null
-                    lastDispatched = null
-                }
-                pendingEditField = null
-                wasUpdateLoading = false
-            }
-
-            is UiState.Idle -> {
-                if (wasUpdateLoading && resolvesCurrentEdit()) {
-                    editingField = null
-                    draftValue = ""
-                    fieldError = null
-                    lastDispatched = null
-                }
-                pendingEditField = null
-                wasUpdateLoading = false
-            }
-
-            is UiState.Loading -> {
-                wasUpdateLoading = true
-            }
-
-            is UiState.Error -> {
-                // 409 exits silently via Idle (the VM reloads); a plain failure (400 validation,
-                // 5xx) keeps edit mode with the inline error — but only when the failing PATCH
-                // belongs to the field being edited.
-                if (resolvesCurrentEdit()) {
-                    fieldError = state.message
-                }
-                pendingEditField = null
-                wasUpdateLoading = false
-            }
-        }
-    }
+    ClientDetailUpdateEffects(
+        updateState = updateState,
+        editingField = editingField,
+        pendingEditField = pendingEditField,
+        onEditClear = {
+            editingField = null
+            draftValue = ""
+            fieldError = null
+            lastDispatched = null
+        },
+        onClearPending = { pendingEditField = null },
+        onFieldError = { fieldError = it },
+    )
 
     // H4 — mutual exclusion with in-flight mutations: a new edit can't open while a PATCH or the
     // anonymize POST is in flight (an anonymize in flight must never race a fresh PATCH).
