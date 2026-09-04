@@ -1013,48 +1013,22 @@ private fun HeaderEditDialog(
         onDismissRequest = onDismiss,
         title = { Text("Edit header") },
         text = {
-            Column {
-                LabeledDropdown(
-                    label = "Type",
-                    displayValue = type.label,
-                    options = RemittanceTypeChoice.entries.map { it.label },
-                    onSelect = { label ->
-                        type = RemittanceTypeChoice.entries.first { it.label == label }
-                    },
-                )
-                LabeledDropdown(
-                    label = "Method",
-                    displayValue = method.label,
-                    options = RemittanceMethodChoice.entries.map { it.label },
-                    onSelect = { label ->
-                        method = RemittanceMethodChoice.entries.first { it.label == label }
-                    },
-                )
-                RemittanceDatePickerField(
-                    label = "Date range start",
-                    value = startDate,
-                    onValueChange = { startDate = it },
-                )
-                RemittanceDatePickerField(
-                    label = "Date range end",
-                    value = endDate,
-                    onValueChange = { endDate = it },
-                )
-                dateError?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                (updateState as? UiState.Error)?.let {
-                    Text(
-                        text = it.message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
+            HeaderEditFields(
+                type = type,
+                method = method,
+                startDate = startDate,
+                endDate = endDate,
+                dateError = dateError,
+                updateState = updateState,
+                onTypeSelect = { label ->
+                    type = RemittanceTypeChoice.entries.first { it.label == label }
+                },
+                onMethodSelect = { label ->
+                    method = RemittanceMethodChoice.entries.first { it.label == label }
+                },
+                onStartChange = { startDate = it },
+                onEndChange = { endDate = it },
+            )
         },
         confirmButton = {
             TextButton(
@@ -1073,6 +1047,59 @@ private fun HeaderEditDialog(
             }
         },
     )
+}
+
+@Composable
+private fun HeaderEditFields(
+    type: RemittanceTypeChoice,
+    method: RemittanceMethodChoice,
+    startDate: String,
+    endDate: String,
+    dateError: String?,
+    updateState: UiState<RemittanceResponse>,
+    onTypeSelect: (String) -> Unit,
+    onMethodSelect: (String) -> Unit,
+    onStartChange: (String) -> Unit,
+    onEndChange: (String) -> Unit,
+) {
+    Column {
+        LabeledDropdown(
+            label = "Type",
+            displayValue = type.label,
+            options = RemittanceTypeChoice.entries.map { it.label },
+            onSelect = onTypeSelect,
+        )
+        LabeledDropdown(
+            label = "Method",
+            displayValue = method.label,
+            options = RemittanceMethodChoice.entries.map { it.label },
+            onSelect = onMethodSelect,
+        )
+        RemittanceDatePickerField(
+            label = "Date range start",
+            value = startDate,
+            onValueChange = onStartChange,
+        )
+        RemittanceDatePickerField(
+            label = "Date range end",
+            value = endDate,
+            onValueChange = onEndChange,
+        )
+        dateError?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        (updateState as? UiState.Error)?.let {
+            Text(
+                text = it.message,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
 }
 
 /**
