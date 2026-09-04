@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.companyb.companyapp.dto.BranchResponse
+import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.viewmodel.BranchViewModel
 import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.UserViewModel
@@ -66,3 +67,54 @@ internal fun UserManagementDialogHosts(
         onClearRemoveTarget = branchActions.onClearRemoveTarget,
     )
 }
+
+/**
+ * Top-sections actions construction hoisted out of [UserManagementScreen] for the #462
+ * LongMethod burn-down. Lives here (not Header.kt) because Header.kt sits at the detekt
+ * file-function wall (10/11) — Overlays.kt has fresh budget. Owns the derivations plus
+ * the multi-line refresh/create/assign bodies; the Screen passes single-line setters,
+ * method refs, and raw dialog states via [UserManagementTopSectionsCallbacks]
+ * (call-site lambda bodies count toward the caller's LongMethod). Plain fun with 4
+ * params so it stays LongParameterList-clean outside the LPL-excluded Screen file.
+ */
+internal fun userManagementTopSectionsActions(
+    users: UiState<List<UserSummaryResponse>>,
+    heldNonNull: Boolean,
+    mutationsDisabled: Boolean,
+    callbacks: UserManagementTopSectionsCallbacks,
+): UserManagementTopSectionsActions =
+    UserManagementTopSectionsActions(
+        // Typing against an Error state with nothing held does nothing visible (ErrorCard
+        // renders instead of the list) — disable so the field doesn't look interactive
+        // (pass-1 P4 SOFT). With held rows the keep-last gate renders the list, so the
+        // client-side filter stays live over the mirror (#161).
+        searchEnabled = heldNonNull || users !is UiState.Error,
+        onSearchChange = callbacks.onSearchChange,
+        onInvite = { callbacks.onShowCreateUser(true) },
+        onRefresh = {
+            callbacks.onLoadUsers()
+            callbacks.onLoadBranches()
+        },
+        // Gated on a rendered list too: with nothing held (failed initial load) an
+        // appended created row would be invisible behind the ErrorCard — force the
+        // retry path instead (pass-4 P4).
+        inviteEnabled = !mutationsDisabled && heldNonNull,
+        refreshEnabled = !mutationsDisabled,
+        onBranchSelected = callbacks.onBranchSelected,
+        onRetryBranches = callbacks.onLoadBranches,
+        onCreateBranch = {
+            callbacks.onResetAdministration()
+            callbacks.onShowCreateBranch(true)
+        },
+        onAssign = {
+            callbacks.onResetAdministration()
+            callbacks.onAssignmentBranchChange(callbacks.selectedBranch)
+            callbacks.onShowAssignDialog(true)
+        },
+        pickerDisabled = mutationsDisabled,
+        createEnabled = !mutationsDisabled,
+        assignEnabled = !mutationsDisabled && heldNonNull,
+        assignmentResult = callbacks.assignmentResult,
+        removeAssignmentTarget = callbacks.removeAssignmentTarget,
+        showAssignDialog = callbacks.showAssignDialog,
+    )

@@ -181,6 +181,28 @@ internal data class UserManagementTopSectionsActions(
 )
 
 /**
+ * Single-line setters + raw dialog states behind the top-sections construction (same #462
+ * hoist — the Screen passes these plus method refs while
+ * [userManagementTopSectionsActions] owns the derivations and the multi-line
+ * refresh/create/assign bodies; data class so LPL/TMF-free).
+ */
+internal data class UserManagementTopSectionsCallbacks(
+    val onSearchChange: (String) -> Unit,
+    val onShowCreateUser: (Boolean) -> Unit,
+    val onLoadUsers: () -> Unit,
+    val onLoadBranches: () -> Unit,
+    val onBranchSelected: (String?) -> Unit,
+    val onResetAdministration: () -> Unit,
+    val onShowCreateBranch: (Boolean) -> Unit,
+    val onAssignmentBranchChange: (BranchResponse?) -> Unit,
+    val onShowAssignDialog: (Boolean) -> Unit,
+    val selectedBranch: BranchResponse?,
+    val assignmentResult: UiState<AssignmentResponse>,
+    val removeAssignmentTarget: AssignmentRemovalTarget?,
+    val showAssignDialog: Boolean,
+)
+
+/**
  * Callbacks + gates for the member half of [UserManagementDialogHosts] (#462 LongMethod burn —
  * new-file split; UserManagementScreen.kt/Header.kt/Dialogs.kt all sit at the detekt
  * file-function wall). The host collects the dialog flows itself (duplicate StateFlow

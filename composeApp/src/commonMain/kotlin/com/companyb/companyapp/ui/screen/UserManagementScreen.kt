@@ -181,40 +181,26 @@ fun UserManagementScreen(
             selectedBranchId = selectedBranchId,
             selectedBranch = selectedBranch,
             actions =
-                UserManagementTopSectionsActions(
-                    // Typing against an Error state with nothing held does nothing visible (ErrorCard
-                    // renders instead of the list) — disable so the field doesn't look interactive
-                    // (pass-1 P4 SOFT). With held rows the keep-last gate renders the list, so the
-                    // client-side filter stays live over the mirror (#161).
-                    searchEnabled = heldList != null || users !is UiState.Error,
-                    onSearchChange = { searchQuery = it },
-                    onInvite = { showCreateUserDialog = true },
-                    onRefresh = {
-                        viewModel.loadUsers()
-                        viewModel.loadBranches()
-                    },
-                    // Gated on a rendered list too: with nothing held (failed initial load) an
-                    // appended created row would be invisible behind the ErrorCard — force the
-                    // retry path instead (pass-4 P4).
-                    inviteEnabled = !mutationsDisabled && heldList != null,
-                    refreshEnabled = !mutationsDisabled,
-                    onBranchSelected = { selectedBranchId = it },
-                    onRetryBranches = { viewModel.loadBranches() },
-                    onCreateBranch = {
-                        branchViewModel.resetAdministrationState()
-                        showCreateBranchDialog = true
-                    },
-                    onAssign = {
-                        branchViewModel.resetAdministrationState()
-                        assignmentBranch = selectedBranch
-                        showAssignUserDialog = true
-                    },
-                    pickerDisabled = mutationsDisabled,
-                    createEnabled = !mutationsDisabled,
-                    assignEnabled = !mutationsDisabled && heldList != null,
-                    assignmentResult = assignmentResult,
-                    removeAssignmentTarget = removeAssignmentTarget,
-                    showAssignDialog = showAssignUserDialog,
+                userManagementTopSectionsActions(
+                    users = users,
+                    heldNonNull = heldList != null,
+                    mutationsDisabled = mutationsDisabled,
+                    callbacks =
+                        UserManagementTopSectionsCallbacks(
+                            onSearchChange = { searchQuery = it },
+                            onShowCreateUser = { showCreateUserDialog = it },
+                            onLoadUsers = viewModel::loadUsers,
+                            onLoadBranches = viewModel::loadBranches,
+                            onBranchSelected = { selectedBranchId = it },
+                            onResetAdministration = branchViewModel::resetAdministrationState,
+                            onShowCreateBranch = { showCreateBranchDialog = it },
+                            onAssignmentBranchChange = { assignmentBranch = it },
+                            onShowAssignDialog = { showAssignUserDialog = it },
+                            selectedBranch = selectedBranch,
+                            assignmentResult = assignmentResult,
+                            removeAssignmentTarget = removeAssignmentTarget,
+                            showAssignDialog = showAssignUserDialog,
+                        ),
                 ),
         )
 
