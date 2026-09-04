@@ -576,48 +576,18 @@ private fun RemittanceDetailContent(
         )
     }
 
-    // D5 — structural confirm; numbers unknowable pre-submit (F4): type, covered days
-    // (count + dates), line count, line total, method + the 48h warning copy.
-    if (showSubmitDialog) {
-        SubmitConfirmDialog(
-            detail = detail,
-            dayLabels = dayLabels,
-            state = submitState,
-            onSubmit = {
-                if (submitState !is UiState.Loading) {
-                    viewModel.submit(
-                        remittanceId,
-                        SubmitRemittanceRequest(expectedVersion = detail.version),
-                    )
-                }
-            },
-            onDismiss = {
-                if (submitState !is UiState.Loading) {
-                    onCloseSubmitDialog()
-                }
-            },
-        )
-    }
-
-    // D10 — undo confirm: reason required (one line, mirroring the Void discipline).
-    if (showUndoDialog) {
-        UndoDialog(
-            state = undoState,
-            onSubmit = { reason ->
-                if (undoState !is UiState.Loading) {
-                    viewModel.undo(
-                        remittanceId,
-                        UndoRemittanceRequest(expectedVersion = detail.version, reason = reason),
-                    )
-                }
-            },
-            onDismiss = {
-                if (undoState !is UiState.Loading) {
-                    onCloseUndoDialog()
-                }
-            },
-        )
-    }
+    RemittanceDetailSubmitUndoHost(
+        detail = detail,
+        dayLabels = dayLabels,
+        submitState = submitState,
+        undoState = undoState,
+        viewModel = viewModel,
+        remittanceId = remittanceId,
+        showSubmitDialog = showSubmitDialog,
+        showUndoDialog = showUndoDialog,
+        onCloseSubmitDialog = onCloseSubmitDialog,
+        onCloseUndoDialog = onCloseUndoDialog,
+    )
 }
 
 @Composable
@@ -749,6 +719,63 @@ private fun RemittanceDetailReceiptSection(
         ) {
             Text("Undo submission")
         }
+    }
+}
+
+@Composable
+private fun RemittanceDetailSubmitUndoHost(
+    detail: RemittanceDetailResponse,
+    dayLabels: Map<String, RemittanceDayPickerEntryResponse>,
+    submitState: UiState<RemittanceSubmitResponse>,
+    undoState: UiState<RemittanceResponse>,
+    viewModel: RemittanceViewModel,
+    remittanceId: String,
+    showSubmitDialog: Boolean,
+    showUndoDialog: Boolean,
+    onCloseSubmitDialog: () -> Unit,
+    onCloseUndoDialog: () -> Unit,
+) {
+    // D5 — structural confirm; numbers unknowable pre-submit (F4): type, covered days
+    // (count + dates), line count, line total, method + the 48h warning copy.
+    if (showSubmitDialog) {
+        SubmitConfirmDialog(
+            detail = detail,
+            dayLabels = dayLabels,
+            state = submitState,
+            onSubmit = {
+                if (submitState !is UiState.Loading) {
+                    viewModel.submit(
+                        remittanceId,
+                        SubmitRemittanceRequest(expectedVersion = detail.version),
+                    )
+                }
+            },
+            onDismiss = {
+                if (submitState !is UiState.Loading) {
+                    onCloseSubmitDialog()
+                }
+            },
+        )
+    }
+
+    // D10 — undo confirm: reason required (one line, mirroring the Void discipline).
+    if (showUndoDialog) {
+        UndoDialog(
+            state = undoState,
+            onSubmit = { reason ->
+                if (undoState !is UiState.Loading) {
+                    viewModel.undo(
+                        remittanceId,
+                        UndoRemittanceRequest(expectedVersion = detail.version, reason = reason),
+                    )
+                }
+            },
+            onDismiss = {
+                if (undoState !is UiState.Loading) {
+                    onCloseUndoDialog()
+                }
+            },
+        )
     }
 }
 
