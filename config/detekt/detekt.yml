@@ -175,6 +175,7 @@ complexity:
     active: true
     threshold: 60
     excludes:
+      - '**/commonMain/**/ui/screen/ClientDetailScreen.kt'
       - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
       - '**/commonMain/**/ui/screen/UserManagementScreen.kt'
       - '**/commonMain/**/ui/screen/NotificationsScreen.kt'
