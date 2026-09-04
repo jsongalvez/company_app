@@ -965,86 +965,21 @@ private fun BpPairEditor(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (editing) {
-            // Blur-commit lives on the ROW, not the fields: isFocused on the row is false only
-            // when the whole pair lost focus (moving systolic↔diastolic keeps a descendant
-            // focused — a per-field handler would blur-commit mid-correction the moment the user
-            // taps back into the other side after typing both). Fires once per pair-focus-loss,
-            // disposal included. Esc cancels the edit.
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier =
-                    Modifier
-                        .onFocusChanged {
-                            if (!it.isFocused && draft.dirtySystolic && draft.dirtyDiastolic) {
-                                onCommit()
-                            }
-                        }.escapeCancels(onCancel),
-            ) {
-                OutlinedTextField(
-                    value = draft.systolic,
-                    onValueChange = {
-                        draft.systolic = it
-                        draft.dirtySystolic = true
-                        onDraftChanged()
-                    },
-                    singleLine = true,
-                    isError = fieldError != null,
-                    enabled = enabled,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { onCommit() }),
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = "/",
-                    modifier = Modifier.padding(horizontal = Spacing.xs),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                OutlinedTextField(
-                    value = draft.diastolic,
-                    onValueChange = {
-                        draft.diastolic = it
-                        draft.dirtyDiastolic = true
-                        onDraftChanged()
-                    },
-                    singleLine = true,
-                    isError = fieldError != null,
-                    enabled = enabled,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { onCommit() }),
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            BpPairEditRow(
+                draft = draft,
+                fieldError = fieldError,
+                enabled = enabled,
+                onCommit = onCommit,
+                onCancel = onCancel,
+                onDraftChanged = onDraftChanged,
+            )
         } else {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                val display =
-                    when {
-                        systolic != null && diastolic != null -> "$systolic / $diastolic"
-                        systolic != null -> "$systolic / —"
-                        diastolic != null -> "— / $diastolic"
-                        else -> "—"
-                    }
-                Text(
-                    text = display,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color =
-                        if (systolic == null && diastolic == null) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                    modifier = Modifier.weight(1f),
-                )
-                PencilIcon(
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier =
-                        Modifier
-                            .clickable(enabled = enabled, onClick = onStartEdit)
-                            .padding(start = Spacing.xs),
-                )
-            }
+            BpPairDisplayRow(
+                systolic = systolic,
+                diastolic = diastolic,
+                enabled = enabled,
+                onStartEdit = onStartEdit,
+            )
         }
         if (fieldError != null) {
             Text(
@@ -1053,6 +988,105 @@ private fun BpPairEditor(
                 style = MaterialTheme.typography.bodySmall,
             )
         }
+    }
+}
+
+@Composable
+private fun BpPairEditRow(
+    draft: BpDraftState,
+    fieldError: String?,
+    enabled: Boolean,
+    onCommit: () -> Unit,
+    onCancel: () -> Unit,
+    onDraftChanged: () -> Unit,
+) {
+    // Blur-commit lives on the ROW, not the fields: isFocused on the row is false only
+    // when the whole pair lost focus (moving systolic↔diastolic keeps a descendant
+    // focused — a per-field handler would blur-commit mid-correction the moment the user
+    // taps back into the other side after typing both). Fires once per pair-focus-loss,
+    // disposal included. Esc cancels the edit.
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier =
+            Modifier
+                .onFocusChanged {
+                    if (!it.isFocused && draft.dirtySystolic && draft.dirtyDiastolic) {
+                        onCommit()
+                    }
+                }.escapeCancels(onCancel),
+    ) {
+        OutlinedTextField(
+            value = draft.systolic,
+            onValueChange = {
+                draft.systolic = it
+                draft.dirtySystolic = true
+                onDraftChanged()
+            },
+            singleLine = true,
+            isError = fieldError != null,
+            enabled = enabled,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { onCommit() }),
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = "/",
+            modifier = Modifier.padding(horizontal = Spacing.xs),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        OutlinedTextField(
+            value = draft.diastolic,
+            onValueChange = {
+                draft.diastolic = it
+                draft.dirtyDiastolic = true
+                onDraftChanged()
+            },
+            singleLine = true,
+            isError = fieldError != null,
+            enabled = enabled,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { onCommit() }),
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun BpPairDisplayRow(
+    systolic: Short?,
+    diastolic: Short?,
+    enabled: Boolean,
+    onStartEdit: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        val display =
+            when {
+                systolic != null && diastolic != null -> "$systolic / $diastolic"
+                systolic != null -> "$systolic / —"
+                diastolic != null -> "— / $diastolic"
+                else -> "—"
+            }
+        Text(
+            text = display,
+            style = MaterialTheme.typography.bodyMedium,
+            color =
+                if (systolic == null && diastolic == null) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            modifier = Modifier.weight(1f),
+        )
+        PencilIcon(
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier =
+                Modifier
+                    .clickable(enabled = enabled, onClick = onStartEdit)
+                    .padding(start = Spacing.xs),
+        )
     }
 }
 
