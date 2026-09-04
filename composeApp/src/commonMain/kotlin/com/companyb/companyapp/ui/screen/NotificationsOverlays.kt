@@ -1,9 +1,20 @@
 package com.companyb.companyapp.ui.screen
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import com.companyb.companyapp.dto.NotificationResponse
+import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.viewmodel.NotificationViewModel
 import com.companyb.companyapp.viewmodel.UiState
 
@@ -66,4 +77,69 @@ internal fun rememberNotificationsDerived(viewModel: NotificationViewModel): Not
         hasContent = hasContent,
         markAllBusy = markAllState is UiState.Loading,
     )
+}
+
+/**
+ * Header + inline error strips hoisted out of [NotificationsScreen] for the #462 LongMethod
+ * burn-down. Self-sufficient host: drives markAllRead/loadHistory on the viewModel directly
+ * so the Screen keeps one slim call. Plain @Composable (no ColumnScope — the moved block
+ * uses no weight/scope members; DrawerHeader precedent). History error re-localed so the
+ * non-null smart-cast reaches inside the Row lambda.
+ *
+ * 2 params so it stays LongParameterList-clean outside the LPL-excluded Screen file.
+ */
+@Composable
+internal fun NotificationsHeaderHost(
+    viewModel: NotificationViewModel,
+    derived: NotificationsDerived,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Notifications",
+            style = MaterialTheme.typography.titleLarge,
+        )
+        // D3: Mark all visible iff unread > 0; disabled while in-flight.
+        if (derived.unread.isNotEmpty()) {
+            TextButton(
+                onClick = { viewModel.markAllRead() },
+                enabled = !derived.markAllBusy,
+            ) {
+                Text("Mark all")
+            }
+        }
+    }
+
+    if (derived.hasActionError) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Spacing.xs),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
+        ) {
+            derived.markAllError?.let { ActionErrorLine(it) }
+            derived.markReadError?.let { ActionErrorLine(it) }
+        }
+    }
+
+    // #356 — history load failure is its own inline line with its own retry; it must not
+    // masquerade as an unread-queue failure (that queue has the full ErrorCard path).
+    // Local (not derived.*) so the non-null smart-cast reaches inside the Row lambda.
+    val historyError = derived.historyError
+    if (historyError != null) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ActionErrorLine(historyError)
+            TextButton(onClick = { viewModel.loadHistory() }) {
+                Text("Retry")
+            }
+        }
+    }
 }

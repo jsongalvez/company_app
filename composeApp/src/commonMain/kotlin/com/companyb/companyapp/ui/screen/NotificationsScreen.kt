@@ -86,55 +86,7 @@ fun NotificationsScreen(
                 .fillMaxSize()
                 .padding(Spacing.md),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Notifications",
-                style = MaterialTheme.typography.titleLarge,
-            )
-            // D3: Mark all visible iff unread > 0; disabled while in-flight.
-            if (derived.unread.isNotEmpty()) {
-                TextButton(
-                    onClick = { viewModel.markAllRead() },
-                    enabled = !derived.markAllBusy,
-                ) {
-                    Text("Mark all")
-                }
-            }
-        }
-
-        if (derived.hasActionError) {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = Spacing.xs),
-                verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
-            ) {
-                derived.markAllError?.let { ActionErrorLine(it) }
-                derived.markReadError?.let { ActionErrorLine(it) }
-            }
-        }
-
-        // #356 — history load failure is its own inline line with its own retry; it must not
-        // masquerade as an unread-queue failure (that queue has the full ErrorCard path).
-        // Local (not derived.*) so the non-null smart-cast reaches inside the Row lambda.
-        val historyError = derived.historyError
-        if (historyError != null) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ActionErrorLine(historyError)
-                TextButton(onClick = { viewModel.loadHistory() }) {
-                    Text("Retry")
-                }
-            }
-        }
+        NotificationsHeaderHost(viewModel, derived)
 
         // #160 — the invites section renders above the unread list (self-sufficient host: it
         // collects the received/accept/decline flows internally so the Screen stays lean).
@@ -442,7 +394,7 @@ private fun ReliefInviteRow(
 }
 
 @Composable
-private fun ActionErrorLine(message: String) {
+internal fun ActionErrorLine(message: String) {
     Text(
         text = message,
         style = MaterialTheme.typography.bodySmall,
