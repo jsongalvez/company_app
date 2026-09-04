@@ -1037,7 +1037,6 @@ private fun GenderFieldEditor(
 ) {
     val editing = editingField == field
     val error = if (editing) fieldError else null
-    var menuOpen by remember { mutableStateOf(false) }
 
     Column(
         modifier =
@@ -1051,43 +1050,14 @@ private fun GenderFieldEditor(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (editing) {
-            Box {
-                OutlinedTextField(
-                    value = if (draftValue == Gender.M.name) Gender.M.displayName() else Gender.F.displayName(),
-                    onValueChange = {},
-                    singleLine = true,
-                    readOnly = true,
-                    isError = error != null,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = enabled) { menuOpen = true },
-                    enabled = enabled,
-                )
-                DropdownMenu(
-                    expanded = menuOpen,
-                    onDismissRequest = { menuOpen = false },
-                ) {
-                    DropdownMenuItem(
-                        text = { Text(Gender.M.displayName()) },
-                        enabled = enabled,
-                        onClick = {
-                            menuOpen = false
-                            onDraftChange(Gender.M.name)
-                            onCommit(field)
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(Gender.F.displayName()) },
-                        enabled = enabled,
-                        onClick = {
-                            menuOpen = false
-                            onDraftChange(Gender.F.name)
-                            onCommit(field)
-                        },
-                    )
-                }
-            }
+            GenderEditDropdown(
+                draftValue = draftValue,
+                field = field,
+                enabled = enabled,
+                error = error,
+                onDraftChange = onDraftChange,
+                onCommit = onCommit,
+            )
         } else {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -1114,6 +1084,55 @@ private fun GenderFieldEditor(
                 text = error,
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+@Composable
+private fun GenderEditDropdown(
+    draftValue: String,
+    field: ClientField,
+    enabled: Boolean,
+    error: String?,
+    onDraftChange: (String) -> Unit,
+    onCommit: (ClientField) -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Box {
+        OutlinedTextField(
+            value = if (draftValue == Gender.M.name) Gender.M.displayName() else Gender.F.displayName(),
+            onValueChange = {},
+            singleLine = true,
+            readOnly = true,
+            isError = error != null,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = enabled) { menuOpen = true },
+            enabled = enabled,
+        )
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text(Gender.M.displayName()) },
+                enabled = enabled,
+                onClick = {
+                    menuOpen = false
+                    onDraftChange(Gender.M.name)
+                    onCommit(field)
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(Gender.F.displayName()) },
+                enabled = enabled,
+                onClick = {
+                    menuOpen = false
+                    onDraftChange(Gender.F.name)
+                    onCommit(field)
+                },
             )
         }
     }
