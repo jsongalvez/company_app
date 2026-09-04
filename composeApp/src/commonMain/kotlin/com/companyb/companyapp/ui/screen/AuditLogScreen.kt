@@ -125,15 +125,144 @@ private fun AuditLogTabEffects(
 }
 
 @Composable
-fun AuditLogScreen(
-    viewModel: AuditLogViewModel,
+private fun AuditLogTopBar(
+    selectedTab: Int,
+    flaggedLoadInFlight: Boolean,
+    isRefreshing: Boolean,
+    isLoadingMore: Boolean,
+    onRefreshFlagged: () -> Unit,
+    onRefreshBrowse: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Audit Log",
+            style = MaterialTheme.typography.titleLarge,
+        )
+        TextButton(
+            onClick = {
+                if (selectedTab == TAB_FOR_REVIEW) {
+                    onRefreshFlagged()
+                } else {
+                    onRefreshBrowse()
+                }
+            },
+            // Per-tab in-flight coupling: the flagged tab's button tracks the flagged load
+            // guard; the All-activity tab's tracks the browse flags (the VM guards remain
+            // authoritative against double-fires either way).
+            enabled =
+                if (selectedTab == TAB_FOR_REVIEW) {
+                    !flaggedLoadInFlight
+                } else {
+                    !isRefreshing && !isLoadingMore
+                },
+        ) {
+            Text("Refresh")
+        }
+    }
+}
+
+@Composable
+private fun AuditLogTabRow(
+    selectedTab: Int,
+    onSelectTab: (Int) -> Unit,
+) {
+    TabRow(selectedTabIndex = selectedTab) {
+        Tab(
+            selected = selectedTab == TAB_FOR_REVIEW,
+            onClick = { onSelectTab(TAB_FOR_REVIEW) },
+            text = { Text("For review") },
+        )
+        Tab(
+            selected = selectedTab == TAB_ALL_ACTIVITY,
+            onClick = { onSelectTab(TAB_ALL_ACTIVITY) },
+            text = { Text("All activity") },
+        )
+    }
+}
+
+@Composable
+private fun AuditLogTabContent(
+    selectedTab: Int,
+    flaggedEntries: UiState<List<AuditLogEntryResponse>>,
+    browseEntries: UiState<List<AuditLogEntryResponse>>,
+    tables: UiState<List<AuditLogTableResponse>>,
+    flaggedRefreshError: String?,
+    browseRefreshError: String?,
     currentUserId: String?,
     hasAnyCapability: Boolean,
+    expandedIds: Set<String>,
+    onToggleExpanded: (String) -> Unit,
+    acknowledgingIds: Set<String>,
+    ackErrors: Map<String, String>,
+    onAcknowledge: (AuditLogEntryResponse) -> Unit,
     onFullHistory: (AuditLogEntryResponse) -> Unit,
-    // #390 — "Open client record" jump; null when the caller lacks GLOBAL EDIT_BRANCH_DATA
-    // (the backend's client-read scope — fail-closed, a day-grant holder would 403).
     onOpenClientRecord: ((AuditLogEntryResponse) -> Unit)?,
+    onRetryFlagged: () -> Unit,
+    filterDraft: AuditLogFilterDraft,
+    filtersApplied: Boolean,
+    onApplyFilters: (AuditLogFilters) -> Unit,
+    onRetryBrowse: () -> Unit,
+    onRetryTables: () -> Unit,
+    onLoadMore: () -> Unit,
+    hasMore: Boolean,
+    isLoadingMore: Boolean,
+    loadMoreError: String?,
 ) {
+    val tableLabels =
+        (tables as? UiState.Success<List<AuditLogTableResponse>>)
+            ?.data
+            ?.associate { it.tableName to it.label }
+            .orEmpty()
+    if (selectedTab == TAB_FOR_REVIEW) {
+        ForReviewTab(
+            state = flaggedEntries,
+            refreshError = flaggedRefreshError,
+            currentUserId = currentUserId,
+            hasAnyCapability = hasAnyCapability,
+            tableLabels = tableLabels,
+            expandedIds = expandedIds,
+            onToggleExpanded = onToggleExpanded,
+            acknowledgingIds = acknowledgingIds,
+            ackErrors = ackErrors,
+            onAcknowledge = onAcknowledge,
+            onFullHistory = onFullHistory,
+            onOpenClientRecord = onOpenClientRecord,
+            onRetry = onRetryFlagged,
+        )
+    } else {
+        AllActivityTab(
+            state = browseEntries,
+            tables = tables,
+            refreshError = browseRefreshError,
+            currentUserId = currentUserId,
+            hasAnyCapability = hasAnyCapability,
+            tableLabels = tableLabels,
+            expandedIds = expandedIds,
+            onToggleExpanded = onToggleExpanded,
+            acknowledgingIds = acknowledgingIds,
+            ackErrors = ackErrors,
+            onAcknowledge = onAcknowledge,
+            onFullHistory = onFullHistory,
+            onOpenClientRecord = onOpenClientRecord,
+            filterDraft = filterDraft,
+            filtersApplied = filtersApplied,
+            onApplyFilters = onApplyFilters,
+            onRetryBrowse = onRetryBrowse,
+            onRetryTables = onRetryTables,
+            onLoadMore = onLoadMore,
+            hasMore = hasMore,
+            isLoadingMore = isLoadingMore,
+            loadMoreError = loadMoreError,
+        )
+    }
+}
+
+@Composable
+private fun rememberAuditLogCollected(viewModel: AuditLogViewModel): AuditLogCollected {
     val flaggedEntries by viewModel.flaggedEntries.collectAsState()
     val browseEntries by viewModel.browseEntries.collectAsState()
     val tables by viewModel.tables.collectAsState()
@@ -147,32 +276,94 @@ fun AuditLogScreen(
     val nextCursor by viewModel.nextCursor.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val loadMoreError by viewModel.loadMoreError.collectAsState()
+    return AuditLogCollected(
+        flaggedEntries = flaggedEntries,
+        browseEntries = browseEntries,
+        tables = tables,
+        acknowledgingIds = acknowledgingIds,
+        ackErrors = ackErrors,
+        isRefreshing = isRefreshing,
+        flaggedLoadInFlight = flaggedLoadInFlight,
+        flaggedRefreshError = flaggedRefreshError,
+        browseRefreshError = browseRefreshError,
+        appliedFilters = appliedFilters,
+        nextCursor = nextCursor,
+        isLoadingMore = isLoadingMore,
+        loadMoreError = loadMoreError,
+    )
+}
 
-    var selectedTab by rememberSaveable { mutableIntStateOf(TAB_FOR_REVIEW) }
-    var expandedIds by remember { mutableStateOf(emptySet<String>()) }
+private data class AuditLogCollected(
+    val flaggedEntries: UiState<List<AuditLogEntryResponse>>,
+    val browseEntries: UiState<List<AuditLogEntryResponse>>,
+    val tables: UiState<List<AuditLogTableResponse>>,
+    val acknowledgingIds: Set<String>,
+    val ackErrors: Map<String, String>,
+    val isRefreshing: Boolean,
+    val flaggedLoadInFlight: Boolean,
+    val flaggedRefreshError: String?,
+    val browseRefreshError: String?,
+    val appliedFilters: AuditLogFilters,
+    val nextCursor: String?,
+    val isLoadingMore: Boolean,
+    val loadMoreError: String?,
+)
+
+@Composable
+private fun rememberAuditLogFilterDraft(): AuditLogFilterDraft =
     // Hoisted filter-bar draft state: the bar lives inside the All-activity tab branch, so its
     // local remember would be disposed on every tab switch — the hoist keeps the typed values
     // across switches (and nav round-trips, via the saver) so the bar can't drift from the
     // applied filters it rendered.
-    val filterDraft = rememberSaveable(saver = AuditLogFilterDraftSaver) { AuditLogFilterDraft() }
+    rememberSaveable(saver = AuditLogFilterDraftSaver) { AuditLogFilterDraft() }
 
+@Composable
+private fun AuditLogScreenEffects(
+    viewModel: AuditLogViewModel,
+    selectedTab: Int,
+    hasVisitedAllActivity: Boolean,
+    onFirstBrowseVisit: () -> Unit,
+) {
+    AuditLogScreenLoadEffects(viewModel)
+    AuditLogTabEffects(
+        viewModel = viewModel,
+        selectedTab = selectedTab,
+        hasVisitedAllActivity = hasVisitedAllActivity,
+        onFirstBrowseVisit = onFirstBrowseVisit,
+    )
+}
+
+@Composable
+private fun rememberAuditLogExpanded(): Pair<Set<String>, (String) -> Unit> {
+    var expandedIds by remember { mutableStateOf(emptySet<String>()) }
     val onToggleExpanded: (String) -> Unit = { id ->
         expandedIds =
             if (id in expandedIds) expandedIds - id else expandedIds + id
     }
+    return expandedIds to onToggleExpanded
+}
+
+@Composable
+fun AuditLogScreen(
+    viewModel: AuditLogViewModel,
+    currentUserId: String?,
+    hasAnyCapability: Boolean,
+    onFullHistory: (AuditLogEntryResponse) -> Unit,
+    // #390 — "Open client record" jump; null when the caller lacks GLOBAL EDIT_BRANCH_DATA
+    // (the backend's client-read scope — fail-closed, a day-grant holder would 403).
+    onOpenClientRecord: ((AuditLogEntryResponse) -> Unit)?,
+) {
+    val collected = rememberAuditLogCollected(viewModel)
+
+    var selectedTab by rememberSaveable { mutableIntStateOf(TAB_FOR_REVIEW) }
+    val (expandedIds, onToggleExpanded) = rememberAuditLogExpanded()
+    val filterDraft = rememberAuditLogFilterDraft()
     // D10 — the All-activity list loads on first visit and keeps its accumulated pages across
     // tab switches; the flag survives nav round-trips (saveable) so a history push → back
     // re-entry stays silent instead of re-colding over the accumulated list.
     var hasVisitedAllActivity by rememberSaveable { mutableStateOf(false) }
 
-    val tableLabels =
-        (tables as? UiState.Success<List<AuditLogTableResponse>>)
-            ?.data
-            ?.associate { it.tableName to it.label }
-            .orEmpty()
-
-    AuditLogScreenLoadEffects(viewModel)
-    AuditLogTabEffects(
+    AuditLogScreenEffects(
         viewModel = viewModel,
         selectedTab = selectedTab,
         hasVisitedAllActivity = hasVisitedAllActivity,
@@ -185,92 +376,47 @@ fun AuditLogScreen(
                 .fillMaxSize()
                 .padding(Spacing.md),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Audit Log",
-                style = MaterialTheme.typography.titleLarge,
-            )
-            TextButton(
-                onClick = {
-                    if (selectedTab == TAB_FOR_REVIEW) {
-                        viewModel.refreshFlagged()
-                    } else {
-                        viewModel.refreshBrowse()
-                    }
-                },
-                // Per-tab in-flight coupling: the flagged tab's button tracks the flagged load
-                // guard; the All-activity tab's tracks the browse flags (the VM guards remain
-                // authoritative against double-fires either way).
-                enabled =
-                    if (selectedTab == TAB_FOR_REVIEW) {
-                        !flaggedLoadInFlight
-                    } else {
-                        !isRefreshing && !isLoadingMore
-                    },
-            ) {
-                Text("Refresh")
-            }
-        }
+        AuditLogTopBar(
+            selectedTab = selectedTab,
+            flaggedLoadInFlight = collected.flaggedLoadInFlight,
+            isRefreshing = collected.isRefreshing,
+            isLoadingMore = collected.isLoadingMore,
+            onRefreshFlagged = viewModel::refreshFlagged,
+            onRefreshBrowse = viewModel::refreshBrowse,
+        )
 
-        TabRow(selectedTabIndex = selectedTab) {
-            Tab(
-                selected = selectedTab == TAB_FOR_REVIEW,
-                onClick = { selectedTab = TAB_FOR_REVIEW },
-                text = { Text("For review") },
-            )
-            Tab(
-                selected = selectedTab == TAB_ALL_ACTIVITY,
-                onClick = { selectedTab = TAB_ALL_ACTIVITY },
-                text = { Text("All activity") },
-            )
-        }
+        AuditLogTabRow(
+            selectedTab = selectedTab,
+            onSelectTab = { selectedTab = it },
+        )
 
-        if (selectedTab == TAB_FOR_REVIEW) {
-            ForReviewTab(
-                state = flaggedEntries,
-                refreshError = flaggedRefreshError,
-                currentUserId = currentUserId,
-                hasAnyCapability = hasAnyCapability,
-                tableLabels = tableLabels,
-                expandedIds = expandedIds,
-                onToggleExpanded = onToggleExpanded,
-                acknowledgingIds = acknowledgingIds,
-                ackErrors = ackErrors,
-                onAcknowledge = viewModel::acknowledge,
-                onFullHistory = onFullHistory,
-                onOpenClientRecord = onOpenClientRecord,
-                onRetry = viewModel::loadFlaggedEntries,
-            )
-        } else {
-            AllActivityTab(
-                state = browseEntries,
-                tables = tables,
-                refreshError = browseRefreshError,
-                currentUserId = currentUserId,
-                hasAnyCapability = hasAnyCapability,
-                tableLabels = tableLabels,
-                expandedIds = expandedIds,
-                onToggleExpanded = onToggleExpanded,
-                acknowledgingIds = acknowledgingIds,
-                ackErrors = ackErrors,
-                onAcknowledge = viewModel::acknowledge,
-                onFullHistory = onFullHistory,
-                onOpenClientRecord = onOpenClientRecord,
-                filterDraft = filterDraft,
-                filtersApplied = appliedFilters != AuditLogFilters(),
-                onApplyFilters = viewModel::applyFilters,
-                onRetryBrowse = viewModel::retryBrowse,
-                onRetryTables = viewModel::loadTables,
-                onLoadMore = viewModel::loadMore,
-                hasMore = nextCursor != null,
-                isLoadingMore = isLoadingMore,
-                loadMoreError = loadMoreError,
-            )
-        }
+        AuditLogTabContent(
+            selectedTab = selectedTab,
+            flaggedEntries = collected.flaggedEntries,
+            browseEntries = collected.browseEntries,
+            tables = collected.tables,
+            flaggedRefreshError = collected.flaggedRefreshError,
+            browseRefreshError = collected.browseRefreshError,
+            currentUserId = currentUserId,
+            hasAnyCapability = hasAnyCapability,
+            expandedIds = expandedIds,
+            onToggleExpanded = onToggleExpanded,
+            acknowledgingIds = collected.acknowledgingIds,
+            ackErrors = collected.ackErrors,
+            onAcknowledge = viewModel::acknowledge,
+            onFullHistory = onFullHistory,
+            onOpenClientRecord = onOpenClientRecord,
+            onRetryFlagged = viewModel::loadFlaggedEntries,
+            filterDraft = filterDraft,
+            filtersApplied = collected.appliedFilters != AuditLogFilters(),
+            onApplyFilters = viewModel::applyFilters,
+            onRetryBrowse = viewModel::retryBrowse,
+            onRetryTables = viewModel::loadTables,
+            onLoadMore = viewModel::loadMore,
+            hasMore = collected.nextCursor != null,
+            isLoadingMore = collected.isLoadingMore,
+            loadMoreError = collected.loadMoreError,
+        )
     }
 }
 
