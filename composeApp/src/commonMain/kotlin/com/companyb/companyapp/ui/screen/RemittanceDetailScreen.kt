@@ -2053,32 +2053,16 @@ private fun UndoDialog(
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.size(Spacing.sm))
-                OutlinedTextField(
-                    value = reason,
-                    onValueChange = {
+                UndoReasonFields(
+                    reason = reason,
+                    reasonError = reasonError,
+                    state = state,
+                    onReasonChange = {
                         // one line — strip newlines (the backend rejects multi-line reasons)
                         reason = it.filterNot { c -> c == '\n' || c == '\r' }
                         reasonError = null
                     },
-                    singleLine = true,
-                    isError = reasonError != null,
-                    placeholder = { Text("Reason") },
-                    modifier = Modifier.fillMaxWidth(),
                 )
-                reasonError?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                (state as? UiState.Error)?.let {
-                    Text(
-                        text = it.message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
             }
         },
         confirmButton = {
@@ -2098,4 +2082,35 @@ private fun UndoDialog(
             }
         },
     )
+}
+
+@Composable
+private fun UndoReasonFields(
+    reason: String,
+    reasonError: String?,
+    state: UiState<RemittanceResponse>,
+    onReasonChange: (String) -> Unit,
+) {
+    OutlinedTextField(
+        value = reason,
+        onValueChange = onReasonChange,
+        singleLine = true,
+        isError = reasonError != null,
+        placeholder = { Text("Reason") },
+        modifier = Modifier.fillMaxWidth(),
+    )
+    reasonError?.let {
+        Text(
+            text = it,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+    (state as? UiState.Error)?.let {
+        Text(
+            text = it.message,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
 }
