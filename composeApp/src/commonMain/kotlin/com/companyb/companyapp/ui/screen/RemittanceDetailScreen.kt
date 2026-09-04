@@ -412,9 +412,6 @@ private fun RemittanceDetailContent(
     onCloseUndoDialog: () -> Unit,
 ) {
     val isDraft = detail.status == com.companyb.companyapp.domain.RemittanceStatus.DRAFT
-    val isSubmittedSession =
-        detail.status == com.companyb.companyapp.domain.RemittanceStatus.SUBMITTED &&
-            detail.type == com.companyb.companyapp.domain.RemittanceType.SESSION
 
     val sessionLabels =
         (sessionPickerState as? UiState.Success)
@@ -488,34 +485,13 @@ private fun RemittanceDetailContent(
             onOpenSubmitDialog = onOpenSubmitDialog,
         )
 
-        val snapshot = detail.snapshot
-        if (isSubmittedSession && snapshot != null) {
-            Spacer(Modifier.size(Spacing.md))
-            FrozenReceiptBlock(
-                snapshot = snapshot,
-                driftState = driftState,
-                onShowDrift = { viewModel.loadDrift(remittanceId) },
-            )
-        }
-
-        if (remittanceCanUndo(detail)) {
-            Spacer(Modifier.size(Spacing.sm))
-            OutlinedButton(
-                onClick = onOpenUndoDialog,
-                colors =
-                    ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error,
-                    ),
-                border =
-                    BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.error,
-                    ),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Undo submission")
-            }
-        }
+        RemittanceDetailReceiptSection(
+            detail = detail,
+            driftState = driftState,
+            viewModel = viewModel,
+            remittanceId = remittanceId,
+            onOpenUndoDialog = onOpenUndoDialog,
+        )
     }
 
     // D9 — header edit popup (the D2 create popup prefilled).
@@ -731,6 +707,47 @@ private fun RemittanceDetailDaysSection(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Submit")
+        }
+    }
+}
+
+@Composable
+private fun RemittanceDetailReceiptSection(
+    detail: RemittanceDetailResponse,
+    driftState: UiState<RemittanceDriftResponse>,
+    viewModel: RemittanceViewModel,
+    remittanceId: String,
+    onOpenUndoDialog: () -> Unit,
+) {
+    val isSubmittedSession =
+        detail.status == com.companyb.companyapp.domain.RemittanceStatus.SUBMITTED &&
+            detail.type == com.companyb.companyapp.domain.RemittanceType.SESSION
+    val snapshot = detail.snapshot
+    if (isSubmittedSession && snapshot != null) {
+        Spacer(Modifier.size(Spacing.md))
+        FrozenReceiptBlock(
+            snapshot = snapshot,
+            driftState = driftState,
+            onShowDrift = { viewModel.loadDrift(remittanceId) },
+        )
+    }
+
+    if (remittanceCanUndo(detail)) {
+        Spacer(Modifier.size(Spacing.sm))
+        OutlinedButton(
+            onClick = onOpenUndoDialog,
+            colors =
+                ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
+            border =
+                BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.error,
+                ),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Undo submission")
         }
     }
 }
