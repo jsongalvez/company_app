@@ -130,7 +130,7 @@ object InventoryService {
     }
 
     fun getStock(branchId: UUID): List<BranchInventoryWithProduct> {
-        requireBranchExists(branchId)
+        InventoryReadSupport.requireBranchExists(branchId)
         return BranchInventoryRepository.findByBranch(branchId)
     }
 
@@ -141,15 +141,15 @@ object InventoryService {
      * Stock - Sales - TesterSample - Missing + Adjustment.
      */
     fun getBreakdowns(branchId: UUID): Map<UUID, InventoryBreakdown> {
-        requireBranchExists(branchId)
-        return breakdownsFromLedger(branchId)
+        InventoryReadSupport.requireBranchExists(branchId)
+        return InventoryReadSupport.breakdownsFromLedger(branchId)
     }
 
     fun getMovementHistory(
         branchId: UUID,
         date: LocalDate? = null,
     ): List<InventoryMovement> {
-        requireBranchExists(branchId)
+        InventoryReadSupport.requireBranchExists(branchId)
         return BranchInventoryRepository.findMovements(branchId, date)
     }
 
@@ -158,9 +158,9 @@ object InventoryService {
      * scan. Replaces the route-level `getBreakdowns` + `getStock` orchestration.
      */
     fun getInventory(branchId: UUID): InventoryWithBreakdowns {
-        requireBranchExists(branchId)
+        InventoryReadSupport.requireBranchExists(branchId)
         val cards = BranchInventoryRepository.findByBranch(branchId)
-        val breakdowns = breakdownsFromLedger(branchId)
+        val breakdowns = InventoryReadSupport.breakdownsFromLedger(branchId)
         return InventoryWithBreakdowns(cards, breakdowns)
     }
 
@@ -168,9 +168,9 @@ object InventoryService {
         branchId: UUID,
         thresholdOverride: Int? = null,
     ): List<BranchInventoryWithProduct> {
-        requireBranchExists(branchId)
+        InventoryReadSupport.requireBranchExists(branchId)
         val allInventory = BranchInventoryRepository.findByBranch(branchId)
-        return filterLowStock(allInventory, thresholdOverride)
+        return InventoryReadSupport.filterLowStock(allInventory, thresholdOverride)
     }
 
     /**
@@ -182,48 +182,15 @@ object InventoryService {
         branchId: UUID,
         thresholdOverride: Int? = null,
     ): InventoryWithBreakdowns {
-        requireBranchExists(branchId)
-        val cards = filterLowStock(BranchInventoryRepository.findByBranch(branchId), thresholdOverride)
-        val breakdowns = breakdownsFromLedger(branchId)
+        InventoryReadSupport.requireBranchExists(branchId)
+        val cards =
+            InventoryReadSupport.filterLowStock(
+                BranchInventoryRepository.findByBranch(branchId),
+                thresholdOverride,
+            )
+        val breakdowns = InventoryReadSupport.breakdownsFromLedger(branchId)
         return InventoryWithBreakdowns(cards, breakdowns)
     }
-
-    private fun requireBranchExists(branchId: UUID) {
-        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
-    }
-
-    private fun breakdownsFromLedger(branchId: UUID): Map<UUID, InventoryBreakdown> =
-        BranchInventoryRepository
-            .findMovements(branchId)
-            .groupBy { it.productId }
-            .mapValues { (_, movements) -> breakdownFromMovements(movements) }
-
-    @Suppress("ReturnCount")
-    private fun filterLowStock(
-        allInventory: List<BranchInventoryWithProduct>,
-        thresholdOverride: Int?,
-    ): List<BranchInventoryWithProduct> {
-        if (allInventory.isEmpty()) return allInventory
-
-        if (thresholdOverride != null) {
-            return allInventory.filter { it.inventory.currentStock <= thresholdOverride }
-        }
-
-        val productIds = allInventory.map { it.inventory.productId }
-        val products = ProductRepository.findByIds(productIds)
-        val productThresholds =
-            products.associate { product ->
-                product.id to resolveThreshold(product)
-            }
-        return allInventory.filter { item ->
-            val threshold =
-                productThresholds[item.inventory.productId]
-                    ?: LOW_STOCK_DEFAULT_THRESHOLD
-            item.inventory.currentStock <= threshold
-        }
-    }
-
-    private fun resolveThreshold(product: Product): Int = product.reorderPoint ?: LOW_STOCK_DEFAULT_THRESHOLD
 
     @Suppress("ComplexCondition", "LongParameterList")
     private fun ensureRequestOwnership(
@@ -276,6 +243,50 @@ object InventoryService {
             .findByIdForUpdateInTransaction(productId)
             ?.takeIf { it.isActive }
             ?: throw NotFoundException("Product not found")
+}
+
+/**
+ * Read-only inventory helpers (#460 governance: keeps `InventoryService` at 10 functions,
+ * under the `TooManyFunctions` 11 budget — the aggregate-read seam stays on the service,
+ * the branch lookup + ledger scan + low-stock filter live here, same file).
+ */
+internal object InventoryReadSupport {
+    fun requireBranchExists(branchId: UUID) {
+        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+    }
+
+    fun breakdownsFromLedger(branchId: UUID): Map<UUID, InventoryBreakdown> =
+        BranchInventoryRepository
+            .findMovements(branchId)
+            .groupBy { it.productId }
+            .mapValues { (_, movements) -> breakdownFromMovements(movements) }
+
+    @Suppress("ReturnCount")
+    fun filterLowStock(
+        allInventory: List<BranchInventoryWithProduct>,
+        thresholdOverride: Int?,
+    ): List<BranchInventoryWithProduct> {
+        if (allInventory.isEmpty()) return allInventory
+
+        if (thresholdOverride != null) {
+            return allInventory.filter { it.inventory.currentStock <= thresholdOverride }
+        }
+
+        val productIds = allInventory.map { it.inventory.productId }
+        val products = ProductRepository.findByIds(productIds)
+        val productThresholds =
+            products.associate { product ->
+                product.id to resolveThreshold(product)
+            }
+        return allInventory.filter { item ->
+            val threshold =
+                productThresholds[item.inventory.productId]
+                    ?: LOW_STOCK_DEFAULT_THRESHOLD
+            item.inventory.currentStock <= threshold
+        }
+    }
+
+    private fun resolveThreshold(product: Product): Int = product.reorderPoint ?: LOW_STOCK_DEFAULT_THRESHOLD
 }
 
 /**

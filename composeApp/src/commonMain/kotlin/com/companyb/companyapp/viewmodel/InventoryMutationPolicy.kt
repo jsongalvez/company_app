@@ -1,3 +1,8 @@
+// #460 — one policy seam, intentionally co-located: 20 functions over the 11
+// file budget, kept whole deliberately (#458 locality — predicates, builders, and arms
+// must read as one contract mirror). Any further growth must split, not suppress again.
+@file:Suppress("TooManyFunctions")
+
 package com.companyb.companyapp.viewmodel
 
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -314,11 +319,10 @@ internal fun consumeWriteSuccess(
     }
 }
 
-/**
- * The restock arm's submit: save closes immediately at the call site (the ProfileScreen
+/** The restock arm's submit: save closes immediately at the call site (the ProfileScreen
  * precedent); ids are fresh client-generated UUIDs and branchDayId is the clocked-in day.
- * A null branch/day fails closed — the affordances already hide, this is the backstop.
- */
+ * A null branch/day fails closed — the affordances already hide, this is the backstop. */
+@Suppress("LongParameterList") // #460 — same fail-closed arm shape as the sibling submits below.
 internal fun submitRestock(
     viewModel: InventoryViewModel,
     branchId: String?,

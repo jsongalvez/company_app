@@ -29,9 +29,12 @@ build:
 # Keep control flow small enough that reviewers can verify it rather than infer
 # intent from a large, generated-looking block.
 complexity:
+  # #460: thresholds mirrored with config/detekt/detekt.yml (Cognitive 25, Cyclomatic 15,
+  # LongMethod 60, etc.). Rule excludes live in detekt.yml only — this overlay sets
+  # policy, not carve-outs. Divergence is intentional and documented here.
   CognitiveComplexMethod:
-    active: false
-    threshold: 15
+    active: true
+    threshold: 25
 
   ComplexCondition:
     active: true

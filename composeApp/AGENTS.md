@@ -18,6 +18,10 @@ Full multi-platform Detekt/test coverage is asynchronous CI work.
 
 The project uses the Linear design system defined in `composeApp/DESIGN.md`. All new composables reference its token conventions: dark canvas (`#010102`), four-step surface ladder, lavender-blue accent (`#5e6ad2`), hairline borders instead of shadows.
 
+## Comment hygiene (#460, scoped — never a blanket ban)
+
+Delete redundant what-comments; keep `#<ticket>` decision traceability and KDoc on seams/contracts. Encode cheap constraints in types/tests/lint instead of prose. `ForbiddenComment` (TODO/FIXME/STOPSHIP + anti-slop TEMP/PLACEHOLDER/HACK/XXX/NOT-IMPLEMENTED) stays on. No comment-count gate, no `no-comments` CI rule — per-diff review only.
+
 ## Logging convention
 
 All composeApp code uses `expect/actual Log` functions from `com.companyb.companyapp.util`:

@@ -48,7 +48,12 @@ interface SessionClientPickerApi {
  * Screen layouts depend on this, not the concrete VM, so the VM's search internals,
  * draft holder, and entry-load helpers stay behind the seam. Compatibility preserved:
  * [SessionCreateViewModel] implements this and existing call sites pass it unchanged.
+ *
+ * #460 — 12 functions over the 11 budget, kept whole deliberately: the seam is one
+ * narrow boundary (picker + form + submit); splitting it would scatter the contract
+ * the screens depend on. Any further growth must split, not suppress again.
  */
+@Suppress("TooManyFunctions")
 interface SessionCreateFormApi : SessionClientPickerApi {
     val preview: StateFlow<UiState<SessionPreviewResponse>>
     val concerns: StateFlow<UiState<List<ConcernResponse>>>

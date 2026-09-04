@@ -40,12 +40,9 @@ object UserBranchAssignmentRepository {
         // #453 — the single ownership seam: same-ID classification + active-key guard both
         // live here, transaction-local. Same-ID replay returns idempotent; different owner
         // reusing the id fails closed with 409; an occupied active key is a 400.
+        // #460 — throw sites split into named guards (ThrowsCount budget is 2 per function).
         findByIdInTransaction(params.id)?.let { existing ->
-            if (existing.userId != params.userId || existing.branchId != params.branchId ||
-                existing.slot != params.slot
-            ) {
-                throw ConflictException("Assignment id already belongs to another assignment request")
-            }
+            ensureSameRequestOwnership(existing, params)
             return AssignmentCreateResult(existing, created = false)
         }
         if (findActiveByBranchAndUserInTransaction(params.branchId, params.userId, forUpdate = true) != null) {
@@ -73,6 +70,21 @@ object UserBranchAssignmentRepository {
             return AssignmentCreateResult(assignment, created = true)
         }
 
+        return resolveInsertRace(params)
+    }
+
+    private fun ensureSameRequestOwnership(
+        existing: UserBranchAssignment,
+        params: UserBranchAssignmentCreateParams,
+    ) {
+        if (existing.userId != params.userId || existing.branchId != params.branchId ||
+            existing.slot != params.slot
+        ) {
+            throw ConflictException("Assignment id already belongs to another assignment request")
+        }
+    }
+
+    private fun resolveInsertRace(params: UserBranchAssignmentCreateParams): AssignmentCreateResult {
         val sameIdExists =
             UserBranchAssignmentTable
                 .selectAll()
@@ -86,9 +98,7 @@ object UserBranchAssignmentRepository {
             throw ConflictException("User already has an active assignment at this branch")
         }
         val existing = findByIdInTransaction(params.id) ?: error("Assignment not found after create for ${params.id}")
-        if (existing.userId != params.userId || existing.branchId != params.branchId || existing.slot != params.slot) {
-            throw ConflictException("Assignment id already belongs to another assignment request")
-        }
+        ensureSameRequestOwnership(existing, params)
         return AssignmentCreateResult(existing, created = false)
     }
 

@@ -73,37 +73,15 @@ fun ClientsScreen(
     var showCreateDialog by remember { mutableStateOf(false) }
     val createState by viewModel.createClientResult.collectAsState()
 
-    LaunchedEffect(Unit) {
-        logInfo("ClientsScreen", "composable entered (first composition)")
-    }
-
-    LaunchedEffect(Unit) {
-        ClientState.clientMutation.collect { mutation ->
-            mutation?.let(viewModel::applyClientMutation)
-        }
-    }
-
-    LaunchedEffect(createState) {
-        if (createState is UiState.Success) showCreateDialog = false
-    }
-
-    // D1 — the confirmation crosses the VM boundary via ClientState; consume-before-show, and
-    // collect (not keyed on the notice): consuming inside a LaunchedEffect(notice) key would
-    // restart the effect (key change) and cancel showSnackbar mid-display.
-    LaunchedEffect(Unit) {
-        ClientState.anonymizeNotice.collect { notice ->
-            if (notice != null) {
-                ClientState.consumeAnonymizeNotice()
-                snackbarHostState.showSnackbar(notice)
-            }
-        }
-    }
+    ClientScreenEffects(
+        viewModel = viewModel,
+        createState = createState,
+        snackbarHostState = snackbarHostState,
+        errorMessage = (searchState as? UiState.Error)?.message,
+        onCreateLanded = { showCreateDialog = false },
+    )
 
     val isLoading = searchState is UiState.Loading
-    val errorMessage = (searchState as? UiState.Error)?.message
-    LaunchedEffect(errorMessage) {
-        errorMessage?.let { logWarn("ClientsScreen", "searchState=Error: $it") }
-    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -112,45 +90,12 @@ fun ClientsScreen(
                     .fillMaxSize()
                     .padding(Spacing.md),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { viewModel.onQueryChange(it) },
-                    label = { Text("Search clients by name or phone") },
-                    singleLine = true,
-                    // D2 X-clear — back to empty state. "×" (U+00D7) is used instead of a glyph
-                    // icon: the project has no material-icons dependency (see #107's hamburger
-                    // Canvas precedent) and U+00D7 is Latin-1-covered by Inter.
-                    trailingIcon = {
-                        if (query.isNotBlank()) {
-                            Text(
-                                text = "×",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier =
-                                    Modifier
-                                        .clickable { viewModel.onQueryChange("") }
-                                        .padding(Spacing.xs),
-                            )
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                if (isLoading) {
-                    Spacer(Modifier.width(Spacing.sm))
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                    )
-                }
-                Spacer(Modifier.width(Spacing.sm))
-                TextButton(onClick = { showCreateDialog = true }) {
-                    Text("New client")
-                }
-            }
+            ClientSearchHeader(
+                query = query,
+                isLoading = isLoading,
+                onQueryChange = viewModel::onQueryChange,
+                onNewClient = { showCreateDialog = true },
+            )
 
             ClientResultsArea(
                 viewModel = viewModel,
@@ -175,6 +120,93 @@ fun ClientsScreen(
                 if (createState !is UiState.Loading) showCreateDialog = false
             },
         )
+    }
+}
+
+@Composable
+private fun ClientScreenEffects(
+    viewModel: ClientViewModel,
+    createState: UiState<*>,
+    snackbarHostState: SnackbarHostState,
+    errorMessage: String?,
+    onCreateLanded: () -> Unit,
+) {
+    LaunchedEffect(Unit) {
+        logInfo("ClientsScreen", "composable entered (first composition)")
+    }
+
+    LaunchedEffect(Unit) {
+        ClientState.clientMutation.collect { mutation ->
+            mutation?.let(viewModel::applyClientMutation)
+        }
+    }
+
+    LaunchedEffect(createState) {
+        if (createState is UiState.Success) onCreateLanded()
+    }
+
+    // D1 — the confirmation crosses the VM boundary via ClientState; consume-before-show, and
+    // collect (not keyed on the notice): consuming inside a LaunchedEffect(notice) key would
+    // restart the effect (key change) and cancel showSnackbar mid-display.
+    LaunchedEffect(Unit) {
+        ClientState.anonymizeNotice.collect { notice ->
+            if (notice != null) {
+                ClientState.consumeAnonymizeNotice()
+                snackbarHostState.showSnackbar(notice)
+            }
+        }
+    }
+
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let { logWarn("ClientsScreen", "searchState=Error: $it") }
+    }
+}
+
+@Composable
+private fun ClientSearchHeader(
+    query: String,
+    isLoading: Boolean,
+    onQueryChange: (String) -> Unit,
+    onNewClient: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            label = { Text("Search clients by name or phone") },
+            singleLine = true,
+            // D2 X-clear — back to empty state. "×" (U+00D7) is used instead of a glyph
+            // icon: the project has no material-icons dependency (see #107's hamburger
+            // Canvas precedent) and U+00D7 is Latin-1-covered by Inter.
+            trailingIcon = {
+                if (query.isNotBlank()) {
+                    Text(
+                        text = "×",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier =
+                            Modifier
+                                .clickable { onQueryChange("") }
+                                .padding(Spacing.xs),
+                    )
+                }
+            },
+            modifier = Modifier.weight(1f),
+        )
+        if (isLoading) {
+            Spacer(Modifier.width(Spacing.sm))
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+            )
+        }
+        Spacer(Modifier.width(Spacing.sm))
+        TextButton(onClick = onNewClient) {
+            Text("New client")
+        }
     }
 }
 

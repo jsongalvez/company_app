@@ -1,3 +1,6 @@
+# #460 governance: thresholds here mirror detekt-anti-slop.yml (see its header).
+# Exclude policy: no new exclude without a `#<ticket>` link; screen-composable
+# excludes burn down file-by-file (removal ships with the refactor, never solo).
 build:
   maxIssues: 0
   excludeCorrectable: false
@@ -112,8 +115,19 @@ comments:
 complexity:
   active: true
   CognitiveComplexMethod:
-    active: false
-    threshold: 15
+    # #460: enabled at 25 (not 15) with measured justification. Backend logic maxes at
+    # 23 (ClientRepository.updateInTransaction) and shared non-UI at 24
+    # (DrawerContent.ClockOutSection) — 25 binds both (any +2 growth flags) without
+    # mandating a screen-decomposition epic. Declarative @Composables (up to 74 in
+    # ClientDetailScreen) are excluded below: UI-tree nesting is not logic complexity,
+    # same rationale as the Cyclomatic/LongMethod screen excludes. Threshold mirrored
+    # in detekt-anti-slop.yml; excludes live here only (see that file's header).
+    # Review trigger (no expiry): revisit when detekt ships composable-aware
+    # complexity rules or the screen-decomposition follow-up lands.
+    active: true
+    threshold: 25
+    excludes:
+      - '**/ui/screen/**'
   ComplexCondition:
     active: true
     threshold: 4
@@ -175,7 +189,6 @@ complexity:
       - '**/commonMain/**/ui/screen/NotificationsScreen.kt'
       - '**/commonMain/**/ui/screen/BranchSelectScreen.kt'
       - '**/commonMain/**/ui/screen/RemittanceListScreen.kt'
-      - '**/commonMain/**/ui/screen/ClientsScreen.kt'
       - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
       - '**/commonMain/**/ui/screen/SessionDashboardScreen.kt'
       - '**/commonMain/**/ui/screen/AuditLogScreen.kt'
