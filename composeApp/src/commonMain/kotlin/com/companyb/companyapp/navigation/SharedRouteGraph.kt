@@ -29,6 +29,7 @@ import com.companyb.companyapp.ui.screen.InventoryScreen
 import com.companyb.companyapp.ui.screen.LoginNavActions
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.ui.screen.ReliefDayScreen
+import com.companyb.companyapp.ui.screen.RemittanceDetailArgs
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
 import com.companyb.companyapp.ui.screen.RemittanceListScreen
 import com.companyb.companyapp.ui.screen.RouteGateCard
@@ -300,9 +301,12 @@ private fun NavGraphBuilder.financeGraph(
             viewModel { RemittanceViewModel(apiClient) }
         val detailRoute = entry.toRoute<Route.RemittanceDetail>()
         RemittanceDetailScreen(
-            remittanceId = detailRoute.id,
-            branchId = selectedBranchId,
-            viewModel = remittanceViewModel,
+            args =
+                RemittanceDetailArgs(
+                    remittanceId = detailRoute.id,
+                    branchId = selectedBranchId,
+                    viewModel = remittanceViewModel,
+                ),
             onBack = { navController.popBackStack() },
             // #447 — desk queue selection (desktop NavHost navigates; mobile keeps the
             // default: the queue rail only renders on wide desktop layouts).
