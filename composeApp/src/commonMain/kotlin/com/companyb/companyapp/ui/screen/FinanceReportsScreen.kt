@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -481,73 +482,17 @@ private fun FinanceToolbar(
     appliedRange: Pair<String, String>?,
     onExportMode: (String) -> Unit,
 ) {
-    var branchMenuOpen by remember { mutableStateOf(false) }
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            when (branches) {
-                is UiState.Loading -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.width(Spacing.md).height(Spacing.md),
-                        strokeWidth = 2.dp,
-                    )
-                }
-
-                is UiState.Error -> {
-                    logWarn("FinanceReportsScreen", "branches=Error: ${branches.message}")
-                    Text(
-                        text = branches.message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    TextButton(onClick = onRetryBranches) { Text("Retry") }
-                }
-
-                else -> {}
-            }
-            if (branches is UiState.Success) {
-                ExposedDropdownMenuBox(
-                    expanded = branchMenuOpen,
-                    onExpandedChange = { branchMenuOpen = it },
-                ) {
-                    OutlinedTextField(
-                        value =
-                            branches.data
-                                .firstOrNull { it.id == selectedBranchId }
-                                ?.name
-                                ?: "Select branch",
-                        onValueChange = {},
-                        readOnly = true,
-                        singleLine = true,
-                        label = { Text("Branch") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = branchMenuOpen) },
-                        // Pass-4 HARD — the fixed 280dp field crushed the trailing exports/edit
-                        // toggle at 360dp; the field shrinks first (weight), caps at 280dp.
-                        modifier =
-                            Modifier
-                                .menuAnchor(
-                                    ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                                ).weight(1f, fill = false)
-                                .width(280.dp),
-                    )
-                    ExposedDropdownMenu(
-                        expanded = branchMenuOpen,
-                        onDismissRequest = { branchMenuOpen = false },
-                    ) {
-                        branches.data.forEach { branch ->
-                            DropdownMenuItem(
-                                text = { Text(branch.name) },
-                                onClick = {
-                                    branchMenuOpen = false
-                                    onBranchSelected(branch.id)
-                                },
-                            )
-                        }
-                    }
-                }
-            }
+            FinanceBranchSelector(
+                branches = branches,
+                selectedBranchId = selectedBranchId,
+                onBranchSelected = onBranchSelected,
+                onRetryBranches = onRetryBranches,
+            )
             Spacer(Modifier.weight(1f))
             // #105 D4 — toolbar export = the mode's export (Daily has none — per-day only, in
             // detail). D6: every export point is CSV + PDF.
@@ -571,15 +516,108 @@ private fun FinanceToolbar(
                 }
             }
         }
-        // #105 D4 — mode tabs
-        TabRow(selectedTabIndex = mode.ordinal) {
-            ReportMode.entries.forEachIndexed { index, reportMode ->
-                Tab(
-                    selected = index == mode.ordinal,
-                    onClick = { onModeSelected(reportMode) },
-                    text = { Text(reportMode.tabLabel) },
+        FinanceModeTabs(mode = mode, onModeSelected = onModeSelected)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RowScope.FinanceBranchSelector(
+    branches: UiState<List<BranchResponse>>,
+    selectedBranchId: String?,
+    onBranchSelected: (String) -> Unit,
+    onRetryBranches: () -> Unit,
+) {
+    var branchMenuOpen by remember { mutableStateOf(false) }
+    when (branches) {
+        is UiState.Loading -> {
+            CircularProgressIndicator(
+                modifier = Modifier.width(Spacing.md).height(Spacing.md),
+                strokeWidth = 2.dp,
+            )
+        }
+
+        is UiState.Error -> {
+            logWarn("FinanceReportsScreen", "branches=Error: ${branches.message}")
+            Text(
+                text = branches.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+            TextButton(onClick = onRetryBranches) { Text("Retry") }
+        }
+
+        else -> {}
+    }
+    if (branches is UiState.Success) {
+        ExposedDropdownMenuBox(
+            expanded = branchMenuOpen,
+            onExpandedChange = { branchMenuOpen = it },
+        ) {
+            OutlinedTextField(
+                value =
+                    branches.data
+                        .firstOrNull { it.id == selectedBranchId }
+                        ?.name
+                        ?: "Select branch",
+                onValueChange = {},
+                readOnly = true,
+                singleLine = true,
+                label = { Text("Branch") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = branchMenuOpen) },
+                // Pass-4 HARD — the fixed 280dp field crushed the trailing exports/edit
+                // toggle at 360dp; the field shrinks first (weight), caps at 280dp.
+                modifier =
+                    Modifier
+                        .menuAnchor(
+                            ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                        ).weight(1f, fill = false)
+                        .width(280.dp),
+            )
+            ExposedDropdownMenu(
+                expanded = branchMenuOpen,
+                onDismissRequest = { branchMenuOpen = false },
+            ) {
+                FinanceBranchMenuItems(
+                    branches = branches.data,
+                    onBranchSelected = onBranchSelected,
+                    onClose = { branchMenuOpen = false },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun FinanceBranchMenuItems(
+    branches: List<BranchResponse>,
+    onBranchSelected: (String) -> Unit,
+    onClose: () -> Unit,
+) {
+    branches.forEach { branch ->
+        DropdownMenuItem(
+            text = { Text(branch.name) },
+            onClick = {
+                onClose()
+                onBranchSelected(branch.id)
+            },
+        )
+    }
+}
+
+@Composable
+private fun FinanceModeTabs(
+    mode: ReportMode,
+    onModeSelected: (ReportMode) -> Unit,
+) {
+    // #105 D4 — mode tabs
+    TabRow(selectedTabIndex = mode.ordinal) {
+        ReportMode.entries.forEachIndexed { index, reportMode ->
+            Tab(
+                selected = index == mode.ordinal,
+                onClick = { onModeSelected(reportMode) },
+                text = { Text(reportMode.tabLabel) },
+            )
         }
     }
 }
