@@ -28,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.network.TokenStore
@@ -60,16 +59,11 @@ fun LoginScreen(
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
     var showExpiredNotice by remember { mutableStateOf(false) }
     val loginState by authViewModel.loginState.collectAsState()
     val bootstrapState by bootstrapViewModel.validationState.collectAsState()
-    val expiredNotice by SessionState.expiredNotice.collectAsState()
 
-    LoginNoticeEffect(
-        expiredNotice = expiredNotice,
-        onExpiredNotice = { showExpiredNotice = true },
-    )
+    LoginNoticeEffect(onExpiredNotice = { showExpiredNotice = true })
 
     LoginAuthEffects(
         loginState = loginState,
@@ -80,121 +74,53 @@ fun LoginScreen(
     )
 
     val isLoading = loginState is UiState.Loading || bootstrapState is UiState.Loading
-    val inlineError =
-        when {
-            // Bootstrap copy only while the login itself isn't the failing leg: a stale
-            // bootstrap Error must not mask a fresh credential error on the next attempt
-            // (round-3 catch — wrong password after a failed bootstrap showed the network copy).
-            bootstrapState is UiState.Error && loginState !is UiState.Error -> "Could not reach the server."
 
-            else -> loginErrorText(loginState)
+    val canSubmit = username.isNotBlank() && password.isNotBlank()
+    val submitLogin = {
+        if (canSubmit) {
+            showExpiredNotice = false
+            authViewModel.login(username, password)
         }
+    }
 
     Column(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(Spacing.xl),
+        modifier = Modifier.fillMaxSize().padding(Spacing.xl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(
-            text = "CompanyApp",
-            style = MaterialTheme.typography.headlineLarge,
-        )
-
-        Spacer(modifier = Modifier.height(Spacing.xxl))
-
-        OutlinedTextField(
-            value = username,
-            onValueChange = {
+        LoginTopSection(
+            username = username,
+            isLoading = isLoading,
+            onUsernameChange = {
                 username = it
                 showExpiredNotice = false
             },
-            label = { Text("Username") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions =
-                KeyboardOptions(
-                    keyboardType = KeyboardType.Text,
-                    imeAction = ImeAction.Next,
-                ),
-            enabled = !isLoading,
         )
 
-        Spacer(modifier = Modifier.height(Spacing.md))
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = {
+        LoginPasswordField(
+            password = password,
+            isLoading = isLoading,
+            onPasswordChange = {
                 password = it
                 showExpiredNotice = false
             },
-            label = { Text("Password") },
-            singleLine = true,
-            visualTransformation =
-                if (passwordVisible) {
-                    VisualTransformation.None
-                } else {
-                    PasswordVisualTransformation()
-                },
-            keyboardOptions =
-                KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done,
-                ),
-            keyboardActions =
-                KeyboardActions(
-                    onDone = {
-                        if (username.isNotBlank() && password.isNotBlank()) {
-                            showExpiredNotice = false
-                            authViewModel.login(username, password)
-                        }
-                    },
-                ),
-            enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth(),
+            onDone = { submitLogin() },
         )
 
-        Spacer(modifier = Modifier.height(Spacing.lg))
-
-        Button(
-            onClick = {
+        LoginSubmitButton(
+            canSubmit = canSubmit,
+            isLoading = isLoading,
+            onSubmit = {
                 logInfo("LoginScreen", "login button onClick: username=$username")
-                showExpiredNotice = false
-                authViewModel.login(username, password)
+                submitLogin()
             },
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            enabled =
-                username.isNotBlank() &&
-                    password.isNotBlank() &&
-                    !isLoading,
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = 2.dp,
-                )
-            } else {
-                Text("Log in")
-            }
-        }
-
-        LoginStatusSection(
-            showExpiredNotice = showExpiredNotice,
-            inlineError = inlineError,
         )
 
-        Spacer(modifier = Modifier.height(Spacing.lg))
-
-        TextButton(onClick = actions.onAcceptInviteClick) {
-            Text("Have an invite code? Set up your account")
-        }
-
-        TextButton(onClick = actions.onForgotPasswordClick) {
-            Text("Forgot password?")
-        }
+        LoginBottomSection(
+            showExpiredNotice = showExpiredNotice,
+            inlineError = loginErrorText(loginState, bootstrapState),
+            actions = actions,
+        )
     }
 }
 
@@ -203,21 +129,26 @@ fun LoginScreen(
  * ("$operation failed: ${status}") is the discriminator — matched on the full "failed: NNN"
  * suffix (not a bare "401" substring, which a network exception message could contain);
  * everything else (network exceptions, timeouts) is the connection copy. Form stays enabled;
- * credentials keep their values.
+ * credentials keep their values. Bootstrap copy only while the login itself isn't the failing
+ * leg: a stale bootstrap Error must not mask a fresh credential error on the next attempt
+ * (round-3 catch — wrong password after a failed bootstrap showed the network copy).
  */
-internal fun loginErrorText(state: UiState<LoginResponse>): String? =
+internal fun loginErrorText(
+    loginState: UiState<LoginResponse>,
+    bootstrapState: UiState<Unit> = UiState.Idle,
+): String? =
     when {
-        state is UiState.Error && "failed: 401" in state.message -> "Invalid username or password."
-        state is UiState.Error && "failed: 429" in state.message -> "Too many attempts. Try again later."
-        state is UiState.Error -> "Could not reach the server. Check your connection and try again."
+        bootstrapState is UiState.Error && loginState !is UiState.Error -> "Could not reach the server."
+        loginState is UiState.Error && "failed: 401" in loginState.message -> "Invalid username or password."
+        loginState is UiState.Error && "failed: 429" in loginState.message -> "Too many attempts. Try again later."
+        loginState is UiState.Error -> "Could not reach the server. Check your connection and try again."
         else -> null
     }
 
 @Composable
-private fun LoginNoticeEffect(
-    expiredNotice: Boolean,
-    onExpiredNotice: () -> Unit,
-) {
+private fun LoginNoticeEffect(onExpiredNotice: () -> Unit) {
+    val expiredNotice by SessionState.expiredNotice.collectAsState()
+
     LaunchedEffect(Unit) {
         logInfo("LoginScreen", "composable entered (first composition)")
     }
@@ -279,9 +210,102 @@ private fun LoginAuthEffects(
 }
 
 @Composable
-private fun LoginStatusSection(
+private fun LoginTopSection(
+    username: String,
+    isLoading: Boolean,
+    onUsernameChange: (String) -> Unit,
+) {
+    Text(
+        text = "CompanyApp",
+        style = MaterialTheme.typography.headlineLarge,
+    )
+
+    Spacer(modifier = Modifier.height(Spacing.xxl))
+
+    LoginUsernameField(
+        username = username,
+        isLoading = isLoading,
+        onUsernameChange = onUsernameChange,
+    )
+
+    Spacer(modifier = Modifier.height(Spacing.md))
+}
+
+@Composable
+private fun LoginUsernameField(
+    username: String,
+    isLoading: Boolean,
+    onUsernameChange: (String) -> Unit,
+) {
+    OutlinedTextField(
+        value = username,
+        onValueChange = onUsernameChange,
+        label = { Text("Username") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+        keyboardOptions =
+            KeyboardOptions(
+                keyboardType = KeyboardType.Text,
+                imeAction = ImeAction.Next,
+            ),
+        enabled = !isLoading,
+    )
+}
+
+@Composable
+private fun LoginPasswordField(
+    password: String,
+    isLoading: Boolean,
+    onPasswordChange: (String) -> Unit,
+    onDone: () -> Unit,
+) {
+    OutlinedTextField(
+        value = password,
+        onValueChange = onPasswordChange,
+        label = { Text("Password") },
+        singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions =
+            KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                imeAction = ImeAction.Done,
+            ),
+        keyboardActions = KeyboardActions(onDone = { onDone() }),
+        enabled = !isLoading,
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Spacer(modifier = Modifier.height(Spacing.lg))
+}
+
+@Composable
+private fun LoginSubmitButton(
+    canSubmit: Boolean,
+    isLoading: Boolean,
+    onSubmit: () -> Unit,
+) {
+    Button(
+        onClick = onSubmit,
+        modifier = Modifier.fillMaxWidth().height(50.dp),
+        enabled = canSubmit && !isLoading,
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                color = MaterialTheme.colorScheme.onPrimary,
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Text("Log in")
+        }
+    }
+}
+
+@Composable
+private fun LoginBottomSection(
     showExpiredNotice: Boolean,
     inlineError: String?,
+    actions: LoginNavActions,
 ) {
     when {
         showExpiredNotice -> {
@@ -301,5 +325,15 @@ private fun LoginStatusSection(
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
+    }
+
+    Spacer(modifier = Modifier.height(Spacing.lg))
+
+    TextButton(onClick = actions.onAcceptInviteClick) {
+        Text("Have an invite code? Set up your account")
+    }
+
+    TextButton(onClick = actions.onForgotPasswordClick) {
+        Text("Forgot password?")
     }
 }
