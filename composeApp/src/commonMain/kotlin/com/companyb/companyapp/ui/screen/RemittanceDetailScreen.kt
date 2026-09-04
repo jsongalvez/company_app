@@ -1988,36 +1988,41 @@ private fun SubmissionBriefRail(
             }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-        val snapshot = detail.snapshot
-        if (snapshot != null) {
-            Text(
-                text = "Frozen at submission",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            SnapshotRow("Gross", peso(snapshot.grossIncome))
-            SnapshotRow("Compensation", peso(snapshot.totalCompensation))
-            SnapshotRow("Expenses", peso(snapshot.totalExpenses))
-            SnapshotRow("Net", peso(snapshot.netIncome))
-        } else if (detail.type == com.companyb.companyapp.domain.RemittanceType.SESSION) {
-            Text(
-                text = "Freezes on submit",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            val sessionGrossCents = sessionLinesGrossCents(detail.lines)
-            SnapshotRow("Gross to freeze", peso(centsToMoney(sessionGrossCents)))
-            if (moneyToCents(detail.totalAmount) != sessionGrossCents) {
-                SnapshotRow("Line total (incl. product lines)", peso(detail.totalAmount))
-            }
-        } else {
-            SnapshotRow("Product total", peso(detail.totalAmount))
-            Text(
-                text = "Product flows write no SESSION snapshot; commission is excluded.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        SubmissionBriefSnapshot(detail)
+    }
+}
+
+@Composable
+private fun SubmissionBriefSnapshot(detail: RemittanceDetailResponse) {
+    val snapshot = detail.snapshot
+    if (snapshot != null) {
+        Text(
+            text = "Frozen at submission",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        SnapshotRow("Gross", peso(snapshot.grossIncome))
+        SnapshotRow("Compensation", peso(snapshot.totalCompensation))
+        SnapshotRow("Expenses", peso(snapshot.totalExpenses))
+        SnapshotRow("Net", peso(snapshot.netIncome))
+    } else if (detail.type == com.companyb.companyapp.domain.RemittanceType.SESSION) {
+        Text(
+            text = "Freezes on submit",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val sessionGrossCents = sessionLinesGrossCents(detail.lines)
+        SnapshotRow("Gross to freeze", peso(centsToMoney(sessionGrossCents)))
+        if (moneyToCents(detail.totalAmount) != sessionGrossCents) {
+            SnapshotRow("Line total (incl. product lines)", peso(detail.totalAmount))
         }
+    } else {
+        SnapshotRow("Product total", peso(detail.totalAmount))
+        Text(
+            text = "Product flows write no SESSION snapshot; commission is excluded.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
