@@ -155,7 +155,6 @@ complexity:
       - 'use'
       - 'with'
     excludes:
-      - '**/commonMain/**/ui/screen/ClientDetailScreen.kt'
   LabeledExpression:
     active: false
     ignoredLabels: []
@@ -178,7 +177,6 @@ complexity:
     excludes:
       - '**/desktopMain/**/ui/screen/SessionList.desktop.kt'
       - '**/commonMain/**/viewmodel/ApiCallHandler.kt'
-      - '**/commonMain/**/ui/screen/ClientDetailScreen.kt'
       - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
       - '**/commonMain/**/ui/screen/UserManagementScreen.kt'
       - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
@@ -229,7 +227,6 @@ complexity:
       - '**/commonMain/**/viewmodel/SessionViewModel.kt'
       - '**/commonMain/**/viewmodel/SessionDashboardViewModel.kt'
       - '**/commonMain/**/viewmodel/FinanceReportsViewModel.kt'
-      - '**/commonMain/**/ui/screen/ClientDetailScreen.kt'
       - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
       - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
       - '**/commonMain/**/ui/screen/AuditLogScreen.kt'

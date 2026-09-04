@@ -126,6 +126,31 @@ internal class ClientEditSession {
         fieldError = null
     }
 
+    /** Snapshot for the row editors — rebuilt every composition from live session state. */
+    fun snapshot(navigationLocked: Boolean): ClientFieldEditState =
+        ClientFieldEditState(
+            editingField = editingField,
+            draftValue = draftValue,
+            fieldError = fieldError,
+            navigationLocked = navigationLocked,
+        )
+
+    /** Subtree callbacks bound to [client] + [deps] (#476 — keeps ClientDetailContent short). */
+    fun callbacks(
+        client: ClientResponse,
+        deps: ClientEditDeps,
+        onAnonymizeClick: () -> Unit,
+    ): ClientDetailCallbacks =
+        ClientDetailCallbacks(
+            onDraftChange = ::handleDraftChange,
+            onStartEdit = { startEdit(it, client, deps) },
+            onCommit = { commitEdit(it, client, deps) },
+            onCancel = ::exitEdit,
+            onCommitBp = { commitBpDrafts(client, deps) },
+            onBpDraftChanged = ::clearBpError,
+            onAnonymizeClick = onAnonymizeClick,
+        )
+
     // Synchronous record of the last dispatched PATCH's payload — the supersede gate compares
     // the current draft against it (no composition-lagged reads in the gate).
     fun recordDispatchedDraft(

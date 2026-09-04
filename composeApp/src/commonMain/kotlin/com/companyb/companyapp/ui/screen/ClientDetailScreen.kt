@@ -268,25 +268,10 @@ private fun ClientDetailContent(
     Column(modifier = Modifier.fillMaxSize()) {
         ClientDetailContentBody(
             client = client,
-            edit =
-                ClientFieldEditState(
-                    editingField = session.editingField,
-                    draftValue = session.draftValue,
-                    fieldError = session.fieldError,
-                    navigationLocked = navigationLocked,
-                ),
+            edit = session.snapshot(navigationLocked),
             draft = session.bpDraft,
             anonymizeState = anonymizeState,
-            callbacks =
-                ClientDetailCallbacks(
-                    onDraftChange = session::handleDraftChange,
-                    onStartEdit = { session.startEdit(it, client, deps) },
-                    onCommit = { session.commitEdit(it, client, deps) },
-                    onCancel = session::exitEdit,
-                    onCommitBp = { session.commitBpDrafts(client, deps) },
-                    onBpDraftChanged = session::clearBpError,
-                    onAnonymizeClick = { showAnonymizeDialog = true },
-                ),
+            callbacks = session.callbacks(client, deps) { showAnonymizeDialog = true },
         )
     }
 
