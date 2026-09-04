@@ -177,83 +177,25 @@ fun RemittanceDetailScreen(
         }
     }
 
-    // ADR-0022 — every successful mutation reloads the detail (version bumped server-side; the
-    // next version-locked call must carry the fresh expectedVersion). The reload resets the
-    // changed-elsewhere notice: it survives the conflict reload (resetNotice = false) but clears
-    // once the user's own next mutation succeeds.
-    LaunchedEffect(lineState) {
-        if (lineState is UiState.Success) {
-            viewModel.loadRemittance(remittanceId)
-        }
-    }
-    LaunchedEffect(deleteLineState) {
-        if (deleteLineState is UiState.Success) {
-            viewModel.loadRemittance(remittanceId)
-        }
-    }
-    LaunchedEffect(dayBreakdownState) {
-        if (dayBreakdownState is UiState.Success) {
-            viewModel.loadRemittance(remittanceId)
-        }
-    }
-    LaunchedEffect(deleteDayBreakdownState) {
-        if (deleteDayBreakdownState is UiState.Success) {
-            viewModel.loadRemittance(remittanceId)
-        }
-    }
-    LaunchedEffect(headerUpdateState) {
-        when (val state = headerUpdateState) {
-            is UiState.Success -> {
-                showHeaderDialog = false
-                viewModel.loadRemittance(remittanceId)
-                refreshDeskQueue()
-            }
-
-            is UiState.Error -> {
-                logWarn("RemittanceDetailScreen", "headerUpdateState=Error: ${state.message}")
-            }
-
-            else -> {
-                Unit
-            }
-        }
-    }
-    LaunchedEffect(submitState) {
-        when (val state = submitState) {
-            is UiState.Success -> {
-                showSubmitDialog = false
-                // D5 — the frozen breakdown appears right away (the reloaded detail carries the
-                // snapshot block).
-                viewModel.loadRemittance(remittanceId)
-                refreshDeskQueue()
-            }
-
-            is UiState.Error -> {
-                logWarn("RemittanceDetailScreen", "submitState=Error: ${state.message}")
-            }
-
-            else -> {
-                Unit
-            }
-        }
-    }
-    LaunchedEffect(undoState) {
-        when (val state = undoState) {
-            is UiState.Success -> {
-                showUndoDialog = false
-                viewModel.loadRemittance(remittanceId)
-                refreshDeskQueue()
-            }
-
-            is UiState.Error -> {
-                logWarn("RemittanceDetailScreen", "undoState=Error: ${state.message}")
-            }
-
-            else -> {
-                Unit
-            }
-        }
-    }
+    RemittanceDetailLineDayEffects(
+        lineState = lineState,
+        deleteLineState = deleteLineState,
+        dayBreakdownState = dayBreakdownState,
+        deleteDayBreakdownState = deleteDayBreakdownState,
+        viewModel = viewModel,
+        remittanceId = remittanceId,
+    )
+    RemittanceDetailHeaderSubmitUndoEffects(
+        headerUpdateState = headerUpdateState,
+        submitState = submitState,
+        undoState = undoState,
+        viewModel = viewModel,
+        remittanceId = remittanceId,
+        onCloseHeaderDialog = { showHeaderDialog = false },
+        onCloseSubmitDialog = { showSubmitDialog = false },
+        onCloseUndoDialog = { showUndoDialog = false },
+        onRefreshQueue = ::refreshDeskQueue,
+    )
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         // #447 — Variant B control desk renders on opted-in hosts (desktop) with a wide
@@ -370,6 +312,106 @@ fun RemittanceDetailScreen(
                         Center()
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RemittanceDetailLineDayEffects(
+    lineState: UiState<RemittanceLineResponse>,
+    deleteLineState: UiState<Unit>,
+    dayBreakdownState: UiState<RemittanceDayBreakdownResponse>,
+    deleteDayBreakdownState: UiState<Unit>,
+    viewModel: RemittanceViewModel,
+    remittanceId: String,
+) {
+    // ADR-0022 — every successful mutation reloads the detail (version bumped server-side; the
+    // next version-locked call must carry the fresh expectedVersion).
+    LaunchedEffect(lineState) {
+        if (lineState is UiState.Success) {
+            viewModel.loadRemittance(remittanceId)
+        }
+    }
+    LaunchedEffect(deleteLineState) {
+        if (deleteLineState is UiState.Success) {
+            viewModel.loadRemittance(remittanceId)
+        }
+    }
+    LaunchedEffect(dayBreakdownState) {
+        if (dayBreakdownState is UiState.Success) {
+            viewModel.loadRemittance(remittanceId)
+        }
+    }
+    LaunchedEffect(deleteDayBreakdownState) {
+        if (deleteDayBreakdownState is UiState.Success) {
+            viewModel.loadRemittance(remittanceId)
+        }
+    }
+}
+
+@Composable
+private fun RemittanceDetailHeaderSubmitUndoEffects(
+    headerUpdateState: UiState<RemittanceResponse>,
+    submitState: UiState<RemittanceSubmitResponse>,
+    undoState: UiState<RemittanceResponse>,
+    viewModel: RemittanceViewModel,
+    remittanceId: String,
+    onCloseHeaderDialog: () -> Unit,
+    onCloseSubmitDialog: () -> Unit,
+    onCloseUndoDialog: () -> Unit,
+    onRefreshQueue: () -> Unit,
+) {
+    LaunchedEffect(headerUpdateState) {
+        when (val state = headerUpdateState) {
+            is UiState.Success -> {
+                onCloseHeaderDialog()
+                viewModel.loadRemittance(remittanceId)
+                onRefreshQueue()
+            }
+
+            is UiState.Error -> {
+                logWarn("RemittanceDetailScreen", "headerUpdateState=Error: ${state.message}")
+            }
+
+            else -> {
+                Unit
+            }
+        }
+    }
+    LaunchedEffect(submitState) {
+        when (val state = submitState) {
+            is UiState.Success -> {
+                onCloseSubmitDialog()
+                // D5 — the frozen breakdown appears right away (the reloaded detail carries the
+                // snapshot block).
+                viewModel.loadRemittance(remittanceId)
+                onRefreshQueue()
+            }
+
+            is UiState.Error -> {
+                logWarn("RemittanceDetailScreen", "submitState=Error: ${state.message}")
+            }
+
+            else -> {
+                Unit
+            }
+        }
+    }
+    LaunchedEffect(undoState) {
+        when (val state = undoState) {
+            is UiState.Success -> {
+                onCloseUndoDialog()
+                viewModel.loadRemittance(remittanceId)
+                onRefreshQueue()
+            }
+
+            is UiState.Error -> {
+                logWarn("RemittanceDetailScreen", "undoState=Error: ${state.message}")
+            }
+
+            else -> {
+                Unit
             }
         }
     }
