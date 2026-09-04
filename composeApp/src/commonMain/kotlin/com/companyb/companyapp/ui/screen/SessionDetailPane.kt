@@ -39,6 +39,13 @@ import com.companyb.companyapp.viewmodel.InventoryViewModel
 import com.companyb.companyapp.viewmodel.ProductSaleViewModel
 import com.companyb.companyapp.viewmodel.SessionViewModel
 import com.companyb.companyapp.viewmodel.UiState
+import com.companyb.companyapp.viewmodel.addPractitioner
+import com.companyb.companyapp.viewmodel.consumeConcernResult
+import com.companyb.companyapp.viewmodel.consumePractitionerResult
+import com.companyb.companyapp.viewmodel.loadSessionPractitioners
+import com.companyb.companyapp.viewmodel.removePractitioner
+import com.companyb.companyapp.viewmodel.removeSessionConcern
+import com.companyb.companyapp.viewmodel.updatePractitionerRemarks
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
