@@ -1,28 +1,22 @@
 package com.companyb.companyapp.ui.screen
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -33,8 +27,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.dto.DashboardResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
@@ -77,6 +71,13 @@ internal expect fun SessionList(
     modifier: Modifier = Modifier.fillMaxSize(),
 )
 
+@Composable
+internal expect fun DashboardEmptyState(
+    selectedBranchName: String?,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier.fillMaxSize(),
+)
+
 /**
  * #150 — platform-split empty state (the #147 accepted-SOFT gap: "desktop empty/ERRORED
  * lacks a refresh button" — the ERRORED half was already covered by its Retry card, this
@@ -93,13 +94,6 @@ internal fun MobileDashboardEmptyState(
 ) {
     EmptyStateContent(selectedBranchName, modifier)
 }
-
-@Composable
-internal expect fun DashboardEmptyState(
-    selectedBranchName: String?,
-    onRefresh: () -> Unit,
-    modifier: Modifier = Modifier.fillMaxSize(),
-)
 
 /**
  * #150 — the centered empty-state text shared by both [DashboardEmptyState] actuals (the
@@ -163,17 +157,9 @@ fun SessionDashboardScreen(
     // #404 — member-marked attendance (roster + Present/Absent), same slot pattern.
     attendanceContent: @Composable () -> Unit = {},
 ) {
-    val selectedBranchName = selection.branchName
-    val selectedSessionId = selection.sessionId
     val state by viewModel.dashboardState.collectAsState()
     val lastData by viewModel.lastData.collectAsState()
-    val lastUpdatedAt by viewModel.lastUpdatedAt.collectAsState()
-    val pollStatus by viewModel.pollStatus.collectAsState()
     val isForbidden by viewModel.isForbidden.collectAsState()
-    val canEdit by viewModel.canEdit.collectAsState()
-    val canCorrectStatus by viewModel.canCorrectStatus.collectAsState()
-    val edit by viewModel.editState.collectAsState()
-    val dayStatus by viewModel.dayStatus.collectAsState()
     // Q5 "silent polling": the pull-to-refresh indicator must show ONLY for a user-initiated
     // refresh, never for the 30s poll cycle's Loading frame (pass-1 HARD).
     var isManualRefreshing by remember { mutableStateOf(false) }
@@ -195,210 +181,179 @@ fun SessionDashboardScreen(
     }
 
     Box {
-        when {
-            isForbidden -> {
-                InPlaceCard(
-                    title = "You are no longer clocked in at this branch",
-                    body =
-                        "Your clock-in ended on the server (possibly clocked out elsewhere). " +
-                            "Use Clock out in the drawer to return to branches.",
-                    actionLabel = "Retry",
-                    onAction = viewModel::retryAfterForbidden,
+        if (!DashboardStateGate(viewModel, state, isForbidden, lastData != null)) {
+            val data = lastData
+            if (data != null) {
+                DashboardLoadedContent(
+                    viewModel = viewModel,
+                    data = data,
+                    onSessionCreateClick = onSessionCreateClick,
+                    flowContent = {
+                        selection.DashboardFlowColumn(
+                            viewModel = viewModel,
+                            data = data,
+                            onSessionClick = onSessionClick,
+                            onManualRefresh = onManualRefresh,
+                            isRefreshing = isManualRefreshing && state is UiState.Loading,
+                        )
+                    },
+                    contextContent = {
+                        attendanceContent()
+                        reliefAccessContent()
+                    },
                 )
             }
+        }
+    }
+}
 
-            lastData == null && (state is UiState.Idle || state is UiState.Loading) -> {
-                // Q6a — cold start: full-screen spinner, no skeletons.
-                CircularProgressIndicator(Modifier.align(Alignment.Center))
-            }
+// #462 — BoxScope receiver: the cold-start spinner's align needs the Box scope, and the
+// receiver keeps the pre-content gate at 4 params.
+@Composable
+private fun BoxScope.DashboardStateGate(
+    viewModel: SessionDashboardViewModel,
+    state: UiState<DashboardResponse>,
+    isForbidden: Boolean,
+    hasData: Boolean,
+): Boolean =
+    when {
+        isForbidden -> {
+            InPlaceCard(
+                title = "You are no longer clocked in at this branch",
+                body =
+                    "Your clock-in ended on the server (possibly clocked out elsewhere). " +
+                        "Use Clock out in the drawer to return to branches.",
+                actionLabel = "Retry",
+                onAction = viewModel::retryAfterForbidden,
+            )
+            true
+        }
 
-            lastData == null && state is UiState.Error -> {
-                val error = state as UiState.Error
-                InPlaceCard(
-                    title = "Couldn't load the dashboard",
-                    body = error.message,
-                    actionLabel = "Retry",
-                    onAction = viewModel::refresh,
-                )
-            }
+        !hasData && (state is UiState.Idle || state is UiState.Loading) -> {
+            // Q6a — cold start: full-screen spinner, no skeletons.
+            CircularProgressIndicator(Modifier.align(Alignment.Center))
+            true
+        }
 
-            else -> {
-                val data = lastData
-                if (data != null) {
-                    // #446 — Variant A pulse board: income metrics first, then the
-                    // Today's-flow list (wide) beside the team-context column
-                    // (narrow roster + relief slots, #351 pattern — rearranged only).
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        SummaryCardsRow(
-                            grossCents = grossIncomeCents(data.sessions),
-                            commissionCents = moneyToCents(data.commission.amount),
-                            productSalesCount = data.commission.productSalesCount,
-                            sessionCount = data.sessions.size,
-                        )
-                        LastUpdatedRow(
-                            lastUpdatedAt,
-                            // #348 — "New session" lives beside the timestamp row (trailing).
-                            onSessionCreateClick = onSessionCreateClick,
-                        )
-                        if (pollStatus == DashboardPollStatus.STALE) {
-                            StaleBanner()
-                        }
-                        if (pollStatus == DashboardPollStatus.ERRORED) {
-                            // Q5b escalation — error card with Retry (last data preserved
-                            // in the VM; the card replaces content until a success resets).
-                            InPlaceCard(
-                                title = "Dashboard updates stopped",
-                                body = "Repeated refresh failures — showing the last loaded data.",
-                                actionLabel = "Retry",
-                                onAction = viewModel::refresh,
-                            )
-                        } else {
-                            Row(
-                                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = Spacing.md),
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                            ) {
-                                Column(modifier = Modifier.weight(PULSE_FLOW_WEIGHT).fillMaxHeight()) {
-                                    if (data.sessions.isEmpty()) {
-                                        // Q6b — empty state participates in polling (auto-transitions
-                                        // when sessions appear); ₱0 cards stay visible above. The
-                                        // desktop actual adds the manual Refresh (#150).
-                                        DashboardEmptyState(
-                                            selectedBranchName = selectedBranchName,
-                                            onRefresh = onManualRefresh,
-                                        )
-                                    } else {
-                                        SessionList(
-                                            args =
-                                                SessionListArgs(
-                                                    sessions = data.sessions,
-                                                    selectedSessionId = selectedSessionId,
-                                                    onSessionClick = onSessionClick,
-                                                    onRefresh = onManualRefresh,
-                                                    isRefreshing = isManualRefreshing && state is UiState.Loading,
-                                                    canEdit = canEdit,
-                                                    canCorrectStatus = canCorrectStatus,
-                                                    dayStatus = dayStatus,
-                                                    edit = edit,
-                                                    onEditStart = viewModel::startEdit,
-                                                    onEditDraftChange = viewModel::updateDraft,
-                                                    requiresReason = remittedReasonRequired(dayStatus),
-                                                    onEditReasonChange = viewModel::updateReason,
-                                                    onEditCommit = viewModel::commitEdit,
-                                                    onEditDiscard = viewModel::discardEdit,
-                                                    onEditReload = viewModel::reloadAfterConflict,
-                                                ),
-                                        )
-                                    }
-                                }
-                                Column(
-                                    modifier =
-                                        Modifier
-                                            .weight(PULSE_CONTEXT_WEIGHT)
-                                            .fillMaxHeight()
-                                            .verticalScroll(rememberScrollState()),
-                                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                                ) {
-                                    attendanceContent()
-                                    reliefAccessContent()
-                                }
-                            }
-                        }
-                    }
+        !hasData && state is UiState.Error -> {
+            InPlaceCard(
+                title = "Couldn't load the dashboard",
+                body = state.message,
+                actionLabel = "Retry",
+                onAction = viewModel::refresh,
+            )
+            true
+        }
+
+        else -> {
+            false
+        }
+    }
+
+@Composable
+private fun DashboardLoadedContent(
+    viewModel: SessionDashboardViewModel,
+    data: DashboardResponse,
+    onSessionCreateClick: () -> Unit,
+    flowContent: @Composable () -> Unit,
+    contextContent: @Composable () -> Unit,
+) {
+    val lastUpdatedAt by viewModel.lastUpdatedAt.collectAsState()
+    val pollStatus by viewModel.pollStatus.collectAsState()
+    // #446 — Variant A pulse board: income metrics first, then the
+    // Today's-flow list (wide) beside the team-context column
+    // (narrow roster + relief slots, #351 pattern — rearranged only).
+    Column(modifier = Modifier.fillMaxSize()) {
+        SummaryCardsRow(
+            grossCents = grossIncomeCents(data.sessions),
+            commissionCents = moneyToCents(data.commission.amount),
+            productSalesCount = data.commission.productSalesCount,
+            sessionCount = data.sessions.size,
+        )
+        LastUpdatedRow(
+            lastUpdatedAt,
+            // #348 — "New session" lives beside the timestamp row (trailing).
+            onSessionCreateClick = onSessionCreateClick,
+        )
+        if (pollStatus == DashboardPollStatus.STALE) {
+            StaleBanner()
+        }
+        if (pollStatus == DashboardPollStatus.ERRORED) {
+            // Q5b escalation — error card with Retry (last data preserved
+            // in the VM; the card replaces content until a success resets).
+            InPlaceCard(
+                title = "Dashboard updates stopped",
+                body = "Repeated refresh failures — showing the last loaded data.",
+                actionLabel = "Retry",
+                onAction = viewModel::refresh,
+            )
+        } else {
+            Row(
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = Spacing.md),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                Column(modifier = Modifier.weight(PULSE_FLOW_WEIGHT).fillMaxHeight()) {
+                    flowContent()
+                }
+                Column(
+                    modifier =
+                        Modifier
+                            .weight(PULSE_CONTEXT_WEIGHT)
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    contextContent()
                 }
             }
         }
     }
 }
 
+// #462 — DashboardSelection receiver (the MobileAppNavHost mobileAppRoutes precedent):
+// the branch/session pair rides the receiver so the flow column stays at 5 params.
 @Composable
-private fun SummaryCardsRow(
-    grossCents: Long,
-    commissionCents: Long,
-    productSalesCount: Int,
-    sessionCount: Int,
+private fun DashboardSelection.DashboardFlowColumn(
+    viewModel: SessionDashboardViewModel,
+    data: DashboardResponse,
+    onSessionClick: (DashboardSessionResponse) -> Unit,
+    onManualRefresh: () -> Unit,
+    isRefreshing: Boolean,
 ) {
-    Row(
-        // IntrinsicSize.Min: the VerticalDivider's fillMaxHeight must size the Row to the
-        // cards' intrinsic height — otherwise the divider forces the Row to the full pane
-        // and the list below starves to zero height (the #144 layout class; pass-2 HARD).
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(Spacing.md)
-                .height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-    ) {
-        // #97 Q2 Variant A — equal peers: equal-weight cards + thin vertical hairlines
-        // between them, hairline border each (pass-2 restored the locked treatment).
-        // #446 — third peer: session count from the same dashboard fetch.
-        SummaryCard(
-            label = "Gross income",
-            value = "₱${centsToMoney(grossCents)}",
-            sublabel = "Today · completed, non-voided",
-            // fillMaxHeight (within the IntrinsicSize.Min row): equal card heights so the
-            // divider spans flush even when sublabels wrap to different line counts.
-            modifier = Modifier.weight(1f).fillMaxHeight(),
+    val canEdit by viewModel.canEdit.collectAsState()
+    val canCorrectStatus by viewModel.canCorrectStatus.collectAsState()
+    val edit by viewModel.editState.collectAsState()
+    val dayStatus by viewModel.dayStatus.collectAsState()
+    if (data.sessions.isEmpty()) {
+        // Q6b — empty state participates in polling (auto-transitions
+        // when sessions appear); ₱0 cards stay visible above. The
+        // desktop actual adds the manual Refresh (#150).
+        DashboardEmptyState(
+            selectedBranchName = branchName,
+            onRefresh = onManualRefresh,
         )
-        VerticalDivider(
-            color = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.fillMaxHeight(),
+    } else {
+        SessionList(
+            args =
+                SessionListArgs(
+                    sessions = data.sessions,
+                    selectedSessionId = sessionId,
+                    onSessionClick = onSessionClick,
+                    onRefresh = onManualRefresh,
+                    isRefreshing = isRefreshing,
+                    canEdit = canEdit,
+                    canCorrectStatus = canCorrectStatus,
+                    dayStatus = dayStatus,
+                    edit = edit,
+                    onEditStart = viewModel::startEdit,
+                    onEditDraftChange = viewModel::updateDraft,
+                    requiresReason = remittedReasonRequired(dayStatus),
+                    onEditReasonChange = viewModel::updateReason,
+                    onEditCommit = viewModel::commitEdit,
+                    onEditDiscard = viewModel::discardEdit,
+                    onEditReload = viewModel::reloadAfterConflict,
+                ),
         )
-        SummaryCard(
-            label = "Your commission",
-            value = "₱${centsToMoney(commissionCents)}",
-            sublabel = commissionLabel(productSalesCount),
-            modifier = Modifier.weight(1f).fillMaxHeight(),
-        )
-        VerticalDivider(
-            color = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.fillMaxHeight(),
-        )
-        SummaryCard(
-            label = "Sessions",
-            value = sessionCount.toString(),
-            sublabel = "Today · total sessions",
-            modifier = Modifier.weight(1f).fillMaxHeight(),
-        )
-    }
-}
-
-@Composable
-private fun SummaryCard(
-    label: String,
-    value: String,
-    sublabel: String,
-    modifier: Modifier = Modifier,
-) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(CornerRadius.lg),
-        colors =
-            CardDefaults.cardColors(
-                // surfaceVariant = Surface2 (#141516) — the Q2 card surface.
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
-        // Q2 — hairline border on the card surface.
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-    ) {
-        Column(Modifier.padding(Spacing.md)) {
-            // eyebrow — ink-subtle labelSmall above the value (Q2 typography ladder).
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = InkSubtle,
-            )
-            // no lavender on values — ink only (data, not actions).
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = sublabel,
-                style = MaterialTheme.typography.bodySmall,
-                color = InkSubtle,
-            )
-        }
     }
 }
 
@@ -437,38 +392,6 @@ private fun StaleBanner() {
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(Spacing.sm),
         )
-    }
-}
-
-@Composable
-private fun InPlaceCard(
-    title: String,
-    body: String,
-    actionLabel: String,
-    onAction: () -> Unit,
-) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(Spacing.xl),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = body,
-            style = MaterialTheme.typography.bodyMedium,
-            color = InkSubtle,
-            modifier = Modifier.padding(top = Spacing.xs),
-        )
-        Button(
-            onClick = onAction,
-            modifier = Modifier.padding(top = Spacing.md),
-        ) {
-            Text(actionLabel)
-        }
     }
 }
 
