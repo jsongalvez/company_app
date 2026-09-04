@@ -56,29 +56,7 @@ fun NotificationsScreen(
     val notificationsState by viewModel.notifications.collectAsState()
     val derived = rememberNotificationsDerived(viewModel)
 
-    LaunchedEffect(Unit) {
-        logInfo("NotificationsScreen", "composable entered (first composition)")
-        viewModel.loadUnreadNotifications()
-        viewModel.loadHistory()
-        reliefInviteViewModel.loadReceived()
-    }
-
-    // Log state changes, not composition passes (LoginScreen precedent — LaunchedEffect keyed on
-    // the state, so a recomposition doesn't re-log an unchanged Error).
-    LaunchedEffect(notificationsState) {
-        val error = notificationsState as? UiState.Error ?: return@LaunchedEffect
-        logWarn("NotificationsScreen", "notificationsState=Error: ${error.message}")
-    }
-
-    LaunchedEffect(derived.markReadError) {
-        derived.markReadError?.let { logWarn("NotificationsScreen", "markRead=Error: $it") }
-    }
-    LaunchedEffect(derived.markAllError) {
-        derived.markAllError?.let { logWarn("NotificationsScreen", "markAll=Error: $it") }
-    }
-    LaunchedEffect(derived.historyError) {
-        derived.historyError?.let { logWarn("NotificationsScreen", "history=Error: $it") }
-    }
+    NotificationsEntryEffects(viewModel, reliefInviteViewModel, notificationsState, derived)
 
     Column(
         modifier =

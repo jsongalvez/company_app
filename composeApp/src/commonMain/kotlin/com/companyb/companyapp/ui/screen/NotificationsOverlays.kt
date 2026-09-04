@@ -9,13 +9,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.dto.NotificationResponse
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.util.logInfo
+import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.NotificationViewModel
+import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
 import com.companyb.companyapp.viewmodel.UiState
 
 /**
@@ -141,5 +145,44 @@ internal fun NotificationsHeaderHost(
                 Text("Retry")
             }
         }
+    }
+}
+
+/**
+ * Entry + error-log effects hoisted out of [NotificationsScreen] for the #462 LongMethod
+ * burn-down. Effect order/keys, log strings, and early-return behavior verbatim (LoginScreen
+ * precedent — LaunchedEffect keyed on the state so a recomposition doesn't re-log).
+ *
+ * 4 params so it stays LongParameterList-clean outside the LPL-excluded Screen file.
+ */
+@Composable
+internal fun NotificationsEntryEffects(
+    viewModel: NotificationViewModel,
+    reliefInviteViewModel: ReliefInviteViewModel,
+    notificationsState: UiState<List<NotificationResponse>>,
+    derived: NotificationsDerived,
+) {
+    LaunchedEffect(Unit) {
+        logInfo("NotificationsScreen", "composable entered (first composition)")
+        viewModel.loadUnreadNotifications()
+        viewModel.loadHistory()
+        reliefInviteViewModel.loadReceived()
+    }
+
+    // Log state changes, not composition passes (LoginScreen precedent — LaunchedEffect keyed on
+    // the state, so a recomposition doesn't re-log an unchanged Error).
+    LaunchedEffect(notificationsState) {
+        val error = notificationsState as? UiState.Error ?: return@LaunchedEffect
+        logWarn("NotificationsScreen", "notificationsState=Error: ${error.message}")
+    }
+
+    LaunchedEffect(derived.markReadError) {
+        derived.markReadError?.let { logWarn("NotificationsScreen", "markRead=Error: $it") }
+    }
+    LaunchedEffect(derived.markAllError) {
+        derived.markAllError?.let { logWarn("NotificationsScreen", "markAll=Error: $it") }
+    }
+    LaunchedEffect(derived.historyError) {
+        derived.historyError?.let { logWarn("NotificationsScreen", "history=Error: $it") }
     }
 }
