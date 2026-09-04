@@ -493,111 +493,42 @@ private fun ClientDetailContent(
                     )
                 },
                 contactHealth = {
-                    Spacer(Modifier.size(Spacing.sm))
-                    SectionLabel("Contact + Health")
-                    ClientFieldEditor(
-                        label = "Phone",
-                        value = client.phoneNumber.orEmpty(),
-                        field = ClientField.PHONE,
+                    ClientDetailContactHealth(
+                        client = client,
                         editingField = editingField,
                         draftValue = draftValue,
                         fieldError = fieldError,
-                        onDraftChange = ::handleDraftChange,
-                        onStartEdit = ::startEdit,
-                        onCommit = ::commitEdit,
-                        onCancel = ::exitEdit,
-                        enabled = !navigationLocked,
-                        keyboardType = KeyboardType.Phone,
-                    )
-                    ClientFieldEditor(
-                        label = "Address",
-                        value = client.address.orEmpty(),
-                        field = ClientField.ADDRESS,
-                        editingField = editingField,
-                        draftValue = draftValue,
-                        fieldError = fieldError,
-                        onDraftChange = ::handleDraftChange,
-                        onStartEdit = ::startEdit,
-                        onCommit = ::commitEdit,
-                        onCancel = ::exitEdit,
-                        enabled = !navigationLocked,
-                    )
-                    // D4 BP pair rule — both fields or neither (backend 400s otherwise): the pair
-                    // is one editor, committed together, so a null-BP client can gain BP values.
-                    BpPairEditor(
-                        systolic = client.systolicBp,
-                        diastolic = client.diastolicBp,
-                        editing = editingField == ClientField.BP_PAIR,
-                        fieldError = if (editingField == ClientField.BP_PAIR) fieldError else null,
                         draft = bpDraft,
-                        onStartEdit = { startEdit(ClientField.BP_PAIR) },
-                        onCommit = ::commitBpDrafts,
-                        onCancel = ::exitEdit,
-                        onDraftChanged = { fieldError = null },
-                        enabled = !navigationLocked,
-                    )
-                    ClientFieldEditor(
-                        label = "Medical conditions",
-                        value = client.medicalConditions.orEmpty(),
-                        field = ClientField.MEDICAL_CONDITIONS,
-                        editingField = editingField,
-                        draftValue = draftValue,
-                        fieldError = fieldError,
+                        navigationLocked = navigationLocked,
                         onDraftChange = ::handleDraftChange,
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
-                        enabled = !navigationLocked,
+                        onCommitBp = ::commitBpDrafts,
+                        onBpDraftChanged = { fieldError = null },
                     )
                 },
                 actions = {
-                    // D5 — destructive styling (error/onError tokens per the #96 badge precedent).
-                    // Disabled while a POST is in flight — re-tapping mid-anonymize would fire a
-                    // second destructive request (a redundant 404 after the first 204).
-                    OutlinedButton(
-                        onClick = { showAnonymizeDialog = true },
-                        enabled = !navigationLocked && anonymizeState !is UiState.Loading,
-                        colors =
-                            ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.error,
-                            ),
-                        border =
-                            BorderStroke(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.error,
-                            ),
-                    ) {
-                        Text("Anonymize")
-                    }
-                    if (anonymizeState is UiState.Error) {
-                        Spacer(Modifier.size(Spacing.xs))
-                        Text(
-                            text = anonymizeState.message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
+                    ClientDetailActions(
+                        anonymizeState = anonymizeState,
+                        navigationLocked = navigationLocked,
+                        onAnonymizeClick = { showAnonymizeDialog = true },
+                    )
                 },
             )
         }
     }
 
-    if (showAnonymizeDialog) {
-        AnonymizeDialog(
-            clientName = clientDisplayName(client),
-            // H4 — clicking Anonymize blurs an editing field, which blur-commits a PATCH in
-            // flight; confirming while that PATCH is still saving would race it against the
-            // anonymize POST (a slow PATCH could land after the anonymize and re-populate PII on
-            // the soft-deleted row). Confirm stays disabled until the blur-committed PATCH
-            // resolves.
-            editInFlight = navigationLocked || updateState is UiState.Loading,
-            onConfirm = {
-                showAnonymizeDialog = false
-                viewModel.anonymizeClient(client.id)
-            },
-            onDismiss = { showAnonymizeDialog = false },
-        )
-    }
+    ClientDetailAnonymizeHost(
+        show = showAnonymizeDialog,
+        client = client,
+        editInFlight = navigationLocked || updateState is UiState.Loading,
+        onConfirm = {
+            showAnonymizeDialog = false
+            viewModel.anonymizeClient(client.id)
+        },
+        onDismiss = { showAnonymizeDialog = false },
+    )
 }
 
 @Composable
@@ -704,6 +635,135 @@ private fun ClientDetailDemographicFields(
         onCancel = onCancel,
         enabled = !navigationLocked,
         keyboardType = KeyboardType.Number,
+    )
+}
+
+@Composable
+private fun ClientDetailContactHealth(
+    client: ClientResponse,
+    editingField: ClientField?,
+    draftValue: String,
+    fieldError: String?,
+    draft: BpDraftState,
+    navigationLocked: Boolean,
+    onDraftChange: (String) -> Unit,
+    onStartEdit: (ClientField) -> Unit,
+    onCommit: (ClientField) -> Unit,
+    onCancel: () -> Unit,
+    onCommitBp: () -> Unit,
+    onBpDraftChanged: () -> Unit,
+) {
+    Spacer(Modifier.size(Spacing.sm))
+    SectionLabel("Contact + Health")
+    ClientFieldEditor(
+        label = "Phone",
+        value = client.phoneNumber.orEmpty(),
+        field = ClientField.PHONE,
+        editingField = editingField,
+        draftValue = draftValue,
+        fieldError = fieldError,
+        onDraftChange = onDraftChange,
+        onStartEdit = onStartEdit,
+        onCommit = onCommit,
+        onCancel = onCancel,
+        enabled = !navigationLocked,
+        keyboardType = KeyboardType.Phone,
+    )
+    ClientFieldEditor(
+        label = "Address",
+        value = client.address.orEmpty(),
+        field = ClientField.ADDRESS,
+        editingField = editingField,
+        draftValue = draftValue,
+        fieldError = fieldError,
+        onDraftChange = onDraftChange,
+        onStartEdit = onStartEdit,
+        onCommit = onCommit,
+        onCancel = onCancel,
+        enabled = !navigationLocked,
+    )
+    // D4 BP pair rule — both fields or neither (backend 400s otherwise): the pair
+    // is one editor, committed together, so a null-BP client can gain BP values.
+    BpPairEditor(
+        systolic = client.systolicBp,
+        diastolic = client.diastolicBp,
+        editing = editingField == ClientField.BP_PAIR,
+        fieldError = if (editingField == ClientField.BP_PAIR) fieldError else null,
+        draft = draft,
+        onStartEdit = { onStartEdit(ClientField.BP_PAIR) },
+        onCommit = onCommitBp,
+        onCancel = onCancel,
+        onDraftChanged = onBpDraftChanged,
+        enabled = !navigationLocked,
+    )
+    ClientFieldEditor(
+        label = "Medical conditions",
+        value = client.medicalConditions.orEmpty(),
+        field = ClientField.MEDICAL_CONDITIONS,
+        editingField = editingField,
+        draftValue = draftValue,
+        fieldError = fieldError,
+        onDraftChange = onDraftChange,
+        onStartEdit = onStartEdit,
+        onCommit = onCommit,
+        onCancel = onCancel,
+        enabled = !navigationLocked,
+    )
+}
+
+@Composable
+private fun ClientDetailActions(
+    anonymizeState: UiState<Unit>,
+    navigationLocked: Boolean,
+    onAnonymizeClick: () -> Unit,
+) {
+    // D5 — destructive styling (error/onError tokens per the #96 badge precedent).
+    // Disabled while a POST is in flight — re-tapping mid-anonymize would fire a
+    // second destructive request (a redundant 404 after the first 204).
+    OutlinedButton(
+        onClick = onAnonymizeClick,
+        enabled = !navigationLocked && anonymizeState !is UiState.Loading,
+        colors =
+            ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.error,
+            ),
+        border =
+            BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.error,
+            ),
+    ) {
+        Text("Anonymize")
+    }
+    if (anonymizeState is UiState.Error) {
+        Spacer(Modifier.size(Spacing.xs))
+        Text(
+            text = anonymizeState.message,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
+private fun ClientDetailAnonymizeHost(
+    show: Boolean,
+    client: ClientResponse,
+    editInFlight: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    if (!show) return
+    AnonymizeDialog(
+        clientName = clientDisplayName(client),
+        // H4 — clicking Anonymize blurs an editing field, which blur-commits a PATCH in
+        // flight; confirming while that PATCH is still saving would race it against the
+        // anonymize POST (a slow PATCH could land after the anonymize and re-populate PII on
+        // the soft-deleted row). Confirm stays disabled until the blur-committed PATCH
+        // resolves.
+        editInFlight = editInFlight,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
     )
 }
 
