@@ -333,15 +333,17 @@ class FinanceReportsViewModel(
 
     private fun currentWindow(): FeedWindow =
         com.companyb.companyapp.ui.screen.feedWindowFor(
-            mode = _mode.value,
-            today = today,
-            month =
-                com.companyb.companyapp.ui.screen
-                    .parseYearMonthInput(_monthInput.value)
-                    ?: defaultMonth,
-            rangeFrom = _appliedRange.value?.first,
-            rangeTo = _appliedRange.value?.second,
-            jumpMonth = _jumpMonth.value,
+            com.companyb.companyapp.ui.screen.FeedWindowRequest(
+                mode = _mode.value,
+                today = today,
+                month =
+                    com.companyb.companyapp.ui.screen
+                        .parseYearMonthInput(_monthInput.value)
+                        ?: defaultMonth,
+                rangeFrom = _appliedRange.value?.first,
+                rangeTo = _appliedRange.value?.second,
+                jumpMonth = _jumpMonth.value,
+            ),
         )
 
     private fun fetchPage(

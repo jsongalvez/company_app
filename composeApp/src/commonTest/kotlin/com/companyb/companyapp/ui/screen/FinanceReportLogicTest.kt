@@ -16,12 +16,14 @@ class FinanceReportLogicTest {
     fun dailyMode_pinsWindowToToday() {
         val window =
             feedWindowFor(
-                mode = ReportMode.DAILY,
-                today = today,
-                month = null,
-                rangeFrom = null,
-                rangeTo = null,
-                jumpMonth = null,
+                FeedWindowRequest(
+                    mode = ReportMode.DAILY,
+                    today = today,
+                    month = null,
+                    rangeFrom = null,
+                    rangeTo = null,
+                    jumpMonth = null,
+                ),
             )
         assertEquals(FeedWindow(from = null, to = "2026-08-14"), window)
     }
@@ -30,12 +32,14 @@ class FinanceReportLogicTest {
     fun monthlyMode_boundsTheMonth() {
         val window =
             feedWindowFor(
-                mode = ReportMode.MONTHLY,
-                today = today,
-                month = YearMonth(2026, 8),
-                rangeFrom = null,
-                rangeTo = null,
-                jumpMonth = null,
+                FeedWindowRequest(
+                    mode = ReportMode.MONTHLY,
+                    today = today,
+                    month = YearMonth(2026, 8),
+                    rangeFrom = null,
+                    rangeTo = null,
+                    jumpMonth = null,
+                ),
             )
         assertEquals(FeedWindow(from = "2026-08-01", to = "2026-08-31"), window)
     }
@@ -44,12 +48,14 @@ class FinanceReportLogicTest {
     fun monthlyMode_yearBoundaryMonthEndsInJanuary() {
         val window =
             feedWindowFor(
-                mode = ReportMode.MONTHLY,
-                today = today,
-                month = YearMonth(2026, 12),
-                rangeFrom = null,
-                rangeTo = null,
-                jumpMonth = null,
+                FeedWindowRequest(
+                    mode = ReportMode.MONTHLY,
+                    today = today,
+                    month = YearMonth(2026, 12),
+                    rangeFrom = null,
+                    rangeTo = null,
+                    jumpMonth = null,
+                ),
             )
         assertEquals(FeedWindow(from = "2026-12-01", to = "2026-12-31"), window)
     }
@@ -58,12 +64,14 @@ class FinanceReportLogicTest {
     fun monthlyMode_leapFebruaryEndsOnThe29th() {
         val window =
             feedWindowFor(
-                mode = ReportMode.MONTHLY,
-                today = today,
-                month = YearMonth(2028, 2),
-                rangeFrom = null,
-                rangeTo = null,
-                jumpMonth = null,
+                FeedWindowRequest(
+                    mode = ReportMode.MONTHLY,
+                    today = today,
+                    month = YearMonth(2028, 2),
+                    rangeFrom = null,
+                    rangeTo = null,
+                    jumpMonth = null,
+                ),
             )
         assertEquals(FeedWindow(from = "2028-02-01", to = "2028-02-29"), window)
     }
@@ -72,12 +80,14 @@ class FinanceReportLogicTest {
     fun monthlyMode_nullMonthDefaultsToTodayMonth() {
         val window =
             feedWindowFor(
-                mode = ReportMode.MONTHLY,
-                today = today,
-                month = null,
-                rangeFrom = null,
-                rangeTo = null,
-                jumpMonth = null,
+                FeedWindowRequest(
+                    mode = ReportMode.MONTHLY,
+                    today = today,
+                    month = null,
+                    rangeFrom = null,
+                    rangeTo = null,
+                    jumpMonth = null,
+                ),
             )
         assertEquals(FeedWindow(from = "2026-08-01", to = "2026-08-31"), window)
     }
@@ -86,12 +96,14 @@ class FinanceReportLogicTest {
     fun allTimeMode_isUnboundedWithoutJump() {
         val window =
             feedWindowFor(
-                mode = ReportMode.ALL_TIME,
-                today = today,
-                month = null,
-                rangeFrom = "ignored",
-                rangeTo = "ignored",
-                jumpMonth = null,
+                FeedWindowRequest(
+                    mode = ReportMode.ALL_TIME,
+                    today = today,
+                    month = null,
+                    rangeFrom = "ignored",
+                    rangeTo = "ignored",
+                    jumpMonth = null,
+                ),
             )
         assertEquals(FeedWindow(from = null, to = null), window)
     }
@@ -100,12 +112,14 @@ class FinanceReportLogicTest {
     fun allTimeMode_jumpMonthScopesTheWindow() {
         val window =
             feedWindowFor(
-                mode = ReportMode.ALL_TIME,
-                today = today,
-                month = null,
-                rangeFrom = null,
-                rangeTo = null,
-                jumpMonth = YearMonth(2025, 3),
+                FeedWindowRequest(
+                    mode = ReportMode.ALL_TIME,
+                    today = today,
+                    month = null,
+                    rangeFrom = null,
+                    rangeTo = null,
+                    jumpMonth = YearMonth(2025, 3),
+                ),
             )
         assertEquals(FeedWindow(from = "2025-03-01", to = "2025-03-31"), window)
     }
@@ -114,12 +128,14 @@ class FinanceReportLogicTest {
     fun dateRangeMode_passesTheRangeThrough() {
         val window =
             feedWindowFor(
-                mode = ReportMode.DATE_RANGE,
-                today = today,
-                month = null,
-                rangeFrom = "2026-08-01",
-                rangeTo = "2026-08-10",
-                jumpMonth = null,
+                FeedWindowRequest(
+                    mode = ReportMode.DATE_RANGE,
+                    today = today,
+                    month = null,
+                    rangeFrom = "2026-08-01",
+                    rangeTo = "2026-08-10",
+                    jumpMonth = null,
+                ),
             )
         assertEquals(FeedWindow(from = "2026-08-01", to = "2026-08-10"), window)
     }

@@ -33,29 +33,32 @@ internal fun monthLastDay(m: YearMonth): LocalDate =
  * #105 D4 window derivation. DAILY pins to today ("today first, scroll back" — a future-dated
  * seeded day would otherwise head the feed). MONTHLY bounds the month; ALL_TIME is unbounded
  * unless a calendar-jump month is set (jump = scoped view of that month); DATE_RANGE applies
- * the from/to window.
+ * the from/to window. #462: the six selectors travel as one FeedWindowRequest value (LPL
+ * ignores data classes).
  */
-internal fun feedWindowFor(
-    mode: ReportMode,
-    today: LocalDate,
-    month: YearMonth?,
-    rangeFrom: String?,
-    rangeTo: String?,
-    jumpMonth: YearMonth?,
-): FeedWindow =
-    when (mode) {
+data class FeedWindowRequest(
+    val mode: ReportMode,
+    val today: LocalDate,
+    val month: YearMonth?,
+    val rangeFrom: String?,
+    val rangeTo: String?,
+    val jumpMonth: YearMonth?,
+)
+
+internal fun feedWindowFor(request: FeedWindowRequest): FeedWindow =
+    when (request.mode) {
         ReportMode.DAILY -> {
-            FeedWindow(from = null, to = today.toString())
+            FeedWindow(from = null, to = request.today.toString())
         }
 
         ReportMode.MONTHLY -> {
-            val m = month ?: YearMonth(today.year, today.month.ordinal + 1)
+            val m = request.month ?: YearMonth(request.today.year, request.today.month.ordinal + 1)
             val first = monthFirstDay(m)
             FeedWindow(from = first.toString(), to = monthLastDay(m).toString())
         }
 
         ReportMode.ALL_TIME -> {
-            val jump = jumpMonth
+            val jump = request.jumpMonth
             if (jump == null) {
                 FeedWindow(from = null, to = null)
             } else {
@@ -65,7 +68,7 @@ internal fun feedWindowFor(
         }
 
         ReportMode.DATE_RANGE -> {
-            FeedWindow(from = rangeFrom, to = rangeTo)
+            FeedWindow(from = request.rangeFrom, to = request.rangeTo)
         }
     }
 
