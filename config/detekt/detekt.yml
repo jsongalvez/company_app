@@ -847,7 +847,6 @@ style:
     allowedNames: 'ignored|expected'
     excludes:
       - '**/commonMain/**/ui/screen/UserManagementScreen.kt'
-      - '**/commonMain/**/ui/screen/SessionDashboardScreen.kt'
   UnusedPrivateClass:
     active: true
   UnusedPrivateMember:

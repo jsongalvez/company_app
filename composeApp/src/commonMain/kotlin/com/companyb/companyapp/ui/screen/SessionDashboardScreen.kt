@@ -87,6 +87,7 @@ internal expect fun DashboardEmptyState(
  * cover). The #95 platform-split precedent.
  */
 @Composable
+@Suppress("UnusedParameter") // #150 mobile text-only — onRefresh kept for DashboardEmptyState symmetry
 internal fun MobileDashboardEmptyState(
     selectedBranchName: String?,
     onRefresh: () -> Unit,
