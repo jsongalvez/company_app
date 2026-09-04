@@ -177,7 +177,6 @@ complexity:
     excludes:
       - '**/desktopMain/**/navigation/AppNavHost.desktop.kt'
       - '**/desktopMain/**/ui/screen/SessionList.desktop.kt'
-      - '**/commonMain/**/navigation/MobileAppNavHost.kt'
       - '**/commonMain/**/ui/drawer/DrawerContent.kt'
       - '**/commonMain/**/ui/screen/ClientDetailScreen.kt'
       - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
