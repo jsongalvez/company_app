@@ -453,70 +453,22 @@ private fun ClientDetailContent(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Text(
-            text = clientDisplayName(client),
-            style = MaterialTheme.typography.titleLarge,
+        ClientDetailContentBody(
+            client = client,
+            editingField = editingField,
+            draftValue = draftValue,
+            fieldError = fieldError,
+            draft = bpDraft,
+            navigationLocked = navigationLocked,
+            anonymizeState = anonymizeState,
+            onDraftChange = ::handleDraftChange,
+            onStartEdit = ::startEdit,
+            onCommit = ::commitEdit,
+            onCancel = ::exitEdit,
+            onCommitBp = ::commitBpDrafts,
+            onBpDraftChanged = { fieldError = null },
+            onAnonymizeClick = { showAnonymizeDialog = true },
         )
-        Spacer(Modifier.size(Spacing.xs))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-
-        // Scroll container wraps the layout split — both actuals stay scrollable as a unit.
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
-        ) {
-            ClientDetailLayout(
-                identity = {
-                    ClientDetailNameFields(
-                        client = client,
-                        editingField = editingField,
-                        draftValue = draftValue,
-                        fieldError = fieldError,
-                        navigationLocked = navigationLocked,
-                        onDraftChange = ::handleDraftChange,
-                        onStartEdit = ::startEdit,
-                        onCommit = ::commitEdit,
-                        onCancel = ::exitEdit,
-                    )
-                    ClientDetailDemographicFields(
-                        client = client,
-                        editingField = editingField,
-                        draftValue = draftValue,
-                        fieldError = fieldError,
-                        navigationLocked = navigationLocked,
-                        onDraftChange = ::handleDraftChange,
-                        onStartEdit = ::startEdit,
-                        onCommit = ::commitEdit,
-                        onCancel = ::exitEdit,
-                    )
-                },
-                contactHealth = {
-                    ClientDetailContactHealth(
-                        client = client,
-                        editingField = editingField,
-                        draftValue = draftValue,
-                        fieldError = fieldError,
-                        draft = bpDraft,
-                        navigationLocked = navigationLocked,
-                        onDraftChange = ::handleDraftChange,
-                        onStartEdit = ::startEdit,
-                        onCommit = ::commitEdit,
-                        onCancel = ::exitEdit,
-                        onCommitBp = ::commitBpDrafts,
-                        onBpDraftChanged = { fieldError = null },
-                    )
-                },
-                actions = {
-                    ClientDetailActions(
-                        anonymizeState = anonymizeState,
-                        navigationLocked = navigationLocked,
-                        onAnonymizeClick = { showAnonymizeDialog = true },
-                    )
-                },
-            )
-        }
     }
 
     ClientDetailAnonymizeHost(
@@ -529,6 +481,94 @@ private fun ClientDetailContent(
         },
         onDismiss = { showAnonymizeDialog = false },
     )
+}
+
+@Composable
+private fun ClientDetailContentBody(
+    client: ClientResponse,
+    editingField: ClientField?,
+    draftValue: String,
+    fieldError: String?,
+    draft: BpDraftState,
+    navigationLocked: Boolean,
+    anonymizeState: UiState<Unit>,
+    onDraftChange: (String) -> Unit,
+    onStartEdit: (ClientField) -> Unit,
+    onCommit: (ClientField) -> Unit,
+    onCancel: () -> Unit,
+    onCommitBp: () -> Unit,
+    onBpDraftChanged: () -> Unit,
+    onAnonymizeClick: () -> Unit,
+) {
+    ClientDetailContentHeader(client)
+
+    // Scroll container wraps the layout split — both actuals stay scrollable as a unit.
+    Column(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+    ) {
+        ClientDetailLayout(
+            identity = {
+                ClientDetailNameFields(
+                    client = client,
+                    editingField = editingField,
+                    draftValue = draftValue,
+                    fieldError = fieldError,
+                    navigationLocked = navigationLocked,
+                    onDraftChange = onDraftChange,
+                    onStartEdit = onStartEdit,
+                    onCommit = onCommit,
+                    onCancel = onCancel,
+                )
+                ClientDetailDemographicFields(
+                    client = client,
+                    editingField = editingField,
+                    draftValue = draftValue,
+                    fieldError = fieldError,
+                    navigationLocked = navigationLocked,
+                    onDraftChange = onDraftChange,
+                    onStartEdit = onStartEdit,
+                    onCommit = onCommit,
+                    onCancel = onCancel,
+                )
+            },
+            contactHealth = {
+                ClientDetailContactHealth(
+                    client = client,
+                    editingField = editingField,
+                    draftValue = draftValue,
+                    fieldError = fieldError,
+                    draft = draft,
+                    navigationLocked = navigationLocked,
+                    onDraftChange = onDraftChange,
+                    onStartEdit = onStartEdit,
+                    onCommit = onCommit,
+                    onCancel = onCancel,
+                    onCommitBp = onCommitBp,
+                    onBpDraftChanged = onBpDraftChanged,
+                )
+            },
+            actions = {
+                ClientDetailActions(
+                    anonymizeState = anonymizeState,
+                    navigationLocked = navigationLocked,
+                    onAnonymizeClick = onAnonymizeClick,
+                )
+            },
+        )
+    }
+}
+
+@Composable
+private fun ClientDetailContentHeader(client: ClientResponse) {
+    Text(
+        text = clientDisplayName(client),
+        style = MaterialTheme.typography.titleLarge,
+    )
+    Spacer(Modifier.size(Spacing.xs))
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 }
 
 @Composable
