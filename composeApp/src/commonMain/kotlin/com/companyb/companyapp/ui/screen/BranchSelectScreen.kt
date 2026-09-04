@@ -33,7 +33,6 @@ import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.domain.BranchClockInStatus
 import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.MeBranchResponse
-import com.companyb.companyapp.dto.ReliefCandidateResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
@@ -87,12 +86,8 @@ fun BranchSelectScreen(
         onLoadBranches = { viewModel.loadBranches() },
     )
 
-    val isPhase3Busy = clockInState is UiState.Loading || refreshState is UiState.Loading
-    // A failed refresh means the clock-in itself succeeded — the only legal retry is the
-    // refresh (re-clock-in would hit ShiftGuard's single-active-clock-in 409).
-    val refreshError = (refreshState as? UiState.Error)?.message
-    val clockInError = (clockInState as? UiState.Error)?.message
-    val canClockIn = refreshError == null && !isPhase3Busy
+    // NOTE (#462 LPL burn): Success-branch derivations (busy gate, error lines) live in
+    // BranchSuccessHost, which self-collects clockIn/refresh — the Screen keeps one slim call.
 
     Column(
         modifier =
@@ -128,15 +123,10 @@ fun BranchSelectScreen(
             is UiState.Success -> {
                 BranchSuccessContent(
                     branches = state.data,
-                    clockInError = clockInError,
-                    refreshError = refreshError,
-                    isPhase3Busy = isPhase3Busy,
-                    canClockIn = canClockIn,
                     inviteBranchId = inviteBranchId,
+                    onToggleInvite = { inviteBranchId = it },
                     viewModel = viewModel,
                     reliefInviteViewModel = reliefInviteViewModel,
-                    onToggleInvite = { inviteBranchId = it },
-                    onRetryRefresh = { viewModel.refreshCapabilities() },
                 )
             }
 
@@ -148,16 +138,21 @@ fun BranchSelectScreen(
 @Composable
 private fun BranchSuccessContent(
     branches: List<MeBranchResponse>,
-    clockInError: String?,
-    refreshError: String?,
-    isPhase3Busy: Boolean,
-    canClockIn: Boolean,
     inviteBranchId: String?,
+    onToggleInvite: (String?) -> Unit,
     viewModel: BranchSelectViewModel,
     reliefInviteViewModel: ReliefInviteViewModel,
-    onToggleInvite: (String?) -> Unit,
-    onRetryRefresh: () -> Unit,
 ) {
+    // Self-collected (duplicate StateFlow subscriptions cheap — LoginNoticeEffect precedent):
+    // keeps this signature at 5 params and the Screen call site to one slim call.
+    val clockInState by viewModel.clockInState.collectAsState()
+    val refreshState by viewModel.refreshState.collectAsState()
+    val isPhase3Busy = clockInState is UiState.Loading || refreshState is UiState.Loading
+    // A failed refresh means the clock-in itself succeeded — the only legal retry is the
+    // refresh (re-clock-in would hit ShiftGuard's single-active-clock-in 409).
+    val refreshError = (refreshState as? UiState.Error)?.message
+    val clockInError = (clockInState as? UiState.Error)?.message
+    val canClockIn = refreshError == null && !isPhase3Busy
     if (branches.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -173,7 +168,7 @@ private fun BranchSuccessContent(
         BranchErrorBanners(
             clockInError = clockInError,
             refreshError = refreshError,
-            onRetryRefresh = onRetryRefresh,
+            onRetryRefresh = { viewModel.refreshCapabilities() },
         )
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -184,11 +179,15 @@ private fun BranchSuccessContent(
                     branch = branch,
                     isClockingIn = isPhase3Busy,
                     canClockIn = canClockIn,
-                    onClockIn = { viewModel.clockIn(branch) },
                     inviteExpanded = inviteBranchId == branch.branchId,
-                    onToggleInvite = {
-                        onToggleInvite(if (inviteBranchId == branch.branchId) null else branch.branchId)
-                    },
+                    actions =
+                        BranchCardActions(
+                            onClockIn = { viewModel.clockIn(branch) },
+                            onToggleInvite = {
+                                val id = branch.branchId
+                                onToggleInvite(if (inviteBranchId == id) null else id)
+                            },
+                        ),
                 )
                 if (inviteBranchId == branch.branchId) {
                     InviteStaffPanel(
@@ -242,14 +241,19 @@ private fun BranchSelectStatusEffects(
     }
 }
 
+/** LPL-free carrier for [BranchCard] (#462 burn — 6 params → 5). */
+private data class BranchCardActions(
+    val onClockIn: () -> Unit,
+    val onToggleInvite: () -> Unit,
+)
+
 @Composable
 private fun BranchCard(
     branch: MeBranchResponse,
     isClockingIn: Boolean,
     canClockIn: Boolean,
-    onClockIn: () -> Unit,
     inviteExpanded: Boolean,
-    onToggleInvite: () -> Unit,
+    actions: BranchCardActions,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -283,7 +287,7 @@ private fun BranchCard(
                 BranchClockInButton(
                     isClockingIn = isClockingIn,
                     canClockIn = canClockIn,
-                    onClockIn = onClockIn,
+                    onClockIn = actions.onClockIn,
                 )
             }
         }
@@ -297,7 +301,7 @@ private fun BranchCard(
                     .padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.xs),
             horizontalArrangement = Arrangement.End,
         ) {
-            TextButton(onClick = onToggleInvite) {
+            TextButton(onClick = actions.onToggleInvite) {
                 Text(if (inviteExpanded) "Close" else "Invite staff")
             }
         }
@@ -316,56 +320,47 @@ private fun InviteStaffPanel(
     branchId: String,
     viewModel: ReliefInviteViewModel,
 ) {
-    val candidatesState by viewModel.candidates.collectAsState()
-    // Branch-keyed keep-last mirror (#162 KeepLastByKey — the #160 pass-1/pass-2 cross-branch
-    // bleed class is structurally unrenderable: the gate below reads THIS panel's key, so
-    // another branch's rows can never pass it; the old commit-stamp machinery is gone).
-    val sentByKey by viewModel.sentByKey.collectAsState()
-    val acceptedByKey by viewModel.acceptedByKey.collectAsState()
-    val createState by viewModel.createResult.collectAsState()
-    val retractState by viewModel.retractResult.collectAsState()
-    val revokeState by viewModel.revokeResult.collectAsState()
-
     var dateText by remember { mutableStateOf(defaultInviteDate()) }
     var query by remember { mutableStateOf("") }
 
     val validDate = parseInviteDate(dateText)
 
+    // NOTE (#462 LPL burn): result/error/queue states are self-collected inside each child
+    // (duplicate StateFlow subscriptions cheap — LoginNoticeEffect precedent), so the panel
+    // keeps one slim call per child.
     InvitePanelEffects(
         viewModel = viewModel,
         branchId = branchId,
         query = query,
         dateText = dateText,
         validDate = validDate,
-        createState = createState,
-        retractState = retractState,
-        revokeState = revokeState,
     )
 
     InvitePanelForm(
-        dateText = dateText,
-        onDateChange = { dateText = it },
-        query = query,
-        onQueryChange = { query = it },
-        validDate = validDate,
-        createState = createState,
-        retractState = retractState,
-        revokeState = revokeState,
+        viewModel = viewModel,
+        state = InvitePanelFormState(dateText = dateText, query = query, validDate = validDate),
+        callbacks = InvitePanelFormCallbacks(onDateChange = { dateText = it }, onQueryChange = { query = it }),
     ) {
         InvitePanelResults(
             branchId = branchId,
             viewModel = viewModel,
             dateText = dateText,
             validDate = validDate,
-            candidatesState = candidatesState,
-            lastSent = sentByKey[branchId],
-            createState = createState,
-            retractState = retractState,
-            lastAccepted = acceptedByKey[branchId],
-            revokeState = revokeState,
         )
     }
 }
+
+/** LPL/TMF-free carriers for [InvitePanelForm] (#462 burn — 9 params → viewModel + state + callbacks). */
+private data class InvitePanelFormState(
+    val dateText: String,
+    val query: String,
+    val validDate: LocalDate?,
+)
+
+private data class InvitePanelFormCallbacks(
+    val onDateChange: (String) -> Unit,
+    val onQueryChange: (String) -> Unit,
+)
 
 @Composable
 private fun InvitePanelEffects(
@@ -374,10 +369,10 @@ private fun InvitePanelEffects(
     query: String,
     dateText: String,
     validDate: LocalDate?,
-    createState: UiState<Unit>,
-    retractState: UiState<Unit>,
-    revokeState: UiState<Unit>,
 ) {
+    val createState by viewModel.createResult.collectAsState()
+    val retractState by viewModel.retractResult.collectAsState()
+    val revokeState by viewModel.revokeResult.collectAsState()
     LaunchedEffect(Unit) {
         logInfo("BranchSelectScreen", "invite panel opened for branch $branchId")
         viewModel.loadSent(branchId)
@@ -412,19 +407,14 @@ private fun InvitePanelEffects(
 
 @Composable
 private fun InvitePanelForm(
-    dateText: String,
-    onDateChange: (String) -> Unit,
-    query: String,
-    onQueryChange: (String) -> Unit,
-    validDate: LocalDate?,
-    createState: UiState<Unit>,
-    retractState: UiState<Unit>,
-    revokeState: UiState<Unit>,
+    viewModel: ReliefInviteViewModel,
+    state: InvitePanelFormState,
+    callbacks: InvitePanelFormCallbacks,
     results: @Composable () -> Unit,
 ) {
-    val createError = (createState as? UiState.Error)?.message
-    val retractError = (retractState as? UiState.Error)?.message
-    val revokeError = (revokeState as? UiState.Error)?.message
+    val createState by viewModel.createResult.collectAsState()
+    val retractState by viewModel.retractResult.collectAsState()
+    val revokeState by viewModel.revokeResult.collectAsState()
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -442,36 +432,36 @@ private fun InvitePanelForm(
                 style = MaterialTheme.typography.titleSmall,
             )
             OutlinedTextField(
-                value = dateText,
-                onValueChange = onDateChange,
+                value = state.dateText,
+                onValueChange = callbacks.onDateChange,
                 label = { Text("Date (yyyy-MM-dd)") },
                 singleLine = true,
-                isError = dateText.isNotBlank() && validDate == null,
+                isError = state.dateText.isNotBlank() && state.validDate == null,
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
+                value = state.query,
+                onValueChange = callbacks.onQueryChange,
                 label = { Text("Search staff by name") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            createError?.let { error ->
+            (createState as? UiState.Error)?.message?.let { error ->
                 Text(
                     text = error,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
             }
-            retractError?.let { error ->
+            (retractState as? UiState.Error)?.message?.let { error ->
                 Text(
                     text = error,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
             }
-            revokeError?.let { error ->
+            (revokeState as? UiState.Error)?.message?.let { error ->
                 Text(
                     text = error,
                     style = MaterialTheme.typography.bodySmall,
@@ -490,16 +480,22 @@ private fun InvitePanelResults(
     viewModel: ReliefInviteViewModel,
     dateText: String,
     validDate: LocalDate?,
-    candidatesState: UiState<List<ReliefCandidateResponse>>,
-    lastSent: List<ReliefInviteResponse>?,
-    createState: UiState<Unit>,
-    retractState: UiState<Unit>,
-    lastAccepted: List<ReliefInviteResponse>?,
-    revokeState: UiState<Unit>,
 ) {
     // #377 — the destructive revoke needs an explicit confirm (removes someone's granted
     // access); the tapped row parks here until the dialog resolves it.
     var pendingRevoke by remember { mutableStateOf<ReliefInviteResponse?>(null) }
+
+    val candidatesState by viewModel.candidates.collectAsState()
+    // Branch-keyed keep-last mirror (#162 KeepLastByKey — the #160 pass-1/pass-2 cross-branch
+    // bleed class is structurally unrenderable: the gate below reads THIS panel's key, so
+    // another branch's rows can never pass it; the old commit-stamp machinery is gone).
+    val sentByKey by viewModel.sentByKey.collectAsState()
+    val acceptedByKey by viewModel.acceptedByKey.collectAsState()
+    val createState by viewModel.createResult.collectAsState()
+    val retractState by viewModel.retractResult.collectAsState()
+    val revokeState by viewModel.revokeResult.collectAsState()
+    val lastSent = sentByKey[branchId]
+    val lastAccepted = acceptedByKey[branchId]
 
     val sendBusy = createState is UiState.Loading
     val retractBusy = retractState is UiState.Loading

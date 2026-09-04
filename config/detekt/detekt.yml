@@ -187,7 +187,6 @@ complexity:
       - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
       - '**/commonMain/**/ui/screen/UserManagementScreen.kt'
       - '**/commonMain/**/ui/screen/FinanceReportLogic.kt'
-      - '**/commonMain/**/ui/screen/BranchSelectScreen.kt'
       - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
       - '**/commonMain/**/ui/screen/AuditLogScreen.kt'
   MethodOverloading:
