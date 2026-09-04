@@ -366,23 +366,22 @@ private fun ClientDetailContent(
         // number") — both acceptable; the abandon gate canonicalizes numerically downstream.
         val seedSystolic = client.systolicBp?.toString().orEmpty()
         val seedDiastolic = client.diastolicBp?.toString().orEmpty()
-        if (sys == seedSystolic && dia == seedDiastolic) {
-            exitEdit()
-            return true
-        }
-        if (sys.isEmpty() || dia.isEmpty()) {
-            fieldError = "Both BP fields are required"
-            return false
-        }
         val sysVal = sys.toShortOrNull()
         val diaVal = dia.toShortOrNull()
-        if (sysVal == null || diaVal == null) {
-            fieldError = "Enter a valid number"
-            return false
+        if (sys == seedSystolic && dia == seedDiastolic) {
+            exitEdit()
+        } else {
+            fieldError =
+                when {
+                    sys.isEmpty() || dia.isEmpty() -> "Both BP fields are required"
+                    sysVal == null || diaVal == null -> "Enter a valid number"
+                    else -> null
+                }
+            if (fieldError != null) return false
+            recordDispatchedDraft(ClientField.BP_PAIR, sys, dia)
+            pendingEditField = ClientField.BP_PAIR
+            viewModel.updateClient(client.id, UpdateClientRequest(systolicBp = sysVal!!, diastolicBp = diaVal!!))
         }
-        recordDispatchedDraft(ClientField.BP_PAIR, sys, dia)
-        pendingEditField = ClientField.BP_PAIR
-        viewModel.updateClient(client.id, UpdateClientRequest(systolicBp = sysVal, diastolicBp = diaVal))
         return true
     }
 

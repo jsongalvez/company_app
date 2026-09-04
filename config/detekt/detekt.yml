@@ -810,7 +810,6 @@ style:
     excludeGuardClauses: false
     excludes:
       - '**/commonMain/**/navigation/NavHostRouteExt.kt'
-      - '**/commonMain/**/ui/screen/ClientDetailScreen.kt'
   SafeCast:
     active: true
   SerialVersionUIDInSerializableClass:
