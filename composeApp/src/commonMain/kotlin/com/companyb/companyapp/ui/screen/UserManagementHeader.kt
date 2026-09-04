@@ -132,7 +132,7 @@ internal fun UserManagementBranchAdmin(
             actions.removeAssignmentTarget == null &&
             !actions.showAssignDialog
         ) {
-            (actions.assignmentResult as UiState.Error).message
+            actions.assignmentResult.message
         } else {
             null
         }

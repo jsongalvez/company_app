@@ -138,7 +138,7 @@ internal fun ColumnScope.UserManagementUserList(
         }
 
         if (users is UiState.Error) {
-            val errorState = users as UiState.Error
+            val errorState = users
             item(key = "users-reload-error") {
                 UserManagementListErrorRow(
                     message = errorState.message,
