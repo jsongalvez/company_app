@@ -186,3 +186,26 @@ internal fun NotificationsEntryEffects(
         derived.historyError?.let { logWarn("NotificationsScreen", "history=Error: $it") }
     }
 }
+
+/**
+ * Queue-list call collapse hoisted out of [NotificationsScreen] for the #462 LongMethod
+ * burn-down: the three multi-line NotificationList call args count toward the caller, so
+ * they collapse to single-line host calls here (multi-decl Overlays file hosts it —
+ * Screen.kt sits at the file-function wall). Success still passes state.data (fresh data,
+ * not keep-last derived) at the Screen call site.
+ *
+ * 3 params so it stays LongParameterList-clean outside the LPL-excluded Screen file.
+ */
+@Composable
+internal fun NotificationsQueueList(
+    unread: List<NotificationResponse>,
+    derived: NotificationsDerived,
+    onNotificationClick: (NotificationResponse) -> Unit,
+) {
+    NotificationList(
+        unread = unread,
+        readThisSession = derived.readThisSession,
+        history = derived.visibleHistory,
+        onNotificationClick = onNotificationClick,
+    )
+}

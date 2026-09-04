@@ -172,7 +172,6 @@ complexity:
     active: true
     threshold: 60
     excludes:
-      - '**/commonMain/**/ui/screen/NotificationsScreen.kt'
   LongParameterList:
     active: true
     functionThreshold: 6

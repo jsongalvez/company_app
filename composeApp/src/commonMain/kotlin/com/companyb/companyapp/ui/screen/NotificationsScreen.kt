@@ -79,12 +79,7 @@ fun NotificationsScreen(
 
             is UiState.Loading -> {
                 if (derived.hasContent) {
-                    NotificationList(
-                        unread = derived.unread,
-                        readThisSession = derived.readThisSession,
-                        history = derived.visibleHistory,
-                        onNotificationClick = onNotificationClick,
-                    )
+                    NotificationsQueueList(derived.unread, derived, onNotificationClick)
                 } else {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
@@ -101,12 +96,7 @@ fun NotificationsScreen(
                     message = state.message,
                     onRetry = { viewModel.loadUnreadNotifications() },
                     content = {
-                        NotificationList(
-                            unread = derived.unread,
-                            readThisSession = derived.readThisSession,
-                            history = derived.visibleHistory,
-                            onNotificationClick = onNotificationClick,
-                        )
+                        NotificationsQueueList(derived.unread, derived, onNotificationClick)
                     },
                 )
             }
@@ -115,12 +105,7 @@ fun NotificationsScreen(
                 // D4: zero-state when nothing unread, nothing marked read this session, and no
                 // history rows — "All caught up" must not hide a populated history (#356).
                 if (derived.hasContent) {
-                    NotificationList(
-                        unread = state.data,
-                        readThisSession = derived.readThisSession,
-                        history = derived.visibleHistory,
-                        onNotificationClick = onNotificationClick,
-                    )
+                    NotificationsQueueList(state.data, derived, onNotificationClick)
                 } else {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
@@ -181,7 +166,7 @@ private fun NotificationsErrorBody(
 }
 
 @Composable
-private fun NotificationList(
+internal fun NotificationList(
     unread: List<NotificationResponse>,
     readThisSession: List<NotificationResponse>,
     history: List<NotificationResponse>,
