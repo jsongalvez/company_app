@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.BranchResponse
@@ -19,6 +20,8 @@ import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.BranchViewModel
 import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.UserViewModel
+import com.companyb.companyapp.viewmodel.filterUsers
+import com.companyb.companyapp.viewmodel.slotOrderForBranch
 
 /**
  * Member + branch-admin dialog overlays hoisted out of [UserManagementScreen] for the #462
@@ -242,6 +245,39 @@ internal fun userManagementMutationsDisabled(
         createBranchState is UiState.Loading ||
         assignmentResult is UiState.Loading ||
         deleteAssignmentState is UiState.Loading
+}
+
+/**
+ * List/branch derivations hoisted out of [UserManagementScreen] for the #462 LongMethod
+ * burn-down. Lives here (not Header.kt) because Header.kt sits at the detekt
+ * file-function wall (10/11) — Overlays.kt has fresh budget. Self-sufficient: collects
+ * the held list + branches itself (duplicate StateFlow subscriptions are cheap —
+ * LoginNoticeEffect precedent) so the Screen keeps one slim call; remember keys and the
+ * selected-branch filter stay verbatim. 3 params so it stays LongParameterList-clean
+ * outside the LPL-excluded Screen file.
+ */
+@Composable
+internal fun rememberUserManagementDerived(
+    viewModel: UserViewModel,
+    searchQuery: String,
+    selectedBranchId: String?,
+): UserManagementDerived {
+    val heldList by viewModel.freshestUsers.collectAsState()
+    val branches by viewModel.branches.collectAsState()
+    val loadedUsers = heldList.orEmpty()
+    val filteredUsers = remember(loadedUsers, searchQuery) { filterUsers(loadedUsers, searchQuery) }
+    val loadedBranches = (branches as? UiState.Success<List<BranchResponse>>)?.data.orEmpty()
+    val selectedBranch = loadedBranches.firstOrNull { it.id == selectedBranchId }
+    val slotRows =
+        remember(loadedUsers, selectedBranchId, selectedBranch) {
+            if (selectedBranch == null) emptyList() else slotOrderForBranch(loadedUsers, selectedBranch.id)
+        }
+    return UserManagementDerived(
+        filteredUsers = filteredUsers,
+        selectedBranch = selectedBranch,
+        slotRows = slotRows,
+        selectedBranchName = selectedBranch?.name,
+    )
 }
 
 /**

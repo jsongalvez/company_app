@@ -225,6 +225,20 @@ internal data class UserManagementUserListActions(
 )
 
 /**
+ * Derived list/branch selections for [UserManagementScreen] (#462 LongMethod burn —
+ * the Screen keeps one slim `rememberUserManagementDerived` call while this holder
+ * carries the filtered rows + branch + slot-order derivations; data class so
+ * LongParameterList/TooManyFunctions-free, lives here with the other UserManagement
+ * holders — MatchingDeclaration precedent).
+ */
+internal data class UserManagementDerived(
+    val filteredUsers: List<UserSummaryResponse>,
+    val selectedBranch: BranchResponse?,
+    val slotRows: List<UserSlotRow>,
+    val selectedBranchName: String?,
+)
+
+/**
  * Callbacks + gates for the member half of [UserManagementDialogHosts] (#462 LongMethod burn —
  * new-file split; UserManagementScreen.kt/Header.kt/Dialogs.kt all sit at the detekt
  * file-function wall). The host collects the dialog flows itself (duplicate StateFlow

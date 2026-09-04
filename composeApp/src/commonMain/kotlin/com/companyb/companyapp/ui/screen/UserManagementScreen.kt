@@ -50,10 +50,8 @@ import com.companyb.companyapp.viewmodel.BranchViewModel
 import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.UserSlotRow
 import com.companyb.companyapp.viewmodel.UserViewModel
-import com.companyb.companyapp.viewmodel.filterUsers
 import com.companyb.companyapp.viewmodel.parseSlotInput
 import com.companyb.companyapp.viewmodel.slotInputError
-import com.companyb.companyapp.viewmodel.slotOrderForBranch
 
 /**
  * #135 — User Management screen, locked spec #106 D2-D5.
@@ -120,15 +118,7 @@ fun UserManagementScreen(
         branchViewModel = branchViewModel,
     )
 
-    val loadedUsers = heldList.orEmpty()
-    val filteredUsers = remember(loadedUsers, searchQuery) { filterUsers(loadedUsers, searchQuery) }
-    val loadedBranches = (branches as? UiState.Success<List<BranchResponse>>)?.data.orEmpty()
-    val selectedBranch = loadedBranches.firstOrNull { it.id == selectedBranchId }
-    val slotRows =
-        remember(loadedUsers, selectedBranchId, selectedBranch) {
-            if (selectedBranch == null) emptyList() else slotOrderForBranch(loadedUsers, selectedBranch.id)
-        }
-    val selectedBranchName = selectedBranch?.name
+    val derived = rememberUserManagementDerived(viewModel, searchQuery, selectedBranchId)
     val mutationsDisabled = userManagementMutationsDisabled(viewModel, branchViewModel)
 
     UserManagementMutationEffects(
@@ -152,7 +142,7 @@ fun UserManagementScreen(
             searchQuery = searchQuery,
             branches = branches,
             selectedBranchId = selectedBranchId,
-            selectedBranch = selectedBranch,
+            selectedBranch = derived.selectedBranch,
             actions =
                 userManagementTopSectionsActions(
                     users = users,
@@ -169,7 +159,7 @@ fun UserManagementScreen(
                             onShowCreateBranch = { showCreateBranchDialog = it },
                             onAssignmentBranchChange = { assignmentBranch = it },
                             onShowAssignDialog = { showAssignUserDialog = it },
-                            selectedBranch = selectedBranch,
+                            selectedBranch = derived.selectedBranch,
                             assignmentResult = assignmentResult,
                             removeAssignmentTarget = removeAssignmentTarget,
                             showAssignDialog = showAssignUserDialog,
@@ -199,12 +189,12 @@ fun UserManagementScreen(
         UserManagementUserList(
             users = users,
             heldNonNull = heldList != null,
-            filteredUsers = filteredUsers,
-            selectedBranch = selectedBranch,
+            filteredUsers = derived.filteredUsers,
+            selectedBranch = derived.selectedBranch,
             actions =
                 UserManagementUserListActions(
-                    selectedBranchName = selectedBranchName ?: "",
-                    slotRows = slotRows,
+                    selectedBranchName = derived.selectedBranchName ?: "",
+                    slotRows = derived.slotRows,
                     mutationsDisabled = mutationsDisabled,
                     searchQuery = searchQuery,
                     expandedIds = expandedIds,
