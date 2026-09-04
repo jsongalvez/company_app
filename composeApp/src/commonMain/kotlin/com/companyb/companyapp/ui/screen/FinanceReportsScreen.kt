@@ -92,6 +92,54 @@ fun FinanceReportsScreen(
     viewModel: FinanceReportsViewModel,
     modifier: Modifier = Modifier,
 ) {
+    val collected = rememberFinanceReportsCollected(viewModel)
+    val today =
+        Clock.System
+            .now()
+            .toLocalDateTime(TimeZone.of("Asia/Manila"))
+            .date
+
+    // #158 — a BRANCH_DAY grant holder's day-scoped surface. Relief-only users (no
+    // VIEW_BRANCH_DATA) get it directly; hybrid users (VIEW elsewhere + a day grant at
+    // a branch the picker never lists — the #98 window is BRANCH-grant-only) reach it
+    // via the Relief-day chip (pass-1 triage: the picker can't reach the relief branch).
+    val hasDayGrant =
+        collected.capabilities.hasDayGrant(CapabilityCodes.EDIT_BRANCH_DATA)
+    val reliefOnly = hasDayGrant && !collected.capabilities.hasCapabilityAnyContext(CapabilityCodes.VIEW_BRANCH_DATA)
+
+    var downloadNote by remember { mutableStateOf<String?>(null) }
+    var showReliefSection by remember { mutableStateOf(reliefOnly) }
+    FinanceReportsScreenEffects(
+        viewModel = viewModel,
+        reliefOnly = reliefOnly,
+        downloads = collected.downloads,
+        onDownloadNote = { downloadNote = it },
+    )
+    FinanceReportsDownloadNote(downloadNote)
+
+    Column(modifier = modifier.fillMaxSize().padding(Spacing.md)) {
+        FinanceReportsBody(
+            viewModel = viewModel,
+            collected = collected,
+            today = today,
+            reliefOnly = reliefOnly,
+            hasDayGrant = hasDayGrant,
+            showReliefSection = showReliefSection,
+            onShowReliefChange = { showReliefSection = it },
+        )
+
+        Spacer(Modifier.height(Spacing.md))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        PublicReportsSection(
+            exportErrors = collected.exportErrors,
+            downloads = collected.downloads,
+            onExport = viewModel::exportPublic,
+        )
+    }
+}
+
+@Composable
+private fun rememberFinanceReportsCollected(viewModel: FinanceReportsViewModel): FinanceReportsCollected {
     val branches by viewModel.branches.collectAsState()
     val selectedBranchId by viewModel.selectedBranchId.collectAsState()
     val mode by viewModel.mode.collectAsState()
@@ -106,23 +154,51 @@ fun FinanceReportsScreen(
     val editMode by viewModel.editMode.collectAsState()
     val downloads by viewModel.downloads.collectAsState()
     val exportErrors by viewModel.exportErrors.collectAsState()
-    val conflicts by viewModel.conflicts.collectAsState()
     val capabilities by SessionState.capabilities.collectAsState()
+    return FinanceReportsCollected(
+        branches = branches,
+        selectedBranchId = selectedBranchId,
+        mode = mode,
+        monthInput = monthInput,
+        rangeFromInput = rangeFromInput,
+        rangeToInput = rangeToInput,
+        appliedRange = appliedRange,
+        paramError = paramError,
+        monthlyRollup = monthlyRollup,
+        feed = feed,
+        selectedDay = selectedDay,
+        editMode = editMode,
+        downloads = downloads,
+        exportErrors = exportErrors,
+        capabilities = capabilities,
+    )
+}
 
-    val today =
-        Clock.System
-            .now()
-            .toLocalDateTime(TimeZone.of("Asia/Manila"))
-            .date
+private data class FinanceReportsCollected(
+    val branches: UiState<List<BranchResponse>>,
+    val selectedBranchId: String?,
+    val mode: ReportMode,
+    val monthInput: String,
+    val rangeFromInput: String,
+    val rangeToInput: String,
+    val appliedRange: Pair<String, String>?,
+    val paramError: String?,
+    val monthlyRollup: UiState<MonthlyRemittanceSummaryResponse?>,
+    val feed: UiState<List<DailySalesSummaryResponse>>,
+    val selectedDay: DailySalesSummaryResponse?,
+    val editMode: Boolean,
+    val downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
+    val exportErrors: Map<String, String>,
+    val capabilities: List<UserCapabilityResponse>,
+)
 
-    // #158 — a BRANCH_DAY grant holder's day-scoped surface. Relief-only users (no
-    // VIEW_BRANCH_DATA) get it directly; hybrid users (VIEW elsewhere + a day grant at
-    // a branch the picker never lists — the #98 window is BRANCH-grant-only) reach it
-    // via the Relief-day chip (pass-1 triage: the picker can't reach the relief branch).
-    val hasDayGrant =
-        capabilities.hasDayGrant(CapabilityCodes.EDIT_BRANCH_DATA)
-    val reliefOnly = hasDayGrant && !capabilities.hasCapabilityAnyContext(CapabilityCodes.VIEW_BRANCH_DATA)
-
+@Composable
+private fun FinanceReportsScreenEffects(
+    viewModel: FinanceReportsViewModel,
+    reliefOnly: Boolean,
+    downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
+    onDownloadNote: (String?) -> Unit,
+) {
     LaunchedEffect(Unit) {
         // #158 pass-1 SOFT — the relief-only surface never renders the picker, and the
         // accessible-branches list is BRANCH-grant-only (empty for a relief delegate):
@@ -131,28 +207,29 @@ fun FinanceReportsScreen(
             viewModel.loadBranches()
         }
     }
-
     // D6 — the platform save boundary: a successful export payload is handed to saveDownload
     // (desktop save dialog / Android Downloads), then consumed so the button clears. A false
     // return (user cancelled the dialog / the write failed) surfaces as an in-place note.
-    var downloadNote by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(downloads) {
         // A fresh export clears a stale note (a cancelled export's note must not outlive the
         // user's next attempt — pass-3 SOFT).
-        if (downloads.values.any { it is UiState.Loading }) downloadNote = null
+        if (downloads.values.any { it is UiState.Loading }) onDownloadNote(null)
         downloads
             .filterValues { it is UiState.Success }
             .forEach { (key, state) ->
                 val payload = (state as UiState.Success<FinanceReportsViewModel.DownloadPayload>).data
                 if (saveDownload(payload.fileName, payload.bytes)) {
-                    downloadNote = null
+                    onDownloadNote(null)
                 } else {
-                    downloadNote = "Download cancelled or failed for ${payload.fileName}"
+                    onDownloadNote("Download cancelled or failed for ${payload.fileName}")
                 }
                 viewModel.consumeDownload(key)
             }
     }
-    val note = downloadNote
+}
+
+@Composable
+private fun FinanceReportsDownloadNote(note: String?) {
     if (note != null) {
         Text(
             text = note,
@@ -160,166 +237,224 @@ fun FinanceReportsScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
 
-    Column(modifier = modifier.fillMaxSize().padding(Spacing.md)) {
-        val selectedBranch = selectedBranchId
-        val day = selectedDay
-        var showReliefSection by remember { mutableStateOf(reliefOnly) }
-        if (showReliefSection) {
-            val reliefDay by viewModel.reliefDay.collectAsState()
-            ReliefDaySection(
-                viewModel = viewModel,
-                reliefDay = reliefDay,
-                selectedDay = day,
-                today = today,
-                capabilities = capabilities,
-                editMode = editMode,
-                onEditToggle = { viewModel.setEditMode(!editMode) },
-                onExit =
-                    if (reliefOnly) {
-                        null
-                    } else {
-                        {
-                            // Pass-2 HARD — leave the relief surface clean: a re-entry via
-                            // the chip must not find the previous relief day armed (stale
-                            // date input vs old Success). clearReliefState subsumes the
-                            // edit-mode reset (pass-3 — no double clear).
-                            viewModel.clearReliefState()
-                            showReliefSection = false
-                        }
-                    },
-                downloads = downloads,
-                exportErrors = exportErrors,
-                modifier = Modifier.weight(1f),
+@Composable
+private fun ColumnScope.FinanceReportsBody(
+    viewModel: FinanceReportsViewModel,
+    collected: FinanceReportsCollected,
+    today: LocalDate,
+    reliefOnly: Boolean,
+    hasDayGrant: Boolean,
+    showReliefSection: Boolean,
+    onShowReliefChange: (Boolean) -> Unit,
+) {
+    if (showReliefSection) {
+        FinanceReportsReliefContent(
+            viewModel = viewModel,
+            collected = collected,
+            today = today,
+            reliefOnly = reliefOnly,
+            onExitRelief = { onShowReliefChange(false) },
+        )
+    } else {
+        FinanceReportsMainContent(
+            viewModel = viewModel,
+            collected = collected,
+            today = today,
+            hasDayGrant = hasDayGrant,
+            reliefOnly = reliefOnly,
+            onEnterRelief = {
+                viewModel.setEditMode(false)
+                onShowReliefChange(true)
+            },
+        )
+    }
+}
+
+@Composable
+private fun ColumnScope.FinanceReportsReliefContent(
+    viewModel: FinanceReportsViewModel,
+    collected: FinanceReportsCollected,
+    today: LocalDate,
+    reliefOnly: Boolean,
+    onExitRelief: () -> Unit,
+) {
+    val reliefDay by viewModel.reliefDay.collectAsState()
+    ReliefDaySection(
+        viewModel = viewModel,
+        reliefDay = reliefDay,
+        selectedDay = collected.selectedDay,
+        today = today,
+        capabilities = collected.capabilities,
+        editMode = collected.editMode,
+        onEditToggle = { viewModel.setEditMode(!collected.editMode) },
+        onExit =
+            if (reliefOnly) {
+                null
+            } else {
+                {
+                    // Pass-2 HARD — leave the relief surface clean: a re-entry via
+                    // the chip must not find the previous relief day armed (stale
+                    // date input vs old Success). clearReliefState subsumes the
+                    // edit-mode reset (pass-3 — no double clear).
+                    viewModel.clearReliefState()
+                    onExitRelief()
+                }
+            },
+        downloads = collected.downloads,
+        exportErrors = collected.exportErrors,
+        modifier = Modifier.weight(1f),
+    )
+}
+
+@Composable
+private fun ColumnScope.FinanceReportsMainContent(
+    viewModel: FinanceReportsViewModel,
+    collected: FinanceReportsCollected,
+    today: LocalDate,
+    hasDayGrant: Boolean,
+    reliefOnly: Boolean,
+    onEnterRelief: () -> Unit,
+) {
+    val selectedBranch = collected.selectedBranchId
+    val day = collected.selectedDay
+    // #101 D1/D3 — a past day the user cannot edit (no EDIT_PAST_DAY) offers nothing to
+    // toggle into: the Edit toggle stays hidden (the backend 403 stays authoritative).
+    val pastDayReadOnlySelection =
+        day != null &&
+            selectedBranch != null &&
+            derivedDayState(LocalDate.parse(day.date), today) == DerivedDayState.PAST &&
+            !collected.capabilities.hasCapability(
+                CapabilityCodes.EDIT_PAST_DAY,
+                CapabilityContextType.BRANCH,
+                selectedBranch,
             )
-        } else {
-            // #101 D1/D3 — a past day the user cannot edit (no EDIT_PAST_DAY) offers nothing to
-            // toggle into: the Edit toggle stays hidden (the backend 403 stays authoritative).
-            val pastDayReadOnlySelection =
-                day != null &&
-                    selectedBranch != null &&
-                    derivedDayState(LocalDate.parse(day.date), today) == DerivedDayState.PAST &&
-                    !capabilities.hasCapability(
-                        CapabilityCodes.EDIT_PAST_DAY,
-                        CapabilityContextType.BRANCH,
-                        selectedBranch,
-                    )
-            // #158 — hybrid holders (day grant + VIEW at a picker-listed branch): the relief
-            // day lives at a branch the #98 window never lists, so the picker can't reach it —
-            // the chip switches the surface to the day-scoped entry. Pass-2 HARD — entering
-            // mid-edit would leak the reports day's armed sections into the relief surface.
-            if (hasDayGrant && !reliefOnly) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    FilterChip(
-                        selected = false,
-                        onClick = {
-                            viewModel.setEditMode(false)
-                            showReliefSection = true
-                        },
-                        label = { Text("Relief day") },
-                    )
-                }
-            }
-            FinanceToolbar(
-                branches = branches,
-                selectedBranchId = selectedBranchId,
-                onBranchSelected = viewModel::selectBranch,
-                onRetryBranches = viewModel::loadBranches,
-                mode = mode,
-                onModeSelected = viewModel::setMode,
-                canEdit = viewModel.hasEditCapabilities() && selectedDay != null && !pastDayReadOnlySelection,
-                editMode = editMode,
-                onEditToggle = { viewModel.setEditMode(!editMode) },
-                downloads = downloads,
-                exportErrors = exportErrors,
-                appliedRange = appliedRange,
-                onExportMode = { format -> viewModel.exportModeCurrent(format) },
+    // #158 — hybrid holders (day grant + VIEW at a picker-listed branch): the relief
+    // day lives at a branch the #98 window never lists, so the picker can't reach it —
+    // the chip switches the surface to the day-scoped entry. Pass-2 HARD — entering
+    // mid-edit would leak the reports day's armed sections into the relief surface.
+    if (hasDayGrant && !reliefOnly) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End,
+        ) {
+            FilterChip(
+                selected = false,
+                onClick = onEnterRelief,
+                label = { Text("Relief day") },
             )
-            if (!editMode) {
-                when (mode) {
-                    ReportMode.MONTHLY -> {
-                        MonthParamRow(
-                            monthInput = monthInput,
-                            onMonthInputChange = viewModel::setMonthInput,
-                            onApply = viewModel::applyMonth,
-                            paramError = paramError,
-                        )
-                    }
+        }
+    }
+    FinanceToolbar(
+        branches = collected.branches,
+        selectedBranchId = collected.selectedBranchId,
+        onBranchSelected = viewModel::selectBranch,
+        onRetryBranches = viewModel::loadBranches,
+        mode = collected.mode,
+        onModeSelected = viewModel::setMode,
+        canEdit = viewModel.hasEditCapabilities() && collected.selectedDay != null && !pastDayReadOnlySelection,
+        editMode = collected.editMode,
+        onEditToggle = { viewModel.setEditMode(!collected.editMode) },
+        downloads = collected.downloads,
+        exportErrors = collected.exportErrors,
+        appliedRange = collected.appliedRange,
+        onExportMode = { format -> viewModel.exportModeCurrent(format) },
+    )
+    if (!collected.editMode) {
+        FinanceReportsParamRows(viewModel = viewModel, collected = collected)
+    }
+    FinanceReportsEditorOrFeed(
+        viewModel = viewModel,
+        collected = collected,
+        today = today,
+    )
+}
 
-                    ReportMode.ALL_TIME -> {
-                        JumpParamRow(
-                            monthInput = monthInput,
-                            onJumpInputChange = viewModel::setJumpInput,
-                            onApply = viewModel::applyJump,
-                            onClear = viewModel::clearJump,
-                            paramError = paramError,
-                        )
-                    }
-
-                    ReportMode.DATE_RANGE -> {
-                        DateRangeParamRow(
-                            fromInput = rangeFromInput,
-                            toInput = rangeToInput,
-                            onFromChange = { viewModel.setRangeInputs(it, rangeToInput) },
-                            onToChange = { viewModel.setRangeInputs(rangeFromInput, it) },
-                            onApply = viewModel::applyRange,
-                            onClear = viewModel::clearRange,
-                            applied = appliedRange != null,
-                            paramError = paramError,
-                        )
-                    }
-
-                    ReportMode.DAILY -> {}
-                }
-            }
-
-            when {
-                editMode && day != null && selectedBranch != null -> {
-                    DayEditor(
-                        viewModel = viewModel,
-                        day = day,
-                        branchId = selectedBranch,
-                        branchName = (branches as? UiState.Success)?.data.orEmpty().branchName(selectedBranch),
-                        today = today,
-                        capabilities = capabilities,
-                        onBackToFeed = { viewModel.setEditMode(false) },
-                        onExportDayEditor = { format -> viewModel.exportDay(day, selectedBranch, format) },
-                        downloadStates = downloads,
-                        exportErrors = exportErrors,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-
-                else -> {
-                    FeedSection(
-                        viewModel = viewModel,
-                        feed = feed,
-                        mode = mode,
-                        monthlyRollup = monthlyRollup,
-                        selectedBranchId = selectedBranch,
-                        selectedDay = selectedDay,
-                        onDaySelected = viewModel::selectDay,
-                        today = today,
-                        appliedRange = appliedRange,
-                        downloads = downloads,
-                        exportErrors = exportErrors,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
+@Composable
+private fun FinanceReportsParamRows(
+    viewModel: FinanceReportsViewModel,
+    collected: FinanceReportsCollected,
+) {
+    when (collected.mode) {
+        ReportMode.MONTHLY -> {
+            MonthParamRow(
+                monthInput = collected.monthInput,
+                onMonthInputChange = viewModel::setMonthInput,
+                onApply = viewModel::applyMonth,
+                paramError = collected.paramError,
+            )
         }
 
-        Spacer(Modifier.height(Spacing.md))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-        PublicReportsSection(
-            exportErrors = exportErrors,
-            downloads = downloads,
-            onExport = viewModel::exportPublic,
-        )
+        ReportMode.ALL_TIME -> {
+            JumpParamRow(
+                monthInput = collected.monthInput,
+                onJumpInputChange = viewModel::setJumpInput,
+                onApply = viewModel::applyJump,
+                onClear = viewModel::clearJump,
+                paramError = collected.paramError,
+            )
+        }
+
+        ReportMode.DATE_RANGE -> {
+            DateRangeParamRow(
+                fromInput = collected.rangeFromInput,
+                toInput = collected.rangeToInput,
+                onFromChange = { viewModel.setRangeInputs(it, collected.rangeToInput) },
+                onToChange = { viewModel.setRangeInputs(collected.rangeFromInput, it) },
+                onApply = viewModel::applyRange,
+                onClear = viewModel::clearRange,
+                applied = collected.appliedRange != null,
+                paramError = collected.paramError,
+            )
+        }
+
+        ReportMode.DAILY -> {}
+    }
+}
+
+@Composable
+private fun ColumnScope.FinanceReportsEditorOrFeed(
+    viewModel: FinanceReportsViewModel,
+    collected: FinanceReportsCollected,
+    today: LocalDate,
+) {
+    val day = collected.selectedDay
+    val selectedBranch = collected.selectedBranchId
+    when {
+        collected.editMode && day != null && selectedBranch != null -> {
+            DayEditor(
+                viewModel = viewModel,
+                day = day,
+                branchId = selectedBranch,
+                branchName = (collected.branches as? UiState.Success)?.data.orEmpty().branchName(selectedBranch),
+                today = today,
+                capabilities = collected.capabilities,
+                onBackToFeed = { viewModel.setEditMode(false) },
+                onExportDayEditor = { format -> viewModel.exportDay(day, selectedBranch, format) },
+                downloadStates = collected.downloads,
+                exportErrors = collected.exportErrors,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        else -> {
+            FeedSection(
+                viewModel = viewModel,
+                feed = collected.feed,
+                mode = collected.mode,
+                monthlyRollup = collected.monthlyRollup,
+                selectedBranchId = selectedBranch,
+                selectedDay = collected.selectedDay,
+                onDaySelected = viewModel::selectDay,
+                today = today,
+                appliedRange = collected.appliedRange,
+                downloads = collected.downloads,
+                exportErrors = collected.exportErrors,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 }
 
