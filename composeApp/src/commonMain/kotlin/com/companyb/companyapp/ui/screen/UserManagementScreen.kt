@@ -203,52 +203,37 @@ fun UserManagementScreen(
 
         Spacer(Modifier.size(Spacing.sm))
 
-        BranchPicker(
+        UserManagementBranchAdmin(
             branches = branches,
             selectedBranchId = selectedBranchId,
-            onBranchSelected = { selectedBranchId = it },
-            onRetryBranches = { viewModel.loadBranches() },
-            disabled = mutationsDisabled,
+            selectedBranch = selectedBranch,
+            actions =
+                UserManagementBranchAdminActions(
+                    onBranchSelected = { selectedBranchId = it },
+                    onRetryBranches = { viewModel.loadBranches() },
+                    onCreateBranch = {
+                        branchViewModel.resetAdministrationState()
+                        showCreateBranchDialog = true
+                    },
+                    onAssign = {
+                        branchViewModel.resetAdministrationState()
+                        assignmentBranch = selectedBranch
+                        showAssignUserDialog = true
+                    },
+                    pickerDisabled = mutationsDisabled,
+                    createEnabled = !mutationsDisabled,
+                    assignEnabled = !mutationsDisabled && heldList != null,
+                    assignmentError =
+                        if (assignmentResult is UiState.Error &&
+                            removeAssignmentTarget == null &&
+                            !showAssignUserDialog
+                        ) {
+                            (assignmentResult as UiState.Error).message
+                        } else {
+                            null
+                        },
+                ),
         )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Branch administration",
-                style = MaterialTheme.typography.titleMedium,
-            )
-            TextButton(
-                onClick = {
-                    branchViewModel.resetAdministrationState()
-                    showCreateBranchDialog = true
-                },
-                enabled = !mutationsDisabled,
-            ) {
-                Text("Create branch")
-            }
-        }
-        if (selectedBranch != null) {
-            TextButton(
-                onClick = {
-                    branchViewModel.resetAdministrationState()
-                    assignmentBranch = selectedBranch
-                    showAssignUserDialog = true
-                },
-                enabled = !mutationsDisabled && heldList != null,
-            ) {
-                Text("Assign user to ${selectedBranch.name}")
-            }
-        }
-        if (assignmentResult is UiState.Error && removeAssignmentTarget == null && !showAssignUserDialog) {
-            Text(
-                text = (assignmentResult as UiState.Error).message,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
 
         Spacer(Modifier.size(Spacing.sm))
 
@@ -661,7 +646,7 @@ expect fun UserSlotOrderList(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BranchPicker(
+internal fun BranchPicker(
     branches: UiState<List<BranchResponse>>,
     selectedBranchId: String?,
     onBranchSelected: (String?) -> Unit,

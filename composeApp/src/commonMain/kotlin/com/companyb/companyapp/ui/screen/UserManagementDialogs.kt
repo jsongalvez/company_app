@@ -87,6 +87,22 @@ internal data class UserManagementHeaderActions(
     val refreshEnabled: Boolean,
 )
 
+/**
+ * Callbacks + gates for [UserManagementBranchAdmin] (#462 LongMethod burn — 2nd fn in
+ * UserManagementHeader.kt, which has fresh file-function budget while UserManagementScreen.kt
+ * sits at the wall; actions object keeps the host LongParameterList-clean).
+ */
+internal data class UserManagementBranchAdminActions(
+    val onBranchSelected: (String?) -> Unit,
+    val onRetryBranches: () -> Unit,
+    val onCreateBranch: () -> Unit,
+    val onAssign: () -> Unit,
+    val pickerDisabled: Boolean,
+    val createEnabled: Boolean,
+    val assignEnabled: Boolean,
+    val assignmentError: String?,
+)
+
 internal val SlotEditTargetSaver =
     Saver<SlotEditTarget?, List<String>>(
         save = { target ->

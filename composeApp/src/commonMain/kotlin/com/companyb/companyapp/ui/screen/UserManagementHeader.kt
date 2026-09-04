@@ -10,6 +10,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.dto.BranchResponse
+import com.companyb.companyapp.viewmodel.UiState
 
 /**
  * Title + Invite/Refresh actions + client-side search field of the User Management screen,
@@ -64,4 +66,60 @@ internal fun UserManagementHeader(
         modifier = Modifier.fillMaxWidth(),
         enabled = searchEnabled,
     )
+}
+
+/**
+ * Branch picker + branch-administration row hoisted out of [UserManagementScreen] for the #462
+ * LongMethod burn-down. Lives here (not same-file) because UserManagementScreen.kt sits at the
+ * detekt file-function wall — a same-file helper trips TooManyFunctions. Gates arrive as
+ * booleans + a derived error string so the Screen keeps the derivations and this host stays a
+ * pure overlay; callbacks ride [UserManagementBranchAdminActions] so the signature stays
+ * LongParameterList-clean.
+ */
+@Composable
+internal fun UserManagementBranchAdmin(
+    branches: UiState<List<BranchResponse>>,
+    selectedBranchId: String?,
+    selectedBranch: BranchResponse?,
+    actions: UserManagementBranchAdminActions,
+) {
+    BranchPicker(
+        branches = branches,
+        selectedBranchId = selectedBranchId,
+        onBranchSelected = actions.onBranchSelected,
+        onRetryBranches = actions.onRetryBranches,
+        disabled = actions.pickerDisabled,
+    )
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Branch administration",
+            style = MaterialTheme.typography.titleMedium,
+        )
+        TextButton(
+            onClick = actions.onCreateBranch,
+            enabled = actions.createEnabled,
+        ) {
+            Text("Create branch")
+        }
+    }
+    if (selectedBranch != null) {
+        TextButton(
+            onClick = actions.onAssign,
+            enabled = actions.assignEnabled,
+        ) {
+            Text("Assign user to ${selectedBranch.name}")
+        }
+    }
+    if (actions.assignmentError != null) {
+        Text(
+            text = actions.assignmentError,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
 }
