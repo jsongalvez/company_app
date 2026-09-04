@@ -819,6 +819,9 @@ private class AuditLogFilterDraft {
     }
 }
 
+private const val FILTER_DATE_FROM_INDEX = 3
+private const val FILTER_DATE_TO_INDEX = 4
+
 private val AuditLogFilterDraftSaver =
     Saver<AuditLogFilterDraft, List<String?>>(
         save = { draft ->
@@ -838,8 +841,8 @@ private val AuditLogFilterDraftSaver =
                     selectedTableName = values[0]
                     selectedAction = values[1]
                     callerName = values[2] ?: ""
-                    dateFrom = values[3] ?: ""
-                    dateTo = values[4] ?: ""
+                    dateFrom = values[FILTER_DATE_FROM_INDEX] ?: ""
+                    dateTo = values[FILTER_DATE_TO_INDEX] ?: ""
                 }
             } else {
                 // Shape drift (code updated between save and restore) — degrade to defaults
