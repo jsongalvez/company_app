@@ -163,7 +163,6 @@ complexity:
     threshold: 600
     excludes:
       - '**/commonMain/**/viewmodel/FinanceReportsViewModel.kt'
-      - '**/commonMain/**/ui/screen/AuditLogScreen.kt'
   LongMethod:
     active: true
     threshold: 60
@@ -218,7 +217,6 @@ complexity:
       - '**/iosTest/**'
       - '**/commonMain/**/viewmodel/SessionDashboardViewModel.kt'
       - '**/commonMain/**/viewmodel/FinanceReportsViewModel.kt'
-      - '**/commonMain/**/ui/screen/AuditLogScreen.kt'
     thresholdInFiles: 11
     thresholdInClasses: 11
     thresholdInInterfaces: 11
