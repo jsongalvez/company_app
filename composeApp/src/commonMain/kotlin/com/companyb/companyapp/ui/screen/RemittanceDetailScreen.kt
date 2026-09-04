@@ -477,48 +477,16 @@ private fun RemittanceDetailContent(
             onOpenProductSalePicker = onOpenProductSalePicker,
         )
 
-        Spacer(Modifier.size(Spacing.sm))
-        SectionLabel("Days covered")
-        detail.dayBreakdowns.forEach { breakdown ->
-            val day = dayLabels[breakdown.branchDayId]
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = day?.date ?: breakdown.branchDayId,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = day?.status?.name.orEmpty(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (isDraft) {
-                    TextButton(
-                        onClick = {
-                            if (deleteDayBreakdownState !is UiState.Loading) {
-                                viewModel.deleteDayBreakdown(remittanceId, breakdown.id)
-                            }
-                        },
-                        enabled = deleteDayBreakdownState !is UiState.Loading,
-                    ) {
-                        Text("×")
-                    }
-                }
-            }
-        }
-        if (isDraft) {
-            TextButton(onClick = onOpenDayPicker) { Text("Add days") }
-            Spacer(Modifier.size(Spacing.sm))
-            OutlinedButton(
-                onClick = onOpenSubmitDialog,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Submit")
-            }
-        }
+        RemittanceDetailDaysSection(
+            dayBreakdowns = detail.dayBreakdowns,
+            dayLabels = dayLabels,
+            isDraft = isDraft,
+            deleteDayBreakdownState = deleteDayBreakdownState,
+            viewModel = viewModel,
+            remittanceId = remittanceId,
+            onOpenDayPicker = onOpenDayPicker,
+            onOpenSubmitDialog = onOpenSubmitDialog,
+        )
 
         val snapshot = detail.snapshot
         if (isSubmittedSession && snapshot != null) {
@@ -708,6 +676,61 @@ private fun RemittanceDetailLinesSection(
         Row {
             TextButton(onClick = onOpenSessionPicker) { Text("Add session income") }
             TextButton(onClick = onOpenProductSalePicker) { Text("Add product sales income") }
+        }
+    }
+}
+
+@Composable
+private fun RemittanceDetailDaysSection(
+    dayBreakdowns: List<RemittanceDayBreakdownResponse>,
+    dayLabels: Map<String, RemittanceDayPickerEntryResponse>,
+    isDraft: Boolean,
+    deleteDayBreakdownState: UiState<Unit>,
+    viewModel: RemittanceViewModel,
+    remittanceId: String,
+    onOpenDayPicker: () -> Unit,
+    onOpenSubmitDialog: () -> Unit,
+) {
+    Spacer(Modifier.size(Spacing.sm))
+    SectionLabel("Days covered")
+    dayBreakdowns.forEach { breakdown ->
+        val day = dayLabels[breakdown.branchDayId]
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = day?.date ?: breakdown.branchDayId,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = day?.status?.name.orEmpty(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (isDraft) {
+                TextButton(
+                    onClick = {
+                        if (deleteDayBreakdownState !is UiState.Loading) {
+                            viewModel.deleteDayBreakdown(remittanceId, breakdown.id)
+                        }
+                    },
+                    enabled = deleteDayBreakdownState !is UiState.Loading,
+                ) {
+                    Text("×")
+                }
+            }
+        }
+    }
+    if (isDraft) {
+        TextButton(onClick = onOpenDayPicker) { Text("Add days") }
+        Spacer(Modifier.size(Spacing.sm))
+        OutlinedButton(
+            onClick = onOpenSubmitDialog,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Submit")
         }
     }
 }
