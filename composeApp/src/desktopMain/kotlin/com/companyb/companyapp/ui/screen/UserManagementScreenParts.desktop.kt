@@ -26,8 +26,7 @@ actual fun UserSlotOrderList(
     branchName: String,
     rows: List<UserSlotRow>,
     mutationsDisabled: Boolean,
-    onSwap: (assignmentIdA: String, assignmentIdB: String) -> Unit,
-    onEditSlot: (row: UserSlotRow) -> Unit,
+    callbacks: SlotOrderCallbacks,
     errors: List<String>,
 ) {
     UserSlotOrderCard(
@@ -69,7 +68,7 @@ actual fun UserSlotOrderList(
                 // offers it.
                 if (index > 0) {
                     TextButton(
-                        onClick = { onSwap(rows[index - 1].assignmentId, row.assignmentId) },
+                        onClick = { callbacks.onSwap(rows[index - 1].assignmentId, row.assignmentId) },
                         enabled = canSwapUp,
                     ) {
                         Text("▲")
@@ -77,14 +76,14 @@ actual fun UserSlotOrderList(
                 }
                 if (index < rows.lastIndex) {
                     TextButton(
-                        onClick = { onSwap(row.assignmentId, rows[index + 1].assignmentId) },
+                        onClick = { callbacks.onSwap(row.assignmentId, rows[index + 1].assignmentId) },
                         enabled = canSwapDown,
                     ) {
                         Text("▼")
                     }
                 }
                 TextButton(
-                    onClick = { onEditSlot(row) },
+                    onClick = { callbacks.onEditSlot(row) },
                     enabled = editable,
                 ) {
                     Text("Edit")

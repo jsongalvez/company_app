@@ -300,6 +300,15 @@ internal fun UserManagementBranchDialogs(
 }
 
 /**
+ * #462 LPL burn — the two slot-order callbacks as one object (expect + 3 actuals + mobile
+ * helper each drop 6 params to 5; data classes are LPL-free, the BranchSelect precedent).
+ */
+data class SlotOrderCallbacks(
+    val onSwap: (assignmentIdA: String, assignmentIdB: String) -> Unit,
+    val onEditSlot: (row: UserSlotRow) -> Unit,
+)
+
+/**
  * #135 D4 — platform-split slot-order list: desktop = up/down arrows (pairwise swap with the
  * neighbor row) + an edit button (manual number fallback); android = tap-to-edit (PATCH slot).
  * Rows arrive slot ASC (display name tiebreak); deactivated rows are dimmed with disabled
@@ -314,8 +323,7 @@ fun MobileUserSlotOrderList(
     branchName: String,
     rows: List<UserSlotRow>,
     mutationsDisabled: Boolean,
-    onSwap: (assignmentIdA: String, assignmentIdB: String) -> Unit,
-    onEditSlot: (row: UserSlotRow) -> Unit,
+    callbacks: SlotOrderCallbacks,
     errors: List<String>,
 ) {
     UserSlotOrderCard(branchName = branchName, isEmpty = rows.isEmpty(), errors = errors) {
@@ -325,7 +333,7 @@ fun MobileUserSlotOrderList(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .clickable(enabled = tappable) { onEditSlot(row) }
+                        .clickable(enabled = tappable) { callbacks.onEditSlot(row) }
                         .rowHover(enabled = tappable)
                         .alpha(if (row.isDeactivated) DEACTIVATED_ROW_ALPHA else 1f)
                         .padding(vertical = Spacing.xs),
@@ -355,8 +363,7 @@ expect fun UserSlotOrderList(
     branchName: String,
     rows: List<UserSlotRow>,
     mutationsDisabled: Boolean,
-    onSwap: (assignmentIdA: String, assignmentIdB: String) -> Unit,
-    onEditSlot: (row: UserSlotRow) -> Unit,
+    callbacks: SlotOrderCallbacks,
     errors: List<String>,
 )
 

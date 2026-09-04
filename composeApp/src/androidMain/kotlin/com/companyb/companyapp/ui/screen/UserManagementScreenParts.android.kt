@@ -8,7 +8,6 @@ actual fun UserSlotOrderList(
     branchName: String,
     rows: List<UserSlotRow>,
     mutationsDisabled: Boolean,
-    onSwap: (assignmentIdA: String, assignmentIdB: String) -> Unit,
-    onEditSlot: (row: UserSlotRow) -> Unit,
+    callbacks: SlotOrderCallbacks,
     errors: List<String>,
-) = MobileUserSlotOrderList(branchName, rows, mutationsDisabled, onSwap, onEditSlot, errors)
+) = MobileUserSlotOrderList(branchName, rows, mutationsDisabled, callbacks, errors)

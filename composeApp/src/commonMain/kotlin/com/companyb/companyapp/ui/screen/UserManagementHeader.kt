@@ -208,18 +208,21 @@ internal fun UserManagementSlotOrderItem(
         branchName = branchName,
         rows = rows,
         mutationsDisabled = mutationsDisabled,
-        onSwap = actions.onSwap,
-        onEditSlot = { row ->
-            actions.onEditSlot(
-                SlotEditTarget(
-                    branchId = selectedBranchId,
-                    branchName = branchName,
-                    assignmentId = row.assignmentId,
-                    displayName = row.displayName,
-                    currentSlot = row.slot,
-                ),
-            )
-        },
+        callbacks =
+            SlotOrderCallbacks(
+                onSwap = actions.onSwap,
+                onEditSlot = { row ->
+                    actions.onEditSlot(
+                        SlotEditTarget(
+                            branchId = selectedBranchId,
+                            branchName = branchName,
+                            assignmentId = row.assignmentId,
+                            displayName = row.displayName,
+                            currentSlot = row.slot,
+                        ),
+                    )
+                },
+            ),
         errors =
             actions.actionErrors
                 // Swap AND slot-edit errors for the selected branch surface
