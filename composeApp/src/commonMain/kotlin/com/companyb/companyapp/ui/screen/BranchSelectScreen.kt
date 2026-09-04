@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.domain.BranchClockInStatus
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.MeBranchResponse
 import com.companyb.companyapp.dto.ReliefCandidateResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
@@ -87,30 +88,11 @@ fun BranchSelectScreen(
         }
     }
 
-    LaunchedEffect(clockInState) {
-        when (val state = clockInState) {
-            is UiState.Error -> {
-                logWarn("BranchSelectScreen", "clockInState=Error: ${state.message}")
-            }
-
-            else -> {}
-        }
-    }
-
-    LaunchedEffect(refreshState) {
-        when (val state = refreshState) {
-            is UiState.Success -> {
-                logInfo("BranchSelectScreen", "refreshState=Success, navigating to Dashboard")
-                onClockInComplete()
-            }
-
-            is UiState.Error -> {
-                logWarn("BranchSelectScreen", "refreshState=Error: ${state.message}")
-            }
-
-            else -> {}
-        }
-    }
+    BranchSelectStatusEffects(
+        clockInState = clockInState,
+        refreshState = refreshState,
+        onClockInComplete = onClockInComplete,
+    )
 
     val isPhase3Busy = clockInState is UiState.Loading || refreshState is UiState.Loading
     // A failed refresh means the clock-in itself succeeded — the only legal retry is the
@@ -239,6 +221,38 @@ fun BranchSelectScreen(
 }
 
 @Composable
+private fun BranchSelectStatusEffects(
+    clockInState: UiState<ClockInResponse>,
+    refreshState: UiState<Unit>,
+    onClockInComplete: () -> Unit,
+) {
+    LaunchedEffect(clockInState) {
+        when (val state = clockInState) {
+            is UiState.Error -> {
+                logWarn("BranchSelectScreen", "clockInState=Error: ${state.message}")
+            }
+
+            else -> {}
+        }
+    }
+
+    LaunchedEffect(refreshState) {
+        when (val state = refreshState) {
+            is UiState.Success -> {
+                logInfo("BranchSelectScreen", "refreshState=Success, navigating to Dashboard")
+                onClockInComplete()
+            }
+
+            is UiState.Error -> {
+                logWarn("BranchSelectScreen", "refreshState=Error: ${state.message}")
+            }
+
+            else -> {}
+        }
+    }
+}
+
+@Composable
 private fun BranchCard(
     branch: MeBranchResponse,
     isClockingIn: Boolean,
@@ -274,7 +288,16 @@ private fun BranchCard(
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Spacer(modifier = Modifier.height(Spacing.xs))
-                BranchTypeBadge(branch.branchType)
+                Text(
+                    text =
+                        when (branch.branchType) {
+                            BranchType.CLINIC -> "Clinic"
+                            BranchType.PROVINCIAL_TOUR -> "Provincial Tour"
+                            BranchType.MEDICAL_MISSION -> "Medical Mission"
+                        },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(modifier = Modifier.height(Spacing.xs))
                 Text(
                     text = statusLabel(branch),
@@ -738,18 +761,3 @@ private fun statusLabel(branch: MeBranchResponse): String =
             "Not clocked in"
         }
     }
-
-@Composable
-private fun BranchTypeBadge(branchType: BranchType) {
-    val label =
-        when (branchType) {
-            BranchType.CLINIC -> "Clinic"
-            BranchType.PROVINCIAL_TOUR -> "Provincial Tour"
-            BranchType.MEDICAL_MISSION -> "Medical Mission"
-        }
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
