@@ -40,6 +40,7 @@ import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.InviteMintRequest
 import com.companyb.companyapp.dto.InviteMintResponse
 import com.companyb.companyapp.dto.RoleResponse
+import com.companyb.companyapp.dto.UserAssignmentResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
@@ -101,6 +102,25 @@ internal data class UserManagementBranchAdminActions(
     val createEnabled: Boolean,
     val assignEnabled: Boolean,
     val assignmentError: String?,
+)
+
+/**
+ * Callbacks + gates for [UserManagementUserRowHost] (#462 LongMethod burn — 3rd fn in
+ * UserManagementHeader.kt, which has fresh file-function budget while UserManagementScreen.kt
+ * sits at the wall; actions object keeps the host LongParameterList-clean). The row-error
+ * filter derives inside the host so the Screen call site stays lean.
+ */
+internal data class UserManagementUserRowActions(
+    val currentUserId: String?,
+    val mutationsDisabled: Boolean,
+    val selectedBranchId: String?,
+    val actionErrors: Map<String, String>,
+    val onToggleExpanded: (String) -> Unit,
+    val onDeactivate: (UserSummaryResponse) -> Unit,
+    val onReactivate: (String) -> Unit,
+    val onEditRoles: (UserSummaryResponse) -> Unit,
+    val onEditSlot: (UserSummaryResponse, UserAssignmentResponse) -> Unit,
+    val onRemoveAssignment: (UserSummaryResponse, UserAssignmentResponse) -> Unit,
 )
 
 internal val SlotEditTargetSaver =

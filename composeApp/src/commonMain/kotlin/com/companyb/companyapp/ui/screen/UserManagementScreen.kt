@@ -237,6 +237,39 @@ fun UserManagementScreen(
 
         Spacer(Modifier.size(Spacing.sm))
 
+        val userRowActions =
+            UserManagementUserRowActions(
+                currentUserId = currentUserId,
+                mutationsDisabled = mutationsDisabled,
+                selectedBranchId = selectedBranchId,
+                actionErrors = actionErrors,
+                onToggleExpanded = { id ->
+                    expandedIds = if (id in expandedIds) expandedIds - id else expandedIds + id
+                },
+                onDeactivate = { user -> deactivateTarget = user },
+                onReactivate = { id -> viewModel.setUserStatus(id, UserStatus.ACTIVE) },
+                onEditRoles = { user -> roleEditTarget = user },
+                onEditSlot = { user, assignment ->
+                    slotEditTarget =
+                        SlotEditTarget(
+                            branchId = assignment.branchId,
+                            branchName = assignment.branchName,
+                            assignmentId = assignment.assignmentId,
+                            displayName = user.displayName,
+                            currentSlot = assignment.slot,
+                        )
+                },
+                onRemoveAssignment = { user, assignment ->
+                    branchViewModel.resetAdministrationState()
+                    removeAssignmentTarget =
+                        AssignmentRemovalTarget(
+                            userId = user.id,
+                            displayName = user.displayName,
+                            assignment = assignment,
+                        )
+                },
+            )
+
         when {
             heldList != null -> {
                 LazyColumn(
@@ -322,53 +355,10 @@ fun UserManagementScreen(
                         }
                     } else {
                         items(filteredUsers, key = { it.id }) { user ->
-                            UserRow(
+                            UserManagementUserRowHost(
                                 user = user,
-                                currentUserId = currentUserId,
                                 expanded = user.id in expandedIds,
-                                onToggleExpanded = {
-                                    expandedIds =
-                                        if (user.id in expandedIds) expandedIds - user.id else expandedIds + user.id
-                                },
-                                mutationsDisabled = mutationsDisabled,
-                                onDeactivate = { deactivateTarget = user },
-                                onReactivate = { viewModel.setUserStatus(user.id, UserStatus.ACTIVE) },
-                                onEditRoles = { roleEditTarget = user },
-                                onEditSlot = { assignment ->
-                                    slotEditTarget =
-                                        SlotEditTarget(
-                                            branchId = assignment.branchId,
-                                            branchName = assignment.branchName,
-                                            assignmentId = assignment.assignmentId,
-                                            displayName = user.displayName,
-                                            currentSlot = assignment.slot,
-                                        )
-                                },
-                                onRemoveAssignment = { assignment ->
-                                    branchViewModel.resetAdministrationState()
-                                    removeAssignmentTarget =
-                                        AssignmentRemovalTarget(
-                                            userId = user.id,
-                                            displayName = user.displayName,
-                                            assignment = assignment,
-                                        )
-                                },
-                                errors =
-                                    actionErrors
-                                        .filterKeys {
-                                            !it.startsWith("swap:") &&
-                                                // Slot errors for the selected branch are claimed
-                                                // by the slot card (see the card's filter above).
-                                                !it.startsWith("slot:$selectedBranchId:") &&
-                                                (
-                                                    it.endsWith(":${user.id}") ||
-                                                        user.assignments.any { assignment ->
-                                                            it ==
-                                                                "slot:${assignment.branchId}:${assignment.assignmentId}"
-                                                        }
-                                                )
-                                        }.values
-                                        .toList(),
+                                actions = userRowActions,
                             )
                         }
                     }
@@ -805,7 +795,7 @@ private fun UserMutationEffects(
 }
 
 @Composable
-private fun UserRow(
+internal fun UserRow(
     user: UserSummaryResponse,
     currentUserId: String?,
     expanded: Boolean,

@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.dto.BranchResponse
+import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.viewmodel.UiState
 
 /**
@@ -122,4 +123,46 @@ internal fun UserManagementBranchAdmin(
             color = MaterialTheme.colorScheme.error,
         )
     }
+}
+
+/**
+ * Single user row with its row-error derivation hoisted out of [UserManagementScreen] for the
+ * #462 LongMethod burn-down. Lives here (not same-file) because UserManagementScreen.kt sits
+ * at the detekt file-function wall — a same-file helper trips TooManyFunctions. The
+ * slot/swap errors for the selected branch stay claimed by the slot card (filter below
+ * mirrors the Screen call site verbatim); callbacks ride [UserManagementUserRowActions] so
+ * the signature stays LongParameterList-clean.
+ */
+@Composable
+internal fun UserManagementUserRowHost(
+    user: UserSummaryResponse,
+    expanded: Boolean,
+    actions: UserManagementUserRowActions,
+) {
+    UserRow(
+        user = user,
+        currentUserId = actions.currentUserId,
+        expanded = expanded,
+        onToggleExpanded = { actions.onToggleExpanded(user.id) },
+        mutationsDisabled = actions.mutationsDisabled,
+        onDeactivate = { actions.onDeactivate(user) },
+        onReactivate = { actions.onReactivate(user.id) },
+        onEditRoles = { actions.onEditRoles(user) },
+        onEditSlot = { assignment -> actions.onEditSlot(user, assignment) },
+        onRemoveAssignment = { assignment -> actions.onRemoveAssignment(user, assignment) },
+        errors =
+            actions.actionErrors
+                .filterKeys {
+                    !it.startsWith("swap:") &&
+                        !it.startsWith("slot:${actions.selectedBranchId}:") &&
+                        (
+                            it.endsWith(":${user.id}") ||
+                                user.assignments.any { assignment ->
+                                    it ==
+                                        "slot:${assignment.branchId}:${assignment.assignmentId}"
+                                }
+                        )
+                }.values
+                .toList(),
+    )
 }
