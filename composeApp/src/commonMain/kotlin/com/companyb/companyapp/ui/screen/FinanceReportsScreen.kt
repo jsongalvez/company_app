@@ -1857,42 +1857,19 @@ private fun CompensationDialog(
         onDismissRequest = { if (!busy) onDismiss() },
         title = { Text(title) },
         text = {
-            Column {
-                UserDropdown(
-                    users = usersList,
-                    selectedUserId = userId,
-                    onSelected = { userId = it },
-                )
-                Spacer(Modifier.height(Spacing.xs))
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
-                    label = { Text("Amount (₱, non-negative)") },
-                    singleLine = true,
-                    isError = amountError != null,
-                    supportingText = { if (amountError != null) Text(amountError) },
-                )
-                Spacer(Modifier.height(Spacing.xs))
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    label = { Text("Note (optional)") },
-                )
-                Spacer(Modifier.height(Spacing.xs))
-                OutlinedTextField(
-                    value = reason,
-                    onValueChange = { reason = it },
-                    label = { Text("Reason (required on remitted days)") },
-                )
-                if (error != null) {
-                    Spacer(Modifier.height(Spacing.xs))
-                    Text(
-                        text = error,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-            }
+            CompensationDialogFields(
+                usersList = usersList,
+                userId = userId,
+                amount = amount,
+                amountError = amountError,
+                note = note,
+                reason = reason,
+                error = error,
+                onUserSelected = { userId = it },
+                onAmountChange = { amount = it },
+                onNoteChange = { note = it },
+                onReasonChange = { reason = it },
+            )
         },
         confirmButton = {
             TextButton(
@@ -1910,6 +1887,50 @@ private fun CompensationDialog(
             TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") }
         },
     )
+}
+
+@Composable
+private fun CompensationDialogFields(
+    usersList: List<BranchDayUserResponse>,
+    userId: String,
+    amount: String,
+    amountError: String?,
+    note: String,
+    reason: String,
+    error: String?,
+    onUserSelected: (String) -> Unit,
+    onAmountChange: (String) -> Unit,
+    onNoteChange: (String) -> Unit,
+    onReasonChange: (String) -> Unit,
+) {
+    Column {
+        UserDropdown(users = usersList, selectedUserId = userId, onSelected = onUserSelected)
+        Spacer(Modifier.height(Spacing.xs))
+        OutlinedTextField(
+            value = amount,
+            onValueChange = onAmountChange,
+            label = { Text("Amount (₱, non-negative)") },
+            singleLine = true,
+            isError = amountError != null,
+            supportingText = { if (amountError != null) Text(amountError) },
+        )
+        Spacer(Modifier.height(Spacing.xs))
+        OutlinedTextField(value = note, onValueChange = onNoteChange, label = { Text("Note (optional)") })
+        Spacer(Modifier.height(Spacing.xs))
+        OutlinedTextField(
+            value = reason,
+            onValueChange = onReasonChange,
+            label = { Text("Reason (required on remitted days)") },
+        )
+        if (error != null) {
+            Spacer(Modifier.height(Spacing.xs))
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
 }
 
 // ─────────────────────────── allowance section ───────────────────────────
