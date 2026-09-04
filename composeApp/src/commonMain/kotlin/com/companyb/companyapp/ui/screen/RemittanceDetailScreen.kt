@@ -1172,17 +1172,23 @@ private fun <T> IncomePickerDialog(
                 idOf = idOf,
                 amountOf = amountOf,
                 toRequest = toRequest,
-                onConfirm = { requests ->
-                    pending = requests
-                    selectedIds = emptySet()
-                    onAdd(requests)
-                },
+                onConfirm = { confirmIncomePickerRequests(it, { pending = it }, { selectedIds = it }, onAdd) },
             )
         },
-        dismissButton = {
-            IncomePickerDismissButton(mutationState = mutationState, onDismiss = onDismiss)
-        },
+        dismissButton = { IncomePickerDismissButton(mutationState = mutationState, onDismiss = onDismiss) },
     )
+}
+
+/** #462 — confirm triple-write as a named hook so the dialog call site stays single-statement. */
+private fun confirmIncomePickerRequests(
+    requests: List<CreateRemittanceLineRequest>,
+    onPendingChange: (List<CreateRemittanceLineRequest>) -> Unit,
+    onSelectedChange: (Set<String>) -> Unit,
+    onAdd: (List<CreateRemittanceLineRequest>) -> Unit,
+) {
+    onPendingChange(requests)
+    onSelectedChange(emptySet())
+    onAdd(requests)
 }
 
 @Composable
