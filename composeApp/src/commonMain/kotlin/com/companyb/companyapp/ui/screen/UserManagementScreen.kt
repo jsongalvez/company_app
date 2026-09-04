@@ -828,47 +828,10 @@ private fun UserRow(
                     .alpha(if (isDeactivated) DEACTIVATED_ROW_ALPHA else 1f)
                     .padding(Spacing.md),
         ) {
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onToggleExpanded)
-                        .rowHover(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = user.displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = user.username,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    // #345 — role names inline so admins spot unassigned/ONBOARDING users
-                    // without expanding (the wire omits empty lists — the empty default renders
-                    // the explicit "No roles" line).
-                    Text(
-                        text = if (user.roles.isEmpty()) "No roles" else user.roles.joinToString(", "),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    user.deactivatedAt?.let {
-                        Text(
-                            text = "deactivated ${formatRelativeTimestamp(it)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                Spacer(Modifier.width(Spacing.sm))
-                StatusBadge(status = user.status)
-            }
+            UserRowHeader(
+                user = user,
+                onToggleExpanded = onToggleExpanded,
+            )
 
             if (expanded) {
                 UserRowExpandedBody(
@@ -899,6 +862,72 @@ private fun UserRow(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun UserRowHeader(
+    user: UserSummaryResponse,
+    onToggleExpanded: () -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggleExpanded)
+                .rowHover(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = user.displayName,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = user.username,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            // #345 — role names inline so admins spot unassigned/ONBOARDING users
+            // without expanding (the wire omits empty lists — the empty default renders
+            // the explicit "No roles" line).
+            Text(
+                text = if (user.roles.isEmpty()) "No roles" else user.roles.joinToString(", "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            user.deactivatedAt?.let {
+                Text(
+                    text = "deactivated ${formatRelativeTimestamp(it)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(Modifier.width(Spacing.sm))
+        Surface(
+            shape = RoundedCornerShape(CornerRadius.sm),
+            color = MaterialTheme.colorScheme.secondary,
+        ) {
+            Text(
+                text =
+                    when (user.status) {
+                        UserStatus.ACTIVE -> "ACTIVE"
+                        UserStatus.INACTIVE -> "INACTIVE"
+                    },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // Unknown statuses render raw — a long value must not inflate the clickable row
+                // (pass-2 P4 SOFT).
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.xxs),
+            )
         }
     }
 }
@@ -975,30 +1004,6 @@ private fun UserRowExpandedBody(
                 Text("Reactivate")
             }
         }
-    }
-}
-
-@Composable
-private fun StatusBadge(status: UserStatus) {
-    val label =
-        when (status) {
-            UserStatus.ACTIVE -> "ACTIVE"
-            UserStatus.INACTIVE -> "INACTIVE"
-        }
-    Surface(
-        shape = RoundedCornerShape(CornerRadius.sm),
-        color = MaterialTheme.colorScheme.secondary,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            // Unknown statuses render raw — a long value must not inflate the clickable row
-            // (pass-2 P4 SOFT).
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.xxs),
-        )
     }
 }
 
