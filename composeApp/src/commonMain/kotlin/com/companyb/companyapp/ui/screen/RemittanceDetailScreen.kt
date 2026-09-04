@@ -1128,20 +1128,12 @@ private fun <T> IncomePickerDialog(
     var amounts by remember { mutableStateOf(emptyMap<String, String>()) }
     var pending by remember { mutableStateOf<List<CreateRemittanceLineRequest>>(emptyList()) }
 
-    // One POST per selected row, advanced on each success; a failure or the VM's 403/409 Idle
-    // reset clears the queue (the dialog stays open showing the error / the reloaded state).
-    PendingQueueEffect(
+    IncomePickerPendingHost(
         pending = pending,
         mutationState = mutationState,
-        onNext = { remaining ->
-            pending = remaining
-            onAdd(remaining)
-        },
-        onFinished = {
-            pending = emptyList()
-            onDismiss()
-        },
-        onAborted = { pending = emptyList() },
+        onAdd = onAdd,
+        onDismiss = onDismiss,
+        onPendingChange = { pending = it },
     )
 
     AlertDialog(
@@ -1193,6 +1185,31 @@ private fun <T> IncomePickerDialog(
         dismissButton = {
             IncomePickerDismissButton(mutationState = mutationState, onDismiss = onDismiss)
         },
+    )
+}
+
+@Composable
+private fun IncomePickerPendingHost(
+    pending: List<CreateRemittanceLineRequest>,
+    mutationState: UiState<RemittanceLineResponse>,
+    onAdd: (List<CreateRemittanceLineRequest>) -> Unit,
+    onDismiss: () -> Unit,
+    onPendingChange: (List<CreateRemittanceLineRequest>) -> Unit,
+) {
+    // One POST per selected row, advanced on each success; a failure or the VM's 403/409 Idle
+    // reset clears the queue (the dialog stays open showing the error / the reloaded state).
+    PendingQueueEffect(
+        pending = pending,
+        mutationState = mutationState,
+        onNext = { remaining ->
+            onPendingChange(remaining)
+            onAdd(remaining)
+        },
+        onFinished = {
+            onPendingChange(emptyList())
+            onDismiss()
+        },
+        onAborted = { onPendingChange(emptyList()) },
     )
 }
 
