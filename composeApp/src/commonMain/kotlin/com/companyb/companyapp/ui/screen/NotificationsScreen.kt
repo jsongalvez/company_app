@@ -89,6 +89,9 @@ fun NotificationsScreen(
     val declineError = (declineState as? UiState.Error)?.message
     val historyError = (historyState as? UiState.Error)?.message
     val receivedError = receivedInvitesErrorLine(receivedState)
+    // ComplexCondition carve-out (#462 burn): the 4-way error OR lives in a named val so the
+    // render gate below stays a single condition.
+    val hasActionError = markAllError != null || markReadError != null || acceptError != null || declineError != null
     LaunchedEffect(markReadError) {
         markReadError?.let { logWarn("NotificationsScreen", "markRead=Error: $it") }
     }
@@ -152,7 +155,7 @@ fun NotificationsScreen(
             }
         }
 
-        if (markAllError != null || markReadError != null || acceptError != null || declineError != null) {
+        if (hasActionError) {
             Column(
                 modifier =
                     Modifier
