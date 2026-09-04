@@ -871,40 +871,17 @@ private fun UserRow(
             }
 
             if (expanded) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
-
-                if (user.assignments.isEmpty()) {
-                    Text(
-                        text = "No branch assignments",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    user.assignments.forEach { assignment ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = "${assignment.branchName} — slot ${assignment.slot}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f),
-                            )
-                            TextButton(
-                                onClick = { onEditSlot(assignment) },
-                                enabled = !isDeactivated && !mutationsDisabled,
-                            ) {
-                                Text("Edit slot")
-                            }
-                            TextButton(
-                                onClick = { onRemoveAssignment(assignment) },
-                                enabled = !mutationsDisabled,
-                            ) {
-                                Text("Remove")
-                            }
-                        }
-                    }
-                }
+                UserRowExpandedBody(
+                    user = user,
+                    isDeactivated = isDeactivated,
+                    canDeactivate = !isDeactivated && user.id != currentUserId,
+                    mutationsDisabled = mutationsDisabled,
+                    onEditSlot = onEditSlot,
+                    onRemoveAssignment = onRemoveAssignment,
+                    onEditRoles = onEditRoles,
+                    onDeactivate = onDeactivate,
+                    onReactivate = onReactivate,
+                )
 
                 if (user.id == currentUserId) {
                     Text(
@@ -914,33 +891,6 @@ private fun UserRow(
                     )
                 }
 
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    TextButton(onClick = onEditRoles, enabled = !mutationsDisabled) {
-                        Text("Edit roles")
-                    }
-                    if (!isDeactivated && user.id != currentUserId) {
-                        TextButton(onClick = onDeactivate, enabled = !mutationsDisabled) {
-                            Text(
-                                text = "Deactivate",
-                                // Dimmed via M3's disabledContentColor when gated mid-load —
-                                // the explicit error color would keep it vivid red (pass-4 SOFT,
-                                // the dialog conditional's principle).
-                                color =
-                                    if (mutationsDisabled) {
-                                        Color.Unspecified
-                                    } else {
-                                        MaterialTheme.colorScheme.error
-                                    },
-                            )
-                        }
-                    }
-                    if (isDeactivated) {
-                        TextButton(onClick = onReactivate, enabled = !mutationsDisabled) {
-                            Text("Reactivate")
-                        }
-                    }
-                }
-
                 errors.forEach { error ->
                     Text(
                         text = error,
@@ -948,6 +898,81 @@ private fun UserRow(
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UserRowExpandedBody(
+    user: UserSummaryResponse,
+    isDeactivated: Boolean,
+    canDeactivate: Boolean,
+    mutationsDisabled: Boolean,
+    onEditSlot: (UserAssignmentResponse) -> Unit,
+    onRemoveAssignment: (UserAssignmentResponse) -> Unit,
+    onEditRoles: () -> Unit,
+    onDeactivate: () -> Unit,
+    onReactivate: () -> Unit,
+) {
+    HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
+
+    if (user.assignments.isEmpty()) {
+        Text(
+            text = "No branch assignments",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    } else {
+        user.assignments.forEach { assignment ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "${assignment.branchName} — slot ${assignment.slot}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    onClick = { onEditSlot(assignment) },
+                    enabled = !isDeactivated && !mutationsDisabled,
+                ) {
+                    Text("Edit slot")
+                }
+                TextButton(
+                    onClick = { onRemoveAssignment(assignment) },
+                    enabled = !mutationsDisabled,
+                ) {
+                    Text("Remove")
+                }
+            }
+        }
+    }
+
+    Row(modifier = Modifier.fillMaxWidth()) {
+        TextButton(onClick = onEditRoles, enabled = !mutationsDisabled) {
+            Text("Edit roles")
+        }
+        if (canDeactivate) {
+            TextButton(onClick = onDeactivate, enabled = !mutationsDisabled) {
+                Text(
+                    text = "Deactivate",
+                    // Dimmed via M3's disabledContentColor when gated mid-load —
+                    // the explicit error color would keep it vivid red (pass-4 SOFT,
+                    // the dialog conditional's principle).
+                    color =
+                        if (mutationsDisabled) {
+                            Color.Unspecified
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
+                )
+            }
+        }
+        if (isDeactivated) {
+            TextButton(onClick = onReactivate, enabled = !mutationsDisabled) {
+                Text("Reactivate")
             }
         }
     }
