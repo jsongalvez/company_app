@@ -150,9 +150,10 @@ Run `bash scripts/setup-hooks.sh` after cloning to install `.githooks`.
 
 ## Integration — direct-to-master
 
-Ordinary AFK tickets integrate as well-scoped commits **directly on `master`**, then push
-immediately — no feature branch, PR, or merge step (map #329). One ticket = one or more
-identifiable commits; `ref #<number>` in every commit message keeps each ticket's commits
+Ordinary AFK tickets integrate as well-scoped commits **directly on `master`** — no feature
+branch, PR, or merge step (map #329). One ticket = one or more identifiable commits, batched
+locally and pushed once when the ticket is done (one push per ticket — every push spends
+asynchronous CI minutes); `ref #<number>` in every commit message keeps each ticket's commits
 revertable.
 
 **PR escalation triggers** (the only reasons to leave direct-to-master):
