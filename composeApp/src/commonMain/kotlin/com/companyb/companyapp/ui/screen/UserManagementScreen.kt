@@ -6,14 +6,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,20 +40,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.BranchResponse
-import com.companyb.companyapp.dto.InviteMintRequest
-import com.companyb.companyapp.dto.InviteMintResponse
 import com.companyb.companyapp.dto.UserAssignmentResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.ui.theme.rowHover
-import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.BranchViewModel
@@ -106,9 +100,6 @@ fun UserManagementScreen(
     val branches by viewModel.branches.collectAsState()
     val inFlight by viewModel.inFlight.collectAsState()
     val actionErrors by viewModel.actionErrors.collectAsState()
-    // #350 — invite-mint + role-picker state.
-    val mintState by viewModel.mintInviteResult.collectAsState()
-    val rolesState by viewModel.roles.collectAsState()
     val createBranchState by branchViewModel.createBranchState.collectAsState()
     val assignmentResult by branchViewModel.assignmentResult.collectAsState()
     val deleteAssignmentState by branchViewModel.deleteAssignmentState.collectAsState()
@@ -166,7 +157,6 @@ fun UserManagementScreen(
             createBranchState is UiState.Loading ||
             assignmentResult is UiState.Loading ||
             deleteAssignmentState is UiState.Loading
-    val slotEditKey = slotEditTarget?.let { "slot:${it.branchId}:${it.assignmentId}" }
 
     UserMutationEffects(
         createBranchState = createBranchState,
@@ -443,13 +433,72 @@ fun UserManagementScreen(
         }
     }
 
+    UserManagementMemberDialogs(
+        viewModel = viewModel,
+        mutationsDisabled = mutationsDisabled,
+        deactivateTarget = deactivateTarget,
+        onDismissDeactivate = { deactivateTarget = null },
+        slotEditTarget = slotEditTarget,
+        actionErrors = actionErrors,
+        onDismissSlotEdit = { slotEditTarget = null },
+        showCreateUserDialog = showCreateUserDialog,
+        onCloseCreateUser = { showCreateUserDialog = false },
+        roleEditTarget = roleEditTarget,
+        onDismissRoleEdit = { roleEditTarget = null },
+    )
+
+    UserManagementBranchDialogs(
+        branchViewModel = branchViewModel,
+        mutationsDisabled = mutationsDisabled,
+        showCreateBranchDialog = showCreateBranchDialog,
+        createBranchState = createBranchState,
+        loadedBranches = loadedBranches,
+        onCloseCreateBranch = { showCreateBranchDialog = false },
+        showAssignUserDialog = showAssignUserDialog,
+        assignmentBranch = assignmentBranch,
+        loadedUsers = loadedUsers,
+        assignmentResult = assignmentResult,
+        onCloseAssign = {
+            showAssignUserDialog = false
+            assignmentBranch = null
+        },
+        removeAssignmentTarget = removeAssignmentTarget,
+        deleteAssignmentState = deleteAssignmentState,
+        onClearRemoveTarget = { removeAssignmentTarget = null },
+    )
+}
+
+/**
+ * Member-lifecycle dialogs of the User Management screen, hoisted out of [UserManagementScreen]
+ * for the #462 LongMethod burn-down (companion: [UserManagementBranchDialogs] for branch-admin
+ * dialogs). Overlays only — order-independent, no list/focus state. `mintState`/`rolesState`
+ * are collected here (no body surface reads them); dismiss setters stay at the Screen call
+ * site so it stays lean.
+ */
+@Composable
+private fun UserManagementMemberDialogs(
+    viewModel: UserViewModel,
+    mutationsDisabled: Boolean,
+    deactivateTarget: UserSummaryResponse?,
+    onDismissDeactivate: () -> Unit,
+    slotEditTarget: SlotEditTarget?,
+    actionErrors: Map<String, String>,
+    onDismissSlotEdit: () -> Unit,
+    showCreateUserDialog: Boolean,
+    onCloseCreateUser: () -> Unit,
+    roleEditTarget: UserSummaryResponse?,
+    onDismissRoleEdit: () -> Unit,
+) {
+    val mintState by viewModel.mintInviteResult.collectAsState()
+    val rolesState by viewModel.roles.collectAsState()
+
     deactivateTarget?.let { target ->
         DeactivateConfirmDialog(
             user = target,
             mutationsDisabled = mutationsDisabled,
-            onDismiss = { deactivateTarget = null },
+            onDismiss = onDismissDeactivate,
             onConfirm = {
-                deactivateTarget = null
+                onDismissDeactivate()
                 viewModel.setUserStatus(target.id, UserStatus.INACTIVE)
             },
         )
@@ -461,12 +510,12 @@ fun UserManagementScreen(
             options =
                 SlotDialogOptions(
                     mutationsDisabled = mutationsDisabled,
-                    errorMessage = slotEditKey?.let { actionErrors[it] },
+                    errorMessage = actionErrors["slot:${target.branchId}:${target.assignmentId}"],
                 ),
-            onDismiss = { slotEditTarget = null },
+            onDismiss = onDismissSlotEdit,
             onSave = { slot ->
                 viewModel.updateSlot(target.branchId, target.assignmentId, slot) {
-                    slotEditTarget = null
+                    onDismissSlotEdit()
                 }
             },
         )
@@ -482,7 +531,7 @@ fun UserManagementScreen(
                 // the admin needs the code until they explicitly close (closing resets).
                 if (mintState !is UiState.Loading) {
                     viewModel.dismissInviteResult()
-                    showCreateUserDialog = false
+                    onCloseCreateUser()
                 }
             },
         )
@@ -498,15 +547,38 @@ fun UserManagementScreen(
             actions =
                 RoleEditActions(
                     onRetryRoles = viewModel::loadRoles,
-                    onDismiss = { roleEditTarget = null },
+                    onDismiss = onDismissRoleEdit,
                     onSave = { selected ->
-                        roleEditTarget = null
+                        onDismissRoleEdit()
                         viewModel.replaceRoles(target.id, selected)
                     },
                 ),
         )
     }
+}
 
+/**
+ * Branch-admin dialogs of the User Management screen (companion: [UserManagementMemberDialogs]).
+ * Same #462 hoist — create/assign/remove overlays, order-independent. `assignmentDialogBranch`
+ * derives inside so the Screen call site stays lean.
+ */
+@Composable
+private fun UserManagementBranchDialogs(
+    branchViewModel: BranchViewModel,
+    mutationsDisabled: Boolean,
+    showCreateBranchDialog: Boolean,
+    createBranchState: UiState<BranchResponse>,
+    loadedBranches: List<BranchResponse>,
+    onCloseCreateBranch: () -> Unit,
+    showAssignUserDialog: Boolean,
+    assignmentBranch: BranchResponse?,
+    loadedUsers: List<UserSummaryResponse>,
+    assignmentResult: UiState<AssignmentResponse>,
+    onCloseAssign: () -> Unit,
+    removeAssignmentTarget: AssignmentRemovalTarget?,
+    deleteAssignmentState: UiState<Unit>,
+    onClearRemoveTarget: () -> Unit,
+) {
     if (showCreateBranchDialog) {
         CreateBranchDialog(
             state = createBranchState,
@@ -515,7 +587,7 @@ fun UserManagementScreen(
             onCreate = branchViewModel::createBranch,
             onDismiss = {
                 branchViewModel.resetAdministrationState()
-                showCreateBranchDialog = false
+                onCloseCreateBranch()
             },
         )
     }
@@ -532,8 +604,7 @@ fun UserManagementScreen(
                     onAssign = { request -> branchViewModel.createAssignment(assignmentDialogBranch.id, request) },
                     onDismiss = {
                         branchViewModel.resetAdministrationState()
-                        showAssignUserDialog = false
-                        assignmentBranch = null
+                        onCloseAssign()
                     },
                 ),
         )
@@ -547,7 +618,7 @@ fun UserManagementScreen(
             onRemove = { branchViewModel.deleteAssignment(target.assignment.branchId, target.assignment.assignmentId) },
             onDismiss = {
                 branchViewModel.resetAdministrationState()
-                removeAssignmentTarget = null
+                onClearRemoveTarget()
             },
         )
     }
@@ -612,49 +683,6 @@ expect fun UserSlotOrderList(
     onEditSlot: (row: UserSlotRow) -> Unit,
     errors: List<String>,
 )
-
-/**
- * Shared slot-order card chrome (#135 D4): Surface + "Slot order — <branch>" header + empty
- * state + trailing inline errors. Platform actuals render their rows through [content] (desktop
- * swap arrows / android tap-to-edit — the #95 responsive split).
- */
-@Composable
-internal fun UserSlotOrderCard(
-    branchName: String,
-    isEmpty: Boolean,
-    errors: List<String>,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    Surface(
-        shape = RoundedCornerShape(CornerRadius.md),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(Spacing.md)) {
-            Text(
-                text = "Slot order — $branchName",
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Spacer(Modifier.width(Spacing.sm))
-            if (isEmpty) {
-                Text(
-                    text = "No assigned users at this branch",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                content()
-            }
-            errors.forEach { error ->
-                Text(
-                    text = error,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-        }
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -877,72 +905,6 @@ private fun UserRow(
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun UserRowHeader(
-    user: UserSummaryResponse,
-    onToggleExpanded: () -> Unit,
-) {
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onToggleExpanded)
-                .rowHover(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = user.displayName,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = user.username,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            // #345 — role names inline so admins spot unassigned/ONBOARDING users
-            // without expanding (the wire omits empty lists — the empty default renders
-            // the explicit "No roles" line).
-            Text(
-                text = if (user.roles.isEmpty()) "No roles" else user.roles.joinToString(", "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            user.deactivatedAt?.let {
-                Text(
-                    text = "deactivated ${formatRelativeTimestamp(it)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        Spacer(Modifier.width(Spacing.sm))
-        Surface(
-            shape = RoundedCornerShape(CornerRadius.sm),
-            color = MaterialTheme.colorScheme.secondary,
-        ) {
-            Text(
-                text =
-                    when (user.status) {
-                        UserStatus.ACTIVE -> "ACTIVE"
-                        UserStatus.INACTIVE -> "INACTIVE"
-                    },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                // Unknown statuses render raw — a long value must not inflate the clickable row
-                // (pass-2 P4 SOFT).
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.xxs),
-            )
         }
     }
 }

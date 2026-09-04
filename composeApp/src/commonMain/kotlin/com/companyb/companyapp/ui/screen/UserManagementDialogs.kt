@@ -5,11 +5,14 @@ package com.companyb.companyapp.ui.screen
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -33,11 +36,15 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.InviteMintRequest
 import com.companyb.companyapp.dto.InviteMintResponse
 import com.companyb.companyapp.dto.RoleResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
+import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.ui.theme.rowHover
+import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.UiState
@@ -46,7 +53,9 @@ import com.companyb.companyapp.viewmodel.slotInputError
 
 /**
  * Dialogs of the User Management screen (#345/#350), split out of UserManagementScreen.kt to
- * keep both files under the detekt file-function budget. Same package, internal visibility.
+ * keep both files under the detekt file-function budget — plus the shared slot-order card
+ * chrome and the user-row header (same #462 budget split; both files sit at the wall).
+ * Same package, internal visibility.
  *
  * The [LocalClipboardManager] copy affordance rides the deprecated-but-common clipboard API
  * until the project adopts the suspend [androidx.compose.ui.platform.LocalClipboard] migration
@@ -534,6 +543,121 @@ private fun RoleOptionList(
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/**
+ * Shared slot-order card chrome (#135 D4): Surface + "Slot order — <branch>" header + empty
+ * state + trailing inline errors. Platform actuals render their rows through [content] (desktop
+ * swap arrows / android tap-to-edit — the #95 responsive split). Moved here from
+ * UserManagementScreen.kt under the #462 file-function budget split.
+ */
+@Composable
+internal fun UserSlotOrderCard(
+    branchName: String,
+    isEmpty: Boolean,
+    errors: List<String>,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(CornerRadius.md),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(Spacing.md)) {
+            Text(
+                text = "Slot order — $branchName",
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(Modifier.width(Spacing.sm))
+            if (isEmpty) {
+                Text(
+                    text = "No assigned users at this branch",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                content()
+            }
+            errors.forEach { error ->
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Clickable user-row header (identity + roles line + status badge), hoisted out of [UserRow]
+ * under #462 and moved here under the file-function budget split. The badge `when` folds into
+ * the Text value arg to keep the helper well under 60.
+ */
+@Composable
+internal fun UserRowHeader(
+    user: UserSummaryResponse,
+    onToggleExpanded: () -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggleExpanded)
+                .rowHover(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = user.displayName,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = user.username,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            // #345 — role names inline so admins spot unassigned/ONBOARDING users
+            // without expanding (the wire omits empty lists — the empty default renders
+            // the explicit "No roles" line).
+            Text(
+                text = if (user.roles.isEmpty()) "No roles" else user.roles.joinToString(", "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            user.deactivatedAt?.let {
+                Text(
+                    text = "deactivated ${formatRelativeTimestamp(it)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(Modifier.width(Spacing.sm))
+        Surface(
+            shape = RoundedCornerShape(CornerRadius.sm),
+            color = MaterialTheme.colorScheme.secondary,
+        ) {
+            Text(
+                text =
+                    when (user.status) {
+                        UserStatus.ACTIVE -> "ACTIVE"
+                        UserStatus.INACTIVE -> "INACTIVE"
+                    },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // Unknown statuses render raw — a long value must not inflate the clickable row
+                // (pass-2 P4 SOFT).
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.xxs),
             )
         }
     }
