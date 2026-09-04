@@ -2,9 +2,11 @@ package com.companyb.companyapp.ui.screen
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -13,6 +15,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,6 +29,8 @@ import com.companyb.companyapp.dto.ReliefCandidateResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.ui.theme.rowHover
+import com.companyb.companyapp.util.logWarn
+import com.companyb.companyapp.viewmodel.UiState
 import kotlinx.datetime.plus
 
 /** Destructive-action confirm (#377): revocation removes someone's granted access. */
@@ -198,6 +203,133 @@ internal fun CandidateRow(
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
             )
+        }
+    }
+}
+
+/** Branch-select title block: heading plus clock-in subtitle. */
+@Composable
+internal fun BranchSelectHeader() {
+    Text(
+        text = "Select branch",
+        style = MaterialTheme.typography.titleLarge,
+    )
+    Spacer(modifier = Modifier.height(Spacing.sm))
+    Text(
+        text = "Clock in to start your day",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(modifier = Modifier.height(Spacing.sm))
+}
+
+/** Branch-list error banners: send failure plus refresh failure with refresh retry. */
+@Composable
+internal fun BranchErrorBanners(
+    clockInError: String?,
+    refreshError: String?,
+    onRetryRefresh: () -> Unit,
+) {
+    clockInError?.let { error ->
+        Text(
+            text = error,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
+    }
+    refreshError?.let { error ->
+        Text(
+            text = "$error — you're already clocked in.",
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        OutlinedButton(onClick = onRetryRefresh) {
+            Text("Retry")
+        }
+        Spacer(modifier = Modifier.height(Spacing.sm))
+    }
+}
+
+/** Branch-list load failure: message plus reload retry. */
+@Composable
+internal fun BranchLoadErrorContent(
+    message: String,
+    onRetry: () -> Unit,
+) {
+    logWarn("BranchSelectScreen", "branchesState=Error: $message")
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = message,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Spacer(modifier = Modifier.height(Spacing.md))
+            OutlinedButton(onClick = onRetry) {
+                Text("Retry")
+            }
+        }
+    }
+}
+
+/** Candidate search states: spinner, error, empty, or tappable candidate rows. */
+@Composable
+internal fun CandidateResults(
+    state: UiState<List<ReliefCandidateResponse>>,
+    sendBusy: Boolean,
+    dateValid: Boolean,
+    onInvite: (ReliefCandidateResponse) -> Unit,
+) {
+    when (state) {
+        is UiState.Idle -> {}
+
+        is UiState.Loading -> {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                Text(
+                    text = "Searching…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        is UiState.Error -> {
+            Text(
+                text = state.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+
+        is UiState.Success -> {
+            if (state.data.isEmpty()) {
+                Text(
+                    text = "No candidates",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                    state.data.forEach { candidate ->
+                        CandidateRow(
+                            candidate = candidate,
+                            dateValid = dateValid,
+                            sendBusy = sendBusy,
+                            onInvite = onInvite,
+                        )
+                    }
+                }
+            }
         }
     }
 }

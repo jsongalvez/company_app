@@ -17,7 +17,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -74,19 +73,18 @@ fun BranchSelectScreen(
     // card (candidate search + date pick + sent-invites list). Toggling is local composition
     // state; the branch gate (active assignment) is backend-authoritative, so the panel is
     // offered on every card and a 403 surfaces inline.
+    // #160 — the inviter side (placement per #106): an inline "Invite staff" panel per branch
+    // card (candidate search + date pick + sent-invites list). Toggling is local composition
+    // state; the branch gate (active assignment) is backend-authoritative, so the panel is
+    // offered on every card and a 403 surfaces inline.
     var inviteBranchId by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(Unit) {
-        logInfo("BranchSelectScreen", "composable entered (first composition)")
-        if (branchesState is UiState.Idle) {
-            viewModel.loadBranches()
-        }
-    }
 
     BranchSelectStatusEffects(
         clockInState = clockInState,
         refreshState = refreshState,
         onClockInComplete = onClockInComplete,
+        branchesState = branchesState,
+        onLoadBranches = { viewModel.loadBranches() },
     )
 
     val isPhase3Busy = clockInState is UiState.Loading || refreshState is UiState.Loading
@@ -102,17 +100,7 @@ fun BranchSelectScreen(
                 .fillMaxSize()
                 .padding(Spacing.md),
     ) {
-        Text(
-            text = "Select branch",
-            style = MaterialTheme.typography.titleLarge,
-        )
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        Text(
-            text = "Clock in to start your day",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(modifier = Modifier.height(Spacing.sm))
+        BranchSelectHeader()
 
         // #357 — the outsider's pre-clock-in relief request (collapsed by default so the
         // clock-in flow stays primary).
@@ -131,86 +119,84 @@ fun BranchSelectScreen(
             }
 
             is UiState.Error -> {
-                logWarn("BranchSelectScreen", "branchesState=Error: ${state.message}")
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = state.message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.md))
-                        OutlinedButton(onClick = { viewModel.loadBranches() }) {
-                            Text("Retry")
-                        }
-                    }
-                }
+                BranchLoadErrorContent(
+                    message = state.message,
+                    onRetry = { viewModel.loadBranches() },
+                )
             }
 
             is UiState.Success -> {
-                if (state.data.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = "No branches assigned to you yet",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                } else {
-                    clockInError?.let { error ->
-                        Text(
-                            text = error,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.sm))
-                    }
-                    refreshError?.let { error ->
-                        Text(
-                            text = "$error — you're already clocked in.",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.xs))
-                        OutlinedButton(onClick = { viewModel.refreshCapabilities() }) {
-                            Text("Retry")
-                        }
-                        Spacer(modifier = Modifier.height(Spacing.sm))
-                    }
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    ) {
-                        items(state.data, key = { it.branchId }) { branch ->
-                            BranchCard(
-                                branch = branch,
-                                isClockingIn = isPhase3Busy,
-                                canClockIn = canClockIn,
-                                onClockIn = { viewModel.clockIn(branch) },
-                                inviteExpanded = inviteBranchId == branch.branchId,
-                                onToggleInvite = {
-                                    inviteBranchId =
-                                        if (inviteBranchId == branch.branchId) null else branch.branchId
-                                },
-                            )
-                            if (inviteBranchId == branch.branchId) {
-                                InviteStaffPanel(
-                                    branchId = branch.branchId,
-                                    viewModel = reliefInviteViewModel,
-                                )
-                            }
-                        }
-                    }
-                }
+                BranchSuccessContent(
+                    branches = state.data,
+                    clockInError = clockInError,
+                    refreshError = refreshError,
+                    isPhase3Busy = isPhase3Busy,
+                    canClockIn = canClockIn,
+                    inviteBranchId = inviteBranchId,
+                    viewModel = viewModel,
+                    reliefInviteViewModel = reliefInviteViewModel,
+                    onToggleInvite = { inviteBranchId = it },
+                    onRetryRefresh = { viewModel.refreshCapabilities() },
+                )
             }
 
             is UiState.Idle -> {}
+        }
+    }
+}
+
+@Composable
+private fun BranchSuccessContent(
+    branches: List<MeBranchResponse>,
+    clockInError: String?,
+    refreshError: String?,
+    isPhase3Busy: Boolean,
+    canClockIn: Boolean,
+    inviteBranchId: String?,
+    viewModel: BranchSelectViewModel,
+    reliefInviteViewModel: ReliefInviteViewModel,
+    onToggleInvite: (String?) -> Unit,
+    onRetryRefresh: () -> Unit,
+) {
+    if (branches.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "No branches assigned to you yet",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    } else {
+        BranchErrorBanners(
+            clockInError = clockInError,
+            refreshError = refreshError,
+            onRetryRefresh = onRetryRefresh,
+        )
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            items(branches, key = { it.branchId }) { branch ->
+                BranchCard(
+                    branch = branch,
+                    isClockingIn = isPhase3Busy,
+                    canClockIn = canClockIn,
+                    onClockIn = { viewModel.clockIn(branch) },
+                    inviteExpanded = inviteBranchId == branch.branchId,
+                    onToggleInvite = {
+                        onToggleInvite(if (inviteBranchId == branch.branchId) null else branch.branchId)
+                    },
+                )
+                if (inviteBranchId == branch.branchId) {
+                    InviteStaffPanel(
+                        branchId = branch.branchId,
+                        viewModel = reliefInviteViewModel,
+                    )
+                }
+            }
         }
     }
 }
@@ -220,7 +206,16 @@ private fun BranchSelectStatusEffects(
     clockInState: UiState<ClockInResponse>,
     refreshState: UiState<Unit>,
     onClockInComplete: () -> Unit,
+    branchesState: UiState<List<MeBranchResponse>>,
+    onLoadBranches: () -> Unit,
 ) {
+    LaunchedEffect(Unit) {
+        logInfo("BranchSelectScreen", "composable entered (first composition)")
+        if (branchesState is UiState.Idle) {
+            onLoadBranches()
+        }
+    }
+
     LaunchedEffect(clockInState) {
         when (val state = clockInState) {
             is UiState.Error -> {
@@ -543,62 +538,6 @@ private fun InvitePanelResults(
             },
             onDismiss = { pendingRevoke = null },
         )
-    }
-}
-
-@Composable
-private fun CandidateResults(
-    state: UiState<List<ReliefCandidateResponse>>,
-    sendBusy: Boolean,
-    dateValid: Boolean,
-    onInvite: (ReliefCandidateResponse) -> Unit,
-) {
-    when (state) {
-        is UiState.Idle -> {}
-
-        is UiState.Loading -> {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                Text(
-                    text = "Searching…",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        is UiState.Error -> {
-            Text(
-                text = state.message,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
-
-        is UiState.Success -> {
-            if (state.data.isEmpty()) {
-                Text(
-                    text = "No candidates",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-                    state.data.forEach { candidate ->
-                        CandidateRow(
-                            candidate = candidate,
-                            dateValid = dateValid,
-                            sendBusy = sendBusy,
-                            onInvite = onInvite,
-                        )
-                    }
-                }
-            }
-        }
     }
 }
 
