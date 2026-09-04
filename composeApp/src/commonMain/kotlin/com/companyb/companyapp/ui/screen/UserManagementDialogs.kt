@@ -127,6 +127,22 @@ internal data class UserManagementUserRowActions(
 )
 
 /**
+ * Single-line state setters behind the row-actions construction (#462 LongMethod burn —
+ * the Screen builds this inline while [userManagementUserRowActions] owns the multi-line
+ * toggle/target-construction bodies; data class so LongParameterList/TooManyFunctions-free).
+ */
+internal data class UserManagementUserRowCallbacks(
+    val expandedIds: Set<String>,
+    val onExpandedIdsChange: (Set<String>) -> Unit,
+    val onDeactivateTarget: (UserSummaryResponse?) -> Unit,
+    val onRoleEditTarget: (UserSummaryResponse?) -> Unit,
+    val onSlotEditTarget: (SlotEditTarget?) -> Unit,
+    val onRemoveTarget: (AssignmentRemovalTarget?) -> Unit,
+    val onReactivate: (String) -> Unit,
+    val onResetAdministration: () -> Unit,
+)
+
+/**
  * Callbacks + gates for [UserManagementSlotOrderItem] (#462 LongMethod burn — 4th fn in
  * UserManagementHeader.kt, which has fresh file-function budget while UserManagementScreen.kt
  * sits at the wall; actions object keeps the host LongParameterList-clean). The slot-card

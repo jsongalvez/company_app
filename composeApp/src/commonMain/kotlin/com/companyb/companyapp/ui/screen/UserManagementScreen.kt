@@ -231,36 +231,22 @@ fun UserManagementScreen(
         Spacer(Modifier.size(Spacing.sm))
 
         val userRowActions =
-            UserManagementUserRowActions(
+            userManagementUserRowActions(
                 currentUserId = currentUserId,
                 mutationsDisabled = mutationsDisabled,
                 selectedBranchId = selectedBranchId,
                 actionErrors = actionErrors,
-                onToggleExpanded = { id ->
-                    expandedIds = if (id in expandedIds) expandedIds - id else expandedIds + id
-                },
-                onDeactivate = { user -> deactivateTarget = user },
-                onReactivate = { id -> viewModel.setUserStatus(id, UserStatus.ACTIVE) },
-                onEditRoles = { user -> roleEditTarget = user },
-                onEditSlot = { user, assignment ->
-                    slotEditTarget =
-                        SlotEditTarget(
-                            branchId = assignment.branchId,
-                            branchName = assignment.branchName,
-                            assignmentId = assignment.assignmentId,
-                            displayName = user.displayName,
-                            currentSlot = assignment.slot,
-                        )
-                },
-                onRemoveAssignment = { user, assignment ->
-                    branchViewModel.resetAdministrationState()
-                    removeAssignmentTarget =
-                        AssignmentRemovalTarget(
-                            userId = user.id,
-                            displayName = user.displayName,
-                            assignment = assignment,
-                        )
-                },
+                callbacks =
+                    UserManagementUserRowCallbacks(
+                        expandedIds = expandedIds,
+                        onExpandedIdsChange = { expandedIds = it },
+                        onDeactivateTarget = { deactivateTarget = it },
+                        onRoleEditTarget = { roleEditTarget = it },
+                        onSlotEditTarget = { slotEditTarget = it },
+                        onRemoveTarget = { removeAssignmentTarget = it },
+                        onReactivate = { id -> viewModel.setUserStatus(id, UserStatus.ACTIVE) },
+                        onResetAdministration = branchViewModel::resetAdministrationState,
+                    ),
             )
 
         when {

@@ -323,3 +323,54 @@ internal fun UserManagementLoadFallback(
         }
     }
 }
+
+/**
+ * Row-actions construction hoisted out of [UserManagementScreen] for the #462 LongMethod
+ * burn-down. Lives here (not same-file) because UserManagementScreen.kt sits at the
+ * detekt file-function wall — a same-file helper trips TooManyFunctions. Owns the
+ * multi-line toggle/target-construction bodies; the Screen passes single-line state
+ * setters via [UserManagementUserRowCallbacks] so the call site stays lean (call-site
+ * lambda bodies count toward the caller's LongMethod). Plain fun (no compose calls) with
+ * 5 params so it stays LongParameterList-clean outside the LPL-excluded Screen file.
+ */
+internal fun userManagementUserRowActions(
+    currentUserId: String?,
+    mutationsDisabled: Boolean,
+    selectedBranchId: String?,
+    actionErrors: Map<String, String>,
+    callbacks: UserManagementUserRowCallbacks,
+): UserManagementUserRowActions =
+    UserManagementUserRowActions(
+        currentUserId = currentUserId,
+        mutationsDisabled = mutationsDisabled,
+        selectedBranchId = selectedBranchId,
+        actionErrors = actionErrors,
+        onToggleExpanded = { id ->
+            val expanded = callbacks.expandedIds
+            callbacks.onExpandedIdsChange(if (id in expanded) expanded - id else expanded + id)
+        },
+        onDeactivate = { user -> callbacks.onDeactivateTarget(user) },
+        onReactivate = { id -> callbacks.onReactivate(id) },
+        onEditRoles = { user -> callbacks.onRoleEditTarget(user) },
+        onEditSlot = { user, assignment ->
+            callbacks.onSlotEditTarget(
+                SlotEditTarget(
+                    branchId = assignment.branchId,
+                    branchName = assignment.branchName,
+                    assignmentId = assignment.assignmentId,
+                    displayName = user.displayName,
+                    currentSlot = assignment.slot,
+                ),
+            )
+        },
+        onRemoveAssignment = { user, assignment ->
+            callbacks.onResetAdministration()
+            callbacks.onRemoveTarget(
+                AssignmentRemovalTarget(
+                    userId = user.id,
+                    displayName = user.displayName,
+                    assignment = assignment,
+                ),
+            )
+        },
+    )
