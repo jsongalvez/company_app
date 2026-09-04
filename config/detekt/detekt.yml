@@ -156,7 +156,6 @@ complexity:
       - 'with'
     excludes:
       - '**/commonMain/**/ui/screen/ClientDetailScreen.kt'
-      - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
   LabeledExpression:
     active: false
     ignoredLabels: []

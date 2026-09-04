@@ -1779,30 +1779,9 @@ private fun ExpenseSectionEffects(
         if (createWasInFlight && !busy && errors["expense:create"] == null) onCreateClose()
         createWasInFlight = busy
     }
-    var editWasInFlight by remember { mutableStateOf(false) }
-    LaunchedEffect(inFlight, editing) {
-        val busyKey = editing?.let { "expense:update:${it.id}" }
-        val busy = busyKey != null && busyKey in inFlight
-        val editDone = editWasInFlight && !busy && editing != null && errors[busyKey] == null
-        if (editDone) onEditClear()
-        editWasInFlight = busy
-    }
-    var deleteWasInFlight by remember { mutableStateOf(false) }
-    LaunchedEffect(inFlight, deleting) {
-        val busyKey = deleting?.let { "expense:delete:${it.id}" }
-        val busy = busyKey != null && busyKey in inFlight
-        val deleteDone = deleteWasInFlight && !busy && deleting != null && errors[busyKey] == null
-        if (deleteDone) onDeleteClear()
-        deleteWasInFlight = busy
-    }
-    var restoreWasInFlight by remember { mutableStateOf(false) }
-    LaunchedEffect(inFlight, restoring) {
-        val busyKey = restoring?.let { "expense:restore:${it.id}" }
-        val busy = busyKey != null && busyKey in inFlight
-        val restoreDone = restoreWasInFlight && !busy && restoring != null && errors[busyKey] == null
-        if (restoreDone) onRestoreClear()
-        restoreWasInFlight = busy
-    }
+    ExpenseMutationTracker(inFlight, errors, editing, "expense:update", onEditClear)
+    ExpenseMutationTracker(inFlight, errors, deleting, "expense:delete", onDeleteClear)
+    ExpenseMutationTracker(inFlight, errors, restoring, "expense:restore", onRestoreClear)
     // Pass-1/2 HARD — a 409 closes the open edit dialog: it holds a stale expectedVersion, so a
     // re-save would loop 409s; the reloaded row is the retry source. The key is consumed so a
     // repeat 409 on the same row re-emits and a persisted key can't slam a later dialog shut.
@@ -1813,6 +1792,24 @@ private fun ExpenseSectionEffects(
             onEditClear()
             viewModel.consumeConflict(key)
         }
+    }
+}
+
+@Composable
+private fun ExpenseMutationTracker(
+    inFlight: Set<String>,
+    errors: Map<String, String>,
+    target: ExpenseResponse?,
+    keyPrefix: String,
+    onClear: () -> Unit,
+) {
+    var wasInFlight by remember { mutableStateOf(false) }
+    LaunchedEffect(inFlight, target) {
+        val busyKey = target?.let { "$keyPrefix:${it.id}" }
+        val busy = busyKey != null && busyKey in inFlight
+        val done = wasInFlight && !busy && target != null && errors[busyKey] == null
+        if (done) onClear()
+        wasInFlight = busy
     }
 }
 
