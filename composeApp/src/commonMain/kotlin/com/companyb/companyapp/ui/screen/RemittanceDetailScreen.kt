@@ -435,32 +435,11 @@ private fun RemittanceDetailContent(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "Remittance",
-                style = MaterialTheme.typography.titleLarge,
-            )
-            Spacer(Modifier.width(Spacing.sm))
-            Text(
-                text = detail.status.name,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.weight(1f))
-            if (isDraft) {
-                TextButton(onClick = onOpenHeaderDialog) {
-                    Text("Edit")
-                }
-            }
-        }
-        DetailRow("Type", remittanceTypeLabel(detail.type.name))
-        DetailRow("Method", remittanceMethodLabel(detail.method.name))
-        DetailRow("Date range", "${detail.dateRangeStart} – ${detail.dateRangeEnd}")
-        DetailRow("Created", formatRelativeTimestamp(detail.createdAt))
-        if (detail.submittedDate.isNotBlank()) {
-            DetailRow("Submitted date", detail.submittedDate)
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        RemittanceDetailHeaderSummary(
+            detail = detail,
+            isDraft = isDraft,
+            onOpenHeaderDialog = onOpenHeaderDialog,
+        )
 
         RemittanceDetailLinesSection(
             detail = detail,
@@ -494,23 +473,14 @@ private fun RemittanceDetailContent(
         )
     }
 
-    // D9 — header edit popup (the D2 create popup prefilled).
-    if (showHeaderDialog) {
-        HeaderEditDialog(
-            detail = detail,
-            updateState = headerUpdateState,
-            onSave = { request ->
-                if (headerUpdateState !is UiState.Loading) {
-                    viewModel.updateHeader(remittanceId, request)
-                }
-            },
-            onDismiss = {
-                if (headerUpdateState !is UiState.Loading) {
-                    onCloseHeaderDialog()
-                }
-            },
-        )
-    }
+    RemittanceDetailHeaderEditHost(
+        detail = detail,
+        headerUpdateState = headerUpdateState,
+        viewModel = viewModel,
+        remittanceId = remittanceId,
+        showHeaderDialog = showHeaderDialog,
+        onCloseHeaderDialog = onCloseHeaderDialog,
+    )
 
     RemittanceDetailLinePickerHost(
         detail = detail,
@@ -549,6 +519,68 @@ private fun RemittanceDetailContent(
         onCloseSubmitDialog = onCloseSubmitDialog,
         onCloseUndoDialog = onCloseUndoDialog,
     )
+}
+
+@Composable
+private fun RemittanceDetailHeaderSummary(
+    detail: RemittanceDetailResponse,
+    isDraft: Boolean,
+    onOpenHeaderDialog: () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = "Remittance",
+            style = MaterialTheme.typography.titleLarge,
+        )
+        Spacer(Modifier.width(Spacing.sm))
+        Text(
+            text = detail.status.name,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.weight(1f))
+        if (isDraft) {
+            TextButton(onClick = onOpenHeaderDialog) {
+                Text("Edit")
+            }
+        }
+    }
+    DetailRow("Type", remittanceTypeLabel(detail.type.name))
+    DetailRow("Method", remittanceMethodLabel(detail.method.name))
+    DetailRow("Date range", "${detail.dateRangeStart} – ${detail.dateRangeEnd}")
+    DetailRow("Created", formatRelativeTimestamp(detail.createdAt))
+    if (detail.submittedDate.isNotBlank()) {
+        DetailRow("Submitted date", detail.submittedDate)
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+}
+
+@Composable
+private fun RemittanceDetailHeaderEditHost(
+    detail: RemittanceDetailResponse,
+    headerUpdateState: UiState<RemittanceResponse>,
+    viewModel: RemittanceViewModel,
+    remittanceId: String,
+    showHeaderDialog: Boolean,
+    onCloseHeaderDialog: () -> Unit,
+) {
+    // D9 — header edit popup (the D2 create popup prefilled).
+    if (showHeaderDialog) {
+        HeaderEditDialog(
+            detail = detail,
+            updateState = headerUpdateState,
+            onSave = { request ->
+                if (headerUpdateState !is UiState.Loading) {
+                    viewModel.updateHeader(remittanceId, request)
+                }
+            },
+            onDismiss = {
+                if (headerUpdateState !is UiState.Loading) {
+                    onCloseHeaderDialog()
+                }
+            },
+        )
+    }
 }
 
 @Composable
