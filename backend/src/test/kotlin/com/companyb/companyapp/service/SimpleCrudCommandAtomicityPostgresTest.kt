@@ -19,6 +19,7 @@ import com.companyb.companyapp.repository.model.ConcernTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionConcernTable
 import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.service.session.SessionConcernService
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -252,7 +253,7 @@ class SimpleCrudCommandAtomicityPostgresTest : BasePostgresTest() {
         val concernId = TestFixtures.uuid()
         trackOwned(ConcernTable, ConcernTable.id, concernId)
 
-        val promoted = SessionService.promoteConcern(callerId, sessionId, concernId, "Promoted", "reason")
+        val promoted = SessionConcernService.promoteConcern(callerId, sessionId, concernId, "Promoted", "reason")
 
         assertEquals(concernId, promoted.id)
         val (concernInserts, linkInserts, sessionUpdates) =

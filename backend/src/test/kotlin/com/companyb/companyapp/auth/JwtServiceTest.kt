@@ -69,7 +69,6 @@ class JwtServiceTest {
 
         fun createConfig(index: Int) =
             AppConfig(
-                appHost = "localhost",
                 appPort = 8080,
                 dbHost = "localhost",
                 dbPort = "5432",

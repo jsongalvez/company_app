@@ -12,6 +12,7 @@ import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.session.SessionBaseRateService
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -58,7 +59,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         val result =
-            SessionService.setRate(
+            SessionBaseRateService.setRate(
                 callerId,
                 rateId,
                 branchId,
@@ -78,7 +79,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
     fun `set rate without MANAGE_PRODUCTS is allowed at service layer`() {
         val newRateId = TestFixtures.uuid()
         val result =
-            SessionService.setRate(
+            SessionBaseRateService.setRate(
                 callerId,
                 newRateId,
                 branchId,
@@ -99,7 +100,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         val first =
-            SessionService.setRate(
+            SessionBaseRateService.setRate(
                 callerId,
                 rateId,
                 branchId,
@@ -107,7 +108,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
                 BigDecimal("2500.00"),
             )
         val second =
-            SessionService.setRate(
+            SessionBaseRateService.setRate(
                 callerId,
                 rateId2,
                 branchId,
@@ -133,7 +134,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
             }
         assertEquals(persistedRates.first, persistedRates.second)
 
-        val activeRates = SessionService.findActiveRates(branchId)
+        val activeRates = SessionBaseRateService.findActiveRates(branchId)
         assertEquals(1, activeRates.size)
         assertEquals("3000.00", activeRates[0].rate.toPlainString())
     }
@@ -143,12 +144,12 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
-        SessionService.setRate(callerId, rateId, branchId, SessionType.REGULAR, BigDecimal("2500.00"))
-        SessionService.setRate(callerId, rateId2, branchId, SessionType.SECOND_SESSION, BigDecimal("2000.00"))
+        SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, BigDecimal("2500.00"))
+        SessionBaseRateService.setRate(callerId, rateId2, branchId, SessionType.SECOND_SESSION, BigDecimal("2000.00"))
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId2)
 
-        val activeRates = SessionService.findActiveRates(branchId)
+        val activeRates = SessionBaseRateService.findActiveRates(branchId)
 
         assertEquals(2, activeRates.size)
     }
@@ -159,7 +160,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         val first =
-            SessionService.setRate(
+            SessionBaseRateService.setRate(
                 callerId,
                 rateId,
                 branchId,
@@ -167,7 +168,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
                 BigDecimal("2500.00"),
             )
         val duplicate =
-            SessionService.setRate(
+            SessionBaseRateService.setRate(
                 callerId,
                 rateId,
                 branchId,
@@ -185,7 +186,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
     @Test
     fun `duplicate UUID from another branch is rejected without changing active rate`() {
         val first =
-            SessionService.setRate(
+            SessionBaseRateService.setRate(
                 callerId,
                 rateId,
                 branchId,
@@ -193,10 +194,10 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
                 BigDecimal("2500.00"),
             )
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
-        val before = SessionService.findActiveRates(branchId).single()
+        val before = SessionBaseRateService.findActiveRates(branchId).single()
 
         assertFailsWith<NotFoundException> {
-            SessionService.setRate(
+            SessionBaseRateService.setRate(
                 callerId,
                 rateId,
                 otherBranchId,
@@ -205,7 +206,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
             )
         }
 
-        val after = SessionService.findActiveRates(branchId).single()
+        val after = SessionBaseRateService.findActiveRates(branchId).single()
         assertEquals(first.rate.effectiveUntil, after.effectiveUntil)
         assertEquals(before.rate, after.rate)
         assertEquals(1L, auditEntryCount(rateId))
@@ -213,7 +214,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `duplicate UUID with altered request is rejected without changing active rate`() {
-        SessionService.setRate(
+        SessionBaseRateService.setRate(
             callerId,
             rateId,
             branchId,
@@ -221,10 +222,10 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
             BigDecimal("2500.00"),
         )
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
-        val before = SessionService.findActiveRates(branchId).single()
+        val before = SessionBaseRateService.findActiveRates(branchId).single()
 
         assertFailsWith<ConflictException> {
-            SessionService.setRate(
+            SessionBaseRateService.setRate(
                 callerId,
                 rateId,
                 branchId,
@@ -233,7 +234,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
             )
         }
 
-        val after = SessionService.findActiveRates(branchId).single()
+        val after = SessionBaseRateService.findActiveRates(branchId).single()
         assertEquals(before.rate, after.rate)
         assertEquals(before.effectiveUntil, after.effectiveUntil)
         assertEquals(1L, auditEntryCount(rateId))
@@ -242,7 +243,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
     @Test
     fun `same UUID retry remains idempotent after rate replacement`() {
         val first =
-            SessionService.setRate(
+            SessionBaseRateService.setRate(
                 callerId,
                 rateId,
                 branchId,
@@ -250,7 +251,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
                 BigDecimal("2500.00"),
             )
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
-        SessionService.setRate(
+        SessionBaseRateService.setRate(
             callerId,
             rateId2,
             branchId,
@@ -260,7 +261,14 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId2)
         assertEquals(2L, auditEntryCount(rateId))
 
-        val retry = SessionService.setRate(callerId, rateId, branchId, SessionType.REGULAR, BigDecimal("2500.00"))
+        val retry =
+            SessionBaseRateService.setRate(
+                callerId,
+                rateId,
+                branchId,
+                SessionType.REGULAR,
+                BigDecimal("2500.00"),
+            )
 
         assertFalse(retry.created)
         assertEquals(first.rate.id, retry.rate.id)
@@ -277,7 +285,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
                 thread(start = false) {
                     start.await()
                     try {
-                        SessionService.setRate(
+                        SessionBaseRateService.setRate(
                             callerId,
                             id,
                             branchId,
@@ -300,7 +308,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         assertEquals(2, results.size)
         assertEquals(2, results.count { it == null })
         assertEquals(0, results.count { it is ConflictException })
-        assertEquals(1, SessionService.findActiveRates(branchId).size)
+        assertEquals(1, SessionBaseRateService.findActiveRates(branchId).size)
     }
 
     @Test
@@ -311,7 +319,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         trackChildRowsOfParent(SessionBaseRateTable, SessionBaseRateTable.branchId, seededBranchId)
 
         assertTrue(created.created)
-        val rates = SessionService.findActiveRates(seededBranchId).associateBy { it.sessionType }
+        val rates = SessionBaseRateService.findActiveRates(seededBranchId).associateBy { it.sessionType }
         assertEquals(5, rates.size)
         assertEquals("2500.00", rates.getValue(SessionType.REGULAR).rate.toPlainString())
         assertEquals("2000.00", rates.getValue(SessionType.SECOND_SESSION).rate.toPlainString())
@@ -322,7 +330,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
 
         // Idempotent retry: created=false seeds nothing new and rotates nothing.
         BranchService.create(callerId, seededBranchId, "Seeded-Clinic-$seededBranchId", BranchType.CLINIC)
-        assertEquals(5, SessionService.findActiveRates(seededBranchId).size)
+        assertEquals(5, SessionBaseRateService.findActiveRates(seededBranchId).size)
 
         // A fresh branch can create its first session without failing — the acceptance root.
         val clientId = DatabaseTestHelper.insertTestClient()
@@ -357,7 +365,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
     fun `setting a MEDICAL_MISSION rate normalizes any caller price to zero`() {
         val missionRateId = TestFixtures.uuid()
         val result =
-            SessionService.setRate(
+            SessionBaseRateService.setRate(
                 callerId,
                 missionRateId,
                 branchId,
@@ -370,7 +378,13 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         assertEquals("0.00", result.rate.rate.toPlainString())
         // Retry with the same (un-normalized) caller price stays idempotent after normalization.
         val retry =
-            SessionService.setRate(callerId, missionRateId, branchId, SessionType.MEDICAL_MISSION, BigDecimal("500.00"))
+            SessionBaseRateService.setRate(
+                callerId,
+                missionRateId,
+                branchId,
+                SessionType.MEDICAL_MISSION,
+                BigDecimal("500.00"),
+            )
         assertFalse(retry.created)
         assertEquals("0.00", retry.rate.rate.toPlainString())
     }
@@ -379,13 +393,13 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
     fun `find rates for branch with no rates returns empty`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val rates = SessionService.findActiveRates(branchId)
+        val rates = SessionBaseRateService.findActiveRates(branchId)
         assertTrue(rates.isEmpty())
     }
 
     @Test
     fun `findActiveRates without MANAGE_PRODUCTS is allowed at service layer`() {
-        val rates = SessionService.findActiveRates(branchId)
+        val rates = SessionBaseRateService.findActiveRates(branchId)
 
         assertTrue(rates.isEmpty())
     }

@@ -31,6 +31,7 @@ import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.inventory.InventoryService
 import com.companyb.companyapp.service.inventory.MovementType
+import com.companyb.companyapp.service.session.SessionBaseRateService
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -201,7 +202,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     private fun seedBaseRate(branchId: UUID) {
         val rateId = TestFixtures.uuid()
-        SessionService.setRate(
+        SessionBaseRateService.setRate(
             callerId = reliefUser,
             id = rateId,
             branchId = branchId,

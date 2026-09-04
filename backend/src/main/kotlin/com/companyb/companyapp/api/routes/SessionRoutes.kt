@@ -26,6 +26,8 @@ import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.service.ConcernService
 import com.companyb.companyapp.service.dashboard.DashboardService
+import com.companyb.companyapp.service.session.SessionConcernService
+import com.companyb.companyapp.service.session.SessionPractitionerService
 import com.companyb.companyapp.service.session.SessionService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
@@ -324,7 +326,7 @@ object SessionRoutes {
         val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
 
-        val practitioners = SessionService.getSessionPractitioners(callerId, sessionId)
+        val practitioners = SessionPractitionerService.getForSession(callerId, sessionId)
         context.json(practitioners.map { it.toResponse() })
     }
 
@@ -397,7 +399,7 @@ object SessionRoutes {
                 gatedBranchDayId = context.attribute(GATED_BRANCH_DAY_ATTR),
             )
 
-        val concerns = SessionService.getSessionConcerns(callerId, sessionId).map { it.toResponse() }
+        val concerns = SessionConcernService.getForSession(callerId, sessionId).map { it.toResponse() }
         context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
         context.json(result.session.toResponse(concerns))
     }
@@ -463,7 +465,7 @@ object SessionRoutes {
         val id = uuidOrThrow(request.id, "id")
 
         val result =
-            SessionService.addPractitioner(
+            SessionPractitionerService.addPractitioner(
                 callerId = callerId,
                 id = id,
                 sessionId = sessionId,
@@ -483,7 +485,7 @@ object SessionRoutes {
         val request = context.bodyAsClass<UpdatePractitionerRemarksRequest>()
 
         val updated =
-            SessionService.updatePractitionerRemarks(
+            SessionPractitionerService.updatePractitionerRemarks(
                 callerId = callerId,
                 sessionId = sessionId,
                 practitionerId = practitionerId,
@@ -501,7 +503,7 @@ object SessionRoutes {
         val practitionerId = context.pathParamAsUuid("practitionerId")
         val reason = context.bodyIfPresent<RemovePractitionerRequest>()?.reason
 
-        SessionService.removePractitioner(
+        SessionPractitionerService.removePractitioner(
             callerId = callerId,
             sessionId = sessionId,
             practitionerId = practitionerId,
@@ -520,7 +522,7 @@ object SessionRoutes {
         val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
 
-        val concerns = SessionService.getSessionConcerns(callerId, sessionId)
+        val concerns = SessionConcernService.getForSession(callerId, sessionId)
         context.json(concerns.map { it.toResponse() })
     }
 
@@ -531,7 +533,7 @@ object SessionRoutes {
 
         val concernId = uuidOrThrow(request.concernId, "concern id")
 
-        SessionService.addSessionConcern(callerId, sessionId, concernId, request.reason)
+        SessionConcernService.addToSession(callerId, sessionId, concernId, request.reason)
         context.status(HttpStatus.NO_CONTENT)
     }
 
@@ -541,7 +543,7 @@ object SessionRoutes {
         val concernId = context.pathParamAsUuid("concernId")
         val reason = context.bodyIfPresent<RemoveSessionConcernRequest>()?.reason
 
-        SessionService.removeSessionConcern(callerId, sessionId, concernId, reason)
+        SessionConcernService.removeFromSession(callerId, sessionId, concernId, reason)
         context.status(HttpStatus.NO_CONTENT)
     }
 
@@ -553,7 +555,14 @@ object SessionRoutes {
         if (request.label.isBlank()) throw BadRequestResponse("label must not be blank")
         val concernId = uuidOrThrow(request.id, "concern id")
 
-        val concern = SessionService.promoteConcern(callerId, sessionId, concernId, request.label, request.reason)
+        val concern =
+            SessionConcernService.promoteConcern(
+                callerId,
+                sessionId,
+                concernId,
+                request.label,
+                request.reason,
+            )
         context.status(HttpStatus.CREATED)
         context.json(concern.toResponse())
     }

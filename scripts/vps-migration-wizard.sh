@@ -882,7 +882,6 @@ else
 fi
 if [[ "$MODE" == "full" ]]; then
   step "Environment variables — copy from the block below:"
-  note "  APP_HOST=0.0.0.0"
   note "  APP_PORT=$(env_val APP_PORT '<APP_PORT from .env>')"
   note "  DB_HOST=postgres   # the Postgres resource's internal hostname"
   note "  DB_PORT=5432"
@@ -897,7 +896,7 @@ if [[ "$MODE" == "full" ]]; then
 else
   step "Environment variables — the keys your app needs. Your local .env defines:"
   grep -oE '^[A-Z_]+=' "$REPO/.env" 2>/dev/null | tr -d '=' | sed 's/^/  /' || note "  (no .env found locally — enter the vars your app needs)"
-  step "Copy the VALUES from your local .env; override DB_HOST=postgres and APP_HOST=0.0.0.0"
+  step "Copy the VALUES from your local .env; override DB_HOST=postgres"
 fi
 step "Deploy, then watch the build log (~5-10 min first build)"
 pause "Build finished (success or visible failure)?"

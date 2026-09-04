@@ -77,7 +77,7 @@ intentionally shallow.
 
 **Owns:** session aggregate — type ladder (`computeSessionType`: REGULAR→SECOND→SUBSEQUENT, mission/provincial variants), base-rate snapshot at create, optimistic-versioned updates, void/unvoid records, practitioner management (slot snapshots + parent version bumps), concerns + promotion, base-rate rotation, create preview.
 **Anchors:** `service/session/SessionService.kt`, `api/routes/SessionRoutes.kt`, `repository/SessionRepository.kt`.
-**Public seam:** `SessionService` commands incl. pass-throughs to internal practitioner/concern/base-rate services · `computeSessionType` (pure) · `previewSession`.
+**Public seam:** `SessionService` commands (`create` / `updateStatus` / `updateFinalPrice` / `voidSession` / `unvoidSession`) · `computeSessionType` (pure) · `previewSession` · practitioner ops via `SessionPractitionerService` · concern ops via `SessionConcernService` · rate ops via `SessionBaseRateService`.
 **Depends on:** Branch Day (gates + find-only gated-day handoff #157), Client (row lock + one-PENDING guard), Assignments (member check #366, slot lookup).
 **Expansion triggers:** version-bump mechanics (`incrementSessionVersion` count-0 rule); walk-in status CHECK constraint; `idx_client_one_pending_session` backstop; `active_session_voids` view consumers (commission, remittance pickers, scheduler, dashboard).
 **Tests/authority:** `docs/engines.md`; backend `AGENTS.md` "Sessions".

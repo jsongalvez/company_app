@@ -7,7 +7,7 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.RateResponse
 import com.companyb.companyapp.dto.SetRateRequest
 import com.companyb.companyapp.repository.model.SessionBaseRate
-import com.companyb.companyapp.service.session.SessionService
+import com.companyb.companyapp.service.session.SessionBaseRateService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
@@ -53,7 +53,7 @@ object SessionBaseRateRoutes {
             val rate = parseNonNegativeBigDecimal(request.rate, "rate")
 
             val result =
-                SessionService.setRate(
+                SessionBaseRateService.setRate(
                     callerId = callerId,
                     id = rateId,
                     branchId = branchId,
@@ -68,7 +68,7 @@ object SessionBaseRateRoutes {
         config.routes.get(ApiRoutes.BRANCH_RATES_PATH) { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
-            context.json(SessionService.findActiveRates(branchId).map { it.toResponse() })
+            context.json(SessionBaseRateService.findActiveRates(branchId).map { it.toResponse() })
         }
     }
 

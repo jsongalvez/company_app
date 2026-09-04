@@ -31,8 +31,9 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "repository/ClientRepository.kt" to 3,
                 "repository/AllowanceRepository.kt" to 1,
                 "repository/CompensationRepository.kt" to 3,
-                // Six read-only wrappers after #424's most-recent-price query.
-                "repository/SessionRepository.kt" to 6,
+                // Five read-only wrappers: #453 dropped the audit-read createdBy
+                // wrapper (ownership is now transaction-local created_by).
+                "repository/SessionRepository.kt" to 5,
                 "repository/SessionVoidRepository.kt" to 2,
                 "repository/SessionPractitionerRepository.kt" to 2,
                 "repository/ConcernRepository.kt" to 3,

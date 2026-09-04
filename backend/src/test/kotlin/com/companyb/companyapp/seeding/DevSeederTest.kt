@@ -13,7 +13,6 @@ class DevSeederTest {
         scoped: Pair<String?, String?>? = null,
         relief: Pair<String?, String?>? = null,
     ) = AppConfig(
-        appHost = "localhost",
         appPort = 8080,
         dbHost = "localhost",
         dbPort = "5432",

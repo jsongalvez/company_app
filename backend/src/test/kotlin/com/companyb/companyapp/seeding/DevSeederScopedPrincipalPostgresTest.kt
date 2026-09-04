@@ -133,7 +133,6 @@ class DevSeederScopedPrincipalPostgresTest : BasePostgresTest() {
         scopedTestUsername: String,
         scopedTestPassword: String,
     ) = AppConfig(
-        appHost = "localhost",
         appPort = 8080,
         dbHost = System.getenv("DB_HOST") ?: "localhost",
         dbPort = System.getenv("DB_PORT") ?: "5432",

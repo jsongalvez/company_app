@@ -280,7 +280,7 @@ class SessionReadsPostgresTest : BasePostgresTest() {
         }
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
 
-        val practitioners = SessionService.getSessionPractitioners(callerId, sessionId)
+        val practitioners = SessionPractitionerService.getForSession(callerId, sessionId)
 
         assertEquals(listOf(early, late), practitioners.map { it.id })
         assertEquals(listOf(2, 7), practitioners.map { it.slotAtTime.toInt() })
@@ -288,7 +288,7 @@ class SessionReadsPostgresTest : BasePostgresTest() {
 
     @Test
     fun `practitioners read 404s for a missing session`() {
-        assertFailsWith<NotFoundException> { SessionService.getSessionPractitioners(callerId, TestFixtures.uuid()) }
+        assertFailsWith<NotFoundException> { SessionPractitionerService.getForSession(callerId, TestFixtures.uuid()) }
     }
 
     private fun insertRate(

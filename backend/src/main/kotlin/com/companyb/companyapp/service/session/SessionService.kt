@@ -8,7 +8,6 @@ import com.companyb.companyapp.domain.isStatusTransitionAllowed
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.AddPractitionerResult
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchMemberRepository
@@ -18,14 +17,10 @@ import com.companyb.companyapp.repository.SessionCreateParams
 import com.companyb.companyapp.repository.SessionCreateResult
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.SessionVoidRepository
-import com.companyb.companyapp.repository.SetRateResult
 import com.companyb.companyapp.repository.VoidResult
 import com.companyb.companyapp.repository.findSessionByIdInTransaction
 import com.companyb.companyapp.repository.hasActivePendingSessionInTransaction
-import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.Session
-import com.companyb.companyapp.repository.model.SessionBaseRate
-import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.repository.model.SessionVoidTable
@@ -408,59 +403,6 @@ object SessionService {
             updated
         }
 
-    // --- Practitioner pass-throughs ---
-
-    @Suppress("LongParameterList")
-    fun addPractitioner(
-        callerId: UUID,
-        id: UUID,
-        sessionId: UUID,
-        practitionerId: UUID,
-        remarks: String?,
-        reason: String? = null,
-    ): AddPractitionerResult =
-        SessionPractitionerService.addPractitioner(
-            callerId = callerId,
-            id = id,
-            sessionId = sessionId,
-            practitionerId = practitionerId,
-            remarks = remarks,
-            reason = reason,
-        )
-
-    fun updatePractitionerRemarks(
-        callerId: UUID,
-        sessionId: UUID,
-        practitionerId: UUID,
-        remarks: String?,
-        reason: String? = null,
-    ): SessionPractitioner =
-        SessionPractitionerService.updatePractitionerRemarks(
-            callerId = callerId,
-            sessionId = sessionId,
-            practitionerId = practitionerId,
-            remarks = remarks,
-            reason = reason,
-        )
-
-    fun removePractitioner(
-        callerId: UUID,
-        sessionId: UUID,
-        practitionerId: UUID,
-        reason: String? = null,
-    ) = SessionPractitionerService.removePractitioner(
-        callerId = callerId,
-        sessionId = sessionId,
-        practitionerId = practitionerId,
-        reason = reason,
-    )
-
-    // #348 — the read behind GET /api/sessions/{sessionId}/practitioners (add-self refresh).
-    fun getSessionPractitioners(
-        callerId: UUID,
-        sessionId: UUID,
-    ): List<SessionPractitioner> = SessionPractitionerService.getForSession(callerId, sessionId)
-
     /**
      * #348 — pre-create preview for the SessionCreate screen: the session type create WILL
      * assign and the base rate that defaults the final price. Reads the exact same inputs as
@@ -482,54 +424,6 @@ object SessionService {
         val sessionType = computeSessionType(branchType, priorCount)
         return SessionPreview(sessionType, resolveDefaultBasePrice(branchId, clientId, sessionType))
     }
-
-    // --- Base rate pass-throughs ---
-
-    fun setRate(
-        callerId: UUID,
-        id: UUID,
-        branchId: UUID,
-        sessionType: SessionType,
-        rate: BigDecimal,
-    ): SetRateResult =
-        SessionBaseRateService.setRate(
-            callerId = callerId,
-            id = id,
-            branchId = branchId,
-            sessionType = sessionType,
-            rate = rate,
-        )
-
-    fun findActiveRates(branchId: UUID): List<SessionBaseRate> = SessionBaseRateService.findActiveRates(branchId)
-
-    // --- Concern pass-throughs ---
-
-    fun getSessionConcerns(
-        callerId: UUID,
-        sessionId: UUID,
-    ): List<Concern> = SessionConcernService.getForSession(callerId, sessionId)
-
-    fun addSessionConcern(
-        callerId: UUID,
-        sessionId: UUID,
-        concernId: UUID,
-        reason: String? = null,
-    ) = SessionConcernService.addToSession(callerId, sessionId, concernId, reason)
-
-    fun removeSessionConcern(
-        callerId: UUID,
-        sessionId: UUID,
-        concernId: UUID,
-        reason: String? = null,
-    ) = SessionConcernService.removeFromSession(callerId, sessionId, concernId, reason)
-
-    fun promoteConcern(
-        callerId: UUID,
-        sessionId: UUID,
-        concernId: UUID,
-        label: String,
-        reason: String? = null,
-    ): Concern = SessionConcernService.promoteConcern(callerId, sessionId, concernId, label, reason)
 }
 
 /**

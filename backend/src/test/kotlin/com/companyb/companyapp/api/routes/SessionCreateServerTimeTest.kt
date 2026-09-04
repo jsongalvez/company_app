@@ -21,6 +21,7 @@ import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.session.SessionBaseRateService
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -68,7 +69,7 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
             contextId = branchId,
             sourceId = sourceId,
         )
-        SessionService.setRate(callerId, rateId, branchId, SessionType.REGULAR, BigDecimal("2500.00"))
+        SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, BigDecimal("2500.00"))
 
         trackOwned(AppUserTable, AppUserTable.id, callerId)
         trackOwned(BranchTable, BranchTable.id, branchId)

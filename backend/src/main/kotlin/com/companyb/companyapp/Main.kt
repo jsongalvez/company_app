@@ -104,21 +104,16 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
         MDC.clear()
     }
     config.events.serverStartFailed {
-        shutdownScheduler()
-        PasswordResetDelivery.shutdown()
-        DatabaseConfig.close()
+        shutdownLifecycle()
     }
     config.events.serverStopping {
-        shutdownScheduler()
-        PasswordResetDelivery.shutdown()
+        shutdownLifecycle(closeDb = false)
     }
     config.events.serverStopped {
-        PasswordResetDelivery.shutdown()
-        DatabaseConfig.close()
+        shutdownLifecycle(stopScheduler = false)
     }
     config.events.serverStopFailed {
-        PasswordResetDelivery.shutdown()
-        DatabaseConfig.close()
+        shutdownLifecycle(stopScheduler = false)
     }
     config.routes.before("${ApiRoutes.API_PREFIX}*") { context ->
         val token = context.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
@@ -197,6 +192,21 @@ fun initializeDenyList() {
 
 private val schedulerLifecycle = SchedulerLifecycle()
 
+/**
+ * Single shutdown seam (#455): every Javalin lifecycle event and the init
+ * failure path drain through here with the same order (scheduler → mail →
+ * database). Flags select the subset each event owns: stopping never owned
+ * the database, stopped/stop-failed never owned the scheduler.
+ */
+private fun shutdownLifecycle(
+    stopScheduler: Boolean = true,
+    closeDb: Boolean = true,
+) {
+    if (stopScheduler) shutdownScheduler()
+    PasswordResetDelivery.shutdown()
+    if (closeDb) DatabaseConfig.close()
+}
+
 fun initializeScheduler() = schedulerLifecycle.start()
 
 fun shutdownScheduler() = schedulerLifecycle.stop()
@@ -220,9 +230,7 @@ fun main(config: AppConfig) {
         initializeScheduler()
         initializeJavalin(config)
     }.onFailure {
-        shutdownScheduler()
-        PasswordResetDelivery.shutdown()
-        DatabaseConfig.close()
+        shutdownLifecycle()
     }.getOrThrow()
 
     val elapsed = RequestElapsedConverter.currentElapsedMs()

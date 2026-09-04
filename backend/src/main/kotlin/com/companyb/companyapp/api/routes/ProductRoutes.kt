@@ -3,7 +3,6 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.CreateProductRequest
 import com.companyb.companyapp.dto.ProductResponse
 import com.companyb.companyapp.dto.UpdateProductRequest
@@ -53,17 +52,15 @@ object ProductRoutes {
     @Suppress("ThrowsCount", "LongMethod")
     fun register(config: JavalinConfig) {
         config.routes.before(ApiRoutes.PRODUCTS) { context ->
-            CapabilityFilter.requireGlobalCapability(
+            CapabilityFilter.requireManageCatalog(
                 context,
-                CapabilityCodes.MANAGE_CATALOG,
                 "MANAGE_CATALOG capability required to manage products",
             )
         }
 
         config.routes.before(ApiRoutes.PRODUCT_PATH) { context ->
-            CapabilityFilter.requireGlobalCapability(
+            CapabilityFilter.requireManageCatalog(
                 context,
-                CapabilityCodes.MANAGE_CATALOG,
                 "MANAGE_CATALOG capability required to manage products",
             )
         }

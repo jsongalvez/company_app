@@ -63,6 +63,18 @@ object CapabilityFilter {
     }
 
     /**
+     * Shared catalog gate (#455): products + categories share one MANAGE_CATALOG
+     * enforcement point so the two route files stop duplicating the filter body.
+     * Message stays caller-supplied to preserve each route's existing 403 text.
+     */
+    fun requireManageCatalog(
+        context: Context,
+        message: String,
+    ) {
+        requireGlobalCapability(context, CapabilityCodes.MANAGE_CATALOG, message)
+    }
+
+    /**
      * Enforces [capabilityCode] on [CapabilityContextType.BRANCH] for the given [branchDayId].
      * Resolves the branch from the branch day and calls [CapabilityService.requireCapability].
      *

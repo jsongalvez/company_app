@@ -3,7 +3,6 @@ package com.companyb.companyapp.config
 import io.github.cdimascio.dotenv.dotenv
 
 data class AppConfig(
-    val appHost: String,
     val appPort: Int,
     val dbHost: String,
     val dbPort: String,
@@ -29,7 +28,6 @@ data class AppConfig(
                     ignoreIfMissing = true
                 }
             return AppConfig(
-                appHost = env["APP_HOST"] ?: "localhost",
                 appPort =
                     env["APP_PORT"]?.toIntOrNull()
                         ?: error("APP_PORT must be a valid integer"),
