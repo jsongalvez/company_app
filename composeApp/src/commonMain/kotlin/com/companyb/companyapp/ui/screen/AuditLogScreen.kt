@@ -1223,6 +1223,43 @@ internal expect fun AuditLogEntryList(
     modifier: Modifier = Modifier.fillMaxSize(),
 )
 
+@Composable
+private fun AuditLogHistoryLoadEffect(
+    viewModel: AuditLogViewModel,
+    tableName: String,
+    recordId: String,
+) {
+    LaunchedEffect(Unit) {
+        logInfo("AuditLogHistoryScreen", "composable entered (first composition)")
+        // Load once per VM lifetime (Idle), re-fire from an error state (auto-retry — the
+        // same policy as the main screen's loads); a rotation/re-entry refire must not wipe
+        // the loaded history back to a spinner (pass-5 SOFT).
+        if (viewModel.history.value is UiState.Idle || viewModel.history.value is UiState.Error) {
+            viewModel.loadHistory(tableName, recordId)
+        }
+    }
+}
+
+@Composable
+private fun AuditLogHistoryHeader(
+    onBack: () -> Unit,
+    tableName: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextButton(onClick = onBack) {
+            Text("← Back")
+        }
+        Text(
+            text = "History — $tableName",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(start = Spacing.sm),
+        )
+    }
+}
+
 // D8 — "Full history for this record": pushed on both platforms (#91 push-route lock; ClientDetail
 // precedent — content-level Back TextButton, the pushed-route topbar pattern stays fog). The route
 // gets its own entry-scoped VM (fresh entry self-cleans, #112 pattern).
@@ -1239,15 +1276,7 @@ fun AuditLogHistoryScreen(
     val ackErrors by viewModel.ackErrors.collectAsState()
     var expandedIds by remember { mutableStateOf(emptySet<String>()) }
 
-    LaunchedEffect(Unit) {
-        logInfo("AuditLogHistoryScreen", "composable entered (first composition)")
-        // Load once per VM lifetime (Idle), re-fire from an error state (auto-retry — the
-        // same policy as the main screen's loads); a rotation/re-entry refire must not wipe
-        // the loaded history back to a spinner (pass-5 SOFT).
-        if (viewModel.history.value is UiState.Idle || viewModel.history.value is UiState.Error) {
-            viewModel.loadHistory(tableName, recordId)
-        }
-    }
+    AuditLogHistoryLoadEffect(viewModel, tableName, recordId)
 
     Column(
         modifier =
@@ -1255,19 +1284,7 @@ fun AuditLogHistoryScreen(
                 .fillMaxSize()
                 .padding(Spacing.md),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = onBack) {
-                Text("← Back")
-            }
-            Text(
-                text = "History — $tableName",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(start = Spacing.sm),
-            )
-        }
+        AuditLogHistoryHeader(onBack = onBack, tableName = tableName)
         when (val state = history) {
             is UiState.Idle,
             is UiState.Loading,
