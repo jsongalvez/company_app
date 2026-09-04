@@ -230,24 +230,8 @@ private fun ClientDetailContent(
     navigationLocked: Boolean,
     viewModel: ClientViewModel,
 ) {
-    // D10 — null name pair is the only in-band anonymized signal (F3): render the husk, no edit
-    // affordances, no anonymize button, no PATCH surface.
     if (client.firstName == null || client.lastName == null) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Text(
-                text = "Anonymized",
-                style = MaterialTheme.typography.titleLarge,
-            )
-            Spacer(Modifier.size(Spacing.sm))
-            Text(
-                text = "Gender: ${client.gender.displayName()}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                text = "Age: ${client.age}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
+        ClientDetailAnonymizedHusk(client)
         return
     }
 
@@ -658,6 +642,27 @@ private fun ClientDetailContent(
                 viewModel.anonymizeClient(client.id)
             },
             onDismiss = { showAnonymizeDialog = false },
+        )
+    }
+}
+
+// D10 — null name pair is the only in-band anonymized signal (F3): render the husk, no edit
+// affordances, no anonymize button, no PATCH surface.
+@Composable
+private fun ClientDetailAnonymizedHusk(client: ClientResponse) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Text(
+            text = "Anonymized",
+            style = MaterialTheme.typography.titleLarge,
+        )
+        Spacer(Modifier.size(Spacing.sm))
+        Text(
+            text = "Gender: ${client.gender.displayName()}",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            text = "Age: ${client.age}",
+            style = MaterialTheme.typography.bodyMedium,
         )
     }
 }
