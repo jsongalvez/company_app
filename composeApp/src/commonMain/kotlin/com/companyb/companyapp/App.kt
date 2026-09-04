@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.navigation.AppNavHost
@@ -68,34 +69,12 @@ fun App() {
         ClientState.clear()
     }
 
-    LaunchedEffect(Unit) {
-        val token = tokenStore.getToken()
-        logInfo("App", "Initial auth check: hasToken=${token != null}")
-        if (token != null) {
-            bootstrapViewModel.validateSession()
-        } else {
-            SessionState.clear()
-            NotificationState.clear()
-            ClientState.clear()
-        }
-    }
-
-    LaunchedEffect(validationState) {
-        // #94 Q3c — launch-validation 401s are silent (the splash derives from hasToken); a
-        // mid-session 401 after the flag flips is an expired-session 401 (message + navigate).
-        // Re-entry to Loading (splash retry) re-arms the silent window.
-        when (validationState) {
-            UiState.Loading -> {
-                launchValidationActive = true
-            }
-
-            is UiState.Success, is UiState.Error -> {
-                launchValidationActive = false
-            }
-
-            else -> {}
-        }
-    }
+    AppLaunchValidationEffects(
+        tokenStore = tokenStore,
+        bootstrapViewModel = bootstrapViewModel,
+        validationState = validationState,
+        onValidationActiveChange = { launchValidationActive = it },
+    )
 
     LaunchedEffect(apiClient) {
         // #94 Q3 — the 401'd path discriminates credential 401s (login → inline
@@ -108,28 +87,17 @@ fun App() {
             if (path.endsWith(ApiRoutes.AUTH_LOGIN)) {
                 return@collectLatest
             }
-            logInfo("App", "onUnauthorized on $path, clearing token + SessionState")
-            try {
-                tokenStore.clearToken()
-            } catch (e: Exception) {
-                logError("App", "Failed to clear token on unauthorized", e)
-            }
             // Read BEFORE clearing: the launch-401 is silent, the mid-session 401 is not.
-            val wasLaunchValidation = launchValidationActive
-            hasToken = false
-            SessionState.clear()
-            NotificationState.clear()
-            ClientState.clear()
-            // The token is gone: launch validation is over either way. Leaving the flag true
-            // would silently swallow every later mid-session 401 (no notice, no navigate —
-            // the user stuck on a screen whose every call 403s).
-            launchValidationActive = false
-            if (!wasLaunchValidation) {
-                SessionState.setExpiredNotice(true)
-                navController.navigate(Route.Login) {
-                    popUpTo(0) { inclusive = true }
-                }
-            }
+            handleSessionUnauthorized(
+                tokenStore = tokenStore,
+                navController = navController,
+                path = path,
+                isLaunchValidationActive = { launchValidationActive },
+                onSessionStateChange = { h, v ->
+                    hasToken = h
+                    launchValidationActive = v
+                },
+            )
         }
     }
 
@@ -154,6 +122,74 @@ fun App() {
                     navController = navController,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun AppLaunchValidationEffects(
+    tokenStore: TokenStore,
+    bootstrapViewModel: SessionBootstrapViewModel,
+    validationState: UiState<Unit>,
+    onValidationActiveChange: (Boolean) -> Unit,
+) {
+    LaunchedEffect(Unit) {
+        val token = tokenStore.getToken()
+        logInfo("App", "Initial auth check: hasToken=${token != null}")
+        if (token != null) {
+            bootstrapViewModel.validateSession()
+        } else {
+            SessionState.clear()
+            NotificationState.clear()
+            ClientState.clear()
+        }
+    }
+
+    LaunchedEffect(validationState) {
+        // #94 Q3c — launch-validation 401s are silent (the splash derives from hasToken); a
+        // mid-session 401 after the flag flips is an expired-session 401 (message + navigate).
+        // Re-entry to Loading (splash retry) re-arms the silent window.
+        when (validationState) {
+            UiState.Loading -> {
+                onValidationActiveChange(true)
+            }
+
+            is UiState.Success, is UiState.Error -> {
+                onValidationActiveChange(false)
+            }
+
+            else -> {}
+        }
+    }
+}
+
+@Suppress("TooGenericExceptionCaught")
+private suspend fun handleSessionUnauthorized(
+    tokenStore: TokenStore,
+    navController: NavHostController,
+    path: String,
+    isLaunchValidationActive: () -> Boolean,
+    onSessionStateChange: (hasToken: Boolean, validationActive: Boolean) -> Unit,
+) {
+    logInfo("App", "onUnauthorized on $path, clearing token + SessionState")
+    try {
+        tokenStore.clearToken()
+    } catch (e: Exception) {
+        logError("App", "Failed to clear token on unauthorized", e)
+    }
+    // Read BEFORE clearing: the launch-401 is silent, the mid-session 401 is not.
+    val wasLaunchValidation = isLaunchValidationActive()
+    onSessionStateChange(false, false)
+    SessionState.clear()
+    NotificationState.clear()
+    ClientState.clear()
+    // The token is gone: launch validation is over either way. Leaving the flag true
+    // would silently swallow every later mid-session 401 (no notice, no navigate —
+    // the user stuck on a screen whose every call 403s).
+    if (!wasLaunchValidation) {
+        SessionState.setExpiredNotice(true)
+        navController.navigate(Route.Login) {
+            popUpTo(0) { inclusive = true }
         }
     }
 }

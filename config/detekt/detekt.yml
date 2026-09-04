@@ -187,7 +187,6 @@ complexity:
       - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
       - '**/commonMain/**/ui/screen/SessionDashboardScreen.kt'
       - '**/commonMain/**/ui/screen/AuditLogScreen.kt'
-      - '**/commonMain/**/App.kt'
   LongParameterList:
     active: true
     functionThreshold: 6
