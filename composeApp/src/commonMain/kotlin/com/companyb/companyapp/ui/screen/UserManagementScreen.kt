@@ -154,32 +154,25 @@ fun UserManagementScreen(
 internal fun UserManagementMemberDialogs(
     viewModel: UserViewModel,
     mutationsDisabled: Boolean,
-    deactivateTarget: UserSummaryResponse?,
-    onDismissDeactivate: () -> Unit,
-    slotEditTarget: SlotEditTarget?,
     actionErrors: Map<String, String>,
-    onDismissSlotEdit: () -> Unit,
-    showCreateUserDialog: Boolean,
-    onCloseCreateUser: () -> Unit,
-    roleEditTarget: UserSummaryResponse?,
-    onDismissRoleEdit: () -> Unit,
+    memberActions: UserManagementMemberDialogsActions,
 ) {
     val mintState by viewModel.mintInviteResult.collectAsState()
     val rolesState by viewModel.roles.collectAsState()
 
-    deactivateTarget?.let { target ->
+    memberActions.deactivateTarget?.let { target ->
         DeactivateConfirmDialog(
             user = target,
             mutationsDisabled = mutationsDisabled,
-            onDismiss = onDismissDeactivate,
+            onDismiss = memberActions.onDismissDeactivate,
             onConfirm = {
-                onDismissDeactivate()
+                memberActions.onDismissDeactivate()
                 viewModel.setUserStatus(target.id, UserStatus.INACTIVE)
             },
         )
     }
 
-    slotEditTarget?.let { target ->
+    memberActions.slotEditTarget?.let { target ->
         EditSlotDialog(
             target = target,
             options =
@@ -187,16 +180,16 @@ internal fun UserManagementMemberDialogs(
                     mutationsDisabled = mutationsDisabled,
                     errorMessage = actionErrors["slot:${target.branchId}:${target.assignmentId}"],
                 ),
-            onDismiss = onDismissSlotEdit,
+            onDismiss = memberActions.onDismissSlotEdit,
             onSave = { slot ->
                 viewModel.updateSlot(target.branchId, target.assignmentId, slot) {
-                    onDismissSlotEdit()
+                    memberActions.onDismissSlotEdit()
                 }
             },
         )
     }
 
-    if (showCreateUserDialog) {
+    if (memberActions.showCreateUserDialog) {
         InviteMintDialog(
             mintState = mintState,
             onMint = viewModel::mintInvite,
@@ -206,13 +199,13 @@ internal fun UserManagementMemberDialogs(
                 // the admin needs the code until they explicitly close (closing resets).
                 if (mintState !is UiState.Loading) {
                     viewModel.dismissInviteResult()
-                    onCloseCreateUser()
+                    memberActions.onCloseCreateUser()
                 }
             },
         )
     }
 
-    roleEditTarget?.let { target ->
+    memberActions.roleEditTarget?.let { target ->
         // Save closes the dialog immediately (the slot-edit precedent); a failed PUT surfaces
         // as the "roles:$userId" inline error in the still-expanded row below the action row.
         RoleEditDialog(
@@ -222,9 +215,9 @@ internal fun UserManagementMemberDialogs(
             actions =
                 RoleEditActions(
                     onRetryRoles = viewModel::loadRoles,
-                    onDismiss = onDismissRoleEdit,
+                    onDismiss = memberActions.onDismissRoleEdit,
                     onSave = { selected ->
-                        onDismissRoleEdit()
+                        memberActions.onDismissRoleEdit()
                         viewModel.replaceRoles(target.id, selected)
                     },
                 ),
@@ -233,28 +226,33 @@ internal fun UserManagementMemberDialogs(
 }
 
 /**
+ * #479 — the branch-dialog flow states as one carrier (data classes are LPL-free).
+ */
+data class BranchDialogsStates(
+    val createBranchState: UiState<BranchResponse>,
+    val assignmentResult: UiState<AssignmentResponse>,
+    val deleteAssignmentState: UiState<Unit>,
+)
+
+/**
  * Branch-admin dialogs of the User Management screen (companion: [UserManagementMemberDialogs]).
  * Same #462 hoist — create/assign/remove overlays, order-independent. `assignmentDialogBranch`
  * derives inside so the Screen call site stays lean.
  */
 @Composable
 internal fun UserManagementBranchDialogs(
+    viewModel: UserViewModel,
     branchViewModel: BranchViewModel,
     mutationsDisabled: Boolean,
-    showCreateBranchDialog: Boolean,
-    createBranchState: UiState<BranchResponse>,
-    loadedBranches: List<BranchResponse>,
-    onCloseCreateBranch: () -> Unit,
-    showAssignUserDialog: Boolean,
-    assignmentBranch: BranchResponse?,
-    loadedUsers: List<UserSummaryResponse>,
-    assignmentResult: UiState<AssignmentResponse>,
-    onCloseAssign: () -> Unit,
-    removeAssignmentTarget: AssignmentRemovalTarget?,
-    deleteAssignmentState: UiState<Unit>,
-    onClearRemoveTarget: () -> Unit,
+    states: BranchDialogsStates,
+    branchActions: UserManagementBranchDialogsActions,
 ) {
-    if (showCreateBranchDialog) {
+    val createBranchState = states.createBranchState
+    val assignmentResult = states.assignmentResult
+    val deleteAssignmentState = states.deleteAssignmentState
+    if (branchActions.showCreateBranchDialog) {
+        val loadedBranches =
+            (viewModel.branches.collectAsState().value as? UiState.Success<List<BranchResponse>>)?.data.orEmpty()
         CreateBranchDialog(
             state = createBranchState,
             existingBranches = loadedBranches,
@@ -262,13 +260,19 @@ internal fun UserManagementBranchDialogs(
             onCreate = branchViewModel::createBranch,
             onDismiss = {
                 branchViewModel.resetAdministrationState()
-                onCloseCreateBranch()
+                branchActions.onCloseCreateBranch()
             },
         )
     }
 
+    val assignmentBranch = branchActions.assignmentBranch
     val assignmentDialogBranch = assignmentBranch
-    if (showAssignUserDialog && assignmentDialogBranch != null) {
+    if (branchActions.showAssignUserDialog && assignmentDialogBranch != null) {
+        val loadedUsers =
+            viewModel.freshestUsers
+                .collectAsState()
+                .value
+                .orEmpty()
         AssignUserDialog(
             branch = assignmentDialogBranch,
             users = loadedUsers,
@@ -279,13 +283,14 @@ internal fun UserManagementBranchDialogs(
                     onAssign = { request -> branchViewModel.createAssignment(assignmentDialogBranch.id, request) },
                     onDismiss = {
                         branchViewModel.resetAdministrationState()
-                        onCloseAssign()
+                        branchActions.onAssignDialog(false)
+                        branchActions.onAssignmentBranchChange(null)
                     },
                 ),
         )
     }
 
-    removeAssignmentTarget?.let { target ->
+    branchActions.removeAssignmentTarget?.let { target ->
         RemoveAssignmentDialog(
             target = target,
             state = deleteAssignmentState,
@@ -293,7 +298,7 @@ internal fun UserManagementBranchDialogs(
             onRemove = { branchViewModel.deleteAssignment(target.assignment.branchId, target.assignment.assignmentId) },
             onDismiss = {
                 branchViewModel.resetAdministrationState()
-                onClearRemoveTarget()
+                branchActions.onClearRemoveTarget()
             },
         )
     }
@@ -405,10 +410,8 @@ internal fun BranchPicker(
         modifier = Modifier.fillMaxWidth(),
     ) {
         BranchPickerField(
-            isError = isError,
-            isLoading = isLoading,
-            isIdle = isIdle,
-            selectedLabel = selectedLabel,
+            branches = branches,
+            selectedBranchId = selectedBranchId,
             expanded = expanded,
             disabled = disabled,
             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
@@ -440,14 +443,21 @@ internal fun BranchPicker(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BranchPickerField(
-    isError: Boolean,
-    isLoading: Boolean,
-    isIdle: Boolean,
-    selectedLabel: String,
+    branches: UiState<List<BranchResponse>>,
+    selectedBranchId: String?,
     expanded: Boolean,
     disabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val isError = branches is UiState.Error
+    val isLoading = branches is UiState.Loading
+    val isIdle = branches is UiState.Idle
+    val selectedLabel =
+        (branches as? UiState.Success<List<BranchResponse>>)
+            ?.data
+            ?.firstOrNull { it.id == selectedBranchId }
+            ?.let { "${it.name} (${it.branchType})" }
+            ?: "Select a branch"
     OutlinedTextField(
         value =
             when {
@@ -464,18 +474,27 @@ private fun BranchPickerField(
     )
 }
 
+/**
+ * #479 — row-level mutations as one carrier (data classes are LPL-free): flags + the
+ * deactivate/reactivate/roles/slot/remove callbacks shared by [UserRow] and
+ * [UserRowExpandedBody].
+ */
+data class UserRowActions(
+    val currentUserId: String?,
+    val mutationsDisabled: Boolean,
+    val onDeactivate: () -> Unit,
+    val onReactivate: () -> Unit,
+    val onEditRoles: () -> Unit,
+    val onEditSlot: (UserAssignmentResponse) -> Unit,
+    val onRemoveAssignment: (UserAssignmentResponse) -> Unit,
+)
+
 @Composable
 internal fun UserRow(
     user: UserSummaryResponse,
-    currentUserId: String?,
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
-    mutationsDisabled: Boolean,
-    onDeactivate: () -> Unit,
-    onReactivate: () -> Unit,
-    onEditRoles: () -> Unit,
-    onEditSlot: (UserAssignmentResponse) -> Unit,
-    onRemoveAssignment: (UserAssignmentResponse) -> Unit,
+    rowActions: UserRowActions,
     errors: List<String>,
 ) {
     val isDeactivated = user.status == UserStatus.INACTIVE
@@ -500,16 +519,11 @@ internal fun UserRow(
                 UserRowExpandedBody(
                     user = user,
                     isDeactivated = isDeactivated,
-                    canDeactivate = !isDeactivated && user.id != currentUserId,
-                    mutationsDisabled = mutationsDisabled,
-                    onEditSlot = onEditSlot,
-                    onRemoveAssignment = onRemoveAssignment,
-                    onEditRoles = onEditRoles,
-                    onDeactivate = onDeactivate,
-                    onReactivate = onReactivate,
+                    canDeactivate = !isDeactivated && user.id != rowActions.currentUserId,
+                    rowActions = rowActions,
                 )
 
-                if (user.id == currentUserId) {
+                if (user.id == rowActions.currentUserId) {
                     Text(
                         text = "You can't deactivate your own account",
                         style = MaterialTheme.typography.bodySmall,
@@ -534,12 +548,7 @@ private fun UserRowExpandedBody(
     user: UserSummaryResponse,
     isDeactivated: Boolean,
     canDeactivate: Boolean,
-    mutationsDisabled: Boolean,
-    onEditSlot: (UserAssignmentResponse) -> Unit,
-    onRemoveAssignment: (UserAssignmentResponse) -> Unit,
-    onEditRoles: () -> Unit,
-    onDeactivate: () -> Unit,
-    onReactivate: () -> Unit,
+    rowActions: UserRowActions,
 ) {
     HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
 
@@ -561,14 +570,14 @@ private fun UserRowExpandedBody(
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
-                    onClick = { onEditSlot(assignment) },
-                    enabled = !isDeactivated && !mutationsDisabled,
+                    onClick = { rowActions.onEditSlot(assignment) },
+                    enabled = !isDeactivated && !rowActions.mutationsDisabled,
                 ) {
                     Text("Edit slot")
                 }
                 TextButton(
-                    onClick = { onRemoveAssignment(assignment) },
-                    enabled = !mutationsDisabled,
+                    onClick = { rowActions.onRemoveAssignment(assignment) },
+                    enabled = !rowActions.mutationsDisabled,
                 ) {
                     Text("Remove")
                 }
@@ -577,18 +586,18 @@ private fun UserRowExpandedBody(
     }
 
     Row(modifier = Modifier.fillMaxWidth()) {
-        TextButton(onClick = onEditRoles, enabled = !mutationsDisabled) {
+        TextButton(onClick = rowActions.onEditRoles, enabled = !rowActions.mutationsDisabled) {
             Text("Edit roles")
         }
         if (canDeactivate) {
-            TextButton(onClick = onDeactivate, enabled = !mutationsDisabled) {
+            TextButton(onClick = rowActions.onDeactivate, enabled = !rowActions.mutationsDisabled) {
                 Text(
                     text = "Deactivate",
                     // Dimmed via M3's disabledContentColor when gated mid-load —
                     // the explicit error color would keep it vivid red (pass-4 SOFT,
                     // the dialog conditional's principle).
                     color =
-                        if (mutationsDisabled) {
+                        if (rowActions.mutationsDisabled) {
                             Color.Unspecified
                         } else {
                             MaterialTheme.colorScheme.error
@@ -597,7 +606,7 @@ private fun UserRowExpandedBody(
             }
         }
         if (isDeactivated) {
-            TextButton(onClick = onReactivate, enabled = !mutationsDisabled) {
+            TextButton(onClick = rowActions.onReactivate, enabled = !rowActions.mutationsDisabled) {
                 Text("Reactivate")
             }
         }

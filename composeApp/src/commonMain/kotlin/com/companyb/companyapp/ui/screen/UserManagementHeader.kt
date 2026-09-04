@@ -161,15 +161,18 @@ internal fun UserManagementUserRowHost(
 ) {
     UserRow(
         user = user,
-        currentUserId = actions.currentUserId,
         expanded = expanded,
         onToggleExpanded = { actions.onToggleExpanded(user.id) },
-        mutationsDisabled = actions.mutationsDisabled,
-        onDeactivate = { actions.onDeactivate(user) },
-        onReactivate = { actions.onReactivate(user.id) },
-        onEditRoles = { actions.onEditRoles(user) },
-        onEditSlot = { assignment -> actions.onEditSlot(user, assignment) },
-        onRemoveAssignment = { assignment -> actions.onRemoveAssignment(user, assignment) },
+        rowActions =
+            UserRowActions(
+                currentUserId = actions.currentUserId,
+                mutationsDisabled = actions.mutationsDisabled,
+                onDeactivate = { actions.onDeactivate(user) },
+                onReactivate = { actions.onReactivate(user.id) },
+                onEditRoles = { actions.onEditRoles(user) },
+                onEditSlot = { assignment -> actions.onEditSlot(user, assignment) },
+                onRemoveAssignment = { assignment -> actions.onRemoveAssignment(user, assignment) },
+            ),
         errors =
             actions.actionErrors
                 .filterKeys {

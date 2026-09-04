@@ -44,8 +44,6 @@ internal fun UserManagementDialogHosts(
     memberActions: UserManagementMemberDialogsActions,
     branchActions: UserManagementBranchDialogsActions,
 ) {
-    val heldList by viewModel.freshestUsers.collectAsState()
-    val branches by viewModel.branches.collectAsState()
     val actionErrors by viewModel.actionErrors.collectAsState()
     val createBranchState by branchViewModel.createBranchState.collectAsState()
     val assignmentResult by branchViewModel.assignmentResult.collectAsState()
@@ -54,35 +52,16 @@ internal fun UserManagementDialogHosts(
     UserManagementMemberDialogs(
         viewModel = viewModel,
         mutationsDisabled = mutationsDisabled,
-        deactivateTarget = memberActions.deactivateTarget,
-        onDismissDeactivate = memberActions.onDismissDeactivate,
-        slotEditTarget = memberActions.slotEditTarget,
         actionErrors = actionErrors,
-        onDismissSlotEdit = memberActions.onDismissSlotEdit,
-        showCreateUserDialog = memberActions.showCreateUserDialog,
-        onCloseCreateUser = memberActions.onCloseCreateUser,
-        roleEditTarget = memberActions.roleEditTarget,
-        onDismissRoleEdit = memberActions.onDismissRoleEdit,
+        memberActions = memberActions,
     )
 
     UserManagementBranchDialogs(
+        viewModel = viewModel,
         branchViewModel = branchViewModel,
         mutationsDisabled = mutationsDisabled,
-        showCreateBranchDialog = branchActions.showCreateBranchDialog,
-        createBranchState = createBranchState,
-        loadedBranches = (branches as? UiState.Success<List<BranchResponse>>)?.data.orEmpty(),
-        onCloseCreateBranch = branchActions.onCloseCreateBranch,
-        showAssignUserDialog = branchActions.showAssignUserDialog,
-        assignmentBranch = branchActions.assignmentBranch,
-        loadedUsers = heldList.orEmpty(),
-        assignmentResult = assignmentResult,
-        onCloseAssign = {
-            branchActions.onAssignDialog(false)
-            branchActions.onAssignmentBranchChange(null)
-        },
-        removeAssignmentTarget = branchActions.removeAssignmentTarget,
-        deleteAssignmentState = deleteAssignmentState,
-        onClearRemoveTarget = branchActions.onClearRemoveTarget,
+        states = BranchDialogsStates(createBranchState, assignmentResult, deleteAssignmentState),
+        branchActions = branchActions,
     )
 }
 
