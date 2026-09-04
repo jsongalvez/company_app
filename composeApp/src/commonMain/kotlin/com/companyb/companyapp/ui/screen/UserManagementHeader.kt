@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.viewmodel.UiState
+import com.companyb.companyapp.viewmodel.UserSlotRow
 
 /**
  * Title + Invite/Refresh actions + client-side search field of the User Management screen,
@@ -162,6 +163,55 @@ internal fun UserManagementUserRowHost(
                                         "slot:${assignment.branchId}:${assignment.assignmentId}"
                                 }
                         )
+                }.values
+                .toList(),
+    )
+}
+
+/**
+ * Slot-order card item hoisted out of [UserManagementScreen] for the #462 LongMethod burn-down.
+ * Lives here (not same-file) because UserManagementScreen.kt sits at the detekt file-function
+ * wall — a same-file helper trips TooManyFunctions. Plain @Composable (not LazyListScope) so
+ * the Screen keeps the `item(key = "slot-order")` wrapper and this host owns only the
+ * [UserSlotOrderList] call + the branch-scoped error filter + edit-target construction;
+ * callbacks ride [UserManagementSlotOrderActions] so the signature stays
+ * LongParameterList-clean.
+ */
+@Composable
+internal fun UserManagementSlotOrderItem(
+    selectedBranchId: String,
+    branchName: String,
+    rows: List<UserSlotRow>,
+    mutationsDisabled: Boolean,
+    actions: UserManagementSlotOrderActions,
+) {
+    UserSlotOrderList(
+        branchName = branchName,
+        rows = rows,
+        mutationsDisabled = mutationsDisabled,
+        onSwap = actions.onSwap,
+        onEditSlot = { row ->
+            actions.onEditSlot(
+                SlotEditTarget(
+                    branchId = selectedBranchId,
+                    branchName = branchName,
+                    assignmentId = row.assignmentId,
+                    displayName = row.displayName,
+                    currentSlot = row.slot,
+                ),
+            )
+        },
+        errors =
+            actions.actionErrors
+                // Swap AND slot-edit errors for the selected branch surface
+                // in the slot card (the trigger surface). Slot edits opened
+                // from the card can fail on a COLLAPSED user row — the
+                // row-level rendering was invisible there (pass-1 P1 HARD);
+                // the row filter below excludes these keys so nothing
+                // double-renders.
+                .filterKeys {
+                    it.startsWith("swap:$selectedBranchId:") ||
+                        it.startsWith("slot:$selectedBranchId:")
                 }.values
                 .toList(),
     )

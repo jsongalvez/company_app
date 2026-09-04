@@ -278,34 +278,19 @@ fun UserManagementScreen(
                 ) {
                     if (selectedBranch != null) {
                         item(key = "slot-order") {
-                            UserSlotOrderList(
+                            UserManagementSlotOrderItem(
+                                selectedBranchId = selectedBranch.id,
                                 branchName = selectedBranchName ?: "",
                                 rows = slotRows,
                                 mutationsDisabled = mutationsDisabled,
-                                onSwap = { a, b -> viewModel.swapSlots(selectedBranch.id, a, b) },
-                                onEditSlot = { row ->
-                                    slotEditTarget =
-                                        SlotEditTarget(
-                                            branchId = selectedBranch.id,
-                                            branchName = selectedBranchName ?: "",
-                                            assignmentId = row.assignmentId,
-                                            displayName = row.displayName,
-                                            currentSlot = row.slot,
-                                        )
-                                },
-                                errors =
-                                    actionErrors
-                                        // Swap AND slot-edit errors for the selected branch surface
-                                        // in the slot card (the trigger surface). Slot edits opened
-                                        // from the card can fail on a COLLAPSED user row — the
-                                        // row-level rendering was invisible there (pass-1 P1 HARD);
-                                        // the row filter below excludes these keys so nothing
-                                        // double-renders.
-                                        .filterKeys {
-                                            it.startsWith("swap:$selectedBranchId:") ||
-                                                it.startsWith("slot:$selectedBranchId:")
-                                        }.values
-                                        .toList(),
+                                actions =
+                                    UserManagementSlotOrderActions(
+                                        actionErrors = actionErrors,
+                                        onSwap = { a, b ->
+                                            viewModel.swapSlots(selectedBranch.id, a, b)
+                                        },
+                                        onEditSlot = { slotEditTarget = it },
+                                    ),
                             )
                         }
                     }

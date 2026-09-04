@@ -123,6 +123,19 @@ internal data class UserManagementUserRowActions(
     val onRemoveAssignment: (UserSummaryResponse, UserAssignmentResponse) -> Unit,
 )
 
+/**
+ * Callbacks + gates for [UserManagementSlotOrderItem] (#462 LongMethod burn — 4th fn in
+ * UserManagementHeader.kt, which has fresh file-function budget while UserManagementScreen.kt
+ * sits at the wall; actions object keeps the host LongParameterList-clean). The slot-card
+ * error filter + edit-target construction derive inside the host so the Screen call site
+ * stays lean.
+ */
+internal data class UserManagementSlotOrderActions(
+    val actionErrors: Map<String, String>,
+    val onSwap: (String, String) -> Unit,
+    val onEditSlot: (SlotEditTarget) -> Unit,
+)
+
 internal val SlotEditTargetSaver =
     Saver<SlotEditTarget?, List<String>>(
         save = { target ->
