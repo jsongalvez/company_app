@@ -32,14 +32,14 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/products/{productId}",
+    path = ApiRoutes.PRODUCT_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "productId", type = UUID::class, required = true)],
     operationId = "product_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/products/{productId}",
+    path = ApiRoutes.PRODUCT_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "productId", type = UUID::class, required = true)],
     operationId = "product_patch",

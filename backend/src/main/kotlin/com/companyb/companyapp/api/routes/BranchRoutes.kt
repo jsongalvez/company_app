@@ -32,13 +32,13 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/accessible",
+    path = ApiRoutes.BRANCHES_ACCESSIBLE,
     methods = [HttpMethod.GET],
     operationId = "branches_accessible",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}",
+    path = ApiRoutes.BRANCH_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch",
@@ -97,7 +97,7 @@ object BranchRoutes {
             context.json(BranchService.findAll().map { it.toResponse() })
         }
 
-        config.routes.get(ApiRoutes.BRANCH_PARAM_PATH) { context ->
+        config.routes.get(ApiRoutes.BRANCH_PATH) { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             context.json(BranchService.findById(branchId).toResponse())
         }

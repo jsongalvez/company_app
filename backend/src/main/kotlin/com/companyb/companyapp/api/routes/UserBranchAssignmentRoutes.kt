@@ -21,21 +21,21 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/branches/{branchId}/assignments",
+    path = ApiRoutes.BRANCH_ASSIGNMENTS_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_assignments_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/assignments",
+    path = ApiRoutes.BRANCH_ASSIGNMENTS_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_assignments_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/assignments/{assignmentId}",
+    path = ApiRoutes.BRANCH_ASSIGNMENT_PATH,
     methods = [HttpMethod.DELETE],
     pathParams = [
         OpenApiParam(
@@ -48,7 +48,7 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/assignments/{assignmentId}/slot",
+    path = ApiRoutes.BRANCH_ASSIGNMENT_SLOT_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [
         OpenApiParam(
@@ -61,14 +61,14 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/slots/swap",
+    path = ApiRoutes.BRANCH_SLOTS_SWAP_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_slots_swap",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/members",
+    path = ApiRoutes.BRANCH_MEMBERS_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_members_get",

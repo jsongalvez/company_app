@@ -18,13 +18,13 @@ import java.util.UUID
 
 @Suppress("TooManyFunctions")
 @OpenApi(
-    path = "/api/branches/export/medical-mission",
+    path = ApiRoutes.BRANCHES_EXPORT_MEDICAL_MISSION_PATH,
     methods = [HttpMethod.GET],
     operationId = "export_medical_mission",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/export/provincial",
+    path = ApiRoutes.BRANCHES_EXPORT_PROVINCIAL_PATH,
     methods = [HttpMethod.GET],
     operationId = "export_provincial",
     security = [OpenApiSecurity(name = "BearerAuth")],

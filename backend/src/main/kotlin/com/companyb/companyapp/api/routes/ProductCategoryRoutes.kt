@@ -30,7 +30,7 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/product-categories/{categoryId}",
+    path = ApiRoutes.PRODUCT_CATEGORY_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "categoryId", type = UUID::class, required = true)],
     operationId = "product_category",

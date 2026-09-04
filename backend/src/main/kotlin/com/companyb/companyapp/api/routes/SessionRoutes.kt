@@ -20,7 +20,6 @@ import com.companyb.companyapp.dto.UpdatePractitionerRemarksRequest
 import com.companyb.companyapp.dto.UpdateSessionFinalPriceRequest
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
 import com.companyb.companyapp.dto.VoidSessionRequest
-import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionVoid
@@ -77,7 +76,7 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/sessions/{sessionId}/concerns/{concernId}",
+    path = ApiRoutes.SESSION_CONCERN_PATH,
     methods = [HttpMethod.DELETE],
     pathParams = [
         OpenApiParam(
@@ -118,7 +117,7 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/sessions/{sessionId}/practitioners/{practitionerId}",
+    path = ApiRoutes.SESSION_PRACTITIONER_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [
         OpenApiParam(
@@ -131,7 +130,7 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/sessions/{sessionId}/practitioners/{practitionerId}",
+    path = ApiRoutes.SESSION_PRACTITIONER_PATH,
     methods = [HttpMethod.DELETE],
     pathParams = [
         OpenApiParam(
@@ -144,7 +143,7 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/sessions/{sessionId}/promote-concern",
+    path = ApiRoutes.SESSION_PROMOTE_CONCERN_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_promote_concern",
@@ -605,13 +604,5 @@ object SessionRoutes {
             practitionerId = practitionerId.toString(),
             remarks = remarks,
             slotAtTime = slotAtTime.toInt(),
-        )
-
-    private fun Concern.toResponse(): ConcernResponse =
-        ConcernResponse(
-            id = id.toString(),
-            label = label,
-            createdBy = createdBy?.toString(),
-            createdAt = createdAt?.toString(),
         )
 }

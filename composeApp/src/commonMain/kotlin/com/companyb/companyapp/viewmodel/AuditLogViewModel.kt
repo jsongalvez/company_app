@@ -136,7 +136,7 @@ class AuditLogViewModel(
         handler.launchStateless(
             operation = if (cold) "loadFlaggedEntries" else "refreshFlagged",
             endpoint = "GET /api/audit-log/flagged",
-            block = { apiClient.httpClient.get(ApiRoutes.AUDIT_LOG_FLAGGED) },
+            block = { apiClient.httpClient.get(ApiRoutes.AUDIT_LOG_FLAGGED_PATH) },
             transform = {
                 _flaggedEntries.value =
                     UiState.Success(
@@ -258,7 +258,7 @@ class AuditLogViewModel(
             state = _tables,
             operation = "loadTables",
             endpoint = "GET /api/audit-log/tables",
-            block = { apiClient.httpClient.get(ApiRoutes.AUDIT_LOG_TABLES) },
+            block = { apiClient.httpClient.get(ApiRoutes.AUDIT_LOG_TABLES_PATH) },
             transform = { it.body() },
         )
     }
@@ -384,7 +384,7 @@ class AuditLogViewModel(
         filters: AuditLogFilters,
         cursor: String?,
     ): HttpResponse =
-        apiClient.httpClient.get(ApiRoutes.AUDIT_LOG_ENTRIES) {
+        apiClient.httpClient.get(ApiRoutes.AUDIT_LOG_ENTRIES_PATH) {
             filters.tableName?.takeIf { it.isNotBlank() }?.let { parameter("tableName", it) }
             filters.action?.let { parameter("action", it) }
             filters.callerName?.takeIf { it.isNotBlank() }?.let { parameter("callerName", it) }

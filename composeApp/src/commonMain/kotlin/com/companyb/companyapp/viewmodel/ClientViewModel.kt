@@ -213,7 +213,7 @@ class ClientViewModel(
                 operation = "anonymizeClient",
                 endpoint = "POST /api/clients/$clientId/anonymize",
                 entryMessage = "anonymizeClient called: clientId=$clientId",
-                block = { apiClient.httpClient.post(ApiRoutes.client(clientId) + "/anonymize") },
+                block = { apiClient.httpClient.post(ApiRoutes.clientAnonymize(clientId)) },
                 // 204 no body — transform runs only on success; the notice crosses the VM boundary to
                 // the search screen's snackbar via ClientState (D1; the detail entry's VM is a
                 // different instance than the search entry's — see ClientState doc comment).

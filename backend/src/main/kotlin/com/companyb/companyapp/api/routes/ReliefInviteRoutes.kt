@@ -27,28 +27,28 @@ import java.util.UUID
  * Javalin 7 segment matching).
  */
 @OpenApi(
-    path = "/api/branches/{branchId}/relief-candidates",
+    path = ApiRoutes.BRANCH_RELIEF_CANDIDATES_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "relief_candidates",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/relief-invites",
+    path = ApiRoutes.BRANCH_RELIEF_INVITES_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_relief_invites_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/relief-invites/accepted",
+    path = ApiRoutes.BRANCH_RELIEF_INVITES_ACCEPTED_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_relief_invites_accepted_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/relief-invites/by-date",
+    path = ApiRoutes.BRANCH_RELIEF_INVITES_BY_DATE_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     queryParams = [OpenApiParam(name = "date", type = String::class, required = true)],
@@ -56,7 +56,7 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/relief-invites",
+    path = ApiRoutes.BRANCH_RELIEF_INVITES_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_relief_invites_post",
@@ -69,28 +69,28 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/relief-invites/{inviteId}/accept",
+    path = ApiRoutes.RELIEF_INVITE_ACCEPT_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "inviteId", type = UUID::class, required = true)],
     operationId = "relief_invite_accept",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/relief-invites/{inviteId}/decline",
+    path = ApiRoutes.RELIEF_INVITE_DECLINE_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "inviteId", type = UUID::class, required = true)],
     operationId = "relief_invite_decline",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/relief-invites/{inviteId}/retract",
+    path = ApiRoutes.RELIEF_INVITE_RETRACT_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "inviteId", type = UUID::class, required = true)],
     operationId = "relief_invite_retract",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/relief-invites/{inviteId}/revoke",
+    path = ApiRoutes.RELIEF_INVITE_REVOKE_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "inviteId", type = UUID::class, required = true)],
     operationId = "relief_invite_revoke",

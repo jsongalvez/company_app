@@ -17,14 +17,14 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/branch-days/{branchDayId}/users",
+    path = ApiRoutes.BRANCH_DAY_USERS_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchDayId", type = UUID::class, required = true)],
     operationId = "branch_day_users",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/today",
+    path = ApiRoutes.BRANCH_TODAY_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_today",

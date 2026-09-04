@@ -52,14 +52,14 @@ import java.util.UUID
     ],
 )
 @OpenApi(
-    path = "/api/users/{userId}/deactivate",
+    path = ApiRoutes.USER_DEACTIVATE_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "userId", type = UUID::class, required = true)],
     operationId = "user_deactivate",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/users/{userId}/reactivate",
+    path = ApiRoutes.USER_REACTIVATE_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "userId", type = UUID::class, required = true)],
     operationId = "user_reactivate",

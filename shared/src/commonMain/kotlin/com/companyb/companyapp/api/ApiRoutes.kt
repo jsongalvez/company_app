@@ -206,8 +206,6 @@ object ApiRoutes {
 
     fun branchDayUsers(id: String) = "$BRANCH_DAYS/$id/users"
 
-    fun branchSessionBaseRates(id: String) = "$BRANCHES/$id/rates"
-
     // #404 — member-marked attendance (roster read + present/absent mark).
     fun branchAttendanceToday(id: String) = "$BRANCHES/$id/attendance/today"
 
@@ -221,14 +219,13 @@ object ApiRoutes {
 
     fun branchExportAllTime(id: String) = "$BRANCHES/$id/export/all-time"
 
-    const val BRANCHES_EXPORT_PROVINCIAL = "$BRANCHES_EXPORT/provincial"
-    const val BRANCHES_EXPORT_MEDICAL_MISSION = "$BRANCHES_EXPORT/medical-mission"
     const val SESSION_PATH = "$SESSIONS/{sessionId}"
     const val SESSION_STATUS_PATH = "$SESSION_PATH/status"
     const val SESSION_FINAL_PRICE_PATH = "$SESSION_PATH/final-price"
     const val SESSION_VOID_PATH = "$SESSION_PATH/void"
     const val SESSION_UNVOID_PATH = "$SESSION_PATH/unvoid"
     const val SESSION_PRACTITIONERS_PATH = "$SESSION_PATH/practitioners"
+    const val SESSION_PRACTITIONER_PATH = "$SESSION_PRACTITIONERS_PATH/{practitionerId}"
     const val SESSION_CONCERNS_PATH = "$SESSION_PATH/concerns"
     const val REMITTANCE_PATH = "$REMITTANCES/{remittanceId}"
     const val REMITTANCE_LINES_PATH = "$REMITTANCE_PATH/lines"
@@ -285,7 +282,6 @@ object ApiRoutes {
     const val RELIEF_ACCESS_GRANT_PATH = "$RELIEF_ACCESS/{requestId}/grant"
     const val RELIEF_ACCESS_DENY_PATH = "$RELIEF_ACCESS/{requestId}/deny"
     const val DELEGATE_PATH = "$DELEGATES/{delegateId}"
-    const val CLIENT_ANONYMIZE_SUFFIX = "/anonymize"
     const val RELIEF_INVITE_ACCEPT_PATH = "$RELIEF_INVITES/{inviteId}/accept"
     const val RELIEF_INVITE_DECLINE_PATH = "$RELIEF_INVITES/{inviteId}/decline"
     const val RELIEF_INVITE_RETRACT_PATH = "$RELIEF_INVITES/{inviteId}/retract"
@@ -306,7 +302,6 @@ object ApiRoutes {
     const val BRANCHES_EXPORT_MEDICAL_MISSION_PATH = "$BRANCHES/export/medical-mission"
     const val AUDIT_LOG_ACKNOWLEDGE_PATH = "$AUDIT_LOG/{entryId}/acknowledge"
     const val CLIENT_ANONYMIZE_PATH = "$CLIENTS/{clientId}/anonymize"
-    const val BRANCH_PARAM_PATH = "$BRANCHES/{branchId}"
 
     fun branchDailySummaryWithDate(
         id: String,
@@ -326,6 +321,12 @@ object ApiRoutes {
     ) = "${branchInventory(branchId)}/$productId"
 
     fun reliefAccessRequest(id: String) = "$RELIEF_ACCESS/$id"
+
+    fun reliefAccessGrant(id: String) = "${reliefAccessRequest(id)}/grant"
+
+    fun reliefAccessDeny(id: String) = "${reliefAccessRequest(id)}/deny"
+
+    fun reliefAccessCancel(id: String) = "${reliefAccessRequest(id)}/cancel"
 
     const val RELIEF_ACCESS_REQUEST = "$RELIEF_ACCESS/request"
     const val RELIEF_ACCESS_MINE = "$RELIEF_ACCESS/mine"
@@ -354,11 +355,9 @@ object ApiRoutes {
 
     fun auditLogWithQuery(query: String) = "$AUDIT_LOG?$query"
 
-    fun auditLogEntriesWithQuery(query: String) = "$AUDIT_LOG_ENTRIES?$query"
+    fun auditLogEntriesWithQuery(query: String) = "$AUDIT_LOG_ENTRIES_PATH?$query"
 
-    const val AUDIT_LOG_ENTRIES = "$AUDIT_LOG/entries"
-    const val AUDIT_LOG_FLAGGED = "$AUDIT_LOG/flagged"
-    const val AUDIT_LOG_TABLES = "$AUDIT_LOG/tables"
+    fun clientAnonymize(id: String) = "${client(id)}/anonymize"
 
     fun auditLogAcknowledge(id: String) = "$AUDIT_LOG/$id/acknowledge"
 }

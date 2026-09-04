@@ -10,6 +10,7 @@ import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.repository.ClientNames
 import com.companyb.companyapp.repository.ConcernWithSessionId
 import com.companyb.companyapp.repository.SessionPractitionerWithName
+import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.service.dashboard.DashboardData
 import com.companyb.companyapp.service.dashboard.DashboardService
@@ -128,13 +129,15 @@ internal fun mapDashboardSession(
         concerns =
             enrichment.concernsBySession[session.id]
                 .orEmpty()
-                .map {
-                    ConcernResponse(
-                        id = it.concern.id.toString(),
-                        label = it.concern.label,
-                        createdBy = it.concern.createdBy?.toString(),
-                        createdAt = it.concern.createdAt?.toString(),
-                    )
-                },
+                .map { it.concern.toResponse() },
     )
 }
+
+/** Single Concern → [ConcernResponse] seam (#459): dashboard and session reads share it. */
+internal fun Concern.toResponse(): ConcernResponse =
+    ConcernResponse(
+        id = id.toString(),
+        label = label,
+        createdBy = createdBy?.toString(),
+        createdAt = createdAt?.toString(),
+    )

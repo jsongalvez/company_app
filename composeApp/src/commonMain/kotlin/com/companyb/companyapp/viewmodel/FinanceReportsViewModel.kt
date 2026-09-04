@@ -90,7 +90,7 @@ class FinanceReportsViewModel(
             state = _branches,
             operation = "loadBranches",
             endpoint = "GET /api/branches/accessible",
-            block = { apiClient.httpClient.get(ApiRoutes.BRANCHES + "/accessible") },
+            block = { apiClient.httpClient.get(ApiRoutes.BRANCHES_ACCESSIBLE) },
             transform = {
                 val list = it.body<List<BranchResponse>>()
                 _branches.value = UiState.Success(list)

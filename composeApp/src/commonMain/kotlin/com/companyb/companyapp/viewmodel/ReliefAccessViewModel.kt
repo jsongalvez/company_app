@@ -142,8 +142,8 @@ class ReliefAccessViewModel(
         handler.launch(
             state = _grantResult,
             operation = "grantAccess",
-            endpoint = "PATCH ${ApiRoutes.reliefAccessRequest(requestId)}/grant",
-            block = { apiClient.httpClient.patch(ApiRoutes.reliefAccessRequest(requestId) + "/grant") },
+            endpoint = "PATCH ${ApiRoutes.reliefAccessGrant(requestId)}",
+            block = { apiClient.httpClient.patch(ApiRoutes.reliefAccessGrant(requestId)) },
             transform = {
                 actionStamp++
                 refreshRequests(branchDayId)
@@ -158,8 +158,8 @@ class ReliefAccessViewModel(
         handler.launch(
             state = _denyResult,
             operation = "denyAccess",
-            endpoint = "PATCH ${ApiRoutes.reliefAccessRequest(requestId)}/deny",
-            block = { apiClient.httpClient.patch(ApiRoutes.reliefAccessRequest(requestId) + "/deny") },
+            endpoint = "PATCH ${ApiRoutes.reliefAccessDeny(requestId)}",
+            block = { apiClient.httpClient.patch(ApiRoutes.reliefAccessDeny(requestId)) },
             transform = {
                 actionStamp++
                 refreshRequests(branchDayId)
@@ -175,8 +175,8 @@ class ReliefAccessViewModel(
         handler.launch(
             state = _cancelResult,
             operation = "cancelRequest",
-            endpoint = "PATCH ${ApiRoutes.reliefAccessRequest(requestId)}/cancel",
-            block = { apiClient.httpClient.patch(ApiRoutes.reliefAccessRequest(requestId) + "/cancel") },
+            endpoint = "PATCH ${ApiRoutes.reliefAccessCancel(requestId)}",
+            block = { apiClient.httpClient.patch(ApiRoutes.reliefAccessCancel(requestId)) },
             transform = {
                 actionStamp++
                 loadMine()

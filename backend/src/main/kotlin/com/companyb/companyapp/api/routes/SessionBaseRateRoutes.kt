@@ -19,14 +19,14 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/branches/{branchId}/rates",
+    path = ApiRoutes.BRANCH_RATES_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "session_rates_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/rates",
+    path = ApiRoutes.BRANCH_RATES_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "session_rates_post",

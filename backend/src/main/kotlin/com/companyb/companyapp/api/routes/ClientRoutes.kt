@@ -33,21 +33,21 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/clients/{clientId}",
+    path = ApiRoutes.CLIENT_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "clientId", type = UUID::class, required = true)],
     operationId = "client_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/clients/{clientId}",
+    path = ApiRoutes.CLIENT_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "clientId", type = UUID::class, required = true)],
     operationId = "client_patch",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/clients/{clientId}/anonymize",
+    path = ApiRoutes.CLIENT_ANONYMIZE_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "clientId", type = UUID::class, required = true)],
     operationId = "client_anonymize",
