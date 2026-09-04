@@ -8,7 +8,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.companyb.companyapp.dto.AuditLogEntryResponse
 import com.companyb.companyapp.ui.theme.Spacing
 
 // D11 (desktop) — dense rows: the shared AuditLogEntryRow with minimal chrome, hairline
@@ -37,17 +36,23 @@ internal actual fun AuditLogEntryList(
                     }
                 AuditLogEntryRow(
                     entry = entry,
-                    tableLabel = args.tableLabels[entry.tableName] ?: entry.tableName,
-                    expanded = entry.id in args.expandedIds,
-                    onToggleExpanded = { args.onToggleExpanded(entry.id) },
-                    currentUserId = args.currentUserId,
-                    onAcknowledge = { args.onAcknowledge(entry) },
-                    acknowledging = entry.id in args.acknowledgingIds,
-                    ackError = args.ackErrors[entry.id],
-                    onFullHistory = { args.onFullHistory(entry) },
-                    onOpenClientRecord = openClientRecord,
-                    showAcknowledge = args.showAcknowledge,
-                    showFullHistory = args.showFullHistory,
+                    display =
+                        AuditLogRowDisplay(
+                            tableLabel = args.tableLabels[entry.tableName] ?: entry.tableName,
+                            expanded = entry.id in args.expandedIds,
+                            onToggleExpanded = { args.onToggleExpanded(entry.id) },
+                        ),
+                    affordances =
+                        AuditLogRowAffordances(
+                            currentUserId = args.currentUserId,
+                            onAcknowledge = { args.onAcknowledge(entry) },
+                            acknowledging = entry.id in args.acknowledgingIds,
+                            ackError = args.ackErrors[entry.id],
+                            onFullHistory = { args.onFullHistory(entry) },
+                            onOpenClientRecord = openClientRecord,
+                            showAcknowledge = args.showAcknowledge,
+                            showFullHistory = args.showFullHistory,
+                        ),
                     modifier = Modifier.padding(horizontal = Spacing.sm),
                 )
             }

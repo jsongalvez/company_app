@@ -177,7 +177,6 @@ complexity:
     excludes:
       - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
       - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
-      - '**/commonMain/**/ui/screen/AuditLogScreen.kt'
   MethodOverloading:
     active: false
     threshold: 6
