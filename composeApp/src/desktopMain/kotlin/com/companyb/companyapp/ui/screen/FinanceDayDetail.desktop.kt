@@ -11,8 +11,6 @@ import androidx.compose.ui.Modifier
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
-import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import kotlinx.datetime.LocalDate
 
 // #105 D5 — desktop: the day detail expands inline under the row (the #91 single-route lock —
@@ -23,9 +21,7 @@ internal actual fun FinanceDayDetail(
     today: LocalDate,
     expanded: Boolean,
     onClose: () -> Unit,
-    onExportDay: (String) -> Unit,
-    downloadStates: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
-    exportErrors: Map<String, String>,
+    export: DayExport,
 ) {
     if (expanded) {
         Surface(
@@ -37,9 +33,9 @@ internal actual fun FinanceDayDetail(
                 FinanceDayDetailContent(
                     day = day,
                     today = today,
-                    onExportDay = onExportDay,
-                    downloadStates = downloadStates,
-                    exportErrors = exportErrors,
+                    onExportDay = export.onExportDay,
+                    downloadStates = export.downloadStates,
+                    exportErrors = export.exportErrors,
                 )
             }
         }

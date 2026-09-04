@@ -1280,9 +1280,12 @@ private fun DayRow(
             today = today,
             expanded = selected,
             onClose = onSelect,
-            onExportDay = onExportDay,
-            downloadStates = downloadStates,
-            exportErrors = exportErrors,
+            export =
+                DayExport(
+                    onExportDay = onExportDay,
+                    downloadStates = downloadStates,
+                    exportErrors = exportErrors,
+                ),
         )
     }
 }
@@ -1327,6 +1330,14 @@ private fun FinanceDayCard(
     }
 }
 
+/** #462 LPL burn — the 3 per-day export params as one object (expect + 3 actuals + mobile
+ * helper drop 7 params to 5; data classes are LPL-free, the SlotOrderCallbacks precedent). */
+internal data class DayExport(
+    val onExportDay: (String) -> Unit,
+    val downloadStates: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
+    val exportErrors: Map<String, String>,
+)
+
 /** #105 D5 — day detail presentation: desktop expands inline under the row (the #91 single-route
  * lock), mobile shows a modal ([onClose] dismisses the mobile dialog). Shared content in
  * [FinanceDayDetailContent].
@@ -1337,9 +1348,7 @@ internal fun MobileFinanceDayDetail(
     today: LocalDate,
     expanded: Boolean,
     onClose: () -> Unit,
-    onExportDay: (String) -> Unit,
-    downloadStates: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
-    exportErrors: Map<String, String>,
+    export: DayExport,
 ) {
     if (expanded) {
         AlertDialog(
@@ -1349,9 +1358,9 @@ internal fun MobileFinanceDayDetail(
                 FinanceDayDetailContent(
                     day = day,
                     today = today,
-                    onExportDay = onExportDay,
-                    downloadStates = downloadStates,
-                    exportErrors = exportErrors,
+                    onExportDay = export.onExportDay,
+                    downloadStates = export.downloadStates,
+                    exportErrors = export.exportErrors,
                 )
             },
             confirmButton = {
@@ -1368,9 +1377,7 @@ internal expect fun FinanceDayDetail(
     today: LocalDate,
     expanded: Boolean,
     onClose: () -> Unit,
-    onExportDay: (String) -> Unit,
-    downloadStates: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
-    exportErrors: Map<String, String>,
+    export: DayExport,
 )
 
 @Composable

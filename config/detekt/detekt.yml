@@ -177,8 +177,6 @@ complexity:
     ignoreAnnotatedParameter: []
     excludes:
       - '**/desktopMain/**/ui/screen/SessionList.desktop.kt'
-      - '**/desktopMain/**/ui/screen/FinanceDayDetail.desktop.kt'
-      - '**/androidMain/**/ui/screen/FinanceDayDetail.android.kt'
       - '**/commonMain/**/viewmodel/ApiCallHandler.kt'
       - '**/commonMain/**/ui/screen/ClientDetailScreen.kt'
       - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
