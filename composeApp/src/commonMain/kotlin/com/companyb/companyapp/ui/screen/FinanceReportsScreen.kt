@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -815,161 +816,254 @@ private fun FeedSection(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth().padding(top = Spacing.sm)) {
-        if (mode == ReportMode.DATE_RANGE && appliedRange == null) {
-            // #105 D4 — the DATE_RANGE feed is window-scoped; before a window exists there is
-            // no feed (the unbounded all-time view would mislead — pass-4).
+        FeedSectionHeader(mode = mode, appliedRange = appliedRange, monthlyRollup = monthlyRollup)
+        FeedSectionStatus(feed = feed, onRetry = viewModel::retryFeed)
+        if (feed is UiState.Success) {
+            FeedSuccessContent(
+                viewModel = viewModel,
+                days = feed.data,
+                mode = mode,
+                today = today,
+                selectedBranchId = selectedBranchId,
+                selectedDay = selectedDay,
+                onDaySelected = onDaySelected,
+                downloads = downloads,
+                exportErrors = exportErrors,
+            )
+        }
+    }
+}
+
+@Composable
+private fun FeedSectionHeader(
+    mode: ReportMode,
+    appliedRange: Pair<String, String>?,
+    monthlyRollup: UiState<MonthlyRemittanceSummaryResponse?>,
+) {
+    if (mode == ReportMode.DATE_RANGE && appliedRange == null) {
+        // #105 D4 — the DATE_RANGE feed is window-scoped; before a window exists there is
+        // no feed (the unbounded all-time view would mislead — pass-4).
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                text = "Apply a From/To window to browse these days",
+                style = MaterialTheme.typography.bodyMedium,
+                color = InkSubtle,
+            )
+        }
+    }
+    if (mode == ReportMode.MONTHLY && monthlyRollup is UiState.Success && monthlyRollup.data != null) {
+        MonthlyRollupCard(rollup = monthlyRollup.data)
+    }
+    if (mode == ReportMode.MONTHLY && monthlyRollup is UiState.Error) {
+        logWarn("FinanceReportsScreen", "monthlyRollup=Error: ${monthlyRollup.message}")
+    }
+}
+
+@Composable
+private fun FeedSectionStatus(
+    feed: UiState<List<DailySalesSummaryResponse>>,
+    onRetry: () -> Unit,
+) {
+    when (feed) {
+        is UiState.Idle -> {}
+
+        is UiState.Loading -> {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = "Apply a From/To window to browse these days",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = InkSubtle,
+                CircularProgressIndicator()
+            }
+        }
+
+        is UiState.Error -> {
+            logWarn("FinanceReportsScreen", "feed=Error: ${feed.message}")
+            ErrorCard(message = feed.message, onRetry = onRetry)
+        }
+
+        is UiState.Success -> {}
+    }
+}
+
+@Composable
+private fun ColumnScope.FeedSuccessContent(
+    viewModel: FinanceReportsViewModel,
+    days: List<DailySalesSummaryResponse>,
+    mode: ReportMode,
+    today: LocalDate,
+    selectedBranchId: String?,
+    selectedDay: DailySalesSummaryResponse?,
+    onDaySelected: (DailySalesSummaryResponse?) -> Unit,
+    downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
+    exportErrors: Map<String, String>,
+) {
+    if (days.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                text =
+                    "No data for this branch" +
+                        if (mode == ReportMode.DATE_RANGE) " and date range" else "",
+                style = MaterialTheme.typography.bodyMedium,
+                color = InkSubtle,
+            )
+        }
+    } else {
+        // #105 D5 — compact day rows by default, toggle to full-day cards.
+        var showCards by remember { mutableStateOf(false) }
+        FeedSuccessToolbar(viewModel = viewModel, showCards = showCards, onShowCards = { showCards = it })
+        val refreshError by viewModel.refreshError.collectAsState()
+        val refreshErrorValue = refreshError
+        if (refreshErrorValue != null) {
+            logWarn("FinanceReportsScreen", "refresh=Error: $refreshErrorValue")
+            Text(
+                text = refreshErrorValue,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(bottom = Spacing.xs),
+            )
+        }
+        FeedSuccessList(
+            viewModel = viewModel,
+            days = days,
+            today = today,
+            selectedBranchId = selectedBranchId,
+            selectedDay = selectedDay,
+            onDaySelected = onDaySelected,
+            showCards = showCards,
+            downloads = downloads,
+            exportErrors = exportErrors,
+        )
+    }
+}
+
+@Composable
+private fun FeedSuccessToolbar(
+    viewModel: FinanceReportsViewModel,
+    showCards: Boolean,
+    onShowCards: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FilterChip(selected = !showCards, onClick = { onShowCards(false) }, label = { Text("Rows") })
+        Spacer(Modifier.width(Spacing.xs))
+        FilterChip(selected = showCards, onClick = { onShowCards(true) }, label = { Text("Cards") })
+        Spacer(Modifier.weight(1f))
+        val isRefreshing by viewModel.isRefreshing.collectAsState()
+        val isLoadingMore by viewModel.isLoadingMore.collectAsState()
+        TextButton(onClick = viewModel::refreshFeed, enabled = !isRefreshing && !isLoadingMore) {
+            if (isRefreshing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.width(Spacing.sm).height(Spacing.sm),
+                    strokeWidth = 2.dp,
                 )
+            } else {
+                Text("Refresh")
             }
         }
-        if (mode == ReportMode.MONTHLY && monthlyRollup is UiState.Success && monthlyRollup.data != null) {
-            val rollup = monthlyRollup.data
-            MonthlyRollupCard(rollup = rollup)
+    }
+}
+
+@Composable
+private fun ColumnScope.FeedSuccessList(
+    viewModel: FinanceReportsViewModel,
+    days: List<DailySalesSummaryResponse>,
+    today: LocalDate,
+    selectedBranchId: String?,
+    selectedDay: DailySalesSummaryResponse?,
+    onDaySelected: (DailySalesSummaryResponse?) -> Unit,
+    showCards: Boolean,
+    downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
+    exportErrors: Map<String, String>,
+) {
+    LazyColumn(modifier = Modifier.weight(1f)) {
+        items(days, key = { it.branchDayId }) { day ->
+            val isSelected = day.branchDayId == selectedDay?.branchDayId
+            FeedDayItem(
+                day = day,
+                today = today,
+                isSelected = isSelected,
+                showCards = showCards,
+                onSelect = { onDaySelected(if (isSelected) null else day) },
+                selectedBranchId = selectedBranchId,
+                viewModel = viewModel,
+                downloads = downloads,
+                exportErrors = exportErrors,
+            )
         }
-        if (mode == ReportMode.MONTHLY && monthlyRollup is UiState.Error) {
-            logWarn("FinanceReportsScreen", "monthlyRollup=Error: ${monthlyRollup.message}")
+        item(key = "load-more") {
+            FeedLoadMoreItem(viewModel = viewModel)
         }
-        when (feed) {
-            is UiState.Idle -> {}
+    }
+}
 
-            is UiState.Loading -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            }
+@Composable
+private fun FeedDayItem(
+    day: DailySalesSummaryResponse,
+    today: LocalDate,
+    isSelected: Boolean,
+    showCards: Boolean,
+    onSelect: () -> Unit,
+    selectedBranchId: String?,
+    viewModel: FinanceReportsViewModel,
+    downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
+    exportErrors: Map<String, String>,
+) {
+    val onExportDay: (String) -> Unit = { format ->
+        selectedBranchId?.let { branch -> viewModel.exportDay(day, branch, format) }
+    }
+    if (showCards) {
+        FinanceDayCard(
+            day = day,
+            today = today,
+            onSelect = onSelect,
+            onExportDay = onExportDay,
+            downloadStates = downloads,
+            exportErrors = exportErrors,
+        )
+    } else {
+        DayRow(
+            day = day,
+            today = today,
+            selected = isSelected,
+            // Pass-2 HARD — re-tapping the selected day deselects
+            // (selectDay with the SAME instance never re-emits — the
+            // mobile dialog was unclosable). selectDay(null) emits on
+            // every call.
+            onSelect = onSelect,
+            onExportDay = onExportDay,
+            downloadStates = downloads,
+            exportErrors = exportErrors,
+        )
+    }
+}
 
-            is UiState.Error -> {
-                logWarn("FinanceReportsScreen", "feed=Error: ${feed.message}")
-                ErrorCard(message = feed.message, onRetry = viewModel::retryFeed)
-            }
-
-            is UiState.Success -> {
-                if (feed.data.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            text =
-                                "No data for this branch" +
-                                    if (mode == ReportMode.DATE_RANGE) " and date range" else "",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = InkSubtle,
-                        )
-                    }
-                } else {
-                    // #105 D5 — compact day rows by default, toggle to full-day cards.
-                    var showCards by remember { mutableStateOf(false) }
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.xs),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        FilterChip(
-                            selected = !showCards,
-                            onClick = { showCards = false },
-                            label = { Text("Rows") },
-                        )
-                        Spacer(Modifier.width(Spacing.xs))
-                        FilterChip(
-                            selected = showCards,
-                            onClick = { showCards = true },
-                            label = { Text("Cards") },
-                        )
-                        Spacer(Modifier.weight(1f))
-                        val isRefreshing by viewModel.isRefreshing.collectAsState()
-                        val isLoadingMore by viewModel.isLoadingMore.collectAsState()
-                        TextButton(
-                            onClick = viewModel::refreshFeed,
-                            enabled = !isRefreshing && !isLoadingMore,
-                        ) {
-                            if (isRefreshing) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.width(Spacing.sm).height(Spacing.sm),
-                                    strokeWidth = 2.dp,
-                                )
-                            } else {
-                                Text("Refresh")
-                            }
-                        }
-                    }
-                    val refreshError by viewModel.refreshError.collectAsState()
-                    val refreshErrorValue = refreshError
-                    if (refreshErrorValue != null) {
-                        logWarn("FinanceReportsScreen", "refresh=Error: $refreshErrorValue")
-                        Text(
-                            text = refreshErrorValue,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(bottom = Spacing.xs),
-                        )
-                    }
-                    LazyColumn(modifier = Modifier.weight(1f)) {
-                        items(feed.data, key = { it.branchDayId }) { day ->
-                            val isSelected = day.branchDayId == selectedDay?.branchDayId
-                            val onExportDay: (String) -> Unit = { format ->
-                                selectedBranchId?.let { branch ->
-                                    viewModel.exportDay(day, branch, format)
-                                }
-                            }
-                            if (showCards) {
-                                FinanceDayCard(
-                                    day = day,
-                                    today = today,
-                                    onSelect = { onDaySelected(if (isSelected) null else day) },
-                                    onExportDay = onExportDay,
-                                    downloadStates = downloads,
-                                    exportErrors = exportErrors,
-                                )
-                            } else {
-                                DayRow(
-                                    day = day,
-                                    today = today,
-                                    selected = isSelected,
-                                    // Pass-2 HARD — re-tapping the selected day deselects
-                                    // (selectDay with the SAME instance never re-emits — the
-                                    // mobile dialog was unclosable). selectDay(null) emits on
-                                    // every call.
-                                    onSelect = { onDaySelected(if (isSelected) null else day) },
-                                    onExportDay = onExportDay,
-                                    downloadStates = downloads,
-                                    exportErrors = exportErrors,
-                                )
-                            }
-                        }
-                        item(key = "load-more") {
-                            val isLoadingMore by viewModel.isLoadingMore.collectAsState()
-                            val loadMoreError by viewModel.loadMoreError.collectAsState()
-                            val loadMoreErrorValue = loadMoreError
-                            if (loadMoreErrorValue != null) {
-                                logWarn("FinanceReportsScreen", "loadMore=Error: $loadMoreErrorValue")
-                                Text(
-                                    text = loadMoreErrorValue,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.padding(Spacing.sm),
-                                )
-                            }
-                            val nextCursor by viewModel.nextCursor.collectAsState()
-                            if (nextCursor != null || isLoadingMore) {
-                                TextButton(
-                                    onClick = viewModel::loadMore,
-                                    enabled = !isLoadingMore,
-                                    modifier = Modifier.align(Alignment.CenterHorizontally).fillMaxWidth(),
-                                ) {
-                                    if (isLoadingMore) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.width(Spacing.md).height(Spacing.md),
-                                            strokeWidth = 2.dp,
-                                        )
-                                    } else {
-                                        Text("Load more")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+@Composable
+private fun ColumnScope.FeedLoadMoreItem(viewModel: FinanceReportsViewModel) {
+    val isLoadingMore by viewModel.isLoadingMore.collectAsState()
+    val loadMoreError by viewModel.loadMoreError.collectAsState()
+    val loadMoreErrorValue = loadMoreError
+    if (loadMoreErrorValue != null) {
+        logWarn("FinanceReportsScreen", "loadMore=Error: $loadMoreErrorValue")
+        Text(
+            text = loadMoreErrorValue,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(Spacing.sm),
+        )
+    }
+    val nextCursor by viewModel.nextCursor.collectAsState()
+    if (nextCursor != null || isLoadingMore) {
+        TextButton(
+            onClick = viewModel::loadMore,
+            enabled = !isLoadingMore,
+            modifier = Modifier.align(Alignment.CenterHorizontally).fillMaxWidth(),
+        ) {
+            if (isLoadingMore) {
+                CircularProgressIndicator(
+                    modifier = Modifier.width(Spacing.md).height(Spacing.md),
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Text("Load more")
             }
         }
     }
