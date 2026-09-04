@@ -66,55 +66,18 @@ fun LoginScreen(
     val bootstrapState by bootstrapViewModel.validationState.collectAsState()
     val expiredNotice by SessionState.expiredNotice.collectAsState()
 
-    LaunchedEffect(Unit) {
-        logInfo("LoginScreen", "composable entered (first composition)")
-    }
+    LoginNoticeEffect(
+        expiredNotice = expiredNotice,
+        onExpiredNotice = { showExpiredNotice = true },
+    )
 
-    // #94 Q3c(ii) — mid-session 401 → Login with "session expired" (launch 401s are silent;
-    // App.kt only sets the notice for post-splash 401s). Consumed once, cleared on display.
-    LaunchedEffect(expiredNotice) {
-        if (expiredNotice) {
-            showExpiredNotice = true
-            SessionState.setExpiredNotice(false)
-        }
-    }
-
-    LaunchedEffect(loginState) {
-        when (val state = loginState) {
-            is UiState.Success<LoginResponse> -> {
-                logInfo("LoginScreen", "loginState=Success, saving token + bootstrapping session")
-                tokenStore.saveToken(state.data.token)
-                bootstrapViewModel.validateSession()
-            }
-
-            is UiState.Error -> {
-                logWarn("LoginScreen", "loginState=Error: ${state.message}")
-            }
-
-            else -> {}
-        }
-    }
-
-    LaunchedEffect(bootstrapState) {
-        when (val state = bootstrapState) {
-            is UiState.Success -> {
-                // Token gate: in the (near-impossible) caps-leg-401 ordering — a token /api/me
-                // just accepted but /api/me/capabilities rejects — the App-level 401 handler
-                // clears the token and navigates to Login; navigating BranchSelect here would
-                // race it. The token is the real discriminator for "session validated".
-                if (tokenStore.getToken() != null) {
-                    logInfo("LoginScreen", "bootstrapState=Success, calling onLoginSuccess")
-                    actions.onLoginSuccess()
-                }
-            }
-
-            is UiState.Error -> {
-                logWarn("LoginScreen", "bootstrapState=Error: ${state.message}")
-            }
-
-            else -> {}
-        }
-    }
+    LoginAuthEffects(
+        loginState = loginState,
+        bootstrapState = bootstrapState,
+        tokenStore = tokenStore,
+        bootstrapViewModel = bootstrapViewModel,
+        onLoginSuccess = actions.onLoginSuccess,
+    )
 
     val isLoading = loginState is UiState.Loading || bootstrapState is UiState.Loading
     val inlineError =
@@ -218,25 +181,10 @@ fun LoginScreen(
             }
         }
 
-        when {
-            showExpiredNotice -> {
-                Spacer(modifier = Modifier.height(Spacing.md))
-                Text(
-                    text = "Your session has expired. Please log in again.",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-
-            inlineError != null -> {
-                Spacer(modifier = Modifier.height(Spacing.md))
-                Text(
-                    text = inlineError,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-        }
+        LoginStatusSection(
+            showExpiredNotice = showExpiredNotice,
+            inlineError = inlineError,
+        )
 
         Spacer(modifier = Modifier.height(Spacing.lg))
 
@@ -264,3 +212,94 @@ internal fun loginErrorText(state: UiState<LoginResponse>): String? =
         state is UiState.Error -> "Could not reach the server. Check your connection and try again."
         else -> null
     }
+
+@Composable
+private fun LoginNoticeEffect(
+    expiredNotice: Boolean,
+    onExpiredNotice: () -> Unit,
+) {
+    LaunchedEffect(Unit) {
+        logInfo("LoginScreen", "composable entered (first composition)")
+    }
+
+    // #94 Q3c(ii) — mid-session 401 → Login with "session expired" (launch 401s are silent;
+    // App.kt only sets the notice for post-splash 401s). Consumed once, cleared on display.
+    LaunchedEffect(expiredNotice) {
+        if (expiredNotice) {
+            onExpiredNotice()
+            SessionState.setExpiredNotice(false)
+        }
+    }
+}
+
+@Composable
+private fun LoginAuthEffects(
+    loginState: UiState<LoginResponse>,
+    bootstrapState: UiState<Unit>,
+    tokenStore: TokenStore,
+    bootstrapViewModel: SessionBootstrapViewModel,
+    onLoginSuccess: () -> Unit,
+) {
+    LaunchedEffect(loginState) {
+        when (val state = loginState) {
+            is UiState.Success<LoginResponse> -> {
+                logInfo("LoginScreen", "loginState=Success, saving token + bootstrapping session")
+                tokenStore.saveToken(state.data.token)
+                bootstrapViewModel.validateSession()
+            }
+
+            is UiState.Error -> {
+                logWarn("LoginScreen", "loginState=Error: ${state.message}")
+            }
+
+            else -> {}
+        }
+    }
+
+    LaunchedEffect(bootstrapState) {
+        when (val state = bootstrapState) {
+            is UiState.Success -> {
+                // Token gate: in the (near-impossible) caps-leg-401 ordering — a token /api/me
+                // just accepted but /api/me/capabilities rejects — the App-level 401 handler
+                // clears the token and navigates to Login; navigating BranchSelect here would
+                // race it. The token is the real discriminator for "session validated".
+                if (tokenStore.getToken() != null) {
+                    logInfo("LoginScreen", "bootstrapState=Success, calling onLoginSuccess")
+                    onLoginSuccess()
+                }
+            }
+
+            is UiState.Error -> {
+                logWarn("LoginScreen", "bootstrapState=Error: ${state.message}")
+            }
+
+            else -> {}
+        }
+    }
+}
+
+@Composable
+private fun LoginStatusSection(
+    showExpiredNotice: Boolean,
+    inlineError: String?,
+) {
+    when {
+        showExpiredNotice -> {
+            Spacer(modifier = Modifier.height(Spacing.md))
+            Text(
+                text = "Your session has expired. Please log in again.",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+
+        inlineError != null -> {
+            Spacer(modifier = Modifier.height(Spacing.md))
+            Text(
+                text = inlineError,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
