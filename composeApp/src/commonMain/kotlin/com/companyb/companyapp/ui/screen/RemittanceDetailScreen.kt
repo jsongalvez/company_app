@@ -1186,9 +1186,10 @@ private fun <T> IncomePickerDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (mutationState is UiState.Loading || pending.isNotEmpty() ||
-                        selectedIds.isEmpty() || entries == null
-                    ) {
+                    val addBlocked =
+                        mutationState is UiState.Loading || pending.isNotEmpty() ||
+                            selectedIds.isEmpty() || entries == null
+                    if (addBlocked) {
                         return@TextButton
                     }
                     pending =
@@ -1452,9 +1453,10 @@ private fun DayPickerDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (mutationState is UiState.Loading || pending.isNotEmpty() ||
-                        selectedIds.isEmpty() || entries == null
-                    ) {
+                    val addBlocked =
+                        mutationState is UiState.Loading || pending.isNotEmpty() ||
+                            selectedIds.isEmpty() || entries == null
+                    if (addBlocked) {
                         return@TextButton
                     }
                     pending =

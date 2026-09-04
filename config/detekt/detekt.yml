@@ -132,7 +132,6 @@ complexity:
     active: true
     threshold: 4
     excludes:
-      - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
       - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
   ComplexInterface:
     active: false
