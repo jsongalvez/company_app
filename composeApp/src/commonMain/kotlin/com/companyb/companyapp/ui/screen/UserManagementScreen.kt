@@ -45,7 +45,6 @@ import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.ui.theme.rowHover
-import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.BranchViewModel
 import com.companyb.companyapp.viewmodel.UiState
@@ -121,9 +120,7 @@ fun UserManagementScreen(
 
     UserManagementEntryEffects(
         viewModel = viewModel,
-        assignmentResult = assignmentResult,
-        deleteAssignmentState = deleteAssignmentState,
-        createBranchState = createBranchState,
+        branchViewModel = branchViewModel,
     )
 
     val loadedUsers = heldList.orEmpty()
@@ -147,14 +144,11 @@ fun UserManagementScreen(
             assignmentResult is UiState.Loading ||
             deleteAssignmentState is UiState.Loading
 
-    UserMutationEffects(
-        createBranchState = createBranchState,
-        assignmentResult = assignmentResult,
-        deleteAssignmentState = deleteAssignmentState,
+    UserManagementMutationEffects(
         viewModel = viewModel,
         branchViewModel = branchViewModel,
-        onCloseCreateBranchDialog = { showCreateBranchDialog = false },
-        onCloseAssignDialog = {
+        onCloseCreateBranch = { showCreateBranchDialog = false },
+        onCloseAssign = {
             showAssignUserDialog = false
             assignmentBranch = null
         },
@@ -576,69 +570,6 @@ private fun BranchPickerField(
         modifier = modifier,
         enabled = !disabled && !isLoading && !isIdle,
     )
-}
-
-@Composable
-private fun UserMutationEffects(
-    createBranchState: UiState<BranchResponse>,
-    assignmentResult: UiState<AssignmentResponse>,
-    deleteAssignmentState: UiState<Unit>,
-    viewModel: UserViewModel,
-    branchViewModel: BranchViewModel,
-    onCloseCreateBranchDialog: () -> Unit,
-    onCloseAssignDialog: () -> Unit,
-    onClearRemoveTarget: () -> Unit,
-) {
-    LaunchedEffect(createBranchState) {
-        when (val state = createBranchState) {
-            is UiState.Success -> {
-                logInfo("UserManagementScreen", "createBranchState=Success; reloading branches")
-                viewModel.loadBranches()
-                onCloseCreateBranchDialog()
-                branchViewModel.resetAdministrationState()
-            }
-
-            is UiState.Error -> {
-                logWarn("UserManagementScreen", "createBranchState=Error: ${state.message}")
-            }
-
-            else -> {}
-        }
-    }
-
-    LaunchedEffect(assignmentResult) {
-        when (val state = assignmentResult) {
-            is UiState.Success -> {
-                logInfo("UserManagementScreen", "assignmentResult=Success; reloading users")
-                viewModel.loadUsers()
-                onCloseAssignDialog()
-                branchViewModel.resetAdministrationState()
-            }
-
-            is UiState.Error -> {
-                logWarn("UserManagementScreen", "assignmentResult=Error: ${state.message}")
-            }
-
-            else -> {}
-        }
-    }
-
-    LaunchedEffect(deleteAssignmentState) {
-        when (val state = deleteAssignmentState) {
-            is UiState.Success -> {
-                logInfo("UserManagementScreen", "deleteAssignmentState=Success; reloading users")
-                viewModel.loadUsers()
-                onClearRemoveTarget()
-                branchViewModel.resetAdministrationState()
-            }
-
-            is UiState.Error -> {
-                logWarn("UserManagementScreen", "deleteAssignmentState=Error: ${state.message}")
-            }
-
-            else -> {}
-        }
-    }
 }
 
 @Composable

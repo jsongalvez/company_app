@@ -15,6 +15,7 @@ import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
+import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.BranchViewModel
 import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.UserViewModel
@@ -212,17 +213,19 @@ internal fun userManagementTopSectionsActions(
 /**
  * First-composition entry loads hoisted out of [UserManagementScreen] for the #462
  * LongMethod burn-down. Lives here (not Header.kt) because Header.kt sits at the detekt
- * file-function wall (10/11) — Overlays.kt has fresh budget. Owns the loading gates
- * verbatim so the Screen keeps one slim call; 4 params so it stays LongParameterList-clean
- * outside the LPL-excluded Screen file.
+ * file-function wall (10/11) — Overlays.kt has fresh budget. Self-sufficient host: collects
+ * the retained-VM reload gates itself (duplicate StateFlow subscriptions are cheap —
+ * LoginNoticeEffect precedent) so the Screen keeps one slim call; 2 params so it stays
+ * LongParameterList-clean outside the LPL-excluded Screen file.
  */
 @Composable
 internal fun UserManagementEntryEffects(
     viewModel: UserViewModel,
-    assignmentResult: UiState<AssignmentResponse>,
-    deleteAssignmentState: UiState<Unit>,
-    createBranchState: UiState<BranchResponse>,
+    branchViewModel: BranchViewModel,
 ) {
+    val assignmentResult by branchViewModel.assignmentResult.collectAsState()
+    val deleteAssignmentState by branchViewModel.deleteAssignmentState.collectAsState()
+    val createBranchState by branchViewModel.createBranchState.collectAsState()
     LaunchedEffect(Unit) {
         logInfo("UserManagementScreen", "composable entered (first composition)")
         // Avoid starting a pre-mutation reload when a retained admin VM is re-entered. The
@@ -234,5 +237,79 @@ internal fun UserManagementEntryEffects(
             viewModel.loadBranches()
         }
         viewModel.loadRoles()
+    }
+}
+
+/**
+ * Post-mutation reload effects hoisted out of [UserManagementScreen] for the #462
+ * LongMethod burn-down (companion: [UserManagementEntryEffects] for first-composition
+ * loads). Lives here because UserManagementScreen.kt sits at the detekt file-function
+ * wall (10/11) — Overlays.kt has fresh budget. Self-sufficient host: collects the three
+ * branch-admin flows itself (duplicate StateFlow subscriptions are cheap —
+ * LoginNoticeEffect precedent) so the Screen passes only the two VMs plus single-line
+ * close setters; 5 params so it stays LongParameterList-clean outside the LPL-excluded
+ * Screen file.
+ */
+@Composable
+internal fun UserManagementMutationEffects(
+    viewModel: UserViewModel,
+    branchViewModel: BranchViewModel,
+    onCloseCreateBranch: () -> Unit,
+    onCloseAssign: () -> Unit,
+    onClearRemoveTarget: () -> Unit,
+) {
+    val createBranchState by branchViewModel.createBranchState.collectAsState()
+    val assignmentResult by branchViewModel.assignmentResult.collectAsState()
+    val deleteAssignmentState by branchViewModel.deleteAssignmentState.collectAsState()
+
+    LaunchedEffect(createBranchState) {
+        when (val state = createBranchState) {
+            is UiState.Success -> {
+                logInfo("UserManagementScreen", "createBranchState=Success; reloading branches")
+                viewModel.loadBranches()
+                onCloseCreateBranch()
+                branchViewModel.resetAdministrationState()
+            }
+
+            is UiState.Error -> {
+                logWarn("UserManagementScreen", "createBranchState=Error: ${state.message}")
+            }
+
+            else -> {}
+        }
+    }
+
+    LaunchedEffect(assignmentResult) {
+        when (val state = assignmentResult) {
+            is UiState.Success -> {
+                logInfo("UserManagementScreen", "assignmentResult=Success; reloading users")
+                viewModel.loadUsers()
+                onCloseAssign()
+                branchViewModel.resetAdministrationState()
+            }
+
+            is UiState.Error -> {
+                logWarn("UserManagementScreen", "assignmentResult=Error: ${state.message}")
+            }
+
+            else -> {}
+        }
+    }
+
+    LaunchedEffect(deleteAssignmentState) {
+        when (val state = deleteAssignmentState) {
+            is UiState.Success -> {
+                logInfo("UserManagementScreen", "deleteAssignmentState=Success; reloading users")
+                viewModel.loadUsers()
+                onClearRemoveTarget()
+                branchViewModel.resetAdministrationState()
+            }
+
+            is UiState.Error -> {
+                logWarn("UserManagementScreen", "deleteAssignmentState=Error: ${state.message}")
+            }
+
+            else -> {}
+        }
     }
 }
