@@ -22,6 +22,9 @@ import com.companyb.companyapp.ui.theme.Spacing
 
 internal const val VOIDED_ROW_ALPHA = 0.22f
 
+private const val DETAIL_LABEL_WEIGHT = 0.35f
+private const val DETAIL_VALUE_WEIGHT = 0.65f
+
 /**
  * #382 — the editable-session affordance set: the strict gate ([SessionEditGate]) plus the
  * optional mutation callbacks. The read-only path is the all-default pair — every callback
@@ -195,13 +198,13 @@ private fun DetailRow(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             color = InkSubtle,
-            modifier = Modifier.weight(0.35f),
+            modifier = Modifier.weight(DETAIL_LABEL_WEIGHT),
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(0.65f),
+            modifier = Modifier.weight(DETAIL_VALUE_WEIGHT),
         )
     }
 }

@@ -731,7 +731,6 @@ style:
       - '**/commonMain/**/ui/drawer/NotificationBadge.kt'
       - '**/commonMain/**/ui/drawer/HamburgerWithBadge.kt'
       - '**/commonMain/**/ui/drawer/DrawerContent.kt'
-      - '**/commonMain/**/ui/screen/SessionDetailContent.kt'
       - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
       - '**/commonMain/**/ui/screen/AuditLogScreen.kt'
     ignoreNumbers:
