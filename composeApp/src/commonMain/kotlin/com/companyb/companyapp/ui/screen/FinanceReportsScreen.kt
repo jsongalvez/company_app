@@ -1911,28 +1911,15 @@ private fun CompensationSection(
 ) {
     var showAssign by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<CompensationResponse?>(null) }
-    LaunchedEffect(conflicts) {
-        val e = editing
-        val key = e?.let { "comp:update:${it.id}" }
-        if (key != null && key in conflicts) {
-            editing = null
-            viewModel.consumeConflict(key)
-        }
-    }
-    var assignWasInFlight by remember { mutableStateOf(false) }
-    LaunchedEffect(inFlight) {
-        val busy = "comp:create" in inFlight
-        if (assignWasInFlight && !busy && errors["comp:create"] == null) showAssign = false
-        assignWasInFlight = busy
-    }
-    var editWasInFlight by remember { mutableStateOf(false) }
-    LaunchedEffect(inFlight, editing) {
-        val busyKey = editing?.let { "comp:update:${it.id}" }
-        val busy = busyKey != null && busyKey in inFlight
-        val editDone = editWasInFlight && !busy && editing != null && errors[busyKey] == null
-        if (editDone) editing = null
-        editWasInFlight = busy
-    }
+    CompensationSectionEffects(
+        viewModel = viewModel,
+        conflicts = conflicts,
+        inFlight = inFlight,
+        errors = errors,
+        editing = editing,
+        onEditingClear = { editing = null },
+        onAssignClose = { showAssign = false },
+    )
     SectionHeader(
         title = "Compensation",
         actionLabel = "Assign compensation",
@@ -1961,82 +1948,159 @@ private fun CompensationSection(
         }
 
         is UiState.Success -> {
-            if (compensations.data.isEmpty()) {
-                Text(
-                    text = "No compensation assigned for this day.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = InkSubtle,
-                    modifier = Modifier.padding(Spacing.sm),
-                )
-            }
-            compensations.data.forEach { compensation ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xxs),
-                    verticalAlignment = Alignment.CenterVertically,
+            CompensationSuccessList(
+                compensations = compensations.data,
+                readOnly = readOnly,
+                inFlight = inFlight,
+                errors = errors,
+                onEdit = { editing = it },
+            )
+        }
+    }
+    CompensationSectionDialogs(
+        showAssign = showAssign,
+        editing = editing,
+        users = users,
+        inFlight = inFlight,
+        errors = errors,
+        onCreate = onCreate,
+        onUpdate = onUpdate,
+        onAssignDismiss = { showAssign = false },
+        onEditDismiss = { editing = null },
+    )
+}
+
+@Composable
+private fun CompensationSectionEffects(
+    viewModel: FinanceReportsViewModel,
+    conflicts: Set<String>,
+    inFlight: Set<String>,
+    errors: Map<String, String>,
+    editing: CompensationResponse?,
+    onEditingClear: () -> Unit,
+    onAssignClose: () -> Unit,
+) {
+    LaunchedEffect(conflicts) {
+        val e = editing
+        val key = e?.let { "comp:update:${it.id}" }
+        if (key != null && key in conflicts) {
+            onEditingClear()
+            viewModel.consumeConflict(key)
+        }
+    }
+    var assignWasInFlight by remember { mutableStateOf(false) }
+    LaunchedEffect(inFlight) {
+        val busy = "comp:create" in inFlight
+        if (assignWasInFlight && !busy && errors["comp:create"] == null) onAssignClose()
+        assignWasInFlight = busy
+    }
+    var editWasInFlight by remember { mutableStateOf(false) }
+    LaunchedEffect(inFlight, editing) {
+        val busyKey = editing?.let { "comp:update:${it.id}" }
+        val busy = busyKey != null && busyKey in inFlight
+        val editDone = editWasInFlight && !busy && editing != null && errors[busyKey] == null
+        if (editDone) onEditingClear()
+        editWasInFlight = busy
+    }
+}
+
+@Composable
+private fun CompensationSuccessList(
+    compensations: List<CompensationResponse>,
+    readOnly: Boolean,
+    inFlight: Set<String>,
+    errors: Map<String, String>,
+    onEdit: (CompensationResponse) -> Unit,
+) {
+    if (compensations.isEmpty()) {
+        Text(
+            text = "No compensation assigned for this day.",
+            style = MaterialTheme.typography.bodySmall,
+            color = InkSubtle,
+            modifier = Modifier.padding(Spacing.sm),
+        )
+    }
+    compensations.forEach { compensation ->
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xxs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = compensation.userName ?: compensation.userId,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = peso(compensation.amount),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(Modifier.width(Spacing.sm))
+            Text(
+                text = compensation.note ?: "",
+                style = MaterialTheme.typography.bodySmall,
+                color = InkSubtle,
+                maxLines = 1,
+            )
+            // #101 D5 — assignedAt on the row.
+            Text(
+                text = formatRelativeTimestamp(compensation.assignedAt),
+                style = MaterialTheme.typography.bodySmall,
+                color = InkSubtle,
+                maxLines = 1,
+            )
+            if (!readOnly) {
+                TextButton(
+                    onClick = { onEdit(compensation) },
+                    enabled = "comp:update:${compensation.id}" !in inFlight,
                 ) {
-                    Text(
-                        text = compensation.userName ?: compensation.userId,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        text = peso(compensation.amount),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Spacer(Modifier.width(Spacing.sm))
-                    Text(
-                        text = compensation.note ?: "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = InkSubtle,
-                        maxLines = 1,
-                    )
-                    // #101 D5 — assignedAt on the row.
-                    Text(
-                        text = formatRelativeTimestamp(compensation.assignedAt),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = InkSubtle,
-                        maxLines = 1,
-                    )
-                    if (!readOnly) {
-                        TextButton(
-                            onClick = { editing = compensation },
-                            enabled = "comp:update:${compensation.id}" !in inFlight,
-                        ) {
-                            Text("Edit")
-                        }
-                    }
-                }
-                val error = errors["comp:update:${compensation.id}"]
-                if (error != null) {
-                    Text(
-                        text = error,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(start = Spacing.xs, bottom = Spacing.xs),
-                    )
+                    Text("Edit")
                 }
             }
         }
+        val error = errors["comp:update:${compensation.id}"]
+        if (error != null) {
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(start = Spacing.xs, bottom = Spacing.xs),
+            )
+        }
     }
+}
+
+@Composable
+private fun CompensationSectionDialogs(
+    showAssign: Boolean,
+    editing: CompensationResponse?,
+    users: UiState<List<BranchDayUserResponse>>,
+    inFlight: Set<String>,
+    errors: Map<String, String>,
+    onCreate: (String, String, String?, String?) -> Unit,
+    onUpdate: (CompensationResponse, String, String?, String?) -> Unit,
+    onAssignDismiss: () -> Unit,
+    onEditDismiss: () -> Unit,
+) {
     if (showAssign) {
         CompensationDialog(
             title = "Assign compensation",
             users = users,
             busy = "comp:create" in inFlight,
             error = errors["comp:create"],
-            onConfirm = { userId, amount, note, reason -> onCreate(userId, amount, note, reason) },
-            onDismiss = { showAssign = false },
+            onConfirm = onCreate,
+            onDismiss = onAssignDismiss,
         )
     }
-    if (editing != null) {
+    val current = editing
+    if (current != null) {
         CompensationDialog(
             title = "Edit compensation",
             users = users,
-            initial = editing,
-            busy = "comp:update:${editing!!.id}" in inFlight,
-            error = errors["comp:update:${editing!!.id}"],
-            onConfirm = { userId, amount, note, reason -> onUpdate(editing!!, amount, note, reason) },
-            onDismiss = { editing = null },
+            initial = current,
+            busy = "comp:update:${current.id}" in inFlight,
+            error = errors["comp:update:${current.id}"],
+            onConfirm = { userId, amount, note, reason -> onUpdate(current, amount, note, reason) },
+            onDismiss = onEditDismiss,
         )
     }
 }
