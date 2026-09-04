@@ -1152,94 +1152,159 @@ private fun <T> IncomePickerDialog(
         },
         title = { Text(title) },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                when (val s = state) {
-                    is UiState.Idle, is UiState.Loading -> {
-                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
-                    }
-
-                    is UiState.Error -> {
-                        Text(
-                            text = s.message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        TextButton(onClick = onLoad) { Text("Retry") }
-                    }
-
-                    is UiState.Success -> {
-                        if (s.data.isEmpty()) {
-                            EmptyState(emptyMessage)
-                        } else {
-                            s.data.forEach { entry ->
-                                val id = idOf(entry)
-                                val included = id in includedIds
-                                val selected = id in selectedIds
-                                PickerEntryRow(
-                                    label = mainLabel(entry),
-                                    secondary = secondaryLabel(entry),
-                                    amountText = peso(amountOf(entry)),
-                                    selected = selected,
-                                    enabled = !included,
-                                    amount = amounts[id],
-                                    onAmountChange = { value -> amounts = amounts + (id to value) },
-                                    onToggle = {
-                                        if (included) return@PickerEntryRow
-                                        selectedIds =
-                                            if (selected) {
-                                                selectedIds - id
-                                            } else {
-                                                selectedIds + id
-                                            }
-                                        amounts = amounts + (id to amountOf(entry))
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
-                (mutationState as? UiState.Error)?.let {
-                    Spacer(Modifier.size(Spacing.xs))
-                    Text(
-                        text = it.message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
+            IncomePickerBody(
+                state = state,
+                emptyMessage = emptyMessage,
+                mutationState = mutationState,
+                includedIds = includedIds,
+                selectedIds = selectedIds,
+                amounts = amounts,
+                onLoad = onLoad,
+                onToggle = { entry, selected, included ->
+                    if (included) return@IncomePickerBody
+                    val id = idOf(entry)
+                    selectedIds = if (selected) selectedIds - id else selectedIds + id
+                    amounts = amounts + (id to amountOf(entry))
+                },
+                onAmountChange = { id, value -> amounts = amounts + (id to value) },
+                idOf = idOf,
+                mainLabel = mainLabel,
+                secondaryLabel = secondaryLabel,
+                amountOf = amountOf,
+            )
         },
         confirmButton = {
-            TextButton(
-                onClick = {
-                    val addBlocked =
-                        mutationState is UiState.Loading || pending.isNotEmpty() ||
-                            selectedIds.isEmpty() || entries == null
-                    if (addBlocked) {
-                        return@TextButton
-                    }
-                    pending =
-                        selectedIds.map { id ->
-                            toRequest(id, amounts[id] ?: amountOf(entries.first { idOf(it) == id }))
-                        }
+            IncomePickerConfirmButton(
+                mutationState = mutationState,
+                pending = pending,
+                selectedIds = selectedIds,
+                entries = entries,
+                amounts = amounts,
+                idOf = idOf,
+                amountOf = amountOf,
+                toRequest = toRequest,
+                onConfirm = { requests ->
+                    pending = requests
                     selectedIds = emptySet()
-                    onAdd(pending)
+                    onAdd(requests)
                 },
-                enabled = mutationState !is UiState.Loading && pending.isEmpty() && selectedIds.isNotEmpty(),
-            ) {
-                Text("Add")
-            }
+            )
         },
         dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                enabled = mutationState !is UiState.Loading,
-            ) {
-                Text("Cancel")
-            }
+            IncomePickerDismissButton(mutationState = mutationState, onDismiss = onDismiss)
         },
     )
+}
+
+@Composable
+private fun <T> IncomePickerConfirmButton(
+    mutationState: UiState<RemittanceLineResponse>,
+    pending: List<CreateRemittanceLineRequest>,
+    selectedIds: Set<String>,
+    entries: List<T>?,
+    amounts: Map<String, String>,
+    idOf: (T) -> String,
+    amountOf: (T) -> String,
+    toRequest: (id: String, amount: String) -> CreateRemittanceLineRequest,
+    onConfirm: (List<CreateRemittanceLineRequest>) -> Unit,
+) {
+    TextButton(
+        onClick = {
+            val addBlocked =
+                mutationState is UiState.Loading || pending.isNotEmpty() ||
+                    selectedIds.isEmpty() || entries == null
+            if (addBlocked) {
+                return@TextButton
+            }
+            onConfirm(
+                selectedIds.map { id ->
+                    toRequest(id, amounts[id] ?: amountOf(entries.first { idOf(it) == id }))
+                },
+            )
+        },
+        enabled = mutationState !is UiState.Loading && pending.isEmpty() && selectedIds.isNotEmpty(),
+    ) {
+        Text("Add")
+    }
+}
+
+@Composable
+private fun IncomePickerDismissButton(
+    mutationState: UiState<RemittanceLineResponse>,
+    onDismiss: () -> Unit,
+) {
+    TextButton(
+        onClick = onDismiss,
+        enabled = mutationState !is UiState.Loading,
+    ) {
+        Text("Cancel")
+    }
+}
+
+@Composable
+private fun <T> IncomePickerBody(
+    state: UiState<List<T>>,
+    emptyMessage: String,
+    mutationState: UiState<RemittanceLineResponse>,
+    includedIds: Set<String>,
+    selectedIds: Set<String>,
+    amounts: Map<String, String>,
+    onLoad: () -> Unit,
+    onToggle: (entry: T, selected: Boolean, included: Boolean) -> Unit,
+    onAmountChange: (id: String, value: String) -> Unit,
+    idOf: (T) -> String,
+    mainLabel: (T) -> String,
+    secondaryLabel: (T) -> String,
+    amountOf: (T) -> String,
+) {
+    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+        when (val s = state) {
+            is UiState.Idle, is UiState.Loading -> {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            is UiState.Error -> {
+                Text(
+                    text = s.message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                TextButton(onClick = onLoad) { Text("Retry") }
+            }
+
+            is UiState.Success -> {
+                if (s.data.isEmpty()) {
+                    EmptyState(emptyMessage)
+                } else {
+                    s.data.forEach { entry ->
+                        val id = idOf(entry)
+                        val included = id in includedIds
+                        val selected = id in selectedIds
+                        PickerEntryRow(
+                            label = mainLabel(entry),
+                            secondary = secondaryLabel(entry),
+                            amountText = peso(amountOf(entry)),
+                            selected = selected,
+                            enabled = !included,
+                            amount = amounts[id],
+                            onAmountChange = { value -> onAmountChange(id, value) },
+                            onToggle = { onToggle(entry, selected, included) },
+                        )
+                    }
+                }
+            }
+        }
+        (mutationState as? UiState.Error)?.let {
+            Spacer(Modifier.size(Spacing.xs))
+            Text(
+                text = it.message,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
 }
 
 /** D3 — sessions picker: client name, time (bookedAt) + status, amount prefilled from finalPrice. */
