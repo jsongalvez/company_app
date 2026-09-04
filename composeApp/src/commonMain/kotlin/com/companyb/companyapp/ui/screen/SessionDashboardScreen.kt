@@ -37,6 +37,12 @@ import com.companyb.companyapp.util.formatTimeOfDay
 import com.companyb.companyapp.viewmodel.DashboardPollStatus
 import com.companyb.companyapp.viewmodel.SessionDashboardViewModel
 import com.companyb.companyapp.viewmodel.UiState
+import com.companyb.companyapp.viewmodel.commitEdit
+import com.companyb.companyapp.viewmodel.discardEdit
+import com.companyb.companyapp.viewmodel.reloadAfterConflict
+import com.companyb.companyapp.viewmodel.startEdit
+import com.companyb.companyapp.viewmodel.updateDraft
+import com.companyb.companyapp.viewmodel.updateReason
 import kotlin.time.Instant
 
 data class SessionListArgs(
