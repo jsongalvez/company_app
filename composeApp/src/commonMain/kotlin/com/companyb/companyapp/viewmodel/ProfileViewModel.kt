@@ -79,23 +79,25 @@ class ProfileViewModel(
         if (_slotUpdate.value is UiState.Loading) return
         _slotUpdate.value = UiState.Loading
         handler.launch(
-            state = _slotUpdate,
-            operation = "updateSlot",
-            endpoint = "PATCH ${ApiRoutes.branchAssignmentSlot(branchId, assignmentId)}",
-            block = {
-                AssignmentSlotOperations.updateSlot(apiClient, branchId, assignmentId, slot)
-            },
-            transform = {
-                loadBranches()
-                Unit
-            },
-            onNonSuccess = { response ->
-                val message =
-                    extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
-                        ?: "Slot update failed: ${response.status.value}"
-                _slotUpdate.value = UiState.Error(message)
-                true
-            },
+            LaunchRequest(
+                state = _slotUpdate,
+                operation = "updateSlot",
+                endpoint = "PATCH ${ApiRoutes.branchAssignmentSlot(branchId, assignmentId)}",
+                block = {
+                    AssignmentSlotOperations.updateSlot(apiClient, branchId, assignmentId, slot)
+                },
+                transform = {
+                    loadBranches()
+                    Unit
+                },
+                onNonSuccess = { response ->
+                    val message =
+                        extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                            ?: "Slot update failed: ${response.status.value}"
+                    _slotUpdate.value = UiState.Error(message)
+                    true
+                },
+            ),
         )
     }
 

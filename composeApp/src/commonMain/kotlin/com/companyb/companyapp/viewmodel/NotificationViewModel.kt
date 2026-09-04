@@ -52,26 +52,28 @@ class NotificationViewModel(
 
     fun loadUnreadNotifications(): Job =
         handler.launch(
-            state = keptNotifications.stateFlow,
-            operation = "loadUnreadNotifications",
-            endpoint = "GET /api/notifications",
-            block = { apiClient.httpClient.get(ApiRoutes.NOTIFICATIONS) },
-            transform = { it.body<List<NotificationResponse>>() },
-            // #165 stale-substitution guard (concentrated from the former in-transform block): a
-            // load that lands after an action (markRead/markAll) moved the list must not commit
-            // its pre-action snapshot (audit #141 pass-6/7) — the stamp read at landing disagrees
-            // with the launch-captured read, and the handler substitutes the fallback instead.
-            // The substitution is race-free (the action's assignment is synchronous
-            // same-thread, and freshestValue reads the exact post-action Success — the stale
-            // landing's own Loading write is current at fallback time, so the read resolves to
-            // the mirror, exact on Main.immediate); the re-issue (a new load carrying the
-            // post-action stamp) converges server truth — post-action arrivals surface, and the
-            // resurrect frame is eliminated even if the re-issue GET fails.
-            stamp = { actionStamp },
-            fallback = {
-                loadUnreadNotifications()
-                currentUnreadList() ?: emptyList()
-            },
+            LaunchRequest(
+                state = keptNotifications.stateFlow,
+                operation = "loadUnreadNotifications",
+                endpoint = "GET /api/notifications",
+                block = { apiClient.httpClient.get(ApiRoutes.NOTIFICATIONS) },
+                transform = { it.body<List<NotificationResponse>>() },
+                // #165 stale-substitution guard (concentrated from the former in-transform block): a
+                // load that lands after an action (markRead/markAll) moved the list must not commit
+                // its pre-action snapshot (audit #141 pass-6/7) — the stamp read at landing disagrees
+                // with the launch-captured read, and the handler substitutes the fallback instead.
+                // The substitution is race-free (the action's assignment is synchronous
+                // same-thread, and freshestValue reads the exact post-action Success — the stale
+                // landing's own Loading write is current at fallback time, so the read resolves to
+                // the mirror, exact on Main.immediate); the re-issue (a new load carrying the
+                // post-action stamp) converges server truth — post-action arrivals surface, and the
+                // resurrect frame is eliminated even if the re-issue GET fails.
+                stamp = { actionStamp },
+                fallback = {
+                    loadUnreadNotifications()
+                    currentUnreadList() ?: emptyList()
+                },
+            ),
         )
 
     // #356 — history load; runs alongside the unread fetch on screen entry and on retry.
@@ -86,43 +88,45 @@ class NotificationViewModel(
 
     fun markRead(notificationId: String): Job =
         handler.launch(
-            state = _markReadResult,
-            operation = "markRead",
-            endpoint = "PATCH /api/notifications/$notificationId/read",
-            block = { apiClient.httpClient.patch(ApiRoutes.notificationRead(notificationId)) },
-            onNonSuccess = { response ->
-                if (response.status == HttpStatusCode.NotFound) {
-                    // Defense-in-depth: the backend 200s an already-read OWN row (WHERE id+user
-                    // matches, readAt refreshed — idempotent), so a 404 can only mean the row is
-                    // absent or not the caller's — unreachable from this UI today, and no planned
-                    // backend expansion (the #102 read-history/un-read endpoints neither delete
-                    // nor transfer rows) makes it reachable; kept as pure defense against a
-                    // future deletion/expiry surface. Handle it as "the row is gone": reload and
-                    // let the screen re-derive instead of surfacing a phantom failure, and reset
-                    // the in-flight marker — leaving Loading would mark the action in-flight
-                    // forever (#140 stuck-Loading class). The stamp bump keeps any pre-404 load
-                    // in flight from committing its snapshot as if nothing happened.
-                    _markReadResult.value = UiState.Idle
-                    actionStamp++
-                    loadUnreadNotifications()
-                    true
-                } else {
-                    false
-                }
-            },
-            transform = {
-                val body = it.body<NotificationResponse>()
-                // Decrement only when the row actually left the unread list — a double-tap's
-                // second PATCH success must not decrement the badge twice (the first success
-                // already moved the row out; the poll overwrite catches drift, #109 Q6 axis).
-                // The Read-section dedupe also blocks the stale-re-render class: a row the
-                // reload resurrected after an action must not decrement again (#112 decision 4).
-                if (moveToReadThisSession(body)) {
-                    actionStamp++
-                    NotificationState.decrementUnread()
-                }
-                body
-            },
+            LaunchRequest(
+                state = _markReadResult,
+                operation = "markRead",
+                endpoint = "PATCH /api/notifications/$notificationId/read",
+                block = { apiClient.httpClient.patch(ApiRoutes.notificationRead(notificationId)) },
+                onNonSuccess = { response ->
+                    if (response.status == HttpStatusCode.NotFound) {
+                        // Defense-in-depth: the backend 200s an already-read OWN row (WHERE id+user
+                        // matches, readAt refreshed — idempotent), so a 404 can only mean the row is
+                        // absent or not the caller's — unreachable from this UI today, and no planned
+                        // backend expansion (the #102 read-history/un-read endpoints neither delete
+                        // nor transfer rows) makes it reachable; kept as pure defense against a
+                        // future deletion/expiry surface. Handle it as "the row is gone": reload and
+                        // let the screen re-derive instead of surfacing a phantom failure, and reset
+                        // the in-flight marker — leaving Loading would mark the action in-flight
+                        // forever (#140 stuck-Loading class). The stamp bump keeps any pre-404 load
+                        // in flight from committing its snapshot as if nothing happened.
+                        _markReadResult.value = UiState.Idle
+                        actionStamp++
+                        loadUnreadNotifications()
+                        true
+                    } else {
+                        false
+                    }
+                },
+                transform = {
+                    val body = it.body<NotificationResponse>()
+                    // Decrement only when the row actually left the unread list — a double-tap's
+                    // second PATCH success must not decrement the badge twice (the first success
+                    // already moved the row out; the poll overwrite catches drift, #109 Q6 axis).
+                    // The Read-section dedupe also blocks the stale-re-render class: a row the
+                    // reload resurrected after an action must not decrement again (#112 decision 4).
+                    if (moveToReadThisSession(body)) {
+                        actionStamp++
+                        NotificationState.decrementUnread()
+                    }
+                    body
+                },
+            ),
         )
 
     fun markAllRead(): Job =

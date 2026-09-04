@@ -78,16 +78,18 @@ class ApiCallHandlerTest {
             // Launch with the guard: stamp() is read at launch invocation, then again when the
             // response lands.
             handler.launch(
-                state = state,
-                operation = "load",
-                endpoint = "GET /api/items",
-                block = { apiClient.httpClient.get("/api/items") },
-                transform = { response: HttpResponse ->
-                    transformCalls++
-                    emptyList()
-                },
-                stamp = { stamp },
-                fallback = { listOf(9) },
+                LaunchRequest(
+                    state = state,
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { apiClient.httpClient.get("/api/items") },
+                    transform = { response: HttpResponse ->
+                        transformCalls++
+                        emptyList()
+                    },
+                    stamp = { stamp },
+                    fallback = { listOf(9) },
+                ),
             )
 
             // A concurrent action bumps the stamp while the load is in flight: the landing is
@@ -115,16 +117,18 @@ class ApiCallHandlerTest {
             var fallbackCalls = 0
 
             handler.launch(
-                state = state,
-                operation = "load",
-                endpoint = "GET /api/items",
-                block = { apiClient.httpClient.get("/api/items") },
-                transform = { listOf(1, 2, 3) },
-                stamp = { stamp },
-                fallback = {
-                    fallbackCalls++
-                    emptyList()
-                },
+                LaunchRequest(
+                    state = state,
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { apiClient.httpClient.get("/api/items") },
+                    transform = { listOf(1, 2, 3) },
+                    stamp = { stamp },
+                    fallback = {
+                        fallbackCalls++
+                        emptyList()
+                    },
+                ),
             )
 
             runCurrent()
@@ -181,16 +185,18 @@ class ApiCallHandlerTest {
             var fallbackCalls = 0
             val job =
                 handler.launch(
-                    state = state,
-                    operation = "load",
-                    endpoint = "GET /api/items",
-                    block = { apiClient.httpClient.get("/api/items") },
-                    transform = { emptyList() },
-                    stamp = { stamp },
-                    fallback = {
-                        fallbackCalls++
-                        emptyList()
-                    },
+                    LaunchRequest(
+                        state = state,
+                        operation = "load",
+                        endpoint = "GET /api/items",
+                        block = { apiClient.httpClient.get("/api/items") },
+                        transform = { emptyList() },
+                        stamp = { stamp },
+                        fallback = {
+                            fallbackCalls++
+                            emptyList()
+                        },
+                    ),
                 )
             runCurrent()
             assertEquals(
@@ -228,21 +234,23 @@ class ApiCallHandlerTest {
             // the Error WRITE only — the hook still runs after the real ordering flip.
             val job =
                 handler.launch(
-                    state = state,
-                    operation = "load",
-                    endpoint = "GET /api/items",
-                    block = {
-                        requestStarted.complete(Unit)
-                        releaseFailure.await()
-                        error("boom")
-                    },
-                    transform = {
-                        transformCalls++
-                        emptyList()
-                    },
-                    onError = { onErrorCalls++ },
-                    stamp = { stamp },
-                    fallback = { emptyList() },
+                    LaunchRequest(
+                        state = state,
+                        operation = "load",
+                        endpoint = "GET /api/items",
+                        block = {
+                            requestStarted.complete(Unit)
+                            releaseFailure.await()
+                            error("boom")
+                        },
+                        transform = {
+                            transformCalls++
+                            emptyList()
+                        },
+                        onError = { onErrorCalls++ },
+                        stamp = { stamp },
+                        fallback = { emptyList() },
+                    ),
                 )
             runCurrent()
             assertEquals(true, requestStarted.isCompleted, "the failure must be in flight before the stamp flip")
@@ -298,12 +306,14 @@ class ApiCallHandlerTest {
             // Default (constant) stamp — always agrees, so the exception is CURRENT: the gate
             // must not swallow a genuine failure.
             handler.launch(
-                state = state,
-                operation = "load",
-                endpoint = "GET /api/items",
-                block = { error("boom") },
-                transform = { emptyList() },
-                onError = { onErrorCalls++ },
+                LaunchRequest(
+                    state = state,
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { error("boom") },
+                    transform = { emptyList() },
+                    onError = { onErrorCalls++ },
+                ),
             )
             runCurrent()
 
@@ -329,7 +339,10 @@ class ApiCallHandlerTest {
                 endpoint = "GET /api/items",
                 block = { apiClient.httpClient.get("/api/items") },
                 transform = { transformCalls++ },
-                onNonSuccess = { onNonSuccessCalls++ },
+                hooks =
+                    StatelessHooks(
+                        onNonSuccess = { onNonSuccessCalls++ },
+                    ),
             )
 
             runCurrent()
@@ -360,7 +373,10 @@ class ApiCallHandlerTest {
                     endpoint = "GET /api/items",
                     block = { apiClient.httpClient.get("/api/items") },
                     transform = { transformCalls++ },
-                    onNonSuccess = { onNonSuccessCalls++ },
+                    hooks =
+                        StatelessHooks(
+                            onNonSuccess = { onNonSuccessCalls++ },
+                        ),
                 )
             job.join()
 
@@ -380,7 +396,10 @@ class ApiCallHandlerTest {
                 endpoint = "GET /api/items",
                 block = { error("boom") },
                 transform = { transformCalls++ },
-                onError = { onErrorCalls++ },
+                hooks =
+                    StatelessHooks(
+                        onError = { onErrorCalls++ },
+                    ),
             )
 
             runCurrent()
@@ -404,7 +423,10 @@ class ApiCallHandlerTest {
                         kotlinx.coroutines.awaitCancellation()
                     },
                     transform = {},
-                    onError = { onErrorCalls++ },
+                    hooks =
+                        StatelessHooks(
+                            onError = { onErrorCalls++ },
+                        ),
                 )
 
             // Drive the coroutine into awaitCancellation BEFORE cancelling — otherwise cancel()
@@ -441,8 +463,11 @@ class ApiCallHandlerTest {
                 endpoint = "GET /api/items",
                 block = { apiClient.httpClient.get("/api/items") },
                 transform = { transformCalls++ },
-                onNonSuccess = { onNonSuccessCalls++ },
-                stale = { stale },
+                hooks =
+                    StatelessHooks(
+                        onNonSuccess = { onNonSuccessCalls++ },
+                        stale = { stale },
+                    ),
             )
 
             // The launch is queued on the test scheduler (StandardTestDispatcher): the coroutine
@@ -482,9 +507,12 @@ class ApiCallHandlerTest {
                     endpoint = "GET /api/items",
                     block = { apiClient.httpClient.get("/api/items") },
                     transform = { transformCalls++ },
-                    onNonSuccess = { onNonSuccessCalls++ },
-                    // Structurally stale before any landing — the gate must skip the hook.
-                    stale = { true },
+                    hooks =
+                        StatelessHooks(
+                            onNonSuccess = { onNonSuccessCalls++ },
+// Structurally stale before any landing — the gate must skip the hook.
+                            stale = { true },
+                        ),
                 )
             job.join()
 
@@ -505,8 +533,11 @@ class ApiCallHandlerTest {
                 endpoint = "GET /api/items",
                 block = { error("boom") },
                 transform = { transformCalls++ },
-                onError = { onErrorCalls++ },
-                stale = { stale },
+                hooks =
+                    StatelessHooks(
+                        onError = { onErrorCalls++ },
+                        stale = { stale },
+                    ),
             )
 
             // The generation bumps while the request is queued — the failure lands stale (the

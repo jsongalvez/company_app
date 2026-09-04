@@ -85,24 +85,26 @@ class AttendanceRosterViewModel(
         // Set synchronously so retry and mutation controls cannot dispatch twice in one frame.
         keptRoster.stateFlow.value = UiState.Loading
         return handler.launch(
-            state = keptRoster.stateFlow,
-            operation = "loadRoster",
-            endpoint = "GET /api/branches/{branchId}/attendance/today",
-            block = { apiClient.httpClient.get(ApiRoutes.branchAttendanceToday(branchId)) },
-            transform = { it.body() },
-            onNonSuccess = { response ->
-                if (response.status == HttpStatusCode.Forbidden) {
-                    keptRoster.clear()
-                    true
-                } else {
-                    false
-                }
-            },
-            stamp = { actionStamp },
-            fallback = {
-                refreshRoster(branchId)
-                keptRoster.freshestValue() ?: emptyList()
-            },
+            LaunchRequest(
+                state = keptRoster.stateFlow,
+                operation = "loadRoster",
+                endpoint = "GET /api/branches/{branchId}/attendance/today",
+                block = { apiClient.httpClient.get(ApiRoutes.branchAttendanceToday(branchId)) },
+                transform = { it.body() },
+                onNonSuccess = { response ->
+                    if (response.status == HttpStatusCode.Forbidden) {
+                        keptRoster.clear()
+                        true
+                    } else {
+                        false
+                    }
+                },
+                stamp = { actionStamp },
+                fallback = {
+                    refreshRoster(branchId)
+                    keptRoster.freshestValue() ?: emptyList()
+                },
+            ),
         )
     }
 
@@ -157,24 +159,26 @@ class AttendanceRosterViewModel(
         if (mutationJob?.isActive == true || keptRoster.stateFlow.value is UiState.Loading) return
         handler
             .launch(
-                state = _slotUpdate,
-                operation = "updateSlot",
-                endpoint = "PATCH ${ApiRoutes.branchAssignmentSlot(branchId, assignmentId)}",
-                block = {
-                    AssignmentSlotOperations.updateSlot(apiClient, branchId, assignmentId, slot)
-                },
-                transform = {
-                    actionStamp++
-                    refreshRoster(branchId)
-                    Unit
-                },
-                onNonSuccess = { response ->
-                    val message =
-                        extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
-                            ?: "Slot update failed: ${response.status.value}"
-                    _slotUpdate.value = UiState.Error(message)
-                    true
-                },
+                LaunchRequest(
+                    state = _slotUpdate,
+                    operation = "updateSlot",
+                    endpoint = "PATCH ${ApiRoutes.branchAssignmentSlot(branchId, assignmentId)}",
+                    block = {
+                        AssignmentSlotOperations.updateSlot(apiClient, branchId, assignmentId, slot)
+                    },
+                    transform = {
+                        actionStamp++
+                        refreshRoster(branchId)
+                        Unit
+                    },
+                    onNonSuccess = { response ->
+                        val message =
+                            extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                                ?: "Slot update failed: ${response.status.value}"
+                        _slotUpdate.value = UiState.Error(message)
+                        true
+                    },
+                ),
             ).also { mutationJob = it }
     }
 
@@ -190,24 +194,26 @@ class AttendanceRosterViewModel(
         if (mutationJob?.isActive == true || keptRoster.stateFlow.value is UiState.Loading) return
         handler
             .launch(
-                state = _swapUpdate,
-                operation = "swapSlots",
-                endpoint = "POST ${ApiRoutes.branchSlotsSwap(branchId)}",
-                block = {
-                    AssignmentSlotOperations.swapSlots(apiClient, branchId, assignmentIdA, assignmentIdB)
-                },
-                transform = {
-                    actionStamp++
-                    refreshRoster(branchId)
-                    Unit
-                },
-                onNonSuccess = { response ->
-                    val message =
-                        extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
-                            ?: "Swap failed: ${response.status.value}"
-                    _swapUpdate.value = UiState.Error(message)
-                    true
-                },
+                LaunchRequest(
+                    state = _swapUpdate,
+                    operation = "swapSlots",
+                    endpoint = "POST ${ApiRoutes.branchSlotsSwap(branchId)}",
+                    block = {
+                        AssignmentSlotOperations.swapSlots(apiClient, branchId, assignmentIdA, assignmentIdB)
+                    },
+                    transform = {
+                        actionStamp++
+                        refreshRoster(branchId)
+                        Unit
+                    },
+                    onNonSuccess = { response ->
+                        val message =
+                            extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                                ?: "Swap failed: ${response.status.value}"
+                        _swapUpdate.value = UiState.Error(message)
+                        true
+                    },
+                ),
             ).also { mutationJob = it }
     }
 }

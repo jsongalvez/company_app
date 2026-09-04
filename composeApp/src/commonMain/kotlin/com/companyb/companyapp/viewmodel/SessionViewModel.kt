@@ -139,13 +139,15 @@ class SessionViewModel(
         // newer request — a stale body is never deserialized; the committed value stands.
         ++rosterGeneration
         handler.launch(
-            state = _practitioners,
-            operation = "loadSessionPractitioners",
-            endpoint = "GET /api/sessions/$sessionId/practitioners",
-            block = { apiClient.httpClient.get(ApiRoutes.sessionPractitioners(sessionId)) },
-            transform = { it.body() },
-            stamp = { rosterGeneration },
-            fallback = { (_practitioners.value as? UiState.Success)?.data ?: emptyList() },
+            LaunchRequest(
+                state = _practitioners,
+                operation = "loadSessionPractitioners",
+                endpoint = "GET /api/sessions/$sessionId/practitioners",
+                block = { apiClient.httpClient.get(ApiRoutes.sessionPractitioners(sessionId)) },
+                transform = { it.body() },
+                stamp = { rosterGeneration },
+                fallback = { (_practitioners.value as? UiState.Success)?.data ?: emptyList() },
+            ),
         )
     }
 
@@ -288,13 +290,15 @@ class SessionViewModel(
         // Same generation discipline as the roster: only the newest branch request commits.
         ++membersGeneration
         handler.launch(
-            state = _branchMembers,
-            operation = "loadBranchMembers",
-            endpoint = "GET /api/branches/$branchId/members",
-            block = { apiClient.httpClient.get(ApiRoutes.branchMembers(branchId)) },
-            transform = { it.body() },
-            stamp = { membersGeneration },
-            fallback = { (_branchMembers.value as? UiState.Success)?.data ?: emptyList() },
+            LaunchRequest(
+                state = _branchMembers,
+                operation = "loadBranchMembers",
+                endpoint = "GET /api/branches/$branchId/members",
+                block = { apiClient.httpClient.get(ApiRoutes.branchMembers(branchId)) },
+                transform = { it.body() },
+                stamp = { membersGeneration },
+                fallback = { (_branchMembers.value as? UiState.Success)?.data ?: emptyList() },
+            ),
         )
     }
 

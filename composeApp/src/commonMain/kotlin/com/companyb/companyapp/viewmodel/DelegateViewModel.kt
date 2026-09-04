@@ -65,18 +65,22 @@ class DelegateViewModel(
                         _delegates.value = UiState.Success(rows)
                     }
                 },
-                onNonSuccess = { response ->
-                    val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
-                    if (generation == delegateGeneration) {
-                        _delegates.value = UiState.Error(detail ?: "loadDelegates failed: ${response.status.value}")
-                    }
-                },
-                onError = { error ->
-                    if (generation == delegateGeneration) {
-                        _delegates.value = UiState.Error(error.message ?: "Unknown error")
-                    }
-                },
-                stale = { generation != delegateGeneration },
+                hooks =
+                    StatelessHooks(
+                        onNonSuccess = { response ->
+                            val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                            if (generation == delegateGeneration) {
+                                _delegates.value =
+                                    UiState.Error(detail ?: "loadDelegates failed: ${response.status.value}")
+                            }
+                        },
+                        onError = { error ->
+                            if (generation == delegateGeneration) {
+                                _delegates.value = UiState.Error(error.message ?: "Unknown error")
+                            }
+                        },
+                        stale = { generation != delegateGeneration },
+                    ),
             )
     }
 
@@ -96,18 +100,20 @@ class DelegateViewModel(
         if (_assignResult.value is UiState.Loading) return
         _assignResult.value = UiState.Loading
         handler.launch(
-            state = _assignResult,
-            operation = "assignDelegate",
-            endpoint = "POST /api/delegates",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.DELEGATES) {
-                    setBody(request)
-                }
-            },
-            transform = { it.body() },
-            onNonSuccess = { response ->
-                handleApiError(response) { _assignResult.value = it }
-            },
+            LaunchRequest(
+                state = _assignResult,
+                operation = "assignDelegate",
+                endpoint = "POST /api/delegates",
+                block = {
+                    apiClient.httpClient.post(ApiRoutes.DELEGATES) {
+                        setBody(request)
+                    }
+                },
+                transform = { it.body() },
+                onNonSuccess = { response ->
+                    handleApiError(response) { _assignResult.value = it }
+                },
+            ),
         )
     }
 
@@ -119,9 +125,12 @@ class DelegateViewModel(
             operation = "revokeDelegate",
             endpoint = "DELETE /api/delegates/$delegateId",
             block = { apiClient.httpClient.delete(ApiRoutes.delegate(delegateId)) },
-            onNonSuccess = { response ->
-                handleApiError(response) { _revokeResult.value = it }
-            },
+            hooks =
+                LaunchHooks(
+                    onNonSuccess = { response ->
+                        handleApiError(response) { _revokeResult.value = it }
+                    },
+                ),
         )
     }
 }

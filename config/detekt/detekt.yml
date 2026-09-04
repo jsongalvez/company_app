@@ -175,7 +175,6 @@ complexity:
     ignoreDataClasses: true
     ignoreAnnotatedParameter: []
     excludes:
-      - '**/commonMain/**/viewmodel/ApiCallHandler.kt'
       - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
       - '**/commonMain/**/ui/screen/UserManagementScreen.kt'
       - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'

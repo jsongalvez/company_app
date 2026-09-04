@@ -84,28 +84,30 @@ class RemittanceViewModel(
         // (the handler rethrows CancellationException without invoking onError).
         if (!keptByTab.tryBegin(key)) return
         handler.launch(
-            state = _remittanceList,
-            operation = "loadRemittances",
-            endpoint = "GET /api/remittances",
-            entryMessage = "loadRemittances called: branchId=$branchId status=$status",
-            block = {
-                apiClient.httpClient.get(ApiRoutes.REMITTANCES) {
-                    parameter("branchId", branchId)
-                    parameter("status", status)
-                }
-            },
-            transform = { response ->
-                val body = response.body<List<RemittanceResponse>>()
-                keptByTab.commit(key, body)
-                body
-            },
-            onNonSuccess = {
-                keptByTab.finish(key)
-                false
-            },
-            onError = {
-                keptByTab.finish(key)
-            },
+            LaunchRequest(
+                state = _remittanceList,
+                operation = "loadRemittances",
+                endpoint = "GET /api/remittances",
+                entryMessage = "loadRemittances called: branchId=$branchId status=$status",
+                block = {
+                    apiClient.httpClient.get(ApiRoutes.REMITTANCES) {
+                        parameter("branchId", branchId)
+                        parameter("status", status)
+                    }
+                },
+                transform = { response ->
+                    val body = response.body<List<RemittanceResponse>>()
+                    keptByTab.commit(key, body)
+                    body
+                },
+                onNonSuccess = {
+                    keptByTab.finish(key)
+                    false
+                },
+                onError = {
+                    keptByTab.finish(key)
+                },
+            ),
         )
     }
 
@@ -194,12 +196,14 @@ class RemittanceViewModel(
             _detailChangedNotice.value = false
         }
         handler.launch(
-            state = _remittanceDetail,
-            operation = "loadRemittance",
-            endpoint = "GET /api/remittances/$remittanceId",
-            entryMessage = "loadRemittance called: remittanceId=$remittanceId",
-            block = { apiClient.httpClient.get(ApiRoutes.remittance(remittanceId)) },
-            transform = { it.body() },
+            LaunchRequest(
+                state = _remittanceDetail,
+                operation = "loadRemittance",
+                endpoint = "GET /api/remittances/$remittanceId",
+                entryMessage = "loadRemittance called: remittanceId=$remittanceId",
+                block = { apiClient.httpClient.get(ApiRoutes.remittance(remittanceId)) },
+                transform = { it.body() },
+            ),
         )
     }
 
@@ -210,17 +214,19 @@ class RemittanceViewModel(
         to: String,
     ) {
         handler.launch(
-            state = _sessionPicker,
-            operation = "loadSessionPicker",
-            endpoint = "GET /api/branches/$branchId/remittance-sessions",
-            entryMessage = "loadSessionPicker called: branchId=$branchId from=$from to=$to",
-            block = {
-                apiClient.httpClient.get(ApiRoutes.branchRemittanceSessions(branchId)) {
-                    parameter("from", from)
-                    parameter("to", to)
-                }
-            },
-            transform = { it.body() },
+            LaunchRequest(
+                state = _sessionPicker,
+                operation = "loadSessionPicker",
+                endpoint = "GET /api/branches/$branchId/remittance-sessions",
+                entryMessage = "loadSessionPicker called: branchId=$branchId from=$from to=$to",
+                block = {
+                    apiClient.httpClient.get(ApiRoutes.branchRemittanceSessions(branchId)) {
+                        parameter("from", from)
+                        parameter("to", to)
+                    }
+                },
+                transform = { it.body() },
+            ),
         )
     }
 
@@ -231,17 +237,19 @@ class RemittanceViewModel(
         to: String,
     ) {
         handler.launch(
-            state = _productSalePicker,
-            operation = "loadProductSalePicker",
-            endpoint = "GET /api/branches/$branchId/remittance-product-sales",
-            entryMessage = "loadProductSalePicker called: branchId=$branchId from=$from to=$to",
-            block = {
-                apiClient.httpClient.get(ApiRoutes.branchRemittanceProductSales(branchId)) {
-                    parameter("from", from)
-                    parameter("to", to)
-                }
-            },
-            transform = { it.body() },
+            LaunchRequest(
+                state = _productSalePicker,
+                operation = "loadProductSalePicker",
+                endpoint = "GET /api/branches/$branchId/remittance-product-sales",
+                entryMessage = "loadProductSalePicker called: branchId=$branchId from=$from to=$to",
+                block = {
+                    apiClient.httpClient.get(ApiRoutes.branchRemittanceProductSales(branchId)) {
+                        parameter("from", from)
+                        parameter("to", to)
+                    }
+                },
+                transform = { it.body() },
+            ),
         )
     }
 
@@ -252,17 +260,19 @@ class RemittanceViewModel(
         to: String,
     ) {
         handler.launch(
-            state = _dayPicker,
-            operation = "loadDayPicker",
-            endpoint = "GET /api/branches/$branchId/remittance-days",
-            entryMessage = "loadDayPicker called: branchId=$branchId from=$from to=$to",
-            block = {
-                apiClient.httpClient.get(ApiRoutes.branchRemittanceDays(branchId)) {
-                    parameter("from", from)
-                    parameter("to", to)
-                }
-            },
-            transform = { it.body() },
+            LaunchRequest(
+                state = _dayPicker,
+                operation = "loadDayPicker",
+                endpoint = "GET /api/branches/$branchId/remittance-days",
+                entryMessage = "loadDayPicker called: branchId=$branchId from=$from to=$to",
+                block = {
+                    apiClient.httpClient.get(ApiRoutes.branchRemittanceDays(branchId)) {
+                        parameter("from", from)
+                        parameter("to", to)
+                    }
+                },
+                transform = { it.body() },
+            ),
         )
     }
 
@@ -271,33 +281,35 @@ class RemittanceViewModel(
         request: CreateRemittanceLineRequest,
     ) {
         handler.launch(
-            state = _lineResult,
-            operation = "addLine",
-            endpoint = "POST /api/remittances/$remittanceId/lines",
-            block = {
-                apiClient.httpClient.post(
-                    ApiRoutes.remittanceLines(remittanceId),
-                ) {
-                    setBody(request)
-                }
-            },
-            transform = { it.body() },
-            onNonSuccess = { response ->
-                when (response.status) {
-                    HttpStatusCode.Forbidden -> {
-                        _lineResult.value = UiState.Idle
-                        true
+            LaunchRequest(
+                state = _lineResult,
+                operation = "addLine",
+                endpoint = "POST /api/remittances/$remittanceId/lines",
+                block = {
+                    apiClient.httpClient.post(
+                        ApiRoutes.remittanceLines(remittanceId),
+                    ) {
+                        setBody(request)
                     }
+                },
+                transform = { it.body() },
+                onNonSuccess = { response ->
+                    when (response.status) {
+                        HttpStatusCode.Forbidden -> {
+                            _lineResult.value = UiState.Idle
+                            true
+                        }
 
-                    HttpStatusCode.Conflict -> {
-                        reloadDetailAfterConflict(_lineResult, remittanceId)
-                    }
+                        HttpStatusCode.Conflict -> {
+                            reloadDetailAfterConflict(_lineResult, remittanceId)
+                        }
 
-                    else -> {
-                        false
+                        else -> {
+                            false
+                        }
                     }
-                }
-            },
+                },
+            ),
         )
     }
 
@@ -314,22 +326,25 @@ class RemittanceViewModel(
                     ApiRoutes.remittanceLine(remittanceId, lineId),
                 )
             },
-            onNonSuccess = { response ->
-                when (response.status) {
-                    HttpStatusCode.Forbidden -> {
-                        _deleteLineResult.value = UiState.Idle
-                        true
-                    }
+            hooks =
+                LaunchHooks(
+                    onNonSuccess = { response ->
+                        when (response.status) {
+                            HttpStatusCode.Forbidden -> {
+                                _deleteLineResult.value = UiState.Idle
+                                true
+                            }
 
-                    HttpStatusCode.Conflict -> {
-                        reloadDetailAfterConflict(_deleteLineResult, remittanceId)
-                    }
+                            HttpStatusCode.Conflict -> {
+                                reloadDetailAfterConflict(_deleteLineResult, remittanceId)
+                            }
 
-                    else -> {
-                        false
-                    }
-                }
-            },
+                            else -> {
+                                false
+                            }
+                        }
+                    },
+                ),
         )
     }
 
@@ -338,33 +353,35 @@ class RemittanceViewModel(
         request: AddDayBreakdownRequest,
     ) {
         handler.launch(
-            state = _dayBreakdownResult,
-            operation = "addDayBreakdown",
-            endpoint = "POST /api/remittances/$remittanceId/day-breakdowns",
-            block = {
-                apiClient.httpClient.post(
-                    ApiRoutes.remittanceDayBreakdowns(remittanceId),
-                ) {
-                    setBody(request)
-                }
-            },
-            transform = { it.body() },
-            onNonSuccess = { response ->
-                when (response.status) {
-                    HttpStatusCode.Forbidden -> {
-                        _dayBreakdownResult.value = UiState.Idle
-                        true
+            LaunchRequest(
+                state = _dayBreakdownResult,
+                operation = "addDayBreakdown",
+                endpoint = "POST /api/remittances/$remittanceId/day-breakdowns",
+                block = {
+                    apiClient.httpClient.post(
+                        ApiRoutes.remittanceDayBreakdowns(remittanceId),
+                    ) {
+                        setBody(request)
                     }
+                },
+                transform = { it.body() },
+                onNonSuccess = { response ->
+                    when (response.status) {
+                        HttpStatusCode.Forbidden -> {
+                            _dayBreakdownResult.value = UiState.Idle
+                            true
+                        }
 
-                    HttpStatusCode.Conflict -> {
-                        reloadDetailAfterConflict(_dayBreakdownResult, remittanceId)
-                    }
+                        HttpStatusCode.Conflict -> {
+                            reloadDetailAfterConflict(_dayBreakdownResult, remittanceId)
+                        }
 
-                    else -> {
-                        false
+                        else -> {
+                            false
+                        }
                     }
-                }
-            },
+                },
+            ),
         )
     }
 
@@ -382,22 +399,25 @@ class RemittanceViewModel(
                     ApiRoutes.remittanceDayBreakdown(remittanceId, breakdownId),
                 )
             },
-            onNonSuccess = { response ->
-                when (response.status) {
-                    HttpStatusCode.Forbidden -> {
-                        _dayBreakdownDeleteResult.value = UiState.Idle
-                        true
-                    }
+            hooks =
+                LaunchHooks(
+                    onNonSuccess = { response ->
+                        when (response.status) {
+                            HttpStatusCode.Forbidden -> {
+                                _dayBreakdownDeleteResult.value = UiState.Idle
+                                true
+                            }
 
-                    HttpStatusCode.Conflict -> {
-                        reloadDetailAfterConflict(_dayBreakdownDeleteResult, remittanceId)
-                    }
+                            HttpStatusCode.Conflict -> {
+                                reloadDetailAfterConflict(_dayBreakdownDeleteResult, remittanceId)
+                            }
 
-                    else -> {
-                        false
-                    }
-                }
-            },
+                            else -> {
+                                false
+                            }
+                        }
+                    },
+                ),
         )
     }
 
@@ -407,33 +427,35 @@ class RemittanceViewModel(
         request: SubmitRemittanceRequest,
     ) {
         handler.launch(
-            state = _submitResult,
-            operation = "submit",
-            endpoint = "POST /api/remittances/$remittanceId/submit",
-            block = {
-                apiClient.httpClient.post(
-                    ApiRoutes.remittanceSubmit(remittanceId),
-                ) {
-                    setBody(request)
-                }
-            },
-            transform = { it.body() },
-            onNonSuccess = { response ->
-                when (response.status) {
-                    HttpStatusCode.Forbidden -> {
-                        _submitResult.value = UiState.Idle
-                        true
+            LaunchRequest(
+                state = _submitResult,
+                operation = "submit",
+                endpoint = "POST /api/remittances/$remittanceId/submit",
+                block = {
+                    apiClient.httpClient.post(
+                        ApiRoutes.remittanceSubmit(remittanceId),
+                    ) {
+                        setBody(request)
                     }
+                },
+                transform = { it.body() },
+                onNonSuccess = { response ->
+                    when (response.status) {
+                        HttpStatusCode.Forbidden -> {
+                            _submitResult.value = UiState.Idle
+                            true
+                        }
 
-                    HttpStatusCode.Conflict -> {
-                        reloadDetailAfterConflict(_submitResult, remittanceId)
-                    }
+                        HttpStatusCode.Conflict -> {
+                            reloadDetailAfterConflict(_submitResult, remittanceId)
+                        }
 
-                    else -> {
-                        false
+                        else -> {
+                            false
+                        }
                     }
-                }
-            },
+                },
+            ),
         )
     }
 
@@ -443,33 +465,35 @@ class RemittanceViewModel(
         request: UndoRemittanceRequest,
     ) {
         handler.launch(
-            state = _undoResult,
-            operation = "undo",
-            endpoint = "POST /api/remittances/$remittanceId/undo",
-            block = {
-                apiClient.httpClient.post(
-                    ApiRoutes.remittanceUndo(remittanceId),
-                ) {
-                    setBody(request)
-                }
-            },
-            transform = { it.body() },
-            onNonSuccess = { response ->
-                when (response.status) {
-                    HttpStatusCode.Forbidden -> {
-                        _undoResult.value = UiState.Idle
-                        true
+            LaunchRequest(
+                state = _undoResult,
+                operation = "undo",
+                endpoint = "POST /api/remittances/$remittanceId/undo",
+                block = {
+                    apiClient.httpClient.post(
+                        ApiRoutes.remittanceUndo(remittanceId),
+                    ) {
+                        setBody(request)
                     }
+                },
+                transform = { it.body() },
+                onNonSuccess = { response ->
+                    when (response.status) {
+                        HttpStatusCode.Forbidden -> {
+                            _undoResult.value = UiState.Idle
+                            true
+                        }
 
-                    HttpStatusCode.Conflict -> {
-                        reloadDetailAfterConflict(_undoResult, remittanceId)
-                    }
+                        HttpStatusCode.Conflict -> {
+                            reloadDetailAfterConflict(_undoResult, remittanceId)
+                        }
 
-                    else -> {
-                        false
+                        else -> {
+                            false
+                        }
                     }
-                }
-            },
+                },
+            ),
         )
     }
 
@@ -479,44 +503,48 @@ class RemittanceViewModel(
         request: UpdateRemittanceHeaderRequest,
     ) {
         handler.launch(
-            state = _headerUpdateResult,
-            operation = "updateHeader",
-            endpoint = "PATCH /api/remittances/$remittanceId",
-            entryMessage = "updateHeader called: remittanceId=$remittanceId",
-            block = {
-                apiClient.httpClient.patch(ApiRoutes.remittance(remittanceId)) {
-                    setBody(request)
-                }
-            },
-            transform = { it.body() },
-            onNonSuccess = { response ->
-                when (response.status) {
-                    HttpStatusCode.Forbidden -> {
-                        _headerUpdateResult.value = UiState.Idle
-                        true
+            LaunchRequest(
+                state = _headerUpdateResult,
+                operation = "updateHeader",
+                endpoint = "PATCH /api/remittances/$remittanceId",
+                entryMessage = "updateHeader called: remittanceId=$remittanceId",
+                block = {
+                    apiClient.httpClient.patch(ApiRoutes.remittance(remittanceId)) {
+                        setBody(request)
                     }
+                },
+                transform = { it.body() },
+                onNonSuccess = { response ->
+                    when (response.status) {
+                        HttpStatusCode.Forbidden -> {
+                            _headerUpdateResult.value = UiState.Idle
+                            true
+                        }
 
-                    HttpStatusCode.Conflict -> {
-                        reloadDetailAfterConflict(_headerUpdateResult, remittanceId)
-                    }
+                        HttpStatusCode.Conflict -> {
+                            reloadDetailAfterConflict(_headerUpdateResult, remittanceId)
+                        }
 
-                    else -> {
-                        false
+                        else -> {
+                            false
+                        }
                     }
-                }
-            },
+                },
+            ),
         )
     }
 
     // D6 — drift (frozen vs current), lazy: fetched on expander click only, cached after.
     fun loadDrift(remittanceId: String) {
         handler.launch(
-            state = _drift,
-            operation = "loadDrift",
-            endpoint = "GET /api/remittances/$remittanceId/drift",
-            entryMessage = "loadDrift called: remittanceId=$remittanceId",
-            block = { apiClient.httpClient.get(ApiRoutes.remittanceDrift(remittanceId)) },
-            transform = { it.body() },
+            LaunchRequest(
+                state = _drift,
+                operation = "loadDrift",
+                endpoint = "GET /api/remittances/$remittanceId/drift",
+                entryMessage = "loadDrift called: remittanceId=$remittanceId",
+                block = { apiClient.httpClient.get(ApiRoutes.remittanceDrift(remittanceId)) },
+                transform = { it.body() },
+            ),
         )
     }
 

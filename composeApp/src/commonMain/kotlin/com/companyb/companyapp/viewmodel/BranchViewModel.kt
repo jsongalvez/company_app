@@ -77,18 +77,20 @@ class BranchViewModel(
         if (_createBranchState.value is UiState.Loading) return
         _createBranchState.value = UiState.Loading
         handler.launch(
-            state = _createBranchState,
-            operation = "createBranch",
-            endpoint = "POST /api/branches",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.BRANCHES) {
-                    setBody(request)
-                }
-            },
-            transform = { it.body() },
-            onNonSuccess = { response ->
-                handleApiError(response) { _createBranchState.value = it }
-            },
+            LaunchRequest(
+                state = _createBranchState,
+                operation = "createBranch",
+                endpoint = "POST /api/branches",
+                block = {
+                    apiClient.httpClient.post(ApiRoutes.BRANCHES) {
+                        setBody(request)
+                    }
+                },
+                transform = { it.body() },
+                onNonSuccess = { response ->
+                    handleApiError(response) { _createBranchState.value = it }
+                },
+            ),
         )
     }
 
@@ -114,18 +116,20 @@ class BranchViewModel(
         if (_assignmentResult.value is UiState.Loading) return
         _assignmentResult.value = UiState.Loading
         handler.launch(
-            state = _assignmentResult,
-            operation = "createAssignment",
-            endpoint = "POST /api/branches/$branchId/assignments",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.branchAssignments(branchId)) {
-                    setBody(request)
-                }
-            },
-            transform = { it.body() },
-            onNonSuccess = { response ->
-                handleApiError(response) { _assignmentResult.value = it }
-            },
+            LaunchRequest(
+                state = _assignmentResult,
+                operation = "createAssignment",
+                endpoint = "POST /api/branches/$branchId/assignments",
+                block = {
+                    apiClient.httpClient.post(ApiRoutes.branchAssignments(branchId)) {
+                        setBody(request)
+                    }
+                },
+                transform = { it.body() },
+                onNonSuccess = { response ->
+                    handleApiError(response) { _assignmentResult.value = it }
+                },
+            ),
         )
     }
 
@@ -144,9 +148,12 @@ class BranchViewModel(
                     ApiRoutes.branchAssignment(branchId, assignmentId),
                 )
             },
-            onNonSuccess = { response ->
-                handleApiError(response) { _deleteAssignmentState.value = it }
-            },
+            hooks =
+                LaunchHooks(
+                    onNonSuccess = { response ->
+                        handleApiError(response) { _deleteAssignmentState.value = it }
+                    },
+                ),
         )
     }
 
@@ -193,9 +200,12 @@ class BranchViewModel(
             block = {
                 AssignmentSlotOperations.updateSlot(apiClient, branchId, assignmentId, request.slot)
             },
-            onNonSuccess = { response ->
-                handleApiError(response) { _slotUpdate.value = it }
-            },
+            hooks =
+                LaunchHooks(
+                    onNonSuccess = { response ->
+                        handleApiError(response) { _slotUpdate.value = it }
+                    },
+                ),
         )
     }
 

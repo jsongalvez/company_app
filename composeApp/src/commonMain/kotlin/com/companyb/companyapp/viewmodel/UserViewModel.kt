@@ -254,38 +254,40 @@ class UserViewModel(
         if (!actionTracker.tryBegin("mint-invite")) return
         _mintInviteResult.value = UiState.Loading
         handler.launch(
-            state = _mintInviteResult,
-            operation = "mintInvite",
-            endpoint = "POST ${ApiRoutes.INVITES}",
-            block = { apiClient.httpClient.post(ApiRoutes.INVITES) { setBody(request) } },
-            transform = { response ->
-                actionTracker.finish("mint-invite")
-                val minted = response.body<InviteMintResponse>()
-                keptUsers.mutate { users ->
-                    if (users.any { it.id == minted.userId }) {
-                        users
-                    } else {
-                        users +
-                            UserSummaryResponse(
-                                id = minted.userId,
-                                username = request.username,
-                                displayName = request.displayName,
-                                status = UserStatus.ACTIVE,
-                                roles = request.roles,
-                            )
+            LaunchRequest(
+                state = _mintInviteResult,
+                operation = "mintInvite",
+                endpoint = "POST ${ApiRoutes.INVITES}",
+                block = { apiClient.httpClient.post(ApiRoutes.INVITES) { setBody(request) } },
+                transform = { response ->
+                    actionTracker.finish("mint-invite")
+                    val minted = response.body<InviteMintResponse>()
+                    keptUsers.mutate { users ->
+                        if (users.any { it.id == minted.userId }) {
+                            users
+                        } else {
+                            users +
+                                UserSummaryResponse(
+                                    id = minted.userId,
+                                    username = request.username,
+                                    displayName = request.displayName,
+                                    status = UserStatus.ACTIVE,
+                                    roles = request.roles,
+                                )
+                        }
                     }
-                }
-                minted
-            },
-            onNonSuccess = { response ->
-                actionTracker.finish("mint-invite")
-                val detail =
-                    extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
-                _mintInviteResult.value =
-                    UiState.Error(detail ?: "Mint invite failed: ${response.status.value}")
-                true
-            },
-            onError = { actionTracker.finish("mint-invite") },
+                    minted
+                },
+                onNonSuccess = { response ->
+                    actionTracker.finish("mint-invite")
+                    val detail =
+                        extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                    _mintInviteResult.value =
+                        UiState.Error(detail ?: "Mint invite failed: ${response.status.value}")
+                    true
+                },
+                onError = { actionTracker.finish("mint-invite") },
+            ),
         )
     }
 
@@ -423,20 +425,23 @@ class UserViewModel(
                 actionTracker.finish(request.key)
                 request.onSuccess()
             },
-            onNonSuccess = { response ->
-                actionTracker.fail(
-                    request.key,
-                    request.responseMessage?.invoke(response) ?: request.statusMessage(response.status),
-                )
-            },
-            onError = { e ->
-                // Network failure — clear the in-flight guard so buttons re-enable AND surface
-                // an inline error (ADR-0022 pessimistic contract: the row is kept and the
-                // failure is visible). The state-less launch has no state flow to write; the
-                // inline error is what the screen renders. (transform never deserializes
-                // for these 204 ops, so only block() can throw here — onError covers it.)
-                actionTracker.fail(request.key, e.message ?: "${request.operation} failed")
-            },
+            hooks =
+                StatelessHooks(
+                    onNonSuccess = { response ->
+                        actionTracker.fail(
+                            request.key,
+                            request.responseMessage?.invoke(response) ?: request.statusMessage(response.status),
+                        )
+                    },
+                    onError = { e ->
+                        // Network failure — clear the in-flight guard so buttons re-enable AND surface
+                        // an inline error (ADR-0022 pessimistic contract: the row is kept and the
+                        // failure is visible). The state-less launch has no state flow to write; the
+                        // inline error is what the screen renders. (transform never deserializes
+                        // for these 204 ops, so only block() can throw here — onError covers it.)
+                        actionTracker.fail(request.key, e.message ?: "${request.operation} failed")
+                    },
+                ),
         )
         return true
     }

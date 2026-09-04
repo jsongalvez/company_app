@@ -365,40 +365,42 @@ class SessionCreateViewModel(
         _concernRetryState.value = UiState.Idle
         _createResult.value = UiState.Loading
         handler.launch(
-            state = _createResult,
-            operation = "createSession",
-            endpoint = "POST /api/sessions",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.SESSIONS) {
-                    setBody(
-                        CreateSessionRequest(
-                            id = Uuid.random().toString(),
-                            clientId = client.id,
-                            branchId = branchId,
-                            isWalkIn = booking.isWalkIn,
-                            requestedPractitionerId = requestedPractitionerId,
-                            finalPrice = finalPrice,
-                            remarks = remarks?.trim()?.ifBlank { null },
-                            otherConcerns = otherConcerns?.trim()?.ifBlank { null },
-                            nextAppointmentDate = booking.nextAppointmentDate,
-                        ),
-                    )
-                }
-            },
-            transform = { response ->
-                val session = response.body<SessionResponse>()
-                createdSessionId = session.id
-                concernPoster.postSelected(session.id, concernIds)
-                session
-            },
-            onNonSuccess = { response ->
-                // 409 carries the one-active-session rule's message; 400/403 surface inline too.
-                val detail =
-                    extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
-                _createResult.value =
-                    UiState.Error(detail ?: "Create session failed: ${response.status.value}")
-                true
-            },
+            LaunchRequest(
+                state = _createResult,
+                operation = "createSession",
+                endpoint = "POST /api/sessions",
+                block = {
+                    apiClient.httpClient.post(ApiRoutes.SESSIONS) {
+                        setBody(
+                            CreateSessionRequest(
+                                id = Uuid.random().toString(),
+                                clientId = client.id,
+                                branchId = branchId,
+                                isWalkIn = booking.isWalkIn,
+                                requestedPractitionerId = requestedPractitionerId,
+                                finalPrice = finalPrice,
+                                remarks = remarks?.trim()?.ifBlank { null },
+                                otherConcerns = otherConcerns?.trim()?.ifBlank { null },
+                                nextAppointmentDate = booking.nextAppointmentDate,
+                            ),
+                        )
+                    }
+                },
+                transform = { response ->
+                    val session = response.body<SessionResponse>()
+                    createdSessionId = session.id
+                    concernPoster.postSelected(session.id, concernIds)
+                    session
+                },
+                onNonSuccess = { response ->
+                    // 409 carries the one-active-session rule's message; 400/403 surface inline too.
+                    val detail =
+                        extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                    _createResult.value =
+                        UiState.Error(detail ?: "Create session failed: ${response.status.value}")
+                    true
+                },
+            ),
         )
     }
 
@@ -514,7 +516,6 @@ private class ConcernPoster(
             val requestJob =
                 handler
                     .launchStateless(
-                        scope = requestScope,
                         operation = "addConcern",
                         endpoint = "POST /api/sessions/$sessionId/concerns",
                         block = {
@@ -523,8 +524,12 @@ private class ConcernPoster(
                             }
                         },
                         transform = {},
-                        onNonSuccess = { requestFailed = true },
-                        onError = { requestFailed = true },
+                        hooks =
+                            StatelessHooks(
+                                scope = requestScope,
+                                onNonSuccess = { requestFailed = true },
+                                onError = { requestFailed = true },
+                            ),
                     )
             requestJob.join()
             if (requestJob.isCancelled) requestFailed = true

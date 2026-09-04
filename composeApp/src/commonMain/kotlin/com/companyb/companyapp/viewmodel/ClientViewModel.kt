@@ -81,31 +81,33 @@ class ClientViewModel(
         detailJob =
             handler
                 .launch(
-                    state = _clientDetail,
-                    operation = "loadClient",
-                    endpoint = "GET /api/clients/$clientId",
-                    entryMessage = "loadClient called: clientId=$clientId",
-                    block = { apiClient.httpClient.get(ApiRoutes.client(clientId)) },
-                    transform = {
-                        val client = it.body<ClientResponse>()
-                        if (publishMutation) {
-                            val snapshot = client.takeIf { it.firstName != null && it.lastName != null }
-                            if (mutationLease != null) {
-                                ClientState.publishClientMutation(mutationLease, clientId, snapshot)
-                            } else {
-                                snapshotLease?.let { ClientState.publishClientSnapshot(it, snapshot) }
+                    LaunchRequest(
+                        state = _clientDetail,
+                        operation = "loadClient",
+                        endpoint = "GET /api/clients/$clientId",
+                        entryMessage = "loadClient called: clientId=$clientId",
+                        block = { apiClient.httpClient.get(ApiRoutes.client(clientId)) },
+                        transform = {
+                            val client = it.body<ClientResponse>()
+                            if (publishMutation) {
+                                val snapshot = client.takeIf { it.firstName != null && it.lastName != null }
+                                if (mutationLease != null) {
+                                    ClientState.publishClientMutation(mutationLease, clientId, snapshot)
+                                } else {
+                                    snapshotLease?.let { ClientState.publishClientSnapshot(it, snapshot) }
+                                }
                             }
-                        }
-                        mutationLease?.let(ClientState::finishClientMutation)
-                        client
-                    },
-                    onNonSuccess = {
-                        mutationLease?.let(ClientState::finishClientMutation)
-                        false
-                    },
-                    onError = {
-                        mutationLease?.let(ClientState::finishClientMutation)
-                    },
+                            mutationLease?.let(ClientState::finishClientMutation)
+                            client
+                        },
+                        onNonSuccess = {
+                            mutationLease?.let(ClientState::finishClientMutation)
+                            false
+                        },
+                        onError = {
+                            mutationLease?.let(ClientState::finishClientMutation)
+                        },
+                    ),
                 ).also { job ->
                     job.invokeOnCompletion { cause ->
                         if (cause is CancellationException) mutationLease?.let(ClientState::finishClientMutation)
@@ -136,66 +138,68 @@ class ClientViewModel(
         _updateClientState.value = UiState.Loading
         handler
             .launch(
-                state = _updateClientState,
-                operation = "updateClient",
-                endpoint = "PATCH /api/clients/$clientId",
-                entryMessage = "updateClient called: clientId=$clientId",
-                block = {
-                    apiClient.httpClient.patch(ApiRoutes.client(clientId)) {
-                        setBody(request)
-                    }
-                },
-                // D4 — the PATCH response IS the updated record: commit it straight into the detail
-                // flow so the display shows the new value when edit mode exits (the screen renders
-                // clientDetail, not updateClientState — without this the edit would look lost). The
-                // reload-cancel keeps the commit from being overwritten by a stale in-flight GET.
-                // A success also retires any changed-elsewhere banner: the user's edit just won.
-                transform = { response ->
-                    detailJob?.cancel()
-                    _detailChangedNotice.value = false
-                    val updated = response.body<ClientResponse>()
-                    ClientState.publishClientMutation(mutationLease, clientId, updated)
-                    ClientState.finishClientMutation(mutationLease)
-                    _clientDetail.value = UiState.Success(updated)
-                    updated
-                },
-                // D4 — pessimistic per-field edit axes:
-                // 403 = capability revoked mid-session → silent exit (no error, no inline message;
-                //      backend-authoritative, ADR-0007 — the screen stays on stale data until reload).
-                // 409 = changed elsewhere → reload + changed-fields indication; the fresh payload
-                //      replaces the value the user was editing (their edit didn't win).
-                // 404 = the record is gone (anonymized elsewhere) → reload renders the husk (D10).
-                // Any other non-success (400 blank names / BP pair / validation) → generic Error →
-                //      screen shows the inline error + stays in edit mode.
-                onNonSuccess = { response ->
-                    when (response.status) {
-                        HttpStatusCode.Forbidden -> {
-                            ClientState.finishClientMutation(mutationLease)
-                            _updateClientState.value = UiState.Idle
-                            true
+                LaunchRequest(
+                    state = _updateClientState,
+                    operation = "updateClient",
+                    endpoint = "PATCH /api/clients/$clientId",
+                    entryMessage = "updateClient called: clientId=$clientId",
+                    block = {
+                        apiClient.httpClient.patch(ApiRoutes.client(clientId)) {
+                            setBody(request)
                         }
-
-                        HttpStatusCode.Conflict, HttpStatusCode.NotFound -> {
-                            _updateClientState.value = UiState.Idle
-                            if (response.status == HttpStatusCode.Conflict) {
-                                _detailChangedNotice.value = true
+                    },
+                    // D4 — the PATCH response IS the updated record: commit it straight into the detail
+                    // flow so the display shows the new value when edit mode exits (the screen renders
+                    // clientDetail, not updateClientState — without this the edit would look lost). The
+                    // reload-cancel keeps the commit from being overwritten by a stale in-flight GET.
+                    // A success also retires any changed-elsewhere banner: the user's edit just won.
+                    transform = { response ->
+                        detailJob?.cancel()
+                        _detailChangedNotice.value = false
+                        val updated = response.body<ClientResponse>()
+                        ClientState.publishClientMutation(mutationLease, clientId, updated)
+                        ClientState.finishClientMutation(mutationLease)
+                        _clientDetail.value = UiState.Success(updated)
+                        updated
+                    },
+                    // D4 — pessimistic per-field edit axes:
+                    // 403 = capability revoked mid-session → silent exit (no error, no inline message;
+                    //      backend-authoritative, ADR-0007 — the screen stays on stale data until reload).
+                    // 409 = changed elsewhere → reload + changed-fields indication; the fresh payload
+                    //      replaces the value the user was editing (their edit didn't win).
+                    // 404 = the record is gone (anonymized elsewhere) → reload renders the husk (D10).
+                    // Any other non-success (400 blank names / BP pair / validation) → generic Error →
+                    //      screen shows the inline error + stays in edit mode.
+                    onNonSuccess = { response ->
+                        when (response.status) {
+                            HttpStatusCode.Forbidden -> {
+                                ClientState.finishClientMutation(mutationLease)
+                                _updateClientState.value = UiState.Idle
+                                true
                             }
-                            loadClient(
-                                clientId,
-                                resetNotice = false,
-                                mutationLease = mutationLease,
-                                publishMutation = true,
-                            )
-                            true
-                        }
 
-                        else -> {
-                            ClientState.finishClientMutation(mutationLease)
-                            false
+                            HttpStatusCode.Conflict, HttpStatusCode.NotFound -> {
+                                _updateClientState.value = UiState.Idle
+                                if (response.status == HttpStatusCode.Conflict) {
+                                    _detailChangedNotice.value = true
+                                }
+                                loadClient(
+                                    clientId,
+                                    resetNotice = false,
+                                    mutationLease = mutationLease,
+                                    publishMutation = true,
+                                )
+                                true
+                            }
+
+                            else -> {
+                                ClientState.finishClientMutation(mutationLease)
+                                false
+                            }
                         }
-                    }
-                },
-                onError = { ClientState.finishClientMutation(mutationLease) },
+                    },
+                    onError = { ClientState.finishClientMutation(mutationLease) },
+                ),
             ).also { job ->
                 job.invokeOnCompletion { cause ->
                     if (cause is CancellationException) ClientState.finishClientMutation(mutationLease)
@@ -209,26 +213,28 @@ class ClientViewModel(
         _anonymizeState.value = UiState.Loading
         handler
             .launch(
-                state = _anonymizeState,
-                operation = "anonymizeClient",
-                endpoint = "POST /api/clients/$clientId/anonymize",
-                entryMessage = "anonymizeClient called: clientId=$clientId",
-                block = { apiClient.httpClient.post(ApiRoutes.clientAnonymize(clientId)) },
-                // 204 no body — transform runs only on success; the notice crosses the VM boundary to
-                // the search screen's snackbar via ClientState (D1; the detail entry's VM is a
-                // different instance than the search entry's — see ClientState doc comment).
-                transform = {
-                    if (ClientState.publishClientMutation(mutationLease, clientId, null)) {
-                        ClientState.setAnonymizeNotice("Client anonymized")
-                    }
-                    ClientState.finishClientMutation(mutationLease)
-                    Unit
-                },
-                onNonSuccess = {
-                    ClientState.finishClientMutation(mutationLease)
-                    false
-                },
-                onError = { ClientState.finishClientMutation(mutationLease) },
+                LaunchRequest(
+                    state = _anonymizeState,
+                    operation = "anonymizeClient",
+                    endpoint = "POST /api/clients/$clientId/anonymize",
+                    entryMessage = "anonymizeClient called: clientId=$clientId",
+                    block = { apiClient.httpClient.post(ApiRoutes.clientAnonymize(clientId)) },
+                    // 204 no body — transform runs only on success; the notice crosses the VM boundary to
+                    // the search screen's snackbar via ClientState (D1; the detail entry's VM is a
+                    // different instance than the search entry's — see ClientState doc comment).
+                    transform = {
+                        if (ClientState.publishClientMutation(mutationLease, clientId, null)) {
+                            ClientState.setAnonymizeNotice("Client anonymized")
+                        }
+                        ClientState.finishClientMutation(mutationLease)
+                        Unit
+                    },
+                    onNonSuccess = {
+                        ClientState.finishClientMutation(mutationLease)
+                        false
+                    },
+                    onError = { ClientState.finishClientMutation(mutationLease) },
+                ),
             ).also { job ->
                 job.invokeOnCompletion { cause ->
                     if (cause is CancellationException) ClientState.finishClientMutation(mutationLease)
@@ -245,22 +251,24 @@ class ClientViewModel(
         if (_createClientResult.value is UiState.Loading) return
         _createClientResult.value = UiState.Loading
         handler.launch(
-            state = _createClientResult,
-            operation = "createClient",
-            endpoint = "POST /api/clients",
-            block = { apiClient.httpClient.post(ApiRoutes.CLIENTS) { setBody(request) } },
-            transform = { response ->
-                val created = response.body<ClientResponse>()
-                clientSearcher.include(created)
-                created
-            },
-            onNonSuccess = { response ->
-                val detail =
-                    extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
-                _createClientResult.value =
-                    UiState.Error(detail ?: "Create client failed: ${response.status.value}")
-                true
-            },
+            LaunchRequest(
+                state = _createClientResult,
+                operation = "createClient",
+                endpoint = "POST /api/clients",
+                block = { apiClient.httpClient.post(ApiRoutes.CLIENTS) { setBody(request) } },
+                transform = { response ->
+                    val created = response.body<ClientResponse>()
+                    clientSearcher.include(created)
+                    created
+                },
+                onNonSuccess = { response ->
+                    val detail =
+                        extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                    _createClientResult.value =
+                        UiState.Error(detail ?: "Create client failed: ${response.status.value}")
+                    true
+                },
+            ),
         )
     }
 

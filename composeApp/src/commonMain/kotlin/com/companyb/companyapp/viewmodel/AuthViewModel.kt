@@ -37,16 +37,18 @@ class AuthViewModel(
         password: String,
     ): Job =
         handler.launch(
-            state = _loginState,
-            operation = "login",
-            endpoint = "POST ${ApiRoutes.AUTH_LOGIN}",
-            entryMessage = "login attempt for username=$username",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.AUTH_LOGIN) {
-                    setBody(LoginRequest(username, password))
-                }
-            },
-            transform = { it.body() },
+            LaunchRequest(
+                state = _loginState,
+                operation = "login",
+                endpoint = "POST ${ApiRoutes.AUTH_LOGIN}",
+                entryMessage = "login attempt for username=$username",
+                block = {
+                    apiClient.httpClient.post(ApiRoutes.AUTH_LOGIN) {
+                        setBody(LoginRequest(username, password))
+                    }
+                },
+                transform = { it.body() },
+            ),
         )
 
     fun logout() {
@@ -55,8 +57,11 @@ class AuthViewModel(
             state = _logoutState,
             operation = "logout",
             endpoint = "POST /api/auth/logout",
-            entryMessage = "logout attempt start",
             block = { apiClient.httpClient.post(ApiRoutes.AUTH_LOGOUT) },
+            hooks =
+                LaunchHooks(
+                    entryMessage = "logout attempt start",
+                ),
         )
     }
 
@@ -70,23 +75,25 @@ class AuthViewModel(
         newPassword: String,
     ): Job =
         handler.launch(
-            state = _acceptInviteState,
-            operation = "acceptInvite",
-            endpoint = "POST ${ApiRoutes.AUTH_ACCEPT_INVITE}",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.AUTH_ACCEPT_INVITE) {
-                    setBody(AcceptInviteRequest(token, newPassword))
-                }
-            },
-            transform = { Unit },
-            onNonSuccess = { response ->
-                // The backend's 400 body names the failure class (invalid / already used /
-                // expired / weak password) — surface it instead of a bare status.
-                val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
-                _acceptInviteState.value =
-                    UiState.Error(detail ?: "Accept invite failed: ${response.status.value}")
-                true
-            },
+            LaunchRequest(
+                state = _acceptInviteState,
+                operation = "acceptInvite",
+                endpoint = "POST ${ApiRoutes.AUTH_ACCEPT_INVITE}",
+                block = {
+                    apiClient.httpClient.post(ApiRoutes.AUTH_ACCEPT_INVITE) {
+                        setBody(AcceptInviteRequest(token, newPassword))
+                    }
+                },
+                transform = { Unit },
+                onNonSuccess = { response ->
+                    // The backend's 400 body names the failure class (invalid / already used /
+                    // expired / weak password) — surface it instead of a bare status.
+                    val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                    _acceptInviteState.value =
+                        UiState.Error(detail ?: "Accept invite failed: ${response.status.value}")
+                    true
+                },
+            ),
         )
 
     // #353 — forgot-password request leg. 204 is uniform by design (enumeration resistance):
@@ -96,21 +103,23 @@ class AuthViewModel(
 
     fun requestPasswordReset(identifier: String): Job =
         handler.launch(
-            state = _requestResetState,
-            operation = "requestPasswordReset",
-            endpoint = "POST ${ApiRoutes.AUTH_FORGOT_PASSWORD}",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.AUTH_FORGOT_PASSWORD) {
-                    setBody(ForgotPasswordRequest(identifier))
-                }
-            },
-            transform = { Unit },
-            onNonSuccess = { response ->
-                val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
-                _requestResetState.value =
-                    UiState.Error(detail ?: "Reset request failed: ${response.status.value}")
-                true
-            },
+            LaunchRequest(
+                state = _requestResetState,
+                operation = "requestPasswordReset",
+                endpoint = "POST ${ApiRoutes.AUTH_FORGOT_PASSWORD}",
+                block = {
+                    apiClient.httpClient.post(ApiRoutes.AUTH_FORGOT_PASSWORD) {
+                        setBody(ForgotPasswordRequest(identifier))
+                    }
+                },
+                transform = { Unit },
+                onNonSuccess = { response ->
+                    val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                    _requestResetState.value =
+                        UiState.Error(detail ?: "Reset request failed: ${response.status.value}")
+                    true
+                },
+            ),
         )
 
     // #353 — reset redemption leg; the backend's 400 body names the failure class
@@ -123,20 +132,22 @@ class AuthViewModel(
         newPassword: String,
     ): Job =
         handler.launch(
-            state = _resetPasswordState,
-            operation = "resetPassword",
-            endpoint = "POST ${ApiRoutes.AUTH_RESET_PASSWORD}",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.AUTH_RESET_PASSWORD) {
-                    setBody(ResetPasswordRequest(token, newPassword))
-                }
-            },
-            transform = { Unit },
-            onNonSuccess = { response ->
-                val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
-                _resetPasswordState.value =
-                    UiState.Error(detail ?: "Password reset failed: ${response.status.value}")
-                true
-            },
+            LaunchRequest(
+                state = _resetPasswordState,
+                operation = "resetPassword",
+                endpoint = "POST ${ApiRoutes.AUTH_RESET_PASSWORD}",
+                block = {
+                    apiClient.httpClient.post(ApiRoutes.AUTH_RESET_PASSWORD) {
+                        setBody(ResetPasswordRequest(token, newPassword))
+                    }
+                },
+                transform = { Unit },
+                onNonSuccess = { response ->
+                    val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                    _resetPasswordState.value =
+                        UiState.Error(detail ?: "Password reset failed: ${response.status.value}")
+                    true
+                },
+            ),
         )
 }

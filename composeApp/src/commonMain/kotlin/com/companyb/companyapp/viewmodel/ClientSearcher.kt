@@ -136,10 +136,8 @@ internal class ClientSearcher(
         _lastFiredQuery.value = query
         keptResults.stateFlow.value = UiState.Loading
         handler.launchStateless(
-            scope = requestScope,
             operation = "search",
             endpoint = "GET /api/clients",
-            entryMessage = entryMessage,
             block = {
                 apiClient.httpClient.get(ApiRoutes.CLIENTS) { parameter("q", query) }
             },
@@ -151,17 +149,22 @@ internal class ClientSearcher(
                     keptResults.stateFlow.value = UiState.Success(clients)
                 }
             },
-            onNonSuccess = { response ->
-                if (searchGeneration == generation) {
-                    keptResults.stateFlow.value = UiState.Error("search failed: ${response.status.value}")
-                }
-            },
-            onError = { error ->
-                if (searchGeneration == generation) {
-                    keptResults.stateFlow.value = UiState.Error(error.message ?: "Unknown error")
-                }
-            },
-            stale = { searchGeneration != generation },
+            hooks =
+                StatelessHooks(
+                    scope = requestScope,
+                    entryMessage = entryMessage,
+                    onNonSuccess = { response ->
+                        if (searchGeneration == generation) {
+                            keptResults.stateFlow.value = UiState.Error("search failed: ${response.status.value}")
+                        }
+                    },
+                    onError = { error ->
+                        if (searchGeneration == generation) {
+                            keptResults.stateFlow.value = UiState.Error(error.message ?: "Unknown error")
+                        }
+                    },
+                    stale = { searchGeneration != generation },
+                ),
         )
     }
 

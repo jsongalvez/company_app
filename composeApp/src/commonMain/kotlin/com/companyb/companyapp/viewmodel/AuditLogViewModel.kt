@@ -146,17 +146,20 @@ class AuditLogViewModel(
                     )
                 _flaggedLoadInFlight.value = false
             },
-            onNonSuccess = { response ->
-                flaggedLoadFailure(cold, "flagged load failed: ${response.status.value}")
-                _flaggedLoadInFlight.value = false
-            },
-            onError = { e ->
-                // Transport or deserialization failure: run the same surface + in-flight-flag
-                // clear the pre-port block/transform catches ran — onError is the single
-                // failure surface, the handler keeps its logging (#169).
-                flaggedLoadFailure(cold, "flagged load failed: ${e.message ?: "network error"}")
-                _flaggedLoadInFlight.value = false
-            },
+            hooks =
+                StatelessHooks(
+                    onNonSuccess = { response ->
+                        flaggedLoadFailure(cold, "flagged load failed: ${response.status.value}")
+                        _flaggedLoadInFlight.value = false
+                    },
+                    onError = { e ->
+                        // Transport or deserialization failure: run the same surface + in-flight-flag
+                        // clear the pre-port block/transform catches ran — onError is the single
+                        // failure surface, the handler keeps its logging (#169).
+                        flaggedLoadFailure(cold, "flagged load failed: ${e.message ?: "network error"}")
+                        _flaggedLoadInFlight.value = false
+                    },
+                ),
         )
     }
 
@@ -189,23 +192,26 @@ class AuditLogViewModel(
                 markAcknowledgedInBrowse(entry.id)
                 ackTracker.finish(entry.id)
             },
-            onNonSuccess = { response ->
-                ackTracker.fail(
-                    entry.id,
-                    if (response.status == HttpStatusCode.Conflict) {
-                        // Self-acknowledge (D2: the editor can't clear their own flag).
-                        "Only another reviewer can acknowledge this entry"
-                    } else {
-                        "Acknowledge failed: ${response.status.value}"
+            hooks =
+                StatelessHooks(
+                    onNonSuccess = { response ->
+                        ackTracker.fail(
+                            entry.id,
+                            if (response.status == HttpStatusCode.Conflict) {
+                                // Self-acknowledge (D2: the editor can't clear their own flag).
+                                "Only another reviewer can acknowledge this entry"
+                            } else {
+                                "Acknowledge failed: ${response.status.value}"
+                            },
+                        )
                     },
-                )
-            },
-            onError = { e ->
-                // Every failure path (transport or deserialization) clears the in-flight guard
-                // so the row's button re-enables, and surfaces an inline error (ADR-0022
-                // pessimistic axis; #123 decision 2) — onError is that surface (#169).
-                ackTracker.fail(entry.id, "Acknowledge failed: ${e.message ?: "network error"}")
-            },
+                    onError = { e ->
+                        // Every failure path (transport or deserialization) clears the in-flight guard
+                        // so the row's button re-enables, and surfaces an inline error (ADR-0022
+                        // pessimistic axis; #123 decision 2) — onError is that surface (#169).
+                        ackTracker.fail(entry.id, "Acknowledge failed: ${e.message ?: "network error"}")
+                    },
+                ),
         )
     }
 
@@ -315,16 +321,11 @@ class AuditLogViewModel(
         if (mode == FetchMode.Refresh) _isRefreshing.value = true
         if (mode == FetchMode.LoadMore) _isLoadingMore.value = true
         handler.launchStateless(
-            // State-less (#168): the list state is mutated in transform, so a failed or
+// State-less (#168): the list state is mutated in transform, so a failed or
             // in-flight page fetch can never clobber the accumulated list (D10).
             operation = mode.operationName,
             endpoint = "GET /api/audit-log/entries",
             block = { browseRequest(filters, cursor) },
-            // #173 — the hand-rolled browseGeneration guard folds into the state-less stale
-            // gate: a stale response (applyFilters bumped the generation while this fetch was
-            // in flight) is inert — no list write, no cursor write, no error line, no flag
-            // cleanup (applyFilters already reset the flags).
-            stale = { generation != browseGeneration },
             transform = {
                 val page = it.body<AuditLogBrowseResponse>()
                 // A cold response that lands after a concurrent same-generation fetch
@@ -365,18 +366,26 @@ class AuditLogViewModel(
                 }
                 finish(mode)
             },
-            onNonSuccess = { response ->
-                handlePageFailure(mode, "browse failed: ${response.status.value}")
-                finish(mode)
-            },
-            onError = { e ->
-                // Network or deserialization failure — same error surface + flag cleanup so the
-                // list state and buttons never freeze (keep-last-list); gated by the stale flag
-                // so a superseded fetch's failure can't surface on the new list. onError is
-                // that single surface (#169).
-                handlePageFailure(mode, "browse failed: ${e.message ?: "network error"}")
-                finish(mode)
-            },
+            hooks =
+                StatelessHooks(
+// #173 — the hand-rolled browseGeneration guard folds into the state-less stale
+                    // gate: a stale response (applyFilters bumped the generation while this fetch was
+                    // in flight) is inert — no list write, no cursor write, no error line, no flag
+                    // cleanup (applyFilters already reset the flags).
+                    stale = { generation != browseGeneration },
+                    onNonSuccess = { response ->
+                        handlePageFailure(mode, "browse failed: ${response.status.value}")
+                        finish(mode)
+                    },
+                    onError = { e ->
+                        // Network or deserialization failure — same error surface + flag cleanup so the
+                        // list state and buttons never freeze (keep-last-list); gated by the stale flag
+                        // so a superseded fetch's failure can't surface on the new list. onError is
+                        // that single surface (#169).
+                        handlePageFailure(mode, "browse failed: ${e.message ?: "network error"}")
+                        finish(mode)
+                    },
+                ),
         )
     }
 

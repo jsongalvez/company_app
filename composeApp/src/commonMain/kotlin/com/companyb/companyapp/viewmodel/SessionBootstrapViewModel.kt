@@ -54,56 +54,58 @@ class SessionBootstrapViewModel(
         _validationState.value = UiState.Loading
         validationJob =
             handler.launch(
-                state = _validationState,
-                operation = "validateSession",
-                endpoint = "GET /api/me",
-                entryMessage = "validateSession called (token present)",
-                block = { apiClient.httpClient.get(ApiRoutes.ME) },
-                transform = { response ->
-                    val me = response.body<MeResponse>()
-                    logInfo("SessionBootstrapVM", "GET /api/me/capabilities (post-login/launch trigger)")
-                    val capabilitiesResponse = apiClient.httpClient.get(ApiRoutes.ME_CAPABILITIES)
-                    when {
-                        capabilitiesResponse.status.isSuccess() -> {
-                            val capabilities = capabilitiesResponse.body<List<UserCapabilityResponse>>()
-                            SessionState.setBootstrapState(me, capabilities)
-                        }
+                LaunchRequest(
+                    state = _validationState,
+                    operation = "validateSession",
+                    endpoint = "GET /api/me",
+                    entryMessage = "validateSession called (token present)",
+                    block = { apiClient.httpClient.get(ApiRoutes.ME) },
+                    transform = { response ->
+                        val me = response.body<MeResponse>()
+                        logInfo("SessionBootstrapVM", "GET /api/me/capabilities (post-login/launch trigger)")
+                        val capabilitiesResponse = apiClient.httpClient.get(ApiRoutes.ME_CAPABILITIES)
+                        when {
+                            capabilitiesResponse.status.isSuccess() -> {
+                                val capabilities = capabilitiesResponse.body<List<UserCapabilityResponse>>()
+                                SessionState.setBootstrapState(me, capabilities)
+                            }
 
-                        // 401 on the capabilities leg is the same session-401 class as on the me
-                        // leg — the global onUnauthorized handler clears the token (silent at
-                        // launch, notice+navigate mid-session). Silent here too: surfacing
-                        // UiState.Error would mislabel an auth failure as a connection problem.
-                        capabilitiesResponse.status == HttpStatusCode.Unauthorized -> {
-                            SessionState.clear()
-                            _validationState.value = UiState.Idle
-                            throw CancellationException("Session invalidated during capabilities validation")
-                        }
+                            // 401 on the capabilities leg is the same session-401 class as on the me
+                            // leg — the global onUnauthorized handler clears the token (silent at
+                            // launch, notice+navigate mid-session). Silent here too: surfacing
+                            // UiState.Error would mislabel an auth failure as a connection problem.
+                            capabilitiesResponse.status == HttpStatusCode.Unauthorized -> {
+                                SessionState.clear()
+                                _validationState.value = UiState.Idle
+                                throw CancellationException("Session invalidated during capabilities validation")
+                            }
 
-                        // Any other failure is a genuine validation failure — Error (the splash
-                        // keeps the token and offers Retry; LoginScreen shows the bootstrap copy).
-                        else -> {
-                            error(
-                                "capabilities fetch failed: ${capabilitiesResponse.status.value}",
+                            // Any other failure is a genuine validation failure — Error (the splash
+                            // keeps the token and offers Retry; LoginScreen shows the bootstrap copy).
+                            else -> {
+                                error(
+                                    "capabilities fetch failed: ${capabilitiesResponse.status.value}",
+                                )
+                            }
+                        }
+                        Unit
+                    },
+                    onNonSuccess = { response ->
+                        if (response.status == HttpStatusCode.Unauthorized) {
+                            logWarn(
+                                "SessionBootstrapVM",
+                                "validateSession 401 — token invalid, App-level handler clears it",
                             )
+                            // Fully handled: no UiState.Error (the splash derives from token
+                            // presence, not this state). Idle, not a lying stuck-Loading — a stuck
+                            // Loading would keep LoginScreen's form disabled until re-composition.
+                            _validationState.value = UiState.Idle
+                            true
+                        } else {
+                            false
                         }
-                    }
-                    Unit
-                },
-                onNonSuccess = { response ->
-                    if (response.status == HttpStatusCode.Unauthorized) {
-                        logWarn(
-                            "SessionBootstrapVM",
-                            "validateSession 401 — token invalid, App-level handler clears it",
-                        )
-                        // Fully handled: no UiState.Error (the splash derives from token
-                        // presence, not this state). Idle, not a lying stuck-Loading — a stuck
-                        // Loading would keep LoginScreen's form disabled until re-composition.
-                        _validationState.value = UiState.Idle
-                        true
-                    } else {
-                        false
-                    }
-                },
+                    },
+                ),
             )
         return validationJob!!
     }

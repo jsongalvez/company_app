@@ -160,7 +160,10 @@ class ReliefInviteViewModel(
                 // means the rendered list IS this panel's.
                 keptSent.commit(branchId, body)
             },
-            stale = { stamp != sentStamp },
+            hooks =
+                StatelessHooks(
+                    stale = { stamp != sentStamp },
+                ),
         )
     }
 
@@ -193,7 +196,10 @@ class ReliefInviteViewModel(
             transform = { response ->
                 keptAccepted.commit(branchId, response.body<List<ReliefInviteResponse>>())
             },
-            stale = { stamp != acceptedStamp },
+            hooks =
+                StatelessHooks(
+                    stale = { stamp != acceptedStamp },
+                ),
         )
     }
 
@@ -208,23 +214,25 @@ class ReliefInviteViewModel(
         branchId: String,
     ): Job =
         handler.launch(
-            state = _revokeResult,
-            operation = "revokeInvite",
-            endpoint = "POST /api/relief-invites/$inviteId/revoke",
-            block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "revoke")) },
-            onNonSuccess = { response ->
-                if (response.status == HttpStatusCode.Conflict) {
-                    _revokeResult.value = UiState.Idle
-                } else {
-                    _revokeResult.value = UiState.Error(revokeErrorMessage(response))
-                }
-                reloadRevocationSurfaces(branchId)
-                true
-            },
-            transform = {
-                reloadRevocationSurfaces(branchId)
-                Unit
-            },
+            LaunchRequest(
+                state = _revokeResult,
+                operation = "revokeInvite",
+                endpoint = "POST /api/relief-invites/$inviteId/revoke",
+                block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "revoke")) },
+                onNonSuccess = { response ->
+                    if (response.status == HttpStatusCode.Conflict) {
+                        _revokeResult.value = UiState.Idle
+                    } else {
+                        _revokeResult.value = UiState.Error(revokeErrorMessage(response))
+                    }
+                    reloadRevocationSurfaces(branchId)
+                    true
+                },
+                transform = {
+                    reloadRevocationSurfaces(branchId)
+                    Unit
+                },
+            ),
         )
 
     private fun reloadRevocationSurfaces(branchId: String) {
@@ -271,57 +279,63 @@ private class ReceivedInvites(
     fun loadReceived(): Job {
         if (keptReceived.state.value is UiState.Loading) return Job()
         return handler.launch(
-            state = keptReceived.stateFlow,
-            operation = "loadReceived",
-            endpoint = "GET /api/relief-invites",
-            block = { apiClient.httpClient.get(ApiRoutes.RELIEF_INVITES) },
-            transform = { it.body<List<ReliefInviteResponse>>() },
-            // #165 stale-substitution guard (concentrated from the former in-transform block): an
-            // accept/decline landing while the load was in flight must not resurrect the resolved
-            // row (the #141 resurrect class). The stamp read at landing disagrees with the
-            // launch-captured read, so the handler substitutes the fallback: currentReceivedList
-            // reads the exact post-action list (removeReceived assigns Success synchronously,
-            // and at fallback time the stale landing's own Loading write is current — the read
-            // resolves to the freshest mirror, exact on Main.immediate); the re-issue converges
-            // server truth — rows the action couldn't know (cross-device accepts, new invites)
-            // land from the fresh GET. Both paths are pinned by tests.
-            stamp = { actionStamp },
-            fallback = {
-                loadReceived()
-                currentReceivedList() ?: emptyList()
-            },
+            LaunchRequest(
+                state = keptReceived.stateFlow,
+                operation = "loadReceived",
+                endpoint = "GET /api/relief-invites",
+                block = { apiClient.httpClient.get(ApiRoutes.RELIEF_INVITES) },
+                transform = { it.body<List<ReliefInviteResponse>>() },
+                // #165 stale-substitution guard (concentrated from the former in-transform block): an
+                // accept/decline landing while the load was in flight must not resurrect the resolved
+                // row (the #141 resurrect class). The stamp read at landing disagrees with the
+                // launch-captured read, so the handler substitutes the fallback: currentReceivedList
+                // reads the exact post-action list (removeReceived assigns Success synchronously,
+                // and at fallback time the stale landing's own Loading write is current — the read
+                // resolves to the freshest mirror, exact on Main.immediate); the re-issue converges
+                // server truth — rows the action couldn't know (cross-device accepts, new invites)
+                // land from the fresh GET. Both paths are pinned by tests.
+                stamp = { actionStamp },
+                fallback = {
+                    loadReceived()
+                    currentReceivedList() ?: emptyList()
+                },
+            ),
         )
     }
 
     fun acceptInvite(inviteId: String): Job =
         handler.launch(
-            state = _acceptResult,
-            operation = "acceptInvite",
-            endpoint = "POST /api/relief-invites/$inviteId/accept",
-            block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "accept")) },
-            // #113 shape: a 409 means the invite is already resolved (double-tap race or a
-            // cross-device accept) — the row must leave the section, so reload instead of
-            // surfacing an error on a stale row (the markRead absent-row defense precedent).
-            onNonSuccess = onConflictReload(_acceptResult, inviteId),
-            transform = {
-                actionStamp++
-                removeReceived(inviteId)
-                Unit
-            },
+            LaunchRequest(
+                state = _acceptResult,
+                operation = "acceptInvite",
+                endpoint = "POST /api/relief-invites/$inviteId/accept",
+                block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "accept")) },
+                // #113 shape: a 409 means the invite is already resolved (double-tap race or a
+                // cross-device accept) — the row must leave the section, so reload instead of
+                // surfacing an error on a stale row (the markRead absent-row defense precedent).
+                onNonSuccess = onConflictReload(_acceptResult, inviteId),
+                transform = {
+                    actionStamp++
+                    removeReceived(inviteId)
+                    Unit
+                },
+            ),
         )
 
     fun declineInvite(inviteId: String): Job =
         handler.launch(
-            state = _declineResult,
-            operation = "declineInvite",
-            endpoint = "POST /api/relief-invites/$inviteId/decline",
-            block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "decline")) },
-            onNonSuccess = onConflictReload(_declineResult, inviteId),
-            transform = {
-                actionStamp++
-                removeReceived(inviteId)
-                Unit
-            },
+            LaunchRequest(
+                state = _declineResult,
+                operation = "declineInvite",
+                endpoint = "POST /api/relief-invites/$inviteId/decline",
+                block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "decline")) },
+                onNonSuccess = onConflictReload(_declineResult, inviteId),
+                transform = {
+                    actionStamp++
+                    removeReceived(inviteId)
+                    Unit
+                },
+            ),
         )
 
     /**

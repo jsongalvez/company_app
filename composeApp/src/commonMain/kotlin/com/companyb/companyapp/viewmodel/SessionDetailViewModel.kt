@@ -93,22 +93,24 @@ class SessionDetailViewModel(
         val lastGood = (_detail.value as? UiState.Success)?.data
         handler
             .launch(
-                state = _detail,
-                operation = "loadDetail",
-                endpoint = "GET /api/sessions/$sessionId",
-                block = { apiClient.httpClient.get(ApiRoutes.session(sessionId)) },
-                transform = { it.body() },
-                // Status-leg failures (the bearer-only 404 for seeded dashboard-push rows
-                // whose caller holds no notification, a revoked capability 403) keep the
-                // rendered row; only a failed INITIAL load lands in Error.
-                onNonSuccess = {
-                    if (lastGood != null) {
-                        _detail.value = UiState.Success(lastGood)
-                        true
-                    } else {
-                        false
-                    }
-                },
+                LaunchRequest(
+                    state = _detail,
+                    operation = "loadDetail",
+                    endpoint = "GET /api/sessions/$sessionId",
+                    block = { apiClient.httpClient.get(ApiRoutes.session(sessionId)) },
+                    transform = { it.body() },
+                    // Status-leg failures (the bearer-only 404 for seeded dashboard-push rows
+                    // whose caller holds no notification, a revoked capability 403) keep the
+                    // rendered row; only a failed INITIAL load lands in Error.
+                    onNonSuccess = {
+                        if (lastGood != null) {
+                            _detail.value = UiState.Success(lastGood)
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                ),
             ).invokeOnCompletion { inFlight = false }
     }
 }

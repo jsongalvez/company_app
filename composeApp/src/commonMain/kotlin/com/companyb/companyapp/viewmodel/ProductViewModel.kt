@@ -79,18 +79,20 @@ class ProductViewModel(
         if (_createProductResult.value is UiState.Loading) return
         _createProductResult.value = UiState.Loading
         handler.launch(
-            state = _createProductResult,
-            operation = "createProduct",
-            endpoint = "POST /api/products",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.PRODUCTS) {
-                    setBody(request)
-                }
-            },
-            transform = { it.body() },
-            onNonSuccess = { response ->
-                handleApiError(response) { _createProductResult.value = it }
-            },
+            LaunchRequest(
+                state = _createProductResult,
+                operation = "createProduct",
+                endpoint = "POST /api/products",
+                block = {
+                    apiClient.httpClient.post(ApiRoutes.PRODUCTS) {
+                        setBody(request)
+                    }
+                },
+                transform = { it.body() },
+                onNonSuccess = { response ->
+                    handleApiError(response) { _createProductResult.value = it }
+                },
+            ),
         )
     }
 
@@ -101,18 +103,20 @@ class ProductViewModel(
         if (_updateProductResult.value is UiState.Loading) return
         _updateProductResult.value = UiState.Loading
         handler.launch(
-            state = _updateProductResult,
-            operation = "updateProduct",
-            endpoint = "PATCH /api/products/$productId",
-            block = {
-                apiClient.httpClient.patch(ApiRoutes.product(productId)) {
-                    setBody(request)
-                }
-            },
-            transform = { it.body() },
-            onNonSuccess = { response ->
-                handleApiError(response) { _updateProductResult.value = it }
-            },
+            LaunchRequest(
+                state = _updateProductResult,
+                operation = "updateProduct",
+                endpoint = "PATCH /api/products/$productId",
+                block = {
+                    apiClient.httpClient.patch(ApiRoutes.product(productId)) {
+                        setBody(request)
+                    }
+                },
+                transform = { it.body() },
+                onNonSuccess = { response ->
+                    handleApiError(response) { _updateProductResult.value = it }
+                },
+            ),
         )
     }
 
@@ -130,18 +134,20 @@ class ProductViewModel(
         if (_createCategoryResult.value is UiState.Loading) return
         _createCategoryResult.value = UiState.Loading
         handler.launch(
-            state = _createCategoryResult,
-            operation = "createCategory",
-            endpoint = "POST /api/product-categories",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.PRODUCT_CATEGORIES) {
-                    setBody(request)
-                }
-            },
-            transform = { it.body() },
-            onNonSuccess = { response ->
-                handleApiError(response) { _createCategoryResult.value = it }
-            },
+            LaunchRequest(
+                state = _createCategoryResult,
+                operation = "createCategory",
+                endpoint = "POST /api/product-categories",
+                block = {
+                    apiClient.httpClient.post(ApiRoutes.PRODUCT_CATEGORIES) {
+                        setBody(request)
+                    }
+                },
+                transform = { it.body() },
+                onNonSuccess = { response ->
+                    handleApiError(response) { _createCategoryResult.value = it }
+                },
+            ),
         )
     }
 

@@ -76,34 +76,38 @@ class ReliefAccessViewModel(
      */
     private fun refreshRequests(branchDayId: String): Job =
         handler.launch(
-            state = keptRequests.stateFlow,
-            operation = "loadRequests",
-            endpoint = "GET /api/relief-access?branchDayId=$branchDayId",
-            block = { apiClient.httpClient.get(ApiRoutes.reliefAccessList(branchDayId)) },
-            transform = { it.body<List<ReliefAccessResponse>>() },
-            // #165 stale-substitution guard: an action landing while a load was in flight
-            // must not commit its pre-action snapshot — substitute the freshest mirror and
-            // re-issue so server truth converges.
-            stamp = { actionStamp },
-            fallback = {
-                refreshRequests(branchDayId)
-                keptRequests.freshestValue() ?: emptyList()
-            },
+            LaunchRequest(
+                state = keptRequests.stateFlow,
+                operation = "loadRequests",
+                endpoint = "GET /api/relief-access?branchDayId=$branchDayId",
+                block = { apiClient.httpClient.get(ApiRoutes.reliefAccessList(branchDayId)) },
+                transform = { it.body<List<ReliefAccessResponse>>() },
+                // #165 stale-substitution guard: an action landing while a load was in flight
+                // must not commit its pre-action snapshot — substitute the freshest mirror and
+                // re-issue so server truth converges.
+                stamp = { actionStamp },
+                fallback = {
+                    refreshRequests(branchDayId)
+                    keptRequests.freshestValue() ?: emptyList()
+                },
+            ),
         )
 
     /** The caller's own asks across branches/days — the pre-clock-in outcome view (#357). */
     fun loadMine(): Job =
         handler.launch(
-            state = keptMine.stateFlow,
-            operation = "loadMine",
-            endpoint = "GET ${ApiRoutes.RELIEF_ACCESS_MINE}",
-            block = { apiClient.httpClient.get(ApiRoutes.RELIEF_ACCESS_MINE) },
-            transform = { it.body<List<ReliefAccessResponse>>() },
-            stamp = { actionStamp },
-            fallback = {
-                loadMine()
-                keptMine.freshestValue() ?: emptyList()
-            },
+            LaunchRequest(
+                state = keptMine.stateFlow,
+                operation = "loadMine",
+                endpoint = "GET ${ApiRoutes.RELIEF_ACCESS_MINE}",
+                block = { apiClient.httpClient.get(ApiRoutes.RELIEF_ACCESS_MINE) },
+                transform = { it.body<List<ReliefAccessResponse>>() },
+                stamp = { actionStamp },
+                fallback = {
+                    loadMine()
+                    keptMine.freshestValue() ?: emptyList()
+                },
+            ),
         )
 
     fun loadBranchOptions(): Job =

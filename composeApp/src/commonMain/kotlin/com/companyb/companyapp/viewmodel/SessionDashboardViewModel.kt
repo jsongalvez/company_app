@@ -351,57 +351,59 @@ class SessionDashboardViewModel(
     private fun launchReload(branchId: String): Job =
         handler
             .launch(
-                state = _dashboardState,
-                operation = "loadDashboard",
-                endpoint = "GET /api/branches/$branchId/dashboard/today",
-                block = { apiClient.httpClient.get(ApiRoutes.branchDashboardToday(branchId)) },
-                transform = {
-                    it.body<DashboardResponse>().also { data ->
-                        // Q5a — the failure counter and the timestamp reset only on SUCCESS.
-                        consecutiveFailures = 0
-                        _pollStatus.value = DashboardPollStatus.FRESH
-                        // #149 — monotonic per-row version merge: a poll response that started
-                        // before a successful inline edit landed carries an older version and
-                        // must never regress the committed row (stale-poll-after-commit).
-                        _lastData.value =
-                            data.copy(
-                                sessions = mergeDashboardRows(_lastData.value?.sessions, data.sessions),
-                            )
-                        _lastUpdatedAt.value = Clock.System.now()
-                    }
-                },
-                onNonSuccess = { response ->
-                    when (response.status.value) {
-                        // 401 — session termination: the global ApiClient.onUnauthorized path
-                        // handles the redirect; never counts as poll degradation (Q5b). The
-                        // handler pre-set Loading, so reset the state or the in-flight guard
-                        // wedges every future poll. Polling stops too — the session is dead.
-                        401 -> {
-                            _dashboardState.value = UiState.Idle
-                            pause()
-                            true
+                LaunchRequest(
+                    state = _dashboardState,
+                    operation = "loadDashboard",
+                    endpoint = "GET /api/branches/$branchId/dashboard/today",
+                    block = { apiClient.httpClient.get(ApiRoutes.branchDashboardToday(branchId)) },
+                    transform = {
+                        it.body<DashboardResponse>().also { data ->
+                            // Q5a — the failure counter and the timestamp reset only on SUCCESS.
+                            consecutiveFailures = 0
+                            _pollStatus.value = DashboardPollStatus.FRESH
+                            // #149 — monotonic per-row version merge: a poll response that started
+                            // before a successful inline edit landed carries an older version and
+                            // must never regress the committed row (stale-poll-after-commit).
+                            _lastData.value =
+                                data.copy(
+                                    sessions = mergeDashboardRows(_lastData.value?.sessions, data.sessions),
+                                )
+                            _lastUpdatedAt.value = Clock.System.now()
                         }
+                    },
+                    onNonSuccess = { response ->
+                        when (response.status.value) {
+                            // 401 — session termination: the global ApiClient.onUnauthorized path
+                            // handles the redirect; never counts as poll degradation (Q5b). The
+                            // handler pre-set Loading, so reset the state or the in-flight guard
+                            // wedges every future poll. Polling stops too — the session is dead.
+                            401 -> {
+                                _dashboardState.value = UiState.Idle
+                                pause()
+                                true
+                            }
 
-                        // 403 — the attendance gate: clock-in ended server-side (e.g. clocked
-                        // out elsewhere). Stop polling; the forbidden card + drawer clock-out.
-                        403 -> {
-                            _isForbidden.value = true
-                            _dashboardState.value = UiState.Idle
-                            pause()
-                            true
-                        }
+                            // 403 — the attendance gate: clock-in ended server-side (e.g. clocked
+                            // out elsewhere). Stop polling; the forbidden card + drawer clock-out.
+                            403 -> {
+                                _isForbidden.value = true
+                                _dashboardState.value = UiState.Idle
+                                pause()
+                                true
+                            }
 
-                        // Generic HTTP failure: counted against the stale/error thresholds.
-                        else -> {
-                            countFailure()
-                            false
+                            // Generic HTTP failure: counted against the stale/error thresholds.
+                            else -> {
+                                countFailure()
+                                false
+                            }
                         }
-                    }
-                },
-                // Transport/deserialization failures land here (onNonSuccess only sees HTTP
-                // statuses) — without this hook a dead network would silently freeze the last
-                // data with no stale banner, no escalation, no retry (pass-1 HARD).
-                onError = { countFailure() },
+                    },
+                    // Transport/deserialization failures land here (onNonSuccess only sees HTTP
+                    // statuses) — without this hook a dead network would silently freeze the last
+                    // data with no stale banner, no escalation, no retry (pass-1 HARD).
+                    onError = { countFailure() },
+                ),
             ).also { job ->
                 // #382 — drain exactly one queued post-mutation reload when the active
                 // landing completes; skipped on terminal legs (Idle = 401/403 paused the
@@ -557,40 +559,45 @@ class SessionDashboardViewModel(
                 commitRow(updated)
                 clearEdit()
             },
-            onNonSuccess = { response ->
-                when (response.status.value) {
-                    // Q4: 403 — capability revoked mid-edit: silent exit + all status-edit
-                    // affordances vanish. The route checks base edit authority before correction
-                    // authority, so a status 403 must revoke both locally (fail closed).
-                    403 -> {
-                        logWarn("DashboardVM", "edit forbidden (403) — affordance hidden")
-                        clearEdit()
-                        locallyRevokedEditContext = capabilityContext
-                        _canEdit.value = false
-                        if (state.field == DashboardEditField.STATUS) {
-                            locallyRevokedCorrectionBranch = capabilityContext.first
-                            _canCorrectStatus.value = false
+            hooks =
+                StatelessHooks(
+                    onNonSuccess = { response ->
+                        when (response.status.value) {
+                            // Q4: 403 — capability revoked mid-edit: silent exit + all status-edit
+                            // affordances vanish. The route checks base edit authority before correction
+                            // authority, so a status 403 must revoke both locally (fail closed).
+                            403 -> {
+                                logWarn("DashboardVM", "edit forbidden (403) — affordance hidden")
+                                clearEdit()
+                                locallyRevokedEditContext = capabilityContext
+                                _canEdit.value = false
+                                if (state.field == DashboardEditField.STATUS) {
+                                    locallyRevokedCorrectionBranch = capabilityContext.first
+                                    _canCorrectStatus.value = false
+                                }
+                            }
+
+                            // ADR-0022: 409 — version conflict: keep the draft + inline error +
+                            // Reload action; reload re-baselines the version (never a silent
+                            // lost update — the expectedVersion is the edit-start snapshot).
+                            409 -> {
+                                _editState.value = _editState.value?.asConflict(CONFLICT_MESSAGE)
+                            }
+
+                            // Model A: any other HTTP failure keeps the draft + inline error.
+                            else -> {
+                                _editState.value =
+                                    _editState.value?.asFailed(
+                                        "Update failed (${response.status.value}) — retry or discard",
+                                    )
+                            }
                         }
-                    }
-
-                    // ADR-0022: 409 — version conflict: keep the draft + inline error +
-                    // Reload action; reload re-baselines the version (never a silent
-                    // lost update — the expectedVersion is the edit-start snapshot).
-                    409 -> {
-                        _editState.value = _editState.value?.asConflict(CONFLICT_MESSAGE)
-                    }
-
-                    // Model A: any other HTTP failure keeps the draft + inline error.
-                    else -> {
-                        _editState.value =
-                            _editState.value?.asFailed("Update failed (${response.status.value}) — retry or discard")
-                    }
-                }
-            },
-            onError = {
-                _editState.value = _editState.value?.asFailed("Update failed — check your connection and retry")
-            },
-            stale = { editGeneration != requestGeneration },
+                    },
+                    onError = {
+                        _editState.value = _editState.value?.asFailed("Update failed — check your connection and retry")
+                    },
+                    stale = { editGeneration != requestGeneration },
+                ),
         )
     }
 
@@ -746,24 +753,27 @@ class SessionDashboardViewModel(
                     clearEdit()
                 }
             },
-            onNonSuccess = { response ->
-                // 401 is the global auth path (ApiClient.onUnauthorized); 403 = grant revoked.
-                if (response.status.value == 401 || response.status.value == 403) {
-                    _dayStatus.value = null
-                    locallyRevokedEditContext = capabilityContext
-                    locallyRevokedCorrectionBranch = capabilityContext.first
-                    _canEdit.value = false
-                    _canCorrectStatus.value = false
-                    clearEdit()
-                } else {
-                    _dayStatus.value = null
-                    logWarn("DashboardVM", "day-status read failed (${response.status.value}) — edit disabled")
-                }
-            },
-            onError = {
-                _dayStatus.value = null
-            },
-            stale = { generation != dayGeneration },
+            hooks =
+                StatelessHooks(
+                    onNonSuccess = { response ->
+                        // 401 is the global auth path (ApiClient.onUnauthorized); 403 = grant revoked.
+                        if (response.status.value == 401 || response.status.value == 403) {
+                            _dayStatus.value = null
+                            locallyRevokedEditContext = capabilityContext
+                            locallyRevokedCorrectionBranch = capabilityContext.first
+                            _canEdit.value = false
+                            _canCorrectStatus.value = false
+                            clearEdit()
+                        } else {
+                            _dayStatus.value = null
+                            logWarn("DashboardVM", "day-status read failed (${response.status.value}) — edit disabled")
+                        }
+                    },
+                    onError = {
+                        _dayStatus.value = null
+                    },
+                    stale = { generation != dayGeneration },
+                ),
         )
     }
 
