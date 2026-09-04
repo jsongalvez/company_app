@@ -114,6 +114,22 @@ fun extractApiErrorMessage(body: String?): String? =
     }
 
 /**
+ * Params-object for [UserViewModel.runMutation] (#462 LPL burn: 7 params > 6 threshold;
+ * data classes are LPL-free, the feedWindowFor FeedWindowRequest precedent).
+ */
+data class MutationRequest(
+    val key: String,
+    val operation: String,
+    val endpoint: String,
+    val block: suspend () -> HttpResponse,
+    val onSuccess: () -> Unit,
+    val statusMessage: (HttpStatusCode) -> String,
+    // #345 — preferred message built from the full response (the `{"error": ...}` body);
+    // when it returns null the status-code [statusMessage] renders.
+    val responseMessage: (suspend (HttpResponse) -> String?)? = null,
+)
+
+/**
  * State model for the User Management screen (#106 D2-D5, built in #135).
  *
  * - [users]: full flat user list (`GET /api/users`, GLOBAL MANAGE_USERS).
@@ -290,23 +306,27 @@ class UserViewModel(
         when (status) {
             UserStatus.INACTIVE -> {
                 runMutation(
-                    key = "deactivate:$userId",
-                    operation = "deactivateUser",
-                    endpoint = "PATCH /api/users/$userId/deactivate",
-                    block = { apiClient.httpClient.patch(ApiRoutes.userDeactivate(userId)) },
-                    onSuccess = { keptUsers.mutateUser(userId) { it.withStatus(UserStatus.INACTIVE) } },
-                    statusMessage = { "Deactivate failed: ${it.value}" },
+                    MutationRequest(
+                        key = "deactivate:$userId",
+                        operation = "deactivateUser",
+                        endpoint = "PATCH /api/users/$userId/deactivate",
+                        block = { apiClient.httpClient.patch(ApiRoutes.userDeactivate(userId)) },
+                        onSuccess = { keptUsers.mutateUser(userId) { it.withStatus(UserStatus.INACTIVE) } },
+                        statusMessage = { "Deactivate failed: ${it.value}" },
+                    ),
                 )
             }
 
             UserStatus.ACTIVE -> {
                 runMutation(
-                    key = "reactivate:$userId",
-                    operation = "reactivateUser",
-                    endpoint = "PATCH /api/users/$userId/reactivate",
-                    block = { apiClient.httpClient.patch(ApiRoutes.userReactivate(userId)) },
-                    onSuccess = { keptUsers.mutateUser(userId) { it.withStatus(UserStatus.ACTIVE) } },
-                    statusMessage = { "Reactivate failed: ${it.value}" },
+                    MutationRequest(
+                        key = "reactivate:$userId",
+                        operation = "reactivateUser",
+                        endpoint = "PATCH /api/users/$userId/reactivate",
+                        block = { apiClient.httpClient.patch(ApiRoutes.userReactivate(userId)) },
+                        onSuccess = { keptUsers.mutateUser(userId) { it.withStatus(UserStatus.ACTIVE) } },
+                        statusMessage = { "Reactivate failed: ${it.value}" },
+                    ),
                 )
             }
         }
@@ -323,14 +343,16 @@ class UserViewModel(
     ) {
         val (first, second) = listOf(assignmentIdA, assignmentIdB).sorted()
         runMutation(
-            key = "swap:$branchId:$first:$second",
-            operation = "swapSlots",
-            endpoint = "POST /api/branches/$branchId/slots/swap",
-            block = {
-                AssignmentSlotOperations.swapSlots(apiClient, branchId, assignmentIdA, assignmentIdB)
-            },
-            onSuccess = { keptUsers.swapSlotsInPlace(assignmentIdA, assignmentIdB) },
-            statusMessage = { "Swap failed: ${it.value}" },
+            MutationRequest(
+                key = "swap:$branchId:$first:$second",
+                operation = "swapSlots",
+                endpoint = "POST /api/branches/$branchId/slots/swap",
+                block = {
+                    AssignmentSlotOperations.swapSlots(apiClient, branchId, assignmentIdA, assignmentIdB)
+                },
+                onSuccess = { keptUsers.swapSlotsInPlace(assignmentIdA, assignmentIdB) },
+                statusMessage = { "Swap failed: ${it.value}" },
+            ),
         )
     }
 
@@ -342,17 +364,19 @@ class UserViewModel(
         afterSuccess: () -> Unit = {},
     ): Boolean =
         runMutation(
-            key = "slot:$branchId:$assignmentId",
-            operation = "updateSlot",
-            endpoint = "PATCH /api/branches/$branchId/assignments/$assignmentId/slot",
-            block = {
-                AssignmentSlotOperations.updateSlot(apiClient, branchId, assignmentId, slot)
-            },
-            onSuccess = {
-                keptUsers.mutateAssignment(assignmentId) { it.copy(slot = slot) }
-                afterSuccess()
-            },
-            statusMessage = { "Slot update failed: ${it.value}" },
+            MutationRequest(
+                key = "slot:$branchId:$assignmentId",
+                operation = "updateSlot",
+                endpoint = "PATCH /api/branches/$branchId/assignments/$assignmentId/slot",
+                block = {
+                    AssignmentSlotOperations.updateSlot(apiClient, branchId, assignmentId, slot)
+                },
+                onSuccess = {
+                    keptUsers.mutateAssignment(assignmentId) { it.copy(slot = slot) }
+                    afterSuccess()
+                },
+                statusMessage = { "Slot update failed: ${it.value}" },
+            ),
         )
 
     // #345 — full-replace role bundle (PUT; backend idempotent). On 204 the row's roles update
@@ -363,33 +387,25 @@ class UserViewModel(
         roleNames: List<String>,
     ) {
         runMutation(
-            key = "roles:$userId",
-            operation = "replaceRoles",
-            endpoint = "PUT ${ApiRoutes.userRoles(userId)}",
-            block = {
-                apiClient.httpClient.put(ApiRoutes.userRoles(userId)) {
-                    setBody(UserRoleReplaceRequest(roleNames))
-                }
-            },
-            onSuccess = { keptUsers.mutateUser(userId) { it.copy(roles = roleNames) } },
-            responseMessage = { response ->
-                extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
-            },
-            statusMessage = { "Role update failed: ${it.value}" },
+            MutationRequest(
+                key = "roles:$userId",
+                operation = "replaceRoles",
+                endpoint = "PUT ${ApiRoutes.userRoles(userId)}",
+                block = {
+                    apiClient.httpClient.put(ApiRoutes.userRoles(userId)) {
+                        setBody(UserRoleReplaceRequest(roleNames))
+                    }
+                },
+                onSuccess = { keptUsers.mutateUser(userId) { it.copy(roles = roleNames) } },
+                responseMessage = { response ->
+                    extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                },
+                statusMessage = { "Role update failed: ${it.value}" },
+            ),
         )
     }
 
-    private fun runMutation(
-        key: String,
-        operation: String,
-        endpoint: String,
-        block: suspend () -> HttpResponse,
-        onSuccess: () -> Unit,
-        statusMessage: (HttpStatusCode) -> String,
-        // #345 — preferred message built from the full response (the `{"error": ...}` body);
-        // when it returns null the status-code [statusMessage] renders.
-        responseMessage: (suspend (HttpResponse) -> String?)? = null,
-    ): Boolean {
+    private fun runMutation(request: MutationRequest): Boolean {
         // A mutation landing while a reload is in flight would be clobbered by the load's
         // pre-mutation snapshot (the pass-1 HARD interleave the keep-last gate opened: rows
         // render live during Loading now, and the load's last-writer Success would silently
@@ -398,19 +414,19 @@ class UserViewModel(
         // the screen disables the row actions + dialog confirms while Loading; this guard covers
         // the same-frame tap that slips past the composition gate.
         if (keptUsers.state.value is UiState.Loading) return false
-        if (!actionTracker.tryBegin(key)) return false
+        if (!actionTracker.tryBegin(request.key)) return false
         handler.launchStateless(
-            operation = operation,
-            endpoint = endpoint,
-            block = { block() },
+            operation = request.operation,
+            endpoint = request.endpoint,
+            block = { request.block() },
             transform = {
-                actionTracker.finish(key)
-                onSuccess()
+                actionTracker.finish(request.key)
+                request.onSuccess()
             },
             onNonSuccess = { response ->
                 actionTracker.fail(
-                    key,
-                    responseMessage?.invoke(response) ?: statusMessage(response.status),
+                    request.key,
+                    request.responseMessage?.invoke(response) ?: request.statusMessage(response.status),
                 )
             },
             onError = { e ->
@@ -419,7 +435,7 @@ class UserViewModel(
                 // failure is visible). The state-less launch has no state flow to write; the
                 // inline error is what the screen renders. (transform never deserializes
                 // for these 204 ops, so only block() can throw here — onError covers it.)
-                actionTracker.fail(key, e.message ?: "$operation failed")
+                actionTracker.fail(request.key, e.message ?: "${request.operation} failed")
             },
         )
         return true

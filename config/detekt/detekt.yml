@@ -181,7 +181,6 @@ complexity:
       - '**/desktopMain/**/ui/screen/FinanceDayDetail.desktop.kt'
       - '**/androidMain/**/ui/screen/UserManagementScreenParts.android.kt'
       - '**/androidMain/**/ui/screen/FinanceDayDetail.android.kt'
-      - '**/commonMain/**/viewmodel/UserViewModel.kt'
       - '**/commonMain/**/viewmodel/ApiCallHandler.kt'
       - '**/commonMain/**/ui/screen/ClientDetailScreen.kt'
       - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
