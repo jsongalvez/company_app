@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -363,6 +364,85 @@ private fun InlineErrorText(
 }
 
 @Composable
+private fun ColumnScope.AllActivitySuccessContent(
+    entries: List<AuditLogEntryResponse>,
+    hasAnyCapability: Boolean,
+    filtersApplied: Boolean,
+    tableLabels: Map<String, String>,
+    expandedIds: Set<String>,
+    onToggleExpanded: (String) -> Unit,
+    currentUserId: String?,
+    onAcknowledge: (AuditLogEntryResponse) -> Unit,
+    acknowledgingIds: Set<String>,
+    ackErrors: Map<String, String>,
+    onFullHistory: (AuditLogEntryResponse) -> Unit,
+    onOpenClientRecord: ((AuditLogEntryResponse) -> Unit)?,
+    onLoadMore: () -> Unit,
+    hasMore: Boolean,
+    isLoadingMore: Boolean,
+    loadMoreError: String?,
+) {
+    if (entries.isEmpty()) {
+        EmptyState(
+            message =
+                when {
+                    !hasAnyCapability -> "No branch access"
+                    filtersApplied -> "No activity matches the filters"
+                    else -> "No activity yet"
+                },
+        )
+    } else {
+        // The list actual handles its own scrolling; the load-more affordances stay
+        // pinned below it (D5 "Load more" on both platforms).
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+        ) {
+            AuditLogEntryList(
+                args =
+                    AuditLogEntryListArgs(
+                        entries = entries,
+                        tableLabels = tableLabels,
+                        expandedIds = expandedIds,
+                        onToggleExpanded = onToggleExpanded,
+                        currentUserId = currentUserId,
+                        onAcknowledge = onAcknowledge,
+                        acknowledgingIds = acknowledgingIds,
+                        ackErrors = ackErrors,
+                        onFullHistory = onFullHistory,
+                        onOpenClientRecord = onOpenClientRecord,
+                        showAcknowledge = true,
+                        showFullHistory = true,
+                    ),
+                // weight(1f), not fillMaxSize: the pinned Load-more affordances below
+                // must keep their height (D5; pass-7 HARD).
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+            )
+            if (loadMoreError != null) {
+                InlineErrorText(
+                    text = loadMoreError,
+                    modifier = Modifier.padding(Spacing.xs),
+                )
+            }
+            if (hasMore) {
+                TextButton(
+                    onClick = onLoadMore,
+                    enabled = !isLoadingMore,
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                ) {
+                    Text(if (isLoadingMore) "Loading…" else "Load more")
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun AllActivityTab(
     state: UiState<List<AuditLogEntryResponse>>,
     tables: UiState<List<AuditLogTableResponse>>,
@@ -420,64 +500,24 @@ private fun AllActivityTab(
             }
 
             is UiState.Success -> {
-                if (state.data.isEmpty()) {
-                    EmptyState(
-                        message =
-                            when {
-                                !hasAnyCapability -> "No branch access"
-                                filtersApplied -> "No activity matches the filters"
-                                else -> "No activity yet"
-                            },
-                    )
-                } else {
-                    // The list actual handles its own scrolling; the load-more affordances stay
-                    // pinned below it (D5 "Load more" on both platforms).
-                    Column(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                    ) {
-                        AuditLogEntryList(
-                            args =
-                                AuditLogEntryListArgs(
-                                    entries = state.data,
-                                    tableLabels = tableLabels,
-                                    expandedIds = expandedIds,
-                                    onToggleExpanded = onToggleExpanded,
-                                    currentUserId = currentUserId,
-                                    onAcknowledge = onAcknowledge,
-                                    acknowledgingIds = acknowledgingIds,
-                                    ackErrors = ackErrors,
-                                    onFullHistory = onFullHistory,
-                                    onOpenClientRecord = onOpenClientRecord,
-                                    showAcknowledge = true,
-                                    showFullHistory = true,
-                                ),
-                            // weight(1f), not fillMaxSize: the pinned Load-more affordances below
-                            // must keep their height (D5; pass-7 HARD).
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                        )
-                        if (loadMoreError != null) {
-                            InlineErrorText(
-                                text = loadMoreError,
-                                modifier = Modifier.padding(Spacing.xs),
-                            )
-                        }
-                        if (hasMore) {
-                            TextButton(
-                                onClick = onLoadMore,
-                                enabled = !isLoadingMore,
-                                modifier = Modifier.align(Alignment.CenterHorizontally),
-                            ) {
-                                Text(if (isLoadingMore) "Loading…" else "Load more")
-                            }
-                        }
-                    }
-                }
+                AllActivitySuccessContent(
+                    entries = state.data,
+                    hasAnyCapability = hasAnyCapability,
+                    filtersApplied = filtersApplied,
+                    tableLabels = tableLabels,
+                    expandedIds = expandedIds,
+                    onToggleExpanded = onToggleExpanded,
+                    currentUserId = currentUserId,
+                    onAcknowledge = onAcknowledge,
+                    acknowledgingIds = acknowledgingIds,
+                    ackErrors = ackErrors,
+                    onFullHistory = onFullHistory,
+                    onOpenClientRecord = onOpenClientRecord,
+                    onLoadMore = onLoadMore,
+                    hasMore = hasMore,
+                    isLoadingMore = isLoadingMore,
+                    loadMoreError = loadMoreError,
+                )
             }
         }
     }
