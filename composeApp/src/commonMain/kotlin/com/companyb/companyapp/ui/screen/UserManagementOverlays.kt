@@ -211,6 +211,40 @@ internal fun userManagementTopSectionsActions(
     )
 
 /**
+ * Mutations-disabled gate hoisted out of [UserManagementScreen] for the #462 LongMethod
+ * burn-down. Lives here (not Header.kt) because Header.kt sits at the detekt file-function
+ * wall (10/11) — Overlays.kt has fresh budget. Self-sufficient: collects the in-flight plus
+ * the five load flows itself (duplicate StateFlow subscriptions are cheap —
+ * LoginNoticeEffect precedent) so the Screen drops three single-use collects
+ * (`inFlight`/`createBranchState`/`deleteAssignmentState` fed only this gate) and keeps one
+ * slim call; 2 params so it stays LongParameterList-clean outside the LPL-excluded Screen
+ * file. Value-returning @Composable (the gate must `collectAsState` — `.value` reads in
+ * composition go stale).
+ */
+@Composable
+internal fun userManagementMutationsDisabled(
+    viewModel: UserViewModel,
+    branchViewModel: BranchViewModel,
+): Boolean {
+    val inFlight by viewModel.inFlight.collectAsState()
+    val users by viewModel.users.collectAsState()
+    val branches by viewModel.branches.collectAsState()
+    val createBranchState by branchViewModel.createBranchState.collectAsState()
+    val assignmentResult by branchViewModel.assignmentResult.collectAsState()
+    val deleteAssignmentState by branchViewModel.deleteAssignmentState.collectAsState()
+    // Mutations disabled while one is in flight (ADR-0022) OR while a reload is in flight: the
+    // keep-last gate renders live rows during Loading, and a mutation landing mid-load would be
+    // clobbered by the load's pre-mutation snapshot (pass-1 HARD — the VM guard covers the
+    // same-frame tap; this gate is the visible affordance).
+    return inFlight.isNotEmpty() ||
+        users is UiState.Loading ||
+        branches is UiState.Loading ||
+        createBranchState is UiState.Loading ||
+        assignmentResult is UiState.Loading ||
+        deleteAssignmentState is UiState.Loading
+}
+
+/**
  * First-composition entry loads hoisted out of [UserManagementScreen] for the #462
  * LongMethod burn-down. Lives here (not Header.kt) because Header.kt sits at the detekt
  * file-function wall (10/11) — Overlays.kt has fresh budget. Self-sufficient host: collects

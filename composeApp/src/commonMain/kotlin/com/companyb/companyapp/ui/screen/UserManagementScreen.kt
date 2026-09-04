@@ -92,11 +92,8 @@ fun UserManagementScreen(
     // null only when nothing has ever loaded (first composition) — spinner/ErrorCard then.
     val heldList by viewModel.freshestUsers.collectAsState()
     val branches by viewModel.branches.collectAsState()
-    val inFlight by viewModel.inFlight.collectAsState()
     val actionErrors by viewModel.actionErrors.collectAsState()
-    val createBranchState by branchViewModel.createBranchState.collectAsState()
     val assignmentResult by branchViewModel.assignmentResult.collectAsState()
-    val deleteAssignmentState by branchViewModel.deleteAssignmentState.collectAsState()
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedBranchId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -132,17 +129,7 @@ fun UserManagementScreen(
             if (selectedBranch == null) emptyList() else slotOrderForBranch(loadedUsers, selectedBranch.id)
         }
     val selectedBranchName = selectedBranch?.name
-    // Mutations disabled while one is in flight (ADR-0022) OR while a reload is in flight: the
-    // keep-last gate renders live rows during Loading, and a mutation landing mid-load would be
-    // clobbered by the load's pre-mutation snapshot (pass-1 HARD — the VM guard covers the
-    // same-frame tap; this gate is the visible affordance).
-    val mutationsDisabled =
-        inFlight.isNotEmpty() ||
-            users is UiState.Loading ||
-            branches is UiState.Loading ||
-            createBranchState is UiState.Loading ||
-            assignmentResult is UiState.Loading ||
-            deleteAssignmentState is UiState.Loading
+    val mutationsDisabled = userManagementMutationsDisabled(viewModel, branchViewModel)
 
     UserManagementMutationEffects(
         viewModel = viewModel,
