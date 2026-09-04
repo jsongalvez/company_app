@@ -246,31 +246,19 @@ fun NotificationsScreen(
                 // #410 — with keep-last content on screen the failure degrades to an inline
                 // retry strip above the list (the stale rows stay; they must not masquerade
                 // as fresh); a failure with nothing to show keeps the in-place error card.
-                val refreshError = unreadRefreshErrorLine(state, hasContent)
-                if (refreshError != null) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        ActionErrorLine(refreshError)
-                        TextButton(onClick = { viewModel.loadUnreadNotifications() }) {
-                            Text("Retry")
-                        }
-                    }
-                    NotificationList(
-                        unread = unread,
-                        readThisSession = readThisSession,
-                        history = visibleHistory,
-                        onNotificationClick = onNotificationClick,
-                    )
-                } else {
-                    // D5: in-place error card + retry.
-                    ErrorCard(
-                        message = state.message,
-                        onRetry = { viewModel.loadUnreadNotifications() },
-                    )
-                }
+                NotificationsErrorBody(
+                    refreshError = unreadRefreshErrorLine(state, hasContent),
+                    message = state.message,
+                    onRetry = { viewModel.loadUnreadNotifications() },
+                    content = {
+                        NotificationList(
+                            unread = unread,
+                            readThisSession = readThisSession,
+                            history = visibleHistory,
+                            onNotificationClick = onNotificationClick,
+                        )
+                    },
+                )
             }
 
             is UiState.Success -> {
@@ -294,6 +282,34 @@ fun NotificationsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun NotificationsErrorBody(
+    refreshError: String?,
+    message: String,
+    onRetry: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    if (refreshError != null) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ActionErrorLine(refreshError)
+            TextButton(onClick = onRetry) {
+                Text("Retry")
+            }
+        }
+        content()
+    } else {
+        // D5: in-place error card + retry.
+        ErrorCard(
+            message = message,
+            onRetry = onRetry,
+        )
     }
 }
 
