@@ -7,7 +7,11 @@ spec="${1:-$repo_root/backend/build/tmp/kapt3/classes/main/openapi-plugin/openap
 test -f "$spec"
 freshness_inputs=(
   "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/routes"
+  "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/middleware"
+  "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/repository"
+  "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/Main.kt"
   "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/service"
+  "$repo_root/shared/src/commonMain/kotlin/com/companyb/companyapp/api/ApiRoutes.kt"
 )
 mapping_dir="$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/mapping"
 if [ -d "$mapping_dir" ]; then

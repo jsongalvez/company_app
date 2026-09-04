@@ -35,35 +35,35 @@ private val ALLOWED_MOVEMENT_REASONS =
     NEGATIVE_QUANTITY_REASONS + InventoryMovementReason.ADJUSTMENT
 
 @OpenApi(
-    path = "/api/branches/{branchId}/inventory",
+    path = ApiRoutes.BRANCH_INVENTORY_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_inventory_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/inventory",
+    path = ApiRoutes.BRANCH_INVENTORY_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_inventory_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/inventory/low-stock",
+    path = ApiRoutes.BRANCH_INVENTORY_LOW_STOCK_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "inventory_low_stock",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/inventory/movements",
+    path = ApiRoutes.BRANCH_INVENTORY_MOVEMENTS_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "inventory_movements",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/inventory/{productId}/restock",
+    path = ApiRoutes.BRANCH_INVENTORY_RESTOCK_PATH,
     methods = [HttpMethod.POST],
     pathParams = [
         OpenApiParam(
@@ -76,7 +76,7 @@ private val ALLOWED_MOVEMENT_REASONS =
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/inventory/{productId}/movement",
+    path = ApiRoutes.BRANCH_INVENTORY_MOVEMENT_PATH,
     methods = [HttpMethod.POST],
     pathParams = [
         OpenApiParam(
@@ -213,7 +213,9 @@ object BranchInventoryRoutes {
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val view = InventoryService.getInventory(branchId)
 
-        context.json(view.cards.map { it.toResponse(view.breakdowns[it.inventory.productId]) })
+        val body: List<BranchInventoryResponse> =
+            view.cards.map { it.toResponse(view.breakdowns[it.inventory.productId]) }
+        context.json(body)
     }
 
     private fun handleGetLowStock(context: Context) {
@@ -221,7 +223,9 @@ object BranchInventoryRoutes {
         val thresholdOverride = context.queryParam("threshold")?.toIntOrNull()
         val view = InventoryService.getLowStockInventory(branchId, thresholdOverride)
 
-        context.json(view.cards.map { it.toResponse(view.breakdowns[it.inventory.productId]) })
+        val body: List<BranchInventoryResponse> =
+            view.cards.map { it.toResponse(view.breakdowns[it.inventory.productId]) }
+        context.json(body)
     }
 
     private fun handleGetMovements(context: Context) {

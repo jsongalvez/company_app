@@ -62,3 +62,26 @@ if OPENAPI_TEST_MODE=1 env -u UPDATE_OPENAPI_ROUTE_CONTRACT OPENAPI_ROUTE_CONTRA
 fi
 grep -Fq "OpenAPI route contract fingerprint is stale" "$stale_log"
 echo "OPENAPI_STALE_FINGERPRINT_OK"
+
+# Negative control: a DTO-schema drift must move the fingerprint (#459). Copy the DTO
+# sources, add one probe field, and assert the stored fingerprint rejects it.
+schema_dto_dir="$temp_dir/dto"
+schema_output="$temp_dir/schema-output.json"
+schema_log="$temp_dir/schema.log"
+cp -r "$repo_root/shared/src/commonMain/kotlin/com/companyb/companyapp/dto" "$schema_dto_dir"
+cat >"$schema_dto_dir/FingerprintProbe.kt" <<'KT'
+package com.companyb.companyapp.dto
+
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class FingerprintProbe(
+    val probe: String,
+)
+KT
+if OPENAPI_TEST_MODE=1 env -u UPDATE_OPENAPI_ROUTE_CONTRACT OPENAPI_DTO_DIR="$schema_dto_dir" node "$repo_root/scripts/normalize-openapi-spec.mjs" "$spec" "$schema_output" >"$schema_log" 2>&1; then
+  echo "OpenAPI schema-drift control unexpectedly passed" >&2
+  exit 1
+fi
+grep -Fq "OpenAPI route contract fingerprint is stale" "$schema_log"
+echo "OPENAPI_SCHEMA_DRIFT_OK"

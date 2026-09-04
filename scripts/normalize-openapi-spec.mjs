@@ -11,8 +11,13 @@ const routeContractPath = process.env.OPENAPI_TEST_MODE === "1" && process.env.O
   : new URL("./openapi-route-contract.json", import.meta.url);
 const routeContract = JSON.parse(fs.readFileSync(routeContractPath, "utf8"));
 const routeDir = new URL("../backend/src/main/kotlin/com/companyb/companyapp/api/routes/", import.meta.url);
-const dtoDir = new URL("../shared/src/commonMain/kotlin/com/companyb/companyapp/dto/", import.meta.url);
-const apiRoutesSource = fs.readFileSync(new URL("../shared/src/commonMain/kotlin/com/companyb/companyapp/api/ApiRoutes.kt", import.meta.url), "utf8");
+const dtoDir = process.env.OPENAPI_DTO_DIR
+  ? new URL(`file://${process.env.OPENAPI_DTO_DIR.replace(/\/$/, "")}/`)
+  : new URL("../shared/src/commonMain/kotlin/com/companyb/companyapp/dto/", import.meta.url);
+const apiRoutesUrl = process.env.OPENAPI_API_ROUTES_PATH
+  ? new URL(`file://${process.env.OPENAPI_API_ROUTES_PATH}`)
+  : new URL("../shared/src/commonMain/kotlin/com/companyb/companyapp/api/ApiRoutes.kt", import.meta.url);
+const apiRoutesSource = fs.readFileSync(apiRoutesUrl, "utf8");
 const apiRouteConstants = new Map([...apiRoutesSource.matchAll(/const val (\w+)\s*=\s*"([^"]*)"/g)].map((match) => [match[1], match[2]]));
 function resolveApiRoute(value) {
   let resolved = value;
@@ -467,8 +472,26 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) for (const 
     operation["x-openapi-source"]?.annotation,
     operation["x-route-source"]?.registration,
     operation["x-route-source"]?.selectedHandlerSource,
+    JSON.stringify(operation.parameters ?? []),
+    JSON.stringify(operation.requestBody ?? null),
+    JSON.stringify(
+      Object.fromEntries(
+        Object.entries(operation.responses ?? {}).map(([status, response]) => [status, response.content ?? null]),
+      ),
+    ),
   ]);
 }
+// DTO schemas + enums: schema drift must move the fingerprint even when routes are untouched.
+contractRows.push(["schemas/dto", JSON.stringify(dtoSchemas)]);
+contractRows.push(["schemas/enums", JSON.stringify(enumValues)]);
+// Registration sources outside routes/: ApiRoutes.kt owns every path constant, Main.kt owns
+// the wiring (a removed register() call unmounts a route without touching its file).
+contractRows.push(["source/ApiRoutes.kt", sourceHash(apiRoutesSource)]);
+const mainUrl = process.env.OPENAPI_MAIN_PATH
+  ? new URL(`file://${process.env.OPENAPI_MAIN_PATH}`)
+  : new URL("../backend/src/main/kotlin/com/companyb/companyapp/Main.kt", import.meta.url);
+const mainSource = fs.readFileSync(mainUrl, "utf8");
+contractRows.push(["source/Main.kt", sourceHash(mainSource)]);
 const contractFingerprint = sourceHash(JSON.stringify(contractRows.sort()));
 if (contractFingerprint !== routeContract.fingerprint) {
   if (process.env.UPDATE_OPENAPI_ROUTE_CONTRACT === "1") {
