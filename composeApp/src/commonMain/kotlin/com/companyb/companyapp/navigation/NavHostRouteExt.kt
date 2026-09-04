@@ -46,17 +46,15 @@ import kotlin.reflect.KClass
 @Composable
 fun NavHostController.currentRoute(): Route? {
     val state by currentBackStackEntryAsState()
-    val entry = state ?: return null
-    val pattern = entry.destination.route ?: return null
-    val routeClass = ROUTES_BY_SERIAL_NAME[serialNameFromPattern(pattern)] ?: return null
-    return entry.toRoute(routeClass)
+    val entry = state
+    val routeClass = entry?.destination?.route?.let { ROUTES_BY_SERIAL_NAME[serialNameFromPattern(it)] }
+    return if (entry != null && routeClass != null) entry.toRoute(routeClass) else null
 }
 
 fun NavHostController.previousRoute(): Route? {
-    val entry = previousBackStackEntry ?: return null
-    val pattern = entry.destination.route ?: return null
-    val routeClass = ROUTES_BY_SERIAL_NAME[serialNameFromPattern(pattern)] ?: return null
-    return entry.toRoute(routeClass)
+    val entry = previousBackStackEntry
+    val routeClass = entry?.destination?.route?.let { ROUTES_BY_SERIAL_NAME[serialNameFromPattern(it)] }
+    return if (entry != null && routeClass != null) entry.toRoute(routeClass) else null
 }
 
 @Composable

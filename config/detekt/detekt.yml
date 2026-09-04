@@ -807,7 +807,6 @@ style:
     excludeReturnFromLambda: true
     excludeGuardClauses: false
     excludes:
-      - '**/commonMain/**/navigation/NavHostRouteExt.kt'
   SafeCast:
     active: true
   SerialVersionUIDInSerializableClass:
