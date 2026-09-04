@@ -1569,50 +1569,11 @@ private fun SubmitConfirmDialog(
         onDismissRequest = onDismiss,
         title = { Text("Submit remittance?") },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                Text(
-                    text = remittanceTypeLabel(detail.type.name),
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                Spacer(Modifier.size(Spacing.xs))
-                Text(
-                    text =
-                        "Method: ${remittanceMethodLabel(detail.method.name)}\n" +
-                            "Days covered: ${detail.dayBreakdowns.size}\n" +
-                            "Lines: ${detail.lines.size}\n" +
-                            "Line total: ${peso(detail.totalAmount)}",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Spacer(Modifier.size(Spacing.xs))
-                detail.dayBreakdowns.forEach { breakdown ->
-                    Text(
-                        text = "• ${dayLabels[breakdown.branchDayId]?.date ?: breakdown.branchDayId}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Spacer(Modifier.size(Spacing.sm))
-                // #447 — snapshot-review step (money UX requirement): the numbers that
-                // freeze are reviewed here, before confirm, in every submit path. The
-                // submit itself still writes the existing snapshot path unchanged.
-                SubmitSnapshotReview(detail = detail)
-                Spacer(Modifier.size(Spacing.sm))
-                Text(
-                    text =
-                        "After submit, these days lock (REMITTED) and the amounts freeze. " +
-                            "You can undo within 48 hours — after that it's permanent.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                (state as? UiState.Error)?.let {
-                    Spacer(Modifier.size(Spacing.xs))
-                    Text(
-                        text = it.message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
+            SubmitConfirmBody(
+                detail = detail,
+                dayLabels = dayLabels,
+                state = state,
+            )
         },
         confirmButton = {
             TextButton(
@@ -1631,6 +1592,58 @@ private fun SubmitConfirmDialog(
             }
         },
     )
+}
+
+@Composable
+private fun SubmitConfirmBody(
+    detail: RemittanceDetailResponse,
+    dayLabels: Map<String, RemittanceDayPickerEntryResponse>,
+    state: UiState<RemittanceSubmitResponse>,
+) {
+    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+        Text(
+            text = remittanceTypeLabel(detail.type.name),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Spacer(Modifier.size(Spacing.xs))
+        Text(
+            text =
+                "Method: ${remittanceMethodLabel(detail.method.name)}\n" +
+                    "Days covered: ${detail.dayBreakdowns.size}\n" +
+                    "Lines: ${detail.lines.size}\n" +
+                    "Line total: ${peso(detail.totalAmount)}",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Spacer(Modifier.size(Spacing.xs))
+        detail.dayBreakdowns.forEach { breakdown ->
+            Text(
+                text = "• ${dayLabels[breakdown.branchDayId]?.date ?: breakdown.branchDayId}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.size(Spacing.sm))
+        // #447 — snapshot-review step (money UX requirement): the numbers that
+        // freeze are reviewed here, before confirm, in every submit path. The
+        // submit itself still writes the existing snapshot path unchanged.
+        SubmitSnapshotReview(detail = detail)
+        Spacer(Modifier.size(Spacing.sm))
+        Text(
+            text =
+                "After submit, these days lock (REMITTED) and the amounts freeze. " +
+                    "You can undo within 48 hours — after that it's permanent.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        (state as? UiState.Error)?.let {
+            Spacer(Modifier.size(Spacing.xs))
+            Text(
+                text = it.message,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
 }
 
 /**
