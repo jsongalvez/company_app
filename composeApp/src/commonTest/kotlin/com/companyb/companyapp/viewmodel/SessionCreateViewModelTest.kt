@@ -291,7 +291,12 @@ class SessionCreateViewModelTest {
             vm.selectClient(client("c1"))
             runCurrent()
 
-            vm.createSession(finalPrice = "300.00", remarks = " ok ", otherConcerns = null)
+            vm.createSession(
+                finalPrice = "300.00",
+                remarks = " ok ",
+                otherConcerns = null,
+                booking = BookingFields(isWalkIn = true, nextAppointmentDate = null),
+            )
             runCurrent()
 
             assertEquals(expected = 1, actual = bodies.size)
@@ -301,7 +306,12 @@ class SessionCreateViewModelTest {
             val state = assertIs<UiState.Success<SessionResponse>>(vm.createResult.value)
             assertEquals(expected = "s1", actual = state.data.id)
 
-            vm.createSession(finalPrice = "300.00", remarks = null, otherConcerns = null)
+            vm.createSession(
+                finalPrice = "300.00",
+                remarks = null,
+                otherConcerns = null,
+                booking = BookingFields(isWalkIn = true, nextAppointmentDate = null),
+            )
             runCurrent()
             assertEquals(expected = 1, actual = bodies.size)
         }
@@ -335,7 +345,12 @@ class SessionCreateViewModelTest {
             runCurrent()
             vm.toggleConcern("con1")
 
-            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            vm.createSession(
+                finalPrice = "250.00",
+                remarks = null,
+                otherConcerns = null,
+                booking = BookingFields(isWalkIn = true, nextAppointmentDate = null),
+            )
             runCurrent()
 
             assertEquals(expected = 1, actual = concernPosts.size)
@@ -375,7 +390,12 @@ class SessionCreateViewModelTest {
             vm.selectClient(client("c1"))
             runCurrent()
             vm.toggleConcern("con1")
-            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            vm.createSession(
+                finalPrice = "250.00",
+                remarks = null,
+                otherConcerns = null,
+                booking = BookingFields(isWalkIn = true, nextAppointmentDate = null),
+            )
             runCurrent()
 
             assertEquals(expected = 1, actual = sessionPosts)
@@ -415,8 +435,18 @@ class SessionCreateViewModelTest {
             vm.selectClient(client("c1"))
             runCurrent()
 
-            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
-            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            vm.createSession(
+                finalPrice = "250.00",
+                remarks = null,
+                otherConcerns = null,
+                booking = BookingFields(isWalkIn = true, nextAppointmentDate = null),
+            )
+            vm.createSession(
+                finalPrice = "250.00",
+                remarks = null,
+                otherConcerns = null,
+                booking = BookingFields(isWalkIn = true, nextAppointmentDate = null),
+            )
             advanceTimeByAndRun(20_000)
 
             assertEquals(expected = 1, actual = posts)
@@ -449,7 +479,12 @@ class SessionCreateViewModelTest {
 
             vm.selectClient(client("c1"))
             runCurrent()
-            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            vm.createSession(
+                finalPrice = "250.00",
+                remarks = null,
+                otherConcerns = null,
+                booking = BookingFields(isWalkIn = true, nextAppointmentDate = null),
+            )
             runCurrent()
 
             vm.selectClient(client("c2"))
@@ -496,7 +531,12 @@ class SessionCreateViewModelTest {
             vm.selectPractitioner(BranchMemberResponse("p1", "First"))
             vm.toggleConcern("con1")
             assertEquals(expected = setOf("con1"), actual = vm.selectedConcernIds.value)
-            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            vm.createSession(
+                finalPrice = "250.00",
+                remarks = null,
+                otherConcerns = null,
+                booking = BookingFields(isWalkIn = true, nextAppointmentDate = null),
+            )
             runCurrent()
 
             vm.selectPractitioner(BranchMemberResponse("p2", "Second"))
@@ -535,7 +575,12 @@ class SessionCreateViewModelTest {
             vm.selectClient(client("c1"))
             runCurrent()
 
-            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            vm.createSession(
+                finalPrice = "250.00",
+                remarks = null,
+                otherConcerns = null,
+                booking = BookingFields(isWalkIn = true, nextAppointmentDate = null),
+            )
             runCurrent()
 
             val state = assertIs<UiState.Error>(vm.createResult.value)
@@ -585,7 +630,12 @@ class SessionCreateViewModelTest {
             vm.selectClient(client("c1"))
             runCurrent()
             vm.selectPractitioner(state.data.single())
-            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            vm.createSession(
+                finalPrice = "250.00",
+                remarks = null,
+                otherConcerns = null,
+                booking = BookingFields(isWalkIn = true, nextAppointmentDate = null),
+            )
             runCurrent()
             assertTrue(bodies.single().contains("\"requestedPractitionerId\":\"p1\""))
 
@@ -613,7 +663,12 @@ class SessionCreateViewModelTest {
                 )
             secondVm.selectClient(client("c1"))
             runCurrent()
-            secondVm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            secondVm.createSession(
+                finalPrice = "250.00",
+                remarks = null,
+                otherConcerns = null,
+                booking = BookingFields(isWalkIn = true, nextAppointmentDate = null),
+            )
             runCurrent()
             assertTrue(secondBody.contains("\"requestedPractitionerId\":null"))
             assertEquals(expected = 1, actual = membersRequests)

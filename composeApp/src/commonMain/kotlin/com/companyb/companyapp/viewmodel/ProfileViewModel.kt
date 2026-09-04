@@ -5,13 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.MeBranchResponse
 import com.companyb.companyapp.dto.MeResponse
-import com.companyb.companyapp.dto.UpdateSlotRequest
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
-import io.ktor.client.request.patch
-import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -86,9 +83,7 @@ class ProfileViewModel(
             operation = "updateSlot",
             endpoint = "PATCH ${ApiRoutes.branchAssignmentSlot(branchId, assignmentId)}",
             block = {
-                apiClient.httpClient.patch(ApiRoutes.branchAssignmentSlot(branchId, assignmentId)) {
-                    setBody(UpdateSlotRequest(slot))
-                }
+                AssignmentSlotOperations.updateSlot(apiClient, branchId, assignmentId, slot)
             },
             transform = {
                 loadBranches()

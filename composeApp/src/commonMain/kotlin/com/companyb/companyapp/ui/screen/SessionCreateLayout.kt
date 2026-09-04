@@ -11,11 +11,11 @@ import androidx.compose.ui.Modifier
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.viewmodel.SessionCreateDraft
-import com.companyb.companyapp.viewmodel.SessionCreateViewModel
+import com.companyb.companyapp.viewmodel.SessionCreateFormApi
 import com.companyb.companyapp.viewmodel.UiState
 
 internal data class SessionCreateBodyArgs(
-    val viewModel: SessionCreateViewModel,
+    val viewModel: SessionCreateFormApi,
     val selectedClient: ClientResponse?,
     val query: String,
     val searchState: UiState<List<ClientResponse>>,

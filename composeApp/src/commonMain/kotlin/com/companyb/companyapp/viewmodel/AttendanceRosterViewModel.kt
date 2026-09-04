@@ -5,12 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.MarkAttendanceRequest
 import com.companyb.companyapp.dto.MemberAttendanceResponse
-import com.companyb.companyapp.dto.SwapSlotsRequest
-import com.companyb.companyapp.dto.UpdateSlotRequest
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
-import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -164,9 +161,7 @@ class AttendanceRosterViewModel(
                 operation = "updateSlot",
                 endpoint = "PATCH ${ApiRoutes.branchAssignmentSlot(branchId, assignmentId)}",
                 block = {
-                    apiClient.httpClient.patch(ApiRoutes.branchAssignmentSlot(branchId, assignmentId)) {
-                        setBody(UpdateSlotRequest(slot))
-                    }
+                    AssignmentSlotOperations.updateSlot(apiClient, branchId, assignmentId, slot)
                 },
                 transform = {
                     actionStamp++
@@ -199,9 +194,7 @@ class AttendanceRosterViewModel(
                 operation = "swapSlots",
                 endpoint = "POST ${ApiRoutes.branchSlotsSwap(branchId)}",
                 block = {
-                    apiClient.httpClient.post(ApiRoutes.branchSlotsSwap(branchId)) {
-                        setBody(SwapSlotsRequest(assignmentIdA, assignmentIdB))
-                    }
+                    AssignmentSlotOperations.swapSlots(apiClient, branchId, assignmentIdA, assignmentIdB)
                 },
                 transform = {
                     actionStamp++

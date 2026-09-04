@@ -1,6 +1,7 @@
 package com.companyb.companyapp.ui.screen
 
 import com.companyb.companyapp.dto.MemberAttendanceResponse
+import com.companyb.companyapp.viewmodel.UiState
 
 /** #404 — pure roster presentation rules shared by [AttendanceRosterCard] (desktopTest-pinned). */
 object AttendanceRosterLogic {
@@ -42,4 +43,37 @@ object AttendanceRosterLogic {
 
     /** Picker label for a swap candidate: the member plus the slot it would trade places with. */
     fun swapCandidateLabel(row: MemberAttendanceResponse): String = "${row.displayName} · slot ${row.slot}"
+
+    /**
+     * #457 — the single mutation-busy predicate: any busy leg — including the post-mutation
+     * roster reload (its Loading rides the roster state) — disables every sibling action, so
+     * a stale-row second swap can never dispatch behind a landing refresh. Both the card and
+     * its dialogs read this; neither recomputes it inline.
+     */
+    fun mutationsDisabled(
+        rosterState: UiState<*>,
+        markState: UiState<*>,
+        slotState: UiState<*>,
+        swapState: UiState<*>,
+    ): Boolean =
+        rosterState is UiState.Loading ||
+            rosterState is UiState.Error ||
+            markState is UiState.Loading ||
+            slotState is UiState.Loading ||
+            swapState is UiState.Loading
+
+    /**
+     * #457 — dialog dismiss gate, the mirror of [mutationsDisabled] minus the Error leg:
+     * a failed load keeps the error visible with Retry while dialogs stay dismissible.
+     */
+    fun dialogDismissEnabled(
+        rosterState: UiState<*>,
+        markState: UiState<*>,
+        slotState: UiState<*>,
+        swapState: UiState<*>,
+    ): Boolean =
+        rosterState !is UiState.Loading &&
+            markState !is UiState.Loading &&
+            slotState !is UiState.Loading &&
+            swapState !is UiState.Loading
 }

@@ -2,7 +2,9 @@ package com.companyb.companyapp.viewmodel
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * #423 — the create-flow booking gate: walk-in sends no booking fields; booked stamps
@@ -44,5 +46,13 @@ class SessionCreateBookingFieldsTest {
     fun `booked with an unparseable date rejects submit`() {
         assertNull(bookingFields(isBooked = true, nextAppointmentDraft = "09/01/2026"))
         assertNull(bookingFields(isBooked = true, nextAppointmentDraft = "not-a-date"))
+    }
+
+    @Test
+    fun `submission lock holds on loading and success only`() {
+        assertFalse(isSessionCreateLocked(UiState.Idle))
+        assertTrue(isSessionCreateLocked(UiState.Loading))
+        assertTrue(isSessionCreateLocked(UiState.Success(Unit)))
+        assertFalse(isSessionCreateLocked(UiState.Error("boom")))
     }
 }

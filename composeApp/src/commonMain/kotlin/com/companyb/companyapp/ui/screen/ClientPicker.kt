@@ -29,7 +29,7 @@ import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
-import com.companyb.companyapp.viewmodel.SessionCreateViewModel
+import com.companyb.companyapp.viewmodel.SessionClientPickerApi
 import com.companyb.companyapp.viewmodel.UiState
 
 /**
@@ -39,7 +39,7 @@ import com.companyb.companyapp.viewmodel.UiState
  */
 
 internal data class ClientPickerArgs(
-    val viewModel: SessionCreateViewModel,
+    val viewModel: SessionClientPickerApi,
     val query: String,
     val searchState: UiState<List<ClientResponse>>,
     val cachedResults: List<ClientResponse>?,

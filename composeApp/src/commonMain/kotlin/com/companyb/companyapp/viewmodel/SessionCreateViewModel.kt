@@ -33,6 +33,68 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 /**
+ * #457 — the narrow picker boundary: the client directory needs search + select only,
+ * never the form draft/preview/submit surface.
+ */
+interface SessionClientPickerApi {
+    val onQueryChange: (String) -> Unit
+    val retrySearch: () -> Unit
+
+    fun selectClient(client: ClientResponse)
+}
+
+/**
+ * #457 — the narrow form boundary: preview/type-price, concerns, practitioner, submit.
+ * Screen layouts depend on this, not the concrete VM, so the VM's search internals,
+ * draft holder, and entry-load helpers stay behind the seam. Compatibility preserved:
+ * [SessionCreateViewModel] implements this and existing call sites pass it unchanged.
+ */
+interface SessionCreateFormApi : SessionClientPickerApi {
+    val preview: StateFlow<UiState<SessionPreviewResponse>>
+    val concerns: StateFlow<UiState<List<ConcernResponse>>>
+    val selectedConcernIds: StateFlow<Set<String>>
+    val members: StateFlow<UiState<List<BranchMemberResponse>>>
+    val selectedPractitioner: StateFlow<BranchMemberResponse?>
+    val createResult: StateFlow<UiState<SessionResponse>>
+    val concernAddFailures: StateFlow<Int>
+    val concernRetryState: StateFlow<UiState<Unit>>
+    val toggleConcern: (String) -> Unit
+
+    fun clearSelectedClient()
+
+    fun setFinalPrice(value: String)
+
+    fun setOtherConcerns(value: String)
+
+    fun setRemarks(value: String)
+
+    fun setBooked(value: Boolean)
+
+    fun setNextAppointmentDate(value: String)
+
+    fun selectPractitioner(member: BranchMemberResponse?)
+
+    fun retryPreview()
+
+    fun retryConcerns()
+
+    fun retryMembers()
+
+    fun createSession(
+        finalPrice: String,
+        remarks: String?,
+        otherConcerns: String?,
+        // Default: today's shipped walk-in shape — existing callers keep the same semantics.
+        booking: BookingFields = BookingFields(isWalkIn = true, nextAppointmentDate = null),
+    )
+
+    fun retryConcernAdds()
+}
+
+/** #457 — the single submission-lock predicate: Loading or Success locks the form. */
+fun isSessionCreateLocked(result: UiState<*>): Boolean = result is UiState.Loading || result is UiState.Success
+
+/**
  * #348 — SessionCreate flow: find the client (debounced search, the ClientViewModel D2 port),
  * create one on the spot via [ClientCreateDialog] when search comes up empty, show the
  * server-computed session type + defaulted base price (the #348 preview read — never replicated
@@ -46,7 +108,8 @@ import kotlin.uuid.Uuid
 class SessionCreateViewModel(
     private val apiClient: ApiClient,
     private val branchId: String,
-) : ViewModel() {
+) : ViewModel(),
+    SessionCreateFormApi {
     private val handler = ApiCallHandler(viewModelScope, "SessionCreateVM")
 
     // --- Client picker: keep-last debounced search, entry-scoped. ---
@@ -55,8 +118,8 @@ class SessionCreateViewModel(
     val freshestResults: StateFlow<List<ClientResponse>?> = clientSearcher.freshest
     val query: StateFlow<String> = clientSearcher.query
 
-    val onQueryChange: (String) -> Unit = clientSearcher::onQueryChange
-    val retrySearch: () -> Unit = clientSearcher::retrySearch
+    override val onQueryChange: (String) -> Unit = clientSearcher::onQueryChange
+    override val retrySearch: () -> Unit = clientSearcher::retrySearch
 
     // --- Selected client + preview ---
 
@@ -67,7 +130,7 @@ class SessionCreateViewModel(
     val draft: StateFlow<SessionCreateDraft> = _draft.asStateFlow()
 
     private val _preview = MutableStateFlow<UiState<SessionPreviewResponse>>(UiState.Idle)
-    val preview: StateFlow<UiState<SessionPreviewResponse>> = _preview.asStateFlow()
+    override val preview: StateFlow<UiState<SessionPreviewResponse>> = _preview.asStateFlow()
 
     /**
      * #405 review fix — the preview load is keep-last via structured cancellation: a
@@ -78,7 +141,7 @@ class SessionCreateViewModel(
     private var lastAppliedMutation: ClientMutation? = null
 
     /** Selects a picker hit or a just-created client; the preview drives type + price display. */
-    fun selectClient(client: ClientResponse) {
+    override fun selectClient(client: ClientResponse) {
         if (isSubmissionLocked()) return
         if (_createResult.value is UiState.Error) _createResult.value = UiState.Idle
         if (_selectedClient.value?.id != client.id) {
@@ -106,13 +169,13 @@ class SessionCreateViewModel(
         lastAppliedMutation = mutation
     }
 
-    fun retryPreview() {
+    override fun retryPreview() {
         if (isSubmissionLocked()) return
         _selectedClient.value?.let { loadPreview(it.id) }
     }
 
     /** #348 — the picker's "Change" action: selection dropped, preview back to Idle. */
-    fun clearSelectedClient() {
+    override fun clearSelectedClient() {
         if (isSubmissionLocked()) return
         _createResult.value = UiState.Idle
         _selectedClient.value = null
@@ -122,22 +185,22 @@ class SessionCreateViewModel(
         _preview.value = UiState.Idle
     }
 
-    fun setFinalPrice(value: String) {
+    override fun setFinalPrice(value: String) {
         if (isSubmissionLocked()) return
         _draft.update { it.copy(finalPrice = value, finalPriceEdited = true) }
     }
 
-    fun setOtherConcerns(value: String) {
+    override fun setOtherConcerns(value: String) {
         if (isSubmissionLocked()) return
         _draft.update { it.copy(otherConcerns = value) }
     }
 
-    fun setRemarks(value: String) {
+    override fun setRemarks(value: String) {
         if (isSubmissionLocked()) return
         _draft.update { it.copy(remarks = value) }
     }
 
-    fun setBooked(value: Boolean) {
+    override fun setBooked(value: Boolean) {
         if (isSubmissionLocked()) return
         _draft.update {
             it.copy(
@@ -147,7 +210,7 @@ class SessionCreateViewModel(
         }
     }
 
-    fun setNextAppointmentDate(value: String) {
+    override fun setNextAppointmentDate(value: String) {
         if (isSubmissionLocked()) return
         _draft.update { it.copy(nextAppointmentDate = value) }
     }
@@ -192,7 +255,7 @@ class SessionCreateViewModel(
     // --- Concern multi-select ---
 
     private val _concerns = MutableStateFlow<UiState<List<ConcernResponse>>>(UiState.Idle)
-    val concerns: StateFlow<UiState<List<ConcernResponse>>> = _concerns.asStateFlow()
+    override val concerns: StateFlow<UiState<List<ConcernResponse>>> = _concerns.asStateFlow()
 
     // Retry-loop lesson: effects keyed on this state fire loads on Idle only; manual retry on Error.
     fun loadConcerns() {
@@ -207,7 +270,7 @@ class SessionCreateViewModel(
         )
     }
 
-    fun retryConcerns() {
+    override fun retryConcerns() {
         if (_concerns.value is UiState.Loading) return
         _concerns.value = UiState.Loading
         handler.launch(
@@ -222,16 +285,16 @@ class SessionCreateViewModel(
     // Concern selection + add-posting live in [ConcernPoster]; the flows surface as properties
     // (the detekt function budget — #348's VM grew past the class threshold).
     private val concernPoster = ConcernPoster(apiClient, viewModelScope)
-    val selectedConcernIds: StateFlow<Set<String>> = concernPoster.selectedIds
+    override val selectedConcernIds: StateFlow<Set<String>> = concernPoster.selectedIds
 
-    val toggleConcern: (String) -> Unit = { concernId ->
+    override val toggleConcern: (String) -> Unit = { concernId ->
         if (!isSubmissionLocked()) concernPoster.toggle(concernId)
     }
 
     // --- Requested practitioner (#366): own-branch member picker, optional end-to-end. ---
 
     private val _members = MutableStateFlow<UiState<List<BranchMemberResponse>>>(UiState.Idle)
-    val members: StateFlow<UiState<List<BranchMemberResponse>>> = _members.asStateFlow()
+    override val members: StateFlow<UiState<List<BranchMemberResponse>>> = _members.asStateFlow()
 
     /** Idle-only entry load (the concerns retry-loop lesson); Error gets a manual retry. */
     fun loadMembers() {
@@ -246,7 +309,7 @@ class SessionCreateViewModel(
         )
     }
 
-    fun retryMembers() {
+    override fun retryMembers() {
         if (_members.value is UiState.Loading) return
         _members.value = UiState.Loading
         handler.launch(
@@ -259,9 +322,9 @@ class SessionCreateViewModel(
     }
 
     private val _selectedPractitioner = MutableStateFlow<BranchMemberResponse?>(null)
-    val selectedPractitioner: StateFlow<BranchMemberResponse?> = _selectedPractitioner.asStateFlow()
+    override val selectedPractitioner: StateFlow<BranchMemberResponse?> = _selectedPractitioner.asStateFlow()
 
-    fun selectPractitioner(member: BranchMemberResponse?) {
+    override fun selectPractitioner(member: BranchMemberResponse?) {
         if (isSubmissionLocked()) return
         _selectedPractitioner.value = member
     }
@@ -269,26 +332,25 @@ class SessionCreateViewModel(
     // --- Submit ---
 
     private val _createResult = MutableStateFlow<UiState<SessionResponse>>(UiState.Idle)
-    val createResult: StateFlow<UiState<SessionResponse>> = _createResult.asStateFlow()
+    override val createResult: StateFlow<UiState<SessionResponse>> = _createResult.asStateFlow()
 
     /**
      * Concern ids whose POST failed after the session itself was created. The session EXISTS at
      * that point — the entry keeps the user present and offers retry or explicit continuation
      * rather than pretending the whole submit failed.
      */
-    val concernAddFailures: StateFlow<Int> = concernPoster.failures.asStateFlow()
+    override val concernAddFailures: StateFlow<Int> = concernPoster.failures.asStateFlow()
 
     private val _concernRetryState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
-    val concernRetryState: StateFlow<UiState<Unit>> = _concernRetryState.asStateFlow()
+    override val concernRetryState: StateFlow<UiState<Unit>> = _concernRetryState.asStateFlow()
     private var createdSessionId: String? = null
     private var concernRetryJob: Job? = null
 
-    fun createSession(
+    override fun createSession(
         finalPrice: String,
         remarks: String?,
         otherConcerns: String?,
-        // Default: today's shipped walk-in shape — existing callers keep the same semantics.
-        booking: BookingFields = BookingFields(isWalkIn = true, nextAppointmentDate = null),
+        booking: BookingFields,
     ) {
         val client = _selectedClient.value ?: return
         if (isSubmissionLocked()) return
@@ -335,7 +397,7 @@ class SessionCreateViewModel(
         )
     }
 
-    fun retryConcernAdds() {
+    override fun retryConcernAdds() {
         val sessionId = createdSessionId ?: return
         if (_createResult.value !is UiState.Success ||
             concernPoster.failedIds.value.isEmpty() ||
@@ -367,8 +429,7 @@ class SessionCreateViewModel(
                 }
     }
 
-    private fun isSubmissionLocked(): Boolean =
-        _createResult.value is UiState.Loading || _createResult.value is UiState.Success
+    private fun isSubmissionLocked(): Boolean = isSessionCreateLocked(_createResult.value)
 }
 
 /**

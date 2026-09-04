@@ -7,8 +7,6 @@ import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.InviteMintRequest
 import com.companyb.companyapp.dto.InviteMintResponse
 import com.companyb.companyapp.dto.RoleResponse
-import com.companyb.companyapp.dto.SwapSlotsRequest
-import com.companyb.companyapp.dto.UpdateSlotRequest
 import com.companyb.companyapp.dto.UserAssignmentResponse
 import com.companyb.companyapp.dto.UserRoleReplaceRequest
 import com.companyb.companyapp.dto.UserSummaryResponse
@@ -329,9 +327,7 @@ class UserViewModel(
             operation = "swapSlots",
             endpoint = "POST /api/branches/$branchId/slots/swap",
             block = {
-                apiClient.httpClient.post(ApiRoutes.branchSlotsSwap(branchId)) {
-                    setBody(SwapSlotsRequest(assignmentIdA, assignmentIdB))
-                }
+                AssignmentSlotOperations.swapSlots(apiClient, branchId, assignmentIdA, assignmentIdB)
             },
             onSuccess = { keptUsers.swapSlotsInPlace(assignmentIdA, assignmentIdB) },
             statusMessage = { "Swap failed: ${it.value}" },
@@ -350,9 +346,7 @@ class UserViewModel(
             operation = "updateSlot",
             endpoint = "PATCH /api/branches/$branchId/assignments/$assignmentId/slot",
             block = {
-                apiClient.httpClient.patch(ApiRoutes.branchAssignmentSlot(branchId, assignmentId)) {
-                    setBody(UpdateSlotRequest(slot))
-                }
+                AssignmentSlotOperations.updateSlot(apiClient, branchId, assignmentId, slot)
             },
             onSuccess = {
                 keptUsers.mutateAssignment(assignmentId) { it.copy(slot = slot) }

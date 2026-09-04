@@ -103,20 +103,9 @@ private fun AttendanceRosterLoadedCard(
     }
 
     val selfSlot = rememberSaveable(branchId, saver = RosterSelfSlotStateSaver) { RosterSelfSlotState() }
-    // One in-flight notion for the whole card: any busy leg — including the post-mutation
-    // roster reload (its Loading rides [AttendanceRosterViewModel.roster]) — disables every
-    // sibling action, so a stale-row second swap can never dispatch behind a landing refresh.
-    val mutationsDisabled =
-        rosterState is UiState.Loading ||
-            rosterState is UiState.Error ||
-            markState is UiState.Loading ||
-            slotState is UiState.Loading ||
-            swapState is UiState.Loading
+    val mutationsDisabled = AttendanceRosterLogic.mutationsDisabled(rosterState, markState, slotState, swapState)
     val dialogDismissEnabled =
-        rosterState !is UiState.Loading &&
-            markState !is UiState.Loading &&
-            slotState !is UiState.Loading &&
-            swapState !is UiState.Loading
+        AttendanceRosterLogic.dialogDismissEnabled(rosterState, markState, slotState, swapState)
     val swapCandidates = AttendanceRosterLogic.swapCandidates(rows, currentUserId)
     val selfSlotContext =
         RosterSelfSlotContext(
@@ -298,17 +287,9 @@ private fun SelfSlotDialogs(
     val markState by viewModel.markResult.collectAsState()
     val slotState by viewModel.slotUpdate.collectAsState()
     val swapState by viewModel.swapUpdate.collectAsState()
-    val mutationsDisabled =
-        rosterState is UiState.Loading ||
-            rosterState is UiState.Error ||
-            markState is UiState.Loading ||
-            slotState is UiState.Loading ||
-            swapState is UiState.Loading
+    val mutationsDisabled = AttendanceRosterLogic.mutationsDisabled(rosterState, markState, slotState, swapState)
     val dialogDismissEnabled =
-        rosterState !is UiState.Loading &&
-            markState !is UiState.Loading &&
-            slotState !is UiState.Loading &&
-            swapState !is UiState.Loading
+        AttendanceRosterLogic.dialogDismissEnabled(rosterState, markState, slotState, swapState)
 
     LaunchedEffect(slotState) {
         if (slotState is UiState.Success) {

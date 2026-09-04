@@ -14,7 +14,6 @@ import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
-import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -170,9 +169,12 @@ class BranchViewModel(
             operation = "swapSlots",
             endpoint = "POST /api/branches/$branchId/slots/swap",
             block = {
-                apiClient.httpClient.post(ApiRoutes.branchSlotsSwap(branchId)) {
-                    setBody(request)
-                }
+                AssignmentSlotOperations.swapSlots(
+                    apiClient,
+                    branchId,
+                    request.assignmentIdA,
+                    request.assignmentIdB,
+                )
             },
         )
     }
@@ -189,11 +191,7 @@ class BranchViewModel(
             operation = "updateSlot",
             endpoint = "PATCH /api/branches/$branchId/assignments/$assignmentId/slot",
             block = {
-                apiClient.httpClient.patch(
-                    ApiRoutes.branchAssignmentSlot(branchId, assignmentId),
-                ) {
-                    setBody(request)
-                }
+                AssignmentSlotOperations.updateSlot(apiClient, branchId, assignmentId, request.slot)
             },
             onNonSuccess = { response ->
                 handleApiError(response) { _slotUpdate.value = it }

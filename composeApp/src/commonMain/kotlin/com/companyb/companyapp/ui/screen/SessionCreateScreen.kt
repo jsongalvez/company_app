@@ -52,9 +52,11 @@ import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.SessionCreateDraft
+import com.companyb.companyapp.viewmodel.SessionCreateFormApi
 import com.companyb.companyapp.viewmodel.SessionCreateViewModel
 import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.bookingFields
+import com.companyb.companyapp.viewmodel.isSessionCreateLocked
 
 /**
  * #348 — start a client's session end-to-end. No client chosen: the debounced picker (the
@@ -82,7 +84,7 @@ fun SessionCreateScreen(
     val selectedClient by viewModel.selectedClient.collectAsState()
     val draft by viewModel.draft.collectAsState()
     val createResult by viewModel.createResult.collectAsState()
-    val isSubmissionLocked = createResult is UiState.Loading || createResult is UiState.Success
+    val isSubmissionLocked = isSessionCreateLocked(createResult)
     SessionCreateNavigationGuard(isSubmissionLocked, onSubmissionLockChanged)
     // The dialog's create path lives in the caller-provided ClientViewModel (entry-scoped).
     val createState by clientViewModel.createClientResult.collectAsState()
@@ -283,7 +285,7 @@ internal fun SessionFormSection(args: SessionCreateBodyArgs) {
 /** Shared form controls used by mobile and desktop layouts. */
 @Composable
 internal fun SessionFormFields(
-    viewModel: SessionCreateViewModel,
+    viewModel: SessionCreateFormApi,
     draft: SessionCreateDraft,
     isSubmissionLocked: Boolean,
     onSubmissionStarted: () -> Unit,
@@ -354,7 +356,7 @@ internal fun SessionFormFields(
 
 @Composable
 private fun PreviewCard(
-    viewModel: SessionCreateViewModel,
+    viewModel: SessionCreateFormApi,
     preview: UiState<SessionPreviewResponse>,
     enabled: Boolean,
 ) {
@@ -480,7 +482,7 @@ private fun RequestedPractitionerPicker(
 
 @Composable
 private fun ConcernsBlock(
-    viewModel: SessionCreateViewModel,
+    viewModel: SessionCreateFormApi,
     concernsState: UiState<List<ConcernResponse>>,
     selectedConcernIds: Set<String>,
     enabled: Boolean,
@@ -523,7 +525,7 @@ private fun ConcernsBlock(
 
 @Composable
 private fun ConcernOptions(
-    viewModel: SessionCreateViewModel,
+    viewModel: SessionCreateFormApi,
     concerns: List<ConcernResponse>,
     selectedConcernIds: Set<String>,
     enabled: Boolean,
@@ -562,7 +564,7 @@ private fun ConcernOptions(
 
 @Composable
 private fun SubmitArea(
-    viewModel: SessionCreateViewModel,
+    viewModel: SessionCreateFormApi,
     draft: SessionCreateDraft,
     onSubmissionStarted: () -> Unit,
     onContinueAfterConcernFailure: () -> Unit,
@@ -577,7 +579,7 @@ private fun SubmitArea(
     val booking = bookingFields(draft.isBooked, draft.nextAppointmentDate)
     val canSubmit =
         preview is UiState.Success && priceValue != null && priceValue >= 0 &&
-            booking != null && createResult !is UiState.Loading && createResult !is UiState.Success
+            booking != null && !isSessionCreateLocked(createResult)
     Button(
         onClick = {
             onSubmissionStarted()

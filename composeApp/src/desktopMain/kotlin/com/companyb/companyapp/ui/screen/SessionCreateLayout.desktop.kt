@@ -25,9 +25,6 @@ import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
-import com.companyb.companyapp.viewmodel.SessionCreateDraft
-import com.companyb.companyapp.viewmodel.SessionCreateViewModel
-import com.companyb.companyapp.viewmodel.UiState
 
 private const val CLIENT_DIRECTORY_WIDTH = 320
 
