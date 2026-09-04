@@ -660,6 +660,16 @@ private val AuditLogFilterDraftSaver =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+private fun TableDropdownErrorEffect(tables: UiState<List<AuditLogTableResponse>>) {
+    LaunchedEffect(tables) {
+        if (tables is UiState.Error) {
+            logWarn("AuditLogScreen", "tablesState=Error: ${tables.message}")
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun TableDropdown(
     tables: UiState<List<AuditLogTableResponse>>,
     selectedTableName: String?,
@@ -671,11 +681,7 @@ private fun TableDropdown(
     val isError = tables is UiState.Error
     val isIdle = tables is UiState.Idle
     val isLoading = tables is UiState.Loading
-    LaunchedEffect(tables) {
-        if (tables is UiState.Error) {
-            logWarn("AuditLogScreen", "tablesState=Error: ${tables.message}")
-        }
-    }
+    TableDropdownErrorEffect(tables)
     val tableOptions = (tables as? UiState.Success<List<AuditLogTableResponse>>)?.data.orEmpty()
     val selectedLabel =
         tableOptions.find { it.tableName == selectedTableName }?.label ?: "All tables"
