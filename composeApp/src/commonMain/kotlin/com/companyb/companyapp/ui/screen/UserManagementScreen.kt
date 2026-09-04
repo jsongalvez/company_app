@@ -730,19 +730,14 @@ private fun BranchPicker(
         },
         modifier = Modifier.fillMaxWidth(),
     ) {
-        OutlinedTextField(
-            value =
-                when {
-                    isError -> "Branches unavailable — tap to retry"
-                    isLoading || isIdle -> "Loading branches…"
-                    else -> selectedLabel
-                },
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Slot order — branch") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+        BranchPickerField(
+            isError = isError,
+            isLoading = isLoading,
+            isIdle = isIdle,
+            selectedLabel = selectedLabel,
+            expanded = expanded,
+            disabled = disabled,
             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-            enabled = !disabled && !isLoading && !isIdle,
         )
         ExposedDropdownMenu(
             expanded = expanded,
@@ -755,16 +750,54 @@ private fun BranchPicker(
                     expanded = false
                 },
             )
-            options.forEach { branch ->
-                DropdownMenuItem(
-                    text = { Text("${branch.name} (${branch.branchType})") },
-                    onClick = {
-                        onBranchSelected(branch.id)
-                        expanded = false
-                    },
-                )
-            }
+            BranchPickerOptions(
+                options = options,
+                onBranchSelected = {
+                    onBranchSelected(it)
+                    expanded = false
+                },
+            )
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BranchPickerField(
+    isError: Boolean,
+    isLoading: Boolean,
+    isIdle: Boolean,
+    selectedLabel: String,
+    expanded: Boolean,
+    disabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value =
+            when {
+                isError -> "Branches unavailable — tap to retry"
+                isLoading || isIdle -> "Loading branches…"
+                else -> selectedLabel
+            },
+        onValueChange = {},
+        readOnly = true,
+        label = { Text("Slot order — branch") },
+        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+        modifier = modifier,
+        enabled = !disabled && !isLoading && !isIdle,
+    )
+}
+
+@Composable
+private fun BranchPickerOptions(
+    options: List<BranchResponse>,
+    onBranchSelected: (String) -> Unit,
+) {
+    options.forEach { branch ->
+        DropdownMenuItem(
+            text = { Text("${branch.name} (${branch.branchType})") },
+            onClick = { onBranchSelected(branch.id) },
+        )
     }
 }
 
