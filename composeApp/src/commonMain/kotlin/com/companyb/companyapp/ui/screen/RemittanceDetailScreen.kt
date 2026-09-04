@@ -198,36 +198,21 @@ fun RemittanceDetailScreen(
                     .fillMaxSize()
                     .padding(Spacing.md),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onBack) {
-                    Text("Back")
-                }
-            }
+            RemittanceDetailBackRow(onBack = onBack)
 
             when (val state = detailState) {
                 is UiState.Idle, is UiState.Loading -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
+                    RemittanceDetailLoadingBox()
                 }
 
                 is UiState.Error -> {
-                    ErrorCard(
+                    RemittanceDetailLoadError(
                         message = state.message,
                         onRetry = { viewModel.loadRemittance(remittanceId) },
                     )
                 }
 
                 is UiState.Success -> {
-                    if (changedNotice) {
-                        Text(
-                            text = "Remittance was changed elsewhere — changes reloaded",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(bottom = Spacing.sm),
-                        )
-                    }
-
                     @Composable
                     fun Center() {
                         RemittanceDetailContent(
@@ -266,31 +251,92 @@ fun RemittanceDetailScreen(
                             onCloseUndoDialog = { showUndoDialog = false },
                         )
                     }
-                    if (wideDesk && branchId != null) {
-                        RemittanceControlDesk(
-                            detail = state.data,
-                            branchId = branchId,
-                            currentId = remittanceId,
-                            queueMirrors = queueMirrors,
-                            queueState = queueState,
-                            dayEntries =
-                                (dayPickerState as? UiState.Success)
-                                    ?.data
-                                    ?.associate { it.id to it }
-                                    .orEmpty(),
-                            onQueueClick = onRemittanceClick,
-                            onRetryQueue = {
-                                viewModel.loadRemittances(branchId, DESK_QUEUE_DRAFTS_STATUS)
-                                viewModel.loadRemittances(branchId, DESK_QUEUE_SUBMITTED_STATUS)
-                            },
-                            center = { Center() },
-                        )
-                    } else {
-                        Center()
-                    }
+                    RemittanceDetailSuccessHost(
+                        changedNotice = changedNotice,
+                        detail = state.data,
+                        branchId = branchId,
+                        currentId = remittanceId,
+                        wideDesk = wideDesk,
+                        queueMirrors = queueMirrors,
+                        queueState = queueState,
+                        dayPickerState = dayPickerState,
+                        onQueueClick = onRemittanceClick,
+                        onRetryQueue = { id ->
+                            viewModel.loadRemittances(id, DESK_QUEUE_DRAFTS_STATUS)
+                            viewModel.loadRemittances(id, DESK_QUEUE_SUBMITTED_STATUS)
+                        },
+                        center = { Center() },
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RemittanceDetailBackRow(onBack: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = onBack) {
+            Text("Back")
+        }
+    }
+}
+
+@Composable
+private fun RemittanceDetailLoadingBox() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
+    }
+}
+
+@Composable
+private fun RemittanceDetailLoadError(
+    message: String,
+    onRetry: () -> Unit,
+) {
+    ErrorCard(message = message, onRetry = onRetry)
+}
+
+@Composable
+private fun RemittanceDetailSuccessHost(
+    changedNotice: Boolean,
+    detail: RemittanceDetailResponse,
+    branchId: String?,
+    currentId: String,
+    wideDesk: Boolean,
+    queueMirrors: Map<String, List<RemittanceResponse>>,
+    queueState: UiState<List<RemittanceResponse>>,
+    dayPickerState: UiState<List<RemittanceDayPickerEntryResponse>>,
+    onQueueClick: (String) -> Unit,
+    onRetryQueue: (String) -> Unit,
+    center: @Composable () -> Unit,
+) {
+    if (changedNotice) {
+        Text(
+            text = "Remittance was changed elsewhere — changes reloaded",
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(bottom = Spacing.sm),
+        )
+    }
+    if (wideDesk && branchId != null) {
+        RemittanceControlDesk(
+            detail = detail,
+            branchId = branchId,
+            currentId = currentId,
+            queueMirrors = queueMirrors,
+            queueState = queueState,
+            dayEntries =
+                (dayPickerState as? UiState.Success)
+                    ?.data
+                    ?.associate { it.id to it }
+                    .orEmpty(),
+            onQueueClick = onQueueClick,
+            onRetryQueue = { onRetryQueue(branchId) },
+            center = center,
+        )
+    } else {
+        center()
     }
 }
 
