@@ -71,39 +71,8 @@ fun RemittanceListScreen(
     var selectedTab by rememberSaveable { mutableStateOf(RemittanceTab.DRAFTS) }
     var showCreateDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        logInfo("RemittanceListScreen", "composable entered (first composition)")
-        if (branchId != null) {
-            viewModel.loadRemittances(branchId, RemittanceTab.DRAFTS.status)
-        }
-    }
-
-    LaunchedEffect(selectedTab) {
-        if (branchId != null) {
-            viewModel.loadRemittances(branchId, selectedTab.status)
-        }
-    }
-
-    LaunchedEffect(createDraftState) {
-        when (val state = createDraftState) {
-            is UiState.Success -> {
-                // D2 — draft created (or already existed server-side): close the popup and refresh
-                // the Drafts list so it appears under the default tab.
-                showCreateDialog = false
-                if (branchId != null) {
-                    viewModel.loadRemittances(branchId, RemittanceTab.DRAFTS.status)
-                }
-            }
-
-            is UiState.Error -> {
-                logWarn("RemittanceListScreen", "createDraftState=Error: ${state.message}")
-            }
-
-            else -> {
-                Unit
-            }
-        }
-    }
+    RemittanceListLoadEffects(viewModel, branchId, selectedTab)
+    RemittanceListDraftEffects(branchId, createDraftState, viewModel, onDraftConsumed = { showCreateDialog = false })
 
     Column(
         modifier =
@@ -193,6 +162,54 @@ fun RemittanceListScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun RemittanceListLoadEffects(
+    viewModel: RemittanceViewModel,
+    branchId: String?,
+    selectedTab: RemittanceTab,
+) {
+    LaunchedEffect(Unit) {
+        logInfo("RemittanceListScreen", "composable entered (first composition)")
+        if (branchId != null) {
+            viewModel.loadRemittances(branchId, RemittanceTab.DRAFTS.status)
+        }
+    }
+    LaunchedEffect(selectedTab) {
+        if (branchId != null) {
+            viewModel.loadRemittances(branchId, selectedTab.status)
+        }
+    }
+}
+
+@Composable
+private fun RemittanceListDraftEffects(
+    branchId: String?,
+    createDraftState: UiState<RemittanceResponse>,
+    viewModel: RemittanceViewModel,
+    onDraftConsumed: () -> Unit,
+) {
+    LaunchedEffect(createDraftState) {
+        when (val state = createDraftState) {
+            is UiState.Success -> {
+                // D2 — draft created (or already existed server-side): close the popup and refresh
+                // the Drafts list so it appears under the default tab.
+                onDraftConsumed()
+                if (branchId != null) {
+                    viewModel.loadRemittances(branchId, RemittanceTab.DRAFTS.status)
+                }
+            }
+
+            is UiState.Error -> {
+                logWarn("RemittanceListScreen", "createDraftState=Error: ${state.message}")
+            }
+
+            else -> {
+                Unit
+            }
+        }
     }
 }
 
