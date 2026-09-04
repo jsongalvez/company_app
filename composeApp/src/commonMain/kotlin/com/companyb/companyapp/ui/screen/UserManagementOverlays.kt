@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
@@ -163,6 +164,70 @@ internal fun ColumnScope.UserManagementUserList(
             }
         }
     }
+}
+
+/**
+ * User-list region call hoisted out of [UserManagementScreen] for the #462 LongMethod
+ * burn-down. Lives here because Header.kt sits at the detekt file-function wall (10/11) —
+ * Overlays.kt holds the last safe slot. Self-sufficient: collects the users/held/errors
+ * flows and the mutations gate itself (duplicate StateFlow subscriptions are cheap —
+ * LoginNoticeEffect precedent) and owns the row-actions + list-actions construction
+ * (call-site construction lines count toward the caller LongMethod); the Screen keeps one
+ * slim single-line call. ColumnScope receiver so the LazyColumn keeps its `weight`
+ * ([UserManagementUserList] precedent). 5 params so it stays LongParameterList-clean
+ * outside the LPL-excluded Screen file. Held-list KeepLast semantics (#162, #143 VM-held
+ * mirror) ride along: the host collects the same freshest flow, so a reload never flashes
+ * over held rows and a failed reload never replaces the list.
+ */
+@Composable
+internal fun ColumnScope.UserManagementUserListHost(
+    viewModel: UserViewModel,
+    branchViewModel: BranchViewModel,
+    currentUserId: String?,
+    states: UserManagementScreenStates,
+    derived: UserManagementDerived,
+) {
+    val users by viewModel.users.collectAsState()
+    val heldList by viewModel.freshestUsers.collectAsState()
+    val actionErrors by viewModel.actionErrors.collectAsState()
+    val mutationsDisabled = userManagementMutationsDisabled(viewModel, branchViewModel)
+    val userRowActions =
+        userManagementUserRowActions(
+            currentUserId = currentUserId,
+            mutationsDisabled = mutationsDisabled,
+            selectedBranchId = states.selectedBranchId,
+            actionErrors = actionErrors,
+            callbacks =
+                UserManagementUserRowCallbacks(
+                    expandedIds = states.expandedIds,
+                    onExpandedIdsChange = states.onExpandedIdsChange,
+                    onDeactivateTarget = states.onDeactivateTargetChange,
+                    onRoleEditTarget = states.onRoleEditTargetChange,
+                    onSlotEditTarget = states.onSlotEditTargetChange,
+                    onRemoveTarget = states.onRemoveAssignmentTargetChange,
+                    onReactivate = { id -> viewModel.setUserStatus(id, UserStatus.ACTIVE) },
+                    onResetAdministration = branchViewModel::resetAdministrationState,
+                ),
+        )
+    UserManagementUserList(
+        users = users,
+        heldNonNull = heldList != null,
+        filteredUsers = derived.filteredUsers,
+        selectedBranch = derived.selectedBranch,
+        actions =
+            UserManagementUserListActions(
+                selectedBranchName = derived.selectedBranchName ?: "",
+                slotRows = derived.slotRows,
+                mutationsDisabled = mutationsDisabled,
+                searchQuery = states.searchQuery,
+                expandedIds = states.expandedIds,
+                userRowActions = userRowActions,
+                actionErrors = actionErrors,
+                onSwapSlots = viewModel::swapSlots,
+                onEditSlotTarget = states.onSlotEditTargetChange,
+                onRetry = viewModel::loadUsers,
+            ),
+    )
 }
 
 /**

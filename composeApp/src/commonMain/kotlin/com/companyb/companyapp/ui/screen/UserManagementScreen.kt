@@ -82,14 +82,6 @@ fun UserManagementScreen(
     branchViewModel: BranchViewModel,
     currentUserId: String?,
 ) {
-    val users by viewModel.users.collectAsState()
-    // Keep-last render source (#162 — the KeepLast freshest flow, the #143 VM-held-list shape):
-    // Success data, or the VM-held mirror during Loading/Error so a reload never flashes the
-    // spinner over held rows and a failed reload never replaces the list with an ErrorCard.
-    // null only when nothing has ever loaded (first composition) — spinner/ErrorCard then.
-    val heldList by viewModel.freshestUsers.collectAsState()
-    val actionErrors by viewModel.actionErrors.collectAsState()
-
     val states = rememberUserManagementScreenStates()
 
     UserManagementEntryEffects(
@@ -119,44 +111,7 @@ fun UserManagementScreen(
     ) {
         UserManagementTopSectionsHost(viewModel, branchViewModel, states, derived, mutationsDisabled)
 
-        val userRowActions =
-            userManagementUserRowActions(
-                currentUserId = currentUserId,
-                mutationsDisabled = mutationsDisabled,
-                selectedBranchId = states.selectedBranchId,
-                actionErrors = actionErrors,
-                callbacks =
-                    UserManagementUserRowCallbacks(
-                        expandedIds = states.expandedIds,
-                        onExpandedIdsChange = states.onExpandedIdsChange,
-                        onDeactivateTarget = states.onDeactivateTargetChange,
-                        onRoleEditTarget = states.onRoleEditTargetChange,
-                        onSlotEditTarget = states.onSlotEditTargetChange,
-                        onRemoveTarget = states.onRemoveAssignmentTargetChange,
-                        onReactivate = { id -> viewModel.setUserStatus(id, UserStatus.ACTIVE) },
-                        onResetAdministration = branchViewModel::resetAdministrationState,
-                    ),
-            )
-
-        UserManagementUserList(
-            users = users,
-            heldNonNull = heldList != null,
-            filteredUsers = derived.filteredUsers,
-            selectedBranch = derived.selectedBranch,
-            actions =
-                UserManagementUserListActions(
-                    selectedBranchName = derived.selectedBranchName ?: "",
-                    slotRows = derived.slotRows,
-                    mutationsDisabled = mutationsDisabled,
-                    searchQuery = states.searchQuery,
-                    expandedIds = states.expandedIds,
-                    userRowActions = userRowActions,
-                    actionErrors = actionErrors,
-                    onSwapSlots = viewModel::swapSlots,
-                    onEditSlotTarget = states.onSlotEditTargetChange,
-                    onRetry = viewModel::loadUsers,
-                ),
-        )
+        UserManagementUserListHost(viewModel, branchViewModel, currentUserId, states, derived)
     }
 
     UserManagementDialogHosts(
