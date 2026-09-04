@@ -25,6 +25,16 @@ import java.util.UUID
 private const val LOW_STOCK_DEFAULT_THRESHOLD = 5
 
 /**
+ * Response-ready inventory aggregate (#454): cards plus their 5-value breakdowns,
+ * loaded behind one seam so routes never orchestrate two service calls. Single
+ * branch existence check and single movement-ledger scan per call.
+ */
+data class InventoryWithBreakdowns(
+    val cards: List<BranchInventoryWithProduct>,
+    val breakdowns: Map<UUID, InventoryBreakdown>,
+)
+
+/**
  * Inventory feature commands (#323, ADR-0024). Each mutating command owns exactly one
  * transaction: the day gate and guards run inside it, persistence runs via
  * `BranchInventoryRepository.*InTransaction` store operations, and the audit rows are
@@ -120,7 +130,7 @@ object InventoryService {
     }
 
     fun getStock(branchId: UUID): List<BranchInventoryWithProduct> {
-        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+        requireBranchExists(branchId)
         return BranchInventoryRepository.findByBranch(branchId)
     }
 
@@ -131,28 +141,68 @@ object InventoryService {
      * Stock - Sales - TesterSample - Missing + Adjustment.
      */
     fun getBreakdowns(branchId: UUID): Map<UUID, InventoryBreakdown> {
-        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
-        return BranchInventoryRepository
-            .findMovements(branchId)
-            .groupBy { it.productId }
-            .mapValues { (_, movements) -> breakdownFromMovements(movements) }
+        requireBranchExists(branchId)
+        return breakdownsFromLedger(branchId)
     }
 
     fun getMovementHistory(
         branchId: UUID,
         date: LocalDate? = null,
     ): List<InventoryMovement> {
-        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+        requireBranchExists(branchId)
         return BranchInventoryRepository.findMovements(branchId, date)
     }
 
-    @Suppress("ReturnCount")
+    /**
+     * Aggregate read seam (#454): one branch lookup + one card scan + one movement
+     * scan. Replaces the route-level `getBreakdowns` + `getStock` orchestration.
+     */
+    fun getInventory(branchId: UUID): InventoryWithBreakdowns {
+        requireBranchExists(branchId)
+        val cards = BranchInventoryRepository.findByBranch(branchId)
+        val breakdowns = breakdownsFromLedger(branchId)
+        return InventoryWithBreakdowns(cards, breakdowns)
+    }
+
     fun getLowStockAlerts(
         branchId: UUID,
         thresholdOverride: Int? = null,
     ): List<BranchInventoryWithProduct> {
-        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+        requireBranchExists(branchId)
         val allInventory = BranchInventoryRepository.findByBranch(branchId)
+        return filterLowStock(allInventory, thresholdOverride)
+    }
+
+    /**
+     * Low-stock aggregate read seam (#454): one branch lookup + one card scan + one
+     * movement scan. Filtered cards paired with the full breakdown map, matching the
+     * former route-level `getBreakdowns` + `getLowStockAlerts` pairing.
+     */
+    fun getLowStockInventory(
+        branchId: UUID,
+        thresholdOverride: Int? = null,
+    ): InventoryWithBreakdowns {
+        requireBranchExists(branchId)
+        val cards = filterLowStock(BranchInventoryRepository.findByBranch(branchId), thresholdOverride)
+        val breakdowns = breakdownsFromLedger(branchId)
+        return InventoryWithBreakdowns(cards, breakdowns)
+    }
+
+    private fun requireBranchExists(branchId: UUID) {
+        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+    }
+
+    private fun breakdownsFromLedger(branchId: UUID): Map<UUID, InventoryBreakdown> =
+        BranchInventoryRepository
+            .findMovements(branchId)
+            .groupBy { it.productId }
+            .mapValues { (_, movements) -> breakdownFromMovements(movements) }
+
+    @Suppress("ReturnCount")
+    private fun filterLowStock(
+        allInventory: List<BranchInventoryWithProduct>,
+        thresholdOverride: Int?,
+    ): List<BranchInventoryWithProduct> {
         if (allInventory.isEmpty()) return allInventory
 
         if (thresholdOverride != null) {

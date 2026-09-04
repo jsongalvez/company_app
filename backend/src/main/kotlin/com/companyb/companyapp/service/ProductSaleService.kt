@@ -64,8 +64,10 @@ object ProductSaleService {
                 ProductSaleRepository.findSameDaySaleInTransaction(retryParams)?.let {
                     return@transaction SellProductResult(it, created = false)
                 }
+                // Locked day read (#454): serializes this sale with remittance's
+                // REMITTED transition inside the same command transaction.
                 val (branchDay, isRemitted) =
-                    BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
+                    BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason)
 
                 if (BranchRepository.findById(branchDay.branchId) == null) {
                     throw NotFoundException("Branch not found")

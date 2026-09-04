@@ -5,6 +5,12 @@ import com.companyb.companyapp.service.branchday.BranchDayService
 import java.util.UUID
 
 internal object StockValidator {
+    /**
+     * Day gate + quantity validation for inventory movements (#454). Must be called
+     * inside the caller's command transaction: the day row is locked
+     * ([checkBranchDayEditableInTransaction]) so the gate serializes with
+     * remittance's REMITTED transition instead of racing it.
+     */
     @Suppress("ThrowsCount", "LongParameterList")
     fun validateMovement(
         callerId: UUID,
@@ -14,7 +20,7 @@ internal object StockValidator {
         notes: String?,
         reason: String? = null,
     ): Boolean {
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
+        val (_, isRemitted) = BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason)
 
         val sign = quantityChange.compareTo(0)
         when (movementType.signRequired) {

@@ -211,19 +211,17 @@ object BranchInventoryRoutes {
 
     private fun handleGetInventory(context: Context) {
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-        val breakdowns = InventoryService.getBreakdowns(branchId)
-        val cards = InventoryService.getStock(branchId)
+        val view = InventoryService.getInventory(branchId)
 
-        context.json(cards.map { it.toResponse(breakdowns[it.inventory.productId]) })
+        context.json(view.cards.map { it.toResponse(view.breakdowns[it.inventory.productId]) })
     }
 
     private fun handleGetLowStock(context: Context) {
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val thresholdOverride = context.queryParam("threshold")?.toIntOrNull()
-        val breakdowns = InventoryService.getBreakdowns(branchId)
-        val cards = InventoryService.getLowStockAlerts(branchId, thresholdOverride)
+        val view = InventoryService.getLowStockInventory(branchId, thresholdOverride)
 
-        context.json(cards.map { it.toResponse(breakdowns[it.inventory.productId]) })
+        context.json(view.cards.map { it.toResponse(view.breakdowns[it.inventory.productId]) })
     }
 
     private fun handleGetMovements(context: Context) {
