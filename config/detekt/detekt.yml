@@ -175,7 +175,6 @@ complexity:
     active: true
     threshold: 60
     excludes:
-      - '**/desktopMain/**/navigation/AppNavHost.desktop.kt'
       - '**/desktopMain/**/ui/screen/SessionList.desktop.kt'
       - '**/commonMain/**/ui/screen/ClientDetailScreen.kt'
       - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'

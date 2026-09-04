@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
+import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.state.ClientState
@@ -117,6 +118,44 @@ actual fun AppNavHost(
 private const val DESKTOP_MASTER_WEIGHT = 0.6f
 private const val DESKTOP_DETAIL_WEIGHT = 0.4f
 
+@Composable
+private fun DashboardReliefContent(
+    branchDayId: String?,
+    viewModel: ReliefAccessViewModel,
+    currentUserId: String?,
+    isReliefUser: Boolean,
+) {
+    val dayId = branchDayId
+    if (dayId != null) {
+        LaunchedEffect(dayId) {
+            viewModel.resetActionStates()
+            viewModel.loadRequests(dayId)
+        }
+        ReliefAccessCard(
+            viewModel = viewModel,
+            branchDayId = dayId,
+            currentUserId = currentUserId,
+            isReliefUser = isReliefUser,
+        )
+    }
+}
+
+@Composable
+private fun DesktopDetailPane(
+    session: DashboardSessionResponse?,
+    apiClient: ApiClient,
+    onRefresh: () -> Unit,
+) {
+    // #382 — the editable pane (mutations + authoritative reload via the
+    // dashboard poll refresh). #406 — desktop carries the void/unvoid affordance.
+    SessionDetailPane(
+        session = session,
+        apiClient = apiClient,
+        refreshSession = onRefresh,
+        allowVoid = true,
+    )
+}
+
 // #447 — desk queue selection: re-clicking the open draft is a no-op, anything else
 // pushes the existing detail route (no re-routing; the branch keeps its own decision).
 private fun navigateDeskQueue(
@@ -173,19 +212,12 @@ private fun DesktopDashboardLive(
                     navController.navigate(Route.SessionCreate)
                 },
                 reliefAccessContent = {
-                    val dayId = branchDayId
-                    if (dayId != null) {
-                        LaunchedEffect(dayId) {
-                            reliefAccessViewModel.resetActionStates()
-                            reliefAccessViewModel.loadRequests(dayId)
-                        }
-                        ReliefAccessCard(
-                            viewModel = reliefAccessViewModel,
-                            branchDayId = dayId,
-                            currentUserId = currentUserId?.id,
-                            isReliefUser = isRelief,
-                        )
-                    }
+                    DashboardReliefContent(
+                        branchDayId = branchDayId,
+                        viewModel = reliefAccessViewModel,
+                        currentUserId = currentUserId?.id,
+                        isReliefUser = isRelief,
+                    )
                 },
                 attendanceContent = {
                     // #404 — member-marked attendance; the card self-hides for relief users
@@ -204,13 +236,10 @@ private fun DesktopDashboardLive(
             )
         }
         Box(modifier = Modifier.weight(DESKTOP_DETAIL_WEIGHT).fillMaxSize()) {
-            // #382 — the editable pane (mutations + authoritative reload via the
-            // dashboard poll refresh). #406 — desktop carries the void/unvoid affordance.
-            SessionDetailPane(
+            DesktopDetailPane(
                 session = lastData?.sessions?.firstOrNull { it.id == selectedSessionId },
                 apiClient = apiClient,
-                refreshSession = { dashboardViewModel.refreshAfterMutation() },
-                allowVoid = true,
+                onRefresh = { dashboardViewModel.refreshAfterMutation() },
             )
         }
     }
