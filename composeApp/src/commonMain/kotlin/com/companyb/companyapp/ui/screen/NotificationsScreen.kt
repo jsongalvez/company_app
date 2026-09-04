@@ -60,9 +60,6 @@ fun NotificationsScreen(
     val markReadState by viewModel.markReadResult.collectAsState()
     val markAllState by viewModel.markAllResult.collectAsState()
 
-    val acceptState by reliefInviteViewModel.acceptResult.collectAsState()
-    val declineState by reliefInviteViewModel.declineResult.collectAsState()
-
     LaunchedEffect(Unit) {
         logInfo("NotificationsScreen", "composable entered (first composition)")
         viewModel.loadUnreadNotifications()
@@ -83,23 +80,16 @@ fun NotificationsScreen(
     // the VM handles it internally (absent-row defense reload), so it never reaches this state.
     val markReadError = (markReadState as? UiState.Error)?.message
     val markAllError = (markAllState as? UiState.Error)?.message
-    val acceptError = (acceptState as? UiState.Error)?.message
-    val declineError = (declineState as? UiState.Error)?.message
     val historyError = (historyState as? UiState.Error)?.message
-    // ComplexCondition carve-out (#462 burn): the 4-way error OR lives in a named val so the
-    // render gate below stays a single condition.
-    val hasActionError = markAllError != null || markReadError != null || acceptError != null || declineError != null
+    // ComplexCondition carve-out (#462 burn): the error OR lives in a named val so the
+    // render gate below stays a single condition. Invite accept/decline errors render in
+    // ReliefInvitesSection (it owns those flows); only the queue errors gate here.
+    val hasActionError = markAllError != null || markReadError != null
     LaunchedEffect(markReadError) {
         markReadError?.let { logWarn("NotificationsScreen", "markRead=Error: $it") }
     }
     LaunchedEffect(markAllError) {
         markAllError?.let { logWarn("NotificationsScreen", "markAll=Error: $it") }
-    }
-    LaunchedEffect(acceptError) {
-        acceptError?.let { logWarn("NotificationsScreen", "inviteAccept=Error: $it") }
-    }
-    LaunchedEffect(declineError) {
-        declineError?.let { logWarn("NotificationsScreen", "inviteDecline=Error: $it") }
     }
     LaunchedEffect(historyError) {
         historyError?.let { logWarn("NotificationsScreen", "history=Error: $it") }
@@ -158,8 +148,6 @@ fun NotificationsScreen(
             ) {
                 markAllError?.let { ActionErrorLine(it) }
                 markReadError?.let { ActionErrorLine(it) }
-                acceptError?.let { ActionErrorLine(it) }
-                declineError?.let { ActionErrorLine(it) }
             }
         }
 
@@ -344,6 +332,8 @@ private fun SectionLabel(text: String) {
  * (c0fb842e slimming precedent) so the Screen keeps one slim call instead of four collects
  * plus derivations. #410 — a failed load stays visible with its own Retry above keep-last
  * rows (never a silent collapse); the next load's Loading pre-set clears the strip.
+ * Invite action failures (accept/decline) surface here too — same flows already collected
+ * for the busy gate — so the Screen owns only the queue errors.
  */
 @Composable
 private fun ReliefInvitesSection(reliefInviteViewModel: ReliefInviteViewModel) {
@@ -355,8 +345,18 @@ private fun ReliefInvitesSection(reliefInviteViewModel: ReliefInviteViewModel) {
     LaunchedEffect(receivedError) {
         receivedError?.let { logWarn("NotificationsScreen", "receivedInvites=Error: $it") }
     }
+    // Invite action failures surface inline (moved from the Screen under the #462 burn —
+    // the flows are already collected for the busy gate; a failed accept/decline stays
+    // visible, and the next attempt's Loading pre-set clears the line automatically).
+    val acceptError = (acceptState as? UiState.Error)?.message
+    val declineError = (declineState as? UiState.Error)?.message
+    LaunchedEffect(acceptError) {
+        acceptError?.let { logWarn("NotificationsScreen", "inviteAccept=Error: $it") }
+    }
+    LaunchedEffect(declineError) {
+        declineError?.let { logWarn("NotificationsScreen", "inviteDecline=Error: $it") }
+    }
     val received = freshestReceived.orEmpty()
-    val today = currentOperationalDate()
     val inviteActionsBusy = acceptState is UiState.Loading || declineState is UiState.Loading
     // #410 — the strip sits above keep-last rows so cached rows never masquerade as fresh.
     if (receivedError != null) {
@@ -371,13 +371,25 @@ private fun ReliefInvitesSection(reliefInviteViewModel: ReliefInviteViewModel) {
             }
         }
     }
+    if (acceptError != null || declineError != null) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Spacing.xs),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
+        ) {
+            acceptError?.let { ActionErrorLine(it) }
+            declineError?.let { ActionErrorLine(it) }
+        }
+    }
     if (received.isNotEmpty()) {
         Column(modifier = Modifier.fillMaxWidth()) {
             SectionLabel("Relief invites (${received.size})")
             received.forEach { invite ->
                 ReliefInviteRow(
                     invite = invite,
-                    today = today,
+                    today = currentOperationalDate(),
                     busy = inviteActionsBusy,
                     onAccept = { id -> reliefInviteViewModel.acceptInvite(id) },
                     onDecline = { id -> reliefInviteViewModel.declineInvite(id) },
