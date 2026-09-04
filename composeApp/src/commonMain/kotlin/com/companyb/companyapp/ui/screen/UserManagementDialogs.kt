@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.AssignmentResponse
+import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.InviteMintRequest
 import com.companyb.companyapp.dto.InviteMintResponse
 import com.companyb.companyapp.dto.RoleResponse
@@ -177,6 +178,41 @@ internal data class UserManagementTopSectionsActions(
     val assignmentResult: UiState<AssignmentResponse>,
     val removeAssignmentTarget: AssignmentRemovalTarget?,
     val showAssignDialog: Boolean,
+)
+
+/**
+ * Callbacks + gates for the member half of [UserManagementDialogHosts] (#462 LongMethod burn —
+ * new-file split; UserManagementScreen.kt/Header.kt/Dialogs.kt all sit at the detekt
+ * file-function wall). The host collects the dialog flows itself (duplicate StateFlow
+ * subscriptions are cheap — LoginNoticeEffect precedent) so only dialog targets + single-line
+ * dismiss setters ride here.
+ */
+internal data class UserManagementMemberDialogsActions(
+    val deactivateTarget: UserSummaryResponse?,
+    val onDismissDeactivate: () -> Unit,
+    val slotEditTarget: SlotEditTarget?,
+    val onDismissSlotEdit: () -> Unit,
+    val showCreateUserDialog: Boolean,
+    val onCloseCreateUser: () -> Unit,
+    val roleEditTarget: UserSummaryResponse?,
+    val onDismissRoleEdit: () -> Unit,
+)
+
+/**
+ * Callbacks + gates for the branch-admin half of [UserManagementDialogHosts] (same #462
+ * new-file split). Flow states stay in the host (self-collected, see above); the assign-close
+ * rides two single-line setters so the host owns the multi-line close body and the Screen call
+ * site stays lean (call-site lambda bodies count toward the caller LongMethod).
+ */
+internal data class UserManagementBranchDialogsActions(
+    val showCreateBranchDialog: Boolean,
+    val onCloseCreateBranch: () -> Unit,
+    val showAssignUserDialog: Boolean,
+    val assignmentBranch: BranchResponse?,
+    val onAssignDialog: (Boolean) -> Unit,
+    val onAssignmentBranchChange: (BranchResponse?) -> Unit,
+    val removeAssignmentTarget: AssignmentRemovalTarget?,
+    val onClearRemoveTarget: () -> Unit,
 )
 
 internal val SlotEditTargetSaver =

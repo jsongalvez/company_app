@@ -304,38 +304,32 @@ fun UserManagementScreen(
         }
     }
 
-    UserManagementMemberDialogs(
+    UserManagementDialogHosts(
         viewModel = viewModel,
-        mutationsDisabled = mutationsDisabled,
-        deactivateTarget = deactivateTarget,
-        onDismissDeactivate = { deactivateTarget = null },
-        slotEditTarget = slotEditTarget,
-        actionErrors = actionErrors,
-        onDismissSlotEdit = { slotEditTarget = null },
-        showCreateUserDialog = showCreateUserDialog,
-        onCloseCreateUser = { showCreateUserDialog = false },
-        roleEditTarget = roleEditTarget,
-        onDismissRoleEdit = { roleEditTarget = null },
-    )
-
-    UserManagementBranchDialogs(
         branchViewModel = branchViewModel,
         mutationsDisabled = mutationsDisabled,
-        showCreateBranchDialog = showCreateBranchDialog,
-        createBranchState = createBranchState,
-        loadedBranches = loadedBranches,
-        onCloseCreateBranch = { showCreateBranchDialog = false },
-        showAssignUserDialog = showAssignUserDialog,
-        assignmentBranch = assignmentBranch,
-        loadedUsers = loadedUsers,
-        assignmentResult = assignmentResult,
-        onCloseAssign = {
-            showAssignUserDialog = false
-            assignmentBranch = null
-        },
-        removeAssignmentTarget = removeAssignmentTarget,
-        deleteAssignmentState = deleteAssignmentState,
-        onClearRemoveTarget = { removeAssignmentTarget = null },
+        memberActions =
+            UserManagementMemberDialogsActions(
+                deactivateTarget = deactivateTarget,
+                onDismissDeactivate = { deactivateTarget = null },
+                slotEditTarget = slotEditTarget,
+                onDismissSlotEdit = { slotEditTarget = null },
+                showCreateUserDialog = showCreateUserDialog,
+                onCloseCreateUser = { showCreateUserDialog = false },
+                roleEditTarget = roleEditTarget,
+                onDismissRoleEdit = { roleEditTarget = null },
+            ),
+        branchActions =
+            UserManagementBranchDialogsActions(
+                showCreateBranchDialog = showCreateBranchDialog,
+                onCloseCreateBranch = { showCreateBranchDialog = false },
+                showAssignUserDialog = showAssignUserDialog,
+                assignmentBranch = assignmentBranch,
+                onAssignDialog = { showAssignUserDialog = it },
+                onAssignmentBranchChange = { assignmentBranch = it },
+                removeAssignmentTarget = removeAssignmentTarget,
+                onClearRemoveTarget = { removeAssignmentTarget = null },
+            ),
     )
 }
 
@@ -347,7 +341,7 @@ fun UserManagementScreen(
  * site so it stays lean.
  */
 @Composable
-private fun UserManagementMemberDialogs(
+internal fun UserManagementMemberDialogs(
     viewModel: UserViewModel,
     mutationsDisabled: Boolean,
     deactivateTarget: UserSummaryResponse?,
@@ -434,7 +428,7 @@ private fun UserManagementMemberDialogs(
  * derives inside so the Screen call site stays lean.
  */
 @Composable
-private fun UserManagementBranchDialogs(
+internal fun UserManagementBranchDialogs(
     branchViewModel: BranchViewModel,
     mutationsDisabled: Boolean,
     showCreateBranchDialog: Boolean,
