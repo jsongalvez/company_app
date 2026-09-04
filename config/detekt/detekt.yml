@@ -157,8 +157,6 @@ complexity:
     excludes:
       - '**/commonMain/**/ui/screen/ClientDetailScreen.kt'
       - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
-      - '**/commonMain/**/ui/screen/UserManagementScreen.kt'
-      - '**/commonMain/**/ui/screen/NotificationsScreen.kt'
       - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
   LabeledExpression:
     active: false
