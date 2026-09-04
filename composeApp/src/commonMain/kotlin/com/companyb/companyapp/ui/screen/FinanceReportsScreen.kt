@@ -1563,28 +1563,8 @@ private fun ExpenseDialog(
     onDismiss: () -> Unit,
 ) {
     var amount by remember { mutableStateOf(initial?.amount ?: "") }
-    // Pass-3 HARD — an unknown backend category is shown AND sent as its raw code (never
-    // silently rewritten to PANTRY by an indexOf fallback); the pair list is augmented so the
-    // dropdown displays the raw code too.
-    val dialogCategories =
-        remember(initial) {
-            initial
-                ?.category
-                ?.name
-                ?.takeIf { it !in expenseCategoryCodes }
-                ?.let { code -> expenseCategories + (code to code) }
-                ?: expenseCategories
-        }
-    var categoryIndex by remember {
-        mutableStateOf(
-            initial
-                ?.category
-                ?.name
-                ?.let { code -> dialogCategories.indexOfFirst { it.first == code } }
-                ?.takeIf { it >= 0 }
-                ?: 0,
-        )
-    }
+    val dialogCategories = remember(initial) { expenseDialogCategories(initial) }
+    var categoryIndex by remember { mutableStateOf(expenseCategoryIndex(initial, dialogCategories)) }
     var notes by remember { mutableStateOf(initial?.notes ?: "") }
     var reason by remember { mutableStateOf("") }
     val amountError = expenseAmountError(amount)
@@ -1593,42 +1573,19 @@ private fun ExpenseDialog(
         onDismissRequest = { if (!busy) onDismiss() },
         title = { Text(title) },
         text = {
-            Column {
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
-                    label = { Text("Amount (₱, positive)") },
-                    singleLine = true,
-                    isError = amountError != null,
-                    supportingText = { if (amountError != null) Text(amountError) },
-                )
-                Spacer(Modifier.height(Spacing.xs))
-                CategoryDropdown(
-                    selected = dialogCategories[categoryIndex].second,
-                    categories = dialogCategories,
-                    onSelected = { index -> categoryIndex = index },
-                )
-                Spacer(Modifier.height(Spacing.xs))
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("Notes (optional)") },
-                )
-                Spacer(Modifier.height(Spacing.xs))
-                OutlinedTextField(
-                    value = reason,
-                    onValueChange = { reason = it },
-                    label = { Text("Reason (required on remitted days)") },
-                )
-                if (error != null) {
-                    Spacer(Modifier.height(Spacing.xs))
-                    Text(
-                        text = error,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-            }
+            ExpenseDialogFields(
+                amount = amount,
+                amountError = amountError,
+                dialogCategories = dialogCategories,
+                categoryIndex = categoryIndex,
+                notes = notes,
+                reason = reason,
+                error = error,
+                onAmountChange = { amount = it },
+                onCategorySelected = { categoryIndex = it },
+                onNotesChange = { notes = it },
+                onReasonChange = { reason = it },
+            )
         },
         confirmButton = {
             TextButton(
@@ -1651,6 +1608,80 @@ private fun ExpenseDialog(
             TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") }
         },
     )
+}
+
+// Pass-3 HARD — an unknown backend category is shown AND sent as its raw code (never
+// silently rewritten to PANTRY by an indexOf fallback); the pair list is augmented so the
+// dropdown displays the raw code too.
+private fun expenseDialogCategories(initial: ExpenseResponse?): List<Pair<String, String>> =
+    initial
+        ?.category
+        ?.name
+        ?.takeIf { it !in expenseCategoryCodes }
+        ?.let { code -> expenseCategories + (code to code) }
+        ?: expenseCategories
+
+private fun expenseCategoryIndex(
+    initial: ExpenseResponse?,
+    dialogCategories: List<Pair<String, String>>,
+): Int =
+    initial
+        ?.category
+        ?.name
+        ?.let { code -> dialogCategories.indexOfFirst { it.first == code } }
+        ?.takeIf { it >= 0 }
+        ?: 0
+
+@Composable
+private fun ExpenseDialogFields(
+    amount: String,
+    amountError: String?,
+    dialogCategories: List<Pair<String, String>>,
+    categoryIndex: Int,
+    notes: String,
+    reason: String,
+    error: String?,
+    onAmountChange: (String) -> Unit,
+    onCategorySelected: (Int) -> Unit,
+    onNotesChange: (String) -> Unit,
+    onReasonChange: (String) -> Unit,
+) {
+    Column {
+        OutlinedTextField(
+            value = amount,
+            onValueChange = onAmountChange,
+            label = { Text("Amount (₱, positive)") },
+            singleLine = true,
+            isError = amountError != null,
+            supportingText = { if (amountError != null) Text(amountError) },
+        )
+        Spacer(Modifier.height(Spacing.xs))
+        CategoryDropdown(
+            selected = dialogCategories[categoryIndex].second,
+            categories = dialogCategories,
+            onSelected = onCategorySelected,
+        )
+        Spacer(Modifier.height(Spacing.xs))
+        OutlinedTextField(
+            value = notes,
+            onValueChange = onNotesChange,
+            label = { Text("Notes (optional)") },
+        )
+        Spacer(Modifier.height(Spacing.xs))
+        OutlinedTextField(
+            value = reason,
+            onValueChange = onReasonChange,
+            label = { Text("Reason (required on remitted days)") },
+        )
+        if (error != null) {
+            Spacer(Modifier.height(Spacing.xs))
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
