@@ -64,7 +64,7 @@ concurrency:
 
 jobs:
   backend-quality:
-    runs-on: [self-hosted, company-local]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
       postgres:
@@ -74,8 +74,7 @@ jobs:
           POSTGRES_USER: company_user
           POSTGRES_PASSWORD: company_password
         ports:
-          # 5433 on the host: 5432 is owned by the dev compose Postgres (#342).
-          - 5433:5432
+          - 5432:5432
         options: >-
           --health-cmd="pg_isready -U company_user -d company_app_test"
           --health-interval=10s
@@ -85,7 +84,7 @@ jobs:
       APP_PORT: 8080
       API_BASE_URL: http://localhost:8080
       DB_HOST: localhost
-      DB_PORT: 5433
+      DB_PORT: 5432
       POSTGRES_DB: company_app_test
       POSTGRES_USER: company_user
       POSTGRES_PASSWORD: company_password
@@ -131,7 +130,7 @@ jobs:
         run: bash scripts/check-openapi-spec.sh
 
   compose-compile:
-    runs-on: [self-hosted, company-local]
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false

@@ -207,8 +207,7 @@ repos/jsongalvez/company_app/commits/<latest-master-sha>/check-runs --jq '[.chec
 select(.conclusion != "success" and .conclusion != null) | .name]'` call (unbilled, no hosted
 compute); red = repair first, green/pending = continue under the map. GitHub-hosted Actions
 minutes are a constrained monthly budget: the hosted set is capped at **≤300 minutes/month**
-(jmh ≤55 manual-dispatch diagnostics; the quality workflow moved to a **self-hosted runner**
-(`company-local`, #342) and consumes zero hosted minutes), and hosted schedules beyond this
+(quality ≤240, jmh ≤55 manual-dispatch diagnostics), and hosted schedules beyond this
 set need a measured reserved slice of that cap before existing. Ordinary successful tickets
 consume near-zero hosted minutes.
 
