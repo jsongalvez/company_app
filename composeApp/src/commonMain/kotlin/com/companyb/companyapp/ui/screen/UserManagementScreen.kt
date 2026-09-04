@@ -296,46 +296,24 @@ fun UserManagementScreen(
                     }
 
                     item(key = "users-header") {
-                        Text(
-                            text = "All users",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
+                        UserManagementListHeader()
                     }
 
                     if (users is UiState.Error) {
                         val errorState = users as UiState.Error
                         item(key = "users-reload-error") {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    text = errorState.message,
-                                    color = MaterialTheme.colorScheme.error,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                TextButton(
-                                    onClick = { viewModel.loadUsers() },
-                                    enabled = !mutationsDisabled,
-                                ) {
-                                    Text("Retry")
-                                }
-                            }
+                            UserManagementListErrorRow(
+                                message = errorState.message,
+                                retryEnabled = !mutationsDisabled,
+                                onRetry = { viewModel.loadUsers() },
+                            )
                         }
                     }
 
                     if (filteredUsers.isEmpty()) {
                         item(key = "users-empty") {
                             Box(Modifier.fillParentMaxSize()) {
-                                EmptyState(
-                                    message =
-                                        if (searchQuery.isBlank()) {
-                                            "No users"
-                                        } else {
-                                            "No users match \"$searchQuery\""
-                                        },
-                                )
+                                UserManagementEmptyContent(searchQuery = searchQuery)
                             }
                         }
                     } else {

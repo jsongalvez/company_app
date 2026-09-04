@@ -216,3 +216,66 @@ internal fun UserManagementSlotOrderItem(
                 .toList(),
     )
 }
+
+/**
+ * "All users" list header hoisted out of [UserManagementScreen] for the #462 LongMethod
+ * burn-down. Lives here (not same-file) because UserManagementScreen.kt sits at the detekt
+ * file-function wall — a same-file helper trips TooManyFunctions. Plain content (not
+ * LazyListScope) so the Screen keeps the `item(key = "users-header")` wrapper.
+ */
+@Composable
+internal fun UserManagementListHeader() {
+    Text(
+        text = "All users",
+        style = MaterialTheme.typography.titleMedium,
+    )
+}
+
+/**
+ * Reload-error strip hoisted out of [UserManagementScreen] for the #462 LongMethod burn-down.
+ * Same wall rationale — plain content so the Screen keeps the `item(key =
+ * "users-reload-error")` wrapper. Message + gate arrive as params; the Screen keeps the
+ * explicit cast (delegated collectAsState vals never smart-cast).
+ */
+@Composable
+internal fun UserManagementListErrorRow(
+    message: String,
+    retryEnabled: Boolean,
+    onRetry: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = message,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(
+            onClick = onRetry,
+            enabled = retryEnabled,
+        ) {
+            Text("Retry")
+        }
+    }
+}
+
+/**
+ * Empty-state content hoisted out of [UserManagementScreen] for the #462 LongMethod
+ * burn-down. Same wall rationale. The Screen keeps the `item(key = "users-empty")` wrapper
+ * with its `Box(Modifier.fillParentMaxSize())` (LazyItemScope-bound — no LazyListScope
+ * precedent in codebase); this host owns only the message derivation + [EmptyState] call.
+ */
+@Composable
+internal fun UserManagementEmptyContent(searchQuery: String) {
+    EmptyState(
+        message =
+            if (searchQuery.isBlank()) {
+                "No users"
+            } else {
+                "No users match \"$searchQuery\""
+            },
+    )
+}
