@@ -8,6 +8,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -157,20 +158,7 @@ private fun DashboardTableRow(
     onEditReasonChange: (String) -> Unit,
 ) {
     // Q3 — voided row: Danger 22% alpha over Surface1; selection uses the surface-3 slot.
-    val rowBackground =
-        when {
-            session.isVoided -> {
-                MaterialTheme.colorScheme.error.copy(alpha = VOIDED_ROW_ALPHA)
-            }
-
-            isSelected -> {
-                MaterialTheme.colorScheme.secondary
-            }
-
-            else -> {
-                MaterialTheme.colorScheme.surface
-            }
-        }
+    val rowBackground = dashboardRowBackground(session, isSelected)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier =
@@ -187,61 +175,23 @@ private fun DashboardTableRow(
             color = if (session.isVoided) InkSubtle else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.weight(2f),
-        ) {
-            ClientNameText(session)
-            if (session.isWalkIn) {
-                WalkInDot(voided = session.isVoided, modifier = Modifier.padding(start = Spacing.xs))
-            }
-        }
+        DashboardClientCell(session)
         // Session type is a creation-time snapshot; status and final price remain day-gated.
         Box(modifier = Modifier.weight(1f)) {
             SessionTypeBadge(session)
         }
-        val canEditOnDay =
-            canEdit && dayStatus != null && (dayStatus == DayStatus.OPEN || canCorrectStatus)
-        val canEditStatus =
-            canEditOnDay &&
-                statusEditAllowed(
-                    isWalkIn = session.isWalkIn,
-                    currentStatus = session.sessionStatus,
-                    hasCorrectionAuthority = canCorrectStatus,
-                    dayStatus = dayStatus,
-                )
-        DashboardEditableCell(
+        DashboardRowEditCells(
             session = session,
-            field = DashboardEditField.STATUS,
-            canEdit = canEditStatus,
-            hasCorrectionAuthority = canCorrectStatus,
+            canEdit = canEdit,
+            canCorrectStatus = canCorrectStatus,
             dayStatus = dayStatus,
             edit = edit,
-            onSessionClick = onSessionSelect,
+            onSessionSelect = onSessionSelect,
             onEditStart = onEditStart,
             onEditDraftChange = onEditDraftChange,
             onEditCommit = onEditCommit,
             onEditDiscard = onEditDiscard,
             onEditReload = onEditReload,
-            modifier = Modifier.weight(1f),
-            requiresReason = requiresReason,
-            onEditReasonChange = onEditReasonChange,
-        )
-        DashboardEditableCell(
-            session = session,
-            field = DashboardEditField.FINAL_PRICE,
-            // #405 — a medical-mission session is always ₱0 (BR §Session types): no price
-            // editor; the disabled clickable passes the tap through to row selection.
-            canEdit = canEditOnDay && !missionPriceLocked(session.sessionType),
-            dayStatus = dayStatus,
-            edit = edit,
-            onSessionClick = onSessionSelect,
-            onEditStart = onEditStart,
-            onEditDraftChange = onEditDraftChange,
-            onEditCommit = onEditCommit,
-            onEditDiscard = onEditDiscard,
-            onEditReload = onEditReload,
-            modifier = Modifier.weight(1f),
             requiresReason = requiresReason,
             onEditReasonChange = onEditReasonChange,
         )
@@ -256,6 +206,102 @@ private fun DashboardTableRow(
         }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+}
+
+// Q3 — voided row: Danger 22% alpha over Surface1; selection uses the surface-3 slot.
+@Composable
+private fun dashboardRowBackground(
+    session: DashboardSessionResponse,
+    isSelected: Boolean,
+): Color =
+    when {
+        session.isVoided -> {
+            MaterialTheme.colorScheme.error.copy(alpha = VOIDED_ROW_ALPHA)
+        }
+
+        isSelected -> {
+            MaterialTheme.colorScheme.secondary
+        }
+
+        else -> {
+            MaterialTheme.colorScheme.surface
+        }
+    }
+
+@Composable
+private fun RowScope.DashboardClientCell(session: DashboardSessionResponse) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.weight(2f),
+    ) {
+        ClientNameText(session)
+        if (session.isWalkIn) {
+            WalkInDot(voided = session.isVoided, modifier = Modifier.padding(start = Spacing.xs))
+        }
+    }
+}
+
+@Composable
+private fun RowScope.DashboardRowEditCells(
+    session: DashboardSessionResponse,
+    canEdit: Boolean,
+    canCorrectStatus: Boolean,
+    dayStatus: DayStatus?,
+    edit: DashboardEditState?,
+    onSessionSelect: (DashboardSessionResponse) -> Unit,
+    onEditStart: (String, DashboardEditField) -> Unit,
+    onEditDraftChange: (String) -> Unit,
+    onEditCommit: () -> Unit,
+    onEditDiscard: () -> Unit,
+    onEditReload: () -> Unit,
+    requiresReason: Boolean,
+    onEditReasonChange: (String) -> Unit,
+) {
+    val canEditOnDay =
+        canEdit && dayStatus != null && (dayStatus == DayStatus.OPEN || canCorrectStatus)
+    val canEditStatus =
+        canEditOnDay &&
+            statusEditAllowed(
+                isWalkIn = session.isWalkIn,
+                currentStatus = session.sessionStatus,
+                hasCorrectionAuthority = canCorrectStatus,
+                dayStatus = dayStatus,
+            )
+    DashboardEditableCell(
+        session = session,
+        field = DashboardEditField.STATUS,
+        canEdit = canEditStatus,
+        hasCorrectionAuthority = canCorrectStatus,
+        dayStatus = dayStatus,
+        edit = edit,
+        onSessionClick = onSessionSelect,
+        onEditStart = onEditStart,
+        onEditDraftChange = onEditDraftChange,
+        onEditCommit = onEditCommit,
+        onEditDiscard = onEditDiscard,
+        onEditReload = onEditReload,
+        modifier = Modifier.weight(1f),
+        requiresReason = requiresReason,
+        onEditReasonChange = onEditReasonChange,
+    )
+    DashboardEditableCell(
+        session = session,
+        field = DashboardEditField.FINAL_PRICE,
+        // #405 — a medical-mission session is always ₱0 (BR §Session types): no price
+        // editor; the disabled clickable passes the tap through to row selection.
+        canEdit = canEditOnDay && !missionPriceLocked(session.sessionType),
+        dayStatus = dayStatus,
+        edit = edit,
+        onSessionClick = onSessionSelect,
+        onEditStart = onEditStart,
+        onEditDraftChange = onEditDraftChange,
+        onEditCommit = onEditCommit,
+        onEditDiscard = onEditDiscard,
+        onEditReload = onEditReload,
+        modifier = Modifier.weight(1f),
+        requiresReason = requiresReason,
+        onEditReasonChange = onEditReasonChange,
+    )
 }
 
 /**
