@@ -106,19 +106,6 @@ fun RemittanceDetailScreen(
     // the window is wide enough for queue + editor + brief side by side.
     deskEnabled: Boolean = false,
 ) {
-    val detailState by viewModel.remittanceDetail.collectAsState()
-    val changedNotice by viewModel.detailChangedNotice.collectAsState()
-
-    var showHeaderDialog by remember { mutableStateOf(false) }
-    var showSessionPicker by remember { mutableStateOf(false) }
-    var showProductSalePicker by remember { mutableStateOf(false) }
-    var showDayPicker by remember { mutableStateOf(false) }
-    var showSubmitDialog by remember { mutableStateOf(false) }
-    var showUndoDialog by remember { mutableStateOf(false) }
-    // #447 — the range the picker caches were loaded for; a header range edit invalidates
-    // them (stale Success caches would offer the old range's sessions, sales, and days).
-    var pickerRange by remember { mutableStateOf<Pair<String, String>?>(null) }
-
     LaunchedEffect(Unit) {
         logInfo("RemittanceDetailScreen", "composable entered: remittanceId=$remittanceId")
         viewModel.loadRemittance(remittanceId)
@@ -133,6 +120,51 @@ fun RemittanceDetailScreen(
             viewModel.loadRemittances(branchId, DESK_QUEUE_SUBMITTED_STATUS)
         }
     }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // #447 — Variant B control desk renders on opted-in hosts (desktop) with a wide
+        // window only; everywhere else keeps the classic single column. The queue
+        // prefetch is desk-gated so other surfaces issue no extra reads.
+        val wideDesk = deskEnabled && maxWidth >= CONTROL_DESK_MIN_WIDTH
+        RemittanceDetailDeskPrefetchEffects(
+            wideDesk = wideDesk,
+            branchId = branchId,
+            viewModel = viewModel,
+        )
+
+        RemittanceDetailScreenBody(
+            remittanceId = remittanceId,
+            branchId = branchId,
+            viewModel = viewModel,
+            onBack = onBack,
+            onRemittanceClick = onRemittanceClick,
+            wideDesk = wideDesk,
+            onRefreshQueue = ::refreshDeskQueue,
+        )
+    }
+}
+
+@Composable
+private fun RemittanceDetailScreenBody(
+    remittanceId: String,
+    branchId: String?,
+    viewModel: RemittanceViewModel,
+    onBack: () -> Unit,
+    onRemittanceClick: (String) -> Unit,
+    wideDesk: Boolean,
+    onRefreshQueue: () -> Unit,
+) {
+    val detailState by viewModel.remittanceDetail.collectAsState()
+
+    var showHeaderDialog by remember { mutableStateOf(false) }
+    var showSessionPicker by remember { mutableStateOf(false) }
+    var showProductSalePicker by remember { mutableStateOf(false) }
+    var showDayPicker by remember { mutableStateOf(false) }
+    var showSubmitDialog by remember { mutableStateOf(false) }
+    var showUndoDialog by remember { mutableStateOf(false) }
+    // #447 — the range the picker caches were loaded for; a header range edit invalidates
+    // them (stale Success caches would offer the old range's sessions, sales, and days).
+    var pickerRange by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     RemittanceDetailPickerLoadEffects(
         branchId = branchId,
@@ -151,102 +183,89 @@ fun RemittanceDetailScreen(
         onCloseHeaderDialog = { showHeaderDialog = false },
         onCloseSubmitDialog = { showSubmitDialog = false },
         onCloseUndoDialog = { showUndoDialog = false },
-        onRefreshQueue = ::refreshDeskQueue,
+        onRefreshQueue = onRefreshQueue,
     )
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        // #447 — Variant B control desk renders on opted-in hosts (desktop) with a wide
-        // window only; everywhere else keeps the classic single column. The queue
-        // prefetch is desk-gated so other surfaces issue no extra reads.
-        val wideDesk = deskEnabled && maxWidth >= CONTROL_DESK_MIN_WIDTH
-        RemittanceDetailDeskPrefetchEffects(
-            wideDesk = wideDesk,
-            branchId = branchId,
-            viewModel = viewModel,
-        )
+    Column(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(Spacing.md),
+    ) {
+        RemittanceDetailBackRow(onBack = onBack)
 
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(Spacing.md),
-        ) {
-            RemittanceDetailBackRow(onBack = onBack)
+        when (val state = detailState) {
+            is UiState.Idle, is UiState.Loading -> {
+                RemittanceDetailLoadingBox()
+            }
 
-            when (val state = detailState) {
-                is UiState.Idle, is UiState.Loading -> {
-                    RemittanceDetailLoadingBox()
-                }
+            is UiState.Error -> {
+                RemittanceDetailLoadError(
+                    message = state.message,
+                    onRetry = { viewModel.loadRemittance(remittanceId) },
+                )
+            }
 
-                is UiState.Error -> {
-                    RemittanceDetailLoadError(
-                        message = state.message,
-                        onRetry = { viewModel.loadRemittance(remittanceId) },
-                    )
-                }
-
-                is UiState.Success -> {
-                    @Composable
-                    fun Center() {
-                        val sessionPickerState by viewModel.sessionPicker.collectAsState()
-                        val productSalePickerState by viewModel.productSalePicker.collectAsState()
-                        val dayPickerState by viewModel.dayPicker.collectAsState()
-                        val lineState by viewModel.lineResult.collectAsState()
-                        val deleteLineState by viewModel.deleteLineResult.collectAsState()
-                        val dayBreakdownState by viewModel.dayBreakdownResult.collectAsState()
-                        val deleteDayBreakdownState by viewModel.dayBreakdownDeleteResult.collectAsState()
-                        val submitState by viewModel.submitResult.collectAsState()
-                        val undoState by viewModel.undoResult.collectAsState()
-                        val headerUpdateState by viewModel.headerUpdateResult.collectAsState()
-                        val driftState by viewModel.drift.collectAsState()
-                        RemittanceDetailContent(
-                            detail = state.data,
-                            branchId = branchId,
-                            remittanceId = remittanceId,
-                            sessionPickerState = sessionPickerState,
-                            productSalePickerState = productSalePickerState,
-                            dayPickerState = dayPickerState,
-                            lineState = lineState,
-                            deleteLineState = deleteLineState,
-                            dayBreakdownState = dayBreakdownState,
-                            deleteDayBreakdownState = deleteDayBreakdownState,
-                            submitState = submitState,
-                            undoState = undoState,
-                            headerUpdateState = headerUpdateState,
-                            driftState = driftState,
-                            viewModel = viewModel,
-                            showHeaderDialog = showHeaderDialog,
-                            showSessionPicker = showSessionPicker,
-                            showProductSalePicker = showProductSalePicker,
-                            showDayPicker = showDayPicker,
-                            showSubmitDialog = showSubmitDialog,
-                            showUndoDialog = showUndoDialog,
-                            onOpenHeaderDialog = { showHeaderDialog = true },
-                            onOpenSessionPicker = { showSessionPicker = true },
-                            onOpenProductSalePicker = { showProductSalePicker = true },
-                            onOpenDayPicker = { showDayPicker = true },
-                            onOpenSubmitDialog = { showSubmitDialog = true },
-                            onOpenUndoDialog = { showUndoDialog = true },
-                            onCloseHeaderDialog = { showHeaderDialog = false },
-                            onCloseSessionPicker = { showSessionPicker = false },
-                            onCloseProductSalePicker = { showProductSalePicker = false },
-                            onCloseDayPicker = { showDayPicker = false },
-                            onCloseSubmitDialog = { showSubmitDialog = false },
-                            onCloseUndoDialog = { showUndoDialog = false },
-                        )
-                    }
-                    RemittanceDetailSuccessHost(
-                        changedNotice = changedNotice,
+            is UiState.Success -> {
+                @Composable
+                fun Center() {
+                    val sessionPickerState by viewModel.sessionPicker.collectAsState()
+                    val productSalePickerState by viewModel.productSalePicker.collectAsState()
+                    val dayPickerState by viewModel.dayPicker.collectAsState()
+                    val lineState by viewModel.lineResult.collectAsState()
+                    val deleteLineState by viewModel.deleteLineResult.collectAsState()
+                    val dayBreakdownState by viewModel.dayBreakdownResult.collectAsState()
+                    val deleteDayBreakdownState by viewModel.dayBreakdownDeleteResult.collectAsState()
+                    val submitState by viewModel.submitResult.collectAsState()
+                    val undoState by viewModel.undoResult.collectAsState()
+                    val headerUpdateState by viewModel.headerUpdateResult.collectAsState()
+                    val driftState by viewModel.drift.collectAsState()
+                    RemittanceDetailContent(
                         detail = state.data,
                         branchId = branchId,
-                        currentId = remittanceId,
-                        wideDesk = wideDesk,
+                        remittanceId = remittanceId,
+                        sessionPickerState = sessionPickerState,
+                        productSalePickerState = productSalePickerState,
+                        dayPickerState = dayPickerState,
+                        lineState = lineState,
+                        deleteLineState = deleteLineState,
+                        dayBreakdownState = dayBreakdownState,
+                        deleteDayBreakdownState = deleteDayBreakdownState,
+                        submitState = submitState,
+                        undoState = undoState,
+                        headerUpdateState = headerUpdateState,
+                        driftState = driftState,
                         viewModel = viewModel,
-                        onQueueClick = onRemittanceClick,
-                        onRetryQueue = { refreshDeskQueue() },
-                        center = { Center() },
+                        showHeaderDialog = showHeaderDialog,
+                        showSessionPicker = showSessionPicker,
+                        showProductSalePicker = showProductSalePicker,
+                        showDayPicker = showDayPicker,
+                        showSubmitDialog = showSubmitDialog,
+                        showUndoDialog = showUndoDialog,
+                        onOpenHeaderDialog = { showHeaderDialog = true },
+                        onOpenSessionPicker = { showSessionPicker = true },
+                        onOpenProductSalePicker = { showProductSalePicker = true },
+                        onOpenDayPicker = { showDayPicker = true },
+                        onOpenSubmitDialog = { showSubmitDialog = true },
+                        onOpenUndoDialog = { showUndoDialog = true },
+                        onCloseHeaderDialog = { showHeaderDialog = false },
+                        onCloseSessionPicker = { showSessionPicker = false },
+                        onCloseProductSalePicker = { showProductSalePicker = false },
+                        onCloseDayPicker = { showDayPicker = false },
+                        onCloseSubmitDialog = { showSubmitDialog = false },
+                        onCloseUndoDialog = { showUndoDialog = false },
                     )
                 }
+                RemittanceDetailSuccessHost(
+                    detail = state.data,
+                    branchId = branchId,
+                    currentId = remittanceId,
+                    wideDesk = wideDesk,
+                    viewModel = viewModel,
+                    onQueueClick = onRemittanceClick,
+                    onRetryQueue = { onRefreshQueue() },
+                    center = { Center() },
+                )
             }
         }
     }
@@ -278,7 +297,6 @@ private fun RemittanceDetailLoadError(
 
 @Composable
 private fun RemittanceDetailSuccessHost(
-    changedNotice: Boolean,
     detail: RemittanceDetailResponse,
     branchId: String?,
     currentId: String,
@@ -288,6 +306,7 @@ private fun RemittanceDetailSuccessHost(
     onRetryQueue: (String) -> Unit,
     center: @Composable () -> Unit,
 ) {
+    val changedNotice by viewModel.detailChangedNotice.collectAsState()
     val queueState by viewModel.remittanceList.collectAsState()
     val queueMirrors by viewModel.lastByTab.collectAsState()
     val dayPickerState by viewModel.dayPicker.collectAsState()
