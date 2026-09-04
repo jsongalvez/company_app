@@ -107,22 +107,7 @@ fun RemittanceDetailScreen(
     deskEnabled: Boolean = false,
 ) {
     val detailState by viewModel.remittanceDetail.collectAsState()
-    val sessionPickerState by viewModel.sessionPicker.collectAsState()
-    val productSalePickerState by viewModel.productSalePicker.collectAsState()
-    val dayPickerState by viewModel.dayPicker.collectAsState()
-    val lineState by viewModel.lineResult.collectAsState()
-    val deleteLineState by viewModel.deleteLineResult.collectAsState()
-    val dayBreakdownState by viewModel.dayBreakdownResult.collectAsState()
-    val deleteDayBreakdownState by viewModel.dayBreakdownDeleteResult.collectAsState()
-    val submitState by viewModel.submitResult.collectAsState()
-    val undoState by viewModel.undoResult.collectAsState()
-    val headerUpdateState by viewModel.headerUpdateResult.collectAsState()
-    val driftState by viewModel.drift.collectAsState()
     val changedNotice by viewModel.detailChangedNotice.collectAsState()
-    // #447 — desk queue mirrors (the existing drafts source, keyed per status like the
-    // list screen's keep-last gate — a SUBMITTED landing can never paint the drafts rail).
-    val queueState by viewModel.remittanceList.collectAsState()
-    val queueMirrors by viewModel.lastByTab.collectAsState()
 
     var showHeaderDialog by remember { mutableStateOf(false) }
     var showSessionPicker by remember { mutableStateOf(false) }
@@ -150,28 +135,17 @@ fun RemittanceDetailScreen(
     }
 
     RemittanceDetailPickerLoadEffects(
-        detailState = detailState,
         branchId = branchId,
-        sessionPickerState = sessionPickerState,
-        productSalePickerState = productSalePickerState,
-        dayPickerState = dayPickerState,
         pickerRange = pickerRange,
         onRangeChange = { pickerRange = it },
         viewModel = viewModel,
     )
 
     RemittanceDetailLineDayEffects(
-        lineState = lineState,
-        deleteLineState = deleteLineState,
-        dayBreakdownState = dayBreakdownState,
-        deleteDayBreakdownState = deleteDayBreakdownState,
         viewModel = viewModel,
         remittanceId = remittanceId,
     )
     RemittanceDetailHeaderSubmitUndoEffects(
-        headerUpdateState = headerUpdateState,
-        submitState = submitState,
-        undoState = undoState,
         viewModel = viewModel,
         remittanceId = remittanceId,
         onCloseHeaderDialog = { showHeaderDialog = false },
@@ -188,7 +162,6 @@ fun RemittanceDetailScreen(
         RemittanceDetailDeskPrefetchEffects(
             wideDesk = wideDesk,
             branchId = branchId,
-            queueState = queueState,
             viewModel = viewModel,
         )
 
@@ -215,6 +188,17 @@ fun RemittanceDetailScreen(
                 is UiState.Success -> {
                     @Composable
                     fun Center() {
+                        val sessionPickerState by viewModel.sessionPicker.collectAsState()
+                        val productSalePickerState by viewModel.productSalePicker.collectAsState()
+                        val dayPickerState by viewModel.dayPicker.collectAsState()
+                        val lineState by viewModel.lineResult.collectAsState()
+                        val deleteLineState by viewModel.deleteLineResult.collectAsState()
+                        val dayBreakdownState by viewModel.dayBreakdownResult.collectAsState()
+                        val deleteDayBreakdownState by viewModel.dayBreakdownDeleteResult.collectAsState()
+                        val submitState by viewModel.submitResult.collectAsState()
+                        val undoState by viewModel.undoResult.collectAsState()
+                        val headerUpdateState by viewModel.headerUpdateResult.collectAsState()
+                        val driftState by viewModel.drift.collectAsState()
                         RemittanceDetailContent(
                             detail = state.data,
                             branchId = branchId,
@@ -257,14 +241,9 @@ fun RemittanceDetailScreen(
                         branchId = branchId,
                         currentId = remittanceId,
                         wideDesk = wideDesk,
-                        queueMirrors = queueMirrors,
-                        queueState = queueState,
-                        dayPickerState = dayPickerState,
+                        viewModel = viewModel,
                         onQueueClick = onRemittanceClick,
-                        onRetryQueue = { id ->
-                            viewModel.loadRemittances(id, DESK_QUEUE_DRAFTS_STATUS)
-                            viewModel.loadRemittances(id, DESK_QUEUE_SUBMITTED_STATUS)
-                        },
+                        onRetryQueue = { refreshDeskQueue() },
                         center = { Center() },
                     )
                 }
@@ -304,13 +283,14 @@ private fun RemittanceDetailSuccessHost(
     branchId: String?,
     currentId: String,
     wideDesk: Boolean,
-    queueMirrors: Map<String, List<RemittanceResponse>>,
-    queueState: UiState<List<RemittanceResponse>>,
-    dayPickerState: UiState<List<RemittanceDayPickerEntryResponse>>,
+    viewModel: RemittanceViewModel,
     onQueueClick: (String) -> Unit,
     onRetryQueue: (String) -> Unit,
     center: @Composable () -> Unit,
 ) {
+    val queueState by viewModel.remittanceList.collectAsState()
+    val queueMirrors by viewModel.lastByTab.collectAsState()
+    val dayPickerState by viewModel.dayPicker.collectAsState()
     if (changedNotice) {
         Text(
             text = "Remittance was changed elsewhere — changes reloaded",
@@ -342,13 +322,13 @@ private fun RemittanceDetailSuccessHost(
 
 @Composable
 private fun RemittanceDetailLineDayEffects(
-    lineState: UiState<RemittanceLineResponse>,
-    deleteLineState: UiState<Unit>,
-    dayBreakdownState: UiState<RemittanceDayBreakdownResponse>,
-    deleteDayBreakdownState: UiState<Unit>,
     viewModel: RemittanceViewModel,
     remittanceId: String,
 ) {
+    val lineState by viewModel.lineResult.collectAsState()
+    val deleteLineState by viewModel.deleteLineResult.collectAsState()
+    val dayBreakdownState by viewModel.dayBreakdownResult.collectAsState()
+    val deleteDayBreakdownState by viewModel.dayBreakdownDeleteResult.collectAsState()
     // ADR-0022 — every successful mutation reloads the detail (version bumped server-side; the
     // next version-locked call must carry the fresh expectedVersion).
     LaunchedEffect(lineState) {
@@ -375,9 +355,6 @@ private fun RemittanceDetailLineDayEffects(
 
 @Composable
 private fun RemittanceDetailHeaderSubmitUndoEffects(
-    headerUpdateState: UiState<RemittanceResponse>,
-    submitState: UiState<RemittanceSubmitResponse>,
-    undoState: UiState<RemittanceResponse>,
     viewModel: RemittanceViewModel,
     remittanceId: String,
     onCloseHeaderDialog: () -> Unit,
@@ -385,6 +362,9 @@ private fun RemittanceDetailHeaderSubmitUndoEffects(
     onCloseUndoDialog: () -> Unit,
     onRefreshQueue: () -> Unit,
 ) {
+    val headerUpdateState by viewModel.headerUpdateResult.collectAsState()
+    val submitState by viewModel.submitResult.collectAsState()
+    val undoState by viewModel.undoResult.collectAsState()
     LaunchedEffect(headerUpdateState) {
         when (val state = headerUpdateState) {
             is UiState.Success -> {
@@ -442,15 +422,15 @@ private fun RemittanceDetailHeaderSubmitUndoEffects(
 
 @Composable
 private fun RemittanceDetailPickerLoadEffects(
-    detailState: UiState<RemittanceDetailResponse>,
     branchId: String?,
-    sessionPickerState: UiState<List<RemittanceSessionPickerEntryResponse>>,
-    productSalePickerState: UiState<List<RemittanceProductSalePickerEntryResponse>>,
-    dayPickerState: UiState<List<RemittanceDayPickerEntryResponse>>,
     pickerRange: Pair<String, String>?,
     onRangeChange: (Pair<String, String>?) -> Unit,
     viewModel: RemittanceViewModel,
 ) {
+    val detailState by viewModel.remittanceDetail.collectAsState()
+    val sessionPickerState by viewModel.sessionPicker.collectAsState()
+    val productSalePickerState by viewModel.productSalePicker.collectAsState()
+    val dayPickerState by viewModel.dayPicker.collectAsState()
     // D6 — line/day labels come from the pickers' join data (F7 bare lines): load the three
     // pickers once the detail's range is known; later detail reloads skip (pickers are cached).
     // A failed picker load (Error) retries on the next detail reload — the dialog's Retry is
@@ -484,9 +464,9 @@ private fun RemittanceDetailPickerLoadEffects(
 private fun RemittanceDetailDeskPrefetchEffects(
     wideDesk: Boolean,
     branchId: String?,
-    queueState: UiState<List<RemittanceResponse>>,
     viewModel: RemittanceViewModel,
 ) {
+    val queueState by viewModel.remittanceList.collectAsState()
     LaunchedEffect(wideDesk, branchId) {
         if (wideDesk && branchId != null) {
             logInfo("RemittanceDetailScreen", "desk queue prefetch for branch $branchId")
