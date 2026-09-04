@@ -827,6 +827,109 @@ private fun ActionDropdown(
     }
 }
 
+@Composable
+private fun AuditLogExpandedDetails(
+    entry: AuditLogEntryResponse,
+    canAcknowledge: Boolean,
+    acknowledging: Boolean,
+    onAcknowledge: () -> Unit,
+    showFullHistory: Boolean,
+    onFullHistory: () -> Unit,
+    onOpenClientRecord: (() -> Unit)?,
+    ackError: String?,
+) {
+    Column(
+        modifier = Modifier.padding(start = Spacing.lg, top = Spacing.xs),
+    ) {
+        val (fields, malformedDiff) =
+            remember(entry.oldValue, entry.newValue) {
+                parseDiff(entry.oldValue, entry.newValue)
+            }
+        when {
+            // D3 — a present-but-unparseable diff side is server-data corruption: render
+            // nothing rather than a misleading "no changes" line (corruption ≠ absence).
+            malformedDiff -> {
+                Unit
+            }
+
+            fields.isEmpty() -> {
+                Text(
+                    text = "No field changes recorded",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            else -> {
+                ChangedFieldsList(fields = fields, action = entry.action)
+            }
+        }
+        entry.reason?.let { reason ->
+            Text(
+                text = "Reason: $reason",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+        }
+        AuditLogEntryActions(
+            entry = entry,
+            canAcknowledge = canAcknowledge,
+            acknowledging = acknowledging,
+            onAcknowledge = onAcknowledge,
+            showFullHistory = showFullHistory,
+            onFullHistory = onFullHistory,
+            onOpenClientRecord = onOpenClientRecord,
+        )
+        if (ackError != null) {
+            InlineErrorText(text = ackError)
+        }
+    }
+}
+
+@Composable
+private fun AuditLogEntryHeader(
+    entry: AuditLogEntryResponse,
+    tableLabel: String,
+    expanded: Boolean,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        ActionPill(action = entry.action)
+        Text(
+            text = tableLabel,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (entry.isFlagged) {
+            FlagBadge()
+        }
+        Spacer(Modifier.weight(1f))
+        Text(
+            text = entry.changedByName ?: "—",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+        Text(
+            text = formatRelativeTimestamp(entry.changedAt, logTag = "AuditLogScreen"),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = "›",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.rotate(if (expanded) EXPANDED_CHEVRON_ROTATION else 0f),
+        )
+    }
+}
+
 // D11 — shared row in commonMain; the platform list actuals diverge only in row chrome (desktop
 // dense rows / mobile cards, #95 smallest-divergent-subtree). Renders: action pill + table label
 // + flag badge + changedByName + timestamp (D7); expanded → changed-fields diff (D3), reason
@@ -861,41 +964,7 @@ internal fun AuditLogEntryRow(
                 .rowHover()
                 .padding(vertical = Spacing.xs),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            ActionPill(action = entry.action)
-            Text(
-                text = tableLabel,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (entry.isFlagged) {
-                FlagBadge()
-            }
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = entry.changedByName ?: "—",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-            )
-            Text(
-                text = formatRelativeTimestamp(entry.changedAt, logTag = "AuditLogScreen"),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = "›",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.rotate(if (expanded) EXPANDED_CHEVRON_ROTATION else 0f),
-            )
-        }
+        AuditLogEntryHeader(entry = entry, tableLabel = tableLabel, expanded = expanded)
 
         // #383 — branch context is always visible on the collapsed row: the human branch name
         // when the row has one, an explicit marker otherwise (never a raw UUID or blank).
@@ -909,53 +978,16 @@ internal fun AuditLogEntryRow(
         )
 
         if (expanded) {
-            Column(
-                modifier = Modifier.padding(start = Spacing.lg, top = Spacing.xs),
-            ) {
-                val (fields, malformedDiff) =
-                    remember(entry.oldValue, entry.newValue) {
-                        parseDiff(entry.oldValue, entry.newValue)
-                    }
-                when {
-                    // D3 — a present-but-unparseable diff side is server-data corruption: render
-                    // nothing rather than a misleading "no changes" line (corruption ≠ absence).
-                    malformedDiff -> {
-                        Unit
-                    }
-
-                    fields.isEmpty() -> {
-                        Text(
-                            text = "No field changes recorded",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    else -> {
-                        ChangedFieldsList(fields = fields, action = entry.action)
-                    }
-                }
-                entry.reason?.let { reason ->
-                    Text(
-                        text = "Reason: $reason",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = Spacing.xs),
-                    )
-                }
-                AuditLogEntryActions(
-                    entry = entry,
-                    canAcknowledge = canAcknowledge,
-                    acknowledging = acknowledging,
-                    onAcknowledge = onAcknowledge,
-                    showFullHistory = showFullHistory,
-                    onFullHistory = onFullHistory,
-                    onOpenClientRecord = onOpenClientRecord,
-                )
-                if (ackError != null) {
-                    InlineErrorText(text = ackError)
-                }
-            }
+            AuditLogExpandedDetails(
+                entry = entry,
+                canAcknowledge = canAcknowledge,
+                acknowledging = acknowledging,
+                onAcknowledge = onAcknowledge,
+                showFullHistory = showFullHistory,
+                onFullHistory = onFullHistory,
+                onOpenClientRecord = onOpenClientRecord,
+                ackError = ackError,
+            )
         }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outline)
