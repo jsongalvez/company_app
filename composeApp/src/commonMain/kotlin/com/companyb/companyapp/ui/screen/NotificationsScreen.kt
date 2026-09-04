@@ -54,11 +54,7 @@ fun NotificationsScreen(
     onNotificationClick: (NotificationResponse) -> Unit,
 ) {
     val notificationsState by viewModel.notifications.collectAsState()
-    val freshestUnread by viewModel.freshestNotifications.collectAsState()
-    val readThisSession by viewModel.readThisSession.collectAsState()
-    val historyState by viewModel.history.collectAsState()
-    val markReadState by viewModel.markReadResult.collectAsState()
-    val markAllState by viewModel.markAllResult.collectAsState()
+    val derived = rememberNotificationsDerived(viewModel)
 
     LaunchedEffect(Unit) {
         logInfo("NotificationsScreen", "composable entered (first composition)")
@@ -74,43 +70,15 @@ fun NotificationsScreen(
         logWarn("NotificationsScreen", "notificationsState=Error: ${error.message}")
     }
 
-    // Action failures surface inline (#135 round-1 precedent — silent network-failure paths are a
-    // bug class, not a design choice): a failed markRead/markAll must be visible, and the next
-    // attempt's Loading pre-set clears the line automatically. 404-on-markRead is NOT an error —
-    // the VM handles it internally (absent-row defense reload), so it never reaches this state.
-    val markReadError = (markReadState as? UiState.Error)?.message
-    val markAllError = (markAllState as? UiState.Error)?.message
-    val historyError = (historyState as? UiState.Error)?.message
-    // ComplexCondition carve-out (#462 burn): the error OR lives in a named val so the
-    // render gate below stays a single condition. Invite accept/decline errors render in
-    // ReliefInvitesSection (it owns those flows); only the queue errors gate here.
-    val hasActionError = markAllError != null || markReadError != null
-    LaunchedEffect(markReadError) {
-        markReadError?.let { logWarn("NotificationsScreen", "markRead=Error: $it") }
+    LaunchedEffect(derived.markReadError) {
+        derived.markReadError?.let { logWarn("NotificationsScreen", "markRead=Error: $it") }
     }
-    LaunchedEffect(markAllError) {
-        markAllError?.let { logWarn("NotificationsScreen", "markAll=Error: $it") }
+    LaunchedEffect(derived.markAllError) {
+        derived.markAllError?.let { logWarn("NotificationsScreen", "markAll=Error: $it") }
     }
-    LaunchedEffect(historyError) {
-        historyError?.let { logWarn("NotificationsScreen", "history=Error: $it") }
+    LaunchedEffect(derived.historyError) {
+        derived.historyError?.let { logWarn("NotificationsScreen", "history=Error: $it") }
     }
-    // D5 + #97 Q5 silent-refresh: cold-start spinner only while there's nothing to show; once a
-    // list has content, a reload (re-entry, post-markAll arrival) must not flash a spinner over
-    // it. `unread` derives from the VM's freshest flow (keep-last-results — the #162 KeepLast
-    // unifier; VM-side so it survives composition re-entries; audit #141 pass-5). Cold start
-    // keeps the spinner: the freshest flow is null until the first Success lands. The
-    // empty-list reload case (All caught up → re-entry → reload) still flashes the spinner —
-    // nothing is on screen, so D5's "nothing to show → spinner" clause covers it.
-    val unread = freshestUnread.orEmpty()
-    // #356 — server-backed history: every past row, read + unread, newest first. Rows the live
-    // sections already render are filtered out so nothing appears twice; what remains is
-    // display-only (tap-to-read stays the unread queue's job).
-    val historyRows = (historyState as? UiState.Success)?.data.orEmpty()
-    val visibleHistory =
-        historyRows.filterNot { row ->
-            unread.any { it.id == row.id } || readThisSession.any { it.id == row.id }
-        }
-    val hasContent = unread.isNotEmpty() || readThisSession.isNotEmpty() || visibleHistory.isNotEmpty()
 
     Column(
         modifier =
@@ -128,17 +96,17 @@ fun NotificationsScreen(
                 style = MaterialTheme.typography.titleLarge,
             )
             // D3: Mark all visible iff unread > 0; disabled while in-flight.
-            if (unread.isNotEmpty()) {
+            if (derived.unread.isNotEmpty()) {
                 TextButton(
                     onClick = { viewModel.markAllRead() },
-                    enabled = markAllState !is UiState.Loading,
+                    enabled = !derived.markAllBusy,
                 ) {
                     Text("Mark all")
                 }
             }
         }
 
-        if (hasActionError) {
+        if (derived.hasActionError) {
             Column(
                 modifier =
                     Modifier
@@ -146,13 +114,15 @@ fun NotificationsScreen(
                         .padding(vertical = Spacing.xs),
                 verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
             ) {
-                markAllError?.let { ActionErrorLine(it) }
-                markReadError?.let { ActionErrorLine(it) }
+                derived.markAllError?.let { ActionErrorLine(it) }
+                derived.markReadError?.let { ActionErrorLine(it) }
             }
         }
 
         // #356 — history load failure is its own inline line with its own retry; it must not
         // masquerade as an unread-queue failure (that queue has the full ErrorCard path).
+        // Local (not derived.*) so the non-null smart-cast reaches inside the Row lambda.
+        val historyError = derived.historyError
         if (historyError != null) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -178,11 +148,11 @@ fun NotificationsScreen(
             }
 
             is UiState.Loading -> {
-                if (hasContent) {
+                if (derived.hasContent) {
                     NotificationList(
-                        unread = unread,
-                        readThisSession = readThisSession,
-                        history = visibleHistory,
+                        unread = derived.unread,
+                        readThisSession = derived.readThisSession,
+                        history = derived.visibleHistory,
                         onNotificationClick = onNotificationClick,
                     )
                 } else {
@@ -197,14 +167,14 @@ fun NotificationsScreen(
                 // retry strip above the list (the stale rows stay; they must not masquerade
                 // as fresh); a failure with nothing to show keeps the in-place error card.
                 NotificationsErrorBody(
-                    refreshError = unreadRefreshErrorLine(state, hasContent),
+                    refreshError = unreadRefreshErrorLine(state, derived.hasContent),
                     message = state.message,
                     onRetry = { viewModel.loadUnreadNotifications() },
                     content = {
                         NotificationList(
-                            unread = unread,
-                            readThisSession = readThisSession,
-                            history = visibleHistory,
+                            unread = derived.unread,
+                            readThisSession = derived.readThisSession,
+                            history = derived.visibleHistory,
                             onNotificationClick = onNotificationClick,
                         )
                     },
@@ -214,11 +184,11 @@ fun NotificationsScreen(
             is UiState.Success -> {
                 // D4: zero-state when nothing unread, nothing marked read this session, and no
                 // history rows — "All caught up" must not hide a populated history (#356).
-                if (hasContent) {
+                if (derived.hasContent) {
                     NotificationList(
                         unread = state.data,
-                        readThisSession = readThisSession,
-                        history = visibleHistory,
+                        readThisSession = derived.readThisSession,
+                        history = derived.visibleHistory,
                         onNotificationClick = onNotificationClick,
                     )
                 } else {
@@ -234,6 +204,23 @@ fun NotificationsScreen(
         }
     }
 }
+
+/**
+ * Queue derivations owned by [rememberNotificationsDerived] for the #462 LongMethod burn-down.
+ * Data class so LongParameterList/TooManyFunctions-free; lives in this multi-decl file so
+ * MatchingDeclarationName stays green.
+ */
+internal data class NotificationsDerived(
+    val markReadError: String?,
+    val markAllError: String?,
+    val historyError: String?,
+    val hasActionError: Boolean,
+    val unread: List<NotificationResponse>,
+    val readThisSession: List<NotificationResponse>,
+    val visibleHistory: List<NotificationResponse>,
+    val hasContent: Boolean,
+    val markAllBusy: Boolean,
+)
 
 @Composable
 private fun NotificationsErrorBody(
