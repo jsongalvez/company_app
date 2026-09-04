@@ -6,12 +6,15 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.viewmodel.BranchViewModel
 import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.UserViewModel
@@ -205,3 +208,31 @@ internal fun userManagementTopSectionsActions(
         removeAssignmentTarget = callbacks.removeAssignmentTarget,
         showAssignDialog = callbacks.showAssignDialog,
     )
+
+/**
+ * First-composition entry loads hoisted out of [UserManagementScreen] for the #462
+ * LongMethod burn-down. Lives here (not Header.kt) because Header.kt sits at the detekt
+ * file-function wall (10/11) — Overlays.kt has fresh budget. Owns the loading gates
+ * verbatim so the Screen keeps one slim call; 4 params so it stays LongParameterList-clean
+ * outside the LPL-excluded Screen file.
+ */
+@Composable
+internal fun UserManagementEntryEffects(
+    viewModel: UserViewModel,
+    assignmentResult: UiState<AssignmentResponse>,
+    deleteAssignmentState: UiState<Unit>,
+    createBranchState: UiState<BranchResponse>,
+) {
+    LaunchedEffect(Unit) {
+        logInfo("UserManagementScreen", "composable entered (first composition)")
+        // Avoid starting a pre-mutation reload when a retained admin VM is re-entered. The
+        // mutation's success effect owns the authoritative post-mutation reload.
+        if (assignmentResult !is UiState.Loading && deleteAssignmentState !is UiState.Loading) {
+            viewModel.loadUsers()
+        }
+        if (createBranchState !is UiState.Loading) {
+            viewModel.loadBranches()
+        }
+        viewModel.loadRoles()
+    }
+}

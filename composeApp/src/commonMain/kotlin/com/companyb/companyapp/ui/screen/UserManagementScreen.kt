@@ -119,18 +119,12 @@ fun UserManagementScreen(
             mutableStateOf<AssignmentRemovalTarget?>(null)
         }
 
-    LaunchedEffect(Unit) {
-        logInfo("UserManagementScreen", "composable entered (first composition)")
-        // Avoid starting a pre-mutation reload when a retained admin VM is re-entered. The
-        // mutation's success effect owns the authoritative post-mutation reload.
-        if (assignmentResult !is UiState.Loading && deleteAssignmentState !is UiState.Loading) {
-            viewModel.loadUsers()
-        }
-        if (createBranchState !is UiState.Loading) {
-            viewModel.loadBranches()
-        }
-        viewModel.loadRoles()
-    }
+    UserManagementEntryEffects(
+        viewModel = viewModel,
+        assignmentResult = assignmentResult,
+        deleteAssignmentState = deleteAssignmentState,
+        createBranchState = createBranchState,
+    )
 
     val loadedUsers = heldList.orEmpty()
     val filteredUsers = remember(loadedUsers, searchQuery) { filterUsers(loadedUsers, searchQuery) }
