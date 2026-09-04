@@ -1,16 +1,21 @@
 -- =============================================================================
--- V1__full_schema.sql — canonical structural baseline (squashed #370)
+-- V1__full_schema.sql — canonical structural baseline (squashed #370, refolded #461)
 --
 -- Single source of truth for the effective current schema. The former incremental
--- chain (V4, V6–V13, V15–V27) is folded into this file at its final shape; only
--- intentionally separate SEED migrations remain alongside it:
---   V2__seed_roles_capabilities.sql               — roles/capabilities/role_capability
---   V5__add_next_appointment_alerts_capability.sql — scheduler capability seed
+-- chain (V4, V6–V13, V15–V27) is folded into this file at its final shape; all
+-- seeds live in V2:
+--   V2__seed_roles_capabilities.sql — roles/capabilities/role_capability (V2+V5+V22 data+V26 seeds)
+--
+-- Structural folds present below: V20 REVOKED enum value, V21/V25/V26
+-- active_user_capabilities view (V26 final shape), V22 session_base_rate
+-- effective_from DEFAULT now(), V23 session.is_voided + pending-index predicate,
+-- V24 idx_session_client_id, V27 session.created_by.
 --
 -- This squash deliberately supersedes the "never edit a committed migration"
--- rule (docs/architecture.md §10): every persistent database was verified empty
--- and recreated from this baseline (ticket #370 safety gate). Do not resurrect
--- the folded files; evolve the schema by adding new migrations on top again.
+-- rule (docs/architecture.md §10): no production database exists and every
+-- dev/test database is rebuilt from this baseline (#370 safety gate, #461
+-- two-file squash). Do not resurrect the folded files; evolve the schema by
+-- adding new migrations on top again.
 -- =============================================================================
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;
@@ -25,7 +30,7 @@ CREATE TYPE capability_context_type   AS ENUM ('GLOBAL', 'BRANCH', 'BRANCH_DAY',
 CREATE TYPE capability_source_type    AS ENUM ('RELIEF_ACCESS', 'MEDICAL_MISSION_DELEGATE', 'MANUAL_OVERRIDE', 'SYSTEM', 'ROLE');
 CREATE TYPE branch_type               AS ENUM ('CLINIC', 'PROVINCIAL_TOUR', 'MEDICAL_MISSION');
 CREATE TYPE relief_status             AS ENUM ('PENDING', 'GRANTED', 'DENIED', 'CANCELLED');
-CREATE TYPE relief_invite_status      AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED', 'RETRACTED');
+CREATE TYPE relief_invite_status      AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED', 'RETRACTED', 'REVOKED'); -- V20 fold: REVOKED terminal
 CREATE TYPE credential_purpose        AS ENUM ('INVITE', 'PASSWORD_RESET');
 CREATE TYPE day_status                AS ENUM ('OPEN', 'PAST', 'REMITTED');
 CREATE TYPE session_type              AS ENUM ('REGULAR', 'SECOND_SESSION', 'SUBSEQUENT', 'PROVINCIAL_FIRST', 'MEDICAL_MISSION');
@@ -275,6 +280,10 @@ CREATE TABLE session (
     next_appointment_date     DATE,
     created_at                TIMESTAMPTZ    NOT NULL DEFAULT now(),
     version                   INT            NOT NULL DEFAULT 1,
+    -- V23 fold: voided PENDING sessions are not active pending visits (partial-index predicate).
+    is_voided                 BOOLEAN        NOT NULL DEFAULT FALSE,
+    -- V27 fold (#453): transaction-local idempotency owner; nullable, pre-migration rows backfilled from audit.
+    created_by                UUID           REFERENCES app_user(id),
     -- Walk-ins cannot be NO_SHOW or CANCELLED
     CONSTRAINT walk_in_status CHECK (
         NOT (is_walk_in = true AND session_status IN ('NO_SHOW', 'CANCELLED'))
@@ -287,8 +296,10 @@ CREATE TABLE session (
         OR next_appointment_date >= booked_at::date
     )
 );
--- Only one PENDING session per client globally
-CREATE UNIQUE INDEX idx_client_one_pending_session ON session (client_id) WHERE session_status = 'PENDING';
+-- Only one active PENDING session per client globally (V23 fold: voided rows excluded)
+CREATE UNIQUE INDEX idx_client_one_pending_session ON session (client_id) WHERE session_status = 'PENDING' AND is_voided = FALSE;
+-- V24 fold (#430): client directory session counts group history by client.
+CREATE INDEX idx_session_client_id ON session (client_id);
 
 CREATE TABLE session_void (
     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -311,7 +322,7 @@ CREATE TABLE session_base_rate (
     branch_id      UUID          NOT NULL REFERENCES branch(id),
     session_type   session_type  NOT NULL,
     rate           NUMERIC(10,2) NOT NULL,
-    effective_from TIMESTAMPTZ   NOT NULL,
+    effective_from TIMESTAMPTZ   NOT NULL DEFAULT now(), -- V22 fold: DB-clock default (writers never read JVM clock)
     effective_until TIMESTAMPTZ  NOT NULL,
     -- Prevent overlapping rates for same branch + session type. Half-open range [)
     -- (CR-019): deactivating at T and inserting a new rate at T does not overlap.
@@ -658,7 +669,9 @@ WHERE unvoided_at IS NULL;
 
 -- active_user_capabilities — the single place capability checks resolve (ADR-0023).
 -- DISTINCT ON includes context_type to prevent cross-context collapse; INACTIVE
--- users excluded everywhere; time-window filter handles expiry.
+-- users excluded everywhere; time-window filter handles expiry. Final shape folds
+-- V21 (branch-scoped derivation for every non-management code), V25 (OWNER
+-- all-branch VIEW_BRANCH_DATA), V26 (MANAGE_CATALOG GLOBAL authority).
 --
 -- Three-way UNION:
 --   (a) direct grants — user_capability rows, unchanged semantics.
@@ -666,17 +679,14 @@ WHERE unvoided_at IS NULL;
 --       (GrantPriorities.ROLE_DERIVED: above the raw column default 0, below every
 --       explicit grant — relief 10 / delegate 20 / direct 100 — so an explicit grant
 --       always beats a role-derived row; keep in sync with GrantPriorities.kt).
---       DERIVATION RULE: role_capability has no context column, so
---       BRANCH/BRANCH_DAY-scoped codes cannot derive — they flow through direct
---       inserts only. Derived GLOBAL codes: MANAGE_USERS / ASSIGN_DELEGATE /
---       ASSIGN_COMPENSATION for SUPERUSER/OWNER/MANAGER (COORDINATOR's
---       "assigned branches only" ASSIGN_COMPENSATION is deliberately NOT derived —
---       GLOBAL derivation would over-grant); VIEW_BRANCH_DATA for SUPERUSER/
---       ACCOUNTANT ("read-only across all branches"). Branch-scoped staff roles keep
---       BRANCH-scoped VIEW_BRANCH_DATA via direct grants — never all-branches.
---   (c) role-derived BRANCH grants — RECEIVE_NEXT_APPOINTMENT_ALERTS for ACTIVE
---       Coordinator assignments only (role-derived GLOBAL grants cannot express
---       branch ownership).
+--       Management codes for SUPERUSER/OWNER/MANAGER, all-branches VIEW_BRANCH_DATA
+--       for SUPERUSER/OWNER/ACCOUNTANT (V25), catalog authority MANAGE_CATALOG for
+--       SUPERUSER/OWNER/MANAGER/COORDINATOR (V26).
+--   (c) role-derived BRANCH grants (V21): every non-management code of each
+--       assigned role, at every branch holding an ACTIVE assignment. Excludes
+--       MANAGE_USERS, ASSIGN_DELEGATE (always GLOBAL) and MANAGE_CATALOG (V26:
+--       catalog writes stay global). RECEIVE_NEXT_APPOINTMENT_ALERTS reaches only
+--       Coordinators because only their role holds it (V5 seed in V2).
 -- Business logic must NEVER read user_role/role_capability directly — the V2
 -- rule stands; this view computes the union.
 CREATE VIEW active_user_capabilities AS
@@ -688,6 +698,7 @@ SELECT DISTINCT ON (granted.user_id, granted.capability_id, granted.context_type
     granted.priority,
     granted.source_type
 FROM (
+    -- (a) direct grants — user_capability rows, unchanged semantics.
     SELECT
         uc.user_id,
         uc.capability_id,
@@ -702,6 +713,10 @@ FROM (
 
     UNION ALL
 
+    -- (b) role-derived GLOBAL grants: management codes for
+    --     SUPERUSER/OWNER/MANAGER, all-branches VIEW_BRANCH_DATA for
+    --     SUPERUSER/OWNER/ACCOUNTANT, and catalog authority for
+    --     SUPERUSER/OWNER/MANAGER/COORDINATOR (#436).
     SELECT
         ur.user_id,
         rc.capability_id,
@@ -723,12 +738,19 @@ FROM (
           OR
           (
               c.code = 'VIEW_BRANCH_DATA'
-              AND r.name IN ('SUPERUSER', 'ACCOUNTANT')
+              AND r.name IN ('SUPERUSER', 'OWNER', 'ACCOUNTANT')
+          )
+          OR
+          (
+              c.code = 'MANAGE_CATALOG'
+              AND r.name IN ('SUPERUSER', 'OWNER', 'MANAGER', 'COORDINATOR')
           )
       )
 
     UNION ALL
 
+    -- (c) role-derived BRANCH grants (#417): every non-management code of each
+    --     assigned role, at every branch holding an ACTIVE assignment.
     SELECT
         uba.user_id,
         rc.capability_id,
@@ -744,8 +766,7 @@ FROM (
     JOIN capability c ON c.id = rc.capability_id
     WHERE au.status = 'ACTIVE'
       AND uba.ended_at IS NULL
-      AND r.name = 'COORDINATOR'
-      AND c.code = 'RECEIVE_NEXT_APPOINTMENT_ALERTS'
+      AND c.code NOT IN ('MANAGE_USERS', 'ASSIGN_DELEGATE', 'MANAGE_CATALOG')
 ) granted
 ORDER BY granted.user_id, granted.capability_id, granted.context_type, granted.context_id, granted.priority DESC;
 

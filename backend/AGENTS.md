@@ -16,11 +16,13 @@ Before coding, read the relevant doc(s):
 
 ## Schema
 
-`V1__full_schema.sql` (squashed structural baseline, #370), the seed migrations
-(`V2__seed_roles_capabilities.sql`, `V5__add_next_appointment_alerts_capability.sql`),
-and post-baseline feature migrations in `backend/src/main/resources/db/migration/`
-(`V20` onward) are the authoritative current schema. Inspect V1 plus the live add-ons
-when reasoning about schema; evolve by adding new versioned migrations on top.
+`V1__full_schema.sql` (structural baseline: #370 squash, #461 refold of V20/V21/V23/V24/V25/V26/V27
+structure + V22 `effective_from` default) and `V2__seed_roles_capabilities.sql` (all seeds: base
+bundle + V5 scheduler capability + V22 base-rate backfill data + V26 catalog capability) in
+`backend/src/main/resources/db/migration/` are the authoritative current schema — the only two
+files. Inspect V1+V2 when reasoning about schema; evolve by adding new versioned migrations on top.
+Existing dev/test databases are rebuilt from V1+V2 (no production database exists); never resurrect
+the folded files.
 
 Package root: `com.companyb.companyapp`. Layers: `api/routes`, `api/middleware`, `service`, `repository`
 (+ `repository/model` for Exposed `Table` objects), `auth`, `database`, `logging`.
@@ -175,9 +177,9 @@ val existing = Table.selectAll().where {
 
 All operational permission checks MUST go through
 `CapabilityService.hasCapability(userId, capabilityCode, contextType, contextId)`, which queries the
-`active_user_capabilities` SQL view (baseline definition in `V1__full_schema.sql`; V21 widens its
-branch-derived leg and V25 adds OWNER's GLOBAL read leg — see the migration-chain rule above).
-**Never check roles directly in business logic** — roles seed capabilities in the V2/V5 migrations.
+`active_user_capabilities` SQL view (final folded shape in `V1__full_schema.sql`, covering the
+V21 branch-derivation widening, V25 OWNER GLOBAL read leg, and V26 catalog leg).
+**Never check roles directly in business logic** — roles seed capabilities in V2 (V5/V26 seeds folded in).
 The view already excludes
 INACTIVE users and out-of-window grants.
 
