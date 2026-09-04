@@ -77,6 +77,8 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 
+private const val CREATED_BY_PREFIX_LENGTH = 8
+
 /**
  * The merged Finance & Reports screen (#101 D1-D8 + #105 D1-D7, built #154).
  *
@@ -1994,8 +1996,9 @@ private fun ExpenseRow(
             modifier = Modifier.weight(1f),
         )
         // #101 D6 — createdBy + createdAt on the row.
+        val createdByPrefix = expense.createdBy.take(CREATED_BY_PREFIX_LENGTH)
         Text(
-            text = "${expense.createdBy.take(8)} · ${formatRelativeTimestamp(expense.createdAt)}",
+            text = "$createdByPrefix · ${formatRelativeTimestamp(expense.createdAt)}",
             style = MaterialTheme.typography.bodySmall,
             color = InkSubtle,
             maxLines = 1,
