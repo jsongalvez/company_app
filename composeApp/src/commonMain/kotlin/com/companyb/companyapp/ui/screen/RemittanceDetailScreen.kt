@@ -512,50 +512,19 @@ private fun RemittanceDetailContent(
         )
     }
 
-    // D3 — tick-to-include pickers; the dialog owns its add-queue (one POST per selected row,
-    // advanced on each mutation success).
-    if (showSessionPicker && branchId != null) {
-        val includedIds =
-            detail.lines
-                .filter { it.type == com.companyb.companyapp.domain.RemittanceLineType.SESSION }
-                .mapNotNull { it.sessionId }
-                .toSet()
-        SessionPickerDialog(
-            state = sessionPickerState,
-            mutationState = lineState,
-            includedIds = includedIds,
-            onLoad = {
-                viewModel.loadSessionPicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
-            },
-            onAdd = { requests ->
-                if (requests.isNotEmpty() && lineState !is UiState.Loading) {
-                    viewModel.addLine(remittanceId, requests.first())
-                }
-            },
-            onDismiss = onCloseSessionPicker,
-        )
-    }
-    if (showProductSalePicker && branchId != null) {
-        val includedIds =
-            detail.lines
-                .filter { it.type == com.companyb.companyapp.domain.RemittanceLineType.PRODUCT_SALE }
-                .mapNotNull { it.productSaleId }
-                .toSet()
-        ProductSalePickerDialog(
-            state = productSalePickerState,
-            mutationState = lineState,
-            includedIds = includedIds,
-            onLoad = {
-                viewModel.loadProductSalePicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
-            },
-            onAdd = { requests ->
-                if (requests.isNotEmpty() && lineState !is UiState.Loading) {
-                    viewModel.addLine(remittanceId, requests.first())
-                }
-            },
-            onDismiss = onCloseProductSalePicker,
-        )
-    }
+    RemittanceDetailLinePickerHost(
+        detail = detail,
+        branchId = branchId,
+        sessionPickerState = sessionPickerState,
+        productSalePickerState = productSalePickerState,
+        lineState = lineState,
+        viewModel = viewModel,
+        remittanceId = remittanceId,
+        showSessionPicker = showSessionPicker,
+        showProductSalePicker = showProductSalePicker,
+        onCloseSessionPicker = onCloseSessionPicker,
+        onCloseProductSalePicker = onCloseProductSalePicker,
+    )
 
     // D4 — days-covered picker: already-remitted greyed (no double-covering a day, F10).
     if (showDayPicker && branchId != null) {
@@ -775,6 +744,66 @@ private fun RemittanceDetailSubmitUndoHost(
                     onCloseUndoDialog()
                 }
             },
+        )
+    }
+}
+
+@Composable
+private fun RemittanceDetailLinePickerHost(
+    detail: RemittanceDetailResponse,
+    branchId: String?,
+    sessionPickerState: UiState<List<RemittanceSessionPickerEntryResponse>>,
+    productSalePickerState: UiState<List<RemittanceProductSalePickerEntryResponse>>,
+    lineState: UiState<RemittanceLineResponse>,
+    viewModel: RemittanceViewModel,
+    remittanceId: String,
+    showSessionPicker: Boolean,
+    showProductSalePicker: Boolean,
+    onCloseSessionPicker: () -> Unit,
+    onCloseProductSalePicker: () -> Unit,
+) {
+    // D3 — tick-to-include pickers; the dialog owns its add-queue (one POST per selected row,
+    // advanced on each mutation success).
+    if (showSessionPicker && branchId != null) {
+        val includedIds =
+            detail.lines
+                .filter { it.type == com.companyb.companyapp.domain.RemittanceLineType.SESSION }
+                .mapNotNull { it.sessionId }
+                .toSet()
+        SessionPickerDialog(
+            state = sessionPickerState,
+            mutationState = lineState,
+            includedIds = includedIds,
+            onLoad = {
+                viewModel.loadSessionPicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
+            },
+            onAdd = { requests ->
+                if (requests.isNotEmpty() && lineState !is UiState.Loading) {
+                    viewModel.addLine(remittanceId, requests.first())
+                }
+            },
+            onDismiss = onCloseSessionPicker,
+        )
+    }
+    if (showProductSalePicker && branchId != null) {
+        val includedIds =
+            detail.lines
+                .filter { it.type == com.companyb.companyapp.domain.RemittanceLineType.PRODUCT_SALE }
+                .mapNotNull { it.productSaleId }
+                .toSet()
+        ProductSalePickerDialog(
+            state = productSalePickerState,
+            mutationState = lineState,
+            includedIds = includedIds,
+            onLoad = {
+                viewModel.loadProductSalePicker(branchId, detail.dateRangeStart, detail.dateRangeEnd)
+            },
+            onAdd = { requests ->
+                if (requests.isNotEmpty() && lineState !is UiState.Loading) {
+                    viewModel.addLine(remittanceId, requests.first())
+                }
+            },
+            onDismiss = onCloseProductSalePicker,
         )
     }
 }
