@@ -82,6 +82,8 @@ restart.
 
 ```bash
 # fresh chain from a packet (resees all fingerprints from disk content)
+# --bootstrap refuses while any live chain worker exists (kill-plus-bootstrap
+# orphans the old worker into a duplicate) — plain restart resumes instead.
 tmux new-session -d -s wayfinder-loop \
   'bash scripts/wayfinder-loop.sh --bootstrap <packet-filename>'
 

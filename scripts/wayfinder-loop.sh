@@ -281,6 +281,19 @@ pending_perms() {
 # objects — has($s) is the membership test (the old any(.id == $s) never matched, so a
 # live session read as dead).
 session_alive() { api get "/api/session/active" 2>/dev/null | jq -e --arg s "$1" '.data | has($s)' >/dev/null 2>&1; }
+# Live chain workers: active sessions titled "wayfinder-loop: <doc>", from any daemon
+# generation. --bootstrap must refuse while one exists: killing the old tmux releases
+# the flock but orphans its worker, and bootstrapping the same packet then spawns a
+# second live session on the chain (the 2026-09-04 duplicate class).
+wayfinder_workers() {
+  local id title
+  for id in $(api get /api/session/active 2>/dev/null | jq -r '.data | keys[]' 2>/dev/null || true); do
+    title="$(api get "/api/session/$id" 2>/dev/null | jq -r '.data.title // ""' 2>/dev/null || true)"
+    case "$title" in
+      wayfinder-loop:*) printf '%s\n' "$id" ;;
+    esac
+  done
+}
 # active_children: true when any ACTIVE session lists $1 as its parent — the session is
 # awaiting parallel sub-agent results (the phased-review-loop shape: P1–P4 run as 4 child
 # sessions). Its own time.updated legitimately lags while the children do the work, so the
@@ -735,6 +748,11 @@ if [ "${1:-}" = "--bootstrap" ]; then
   # Accept either a handoff basename or a path copied from a log/prompt.
   doc="${2##*/}"
   [ -f "$HANDOFF_DIR/$doc" ] || die "bootstrap doc not found: $HANDOFF_DIR/$doc"
+  # A killed daemon's worker stays alive: flock dies with the tmux session, so the
+  # lock cannot catch kill-plus-bootstrap. Refuse while any chain worker runs —
+  # plain restart resumes supervision of the live chain instead.
+  workers="$(wayfinder_workers)"
+  [ -z "$workers" ] || die "live chain worker(s) still active ($(echo "$workers" | tr '\n' ' ')) — resume supervision instead of --bootstrap, or stand them down first (see docs/agents/wayfinder-loop.md)"
   # Seed every existing handoff by content, not basename. A later session may
   # overwrite an existing numbered handoff filename.
   seen_docs="$(seed_seen_docs)"
