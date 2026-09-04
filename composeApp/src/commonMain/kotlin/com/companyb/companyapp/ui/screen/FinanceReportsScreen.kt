@@ -362,101 +362,157 @@ private fun ReliefDaySection(
         }
     }
     Column(modifier = modifier.fillMaxWidth().padding(top = Spacing.sm)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ReliefDayInputRow(
+            viewModel = viewModel,
+            dateInput = dateInput,
+            onDateInputChange = {
+                dateInput = it
+                dateError = null
+            },
+            dateError = dateError,
+            reliefDay = reliefDay,
+            selectedDay = selectedDay,
+            today = today,
+            capabilities = capabilities,
+            editMode = editMode,
+            onEditToggle = onEditToggle,
+            onExit = onExit,
+            onSubmit = submitDate,
+        )
+        ReliefDayResultContent(
+            viewModel = viewModel,
+            reliefDay = reliefDay,
+            editMode = editMode,
+            today = today,
+            capabilities = capabilities,
+            onEditToggle = onEditToggle,
+            downloads = downloads,
+            exportErrors = exportErrors,
+            onRetry = submitDate,
+        )
+    }
+}
+
+@Composable
+private fun ReliefDayInputRow(
+    viewModel: FinanceReportsViewModel,
+    dateInput: String,
+    onDateInputChange: (String) -> Unit,
+    dateError: String?,
+    reliefDay: UiState<DailySalesSummaryResponse>,
+    selectedDay: DailySalesSummaryResponse?,
+    today: LocalDate,
+    capabilities: List<UserCapabilityResponse>,
+    editMode: Boolean,
+    onEditToggle: () -> Unit,
+    onExit: (() -> Unit)?,
+    onSubmit: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        if (onExit != null) {
+            TextButton(onClick = onExit) { Text("← Reports") }
+        }
+        OutlinedTextField(
+            value = dateInput,
+            onValueChange = onDateInputChange,
+            label = { Text("Date (yyyy-MM-dd)") },
+            singleLine = true,
+            isError = dateError != null,
+            supportingText = dateError?.let { { Text(it) } },
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(
+            onClick = onSubmit,
+            enabled = reliefDay !is UiState.Loading,
         ) {
-            if (onExit != null) {
-                TextButton(onClick = onExit) { Text("← Reports") }
-            }
-            OutlinedTextField(
-                value = dateInput,
-                onValueChange = {
-                    dateInput = it
-                    dateError = null
-                },
-                label = { Text("Date (yyyy-MM-dd)") },
-                singleLine = true,
-                isError = dateError != null,
-                supportingText = dateError?.let { { Text(it) } },
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(
-                onClick = submitDate,
-                enabled = reliefDay !is UiState.Loading,
-            ) {
-                if (reliefDay is UiState.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.width(Spacing.sm).height(Spacing.sm),
-                        strokeWidth = 2.dp,
-                    )
-                } else {
-                    Text("Load")
-                }
-            }
-            if (selectedDay != null && reliefDay is UiState.Success) {
-                val pastDayReadOnly =
-                    derivedDayState(LocalDate.parse(selectedDay.date), today) == DerivedDayState.PAST &&
-                        !capabilities.hasCapability(
-                            CapabilityCodes.EDIT_PAST_DAY,
-                            CapabilityContextType.BRANCH,
-                            SessionState.selectedBranchId.value,
-                        )
-                TextButton(
-                    onClick = onEditToggle,
-                    enabled = viewModel.hasEditCapabilities() && !pastDayReadOnly,
-                ) {
-                    Text(if (editMode) "Done" else "Edit")
-                }
+            if (reliefDay is UiState.Loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.width(Spacing.sm).height(Spacing.sm),
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Text("Load")
             }
         }
-        when (reliefDay) {
-            is UiState.Idle -> {
-                Box(Modifier.fillMaxWidth().padding(vertical = Spacing.md), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "Enter a date to view your relief day",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = InkSubtle,
+        if (selectedDay != null && reliefDay is UiState.Success) {
+            val pastDayReadOnly =
+                derivedDayState(LocalDate.parse(selectedDay.date), today) == DerivedDayState.PAST &&
+                    !capabilities.hasCapability(
+                        CapabilityCodes.EDIT_PAST_DAY,
+                        CapabilityContextType.BRANCH,
+                        SessionState.selectedBranchId.value,
                     )
-                }
+            TextButton(
+                onClick = onEditToggle,
+                enabled = viewModel.hasEditCapabilities() && !pastDayReadOnly,
+            ) {
+                Text(if (editMode) "Done" else "Edit")
             }
+        }
+    }
+}
 
-            is UiState.Loading -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
+@Composable
+private fun ReliefDayResultContent(
+    viewModel: FinanceReportsViewModel,
+    reliefDay: UiState<DailySalesSummaryResponse>,
+    editMode: Boolean,
+    today: LocalDate,
+    capabilities: List<UserCapabilityResponse>,
+    onEditToggle: () -> Unit,
+    downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
+    exportErrors: Map<String, String>,
+    onRetry: () -> Unit,
+) {
+    when (reliefDay) {
+        is UiState.Idle -> {
+            Box(Modifier.fillMaxWidth().padding(vertical = Spacing.md), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "Enter a date to view your relief day",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = InkSubtle,
+                )
             }
+        }
 
-            is UiState.Error -> {
-                logWarn("FinanceReportsScreen", "reliefDay=Error: ${reliefDay.message}")
-                ErrorCard(message = reliefDay.message, onRetry = submitDate)
+        is UiState.Loading -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
             }
+        }
 
-            is UiState.Success -> {
-                val day = reliefDay.data
-                if (editMode) {
-                    DayEditor(
-                        viewModel = viewModel,
+        is UiState.Error -> {
+            logWarn("FinanceReportsScreen", "reliefDay=Error: ${reliefDay.message}")
+            ErrorCard(message = reliefDay.message, onRetry = onRetry)
+        }
+
+        is UiState.Success -> {
+            val day = reliefDay.data
+            if (editMode) {
+                DayEditor(
+                    viewModel = viewModel,
+                    day = day,
+                    branchId = SessionState.selectedBranchId.value ?: "",
+                    branchName = SessionState.selectedBranchName.value ?: "",
+                    today = today,
+                    capabilities = capabilities,
+                    onBackToFeed = onEditToggle,
+                    onExportDayEditor = null,
+                    downloadStates = downloads,
+                    exportErrors = exportErrors,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    FinanceDayDetailContent(
                         day = day,
-                        branchId = SessionState.selectedBranchId.value ?: "",
-                        branchName = SessionState.selectedBranchName.value ?: "",
                         today = today,
-                        capabilities = capabilities,
-                        onBackToFeed = onEditToggle,
-                        onExportDayEditor = null,
-                        downloadStates = downloads,
-                        exportErrors = exportErrors,
-                        modifier = Modifier.fillMaxWidth(),
+                        onExportDay = null,
                     )
-                } else {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        FinanceDayDetailContent(
-                            day = day,
-                            today = today,
-                            onExportDay = null,
-                        )
-                    }
                 }
             }
         }
