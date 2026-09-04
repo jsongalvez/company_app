@@ -68,21 +68,21 @@ import kotlin.uuid.ExperimentalUuidApi
  */
 @OptIn(ExperimentalUuidApi::class)
 class FinanceReportsViewModel(
-    private val apiClient: ApiClient,
+    internal val apiClient: ApiClient,
     private val now: Instant = Clock.System.now(),
 ) : ViewModel() {
-    private val handler = ApiCallHandler(viewModelScope, "FinanceVM")
-    private val today: LocalDate =
+    internal val handler = ApiCallHandler(viewModelScope, "FinanceVM")
+    internal val today: LocalDate =
         now.toLocalDateTime(TimeZone.of("Asia/Manila")).date
-    private val defaultMonth: YearMonth = YearMonth(today.year, today.month.ordinal + 1)
+    internal val defaultMonth: YearMonth = YearMonth(today.year, today.month.ordinal + 1)
 
     // ─────────────────────────── branches ───────────────────────────
 
     private val _branches = MutableStateFlow<UiState<List<BranchResponse>>>(UiState.Idle)
     val branches: StateFlow<UiState<List<BranchResponse>>> = _branches.asStateFlow()
 
-    private val _selectedBranchId = MutableStateFlow<String?>(null)
-    val selectedBranchId: StateFlow<String?> = _selectedBranchId.asStateFlow()
+    internal val selectedBranchIdState = MutableStateFlow<String?>(null)
+    val selectedBranchId: StateFlow<String?> = selectedBranchIdState.asStateFlow()
 
     fun loadBranches() {
         if (_branches.value is UiState.Loading) return
@@ -94,14 +94,14 @@ class FinanceReportsViewModel(
             transform = {
                 val list = it.body<List<BranchResponse>>()
                 _branches.value = UiState.Success(list)
-                if (_selectedBranchId.value == null) {
+                if (selectedBranchIdState.value == null) {
                     // Default: the clocked-in branch when the user can see it, else the first
                     // accessible branch (Accountant: GLOBAL view, no selected branch — D3).
                     val default =
                         list.firstOrNull { b -> b.id == SessionState.selectedBranchId.value }
                             ?: list.firstOrNull()
                     if (default != null) {
-                        _selectedBranchId.value = default.id
+                        selectedBranchIdState.value = default.id
                         refreshWindowAndFeed()
                     }
                 }
@@ -111,411 +111,87 @@ class FinanceReportsViewModel(
     }
 
     fun selectBranch(branchId: String) {
-        if (branchId == _selectedBranchId.value) return
-        _selectedBranchId.value = branchId
-        _selectedDay.value = null
-        _editMode.value = false
-        _paramError.value = null
+        if (branchId == selectedBranchIdState.value) return
+        selectedBranchIdState.value = branchId
+        selectedDayState.value = null
+        editModeState.value = false
+        paramErrorState.value = null
         clearEditData()
         refreshWindowAndFeed()
         // #105 D4 — the MONTHLY rollup card is pinned; a branch switch must refetch it (and a
         // superseded in-flight rollup must stay inert — rollupGeneration bump in loadMonthlyRollup).
-        _monthlyRollup.value = UiState.Idle
-        if (_mode.value == ReportMode.MONTHLY) {
+        monthlyRollupState.value = UiState.Idle
+        if (modeState.value == ReportMode.MONTHLY) {
             loadMonthlyRollup()
         }
     }
 
     // ─────────────────────────── mode + params ───────────────────────────
 
-    private val _mode = MutableStateFlow(ReportMode.DAILY)
-    val mode: StateFlow<ReportMode> = _mode.asStateFlow()
+    internal val modeState = MutableStateFlow(ReportMode.DAILY)
+    val mode: StateFlow<ReportMode> = modeState.asStateFlow()
 
     /** Editable `yyyy-MM` text for the MONTHLY mode and the ALL_TIME calendar jump. */
-    private val _monthInput = MutableStateFlow(defaultMonth.toString())
-    val monthInput: StateFlow<String> = _monthInput.asStateFlow()
+    internal val monthInputState = MutableStateFlow(defaultMonth.toString())
+    val monthInput: StateFlow<String> = monthInputState.asStateFlow()
 
-    private val _rangeFromInput = MutableStateFlow("")
-    val rangeFromInput: StateFlow<String> = _rangeFromInput.asStateFlow()
+    internal val rangeFromInputState = MutableStateFlow("")
+    val rangeFromInput: StateFlow<String> = rangeFromInputState.asStateFlow()
 
-    private val _rangeToInput = MutableStateFlow("")
-    val rangeToInput: StateFlow<String> = _rangeToInput.asStateFlow()
+    internal val rangeToInputState = MutableStateFlow("")
+    val rangeToInput: StateFlow<String> = rangeToInputState.asStateFlow()
 
     /** Applied date-range window (validated at apply time). */
-    private val _appliedRange = MutableStateFlow<Pair<String, String>?>(null)
-    val appliedRange: StateFlow<Pair<String, String>?> = _appliedRange.asStateFlow()
+    internal val appliedRangeState = MutableStateFlow<Pair<String, String>?>(null)
+    val appliedRange: StateFlow<Pair<String, String>?> = appliedRangeState.asStateFlow()
 
     /** Applied ALL_TIME jump month (null = unbounded all-time). */
-    private val _jumpMonth = MutableStateFlow<YearMonth?>(null)
-    val jumpMonth: StateFlow<YearMonth?> = _jumpMonth.asStateFlow()
+    internal val jumpMonthState = MutableStateFlow<YearMonth?>(null)
+    val jumpMonth: StateFlow<YearMonth?> = jumpMonthState.asStateFlow()
 
     /** Mode-parameter validation errors (rendered inline next to the field). */
-    private val _paramError = MutableStateFlow<String?>(null)
-    val paramError: StateFlow<String?> = _paramError.asStateFlow()
+    internal val paramErrorState = MutableStateFlow<String?>(null)
+    val paramError: StateFlow<String?> = paramErrorState.asStateFlow()
 
-    private val _monthlyRollup = MutableStateFlow<UiState<MonthlyRemittanceSummaryResponse?>>(UiState.Idle)
-    val monthlyRollup: StateFlow<UiState<MonthlyRemittanceSummaryResponse?>> = _monthlyRollup.asStateFlow()
+    internal val monthlyRollupState = MutableStateFlow<UiState<MonthlyRemittanceSummaryResponse?>>(UiState.Idle)
+    val monthlyRollup: StateFlow<UiState<MonthlyRemittanceSummaryResponse?>> = monthlyRollupState.asStateFlow()
 
     /** Rollup responses from a superseded branch/mode are inert (P4 pass-1 HARD). */
-    private var rollupGeneration = 0
+    internal var rollupGeneration = 0
 
-    fun setMode(mode: ReportMode) {
-        if (mode == _mode.value) return
-        _mode.value = mode
-        _paramError.value = null
-        refreshWindowAndFeed()
-        if (mode == ReportMode.MONTHLY) {
-            loadMonthlyRollup()
-        } else {
-            _monthlyRollup.value = UiState.Idle
-        }
-    }
+    internal val feedEntriesState = MutableStateFlow<UiState<List<DailySalesSummaryResponse>>>(UiState.Idle)
+    val feedEntries: StateFlow<UiState<List<DailySalesSummaryResponse>>> = feedEntriesState.asStateFlow()
 
-    fun setMonthInput(raw: String) {
-        _monthInput.value = raw
-    }
+    internal val nextCursorState = MutableStateFlow<String?>(null)
+    val nextCursor: StateFlow<String?> = nextCursorState.asStateFlow()
 
-    fun applyMonth() {
-        val month =
-            com.companyb.companyapp.ui.screen
-                .parseYearMonthInput(_monthInput.value)
-        if (month == null) {
-            _paramError.value = "Month must be yyyy-MM"
-            return
-        }
-        _paramError.value = null
-        _monthlyRollup.value = UiState.Idle
-        refreshWindowAndFeed()
-        loadMonthlyRollup()
-    }
+    internal val isLoadingMoreState = MutableStateFlow(false)
+    val isLoadingMore: StateFlow<Boolean> = isLoadingMoreState.asStateFlow()
 
-    fun clearRange() {
-        _appliedRange.value = null
-        _paramError.value = null
-        refreshWindowAndFeed()
-    }
+    internal val isRefreshingState = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = isRefreshingState.asStateFlow()
 
-    fun setRangeInputs(
-        from: String,
-        to: String,
-    ) {
-        _rangeFromInput.value = from
-        _rangeToInput.value = to
-    }
+    internal val loadMoreErrorState = MutableStateFlow<String?>(null)
+    val loadMoreError: StateFlow<String?> = loadMoreErrorState.asStateFlow()
 
-    fun applyRange() {
-        val from =
-            com.companyb.companyapp.ui.screen
-                .parseDateInput(_rangeFromInput.value)
-        val to =
-            com.companyb.companyapp.ui.screen
-                .parseDateInput(_rangeToInput.value)
-        when {
-            from == null -> {
-                _paramError.value = "From must be yyyy-MM-dd"
-            }
-
-            to == null -> {
-                _paramError.value = "To must be yyyy-MM-dd"
-            }
-
-            from > to -> {
-                _paramError.value = "From must be on or before To"
-            }
-
-            else -> {
-                _paramError.value = null
-                _appliedRange.value = from.toString() to to.toString()
-                refreshWindowAndFeed()
-            }
-        }
-    }
-
-    fun setJumpInput(raw: String) {
-        _monthInput.value = raw
-    }
-
-    fun applyJump() {
-        val month =
-            com.companyb.companyapp.ui.screen
-                .parseYearMonthInput(_monthInput.value)
-        if (month == null) {
-            _paramError.value = "Month must be yyyy-MM"
-            return
-        }
-        _paramError.value = null
-        _jumpMonth.value = month
-        refreshWindowAndFeed()
-    }
-
-    fun clearJump() {
-        _jumpMonth.value = null
-        _monthInput.value = defaultMonth.toString()
-        _paramError.value = null
-        refreshWindowAndFeed()
-    }
-
-    // ─────────────────────────── feed ───────────────────────────
-
-    private val _feedEntries = MutableStateFlow<UiState<List<DailySalesSummaryResponse>>>(UiState.Idle)
-    val feedEntries: StateFlow<UiState<List<DailySalesSummaryResponse>>> = _feedEntries.asStateFlow()
-
-    private val _nextCursor = MutableStateFlow<String?>(null)
-    val nextCursor: StateFlow<String?> = _nextCursor.asStateFlow()
-
-    private val _isLoadingMore = MutableStateFlow(false)
-    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
-
-    private val _isRefreshing = MutableStateFlow(false)
-    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
-
-    private val _loadMoreError = MutableStateFlow<String?>(null)
-    val loadMoreError: StateFlow<String?> = _loadMoreError.asStateFlow()
-
-    private val _refreshError = MutableStateFlow<String?>(null)
-    val refreshError: StateFlow<String?> = _refreshError.asStateFlow()
+    internal val refreshErrorState = MutableStateFlow<String?>(null)
+    val refreshError: StateFlow<String?> = refreshErrorState.asStateFlow()
 
     // Every window/mode/branch change bumps the generation; an in-flight page from a superseded
     // generation is inert (no list/cursor/error writes) — the AuditLog #144 shape.
-    private var feedGeneration = 0
+    internal var feedGeneration = 0
 
-    fun refreshFeed() {
-        if (_mode.value == ReportMode.DATE_RANGE && _appliedRange.value == null) return
-        val branchId = _selectedBranchId.value ?: return
-        if (_isRefreshing.value || _isLoadingMore.value) return
-        // A refresh replaces the day rows — a stale selection would keep showing the
-        // pre-refresh figures (pass-9 SOFT).
-        _selectedDay.value = null
-        _editMode.value = false
-        _refreshError.value = null
-        _loadMoreError.value = null
-        fetchPage(FetchMode.Refresh, cursor = null, branchId = branchId)
-    }
+    internal val selectedDayState = MutableStateFlow<DailySalesSummaryResponse?>(null)
+    val selectedDay: StateFlow<DailySalesSummaryResponse?> = selectedDayState.asStateFlow()
 
-    fun loadMore() {
-        val branchId = _selectedBranchId.value ?: return
-        val cursor = _nextCursor.value ?: return
-        if (_isLoadingMore.value || _isRefreshing.value) return
-        _loadMoreError.value = null
-        fetchPage(FetchMode.LoadMore, cursor = cursor, branchId = branchId)
-    }
+    internal val editModeState = MutableStateFlow(false)
+    val editMode: StateFlow<Boolean> = editModeState.asStateFlow()
 
-    fun retryFeed() {
-        if (_mode.value == ReportMode.DATE_RANGE && _appliedRange.value == null) return
-        val branchId = _selectedBranchId.value ?: return
-        _feedEntries.value = UiState.Loading
-        fetchPage(FetchMode.Cold, cursor = null, branchId = branchId)
-    }
-
-    private fun refreshWindowAndFeed() {
-        feedGeneration++
-        _isRefreshing.value = false
-        _isLoadingMore.value = false
-        _nextCursor.value = null
-        _refreshError.value = null
-        _loadMoreError.value = null
-        _selectedDay.value = null
-        _editMode.value = false
-        // Pass-3 HARD — a mode/window switch while editing must not leave the OLD day's
-        // section data armed: re-entering edit on another day would render the old rows
-        // during the load window and Edit/Delete would mutate the wrong day's records.
-        clearEditData()
-        val branchId = _selectedBranchId.value ?: return
-        // Pass-5 SOFT — DATE_RANGE has no window before Apply: no unbounded all-time fetch
-        // fires behind the hint (the hint branch renders instead of the feed).
-        if (_mode.value == ReportMode.DATE_RANGE && _appliedRange.value == null) {
-            _feedEntries.value = UiState.Idle
-            return
-        }
-        _feedEntries.value = UiState.Loading
-        fetchPage(FetchMode.Cold, cursor = null, branchId = branchId)
-    }
-
-    private fun currentWindow(): FeedWindow =
-        com.companyb.companyapp.ui.screen.feedWindowFor(
-            com.companyb.companyapp.ui.screen.FeedWindowRequest(
-                mode = _mode.value,
-                today = today,
-                month =
-                    com.companyb.companyapp.ui.screen
-                        .parseYearMonthInput(_monthInput.value)
-                        ?: defaultMonth,
-                rangeFrom = _appliedRange.value?.first,
-                rangeTo = _appliedRange.value?.second,
-                jumpMonth = _jumpMonth.value,
-            ),
-        )
-
-    private fun fetchPage(
-        mode: FetchMode,
-        cursor: String?,
-        branchId: String,
-    ) {
-        val generation = feedGeneration
-        if (mode == FetchMode.Refresh) _isRefreshing.value = true
-        if (mode == FetchMode.LoadMore) _isLoadingMore.value = true
-        handler.launchStateless(
-            operation = mode.operationName,
-            endpoint = "GET /api/branches/$branchId/daily-summaries",
-            block = {
-                apiClient.httpClient.get(ApiRoutes.branchDailySummaries(branchId)) {
-                    cursor?.let { parameter("cursor", it) }
-                    parameter("limit", FEED_PAGE_SIZE)
-                    currentWindow().from?.let { parameter("from", it) }
-                    currentWindow().to?.let { parameter("to", it) }
-                }
-            },
-            transform = {
-                val page = it.body<DailySalesSummaryBrowseResponse>()
-                val listAlreadyCommitted =
-                    mode == FetchMode.Cold && _feedEntries.value is UiState.Success
-                if (listAlreadyCommitted) {
-                    logWarn("FinanceVM", "cold feed success suppressed — feed superseded")
-                } else {
-                    _refreshError.value = null
-                    _nextCursor.value = page.nextCursor
-                    applyPage(mode, page.entries)
-                }
-                finish(mode)
-            },
-            hooks =
-                StatelessHooks(
-// #173 — the hand-rolled generation guard folds into the state-less stale gate: a
-                    // superseded landing (window/branch/mode switched while this page was in flight)
-                    // is inert — no list/cursor/error/flags writes, no finish.
-                    stale = { generation != feedGeneration },
-                    onNonSuccess = { response ->
-                        handlePageFailure(mode, "feed failed: ${response.status.value}")
-                        finish(mode)
-                    },
-                    onError = { e ->
-                        // Network or deserialization failure — same error surface + flag cleanup so the
-                        // list state and buttons never freeze (keep-last-list); gated by stale — a
-                        // superseded fetch's failure must not surface on the new list. onError is that
-                        // single surface (#169).
-                        handlePageFailure(mode, "feed failed: ${e.message ?: "network error"}")
-                        finish(mode)
-                    },
-                ),
-        )
-    }
-
-    private fun applyPage(
-        mode: FetchMode,
-        entries: List<DailySalesSummaryResponse>,
-    ) {
-        when (mode) {
-            FetchMode.Cold, FetchMode.Refresh -> {
-                _feedEntries.value = UiState.Success(entries)
-            }
-
-            FetchMode.LoadMore -> {
-                val current =
-                    (_feedEntries.value as? UiState.Success<List<DailySalesSummaryResponse>>)
-                        ?.data
-                        .orEmpty()
-                _feedEntries.value = UiState.Success(current + entries)
-            }
-        }
-    }
-
-    private fun handlePageFailure(
-        mode: FetchMode,
-        message: String,
-    ) {
-        when (mode) {
-            FetchMode.Cold -> {
-                if (_feedEntries.value !is UiState.Success) {
-                    _feedEntries.value = UiState.Error(message)
-                } else {
-                    logWarn("FinanceVM", "cold feed failure suppressed — feed superseded: $message")
-                }
-            }
-
-            FetchMode.Refresh -> {
-                _refreshError.value = message
-            }
-
-            FetchMode.LoadMore -> {
-                _loadMoreError.value = message
-            }
-        }
-    }
-
-    private fun finish(mode: FetchMode) {
-        if (mode == FetchMode.Refresh) _isRefreshing.value = false
-        if (mode == FetchMode.LoadMore) _isLoadingMore.value = false
-    }
-
-    // ─────────────────────────── monthly rollup ───────────────────────────
-
-    private fun loadMonthlyRollup() {
-        val branchId = _selectedBranchId.value ?: return
-        val month =
-            com.companyb.companyapp.ui.screen
-                .parseYearMonthInput(_monthInput.value)
-                ?: defaultMonth
-        rollupGeneration++
-        val generation = rollupGeneration
-        _monthlyRollup.value = UiState.Loading
-        handler.launchStateless(
-            operation = "loadMonthlyRollup",
-            endpoint = "GET /api/branches/$branchId/monthly-summary",
-            block = {
-                apiClient.httpClient.get(ApiRoutes.branchMonthlySummary(branchId)) {
-                    parameter("year", month.year)
-                    parameter("month", month.month.ordinal + 1)
-                }
-            },
-            transform = {
-                // 404 (no remittance submitted that month — the #105 F5 shape) is NOT an
-                // error: the rollup card simply doesn't render. Transform only sees 2xx —
-                // the 404 branch lives in onNonSuccess below.
-                _monthlyRollup.value = UiState.Success(it.body<MonthlyRemittanceSummaryResponse>())
-            },
-            hooks =
-                StatelessHooks(
-// #173 — the generation guard folds into the stale gate (a superseded rollup —
-                    // branch/month switched — must not write any state; a DAILY-mode switch doesn't
-                    // bump the generation — the pre-existing #170 accepted SOFT, benign while DAILY).
-                    stale = { generation != rollupGeneration },
-                    onNonSuccess = { response ->
-                        if (response.status == HttpStatusCode.NotFound) {
-                            _monthlyRollup.value = UiState.Success(null)
-                        } else {
-                            _monthlyRollup.value = UiState.Error("monthly rollup failed: ${response.status.value}")
-                        }
-                    },
-// #170 — the loadReliefDay shape: a transport failure moves Loading → Error
-                    // (terminal) instead of parking on Loading forever (the #168/#169 P5 sibling —
-                    // pre-fix the sole onError-less stateless site parking a UiState on Loading;
-                    // loadSent is onError-less by keep-last design — no state to park).
-                    onError = { e ->
-                        _monthlyRollup.value = UiState.Error(e.message ?: "Unknown error")
-                    },
-                ),
-        )
-    }
-
-    // ─────────────────────────── selection + edit mode ───────────────────────────
-
-    private val _selectedDay = MutableStateFlow<DailySalesSummaryResponse?>(null)
-    val selectedDay: StateFlow<DailySalesSummaryResponse?> = _selectedDay.asStateFlow()
-
-    private val _editMode = MutableStateFlow(false)
-    val editMode: StateFlow<Boolean> = _editMode.asStateFlow()
-
-    fun selectDay(day: DailySalesSummaryResponse?) {
-        _selectedDay.value = day
-    }
-
-    // ─────────────────────────── relief day entry (#158) ───────────────────────────
-
-    private val _reliefDay = MutableStateFlow<UiState<DailySalesSummaryResponse>>(UiState.Idle)
-    val reliefDay: StateFlow<UiState<DailySalesSummaryResponse>> = _reliefDay.asStateFlow()
+    internal val reliefDayState = MutableStateFlow<UiState<DailySalesSummaryResponse>>(UiState.Idle)
+    val reliefDay: StateFlow<UiState<DailySalesSummaryResponse>> = reliefDayState.asStateFlow()
 
     /** Generation guard for [loadReliefDay] — a superseded relief fetch stays inert (the #143 class). */
-    private var reliefGeneration = 0
+    internal var reliefGeneration = 0
 
     /**
      * #158 — the relief day-scoped read entry: a BRANCH_DAY grant holder (no VIEW_BRANCH_DATA)
@@ -524,130 +200,21 @@ class FinanceReportsViewModel(
      * which a relief delegate has none of). Success seeds [selectedDay] so the day detail +
      * editor flows work off the same state.
      */
-    fun loadReliefDay(date: String) {
-        val branchId =
-            SessionState.selectedBranchId.value
-                ?: run {
-                    _reliefDay.value = UiState.Error("No clocked-in branch")
-                    return
-                }
-        // Pass-1 HARD (P3/P4) — the #144-ack/browse stale-state class: a relief-day switch
-        // while editing must not leave the OLD day's edit sections armed (editExpenses etc.
-        // hold the previous day's rows; a later Edit toggle would mutate the wrong day).
-        // Mirrors refreshWindowAndFeed's reset + loadSection's generation guard. The state
-        // write is manual (the state-less #168 launch writes no Loading/Success) so a
-        // superseded response never lands Success on the UI. The VM's [_selectedBranchId] is
-        // deliberately NOT touched:
-        // the relief surface reads the clocked-in branch from SessionState (pass-2 HARD —
-        // writing it would pin the hybrid's reports surface to the relief branch).
-        reliefGeneration++
-        val generation = reliefGeneration
-        _editMode.value = false
-        _selectedDay.value = null
-        clearEditData()
-        _reliefDay.value = UiState.Loading
-        handler.launchStateless(
-            operation = "loadReliefDay",
-            endpoint = "GET /api/branches/$branchId/daily-summary?date=$date",
-            block = { apiClient.httpClient.get(ApiRoutes.branchDailySummaryWithDate(branchId, date)) },
-            transform = {
-                val day = it.body<DailySalesSummaryResponse>()
-                _reliefDay.value = UiState.Success(day)
-                selectDay(day)
-            },
-            hooks =
-                StatelessHooks(
-// #173 — the generation guard folds into the stale gate (a superseded relief
-                    // fetch — clearReliefState or a new date — must not write [reliefDay]/[selectedDay]).
-                    stale = { generation != reliefGeneration },
-                    onNonSuccess = { response ->
-                        _reliefDay.value = UiState.Error("loadReliefDay failed: ${response.status.value}")
-                    },
-                    onError = { e ->
-                        _reliefDay.value = UiState.Error(e.message ?: "Unknown error")
-                    },
-                ),
-        )
-    }
+    internal val editExpensesState = MutableStateFlow<UiState<List<ExpenseResponse>>>(UiState.Idle)
+    val editExpenses: StateFlow<UiState<List<ExpenseResponse>>> = editExpensesState.asStateFlow()
 
-    /**
-     * #158 pass-2 — the hybrid exit path: leaving the relief section clears its state so a
-     * re-entry via the chip starts clean (no stale day under a fresh date input).
-     */
-    fun clearReliefState() {
-        reliefGeneration++
-        _reliefDay.value = UiState.Idle
-        _editMode.value = false
-        _selectedDay.value = null
-        clearEditData()
-    }
+    internal val editCompensationsState = MutableStateFlow<UiState<List<CompensationResponse>>>(UiState.Idle)
+    val editCompensations: StateFlow<UiState<List<CompensationResponse>>> = editCompensationsState.asStateFlow()
 
-    /**
-     * #105 D1 — Edit-toggle visibility, #156 branch-scoped: the checks resolve against the
-     * VIEWED branch ([_selectedBranchId] — the branch the day data belongs to, switchable via
-     * the picker; defaults to the clocked-in branch). The backend resolves the same branch
-     * from the day row (`CapabilityFilter.requireBranchCapability`), so the toggle, the
-     * section loads and the backend 403s all agree. A null viewed branch fails closed.
-     */
-    fun hasAssignCapability(): Boolean =
-        SessionState.capabilities.value.hasCapability(
-            CapabilityCodes.ASSIGN_COMPENSATION,
-            CapabilityContextType.BRANCH,
-            _selectedBranchId.value,
-        )
+    internal val editAllowancesState = MutableStateFlow<UiState<List<AllowanceResponse>>>(UiState.Idle)
+    val editAllowances: StateFlow<UiState<List<AllowanceResponse>>> = editAllowancesState.asStateFlow()
 
-    /**
-     * #105 D1/#156 — the EDIT_BRANCH_DATA leg of the edit-toggle check, now with the
-     * #158 day leg: the BRANCH triple at the viewed branch OR a BRANCH_DAY relief grant
-     * for the VIEWED day ([_selectedDay] — the day row the backend gates via; a relief
-     * delegate edits their granted day without any BRANCH grant). A null day fails the
-     * day leg closed.
-     */
-    fun hasEditBranchDataCapability(): Boolean =
-        SessionState.capabilities.value.hasBranchOrDayCapability(
-            CapabilityCodes.EDIT_BRANCH_DATA,
-            _selectedBranchId.value,
-            _selectedDay.value?.branchDayId,
-        )
-
-    fun hasEditCapabilities(): Boolean {
-        val caps = SessionState.capabilities.value
-        val branchId = _selectedBranchId.value
-        // #158 — the EDIT_BRANCH_DATA leg includes the day-scoped relief grant; the
-        // ASSIGN_COMPENSATION + EDIT_PAST_DAY legs stay BRANCH-only (not relief-eligible,
-        // per the #157 surface).
-        return hasEditBranchDataCapability() ||
-            caps.hasCapability(CapabilityCodes.ASSIGN_COMPENSATION, CapabilityContextType.BRANCH, branchId) ||
-            caps.hasCapability(CapabilityCodes.EDIT_PAST_DAY, CapabilityContextType.BRANCH, branchId)
-    }
-
-    fun setEditMode(on: Boolean) {
-        if (on == _editMode.value) return
-        _editMode.value = on
-        if (on) {
-            loadEditData()
-        } else {
-            clearEditData()
-        }
-    }
-
-    // ─────────────────────────── edit data ───────────────────────────
-
-    private val _editExpenses = MutableStateFlow<UiState<List<ExpenseResponse>>>(UiState.Idle)
-    val editExpenses: StateFlow<UiState<List<ExpenseResponse>>> = _editExpenses.asStateFlow()
-
-    private val _editCompensations = MutableStateFlow<UiState<List<CompensationResponse>>>(UiState.Idle)
-    val editCompensations: StateFlow<UiState<List<CompensationResponse>>> = _editCompensations.asStateFlow()
-
-    private val _editAllowances = MutableStateFlow<UiState<List<AllowanceResponse>>>(UiState.Idle)
-    val editAllowances: StateFlow<UiState<List<AllowanceResponse>>> = _editAllowances.asStateFlow()
-
-    private val _editUsers = MutableStateFlow<UiState<List<BranchDayUserResponse>>>(UiState.Idle)
-    val editUsers: StateFlow<UiState<List<BranchDayUserResponse>>> = _editUsers.asStateFlow()
+    internal val editUsersState = MutableStateFlow<UiState<List<BranchDayUserResponse>>>(UiState.Idle)
+    val editUsers: StateFlow<UiState<List<BranchDayUserResponse>>> = editUsersState.asStateFlow()
 
     // Per-action inline errors (ADR-0022 pessimistic axis) keyed by action key + per-action
     // in-flight guard (double-tap closure).
-    private val actionTracker = ActionTracker<String>()
+    internal val actionTracker = ActionTracker<String>()
     val editErrors: StateFlow<Map<String, String>> = actionTracker.errors
 
     // One-shot conflict signal (pass-1 HARD, pass-2 reworked): a 409 adds the key to a NEW Set
@@ -657,513 +224,16 @@ class FinanceReportsViewModel(
     // repeat 409 on the same row re-emits, and a persisted key can never slam a LATER fresh
     // dialog shut. (Create-conflict keys — comp:create etc. — are never consumed; they surface
     // only as inline errors on dialogs that close on dismiss, and clearEditData clears them.)
-    private val _conflicts = MutableStateFlow<Set<String>>(emptySet())
-    val conflicts: StateFlow<Set<String>> = _conflicts.asStateFlow()
+    internal val conflictsState = MutableStateFlow<Set<String>>(emptySet())
+    val conflicts: StateFlow<Set<String>> = conflictsState.asStateFlow()
 
     fun consumeConflict(key: String) {
-        _conflicts.value = _conflicts.value - key
+        conflictsState.value = conflictsState.value - key
     }
 
     val inFlightActions: StateFlow<Set<String>> = actionTracker.inFlight
 
-    private var editDataGeneration = 0
-
-    fun loadEditData() {
-        val day = _selectedDay.value ?: return
-        val branchDayId = day.branchDayId
-        editDataGeneration++
-        val generation = editDataGeneration
-        if (hasEditBranchDataCapability()) {
-            loadSection(
-                generation,
-                _editExpenses,
-                "expenses",
-                ApiRoutes.EXPENSES,
-                params = listOf("branchDayId" to branchDayId),
-                errorKeyPrefixes = listOf("expense:"),
-            )
-        }
-        if (hasAssignCapability()) {
-            loadSection(
-                generation,
-                _editCompensations,
-                "compensations",
-                ApiRoutes.COMPENSATIONS,
-                params = listOf("branchDayId" to branchDayId),
-                errorKeyPrefixes = listOf("comp:"),
-            )
-            loadSection(
-                generation,
-                _editAllowances,
-                "allowances",
-                ApiRoutes.ALLOWANCES,
-                params = listOf("branchDayId" to branchDayId),
-                errorKeyPrefixes = listOf("allow:"),
-            )
-            loadSection(
-                generation,
-                _editUsers,
-                "branch-day users",
-                ApiRoutes.branchDayUsers(branchDayId),
-                params = emptyList(),
-            )
-        }
-    }
-
-    fun reloadSection(section: EditSection) {
-        val day = _selectedDay.value ?: return
-        val generation = editDataGeneration
-        when (section) {
-            EditSection.EXPENSES -> {
-                loadSection(
-                    generation,
-                    _editExpenses,
-                    "expenses",
-                    ApiRoutes.EXPENSES,
-                    params = listOf("branchDayId" to day.branchDayId),
-                    errorKeyPrefixes = listOf("expense:"),
-                )
-            }
-
-            EditSection.COMPENSATIONS -> {
-                loadSection(
-                    generation,
-                    _editCompensations,
-                    "compensations",
-                    ApiRoutes.COMPENSATIONS,
-                    params = listOf("branchDayId" to day.branchDayId),
-                    errorKeyPrefixes = listOf("comp:"),
-                )
-            }
-
-            EditSection.ALLOWANCES -> {
-                loadSection(
-                    generation,
-                    _editAllowances,
-                    "allowances",
-                    ApiRoutes.ALLOWANCES,
-                    params = listOf("branchDayId" to day.branchDayId),
-                    errorKeyPrefixes = listOf("allow:"),
-                )
-            }
-        }
-    }
-
-    @Suppress("LongParameterList")
-    private inline fun <reified T> loadSection(
-        generation: Int,
-        state: MutableStateFlow<UiState<List<T>>>,
-        operation: String,
-        endpoint: String,
-        params: List<Pair<String, String>>,
-        errorKeyPrefixes: List<String> = emptyList(),
-    ) {
-        handler.launchStateless(
-            operation = operation,
-            endpoint = "GET $endpoint",
-            block = {
-                apiClient.httpClient.get(endpoint) {
-                    params.forEach { (k, v) -> parameter(k, v) }
-                }
-            },
-            transform = {
-                val list = it.body<List<T>>()
-                state.value = UiState.Success(list)
-                // #143 class — a fresh list supersedes the section's stale action
-                // errors (e.g. a 409-reload landing beside its own error line).
-                if (errorKeyPrefixes.isNotEmpty()) {
-                    actionTracker.clearWhere { key -> errorKeyPrefixes.any { key.startsWith(it) } }
-                }
-            },
-            hooks =
-                StatelessHooks(
-// #173 — the generation guard folds into the stale gate (a superseded day/branch
-                    // section load — clearEditData during flight — must not repopulate cleared state).
-                    stale = { generation != editDataGeneration },
-                    onNonSuccess = { response ->
-                        state.value = UiState.Error("$operation failed: ${response.status.value}")
-                    },
-                    onError = { e ->
-                        // Transport or deserialization failure: route to the section's error state —
-                        // gated by the stale flag so a superseded day/branch load can't error the
-                        // cleared sections. onError is that single surface (#169).
-                        state.value = UiState.Error("$operation failed: ${e.message ?: "network error"}")
-                    },
-                ),
-        )
-    }
-
-    private fun clearEditData() {
-        // P4 pass-1: bumping the generation makes in-flight section loads from a superseded
-        // day/branch inert — they must not repopulate the cleared sections.
-        editDataGeneration++
-        _editExpenses.value = UiState.Idle
-        _editCompensations.value = UiState.Idle
-        _editAllowances.value = UiState.Idle
-        _editUsers.value = UiState.Idle
-        actionTracker.clear()
-        _conflicts.value = emptySet()
-    }
-
-    // ─────────────────────────── expense actions ───────────────────────────
-
-    fun createExpense(
-        amount: String,
-        categoryCode: String,
-        notes: String?,
-        reason: String?,
-    ) {
-        val day = _selectedDay.value ?: return
-        val key = "expense:create"
-        if (!actionTracker.tryBegin(key)) return
-        val generation = editDataGeneration
-        handler.launchStateless(
-            operation = "createExpense",
-            endpoint = "POST /api/expenses",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.EXPENSES) {
-                    setBody(
-                        CreateExpenseRequest(
-                            id = newId(),
-                            branchDayId = day.branchDayId,
-                            amount = amount,
-                            category =
-                                com.companyb.companyapp.domain.ExpenseCategory
-                                    .valueOf(categoryCode),
-                            notes = notes,
-                            reason = reason,
-                        ),
-                    )
-                }
-            },
-            transform = {
-                val created = it.body<ExpenseResponse>()
-                val current = _editExpenses.value
-                if (current is UiState.Success) {
-                    _editExpenses.value = UiState.Success(current.data + created)
-                } else {
-                    // Pass-8 SOFT — appending onto an Error section would truncate the
-                    // list to the new row; reload the section instead.
-                    reloadSection(EditSection.EXPENSES)
-                }
-                actionTracker.finish(key)
-            },
-            hooks =
-                StatelessHooks(
-// #173 — a superseded action (branch/day switched mid-flight) is inert: no row
-                    // write onto the new day's sections, no tracker terminal (clearEditData cleared it).
-                    stale = { generation != editDataGeneration },
-                    onNonSuccess = { response ->
-                        failActionOrSilent403(key, "expense:create", response)
-                    },
-                    onError = { e ->
-                        // Pass-9 HARD — a transport/timeout failure must keep the dialog open with an
-                        // inline error (the close-on-success effect keys on the ABSENCE of an error).
-                        actionTracker.fail(key, "expense:create failed: ${e.message ?: "network error"}")
-                    },
-                ),
-        )
-    }
-
-    fun updateExpense(
-        expense: ExpenseResponse,
-        amount: String,
-        categoryCode: String,
-        notes: String?,
-        reason: String?,
-    ) {
-        val key = "expense:update:${expense.id}"
-        if (!actionTracker.tryBegin(key)) return
-        val generation = editDataGeneration
-        handler.launchStateless(
-            operation = "updateExpense",
-            endpoint = "PATCH /api/expenses/${expense.id}",
-            block = {
-                apiClient.httpClient.patch(ApiRoutes.expense(expense.id)) {
-                    setBody(
-                        UpdateExpenseRequest(
-                            amount = amount,
-                            category =
-                                com.companyb.companyapp.domain.ExpenseCategory
-                                    .valueOf(categoryCode),
-                            notes = notes,
-                            expectedVersion = expense.version,
-                            reason = reason,
-                        ),
-                    )
-                }
-            },
-            transform = {
-                val updated = it.body<ExpenseResponse>()
-                replaceExpenseRow(updated)
-                actionTracker.finish(key)
-            },
-            hooks =
-                StatelessHooks(
-// #173 — the superseded-PATCH gate folds into the stale flag (a branch/day switch
-                    // mid-flight must leave the action + its tracker terminal inert).
-                    stale = { generation != editDataGeneration },
-                    onNonSuccess = { response ->
-                        failActionOrSilent403(
-                            key,
-                            "expense:update",
-                            response,
-                            conflictMessage = "Expense changed elsewhere — reloaded",
-                        ) {
-                            reloadSection(EditSection.EXPENSES)
-                        }
-                    },
-                    onError = { e ->
-                        actionTracker.fail(key, "expense:update failed: ${e.message ?: "network error"}")
-                    },
-                ),
-        )
-    }
-
-    fun deleteExpense(
-        expense: ExpenseResponse,
-        reason: String,
-    ) {
-        val key = "expense:delete:${expense.id}"
-        if (!actionTracker.tryBegin(key)) return
-        val generation = editDataGeneration
-        handler.launchStateless(
-            operation = "deleteExpense",
-            endpoint = "DELETE /api/expenses/${expense.id}",
-            block = {
-                apiClient.httpClient.delete(ApiRoutes.expense(expense.id)) {
-                    setBody(DeleteExpenseRequest(reason = reason))
-                }
-            },
-            transform = {
-                val deleted = it.body<ExpenseResponse>()
-                replaceExpenseRow(deleted)
-                actionTracker.finish(key)
-            },
-            hooks =
-                StatelessHooks(
-                    stale = { generation != editDataGeneration },
-                    onNonSuccess = { response ->
-                        failActionOrSilent403(key, "expense:delete", response)
-                    },
-                    onError = { e ->
-                        actionTracker.fail(key, "expense:delete failed: ${e.message ?: "network error"}")
-                    },
-                ),
-        )
-    }
-
-    fun restoreExpense(
-        expense: ExpenseResponse,
-        reason: String?,
-    ) {
-        val key = "expense:restore:${expense.id}"
-        if (!actionTracker.tryBegin(key)) return
-        val generation = editDataGeneration
-        handler.launchStateless(
-            operation = "restoreExpense",
-            endpoint = "POST /api/expenses/${expense.id}/restore",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.expenseRestore(expense.id)) {
-                    setBody(RestoreExpenseRequest(reason = reason))
-                }
-            },
-            transform = {
-                val restored = it.body<ExpenseResponse>()
-                replaceExpenseRow(restored)
-                actionTracker.finish(key)
-            },
-            hooks =
-                StatelessHooks(
-                    stale = { generation != editDataGeneration },
-                    onNonSuccess = { response ->
-                        failActionOrSilent403(key, "expense:restore", response)
-                    },
-                    onError = { e ->
-                        // Pass-10 HARD — the one onError the pass-9 batch missed: a transport failure
-                        // must keep the restore dialog open with an inline error (the close-on-success
-                        // effect keys on the ABSENCE of an error).
-                        actionTracker.fail(key, "expense:restore failed: ${e.message ?: "network error"}")
-                    },
-                ),
-        )
-    }
-
-    private fun replaceExpenseRow(updated: ExpenseResponse) {
-        val current =
-            (_editExpenses.value as? UiState.Success<List<ExpenseResponse>>)
-                ?.data
-                .orEmpty()
-        _editExpenses.value =
-            UiState.Success(current.map { if (it.id == updated.id) updated else it })
-    }
-
-    // ─────────────────────────── compensation actions ───────────────────────────
-
-    fun createCompensation(
-        userId: String,
-        amount: String,
-        note: String?,
-        reason: String?,
-    ) {
-        val day = _selectedDay.value ?: return
-        val key = "comp:create"
-        if (!actionTracker.tryBegin(key)) return
-        val generation = editDataGeneration
-        handler.launchStateless(
-            operation = "createCompensation",
-            endpoint = "POST /api/compensation",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.COMPENSATION) {
-                    setBody(
-                        CreateCompensationRequest(
-                            id = newId(),
-                            workBranchDayId = day.branchDayId,
-                            payingBranchDayId = day.branchDayId,
-                            userId = userId,
-                            amount = amount,
-                            note = note,
-                            reason = reason,
-                        ),
-                    )
-                }
-            },
-            transform = {
-                val created = it.body<CompensationResponse>()
-                val current = _editCompensations.value
-                if (current is UiState.Success) {
-                    _editCompensations.value = UiState.Success(current.data + created)
-                } else {
-                    reloadSection(EditSection.COMPENSATIONS)
-                }
-                actionTracker.finish(key)
-            },
-            hooks =
-                StatelessHooks(
-                    stale = { generation != editDataGeneration },
-                    onNonSuccess = { response ->
-                        // #101 D4 — 409 duplicate (one per user per paying day) → inline error on the
-                        // picker; the row is already compensated (the list shows it).
-                        failActionOrSilent403(
-                            key,
-                            "comp:create",
-                            response,
-                            conflictMessage = "Already compensated on this day",
-                        )
-                    },
-                    onError = { e ->
-                        actionTracker.fail(key, "comp:create failed: ${e.message ?: "network error"}")
-                    },
-                ),
-        )
-    }
-
-    fun updateCompensation(
-        compensation: CompensationResponse,
-        amount: String,
-        note: String?,
-        reason: String?,
-    ) {
-        val key = "comp:update:${compensation.id}"
-        if (!actionTracker.tryBegin(key)) return
-        val generation = editDataGeneration
-        handler.launchStateless(
-            operation = "updateCompensation",
-            endpoint = "PATCH /api/compensation/${compensation.id}",
-            block = {
-                apiClient.httpClient.patch(ApiRoutes.compensation(compensation.id)) {
-                    setBody(
-                        UpdateCompensationRequest(
-                            amount = amount,
-                            expectedVersion = compensation.version,
-                            note = note,
-                            reason = reason,
-                        ),
-                    )
-                }
-            },
-            transform = {
-                val updated = it.body<CompensationResponse>()
-                _editCompensations.value =
-                    UiState.Success(
-                        (_editCompensations.value as? UiState.Success<List<CompensationResponse>>)
-                            ?.data
-                            .orEmpty()
-                            .map { row -> if (row.id == updated.id) updated else row },
-                    )
-                actionTracker.finish(key)
-            },
-            hooks =
-                StatelessHooks(
-                    stale = { generation != editDataGeneration },
-                    onNonSuccess = { response ->
-                        failActionOrSilent403(
-                            key,
-                            "comp:update",
-                            response,
-                            conflictMessage = "Compensation changed elsewhere — reloaded",
-                        ) {
-                            reloadSection(EditSection.COMPENSATIONS)
-                        }
-                    },
-                    onError = { e ->
-                        actionTracker.fail(key, "comp:update failed: ${e.message ?: "network error"}")
-                    },
-                ),
-        )
-    }
-
-    // ─────────────────────────── allowance actions ───────────────────────────
-
-    fun createAllowance(
-        userId: String,
-        amount: String,
-        reason: String?,
-    ) {
-        val day = _selectedDay.value ?: return
-        val key = "allow:create"
-        if (!actionTracker.tryBegin(key)) return
-        val generation = editDataGeneration
-        handler.launchStateless(
-            operation = "createAllowance",
-            endpoint = "POST /api/allowances",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.ALLOWANCES) {
-                    setBody(
-                        CreateAllowanceRequest(
-                            id = newId(),
-                            branchDayId = day.branchDayId,
-                            userId = userId,
-                            amount = amount,
-                            reason = reason,
-                        ),
-                    )
-                }
-            },
-            transform = {
-                val created = it.body<AllowanceResponse>()
-                val current = _editAllowances.value
-                if (current is UiState.Success) {
-                    _editAllowances.value = UiState.Success(current.data + created)
-                } else {
-                    reloadSection(EditSection.ALLOWANCES)
-                }
-                actionTracker.finish(key)
-            },
-            hooks =
-                StatelessHooks(
-                    stale = { generation != editDataGeneration },
-                    onNonSuccess = { response ->
-                        failActionOrSilent403(key, "allow:create", response)
-                    },
-                    onError = { e ->
-                        actionTracker.fail(key, "allow:create failed: ${e.message ?: "network error"}")
-                    },
-                ),
-        )
-    }
-
-    // ─────────────────────────── exports (D6) ───────────────────────────
+    internal var editDataGeneration = 0
 
     data class DownloadPayload(
         val fileName: String,
@@ -1171,187 +241,11 @@ class FinanceReportsViewModel(
     )
 
     /** Export keys: `mode:<branchId>:<mode>:<format>`, `day:<branchDayId>:<format>`, `public:<kind>:<format>`. */
-    private val _downloads = MutableStateFlow<Map<String, UiState<DownloadPayload>>>(emptyMap())
-    val downloads: StateFlow<Map<String, UiState<DownloadPayload>>> = _downloads.asStateFlow()
+    internal val downloadsState = MutableStateFlow<Map<String, UiState<DownloadPayload>>>(emptyMap())
+    val downloads: StateFlow<Map<String, UiState<DownloadPayload>>> = downloadsState.asStateFlow()
 
-    private val _exportErrors = MutableStateFlow<Map<String, String>>(emptyMap())
-    val exportErrors: StateFlow<Map<String, String>> = _exportErrors.asStateFlow()
-
-    fun exportMode(
-        key: String,
-        url: String,
-    ) {
-        if (_downloads.value.containsKey(key) && _downloads.value[key] is UiState.Loading) return
-        _exportErrors.value = _exportErrors.value - key
-        _downloads.value = _downloads.value + (key to UiState.Loading)
-        handler.launchStateless(
-            operation = "export:$key",
-            endpoint = "GET export $key",
-            block = { apiClient.httpClient.get(url) },
-            transform = {
-                _downloads.value =
-                    _downloads.value +
-                    (key to UiState.Success(DownloadPayload(fileName = fileNameOf(it), bytes = it.readRawBytes())))
-            },
-            hooks =
-                StatelessHooks(
-                    onNonSuccess = { response ->
-                        _downloads.value = _downloads.value - key
-                        _exportErrors.value = _exportErrors.value + (key to "Export failed: ${response.status.value}")
-                    },
-                    onError = { e ->
-                        _downloads.value = _downloads.value - key
-                        _exportErrors.value =
-                            _exportErrors.value + (key to "Export failed: ${e.message ?: "network error"}")
-                    },
-                ),
-        )
-    }
-
-    fun modeExportUrl(
-        mode: ReportMode,
-        branchId: String,
-        format: String,
-    ): String =
-        when (mode) {
-            // DAILY deliberately absent: no toolbar export (D4 — per-day only, in the detail).
-            ReportMode.DAILY -> {
-                ""
-            }
-
-            ReportMode.MONTHLY -> {
-                val month =
-                    com.companyb.companyapp.ui.screen
-                        .parseYearMonthInput(_monthInput.value) ?: defaultMonth
-                ApiRoutes.branchExportWithQuery(
-                    ApiRoutes.branchExportMonthly(branchId),
-                    "year=${month.year}&month=${month.month.ordinal + 1}&format=$format",
-                )
-            }
-
-            ReportMode.ALL_TIME -> {
-                ApiRoutes.branchExportWithQuery(ApiRoutes.branchExportAllTime(branchId), "format=$format")
-            }
-
-            ReportMode.DATE_RANGE -> {
-                val range = _appliedRange.value
-                if (range != null) {
-                    ApiRoutes.branchExportWithQuery(
-                        ApiRoutes.branchExportRange(branchId),
-                        "from=${range.first}&to=${range.second}&format=$format",
-                    )
-                } else {
-                    ""
-                }
-            }
-        }
-
-    fun exportDay(
-        day: DailySalesSummaryResponse,
-        branchId: String,
-        format: String,
-    ) {
-        // Keyed on branchDayId (pass-4/5 HARD): the date alone collides across branches — an
-        // in-flight branch-A export would block + mislabel branch B's same-date row. The
-        // screen's ExportButtons look up the SAME key (both sides must agree).
-        exportMode(
-            key = "day:${day.branchDayId}:$format",
-            url =
-                ApiRoutes.branchExportWithQuery(
-                    ApiRoutes.branchExportDaily(branchId),
-                    "date=${day.date}&format=$format",
-                ),
-        )
-    }
-
-    fun exportPublic(
-        kind: String,
-        format: String,
-    ) {
-        exportMode(
-            key = "public:$kind:$format",
-            url = ApiRoutes.branchExportWithQuery("${ApiRoutes.BRANCHES_EXPORT}/$kind", "format=$format"),
-        )
-    }
-
-    /** #105 D4 — the toolbar's mode export (Daily has none — per-day only, in the detail). */
-    fun exportModeCurrent(format: String) {
-        val branchId = _selectedBranchId.value ?: return
-        val url = modeExportUrl(_mode.value, branchId, format)
-        if (url.isEmpty()) return
-        // Keyed on branchId (pass-9 SOFT): a late landing from a superseded branch must not
-        // block/mislabel the current branch's export.
-        exportMode(
-            key = "mode:$branchId:${_mode.value.name}:$format",
-            url = url,
-        )
-    }
-
-    fun consumeDownload(key: String) {
-        _downloads.value = _downloads.value - key
-    }
-
-    private fun fileNameOf(response: HttpResponse): String {
-        val disposition = response.headers[HttpHeaders.ContentDisposition]
-        val quoted =
-            disposition
-                ?.substringAfter("filename=\"", missingDelimiterValue = "")
-                ?.substringBefore('"')
-                ?.takeIf { it.isNotBlank() }
-        return quoted ?: "companyapp-export.${extensionOf(response)}"
-    }
-
-    private fun extensionOf(response: HttpResponse): String {
-        val type = response.contentType()
-        return when (type?.withoutParameters()?.toString()) {
-            "application/pdf" -> "pdf"
-            "text/csv" -> "csv"
-            else -> "bin"
-        }
-    }
-
-    // ─────────────────────────── helpers ───────────────────────────
-
-    /**
-     * ADR-0022 / #113 D4 — 403s exit silently (the capability surface is code-only; the backend
-     * is authoritative and a silent exit must not flash an error the user can't act on).
-     * 409 = conflict → message + section reload; other statuses → generic inline error.
-     */
-    private fun failActionOrSilent403(
-        key: String,
-        operation: String,
-        response: HttpResponse,
-        conflictMessage: String? = null,
-        reload: (() -> Unit)? = null,
-    ) {
-        if (response.status == HttpStatusCode.Forbidden) {
-            actionTracker.finish(key)
-            return
-        }
-        val message =
-            when {
-                response.status == HttpStatusCode.Conflict && conflictMessage != null -> conflictMessage
-                else -> "$operation failed: ${response.status.value}"
-            }
-        actionTracker.fail(key, message)
-        if (response.status == HttpStatusCode.Conflict) {
-            _conflicts.value = _conflicts.value + key
-            reload?.invoke()
-        }
-    }
-
-    private fun newId(): String =
-        kotlin.uuid.Uuid
-            .random()
-            .toString()
-
-    private enum class FetchMode(
-        val operationName: String,
-    ) {
-        Cold("loadFeed"),
-        Refresh("refreshFeed"),
-        LoadMore("loadMore"),
-    }
+    internal val exportErrorsState = MutableStateFlow<Map<String, String>>(emptyMap())
+    val exportErrors: StateFlow<Map<String, String>> = exportErrorsState.asStateFlow()
 
     companion object {
         internal const val FEED_PAGE_SIZE = 20
