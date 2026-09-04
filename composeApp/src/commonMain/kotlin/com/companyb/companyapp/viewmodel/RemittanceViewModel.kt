@@ -2,9 +2,7 @@ package com.companyb.companyapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
-import com.companyb.companyapp.dto.AddDayBreakdownRequest
 import com.companyb.companyapp.dto.CreateRemittanceDraftRequest
-import com.companyb.companyapp.dto.CreateRemittanceLineRequest
 import com.companyb.companyapp.dto.RemittanceDayBreakdownResponse
 import com.companyb.companyapp.dto.RemittanceDayPickerEntryResponse
 import com.companyb.companyapp.dto.RemittanceDetailResponse
@@ -14,18 +12,12 @@ import com.companyb.companyapp.dto.RemittanceProductSalePickerEntryResponse
 import com.companyb.companyapp.dto.RemittanceResponse
 import com.companyb.companyapp.dto.RemittanceSessionPickerEntryResponse
 import com.companyb.companyapp.dto.RemittanceSubmitResponse
-import com.companyb.companyapp.dto.SubmitRemittanceRequest
-import com.companyb.companyapp.dto.UndoRemittanceRequest
-import com.companyb.companyapp.dto.UpdateRemittanceHeaderRequest
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
-import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
-import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
-import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,9 +40,9 @@ fun remittanceListKey(
  * - Any other non-success → generic Error surfaced by the screen.
  */
 class RemittanceViewModel(
-    private val apiClient: ApiClient,
+    internal val apiClient: ApiClient,
 ) : ViewModel() {
-    private val handler = ApiCallHandler(viewModelScope, "RemittanceVM")
+    internal val handler = ApiCallHandler(viewModelScope, "RemittanceVM")
 
     // D1 — list (status-filtered, one tab at a time).
     private val _remittanceList = MutableStateFlow<UiState<List<RemittanceResponse>>>(UiState.Idle)
@@ -135,40 +127,40 @@ class RemittanceViewModel(
     val dayPicker: StateFlow<UiState<List<RemittanceDayPickerEntryResponse>>> = _dayPicker.asStateFlow()
 
     // D3 — line mutations (version-bumped server-side; no expectedVersion in the request body).
-    private val _lineResult = MutableStateFlow<UiState<RemittanceLineResponse>>(UiState.Idle)
-    val lineResult: StateFlow<UiState<RemittanceLineResponse>> = _lineResult.asStateFlow()
+    internal val lineResultState = MutableStateFlow<UiState<RemittanceLineResponse>>(UiState.Idle)
+    val lineResult: StateFlow<UiState<RemittanceLineResponse>> = lineResultState.asStateFlow()
 
-    private val _deleteLineResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
-    val deleteLineResult: StateFlow<UiState<Unit>> = _deleteLineResult.asStateFlow()
+    internal val deleteLineResultState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val deleteLineResult: StateFlow<UiState<Unit>> = deleteLineResultState.asStateFlow()
 
     // D4 — day-breakdown mutations (#118 G5 DELETE).
-    private val _dayBreakdownResult = MutableStateFlow<UiState<RemittanceDayBreakdownResponse>>(UiState.Idle)
+    internal val dayBreakdownResultState = MutableStateFlow<UiState<RemittanceDayBreakdownResponse>>(UiState.Idle)
     val dayBreakdownResult: StateFlow<UiState<RemittanceDayBreakdownResponse>> =
-        _dayBreakdownResult.asStateFlow()
+        dayBreakdownResultState.asStateFlow()
 
-    private val _dayBreakdownDeleteResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
-    val dayBreakdownDeleteResult: StateFlow<UiState<Unit>> = _dayBreakdownDeleteResult.asStateFlow()
+    internal val dayBreakdownDeleteResultState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val dayBreakdownDeleteResult: StateFlow<UiState<Unit>> = dayBreakdownDeleteResultState.asStateFlow()
 
     // D5 — submit.
-    private val _submitResult = MutableStateFlow<UiState<RemittanceSubmitResponse>>(UiState.Idle)
-    val submitResult: StateFlow<UiState<RemittanceSubmitResponse>> = _submitResult.asStateFlow()
+    internal val submitResultState = MutableStateFlow<UiState<RemittanceSubmitResponse>>(UiState.Idle)
+    val submitResult: StateFlow<UiState<RemittanceSubmitResponse>> = submitResultState.asStateFlow()
 
     // D10 — undo.
-    private val _undoResult = MutableStateFlow<UiState<RemittanceResponse>>(UiState.Idle)
-    val undoResult: StateFlow<UiState<RemittanceResponse>> = _undoResult.asStateFlow()
+    internal val undoResultState = MutableStateFlow<UiState<RemittanceResponse>>(UiState.Idle)
+    val undoResult: StateFlow<UiState<RemittanceResponse>> = undoResultState.asStateFlow()
 
     // D9 — header PATCH.
-    private val _headerUpdateResult = MutableStateFlow<UiState<RemittanceResponse>>(UiState.Idle)
-    val headerUpdateResult: StateFlow<UiState<RemittanceResponse>> = _headerUpdateResult.asStateFlow()
+    internal val headerUpdateResultState = MutableStateFlow<UiState<RemittanceResponse>>(UiState.Idle)
+    val headerUpdateResult: StateFlow<UiState<RemittanceResponse>> = headerUpdateResultState.asStateFlow()
 
     // D6 — drift (lazy: fetched on expander click only, cached after).
-    private val _drift = MutableStateFlow<UiState<RemittanceDriftResponse>>(UiState.Idle)
-    val drift: StateFlow<UiState<RemittanceDriftResponse>> = _drift.asStateFlow()
+    internal val driftState = MutableStateFlow<UiState<RemittanceDriftResponse>>(UiState.Idle)
+    val drift: StateFlow<UiState<RemittanceDriftResponse>> = driftState.asStateFlow()
 
     // ADR-0022 409 axis — a mutation conflicted; the detail was reloaded and the screen shows a
     // one-shot notice so the user knows their edit didn't win.
-    private val _detailChangedNotice = MutableStateFlow(false)
-    val detailChangedNotice: StateFlow<Boolean> = _detailChangedNotice.asStateFlow()
+    internal val detailChangedNoticeState = MutableStateFlow(false)
+    val detailChangedNotice: StateFlow<Boolean> = detailChangedNoticeState.asStateFlow()
 
     // D2 — idempotent create (server-side insertIgnore: a duplicate (branch, type, date) returns
     // the existing draft — the popup treats success as success and refreshes).
@@ -193,7 +185,7 @@ class RemittanceViewModel(
         resetNotice: Boolean = true,
     ) {
         if (resetNotice) {
-            _detailChangedNotice.value = false
+            detailChangedNoticeState.value = false
         }
         handler.launch(
             LaunchRequest(
@@ -274,290 +266,5 @@ class RemittanceViewModel(
                 transform = { it.body() },
             ),
         )
-    }
-
-    fun addLine(
-        remittanceId: String,
-        request: CreateRemittanceLineRequest,
-    ) {
-        handler.launch(
-            LaunchRequest(
-                state = _lineResult,
-                operation = "addLine",
-                endpoint = "POST /api/remittances/$remittanceId/lines",
-                block = {
-                    apiClient.httpClient.post(
-                        ApiRoutes.remittanceLines(remittanceId),
-                    ) {
-                        setBody(request)
-                    }
-                },
-                transform = { it.body() },
-                onNonSuccess = { response ->
-                    when (response.status) {
-                        HttpStatusCode.Forbidden -> {
-                            _lineResult.value = UiState.Idle
-                            true
-                        }
-
-                        HttpStatusCode.Conflict -> {
-                            reloadDetailAfterConflict(_lineResult, remittanceId)
-                        }
-
-                        else -> {
-                            false
-                        }
-                    }
-                },
-            ),
-        )
-    }
-
-    fun deleteLine(
-        remittanceId: String,
-        lineId: String,
-    ) {
-        handler.launchUnit(
-            state = _deleteLineResult,
-            operation = "deleteLine",
-            endpoint = "DELETE /api/remittances/$remittanceId/lines/$lineId",
-            block = {
-                apiClient.httpClient.delete(
-                    ApiRoutes.remittanceLine(remittanceId, lineId),
-                )
-            },
-            hooks =
-                LaunchHooks(
-                    onNonSuccess = { response ->
-                        when (response.status) {
-                            HttpStatusCode.Forbidden -> {
-                                _deleteLineResult.value = UiState.Idle
-                                true
-                            }
-
-                            HttpStatusCode.Conflict -> {
-                                reloadDetailAfterConflict(_deleteLineResult, remittanceId)
-                            }
-
-                            else -> {
-                                false
-                            }
-                        }
-                    },
-                ),
-        )
-    }
-
-    fun addDayBreakdown(
-        remittanceId: String,
-        request: AddDayBreakdownRequest,
-    ) {
-        handler.launch(
-            LaunchRequest(
-                state = _dayBreakdownResult,
-                operation = "addDayBreakdown",
-                endpoint = "POST /api/remittances/$remittanceId/day-breakdowns",
-                block = {
-                    apiClient.httpClient.post(
-                        ApiRoutes.remittanceDayBreakdowns(remittanceId),
-                    ) {
-                        setBody(request)
-                    }
-                },
-                transform = { it.body() },
-                onNonSuccess = { response ->
-                    when (response.status) {
-                        HttpStatusCode.Forbidden -> {
-                            _dayBreakdownResult.value = UiState.Idle
-                            true
-                        }
-
-                        HttpStatusCode.Conflict -> {
-                            reloadDetailAfterConflict(_dayBreakdownResult, remittanceId)
-                        }
-
-                        else -> {
-                            false
-                        }
-                    }
-                },
-            ),
-        )
-    }
-
-    // D4 — day-breakdown remove (#118 G5).
-    fun deleteDayBreakdown(
-        remittanceId: String,
-        breakdownId: String,
-    ) {
-        handler.launchUnit(
-            state = _dayBreakdownDeleteResult,
-            operation = "deleteDayBreakdown",
-            endpoint = "DELETE /api/remittances/$remittanceId/day-breakdowns/$breakdownId",
-            block = {
-                apiClient.httpClient.delete(
-                    ApiRoutes.remittanceDayBreakdown(remittanceId, breakdownId),
-                )
-            },
-            hooks =
-                LaunchHooks(
-                    onNonSuccess = { response ->
-                        when (response.status) {
-                            HttpStatusCode.Forbidden -> {
-                                _dayBreakdownDeleteResult.value = UiState.Idle
-                                true
-                            }
-
-                            HttpStatusCode.Conflict -> {
-                                reloadDetailAfterConflict(_dayBreakdownDeleteResult, remittanceId)
-                            }
-
-                            else -> {
-                                false
-                            }
-                        }
-                    },
-                ),
-        )
-    }
-
-    // D5 — submit (version-locked: expectedVersion comes from the detail).
-    fun submit(
-        remittanceId: String,
-        request: SubmitRemittanceRequest,
-    ) {
-        handler.launch(
-            LaunchRequest(
-                state = _submitResult,
-                operation = "submit",
-                endpoint = "POST /api/remittances/$remittanceId/submit",
-                block = {
-                    apiClient.httpClient.post(
-                        ApiRoutes.remittanceSubmit(remittanceId),
-                    ) {
-                        setBody(request)
-                    }
-                },
-                transform = { it.body() },
-                onNonSuccess = { response ->
-                    when (response.status) {
-                        HttpStatusCode.Forbidden -> {
-                            _submitResult.value = UiState.Idle
-                            true
-                        }
-
-                        HttpStatusCode.Conflict -> {
-                            reloadDetailAfterConflict(_submitResult, remittanceId)
-                        }
-
-                        else -> {
-                            false
-                        }
-                    }
-                },
-            ),
-        )
-    }
-
-    // D10 — undo within 48h (reason required; version-locked).
-    fun undo(
-        remittanceId: String,
-        request: UndoRemittanceRequest,
-    ) {
-        handler.launch(
-            LaunchRequest(
-                state = _undoResult,
-                operation = "undo",
-                endpoint = "POST /api/remittances/$remittanceId/undo",
-                block = {
-                    apiClient.httpClient.post(
-                        ApiRoutes.remittanceUndo(remittanceId),
-                    ) {
-                        setBody(request)
-                    }
-                },
-                transform = { it.body() },
-                onNonSuccess = { response ->
-                    when (response.status) {
-                        HttpStatusCode.Forbidden -> {
-                            _undoResult.value = UiState.Idle
-                            true
-                        }
-
-                        HttpStatusCode.Conflict -> {
-                            reloadDetailAfterConflict(_undoResult, remittanceId)
-                        }
-
-                        else -> {
-                            false
-                        }
-                    }
-                },
-            ),
-        )
-    }
-
-    // D9 — header PATCH (draft-only, version-locked).
-    fun updateHeader(
-        remittanceId: String,
-        request: UpdateRemittanceHeaderRequest,
-    ) {
-        handler.launch(
-            LaunchRequest(
-                state = _headerUpdateResult,
-                operation = "updateHeader",
-                endpoint = "PATCH /api/remittances/$remittanceId",
-                entryMessage = "updateHeader called: remittanceId=$remittanceId",
-                block = {
-                    apiClient.httpClient.patch(ApiRoutes.remittance(remittanceId)) {
-                        setBody(request)
-                    }
-                },
-                transform = { it.body() },
-                onNonSuccess = { response ->
-                    when (response.status) {
-                        HttpStatusCode.Forbidden -> {
-                            _headerUpdateResult.value = UiState.Idle
-                            true
-                        }
-
-                        HttpStatusCode.Conflict -> {
-                            reloadDetailAfterConflict(_headerUpdateResult, remittanceId)
-                        }
-
-                        else -> {
-                            false
-                        }
-                    }
-                },
-            ),
-        )
-    }
-
-    // D6 — drift (frozen vs current), lazy: fetched on expander click only, cached after.
-    fun loadDrift(remittanceId: String) {
-        handler.launch(
-            LaunchRequest(
-                state = _drift,
-                operation = "loadDrift",
-                endpoint = "GET /api/remittances/$remittanceId/drift",
-                entryMessage = "loadDrift called: remittanceId=$remittanceId",
-                block = { apiClient.httpClient.get(ApiRoutes.remittanceDrift(remittanceId)) },
-                transform = { it.body() },
-            ),
-        )
-    }
-
-    // ADR-0022 409 axis — the mutation conflicted: settle its state (Loading → Idle without
-    // Success = the screen's "silent exit"), raise the notice, then re-fetch the detail so the
-    // screen renders the fresh payload (the user's edit didn't win).
-    private suspend fun <T> reloadDetailAfterConflict(
-        state: MutableStateFlow<UiState<T>>,
-        remittanceId: String,
-    ): Boolean {
-        state.value = UiState.Idle
-        _detailChangedNotice.value = true
-        loadRemittance(remittanceId, resetNotice = false)
-        return true
     }
 }
