@@ -1,3 +1,4 @@
+import io.gitlab.arturbosch.detekt.Detekt
 import org.gradle.api.tasks.compile.JavaCompile
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
 
@@ -37,6 +38,15 @@ subprojects {
 
     dependencies {
         add("detektPlugins", "io.gitlab.arturbosch.detekt:detekt-formatting:${rootProject.libs.versions.detekt.get()}")
+        if (path != ":detekt-rules") {
+            add("detektPlugins", project(":detekt-rules"))
+        }
+    }
+
+    if (path != ":detekt-rules") {
+        tasks.withType<Detekt>().configureEach {
+            dependsOn(":detekt-rules:assemble")
+        }
     }
 
     val warningsAsErrors = providers.gradleProperty("warningsAsErrors").map(String::toBoolean).orElse(false)

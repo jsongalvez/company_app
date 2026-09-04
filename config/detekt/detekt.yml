@@ -1,6 +1,11 @@
 # #460 governance: thresholds here mirror detekt-anti-slop.yml (see its header).
 # Exclude policy: no new exclude without a `#<ticket>` link; screen-composable
 # excludes burn down file-by-file (removal ships with the refactor, never solo).
+# #464: custom rules live in :detekt-rules (CompanyApp ruleset, ServiceLoader-registered,
+# auto-active by default while on the detektPlugins classpath — no config key needed;
+# a `CompanyApp:` key must NOT be added here: :detekt-rules:detekt itself excludes the
+# plugin (self-cycle guard) and config validation would reject the unknown key there).
+# Rules activate here per-rule as map #463 lands them.
 build:
   maxIssues: 0
   excludeCorrectable: false
