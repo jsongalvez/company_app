@@ -60,8 +60,6 @@ fun NotificationsScreen(
     val markReadState by viewModel.markReadResult.collectAsState()
     val markAllState by viewModel.markAllResult.collectAsState()
 
-    val receivedState by reliefInviteViewModel.received.collectAsState()
-    val freshestReceived by reliefInviteViewModel.freshestReceived.collectAsState()
     val acceptState by reliefInviteViewModel.acceptResult.collectAsState()
     val declineState by reliefInviteViewModel.declineResult.collectAsState()
 
@@ -88,7 +86,6 @@ fun NotificationsScreen(
     val acceptError = (acceptState as? UiState.Error)?.message
     val declineError = (declineState as? UiState.Error)?.message
     val historyError = (historyState as? UiState.Error)?.message
-    val receivedError = receivedInvitesErrorLine(receivedState)
     // ComplexCondition carve-out (#462 burn): the 4-way error OR lives in a named val so the
     // render gate below stays a single condition.
     val hasActionError = markAllError != null || markReadError != null || acceptError != null || declineError != null
@@ -107,10 +104,6 @@ fun NotificationsScreen(
     LaunchedEffect(historyError) {
         historyError?.let { logWarn("NotificationsScreen", "history=Error: $it") }
     }
-    LaunchedEffect(receivedError) {
-        receivedError?.let { logWarn("NotificationsScreen", "receivedInvites=Error: $it") }
-    }
-
     // D5 + #97 Q5 silent-refresh: cold-start spinner only while there's nothing to show; once a
     // list has content, a reload (re-entry, post-markAll arrival) must not flash a spinner over
     // it. `unread` derives from the VM's freshest flow (keep-last-results — the #162 KeepLast
@@ -185,40 +178,9 @@ fun NotificationsScreen(
             }
         }
 
-        // #160 — the invites section renders above the unread list: invites are time-bound
-        // actions (Accept/Decline), the unread queue is reading material. Keep-last (VM-side,
-        // the #143 shape): the section survives reloads; resolved rows leave it (the row
-        // renders until resolved, not until read).
-        //
-        // #410 — a failed received-invites load is always visible with its own Retry (the
-        // historyError row shape): with no cached rows the strip is the section's only trace
-        // (the old code collapsed it silently — Accept/Decline vanished without signal); with
-        // cached rows it sits above them so keep-last never masquerades as fresh. The next
-        // load's Loading pre-set clears the strip automatically.
-        val received = freshestReceived.orEmpty()
-        val today = currentOperationalDate()
-        val inviteActionsBusy = acceptState is UiState.Loading || declineState is UiState.Loading
-        if (receivedError != null) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ActionErrorLine(receivedError)
-                TextButton(onClick = { reliefInviteViewModel.loadReceived() }) {
-                    Text("Retry")
-                }
-            }
-        }
-        if (received.isNotEmpty()) {
-            ReliefInvitesSection(
-                invites = received,
-                today = today,
-                busy = inviteActionsBusy,
-                onAccept = { id -> reliefInviteViewModel.acceptInvite(id) },
-                onDecline = { id -> reliefInviteViewModel.declineInvite(id) },
-            )
-        }
+        // #160 — the invites section renders above the unread list (self-sufficient host: it
+        // collects the received/accept/decline flows internally so the Screen stays lean).
+        ReliefInvitesSection(reliefInviteViewModel = reliefInviteViewModel)
 
         when (val state = notificationsState) {
             is UiState.Idle -> {
@@ -377,26 +339,51 @@ private fun SectionLabel(text: String) {
  * cannot resurrect an answered invite), PENDING rows carry Accept/Decline, and a pending
  * invite whose day is past renders "expired" (day-state is the expiry — no cron, no actions
  * on a stale row). The `else` branch is defensive against a future status-returning server.
+ *
+ * Self-sufficient host (#462 burn): collects the received/accept/decline flows internally
+ * (c0fb842e slimming precedent) so the Screen keeps one slim call instead of four collects
+ * plus derivations. #410 — a failed load stays visible with its own Retry above keep-last
+ * rows (never a silent collapse); the next load's Loading pre-set clears the strip.
  */
 @Composable
-private fun ReliefInvitesSection(
-    invites: List<ReliefInviteResponse>,
-    today: kotlinx.datetime.LocalDate,
-    busy: Boolean,
-    onAccept: (String) -> Unit,
-    onDecline: (String) -> Unit,
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        SectionLabel("Relief invites (${invites.size})")
-        invites.forEach { invite ->
-            ReliefInviteRow(
-                invite = invite,
-                today = today,
-                busy = busy,
-                onAccept = onAccept,
-                onDecline = onDecline,
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+private fun ReliefInvitesSection(reliefInviteViewModel: ReliefInviteViewModel) {
+    val receivedState by reliefInviteViewModel.received.collectAsState()
+    val freshestReceived by reliefInviteViewModel.freshestReceived.collectAsState()
+    val acceptState by reliefInviteViewModel.acceptResult.collectAsState()
+    val declineState by reliefInviteViewModel.declineResult.collectAsState()
+    val receivedError = receivedInvitesErrorLine(receivedState)
+    LaunchedEffect(receivedError) {
+        receivedError?.let { logWarn("NotificationsScreen", "receivedInvites=Error: $it") }
+    }
+    val received = freshestReceived.orEmpty()
+    val today = currentOperationalDate()
+    val inviteActionsBusy = acceptState is UiState.Loading || declineState is UiState.Loading
+    // #410 — the strip sits above keep-last rows so cached rows never masquerade as fresh.
+    if (receivedError != null) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ActionErrorLine(receivedError)
+            TextButton(onClick = { reliefInviteViewModel.loadReceived() }) {
+                Text("Retry")
+            }
+        }
+    }
+    if (received.isNotEmpty()) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            SectionLabel("Relief invites (${received.size})")
+            received.forEach { invite ->
+                ReliefInviteRow(
+                    invite = invite,
+                    today = today,
+                    busy = inviteActionsBusy,
+                    onAccept = { id -> reliefInviteViewModel.acceptInvite(id) },
+                    onDecline = { id -> reliefInviteViewModel.declineInvite(id) },
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            }
         }
     }
 }
