@@ -847,13 +847,18 @@ private fun ClientFieldEditor(
                 )
             }
         }
-        if (error != null) {
-            Text(
-                text = error,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
+        ClientFieldErrorText(error)
+    }
+}
+
+@Composable
+private fun ClientFieldErrorText(error: String?) {
+    if (error != null) {
+        Text(
+            text = error,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
