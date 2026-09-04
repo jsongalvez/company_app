@@ -469,84 +469,27 @@ private fun ClientDetailContent(
         ) {
             ClientDetailLayout(
                 identity = {
-                    Spacer(Modifier.size(Spacing.sm))
-                    SectionLabel("Identity")
-                    ClientFieldEditor(
-                        label = "First name",
-                        value = client.firstName.orEmpty(),
-                        field = ClientField.FIRST_NAME,
+                    ClientDetailNameFields(
+                        client = client,
                         editingField = editingField,
                         draftValue = draftValue,
                         fieldError = fieldError,
+                        navigationLocked = navigationLocked,
                         onDraftChange = ::handleDraftChange,
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
-                        enabled = !navigationLocked,
                     )
-                    ClientFieldEditor(
-                        label = "Middle name",
-                        value = client.middleName.orEmpty(),
-                        field = ClientField.MIDDLE_NAME,
+                    ClientDetailDemographicFields(
+                        client = client,
                         editingField = editingField,
                         draftValue = draftValue,
                         fieldError = fieldError,
+                        navigationLocked = navigationLocked,
                         onDraftChange = ::handleDraftChange,
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
-                        enabled = !navigationLocked,
-                    )
-                    ClientFieldEditor(
-                        label = "Last name",
-                        value = client.lastName.orEmpty(),
-                        field = ClientField.LAST_NAME,
-                        editingField = editingField,
-                        draftValue = draftValue,
-                        fieldError = fieldError,
-                        onDraftChange = ::handleDraftChange,
-                        onStartEdit = ::startEdit,
-                        onCommit = ::commitEdit,
-                        onCancel = ::exitEdit,
-                        enabled = !navigationLocked,
-                    )
-                    ClientFieldEditor(
-                        label = "Suffix",
-                        value = client.suffix.orEmpty(),
-                        field = ClientField.SUFFIX,
-                        editingField = editingField,
-                        draftValue = draftValue,
-                        fieldError = fieldError,
-                        onDraftChange = ::handleDraftChange,
-                        onStartEdit = ::startEdit,
-                        onCommit = ::commitEdit,
-                        onCancel = ::exitEdit,
-                        enabled = !navigationLocked,
-                    )
-                    GenderFieldEditor(
-                        value = client.gender.displayName(),
-                        field = ClientField.GENDER,
-                        editingField = editingField,
-                        draftValue = draftValue,
-                        fieldError = fieldError,
-                        onDraftChange = ::handleDraftChange,
-                        onStartEdit = ::startEdit,
-                        onCommit = ::commitEdit,
-                        enabled = !navigationLocked,
-                    )
-                    ClientFieldEditor(
-                        label = "Age",
-                        value = client.age.toString(),
-                        field = ClientField.AGE,
-                        editingField = editingField,
-                        draftValue = draftValue,
-                        fieldError = fieldError,
-                        onDraftChange = ::handleDraftChange,
-                        onStartEdit = ::startEdit,
-                        onCommit = ::commitEdit,
-                        onCancel = ::exitEdit,
-                        enabled = !navigationLocked,
-                        keyboardType = KeyboardType.Number,
                     )
                 },
                 contactHealth = {
@@ -655,6 +598,113 @@ private fun ClientDetailContent(
             onDismiss = { showAnonymizeDialog = false },
         )
     }
+}
+
+@Composable
+private fun ClientDetailNameFields(
+    client: ClientResponse,
+    editingField: ClientField?,
+    draftValue: String,
+    fieldError: String?,
+    navigationLocked: Boolean,
+    onDraftChange: (String) -> Unit,
+    onStartEdit: (ClientField) -> Unit,
+    onCommit: (ClientField) -> Unit,
+    onCancel: () -> Unit,
+) {
+    Spacer(Modifier.size(Spacing.sm))
+    SectionLabel("Identity")
+    ClientFieldEditor(
+        label = "First name",
+        value = client.firstName.orEmpty(),
+        field = ClientField.FIRST_NAME,
+        editingField = editingField,
+        draftValue = draftValue,
+        fieldError = fieldError,
+        onDraftChange = onDraftChange,
+        onStartEdit = onStartEdit,
+        onCommit = onCommit,
+        onCancel = onCancel,
+        enabled = !navigationLocked,
+    )
+    ClientFieldEditor(
+        label = "Middle name",
+        value = client.middleName.orEmpty(),
+        field = ClientField.MIDDLE_NAME,
+        editingField = editingField,
+        draftValue = draftValue,
+        fieldError = fieldError,
+        onDraftChange = onDraftChange,
+        onStartEdit = onStartEdit,
+        onCommit = onCommit,
+        onCancel = onCancel,
+        enabled = !navigationLocked,
+    )
+    ClientFieldEditor(
+        label = "Last name",
+        value = client.lastName.orEmpty(),
+        field = ClientField.LAST_NAME,
+        editingField = editingField,
+        draftValue = draftValue,
+        fieldError = fieldError,
+        onDraftChange = onDraftChange,
+        onStartEdit = onStartEdit,
+        onCommit = onCommit,
+        onCancel = onCancel,
+        enabled = !navigationLocked,
+    )
+    ClientFieldEditor(
+        label = "Suffix",
+        value = client.suffix.orEmpty(),
+        field = ClientField.SUFFIX,
+        editingField = editingField,
+        draftValue = draftValue,
+        fieldError = fieldError,
+        onDraftChange = onDraftChange,
+        onStartEdit = onStartEdit,
+        onCommit = onCommit,
+        onCancel = onCancel,
+        enabled = !navigationLocked,
+    )
+}
+
+@Composable
+private fun ClientDetailDemographicFields(
+    client: ClientResponse,
+    editingField: ClientField?,
+    draftValue: String,
+    fieldError: String?,
+    navigationLocked: Boolean,
+    onDraftChange: (String) -> Unit,
+    onStartEdit: (ClientField) -> Unit,
+    onCommit: (ClientField) -> Unit,
+    onCancel: () -> Unit,
+) {
+    GenderFieldEditor(
+        value = client.gender.displayName(),
+        field = ClientField.GENDER,
+        editingField = editingField,
+        draftValue = draftValue,
+        fieldError = fieldError,
+        onDraftChange = onDraftChange,
+        onStartEdit = onStartEdit,
+        onCommit = onCommit,
+        enabled = !navigationLocked,
+    )
+    ClientFieldEditor(
+        label = "Age",
+        value = client.age.toString(),
+        field = ClientField.AGE,
+        editingField = editingField,
+        draftValue = draftValue,
+        fieldError = fieldError,
+        onDraftChange = onDraftChange,
+        onStartEdit = onStartEdit,
+        onCommit = onCommit,
+        onCancel = onCancel,
+        enabled = !navigationLocked,
+        keyboardType = KeyboardType.Number,
+    )
 }
 
 // D10 — null name pair is the only in-band anonymized signal (F3): render the husk, no edit
