@@ -65,6 +65,65 @@ import kotlinx.serialization.json.contentOrNull
 // state (`hasAnyCapability` computed from SessionState at the NavHost call site, #108/#99 D7
 // code-only pattern; the backend is authoritative either way — 200 + empty list).
 @Composable
+private fun AuditLogScreenLoadEffects(viewModel: AuditLogViewModel) {
+    LaunchedEffect(Unit) {
+        logInfo("AuditLogScreen", "composable entered")
+        // D4 server-driven registry: load once per VM lifetime (Idle), re-fire from an error
+        // state (auto-retry — same policy as the lists); a nav round-trip with a loaded
+        // registry must not reset it to "Loading tables…" (pass-5 SOFT). Loading skips: an
+        // in-flight fetch owns the slot.
+        if (viewModel.tables.value is UiState.Idle || viewModel.tables.value is UiState.Error) {
+            viewModel.loadTables()
+        }
+        // Cold loud load only when this VM has nothing loaded (first composition, or a fresh VM
+        // after process death — saveable flags don't survive into a fresh VM's list state). A
+        // surviving VM (rotation, history round-trip) with a loaded list takes the silent refresh
+        // path so the list never wipes (D10 keep-last-list).
+        if (viewModel.flaggedEntries.value is UiState.Success) {
+            viewModel.refreshFlagged()
+        } else {
+            viewModel.loadFlaggedEntries()
+        }
+    }
+}
+
+@Composable
+private fun AuditLogTabEffects(
+    viewModel: AuditLogViewModel,
+    selectedTab: Int,
+    hasVisitedAllActivity: Boolean,
+    onFirstBrowseVisit: () -> Unit,
+) {
+    // D10 — For-review refreshes on tab re-entry via the SILENT path (refreshFlagged), so the
+    // loaded list survives the reload (keep-last-list); a cold first load is the loud path above.
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == TAB_FOR_REVIEW) {
+            // Idle-check: on a fresh VM after process death the flag restores true while the
+            // list is Idle — the Unit effect cold-loads it; the tab effect must not fire a
+            // silent refresh over an empty list (a failed one would leave Idle + error line,
+            // no ErrorCard). Declaration order makes this safe today; the check removes the
+            // coupling.
+            if (hasVisitedAllActivity && viewModel.flaggedEntries.value !is UiState.Idle) {
+                // Not the first composition: this is a re-entry (tab switch back).
+                viewModel.refreshFlagged()
+            }
+        } else if (
+            !hasVisitedAllActivity ||
+            viewModel.browseEntries.value is UiState.Idle ||
+            viewModel.browseEntries.value is UiState.Error
+        ) {
+            // First visit, OR a fresh VM after process death whose saveable flag restored true
+            // (a VM that never loaded has no list to keep), OR a failed load with only an error
+            // card to show — all take the cold loud path (D10 load-on-entry + auto-retry).
+            onFirstBrowseVisit()
+            // D10 — the first visit is a load-on-entry: the cold loud path (Loading → error
+            // card + retry), unlike later re-entries which refresh silently (keep-last-list).
+            viewModel.loadBrowse()
+        }
+    }
+}
+
+@Composable
 fun AuditLogScreen(
     viewModel: AuditLogViewModel,
     currentUserId: String?,
@@ -111,53 +170,13 @@ fun AuditLogScreen(
             ?.associate { it.tableName to it.label }
             .orEmpty()
 
-    LaunchedEffect(Unit) {
-        logInfo("AuditLogScreen", "composable entered")
-        // D4 server-driven registry: load once per VM lifetime (Idle), re-fire from an error
-        // state (auto-retry — same policy as the lists); a nav round-trip with a loaded
-        // registry must not reset it to "Loading tables…" (pass-5 SOFT). Loading skips: an
-        // in-flight fetch owns the slot.
-        if (viewModel.tables.value is UiState.Idle || viewModel.tables.value is UiState.Error) {
-            viewModel.loadTables()
-        }
-        // Cold loud load only when this VM has nothing loaded (first composition, or a fresh VM
-        // after process death — saveable flags don't survive into a fresh VM's list state). A
-        // surviving VM (rotation, history round-trip) with a loaded list takes the silent refresh
-        // path so the list never wipes (D10 keep-last-list).
-        if (viewModel.flaggedEntries.value is UiState.Success) {
-            viewModel.refreshFlagged()
-        } else {
-            viewModel.loadFlaggedEntries()
-        }
-    }
-
-    // D10 — For-review refreshes on tab re-entry via the SILENT path (refreshFlagged), so the
-    // loaded list survives the reload (keep-last-list); a cold first load is the loud path above.
-    LaunchedEffect(selectedTab) {
-        if (selectedTab == TAB_FOR_REVIEW) {
-            // Idle-check: on a fresh VM after process death the flag restores true while the
-            // list is Idle — the Unit effect cold-loads it; the tab effect must not fire a
-            // silent refresh over an empty list (a failed one would leave Idle + error line,
-            // no ErrorCard). Declaration order makes this safe today; the check removes the
-            // coupling.
-            if (hasVisitedAllActivity && viewModel.flaggedEntries.value !is UiState.Idle) {
-                // Not the first composition: this is a re-entry (tab switch back).
-                viewModel.refreshFlagged()
-            }
-        } else if (
-            !hasVisitedAllActivity ||
-            viewModel.browseEntries.value is UiState.Idle ||
-            viewModel.browseEntries.value is UiState.Error
-        ) {
-            // First visit, OR a fresh VM after process death whose saveable flag restored true
-            // (a VM that never loaded has no list to keep), OR a failed load with only an error
-            // card to show — all take the cold loud path (D10 load-on-entry + auto-retry).
-            hasVisitedAllActivity = true
-            // D10 — the first visit is a load-on-entry: the cold loud path (Loading → error
-            // card + retry), unlike later re-entries which refresh silently (keep-last-list).
-            viewModel.loadBrowse()
-        }
-    }
+    AuditLogScreenLoadEffects(viewModel)
+    AuditLogTabEffects(
+        viewModel = viewModel,
+        selectedTab = selectedTab,
+        hasVisitedAllActivity = hasVisitedAllActivity,
+        onFirstBrowseVisit = { hasVisitedAllActivity = true },
+    )
 
     Column(
         modifier =
@@ -872,29 +891,15 @@ internal fun AuditLogEntryRow(
                         modifier = Modifier.padding(top = Spacing.xs),
                     )
                 }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    if (canAcknowledge) {
-                        TextButton(
-                            onClick = onAcknowledge,
-                            enabled = !acknowledging,
-                        ) {
-                            Text(if (acknowledging) "Acknowledging…" else "Acknowledge")
-                        }
-                    }
-                    if (showFullHistory) {
-                        TextButton(onClick = onFullHistory) {
-                            Text("Full history for this record")
-                        }
-                    }
-                    if (onOpenClientRecord != null && canOpenClientRecord(entry)) {
-                        TextButton(onClick = onOpenClientRecord) {
-                            Text("Open client record")
-                        }
-                    }
-                }
+                AuditLogEntryActions(
+                    entry = entry,
+                    canAcknowledge = canAcknowledge,
+                    acknowledging = acknowledging,
+                    onAcknowledge = onAcknowledge,
+                    showFullHistory = showFullHistory,
+                    onFullHistory = onFullHistory,
+                    onOpenClientRecord = onOpenClientRecord,
+                )
                 if (ackError != null) {
                     InlineErrorText(text = ackError)
                 }
@@ -902,6 +907,41 @@ internal fun AuditLogEntryRow(
         }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+}
+
+@Composable
+private fun AuditLogEntryActions(
+    entry: AuditLogEntryResponse,
+    canAcknowledge: Boolean,
+    acknowledging: Boolean,
+    onAcknowledge: () -> Unit,
+    showFullHistory: Boolean,
+    onFullHistory: () -> Unit,
+    onOpenClientRecord: (() -> Unit)?,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        if (canAcknowledge) {
+            TextButton(
+                onClick = onAcknowledge,
+                enabled = !acknowledging,
+            ) {
+                Text(if (acknowledging) "Acknowledging…" else "Acknowledge")
+            }
+        }
+        if (showFullHistory) {
+            TextButton(onClick = onFullHistory) {
+                Text("Full history for this record")
+            }
+        }
+        if (onOpenClientRecord != null && canOpenClientRecord(entry)) {
+            TextButton(onClick = onOpenClientRecord) {
+                Text("Open client record")
+            }
+        }
+    }
 }
 
 // D2 — the Acknowledge affordance: hidden on the caller's own flagged rows (self-ack is
