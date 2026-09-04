@@ -734,7 +734,6 @@ style:
       - '**/commonMain/**/ui/screen/SessionDetailContent.kt'
       - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
       - '**/commonMain/**/ui/screen/AuditLogScreen.kt'
-      - '**/commonMain/**/ui/screen/SessionMoney.kt'
     ignoreNumbers:
       - '-1'
       - '0'

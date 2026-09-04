@@ -7,6 +7,8 @@ import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.dto.RemittanceLineResponse
 import kotlin.math.abs
 
+private const val CENTS_PER_UNIT = 100L
+
 /**
  * Fixed-point money helpers (commonMain has no BigDecimal): backend money strings are
  * non-negative decimal strings (parseNonNegativeBigDecimal server-side), commission at scale 4
@@ -22,13 +24,13 @@ internal fun moneyToCents(raw: String): Long {
             ?.take(2)
             ?.padEnd(2, '0')
             ?.toLongOrNull() ?: 0L
-    return whole * 100 + frac
+    return whole * CENTS_PER_UNIT + frac
 }
 
 internal fun centsToMoney(cents: Long): String {
     val sign = if (cents < 0) "-" else ""
     val absValue = abs(cents)
-    return "$sign${absValue / 100}.${(absValue % 100).toString().padStart(2, '0')}"
+    return "$sign${absValue / CENTS_PER_UNIT}.${(absValue % CENTS_PER_UNIT).toString().padStart(2, '0')}"
 }
 
 /**
