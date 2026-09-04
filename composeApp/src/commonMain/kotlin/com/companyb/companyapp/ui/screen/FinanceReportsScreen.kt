@@ -1173,7 +1173,70 @@ private fun DayEditor(
     exportErrors: Map<String, String>,
     modifier: Modifier = Modifier,
 ) {
-    val state = derivedDayState(LocalDate.parse(day.date), today)
+    val gates = dayEditorGates(capabilities, branchId, day.branchDayId, day.date, today)
+    val expenses by viewModel.editExpenses.collectAsState()
+    val compensations by viewModel.editCompensations.collectAsState()
+    val allowances by viewModel.editAllowances.collectAsState()
+    val users by viewModel.editUsers.collectAsState()
+    val editErrors by viewModel.editErrors.collectAsState()
+    val inFlight by viewModel.inFlightActions.collectAsState()
+    val conflicts by viewModel.conflicts.collectAsState()
+
+    Column(modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+        DayEditorSummary(
+            day = day,
+            branchName = branchName,
+            today = today,
+            onBackToFeed = onBackToFeed,
+            onExportDayEditor = onExportDayEditor,
+            downloadStates = downloadStates,
+            exportErrors = exportErrors,
+        )
+
+        if (gates.canEditExpenses) {
+            DayEditorExpenseBlock(
+                viewModel = viewModel,
+                expenses = expenses,
+                errors = editErrors,
+                inFlight = inFlight,
+                readOnly = gates.pastDayReadOnly,
+                conflicts = conflicts,
+            )
+            Spacer(Modifier.height(Spacing.sm))
+        }
+
+        if (gates.canAssign) {
+            // #101 D1 matrix — compensation + allowances = ASSIGN_COMPENSATION (per-element
+            // guard; a non-holder never sees the sections NOR their 403ing loads).
+            DayEditorAssignBlock(
+                viewModel = viewModel,
+                compensations = compensations,
+                allowances = allowances,
+                users = users,
+                errors = editErrors,
+                inFlight = inFlight,
+                canAssign = gates.canAssign,
+                readOnly = gates.pastDayReadOnly,
+                conflicts = conflicts,
+            )
+        }
+    }
+}
+
+private data class DayEditorGates(
+    val canAssign: Boolean,
+    val canEditExpenses: Boolean,
+    val pastDayReadOnly: Boolean,
+)
+
+private fun dayEditorGates(
+    capabilities: List<UserCapabilityResponse>,
+    branchId: String,
+    branchDayId: String,
+    dateString: String,
+    today: LocalDate,
+): DayEditorGates {
+    val state = derivedDayState(LocalDate.parse(dateString), today)
     // #156 — per-element gates are branch-scoped triples (matching the backend
     // `requireBranchCapability` gates; #101 D1 matrix). #158 — the expense leg ORs the
     // BRANCH_DAY relief grant for this day.
@@ -1188,110 +1251,130 @@ private fun DayEditor(
         capabilities.hasBranchOrDayCapability(
             CapabilityCodes.EDIT_BRANCH_DATA,
             branchId,
-            day.branchDayId,
+            branchDayId,
         )
     // #101 D1/D3 — past days are read-only unless the user holds EDIT_PAST_DAY at the branch
     // (the backend 403 stays authoritative).
     val pastDayReadOnly =
         state == DerivedDayState.PAST &&
             !capabilities.hasCapability(CapabilityCodes.EDIT_PAST_DAY, CapabilityContextType.BRANCH, branchId)
-    val expenses by viewModel.editExpenses.collectAsState()
-    val compensations by viewModel.editCompensations.collectAsState()
-    val allowances by viewModel.editAllowances.collectAsState()
-    val users by viewModel.editUsers.collectAsState()
-    val editErrors by viewModel.editErrors.collectAsState()
-    val inFlight by viewModel.inFlightActions.collectAsState()
-    val conflicts by viewModel.conflicts.collectAsState()
+    return DayEditorGates(canAssign, canEditExpenses, pastDayReadOnly)
+}
 
-    Column(modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBackToFeed) { Text("← Feed") }
-            Text(
-                text = "${day.date} · $branchName",
-                style = MaterialTheme.typography.titleLarge,
-            )
-        }
+@Composable
+private fun DayEditorSummary(
+    day: DailySalesSummaryResponse,
+    branchName: String,
+    today: LocalDate,
+    onBackToFeed: () -> Unit,
+    // #158 — null hides the per-day export row (relief mode has no affordance for a 403).
+    onExportDayEditor: ((String) -> Unit)?,
+    downloadStates: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
+    exportErrors: Map<String, String>,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = onBackToFeed) { Text("← Feed") }
+        Text(
+            text = "${day.date} · $branchName",
+            style = MaterialTheme.typography.titleLarge,
+        )
+    }
 
-        // D2 — summary cards + breakdown
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-        ) {
-            SummaryCard("Gross income", day.grossIncome, Modifier.weight(1f))
-            SummaryCard("Net income", day.netIncome, Modifier.weight(1f))
-        }
-        Surface(
-            shape = RoundedCornerShape(CornerRadius.md),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(modifier = Modifier.padding(Spacing.sm)) {
-                FinanceDayDetailContent(
-                    day = day,
-                    today = today,
-                    onExportDay = onExportDayEditor,
-                    downloadStates = downloadStates,
-                    exportErrors = exportErrors,
-                )
-            }
-        }
-        Spacer(Modifier.height(Spacing.sm))
-
-        if (canEditExpenses) {
-            ExpenseSection(
-                viewModel = viewModel,
-                expenses = expenses,
-                errors = editErrors,
-                inFlight = inFlight,
-                readOnly = pastDayReadOnly,
-                conflicts = conflicts,
-                onCreate = { amount, category, notes, reason ->
-                    viewModel.createExpense(amount, category, notes, reason)
-                },
-                onUpdate = { expense, amount, category, notes, reason ->
-                    viewModel.updateExpense(expense, amount, category, notes, reason)
-                },
-                onDelete = { expense, reason -> viewModel.deleteExpense(expense, reason) },
-                onRestore = { expense, reason -> viewModel.restoreExpense(expense, reason) },
-                onReload = { viewModel.reloadSection(EditSection.EXPENSES) },
-            )
-            Spacer(Modifier.height(Spacing.sm))
-        }
-
-        if (canAssign) {
-            // #101 D1 matrix — compensation + allowances = ASSIGN_COMPENSATION (per-element
-            // guard; a non-holder never sees the sections NOR their 403ing loads).
-            CompensationSection(
-                viewModel = viewModel,
-                compensations = compensations,
-                users = users,
-                errors = editErrors,
-                inFlight = inFlight,
-                canAssign = canAssign,
-                readOnly = pastDayReadOnly,
-                conflicts = conflicts,
-                onCreate = { userId, amount, note, reason ->
-                    viewModel.createCompensation(userId, amount, note, reason)
-                },
-                onUpdate = { compensation, amount, note, reason ->
-                    viewModel.updateCompensation(compensation, amount, note, reason)
-                },
-                onReload = { viewModel.reloadSection(EditSection.COMPENSATIONS) },
-            )
-            Spacer(Modifier.height(Spacing.sm))
-
-            AllowanceSection(
-                allowances = allowances,
-                users = users,
-                errors = editErrors,
-                inFlight = inFlight,
-                canAssign = canAssign,
-                readOnly = pastDayReadOnly,
-                onCreate = { userId, amount, reason -> viewModel.createAllowance(userId, amount, reason) },
-                onReload = { viewModel.reloadSection(EditSection.ALLOWANCES) },
+    // D2 — summary cards + breakdown
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        SummaryCard("Gross income", day.grossIncome, Modifier.weight(1f))
+        SummaryCard("Net income", day.netIncome, Modifier.weight(1f))
+    }
+    Surface(
+        shape = RoundedCornerShape(CornerRadius.md),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(Spacing.sm)) {
+            FinanceDayDetailContent(
+                day = day,
+                today = today,
+                onExportDay = onExportDayEditor,
+                downloadStates = downloadStates,
+                exportErrors = exportErrors,
             )
         }
     }
+    Spacer(Modifier.height(Spacing.sm))
+}
+
+@Composable
+private fun DayEditorExpenseBlock(
+    viewModel: FinanceReportsViewModel,
+    expenses: UiState<List<ExpenseResponse>>,
+    errors: Map<String, String>,
+    inFlight: Set<String>,
+    readOnly: Boolean,
+    conflicts: Set<String>,
+) {
+    ExpenseSection(
+        viewModel = viewModel,
+        expenses = expenses,
+        errors = errors,
+        inFlight = inFlight,
+        readOnly = readOnly,
+        conflicts = conflicts,
+        onCreate = { amount, category, notes, reason ->
+            viewModel.createExpense(amount, category, notes, reason)
+        },
+        onUpdate = { expense, amount, category, notes, reason ->
+            viewModel.updateExpense(expense, amount, category, notes, reason)
+        },
+        onDelete = { expense, reason -> viewModel.deleteExpense(expense, reason) },
+        onRestore = { expense, reason -> viewModel.restoreExpense(expense, reason) },
+        onReload = { viewModel.reloadSection(EditSection.EXPENSES) },
+    )
+}
+
+@Composable
+private fun DayEditorAssignBlock(
+    viewModel: FinanceReportsViewModel,
+    compensations: UiState<List<CompensationResponse>>,
+    allowances: UiState<List<AllowanceResponse>>,
+    users: UiState<List<BranchDayUserResponse>>,
+    errors: Map<String, String>,
+    inFlight: Set<String>,
+    canAssign: Boolean,
+    readOnly: Boolean,
+    conflicts: Set<String>,
+) {
+    CompensationSection(
+        viewModel = viewModel,
+        compensations = compensations,
+        users = users,
+        errors = errors,
+        inFlight = inFlight,
+        canAssign = canAssign,
+        readOnly = readOnly,
+        conflicts = conflicts,
+        onCreate = { userId, amount, note, reason ->
+            viewModel.createCompensation(userId, amount, note, reason)
+        },
+        onUpdate = { compensation, amount, note, reason ->
+            viewModel.updateCompensation(compensation, amount, note, reason)
+        },
+        onReload = { viewModel.reloadSection(EditSection.COMPENSATIONS) },
+    )
+    Spacer(Modifier.height(Spacing.sm))
+
+    AllowanceSection(
+        allowances = allowances,
+        users = users,
+        errors = errors,
+        inFlight = inFlight,
+        canAssign = canAssign,
+        readOnly = readOnly,
+        onCreate = { userId, amount, reason -> viewModel.createAllowance(userId, amount, reason) },
+        onReload = { viewModel.reloadSection(EditSection.ALLOWANCES) },
+    )
 }
 
 @Composable
