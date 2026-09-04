@@ -1501,26 +1501,15 @@ private fun ExpenseRow(
             maxLines = 1,
         )
         Spacer(Modifier.width(Spacing.sm))
-        if (deleted) {
-            Text(
-                text = "removed",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-            Spacer(Modifier.width(Spacing.xs))
-            Text(
-                text = expense.deletedReason ?: "",
-                style = MaterialTheme.typography.bodySmall,
-                color = InkSubtle,
-            )
-            if (!readOnly) {
-                Spacer(Modifier.width(Spacing.sm))
-                TextButton(onClick = onRestore, enabled = !busy) { Text("Restore") }
-            }
-        } else if (!readOnly) {
-            TextButton(onClick = onEdit, enabled = !busy) { Text("Edit") }
-            TextButton(onClick = onDelete, enabled = !busy) { Text("Delete") }
-        }
+        ExpenseRowStatusActions(
+            deleted = deleted,
+            deletedReason = expense.deletedReason,
+            readOnly = readOnly,
+            busy = busy,
+            onEdit = onEdit,
+            onDelete = onDelete,
+            onRestore = onRestore,
+        )
     }
     if (error != null) {
         Text(
@@ -1529,6 +1518,38 @@ private fun ExpenseRow(
             color = MaterialTheme.colorScheme.error,
             modifier = Modifier.padding(start = Spacing.xs, bottom = Spacing.xs),
         )
+    }
+}
+
+@Composable
+private fun ExpenseRowStatusActions(
+    deleted: Boolean,
+    deletedReason: String?,
+    readOnly: Boolean,
+    busy: Boolean,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onRestore: () -> Unit,
+) {
+    if (deleted) {
+        Text(
+            text = "removed",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+        Spacer(Modifier.width(Spacing.xs))
+        Text(
+            text = deletedReason ?: "",
+            style = MaterialTheme.typography.bodySmall,
+            color = InkSubtle,
+        )
+        if (!readOnly) {
+            Spacer(Modifier.width(Spacing.sm))
+            TextButton(onClick = onRestore, enabled = !busy) { Text("Restore") }
+        }
+    } else if (!readOnly) {
+        TextButton(onClick = onEdit, enabled = !busy) { Text("Edit") }
+        TextButton(onClick = onDelete, enabled = !busy) { Text("Delete") }
     }
 }
 
