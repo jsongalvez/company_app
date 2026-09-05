@@ -5,6 +5,7 @@ import com.companyb.companyapp.dto.IncidentPacket
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.io.IOException
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ThreadFactory
@@ -83,17 +84,25 @@ internal object IncidentDelivery {
         logger.info { Json.encodeToString(packet) }
     }
 
-    @Suppress("TooGenericExceptionCaught")
     private fun sendSafely(
         sender: IncidentSender,
         packet: IncidentPacket,
     ) {
         try {
             sender.send(packet)
-        } catch (failure: Exception) {
-            logger.error(failure) {
-                "[INCIDENT] GitHub delivery failed; packet remains in the server log relay"
-            }
+        } catch (failure: IOException) {
+            logDeliveryFailure(failure)
+        } catch (failure: InterruptedException) {
+            Thread.currentThread().interrupt()
+            logDeliveryFailure(failure)
+        } catch (failure: IllegalArgumentException) {
+            logDeliveryFailure(failure)
+        }
+    }
+
+    private fun logDeliveryFailure(failure: Throwable) {
+        logger.error(failure) {
+            "[INCIDENT] GitHub delivery failed; packet remains in the server log relay"
         }
     }
 

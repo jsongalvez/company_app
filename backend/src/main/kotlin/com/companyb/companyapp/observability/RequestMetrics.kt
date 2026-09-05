@@ -24,9 +24,32 @@ object RequestMetrics {
     private const val SERVER_ERROR_THRESHOLD = 500
     private const val MILLIS_PER_SECOND = 1000.0
     private const val SELF_SCRAPE_PATH = "/metrics"
+    private const val BUCKET_5MS = 0.005
+    private const val BUCKET_10MS = 0.01
+    private const val BUCKET_25MS = 0.025
+    private const val BUCKET_50MS = 0.05
+    private const val BUCKET_100MS = 0.1
+    private const val BUCKET_250MS = 0.25
+    private const val BUCKET_500MS = 0.5
+    private const val BUCKET_1S = 1.0
+    private const val BUCKET_2_5S = 2.5
+    private const val BUCKET_5S = 5.0
+    private const val BUCKET_10S = 10.0
 
-    @Suppress("MagicNumber")
-    private val buckets = doubleArrayOf(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0)
+    private val buckets =
+        doubleArrayOf(
+            BUCKET_5MS,
+            BUCKET_10MS,
+            BUCKET_25MS,
+            BUCKET_50MS,
+            BUCKET_100MS,
+            BUCKET_250MS,
+            BUCKET_500MS,
+            BUCKET_1S,
+            BUCKET_2_5S,
+            BUCKET_5S,
+            BUCKET_10S,
+        )
 
     private val uuidSegment = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
     private val numericSegment = Regex("/\\d+(?=/|\$)")
@@ -80,9 +103,15 @@ object RequestMetrics {
 
     private fun escape(value: String): String = value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
 
-    @Suppress("LongMethod")
     fun render(pool: DatabaseConfig.PoolStats = DatabaseConfig.poolStats()): String {
         val out = StringBuilder()
+        appendCounters(out)
+        appendHistogram(out)
+        appendPool(out, pool)
+        return out.toString()
+    }
+
+    private fun appendCounters(out: StringBuilder) {
         out.append("# HELP http_requests_total Total HTTP requests.\n# TYPE http_requests_total counter\n")
         stats.toSortedMap(compareBy({ it.method }, { it.route })).forEach { (key, entry) ->
             out.append(
@@ -91,9 +120,8 @@ object RequestMetrics {
                 )}\",route=\"${escape(key.route)}\"} ${entry.count.get()}\n",
             )
         }
-        out.append(
-            "# HELP http_request_errors_total Total HTTP requests with 5xx status.\n# TYPE http_request_errors_total counter\n",
-        )
+        out.append("# HELP http_request_errors_total Total HTTP requests with 5xx status.\n")
+        out.append("# TYPE http_request_errors_total counter\n")
         stats.toSortedMap(compareBy({ it.method }, { it.route })).forEach { (key, entry) ->
             out.append(
                 "http_request_errors_total{method=\"${escape(
@@ -101,9 +129,11 @@ object RequestMetrics {
                 )}\",route=\"${escape(key.route)}\"} ${entry.errors.get()}\n",
             )
         }
-        out.append(
-            "# HELP http_request_duration_seconds Request latency histogram.\n# TYPE http_request_duration_seconds histogram\n",
-        )
+    }
+
+    private fun appendHistogram(out: StringBuilder) {
+        out.append("# HELP http_request_duration_seconds Request latency histogram.\n")
+        out.append("# TYPE http_request_duration_seconds histogram\n")
         stats.toSortedMap(compareBy({ it.method }, { it.route })).forEach { (key, entry) ->
             val count = entry.count.get()
             for (i in buckets.indices) {
@@ -129,22 +159,25 @@ object RequestMetrics {
                 )}\",route=\"${escape(key.route)}\"} $count\n",
             )
         }
-        out.append(
-            "# HELP hikaricp_connections_active Active HikariCP connections.\n# TYPE hikaricp_connections_active gauge\n",
-        )
+    }
+
+    private fun appendPool(
+        out: StringBuilder,
+        pool: DatabaseConfig.PoolStats,
+    ) {
+        out.append("# HELP hikaricp_connections_active Active HikariCP connections.\n")
+        out.append("# TYPE hikaricp_connections_active gauge\n")
         out.append("hikaricp_connections_active ${pool.active}\n")
         out.append(
             "# HELP hikaricp_connections_idle Idle HikariCP connections.\n# TYPE hikaricp_connections_idle gauge\n",
         )
         out.append("hikaricp_connections_idle ${pool.idle}\n")
-        out.append(
-            "# HELP hikaricp_connections_pending Threads awaiting a connection.\n# TYPE hikaricp_connections_pending gauge\n",
-        )
+        out.append("# HELP hikaricp_connections_pending Threads awaiting a connection.\n")
+        out.append("# TYPE hikaricp_connections_pending gauge\n")
         out.append("hikaricp_connections_pending ${pool.awaiting}\n")
         out.append(
             "# HELP hikaricp_connections_total Total HikariCP connections.\n# TYPE hikaricp_connections_total gauge\n",
         )
         out.append("hikaricp_connections_total ${pool.total}\n")
-        return out.toString()
     }
 }

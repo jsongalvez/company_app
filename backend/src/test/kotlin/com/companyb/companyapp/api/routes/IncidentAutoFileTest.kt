@@ -5,6 +5,7 @@ import com.companyb.companyapp.api.middleware.TraceIdFilter
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.IncidentSource
 import com.companyb.companyapp.logging.RequestElapsedConverter
+import com.companyb.companyapp.observability.Auto5xxReport
 import com.companyb.companyapp.observability.IncidentRegistry
 import com.companyb.companyapp.observability.IncidentService
 import com.companyb.companyapp.test.JavalinTestServerRule
@@ -98,12 +99,14 @@ class IncidentAutoFileTest {
                 cfg.routes.error(HttpStatus.INTERNAL_SERVER_ERROR) { ctx ->
                     TraceIdFilter.echo(ctx)
                     IncidentService.fileAuto5xx(
-                        traceId = ctx.attribute<String>(TraceIdFilter.ATTRIBUTE) ?: "unknown",
-                        method = ctx.method().name,
-                        route = ctx.path(),
-                        status = runCatching { ctx.statusCode() }.getOrDefault(HTTP_INTERNAL_ERROR),
-                        elapsedMs = RequestElapsedConverter.currentElapsedMs(),
-                        reporterRaw = ctx.attribute<String>("userId"),
+                        Auto5xxReport(
+                            traceId = ctx.attribute<String>(TraceIdFilter.ATTRIBUTE) ?: "unknown",
+                            method = ctx.method().name,
+                            route = ctx.path(),
+                            status = runCatching { ctx.statusCode() }.getOrDefault(HTTP_INTERNAL_ERROR),
+                            elapsedMs = RequestElapsedConverter.currentElapsedMs(),
+                            reporterRaw = ctx.attribute<String>("userId"),
+                        ),
                     )
                     ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(mapOf("error" to "Internal Server Error"))
                 }

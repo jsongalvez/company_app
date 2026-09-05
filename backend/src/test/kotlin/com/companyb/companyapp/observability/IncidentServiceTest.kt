@@ -4,6 +4,7 @@ import com.companyb.companyapp.domain.IncidentSource
 import com.companyb.companyapp.dto.FeedbackRequest
 import com.companyb.companyapp.dto.IncidentPacket
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.observability.Auto5xxReport
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -140,12 +141,14 @@ class IncidentServiceTest {
         val rawId = UUID.randomUUID()
         val filed =
             IncidentService.fileAuto5xx(
-                "trace-${UUID.randomUUID()}",
-                "GET",
-                "/api/branches/$rawId",
-                500,
-                42,
-                rawId.toString(),
+                Auto5xxReport(
+                    "trace-${UUID.randomUUID()}",
+                    "GET",
+                    "/api/branches/$rawId",
+                    500,
+                    42,
+                    rawId.toString(),
+                ),
                 fakeSender,
             )
 
@@ -163,7 +166,10 @@ class IncidentServiceTest {
     @Test
     fun `auto file without caller attributes to server`() {
         val filed =
-            IncidentService.fileAuto5xx("trace-${UUID.randomUUID()}", "GET", "/x", 500, 1, null, fakeSender)
+            IncidentService.fileAuto5xx(
+                Auto5xxReport("trace-${UUID.randomUUID()}", "GET", "/x", 500, 1, null),
+                fakeSender,
+            )
 
         assertEquals("server", filed.packet.reporter)
     }
