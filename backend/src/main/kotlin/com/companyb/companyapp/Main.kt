@@ -44,13 +44,13 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
+import com.companyb.companyapp.logging.RequestLog
 import com.companyb.companyapp.service.SchedulerLifecycle
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.openapi.plugin.OpenApiPlugin
 import io.javalin.openapi.plugin.swagger.SwaggerPlugin
-import org.slf4j.MDC
 
 private val logger = KotlinLogging.logger {}
 
@@ -93,15 +93,11 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
         RequestElapsedConverter.startRequest()
         DeltaTimeConverter.startRequest()
         TraceIdFilter.before(it)
-        logger.info { "[REQUEST] starting request" }
+        RequestLog.start(it)
     }
     config.routes.after {
         TraceIdFilter.echo(it)
-        val elapsed = RequestElapsedConverter.currentElapsedMs()
-        logger.info { "[REQUEST] completed in ${elapsed}ms" }
-        RequestElapsedConverter.endRequest()
-        DeltaTimeConverter.endRequest()
-        MDC.clear()
+        RequestLog.complete(it)
     }
     config.events.serverStartFailed {
         shutdownLifecycle()
@@ -173,18 +169,22 @@ private fun registerExceptionHandlers(config: io.javalin.config.JavalinConfig) {
     config.routes.exception(ValidationException::class.java) { e, ctx ->
         TraceIdFilter.echo(ctx)
         ctx.status(HTTP_BAD_REQUEST).json(mapOf("error" to (e.message ?: "Bad Request")))
+        RequestLog.complete(ctx)
     }
     config.routes.exception(ForbiddenException::class.java) { e, ctx ->
         TraceIdFilter.echo(ctx)
         ctx.status(HTTP_FORBIDDEN).json(mapOf("error" to (e.message ?: "Forbidden")))
+        RequestLog.complete(ctx)
     }
     config.routes.exception(NotFoundException::class.java) { e, ctx ->
         TraceIdFilter.echo(ctx)
         ctx.status(HTTP_NOT_FOUND).json(mapOf("error" to (e.message ?: "Not Found")))
+        RequestLog.complete(ctx)
     }
     config.routes.exception(ConflictException::class.java) { e, ctx ->
         TraceIdFilter.echo(ctx)
         ctx.status(HTTP_CONFLICT).json(mapOf("error" to (e.message ?: "Conflict")))
+        RequestLog.complete(ctx)
     }
 }
 
