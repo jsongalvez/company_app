@@ -42,6 +42,7 @@ object ApiRoutes {
     const val BRANCH_DAYS = "$API_ROOT/branch-days"
     const val AUDIT_LOG = "$API_ROOT/audit-log"
     const val HEALTH = "/health"
+    const val METRICS = "/metrics"
     const val BRANCHES_EXPORT = "$BRANCHES/export"
 
     fun user(id: String) = "$USERS/$id"

@@ -1,0 +1,44 @@
+# Observability stack for the existing Oracle VM (#473).
+#
+# Coolify decision (map fog item — decided in-ticket):
+# - Prometheus + Grafana run as Coolify resources on the SAME free-tier VM as
+#   the backend (no new host, no paid service). Locally, `docker compose -f
+#   docker/observability/docker-compose.observability.yml up -d` reproduces it.
+# - Persistence via named volumes (prometheus_data, grafana_data): on Coolify
+#   attach a persistent volume to /prometheus and /var/lib/grafana so
+#   dashboards + history survive restarts/redeploys.
+# - Grafana auth via env (GRAFANA_ADMIN_USER/GRAFANA_ADMIN_PASSWORD, Coolify
+#   env vars — never committed). Provision the dashboard by importing
+#   docker/observability/grafana-dashboard.json once, or mount ./provisioning.
+# - Scrape target: point prometheus.yml at the backend Coolify service name
+#   (same Docker network); the file's host.docker.internal default is local-dev.
+services:
+  prometheus:
+    image: prom/prometheus:v3.4.0
+    container_name: company-prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    container_name: company-grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+volumes:
+  prometheus_data:
+  grafana_data:

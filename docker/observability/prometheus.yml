@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alert.rules.yml
+
+scrape_configs:
+  - job_name: companyapp-backend
+    metrics_path: /metrics
+    static_configs:
+      # Local dev: backend on host port (APP_PORT, k6 default 3023).
+      # On Coolify: replace with the backend resource's service name + port,
+      # e.g. targets: ['companyapp-backend:3023'] on the shared Coolify network.
+      - targets: ['host.docker.internal:3023']

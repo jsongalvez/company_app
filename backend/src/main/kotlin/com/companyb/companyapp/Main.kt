@@ -19,6 +19,7 @@ import com.companyb.companyapp.api.routes.ExportRoutes
 import com.companyb.companyapp.api.routes.HealthRoutes
 import com.companyb.companyapp.api.routes.MeRoutes
 import com.companyb.companyapp.api.routes.MedicalMissionDelegateRoutes
+import com.companyb.companyapp.api.routes.MetricsRoutes
 import com.companyb.companyapp.api.routes.MonthlyRemittanceSummaryRoutes
 import com.companyb.companyapp.api.routes.NotificationRoutes
 import com.companyb.companyapp.api.routes.ProductCategoryRoutes
@@ -45,6 +46,7 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
 import com.companyb.companyapp.logging.RequestLog
+import com.companyb.companyapp.observability.RequestMetrics
 import com.companyb.companyapp.service.SchedulerLifecycle
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
@@ -97,6 +99,7 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     }
     config.routes.after {
         TraceIdFilter.echo(it)
+        RequestMetrics.observe(it)
         RequestLog.complete(it)
     }
     config.events.serverStartFailed {
@@ -118,6 +121,7 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     }
     registerExceptionHandlers(config)
     HealthRoutes.register(config)
+    MetricsRoutes.register(config)
     AuthRoutes.login(config)
     AuthRoutes.acceptInvite(config)
     AuthRoutes.forgotPassword(config)
@@ -169,21 +173,25 @@ private fun registerExceptionHandlers(config: io.javalin.config.JavalinConfig) {
     config.routes.exception(ValidationException::class.java) { e, ctx ->
         TraceIdFilter.echo(ctx)
         ctx.status(HTTP_BAD_REQUEST).json(mapOf("error" to (e.message ?: "Bad Request")))
+        RequestMetrics.observe(ctx)
         RequestLog.complete(ctx)
     }
     config.routes.exception(ForbiddenException::class.java) { e, ctx ->
         TraceIdFilter.echo(ctx)
         ctx.status(HTTP_FORBIDDEN).json(mapOf("error" to (e.message ?: "Forbidden")))
+        RequestMetrics.observe(ctx)
         RequestLog.complete(ctx)
     }
     config.routes.exception(NotFoundException::class.java) { e, ctx ->
         TraceIdFilter.echo(ctx)
         ctx.status(HTTP_NOT_FOUND).json(mapOf("error" to (e.message ?: "Not Found")))
+        RequestMetrics.observe(ctx)
         RequestLog.complete(ctx)
     }
     config.routes.exception(ConflictException::class.java) { e, ctx ->
         TraceIdFilter.echo(ctx)
         ctx.status(HTTP_CONFLICT).json(mapOf("error" to (e.message ?: "Conflict")))
+        RequestMetrics.observe(ctx)
         RequestLog.complete(ctx)
     }
 }

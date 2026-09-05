@@ -1,0 +1,35 @@
+groups:
+  - name: companyapp-latency
+    interval: 30s
+    rules:
+      # k6 contract: client search p95 < 1000ms (tests/k6/helpers.js baseline).
+      # for: 5m = burn duration, not instant — deploy blips never page.
+      - alert: ClientSearchSlow
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{route="/api/clients/search"}[5m]))) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Client search p95 above 1s for 5m"
+          dashboard: "${GRAFANA_URL:-http://grafana:3000}/d/companyapp-red"
+          runbook: "Slow-query visibility + EXPLAIN runbook (#474)"
+      # k6 contract: branches p95 < 500ms.
+      - alert: BranchesSlow
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{route="/api/branches"}[5m]))) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Branches p95 above 0.5s for 5m"
+          dashboard: "${GRAFANA_URL:-http://grafana:3000}/d/companyapp-red"
+          runbook: "Slow-query visibility + EXPLAIN runbook (#474)"
+      # Leak-shaped vs query-shaped triage (#473): saturated pool + waiting
+      # threads while SQL stays fast = leak, not slow queries.
+      - alert: PoolSaturated
+        expr: hikaricp_connections_active == 3 and hikaricp_connections_pending > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HikariCP pool saturated with waiters for 5m (max 3)"
+          dashboard: "${GRAFANA_URL:-http://grafana:3000}/d/companyapp-red"

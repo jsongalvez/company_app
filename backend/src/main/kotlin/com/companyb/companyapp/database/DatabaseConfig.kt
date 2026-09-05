@@ -14,6 +14,32 @@ object DatabaseConfig {
     private const val MIN_IDLE = 3
     private const val CONNECTION_TIMEOUT_MS = 30_000L
 
+    data class PoolStats(
+        val active: Int,
+        val idle: Int,
+        val awaiting: Int,
+        val total: Int,
+    ) {
+        companion object {
+            fun empty() = PoolStats(active = 0, idle = 0, awaiting = 0, total = 0)
+        }
+    }
+
+    /**
+     * Live HikariCP gauges (#473). Never throws: uninitialized datasource
+     * (unit tests) reports zeros so /metrics stays scrapeable.
+     */
+    fun poolStats(): PoolStats =
+        runCatching {
+            val bean = dataSource.hikariPoolMXBean ?: return PoolStats.empty()
+            PoolStats(
+                active = bean.activeConnections,
+                idle = bean.idleConnections,
+                awaiting = bean.threadsAwaitingConnection,
+                total = bean.totalConnections,
+            )
+        }.getOrDefault(PoolStats.empty())
+
     private val lock = Any()
     private var appConfig: AppConfig? = null
     private var dataSourceInstance: HikariDataSource? = null

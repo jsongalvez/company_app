@@ -1,0 +1,31 @@
+{
+  "title": "CompanyApp RED + pool",
+  "uid": "companyapp-red",
+  "timezone": "Asia/Manila",
+  "panels": [
+    {
+      "title": "Traffic per route",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by (route) (rate(http_requests_total[5m]))" }]
+    },
+    {
+      "title": "Error % per route",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by (route) (rate(http_request_errors_total[5m])) / sum by (route) (rate(http_requests_total[5m]))" }]
+    },
+    {
+      "title": "P99 latency per route",
+      "type": "timeseries",
+      "targets": [{ "expr": "histogram_quantile(0.99, sum by (le, route) (rate(http_request_duration_seconds_bucket[5m])))" }]
+    },
+    {
+      "title": "Pool: active vs idle",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "hikaricp_connections_active" },
+        { "expr": "hikaricp_connections_idle" },
+        { "expr": "hikaricp_connections_pending" }
+      ]
+    }
+  ]
+}
