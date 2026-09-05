@@ -27,6 +27,7 @@ object CredentialTokenTable : Table("credential_token") {
         customEnumeration<CredentialTokenPurpose>(
             name = "purpose",
             sql = "credential_purpose",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> CredentialTokenPurpose.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()

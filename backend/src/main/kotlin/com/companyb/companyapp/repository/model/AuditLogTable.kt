@@ -16,6 +16,7 @@ object AuditLogTable : Table("audit_log") {
         customEnumeration<AuditAction>(
             name = "action",
             sql = "audit_action",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> AuditAction.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()

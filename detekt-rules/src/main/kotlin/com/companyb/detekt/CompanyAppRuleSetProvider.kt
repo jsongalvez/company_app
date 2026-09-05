@@ -10,6 +10,12 @@ class CompanyAppRuleSetProvider : RuleSetProvider {
     override fun instance(config: Config): RuleSet =
         RuleSet(
             ruleSetId,
-            listOf(SuppressRequiresTicket(config), NoAnyInPublicSignature(config), NoWeakMapContract(config)),
+            listOf(
+                SuppressRequiresTicket(config),
+                NoAnyInPublicSignature(config),
+                NoWeakMapContract(config),
+                NoWidenThenCast(config),
+                RequireSafetyComment(config),
+            ),
         )
 }

@@ -426,5 +426,6 @@ private fun <T : String?> ilike(
 ): Op<Boolean> =
     AuditILikeOp(
         col,
+        // SAFETY: ilike takes String-backed columns; columnType narrows to IColumnType<String> #467
         QueryParameter(pattern, col.columnType as IColumnType<String>),
     )

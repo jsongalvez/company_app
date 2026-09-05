@@ -19,6 +19,7 @@ object RemittanceLineTable : Table("remittance_line") {
         customEnumeration<RemittanceLineType>(
             name = "type",
             sql = "remittance_line_type",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> RemittanceLineType.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()

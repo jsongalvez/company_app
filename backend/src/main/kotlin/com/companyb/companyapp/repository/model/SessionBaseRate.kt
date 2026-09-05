@@ -40,6 +40,7 @@ object SessionBaseRateTable : Table("session_base_rate") {
         customEnumeration<SessionType>(
             name = "session_type",
             sql = "session_type",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> SessionType.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()

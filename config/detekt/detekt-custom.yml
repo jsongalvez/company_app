@@ -10,3 +10,29 @@ CompanyApp:
     active: true
   NoWeakMapContract:
     active: true
+  NoWidenThenCast:
+    active: true
+    # #467: test harnesses assert types via casts; production scope only.
+    excludes:
+      - '**/test/**'
+      - '**/androidTest/**'
+      - '**/commonTest/**'
+      - '**/desktopTest/**'
+      - '**/jvmTest/**'
+      - '**/androidUnitTest/**'
+      - '**/androidInstrumentedTest/**'
+      - '**/jsTest/**'
+      - '**/iosTest/**'
+  RequireSafetyComment:
+    active: true
+    # #467: test harnesses assert types via casts; production scope only.
+    excludes:
+      - '**/test/**'
+      - '**/androidTest/**'
+      - '**/commonTest/**'
+      - '**/desktopTest/**'
+      - '**/jvmTest/**'
+      - '**/androidUnitTest/**'
+      - '**/androidInstrumentedTest/**'
+      - '**/jsTest/**'
+      - '**/iosTest/**'

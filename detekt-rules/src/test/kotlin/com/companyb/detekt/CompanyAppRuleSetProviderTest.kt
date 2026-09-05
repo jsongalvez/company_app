@@ -13,10 +13,16 @@ class CompanyAppRuleSetProviderTest {
         val provider = CompanyAppRuleSetProvider()
         assertEquals("CompanyApp", provider.ruleSetId)
         val rules = provider.instance(Config.empty).rules
-        assertEquals(3, rules.size)
+        assertEquals(5, rules.size)
         assertTrue(
             rules.map { it::class.simpleName }.containsAll(
-                listOf("SuppressRequiresTicket", "NoAnyInPublicSignature", "NoWeakMapContract"),
+                listOf(
+                    "SuppressRequiresTicket",
+                    "NoAnyInPublicSignature",
+                    "NoWeakMapContract",
+                    "NoWidenThenCast",
+                    "RequireSafetyComment",
+                ),
             ),
         )
     }

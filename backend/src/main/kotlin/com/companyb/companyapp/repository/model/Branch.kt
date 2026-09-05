@@ -25,6 +25,7 @@ object BranchTable : Table("branch") {
         customEnumeration<BranchType>(
             name = "branch_type",
             sql = "branch_type",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> BranchType.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()

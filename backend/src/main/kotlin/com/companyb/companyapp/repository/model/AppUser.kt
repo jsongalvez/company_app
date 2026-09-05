@@ -31,6 +31,7 @@ object AppUserTable : Table("app_user") {
         customEnumeration<UserStatus>(
             name = "status",
             sql = "user_status",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> UserStatus.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()

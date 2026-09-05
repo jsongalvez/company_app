@@ -44,6 +44,7 @@ object ExpenseTable : Table("expense") {
         customEnumeration<ExpenseCategory>(
             name = "category",
             sql = "expense_category",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> ExpenseCategory.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()

@@ -292,5 +292,6 @@ private fun <T : String?> ilike(
 ): Op<Boolean> =
     ILikeOp(
         col,
+        // SAFETY: ilike takes String-backed columns; columnType narrows here #467
         QueryParameter(pattern, col.columnType as org.jetbrains.exposed.v1.core.IColumnType<String>),
     )

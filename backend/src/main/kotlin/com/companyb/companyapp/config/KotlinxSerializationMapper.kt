@@ -27,6 +27,7 @@ class KotlinxSerializationMapper : JsonMapper {
             this@KotlinxSerializationMapper.json.decodeFromString(
                 serializerForType(targetType),
                 json,
+                // SAFETY: serializerForType resolves the runtime serializer for targetType #467
             ) as T
         } catch (e: SerializationException) {
             logger.debug(e) { "Request body failed serialization" }

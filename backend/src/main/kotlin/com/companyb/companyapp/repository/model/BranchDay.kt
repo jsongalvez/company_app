@@ -23,6 +23,7 @@ object BranchDayTable : Table("branch_day") {
         customEnumeration<DayStatus>(
             name = "status",
             sql = "day_status",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> DayStatus.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()

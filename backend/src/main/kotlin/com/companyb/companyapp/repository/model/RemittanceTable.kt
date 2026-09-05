@@ -18,6 +18,7 @@ object RemittanceTable : Table("remittance") {
         customEnumeration<RemittanceType>(
             name = "type",
             sql = "remittance_type",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> RemittanceType.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()
@@ -30,6 +31,7 @@ object RemittanceTable : Table("remittance") {
         customEnumeration<RemittanceStatus>(
             name = "status",
             sql = "remittance_status",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> RemittanceStatus.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()
@@ -43,6 +45,7 @@ object RemittanceTable : Table("remittance") {
         customEnumeration<RemittanceMethod>(
             name = "method",
             sql = "remittance_method",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> RemittanceMethod.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()

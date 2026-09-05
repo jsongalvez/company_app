@@ -16,6 +16,7 @@ object UserCapabilityTable : Table("user_capability") {
         customEnumeration<CapabilityContextType>(
             name = "context_type",
             sql = "capability_context_type",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> CapabilityContextType.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()
@@ -31,6 +32,7 @@ object UserCapabilityTable : Table("user_capability") {
         customEnumeration<CapabilitySourceType>(
             name = "source_type",
             sql = "capability_source_type",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> CapabilitySourceType.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()

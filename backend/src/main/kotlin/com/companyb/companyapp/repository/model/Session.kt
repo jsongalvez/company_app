@@ -44,6 +44,7 @@ object SessionTable : Table("session") {
         customEnumeration<SessionType>(
             name = "session_type",
             sql = "session_type",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> SessionType.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()
@@ -57,6 +58,7 @@ object SessionTable : Table("session") {
         customEnumeration<SessionStatus>(
             name = "session_status",
             sql = "session_status",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> SessionStatus.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()

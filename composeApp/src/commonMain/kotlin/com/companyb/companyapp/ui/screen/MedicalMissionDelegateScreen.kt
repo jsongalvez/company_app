@@ -166,16 +166,19 @@ fun MedicalMissionDelegateScreen(
 
     LaunchedEffect(branchesState) {
         if (branchesState is UiState.Error) {
+            // SAFETY: `is` check above; delegated State value doesn't smart-cast #467
             logWarn("MedicalMissionDelegateScreen", "branchesState failed: ${(branchesState as UiState.Error).message}")
         }
     }
     LaunchedEffect(usersState) {
         if (usersState is UiState.Error) {
+            // SAFETY: `is` check above; delegated State value doesn't smart-cast #467
             logWarn("MedicalMissionDelegateScreen", "usersState failed: ${(usersState as UiState.Error).message}")
         }
     }
     LaunchedEffect(delegatesState) {
         if (delegatesState is UiState.Error) {
+            // SAFETY: `is` check above; delegated State value doesn't smart-cast #467
             logWarn(
                 "MedicalMissionDelegateScreen",
                 "delegatesState failed: ${(delegatesState as UiState.Error).message}",
@@ -231,6 +234,7 @@ fun MedicalMissionDelegateScreen(
 
         when {
             branchesState is UiState.Error -> {
+                // SAFETY: `is` check in this `when` branch; delegated State value doesn't smart-cast #467
                 val error = branchesState as UiState.Error
                 Box(Modifier.fillMaxWidth().weight(1f)) {
                     ErrorCard(error.message, userViewModel::loadBranches)
@@ -298,6 +302,7 @@ fun MedicalMissionDelegateScreen(
         }
 
         if (revokeState is UiState.Error) {
+            // SAFETY: `is` check above; delegated State value doesn't smart-cast #467
             Text(
                 text = (revokeState as UiState.Error).message,
                 style = MaterialTheme.typography.bodySmall,

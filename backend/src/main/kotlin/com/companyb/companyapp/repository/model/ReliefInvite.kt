@@ -54,6 +54,7 @@ object ReliefInviteTable : Table("relief_invite") {
         customEnumeration<ReliefInviteStatus>(
             name = "status",
             sql = "relief_invite_status",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> ReliefInviteStatus.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()

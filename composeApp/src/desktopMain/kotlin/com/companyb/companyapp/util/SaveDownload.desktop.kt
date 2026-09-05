@@ -12,6 +12,7 @@ actual fun saveDownload(
     fileName: String,
     bytes: ByteArray,
 ): Boolean {
+    // SAFETY: null-literal cast selects the Frame overload; never throws #467
     val dialog = FileDialog(null as Frame?, "Save export", FileDialog.SAVE)
     dialog.file = fileName
     dialog.isVisible = true

@@ -25,6 +25,7 @@ object GrantReliefAccessTable : Table("grant_relief_access") {
         customEnumeration<ReliefAccessStatus>(
             name = "request_status",
             sql = "relief_status",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> ReliefAccessStatus.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()

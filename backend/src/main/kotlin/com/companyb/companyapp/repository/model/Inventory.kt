@@ -66,6 +66,7 @@ object InventoryMovementTable : Table("inventory_movement") {
         customEnumeration<InventoryMovementReason>(
             name = "reason",
             sql = "inventory_movement_reason",
+            // SAFETY: PG enum column binds as String via customEnumeration #467
             fromDb = { value -> InventoryMovementReason.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()

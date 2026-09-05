@@ -229,6 +229,7 @@ object ReliefInviteRepository {
             col,
             org.jetbrains.exposed.v1.core.QueryParameter(
                 pattern,
+                // SAFETY: ilike takes String-backed columns; columnType narrows here #467
                 col.columnType as org.jetbrains.exposed.v1.core.IColumnType<String>,
             ),
         )

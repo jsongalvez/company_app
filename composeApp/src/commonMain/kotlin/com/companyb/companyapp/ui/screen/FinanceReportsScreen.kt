@@ -183,6 +183,7 @@ private fun FinanceReportsScreenEffects(
         downloads
             .filterValues { it is UiState.Success }
             .forEach { (key, state) ->
+                // SAFETY: filtered by `is UiState.Success` above; delegated map values don't smart-cast #467
                 val payload = (state as UiState.Success<FinanceReportsViewModel.DownloadPayload>).data
                 if (saveDownload(payload.fileName, payload.bytes)) {
                     onDownloadNote(null)
