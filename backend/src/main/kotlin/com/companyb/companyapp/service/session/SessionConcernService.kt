@@ -137,7 +137,8 @@ internal object SessionConcernService {
         reason: String?,
     ): Triple<Session, BranchDay, Boolean> {
         val session = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId, reason)
+        val (branchDay, isRemitted) =
+            BranchDayService.checkBranchDayEditableInTransaction(callerId, session.branchDayId, reason)
         return Triple(session, branchDay, isRemitted)
     }
 }
