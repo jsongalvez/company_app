@@ -42,13 +42,15 @@ class TimeOwnershipArchitectureTest {
     @Test
     fun `direct Instant reads are limited to the recorded owners`() {
         // Auth token lifecycle owns its own validity clock (invite/reset expiry, #350/#353);
-        // Branch Day's overload IS the authority.
+        // Branch Day's overload IS the authority; observability incident filing owns its
+        // server-measured event timestamp (#475, #499 — not business time).
         val allowedFiles =
             setOf(
                 "backend/src/main/kotlin/com/companyb/companyapp/auth/JwtService.kt",
                 "backend/src/main/kotlin/com/companyb/companyapp/service/AuthService.kt",
                 "backend/src/main/kotlin/com/companyb/companyapp/service/UserService.kt",
                 "backend/src/main/kotlin/com/companyb/companyapp/service/branchday/BranchDayService.kt",
+                "backend/src/main/kotlin/com/companyb/companyapp/observability/IncidentService.kt",
             )
         val offenders =
             File("backend/src/main/kotlin")

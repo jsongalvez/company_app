@@ -136,18 +136,7 @@ class ApiCallHandler(
                 val response = request.block()
                 if (response.status.isSuccess()) {
                     logInfo(tag, "${request.operation} success")
-                    if (request.stamp() == captured) {
-                        val parsed = request.transform(response)
-                        // #490 — recheck after the suspend transform: a bump mid-deserialization
-                        // still drops the stale body (its content is irrelevant to the invariant).
-                        if (request.stamp() == captured) {
-                            request.state.value = UiState.Success(parsed)
-                        } else {
-                            request.state.value = UiState.Success(request.fallback())
-                        }
-                    } else {
-                        request.state.value = UiState.Success(request.fallback())
-                    }
+                    handleSuccess(request, response, captured)
                 } else {
                     logWarn(tag, "${request.operation} failed: status=${response.status.value}")
                     if (!request.onNonSuccess(response)) {
@@ -172,6 +161,26 @@ class ApiCallHandler(
                     request.state.value = UiState.Error(e.message ?: "Unknown error")
                 }
             }
+        }
+    }
+
+    // #499 — success-leg extracted to keep launch under CognitiveComplexMethod threshold.
+    private suspend fun <T> handleSuccess(
+        request: LaunchRequest<T>,
+        response: HttpResponse,
+        captured: Long,
+    ) {
+        if (request.stamp() == captured) {
+            val parsed = request.transform(response)
+            // #490 — recheck after the suspend transform: a bump mid-deserialization
+            // still drops the stale body (its content is irrelevant to the invariant).
+            if (request.stamp() == captured) {
+                request.state.value = UiState.Success(parsed)
+            } else {
+                request.state.value = UiState.Success(request.fallback())
+            }
+        } else {
+            request.state.value = UiState.Success(request.fallback())
         }
     }
 
