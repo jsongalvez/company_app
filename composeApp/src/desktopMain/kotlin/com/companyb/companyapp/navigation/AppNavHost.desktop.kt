@@ -142,6 +142,25 @@ private fun DashboardReliefContent(
 }
 
 @Composable
+private fun DesktopAttendanceContent(
+    isReliefUser: Boolean,
+    branchId: String,
+    branchName: String?,
+    currentUserId: String?,
+    viewModel: AttendanceRosterViewModel,
+) {
+    if (!isReliefUser) {
+        AttendanceRosterCard(
+            viewModel = viewModel,
+            branchId = branchId,
+            branchName = branchName,
+            currentUserId = currentUserId,
+            isReliefUser = isReliefUser,
+        )
+    }
+}
+
+@Composable
 private fun DesktopDetailPane(
     session: DashboardSessionResponse?,
     apiClient: ApiClient,
@@ -194,8 +213,7 @@ private fun DesktopDashboardLive(
     val selectedBranchName = snapshot.clock?.branchName
     val selectedBranchId = snapshot.clock?.branchId
     val branchDayId = snapshot.clock?.branchDayId
-    val currentUser = snapshot.user
-    val currentUserId = currentUser
+    val currentUserId = snapshot.user
     val isRelief = snapshot.clock?.isRelief == true
     val lastData by dashboardViewModel.lastData.collectAsState()
     var selectedSessionId by remember { mutableStateOf<String?>(null) }
@@ -225,14 +243,13 @@ private fun DesktopDashboardLive(
                 attendanceContent = {
                     // #404 — member-marked attendance; the card self-hides for relief users
                     // (the server's membership gate 403s the read and the section renders nil).
-                    val clockedBranchId = selectedBranchId
-                    if (!isRelief && clockedBranchId != null) {
-                        AttendanceRosterCard(
-                            viewModel = attendanceViewModel,
+                    selectedBranchId?.let { clockedBranchId ->
+                        DesktopAttendanceContent(
+                            isReliefUser = isRelief,
                             branchId = clockedBranchId,
                             branchName = selectedBranchName,
                             currentUserId = currentUserId?.id,
-                            isReliefUser = isRelief,
+                            viewModel = attendanceViewModel,
                         )
                     }
                 },
