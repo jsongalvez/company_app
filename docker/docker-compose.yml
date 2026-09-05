@@ -7,6 +7,18 @@ services:
             -   "5432:5432"
         env_file:
             -   ../.env
+        # Slow-query visibility (#474): preload pg_stat_statements (needs the
+        # restart that a compose recreate performs), track all statements, and
+        # log statements slower than the agreed 500ms threshold (k6 branches
+        # p95 contract). log_parameter_max_length=0 (PG16+) masks bound values
+        # so server logs never carry production data. Coolify Postgres needs
+        # the same flags — see docs/slow-query-runbook.md.
+        command: >
+            postgres
+            -c shared_preload_libraries=pg_stat_statements
+            -c pg_stat_statements.track=all
+            -c log_min_duration_statement=500
+            -c log_parameter_max_length=0
         volumes:
             - postgres_data:/var/lib/postgresql
             - ./init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql

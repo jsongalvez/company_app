@@ -19,8 +19,8 @@ Before coding, read the relevant doc(s):
 `V1__full_schema.sql` (structural baseline: #370 squash, #461 refold of V20/V21/V23/V24/V25/V26/V27
 structure + V22 `effective_from` default) and `V2__seed_roles_capabilities.sql` (all seeds: base
 bundle + V5 scheduler capability + V22 base-rate backfill data + V26 catalog capability) in
-`backend/src/main/resources/db/migration/` are the authoritative current schema — the only two
-files. Inspect V1+V2 when reasoning about schema; evolve by adding new versioned migrations on top.
+`backend/src/main/resources/db/migration/` are the authoritative current schema — the V1+V2
+baseline plus live add-ons on top (V3 pg_stat_statements, #474). Inspect V1+V2 when reasoning about schema; evolve by adding new versioned migrations on top.
 Existing dev/test databases are rebuilt from V1+V2 (no production database exists); never resurrect
 the folded files.
 

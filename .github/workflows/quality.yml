@@ -106,6 +106,16 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Enable pg_stat_statements tracking on the test database (#474)
+        run: |
+          CONTAINER=$(docker ps -q --filter "ancestor=postgres:18")
+          docker exec "$CONTAINER" psql -U company_user -d company_app_test -c "ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements'; ALTER SYSTEM SET pg_stat_statements.track = 'all';"
+          docker restart "$CONTAINER"
+          for attempt in $(seq 1 30); do
+            if docker exec "$CONTAINER" pg_isready -U company_user -d company_app_test >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+
       - name: Run backend quality, shared Detekt, shared JVM compilation, and OpenAPI contract
         run: >-
           ./gradlew :backend:detekt :backend:ktlintCheck :backend:test
