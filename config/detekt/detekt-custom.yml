@@ -36,3 +36,21 @@ CompanyApp:
       - '**/androidInstrumentedTest/**'
       - '**/jsTest/**'
       - '**/iosTest/**'
+  NoRuntimeTypeCheck:
+    active: true
+    # #468 allowlist: api/ boundary owns route param parsing, the JSON mapper
+    # owns collection narrowing, named *Parser.kt files own the rest; test
+    # harnesses assert types ad hoc.
+    excludes:
+      - '**/api/**' # #468
+      - '**/KotlinxSerializationMapper.kt' # #468
+      - '**/*Parser.kt' # #468
+      - '**/test/**' # #468
+      - '**/androidTest/**' # #468
+      - '**/commonTest/**' # #468
+      - '**/desktopTest/**' # #468
+      - '**/jvmTest/**' # #468
+      - '**/androidUnitTest/**' # #468
+      - '**/androidInstrumentedTest/**' # #468
+      - '**/jsTest/**' # #468
+      - '**/iosTest/**' # #468

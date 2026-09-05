@@ -16,6 +16,7 @@ class CompanyAppRuleSetProvider : RuleSetProvider {
                 NoWeakMapContract(config),
                 NoWidenThenCast(config),
                 RequireSafetyComment(config),
+                NoRuntimeTypeCheck(config),
             ),
         )
 }

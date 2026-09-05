@@ -278,7 +278,7 @@ style:
       # #465: every effective-active rule ID (merged default + detekt.yml +
       # overlay) plus UNCHECKED_CAST (compiler ID, restored) and the
       # CompanyApp custom rules (#466 NoAny/NoWeakMap, #467 NoWiden/RequireSafety,
-      # SuppressRequiresTicket self-protection). Existing sites
+      # #468 NoRuntimeTypeCheck, SuppressRequiresTicket self-protection). Existing sites
       # stay green via the frozen excludes in detekt.yml and the frozen pair
       # list in :detekt-rules resources. Regenerate from real annotations only
       # (:detekt-rules test fixtures hold "@Suppress(" inside string literals),
@@ -358,6 +358,7 @@ style:
       - 'NewLineAtEndOfFile'
       - 'NoAnyInPublicSignature'
       - 'NoNameShadowing'
+      - 'NoRuntimeTypeCheck'
       - 'NoWeakMapContract'
       - 'NoWidenThenCast'
       - 'NotImplementedDeclaration'
@@ -528,6 +529,9 @@ style:
 # Landed ref #467: NoWidenThenCast (same-function val widened to Any then
 # as / as? back) and RequireSafetyComment (unsafe `as` needs a preceding
 # SAFETY: comment; `as?` safe-casts exempt as null-safe by construction).
+# Landed ref #468: NoRuntimeTypeCheck (`is`/`as` on Any/Map/MutableMap plus
+# instance `::class`/`javaClass` narrowing; api/ boundary, the JSON mapper,
+# and named *Parser.kt files allowlisted via detekt-custom.yml excludes).
 #
 # Those require custom PSI/type-resolution rules. Do not approximate them with
 # regex naming rules: that creates blind spots and false confidence.
