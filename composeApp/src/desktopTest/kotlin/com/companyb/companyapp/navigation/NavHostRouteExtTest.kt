@@ -57,20 +57,21 @@ class NavHostRouteExtTest {
         // #487 — every public route renders no drawer, no badge poll: the shell
         // classifier must stay false for all four (Login/BranchSelect precedent
         // plus AcceptInvite/ForgotPassword).
-        assertFalse((Route.Login as Route?).isPostClockIn())
-        assertFalse((Route.BranchSelect as Route?).isPostClockIn())
-        assertFalse((Route.AcceptInvite as Route?).isPostClockIn())
-        assertFalse((Route.ForgotPassword as Route?).isPostClockIn())
-        assertFalse((null as Route?).isPostClockIn())
+        assertFalse((Route.Login as? Route).isPostClockIn())
+        assertFalse((Route.BranchSelect as? Route).isPostClockIn())
+        assertFalse((Route.AcceptInvite as? Route).isPostClockIn())
+        assertFalse((Route.ForgotPassword as? Route).isPostClockIn())
+        val noRoute: Route? = null
+        assertFalse(noRoute.isPostClockIn())
     }
 
     @Test
     fun postClockInRoutesKeepChrome() {
-        assertTrue((Route.Dashboard() as Route?).isPostClockIn())
-        assertTrue((Route.Clients as Route?).isPostClockIn())
-        assertTrue((Route.Finance as Route?).isPostClockIn())
-        assertTrue((Route.Notifications as Route?).isPostClockIn())
-        assertTrue((Route.SessionCreate as Route?).isPostClockIn())
-        assertTrue((Route.Profile as Route?).isPostClockIn())
+        assertTrue((Route.Dashboard() as? Route).isPostClockIn())
+        assertTrue((Route.Clients as? Route).isPostClockIn())
+        assertTrue((Route.Finance as? Route).isPostClockIn())
+        assertTrue((Route.Notifications as? Route).isPostClockIn())
+        assertTrue((Route.SessionCreate as? Route).isPostClockIn())
+        assertTrue((Route.Profile as? Route).isPostClockIn())
     }
 }
