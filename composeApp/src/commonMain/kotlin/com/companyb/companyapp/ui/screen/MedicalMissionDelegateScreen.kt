@@ -178,9 +178,9 @@ fun MedicalMissionDelegateScreen(
     }
     LaunchedEffect(delegatesState) {
         if (delegatesState is UiState.Error) {
-            // SAFETY: `is` check above; delegated State value doesn't smart-cast #467
             logWarn(
                 "MedicalMissionDelegateScreen",
+                // SAFETY: `is` check above; delegated State value doesn't smart-cast #467
                 "delegatesState failed: ${(delegatesState as UiState.Error).message}",
             )
         }
@@ -302,8 +302,8 @@ fun MedicalMissionDelegateScreen(
         }
 
         if (revokeState is UiState.Error) {
-            // SAFETY: `is` check above; delegated State value doesn't smart-cast #467
             Text(
+                // SAFETY: `is` check above; delegated State value doesn't smart-cast #467
                 text = (revokeState as UiState.Error).message,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
