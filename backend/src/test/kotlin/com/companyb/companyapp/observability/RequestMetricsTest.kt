@@ -133,7 +133,7 @@ class RequestMetricsTest {
                     RequestLog.complete(ctx)
                 }
                 cfg.routes.get("/boom-4xx") { throw ValidationException("bad") }
-                cfg.routes.get("/boom-5xx") { throw RuntimeException("boom") }
+                cfg.routes.get("/boom-5xx") { throw IllegalStateException("boom") }
                 cfg.routes.get("/ok") { it.result("ok") }
             }
         app.start(0)
