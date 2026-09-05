@@ -139,6 +139,41 @@ class ApiCallHandlerTest {
         }
 
     @Test
+    fun stamp_bump_mid_transform_drops_stale_body() =
+        runTest(testScheduler) {
+            // #490 — the stamp is rechecked AFTER the suspend transform returns: a generation
+            // bump mid-deserialization must still drop the stale body for the fallback.
+            val apiClient = mockApiClient { respond200() }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
+            var stamp = 0L
+
+            handler.launch(
+                LaunchRequest(
+                    state = state,
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { apiClient.httpClient.get("/api/items") },
+                    transform = {
+                        stamp = 1
+                        listOf(1, 2, 3)
+                    },
+                    stamp = { stamp },
+                    fallback = { listOf(9) },
+                ),
+            )
+
+            runCurrent()
+
+            val committed = assertIs<UiState.Success<List<Int>>>(state.value)
+            assertEquals(
+                listOf(9),
+                committed.data,
+                "a body deserialized after a mid-transform stamp bump must not commit",
+            )
+        }
+
+    @Test
     fun default_params_commit_transform_without_guard() =
         runTest(testScheduler) {
             val apiClient = mockApiClient { respond200() }

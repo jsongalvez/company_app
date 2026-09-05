@@ -253,6 +253,11 @@ private fun RemittanceDetailSuccessHost(
     val queueState by args.viewModel.remittanceList.collectAsState()
     val queueMirrors by args.viewModel.lastByTab.collectAsState()
     val dayPickerState by args.viewModel.dayPicker.collectAsState()
+    val pickerLoadedRange by args.viewModel.pickerLoadedRange.collectAsState()
+    // #490 — desk rail day labels go through the range gate: old-range entries stay hidden
+    // until the current range's load lands (an empty map renders no stale day names).
+    val range = detail.dateRangeStart to detail.dateRangeEnd
+    val dayStale = pickerLoadedRange != null && pickerLoadedRange != range
     if (changedNotice) {
         Text(
             text = "Remittance was changed elsewhere — changes reloaded",
@@ -271,10 +276,14 @@ private fun RemittanceDetailSuccessHost(
                     mirrors = queueMirrors,
                     queueState = queueState,
                     dayEntries =
-                        (dayPickerState as? UiState.Success)
-                            ?.data
-                            ?.associate { it.id to it }
-                            .orEmpty(),
+                        if (dayStale) {
+                            emptyMap()
+                        } else {
+                            (dayPickerState as? UiState.Success)
+                                ?.data
+                                ?.associate { it.id to it }
+                                .orEmpty()
+                        },
                     onQueueClick = actions.onQueueClick,
                     onRetryQueue = { actions.onRetryQueue() },
                 ),

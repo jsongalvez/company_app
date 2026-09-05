@@ -42,12 +42,16 @@ import kotlinx.coroutines.launch
  *   (captured; exact at launch, not at coroutine start), once at landing. A SUCCESS landing
  *   commits transform(response) only when the two reads agree; a mismatched success-compatible
  *   landing commits [fallback]() instead — the caller's substitution (a freshest-value read) +
- *   re-issue (a new launch carrying the post-action stamp). The FAILURE legs (#176 — the guard
+ *   re-issue (a new launch carrying the post-action stamp). The stamp is rechecked AGAIN
+ *   after the suspend [transform] returns (#490 — a generation bump mid-deserialization must
+ *   not commit the stale body); callers must also guard side effects inside [transform]
+ *   itself with the same comparison, since the handler cannot retract those. The FAILURE legs (#176 — the guard
  *   is no longer success-only): a non-success or exception landing may run its hooks but writes
  *   UiState.Error only when the reads agree — a superseded failure writes nothing onto the
  *   moved-on surface. A stale body is never deserialized — its content is irrelevant to the
  *   invariant, and skipping the parse means a malformed stale body can no longer surface an
- *   Error for a response the caller would discard. Defaults are a no-op: a constant stamp
+ *   Error for a response the caller would discard. (A body that goes stale MID-transform is
+ *   parsed, then dropped by the post-transform recheck — #490.) Defaults are a no-op: a constant stamp
  *   always agrees, keeping every existing caller behavior-identical (the fallback default is
  *   unreachable then — a guard enabled without one fails loudly, not silently).
  */
@@ -133,7 +137,14 @@ class ApiCallHandler(
                 if (response.status.isSuccess()) {
                     logInfo(tag, "${request.operation} success")
                     if (request.stamp() == captured) {
-                        request.state.value = UiState.Success(request.transform(response))
+                        val parsed = request.transform(response)
+                        // #490 — recheck after the suspend transform: a bump mid-deserialization
+                        // still drops the stale body (its content is irrelevant to the invariant).
+                        if (request.stamp() == captured) {
+                            request.state.value = UiState.Success(parsed)
+                        } else {
+                            request.state.value = UiState.Success(request.fallback())
+                        }
                     } else {
                         request.state.value = UiState.Success(request.fallback())
                     }

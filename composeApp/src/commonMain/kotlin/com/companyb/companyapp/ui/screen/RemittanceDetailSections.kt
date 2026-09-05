@@ -305,8 +305,11 @@ private fun RemittanceDetailSubmitUndoHost(
     args: RemittanceDetailArgs,
     dialogs: RemittanceDetailDialogState,
 ) {
+    // #490 — submit labels go through the same range gate as the day dialog: old-range day
+    // names must not label a new-range confirm.
+    val gate = PickerRangeGate.of(collected, detail)
     val dayLabels =
-        (collected.dayPickerState as? UiState.Success)
+        (gate.gated(collected.dayPickerState) as? UiState.Success)
             ?.data
             ?.associate { it.id to it }
             .orEmpty()
@@ -358,9 +361,10 @@ private fun RemittanceDetailSubmitUndoHost(
  * #483 — range-bound picker gate: the three picker caches belong to one loaded range. A
  * header range edit invalidates them until the reloads land (stale Success would offer the
  * old range's entries), and dialog tick-selections key on [rangeKey] so out-of-range
- * selections reset instead of surviving silently.
+ * selections reset instead of surviving silently. #490 — shared with the desk rail and the
+ * submit confirm: every raw picker consumer renders through this gate.
  */
-private data class PickerRangeGate(
+internal data class PickerRangeGate(
     val rangeKey: String,
     val stale: Boolean,
 ) {

@@ -432,18 +432,204 @@ class RemittanceViewModelTest {
     @Test
     fun picker_loaded_range_tracks_requested_range_per_load() =
         runTest(testScheduler) {
-            val vm = RemittanceViewModel(mockApiClient(remittanceHandler()))
+            // #490 — marker commits are range-keyed against the committed detail, so the test
+            // follows the production flow: detail first, then pickers for its range; a header
+            // range edit recommits the detail before the new-range reloads.
+            var detailBody = DETAIL_JSON
+            val base = remittanceHandler()
+            val vm =
+                RemittanceViewModel(
+                    mockApiClient { request ->
+                        if (request.method == HttpMethod.Get &&
+                            request.url.encodedPath.startsWith("/api/remittances/")
+                        ) {
+                            jsonRespond(status = HttpStatusCode.OK, body = detailBody)
+                        } else {
+                            base(request)
+                        }
+                    },
+                )
 
             assertEquals(expected = null, actual = vm.pickerLoadedRange.value)
 
+            vm.loadRemittance("r1")
+            runCurrent()
             vm.loadSessionPicker("b1", "2026-08-01", "2026-08-09")
             runCurrent()
             assertEquals(expected = "2026-08-01" to "2026-08-09", actual = vm.pickerLoadedRange.value)
 
             // A header range edit reloads for the new range (#483) — the key follows the load.
+            detailBody = DETAIL_JSON_RANGE_B
+            vm.loadRemittance("r1")
+            runCurrent()
             vm.loadDayPicker("b1", "2026-08-10", "2026-08-20")
             runCurrent()
             assertEquals(expected = "2026-08-10" to "2026-08-20", actual = vm.pickerLoadedRange.value)
+        }
+
+    @Test
+    fun picker_staleRangeLanding_commitsNeitherEntriesNorMarker() =
+        runTest(testScheduler) {
+            // #490 ordering (2): range change fires new-range loads; the old-range landing
+            // arriving after the current-range Success must move neither entries nor marker —
+            // otherwise the gate renders Loading with no reload to unwedge it.
+            var detailBody = DETAIL_JSON
+            val sessionGate = CompletableDeferred<Unit>()
+            var sessionGets = 0
+            val base = remittanceHandler()
+            val vm =
+                RemittanceViewModel(
+                    mockApiClient { request ->
+                        if (request.method == HttpMethod.Get &&
+                            request.url.encodedPath.startsWith("/api/remittances/")
+                        ) {
+                            jsonRespond(status = HttpStatusCode.OK, body = detailBody)
+                        } else if (request.method == HttpMethod.Get &&
+                            request.url.encodedPath.endsWith("/remittance-sessions")
+                        ) {
+                            sessionGets++
+                            if (sessionGets == 1) {
+                                sessionGate.await()
+                                jsonRespond(status = HttpStatusCode.OK, body = SESSIONS_JSON)
+                            } else {
+                                jsonRespond(status = HttpStatusCode.OK, body = SESSIONS_JSON_RANGE_B)
+                            }
+                        } else {
+                            base(request)
+                        }
+                    },
+                )
+
+            vm.loadRemittance("r1")
+            runCurrent()
+            vm.loadSessionPicker("b1", "2026-08-01", "2026-08-09")
+            runCurrent()
+
+            detailBody = DETAIL_JSON_RANGE_B
+            vm.loadRemittance("r1")
+            runCurrent()
+            vm.loadSessionPicker("b1", "2026-08-10", "2026-08-20")
+            advanceUntilIdle()
+
+            sessionGate.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(expected = 2, actual = sessionGets)
+            assertEquals(
+                expected = "2026-08-10" to "2026-08-20",
+                actual = vm.pickerLoadedRange.value,
+            )
+            val sessions =
+                assertIs<UiState.Success<List<RemittanceSessionPickerEntryResponse>>>(vm.sessionPicker.value)
+            assertEquals(expected = listOf("s9"), actual = sessions.data.map { it.id })
+        }
+
+    @Test
+    fun picker_staleRangeFailure_doesNotClobberNewerSuccess() =
+        runTest(testScheduler) {
+            // #490 finding (3): an old-range failure landing after the current-range Success
+            // must write no Error — the Success stands with its Retry-free surface.
+            var detailBody = DETAIL_JSON
+            val dayGate = CompletableDeferred<Unit>()
+            var dayGets = 0
+            val base = remittanceHandler()
+            val vm =
+                RemittanceViewModel(
+                    mockApiClient { request ->
+                        if (request.method == HttpMethod.Get &&
+                            request.url.encodedPath.startsWith("/api/remittances/")
+                        ) {
+                            jsonRespond(status = HttpStatusCode.OK, body = detailBody)
+                        } else if (request.method == HttpMethod.Get &&
+                            request.url.encodedPath.endsWith("/remittance-days")
+                        ) {
+                            dayGets++
+                            if (dayGets == 1) {
+                                dayGate.await()
+                                jsonRespond(status = HttpStatusCode.BadRequest, body = "{}")
+                            } else {
+                                jsonRespond(status = HttpStatusCode.OK, body = DAYS_JSON)
+                            }
+                        } else {
+                            base(request)
+                        }
+                    },
+                )
+
+            vm.loadRemittance("r1")
+            runCurrent()
+            vm.loadDayPicker("b1", "2026-08-01", "2026-08-09")
+            runCurrent()
+
+            detailBody = DETAIL_JSON_RANGE_B
+            vm.loadRemittance("r1")
+            runCurrent()
+            vm.loadDayPicker("b1", "2026-08-10", "2026-08-20")
+            advanceUntilIdle()
+            assertIs<UiState.Success<List<RemittanceDayPickerEntryResponse>>>(vm.dayPicker.value)
+
+            dayGate.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(expected = 2, actual = dayGets)
+            assertIs<UiState.Success<List<RemittanceDayPickerEntryResponse>>>(
+                vm.dayPicker.value,
+                "a stale-range failure must not clobber the current-range Success",
+            )
+            assertEquals(
+                expected = "2026-08-10" to "2026-08-20",
+                actual = vm.pickerLoadedRange.value,
+            )
+        }
+
+    @Test
+    fun loadRemittance_staleFirstLanding_holdsLoadingUntilNewerLands() =
+        runTest(testScheduler) {
+            // #490 — double-initial overlap whose stale landing arrives FIRST: no committed
+            // detail exists, so the fallback throws and the stale leg holds Loading (logged,
+            // never rendered) until the superseding load commits.
+            val releaseFirst = CompletableDeferred<Unit>()
+            val releaseSecond = CompletableDeferred<Unit>()
+            var detailGets = 0
+            val vm =
+                RemittanceViewModel(
+                    mockApiClient { request ->
+                        if (request.method == HttpMethod.Get &&
+                            request.url.encodedPath == "/api/remittances/r1"
+                        ) {
+                            detailGets++
+                            if (detailGets == 1) {
+                                releaseFirst.await()
+                            } else {
+                                releaseSecond.await()
+                            }
+                            jsonRespond(status = HttpStatusCode.OK, body = DETAIL_JSON)
+                        } else {
+                            error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                        }
+                    },
+                )
+
+            vm.loadRemittance("r1")
+            runCurrent()
+            vm.loadRemittance("r1")
+            advanceUntilIdle()
+            assertEquals(expected = 2, actual = detailGets)
+
+            releaseFirst.complete(Unit)
+            advanceUntilIdle()
+
+            assertIs<UiState.Loading>(
+                vm.remittanceDetail.value,
+                "the stale-first landing must hold Loading, not Error",
+            )
+
+            releaseSecond.complete(Unit)
+            advanceUntilIdle()
+
+            val state =
+                assertIs<UiState.Success<RemittanceDetailResponse>>(vm.remittanceDetail.value)
+            assertEquals(expected = 3, actual = state.data.version)
         }
 
     @Test
@@ -908,6 +1094,23 @@ class RemittanceViewModelTest {
             """[
                 {"id":"s1","clientName":"John Doe","bookedAt":"2026-08-01T02:00:00Z","sessionStatus":"COMPLETED","finalPrice":"500.00"}
             ]"""
+
+        const val SESSIONS_JSON_RANGE_B =
+            """[
+                {"id":"s9","clientName":"Jane Roe","bookedAt":"2026-08-10T02:00:00Z","sessionStatus":"COMPLETED","finalPrice":"700.00"}
+            ]"""
+
+        const val DETAIL_JSON_RANGE_B =
+            """{
+                "id":"r1","type":"SESSION","status":"DRAFT","branchId":"b1","method":"BANK_TRANSFER",
+                "submittedDate":"","submittedAt":null,"submittedBy":"u1",
+                "dateRangeStart":"2026-08-10","dateRangeEnd":"2026-08-20","createdAt":"2026-08-01T01:00:00Z",
+                "version":4,
+                "lines":[],
+                "totalAmount":"0.00",
+                "dayBreakdowns":[],
+                "snapshot":null
+            }"""
 
         const val PRODUCT_SALES_JSON =
             """[

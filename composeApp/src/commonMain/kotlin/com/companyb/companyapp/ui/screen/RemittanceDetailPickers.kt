@@ -144,10 +144,15 @@ internal class IncomePickerSession<T>(
         if (data.mutationState is UiState.Loading || pending.isNotEmpty() || selectedIds.isEmpty()) {
             return null
         }
+        // #490 — a selected id missing from a reloaded same-range cache must not throw in the
+        // click handler: fall back to the amount captured at toggle time, drop only ids with
+        // neither.
         val requests =
-            selectedIds.map { id ->
-                spec.toRequest(id, amounts[id] ?: spec.amountOf(entries.first { spec.idOf(it) == id }))
+            selectedIds.mapNotNull { id ->
+                val amount = amounts[id] ?: entries.find { spec.idOf(it) == id }?.let { spec.amountOf(it) }
+                amount?.let { spec.toRequest(id, it) }
             }
+        if (requests.isEmpty()) return null
         pending = requests
         selectedIds = emptySet()
         return requests
@@ -414,9 +419,11 @@ internal fun DayPickerDialog(
     onDismiss: () -> Unit,
 ) {
     // #483 — selections key on the loaded range: a header range edit resets ticked days
-    // instead of silently keeping out-of-range selections.
+    // instead of silently keeping out-of-range selections. #490 — the in-flight add queue
+    // keys the same way: old-range requests never survive a range change with the dialog
+    // composed.
     var selectedIds by remember(rangeKey) { mutableStateOf(emptySet<String>()) }
-    var pending by remember { mutableStateOf<List<AddDayBreakdownRequest>>(emptyList()) }
+    var pending by remember(rangeKey) { mutableStateOf<List<AddDayBreakdownRequest>>(emptyList()) }
 
     // One POST per selected day, advanced on each success; a failure or the VM's 403/409 Idle
     // reset clears the queue (the dialog stays open showing the error / the reloaded state).
