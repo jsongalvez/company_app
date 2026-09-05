@@ -298,22 +298,22 @@ private fun RemittanceDetailLineDayEffects(
     // next version-locked call must carry the fresh expectedVersion).
     LaunchedEffect(lineState) {
         if (lineState is UiState.Success) {
-            viewModel.loadRemittance(remittanceId)
+            viewModel.reloadDetail(remittanceId)
         }
     }
     LaunchedEffect(deleteLineState) {
         if (deleteLineState is UiState.Success) {
-            viewModel.loadRemittance(remittanceId)
+            viewModel.reloadDetail(remittanceId)
         }
     }
     LaunchedEffect(dayBreakdownState) {
         if (dayBreakdownState is UiState.Success) {
-            viewModel.loadRemittance(remittanceId)
+            viewModel.reloadDetail(remittanceId)
         }
     }
     LaunchedEffect(deleteDayBreakdownState) {
         if (deleteDayBreakdownState is UiState.Success) {
-            viewModel.loadRemittance(remittanceId)
+            viewModel.reloadDetail(remittanceId)
         }
     }
 }
@@ -331,7 +331,7 @@ private fun RemittanceDetailHeaderSubmitUndoEffects(
         when (val state = headerUpdateState) {
             is UiState.Success -> {
                 dialogs.header = false
-                args.viewModel.loadRemittance(args.remittanceId)
+                args.viewModel.reloadDetail(args.remittanceId)
                 onRefreshQueue()
             }
 
@@ -350,7 +350,7 @@ private fun RemittanceDetailHeaderSubmitUndoEffects(
                 dialogs.submit = false
                 // D5 — the frozen breakdown appears right away (the reloaded detail carries the
                 // snapshot block).
-                args.viewModel.loadRemittance(args.remittanceId)
+                args.viewModel.reloadDetail(args.remittanceId)
                 onRefreshQueue()
             }
 
@@ -367,7 +367,7 @@ private fun RemittanceDetailHeaderSubmitUndoEffects(
         when (val state = undoState) {
             is UiState.Success -> {
                 dialogs.undo = false
-                args.viewModel.loadRemittance(args.remittanceId)
+                args.viewModel.reloadDetail(args.remittanceId)
                 onRefreshQueue()
             }
 

@@ -26,10 +26,12 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -287,6 +289,123 @@ class RemittanceViewModelTest {
         }
 
     @Test
+    fun loadRemittance_staleSuccessLanding_dropsStaleBody() =
+        runTest(testScheduler) {
+            // #484 — latest-wins: gate the first load, land a newer load first, then release
+            // the stale one with a divergent version. Without the guard the stale body would
+            // last-writer-win over the newer version/snapshot/Undo state.
+            val staleGate = CompletableDeferred<Unit>()
+            var detailGets = 0
+            val vm =
+                RemittanceViewModel(
+                    mockApiClient { request ->
+                        if (request.method == HttpMethod.Get &&
+                            request.url.encodedPath == "/api/remittances/r1"
+                        ) {
+                            detailGets++
+                            if (detailGets == 1) {
+                                staleGate.await()
+                                jsonRespond(status = HttpStatusCode.OK, body = STALE_DETAIL_JSON)
+                            } else {
+                                jsonRespond(status = HttpStatusCode.OK, body = DETAIL_JSON)
+                            }
+                        } else {
+                            error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                        }
+                    },
+                )
+
+            vm.loadRemittance("r1")
+            runCurrent()
+            vm.loadRemittance("r1")
+            advanceUntilIdle()
+
+            staleGate.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(expected = 2, actual = detailGets)
+            val state =
+                assertIs<UiState.Success<RemittanceDetailResponse>>(vm.remittanceDetail.value)
+            assertEquals(expected = 3, actual = state.data.version)
+        }
+
+    @Test
+    fun loadRemittance_staleFailure_doesNotClobberNewerSuccess() =
+        runTest(testScheduler) {
+            // #484 (#176 leg): a superseded failure must write no Error onto the moved-on
+            // surface — the newer Success stands.
+            val staleGate = CompletableDeferred<Unit>()
+            var detailGets = 0
+            val vm =
+                RemittanceViewModel(
+                    mockApiClient { request ->
+                        if (request.method == HttpMethod.Get &&
+                            request.url.encodedPath == "/api/remittances/r1"
+                        ) {
+                            detailGets++
+                            if (detailGets == 1) {
+                                staleGate.await()
+                                // 400, not 500: the client's HttpRequestRetry re-issues 5xx
+                                // inside the same landing (a retry is not a newer load).
+                                jsonRespond(status = HttpStatusCode.BadRequest, body = "{}")
+                            } else {
+                                jsonRespond(status = HttpStatusCode.OK, body = DETAIL_JSON)
+                            }
+                        } else {
+                            error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                        }
+                    },
+                )
+
+            vm.loadRemittance("r1")
+            runCurrent()
+            vm.loadRemittance("r1")
+            advanceUntilIdle()
+            assertIs<UiState.Success<RemittanceDetailResponse>>(vm.remittanceDetail.value)
+
+            staleGate.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(expected = 2, actual = detailGets)
+            val state =
+                assertIs<UiState.Success<RemittanceDetailResponse>>(vm.remittanceDetail.value)
+            assertEquals(expected = 3, actual = state.data.version)
+        }
+
+    @Test
+    fun reloadDetail_resetsNotice_and_refetches() =
+        runTest(testScheduler) {
+            // #484 — the central success-path funnel carries loadRemittance defaults: a clean
+            // post-mutation reload resets the changed-elsewhere notice and re-fetches.
+            var detailGets = 0
+            val base = remittanceHandler(updateStatus = HttpStatusCode.Conflict)
+            val vm =
+                RemittanceViewModel(
+                    mockApiClient { request ->
+                        if (request.method == HttpMethod.Get &&
+                            request.url.encodedPath == "/api/remittances/r1"
+                        ) {
+                            detailGets++
+                        }
+                        base(request)
+                    },
+                )
+            vm.loadRemittance("r1")
+            runCurrent()
+            vm.updateHeader("r1", headerRequest(version = 3))
+            runCurrent()
+            assertTrue(vm.detailChangedNotice.value)
+            assertEquals(expected = 2, actual = detailGets)
+
+            vm.reloadDetail("r1")
+            runCurrent()
+
+            assertEquals(expected = 3, actual = detailGets)
+            assertEquals(expected = false, actual = vm.detailChangedNotice.value)
+            assertIs<UiState.Success<RemittanceDetailResponse>>(vm.remittanceDetail.value)
+        }
+
+    @Test
     fun picker_loads_success_emit_entries() =
         runTest(testScheduler) {
             val vm = RemittanceViewModel(mockApiClient(remittanceHandler()))
@@ -437,6 +556,33 @@ class RemittanceViewModelTest {
 
             val state = assertIs<UiState.Success<RemittanceDayBreakdownResponse>>(vm.dayBreakdownResult.value)
             assertEquals(expected = "bd1", actual = state.data.id)
+        }
+
+    @Test
+    fun addDayBreakdown_409_reloads_detail_and_sets_changed_notice() =
+        runTest(testScheduler) {
+            // #484 — the only adapter whose terminal path had no pin: it must route through
+            // the shared 403/409 handler like the other six.
+            val handler = remittanceHandler(dayStatus = HttpStatusCode.Conflict)
+            var detailGets = 0
+            val wrapped: MockRequestHandler = { request ->
+                if (request.method == HttpMethod.Get &&
+                    request.url.encodedPath == "/api/remittances/r1"
+                ) {
+                    detailGets++
+                }
+                handler(request)
+            }
+            val vm = RemittanceViewModel(mockApiClient(wrapped))
+            vm.loadRemittance("r1")
+            runCurrent()
+
+            vm.addDayBreakdown("r1", AddDayBreakdownRequest(id = "bd1", branchDayId = "d1"))
+            runCurrent()
+
+            assertEquals(expected = 2, actual = detailGets)
+            assertTrue(vm.detailChangedNotice.value)
+            assertIs<UiState.Idle>(vm.dayBreakdownResult.value)
         }
 
     @Test
@@ -687,7 +833,7 @@ class RemittanceViewModelTest {
 
                 request.method == HttpMethod.Post &&
                     request.url.encodedPath.contains("/day-breakdowns") -> {
-                    jsonRespond(status = HttpStatusCode.Created, body = DAY_BREAKDOWN_JSON)
+                    jsonRespond(status = dayStatus, body = DAY_BREAKDOWN_JSON)
                 }
 
                 request.method == HttpMethod.Delete &&
@@ -733,6 +879,18 @@ class RemittanceViewModelTest {
 
         const val CREATED_JSON =
             """{"id":"new-id","type":"SESSION","status":"DRAFT","branchId":"b1","method":"BANK_TRANSFER","submittedDate":"","submittedAt":null,"submittedBy":"u1","dateRangeStart":"2026-08-01","dateRangeEnd":"2026-08-09","createdAt":"2026-08-09T01:00:00Z","version":1,"netIncome":null}"""
+
+        const val STALE_DETAIL_JSON =
+            """{
+                "id":"r1","type":"SESSION","status":"SUBMITTED","branchId":"b1","method":"BANK_TRANSFER",
+                "submittedDate":"2026-08-09","submittedAt":"2026-08-09T01:00:00Z","submittedBy":"u1",
+                "dateRangeStart":"2026-08-01","dateRangeEnd":"2026-08-09","createdAt":"2026-08-01T01:00:00Z",
+                "version":99,
+                "lines":[{"id":"l1","remittanceId":"r1","type":"SESSION","sessionId":"s1","productSaleId":null,"createdBy":"u1","createdAt":"2026-08-01T01:00:00Z","deletedBy":null,"deletedAt":null,"amount":"500.00"}],
+                "totalAmount":"500.00",
+                "dayBreakdowns":[{"id":"bd1","remittanceId":"r1","branchDayId":"d1"}],
+                "snapshot":{"remittanceId":"r1","grossIncome":"1234.56","totalCompensation":"100.00","totalExpenses":"1200.00","netIncome":"1200.00","snapshottedAt":"2026-08-09T01:00:00Z"}
+            }"""
 
         const val DETAIL_JSON =
             """{

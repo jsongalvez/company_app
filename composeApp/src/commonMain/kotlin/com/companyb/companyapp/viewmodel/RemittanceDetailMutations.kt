@@ -12,6 +12,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -21,25 +22,43 @@ import kotlinx.coroutines.flow.MutableStateFlow
 // (state Idle without Success, no error); 409 = version conflict → settle the mutation's state,
 // raise the changed-elsewhere notice, and re-fetch the detail so the fresh payload wins.
 //
+// #484 — the axis lives in exactly one place: handleDetailMutationTerminal below. The 7
+// adapters pass their state through it (no divergent copies).
+//
 // Screen call sites are unchanged: these are extension functions on the ViewModel, so
 // `viewModel.addLine(...)` resolves identically in RemittanceDetailScreen and
 // RemittanceViewModelTest. The receiver's handler/api/state plumbing is `internal` to this
 // package on purpose — the seam exists so the axis lives in exactly one place.
 
 /**
- * ADR-0022 409 axis — the mutation conflicted: settle its state (Loading → Idle without
- * Success = the screen's "silent exit"), raise the notice, then re-fetch the detail so the
- * screen renders the fresh payload (the user's edit didn't win).
+ * ADR-0022 409 axis — the ONE terminal 403/409 path shared by all 7 detail-mutation adapters.
+ * 403 settles the mutation's state (Loading → Idle without Success = the screen's "silent
+ * exit"); 409 additionally raises the notice, then re-fetches the detail so the screen renders
+ * the fresh payload (the user's edit didn't win). Returns true when handled (the handler then
+ * skips its generic Error); false for any other status.
  */
-internal suspend fun <T> RemittanceViewModel.reloadDetailAfterConflict(
+internal suspend fun <T> RemittanceViewModel.handleDetailMutationTerminal(
     state: MutableStateFlow<UiState<T>>,
     remittanceId: String,
-): Boolean {
-    state.value = UiState.Idle
-    detailChangedNoticeState.value = true
-    loadRemittance(remittanceId, resetNotice = false)
-    return true
-}
+    response: HttpResponse,
+): Boolean =
+    when (response.status) {
+        HttpStatusCode.Forbidden -> {
+            state.value = UiState.Idle
+            true
+        }
+
+        HttpStatusCode.Conflict -> {
+            state.value = UiState.Idle
+            detailChangedNoticeState.value = true
+            loadRemittance(remittanceId, resetNotice = false)
+            true
+        }
+
+        else -> {
+            false
+        }
+    }
 
 internal fun RemittanceViewModel.addLine(
     remittanceId: String,
@@ -59,20 +78,7 @@ internal fun RemittanceViewModel.addLine(
             },
             transform = { it.body() },
             onNonSuccess = { response ->
-                when (response.status) {
-                    HttpStatusCode.Forbidden -> {
-                        lineResultState.value = UiState.Idle
-                        true
-                    }
-
-                    HttpStatusCode.Conflict -> {
-                        reloadDetailAfterConflict(lineResultState, remittanceId)
-                    }
-
-                    else -> {
-                        false
-                    }
-                }
+                handleDetailMutationTerminal(lineResultState, remittanceId, response)
             },
         ),
     )
@@ -94,20 +100,7 @@ internal fun RemittanceViewModel.deleteLine(
         hooks =
             LaunchHooks(
                 onNonSuccess = { response ->
-                    when (response.status) {
-                        HttpStatusCode.Forbidden -> {
-                            deleteLineResultState.value = UiState.Idle
-                            true
-                        }
-
-                        HttpStatusCode.Conflict -> {
-                            reloadDetailAfterConflict(deleteLineResultState, remittanceId)
-                        }
-
-                        else -> {
-                            false
-                        }
-                    }
+                    handleDetailMutationTerminal(deleteLineResultState, remittanceId, response)
                 },
             ),
     )
@@ -131,20 +124,7 @@ internal fun RemittanceViewModel.addDayBreakdown(
             },
             transform = { it.body() },
             onNonSuccess = { response ->
-                when (response.status) {
-                    HttpStatusCode.Forbidden -> {
-                        dayBreakdownResultState.value = UiState.Idle
-                        true
-                    }
-
-                    HttpStatusCode.Conflict -> {
-                        reloadDetailAfterConflict(dayBreakdownResultState, remittanceId)
-                    }
-
-                    else -> {
-                        false
-                    }
-                }
+                handleDetailMutationTerminal(dayBreakdownResultState, remittanceId, response)
             },
         ),
     )
@@ -167,20 +147,7 @@ internal fun RemittanceViewModel.deleteDayBreakdown(
         hooks =
             LaunchHooks(
                 onNonSuccess = { response ->
-                    when (response.status) {
-                        HttpStatusCode.Forbidden -> {
-                            dayBreakdownDeleteResultState.value = UiState.Idle
-                            true
-                        }
-
-                        HttpStatusCode.Conflict -> {
-                            reloadDetailAfterConflict(dayBreakdownDeleteResultState, remittanceId)
-                        }
-
-                        else -> {
-                            false
-                        }
-                    }
+                    handleDetailMutationTerminal(dayBreakdownDeleteResultState, remittanceId, response)
                 },
             ),
     )
@@ -205,20 +172,7 @@ internal fun RemittanceViewModel.submit(
             },
             transform = { it.body() },
             onNonSuccess = { response ->
-                when (response.status) {
-                    HttpStatusCode.Forbidden -> {
-                        submitResultState.value = UiState.Idle
-                        true
-                    }
-
-                    HttpStatusCode.Conflict -> {
-                        reloadDetailAfterConflict(submitResultState, remittanceId)
-                    }
-
-                    else -> {
-                        false
-                    }
-                }
+                handleDetailMutationTerminal(submitResultState, remittanceId, response)
             },
         ),
     )
@@ -243,20 +197,7 @@ internal fun RemittanceViewModel.undo(
             },
             transform = { it.body() },
             onNonSuccess = { response ->
-                when (response.status) {
-                    HttpStatusCode.Forbidden -> {
-                        undoResultState.value = UiState.Idle
-                        true
-                    }
-
-                    HttpStatusCode.Conflict -> {
-                        reloadDetailAfterConflict(undoResultState, remittanceId)
-                    }
-
-                    else -> {
-                        false
-                    }
-                }
+                handleDetailMutationTerminal(undoResultState, remittanceId, response)
             },
         ),
     )
@@ -280,20 +221,7 @@ internal fun RemittanceViewModel.updateHeader(
             },
             transform = { it.body() },
             onNonSuccess = { response ->
-                when (response.status) {
-                    HttpStatusCode.Forbidden -> {
-                        headerUpdateResultState.value = UiState.Idle
-                        true
-                    }
-
-                    HttpStatusCode.Conflict -> {
-                        reloadDetailAfterConflict(headerUpdateResultState, remittanceId)
-                    }
-
-                    else -> {
-                        false
-                    }
-                }
+                handleDetailMutationTerminal(headerUpdateResultState, remittanceId, response)
             },
         ),
     )

@@ -111,6 +111,13 @@ class RemittanceViewModel(
     private val _remittanceDetail = MutableStateFlow<UiState<RemittanceDetailResponse>>(UiState.Idle)
     val remittanceDetail: StateFlow<UiState<RemittanceDetailResponse>> = _remittanceDetail.asStateFlow()
 
+    // #484 — latest-wins generation for the detail surface (the per-remittance guard, keptByTab
+    // shape): every loadRemittance bumps detailGeneration; a landing superseded by a newer load
+    // never commits. [lastDetail] is the fallback the superseded landing holds until the newer
+    // load lands.
+    private var detailGeneration = 0L
+    private var lastDetail: RemittanceDetailResponse? = null
+
     // D3/D4 — picker sources (#118 G2/G3/G4), loaded on dialog open and cached.
     private val _sessionPicker =
         MutableStateFlow<UiState<List<RemittanceSessionPickerEntryResponse>>>(UiState.Idle)
@@ -187,6 +194,16 @@ class RemittanceViewModel(
 
     // D6 — detail load; the 409 conflict-reload passes resetNotice = false so the notice it just
     // raised survives the re-fetch.
+    //
+    // #484 — latest-wins: every launch bumps detailGeneration and the landing is gated on it
+    // (the #165 stamp/fallback shape — the stateful stale class, per the ApiCallHandler
+    // contract). A landing superseded by a newer load — an overlapping success-path reload —
+    // drops its body without deserializing it, and a superseded failure writes no Error
+    // (#176). The fallback holds the last committed detail until the newer load lands (no
+    // re-issue: the superseding load is already in flight — unlike ReceivedInvites, where an
+    // action supersedes). No coalescing guard by design: a mutation-triggered reload must
+    // always dispatch — skipping it would let the in-flight pre-mutation snapshot win (the
+    // loadSent precedent).
     fun loadRemittance(
         remittanceId: String,
         resetNotice: Boolean = true,
@@ -194,6 +211,7 @@ class RemittanceViewModel(
         if (resetNotice) {
             detailChangedNoticeState.value = false
         }
+        detailGeneration++
         handler.launch(
             LaunchRequest(
                 state = _remittanceDetail,
@@ -201,9 +219,28 @@ class RemittanceViewModel(
                 endpoint = "GET /api/remittances/$remittanceId",
                 entryMessage = "loadRemittance called: remittanceId=$remittanceId",
                 block = { apiClient.httpClient.get(ApiRoutes.remittance(remittanceId)) },
-                transform = { it.body() },
+                transform = {
+                    val body = it.body<RemittanceDetailResponse>()
+                    lastDetail = body
+                    body
+                },
+                stamp = { detailGeneration },
+                fallback = {
+                    // Every overlapping load fans out of a committed detail (mutations need
+                    // picker data, which loads only after the first detail Success), so a
+                    // stale landing always has one to hold — fail loud otherwise.
+                    checkNotNull(lastDetail) { "stale detail landing with no committed detail" }
+                },
             ),
         )
+    }
+
+    // #484 — the single funnel for the 7 post-mutation detail refreshes (the line/day and
+    // header/submit/undo success effects): identical to loadRemittance with defaults, so a
+    // clean post-mutation reload resets the changed-elsewhere notice. Conflict reloads bypass
+    // it (resetNotice = false preserves the notice they just raised).
+    internal fun reloadDetail(remittanceId: String) {
+        loadRemittance(remittanceId)
     }
 
     // D3 — sessions-in-range picker (#118 G2; voided sessions excluded server-side).
