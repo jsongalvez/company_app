@@ -3,10 +3,14 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.ErrorResponse
+import com.companyb.companyapp.dto.NotificationHistoryResponse
 import com.companyb.companyapp.dto.NotificationMarkAllReadResponse
 import com.companyb.companyapp.dto.NotificationResponse
-import com.companyb.companyapp.repository.model.Notification
+import com.companyb.companyapp.dto.NotificationUnreadCountResponse
+import com.companyb.companyapp.repository.NotificationHistoryCursor
+import com.companyb.companyapp.repository.decodeNotificationCursor
 import com.companyb.companyapp.service.NotificationService
+import com.companyb.companyapp.service.toResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
@@ -43,8 +47,22 @@ import java.util.UUID
     methods = [HttpMethod.GET],
     operationId = "notifications_history",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    queryParams = [
+        OpenApiParam(name = "cursor", type = String::class, required = false),
+        OpenApiParam(name = "limit", type = String::class, required = false),
+    ],
     responses = [
-        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<NotificationResponse>::class)]),
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = NotificationHistoryResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
+)
+@OpenApi(
+    path = ApiRoutes.NOTIFICATIONS_UNREAD_COUNT,
+    methods = [HttpMethod.GET],
+    operationId = "notifications_unread_count",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = NotificationUnreadCountResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
@@ -72,13 +90,27 @@ object NotificationRoutes {
         }
 
         // #356 — history: every row the caller owns, read + unread, newest first.
+        // #508 — keyset-paged: bounded per response, stable across concurrent inserts.
         config.routes.get(ApiRoutes.NOTIFICATIONS_HISTORY) { context ->
             val callerId = context.callerUuid()
 
-            val notifications = NotificationService.listHistory(callerId)
+            val response =
+                NotificationService.browseHistory(
+                    callerId = callerId,
+                    cursor = parseHistoryCursor(context.queryParam("cursor")),
+                    limit = parseBrowseLimit(context.queryParam("limit")),
+                )
 
             context.status(HttpStatus.OK)
-            context.json(notifications.map { it.toResponse() })
+            context.json(response)
+        }
+
+        // #508 — badge count without row hydration: the poller reads one integer.
+        config.routes.get(ApiRoutes.NOTIFICATIONS_UNREAD_COUNT) { context ->
+            val callerId = context.callerUuid()
+
+            context.status(HttpStatus.OK)
+            context.json(NotificationUnreadCountResponse(NotificationService.countUnread(callerId)))
         }
 
         config.routes.post(ApiRoutes.NOTIFICATIONS_READ_ALL) { context ->
@@ -101,15 +133,9 @@ object NotificationRoutes {
         }
     }
 
-    private fun Notification.toResponse(): NotificationResponse =
-        NotificationResponse(
-            id = id.toString(),
-            sessionId = sessionId?.toString(),
-            branchId = branchId.toString(),
-            message = message,
-            isRead = isRead,
-            readAt = readAt?.toString(),
-            createdAt = createdAt.toString(),
-            targetDate = targetDate?.toString(),
-        )
+    private fun parseHistoryCursor(raw: String?): NotificationHistoryCursor? {
+        if (raw == null) return null
+        return runCatching { decodeNotificationCursor(raw) }
+            .getOrElse { throw BadRequestResponse("Invalid cursor") }
+    }
 }

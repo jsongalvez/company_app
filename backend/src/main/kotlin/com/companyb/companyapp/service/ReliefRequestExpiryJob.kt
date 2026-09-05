@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -13,9 +12,10 @@ import java.time.ZonedDateTime
  * Runs daily just after the 04:00 Manila day boundary.
  *
  * Request status deliberately stays PENDING — the invite precedent (#159 Q6): the
- * day-state IS the expiry, no status migration. Idempotency comes from the stored
- * notice itself: a request with an existing EXPIRED row is never announced twice,
- * so job re-runs and restarts are safe.
+ * day-state IS the expiry, no status migration. Re-run safety is the UNIQUE
+ * (dedup_key, user_id) constraint (#508): an already-announced request inserts nothing,
+ * so the job broadcasts unconditionally and counts actual deliveries — no check-then-insert
+ * race between the marker read and the write.
  */
 object ReliefRequestExpiryJob {
     private val logger = KotlinLogging.logger {}
@@ -24,7 +24,6 @@ object ReliefRequestExpiryJob {
         val today = BranchDayService.currentOperationalDate(clock.instant())
         var announced = 0
         for (request in ReliefAccessRepository.findPendingWithPastDay(today)) {
-            if (NotificationRepository.existsForSource(ReliefNotifications.EXPIRED, request.access.id)) continue
             announced +=
                 ReliefNotifications.requestExpired(
                     requestId = request.access.id,

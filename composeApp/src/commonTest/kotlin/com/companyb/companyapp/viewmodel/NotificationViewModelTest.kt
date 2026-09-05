@@ -500,6 +500,22 @@ class NotificationViewModelTest {
             assertIs<UiState.Idle>(vm.notifications.value)
         }
 
+    @Test
+    fun loadHistory_follows_next_cursor_and_accumulates_pages() =
+        runTest(testScheduler) {
+            val vm =
+                NotificationViewModel(
+                    mockApiClient(notificationsHandler(historySecondBody = HISTORY_PAGE2_JSON)),
+                )
+
+            vm.loadHistory()
+            runCurrent()
+
+            // Two bounded pages (cursor-1 between them) accumulate into the full Earlier list.
+            val state = assertIs<UiState.Success<List<NotificationResponse>>>(vm.history.value)
+            assertEquals(expected = listOf("h1", "h2"), actual = state.data.map { it.id })
+        }
+
     private fun notificationsHandler(
         listStatus: HttpStatusCode = HttpStatusCode.OK,
         markStatus: HttpStatusCode = HttpStatusCode.OK,
@@ -510,7 +526,8 @@ class NotificationViewModelTest {
         secondGetBody: String = ARRIVAL_JSON,
         thirdGetBody: String = ARRIVAL_JSON,
         historyStatus: HttpStatusCode = HttpStatusCode.OK,
-        historyBody: String = EMPTY_JSON,
+        historyBody: String = EMPTY_PAGE_JSON,
+        historySecondBody: String? = null,
         dispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
     ): MockRequestHandler {
         // First GET serves the two known rows; a reload GET (post-markAllRead with a nonzero
@@ -519,6 +536,7 @@ class NotificationViewModelTest {
         // GET #3+ (the stamp's re-issued load) serves thirdGetBody — the post-action truth for
         // the stale-landing tests' converged state.
         var getCount = 0
+        var historyGetCount = 0
         return { request ->
             when {
                 request.method == HttpMethod.Get && request.url.encodedPath == "/api/notifications" -> {
@@ -544,9 +562,19 @@ class NotificationViewModelTest {
                 }
 
                 // #356 — the screen entry now also fetches history; existing tests default it
-                // to an empty list so their unread-queue assertions stay untouched.
+                // to an empty page so their unread-queue assertions stay untouched.
+                // #508 — history is keyset-paged: the mock serves one object page; when
+                // historySecondBody is set the first GET serves HISTORY_PAGE1_JSON (one entry
+                // + cursor) and later GETs serve it, pinning multi-page accumulation.
                 request.method == HttpMethod.Get && request.url.encodedPath == "/api/notifications/history" -> {
-                    jsonRespond(status = historyStatus, body = historyBody)
+                    historyGetCount++
+                    if (historySecondBody != null && historyGetCount == 1) {
+                        jsonRespond(status = historyStatus, body = HISTORY_PAGE1_JSON)
+                    } else if (historySecondBody != null) {
+                        jsonRespond(status = historyStatus, body = historySecondBody)
+                    } else {
+                        jsonRespond(status = historyStatus, body = historyBody)
+                    }
                 }
 
                 request.method == HttpMethod.Post && request.url.encodedPath == "/api/notifications/read-all" -> {
@@ -577,12 +605,25 @@ class NotificationViewModelTest {
             ]"""
 
         // #356 — history serves read + unread, newest first; h1 has no session (non-session
-        // event shape).
+        // event shape). #508 — object page: entries + terminal null cursor.
         const val HISTORY_JSON =
-            """[
+            """{"entries":[
                 {"id":"h1","sessionId":null,"branchId":"b1","message":"Relief request expired","isRead":true,"readAt":"2026-08-04T22:00:00+08:00","createdAt":"2026-08-04T21:00:00+08:00"},
                 {"id":"h2","sessionId":"s9","branchId":"b9","message":"Session at 3:00 PM — Old Row","isRead":false,"readAt":null,"createdAt":"2026-08-01T06:00:00+08:00"}
-            ]"""
+            ],"nextCursor":null}"""
+
+        // #508 — first page of a two-page history: one entry + a cursor the VM follows.
+        const val HISTORY_PAGE1_JSON =
+            """{"entries":[
+                {"id":"h1","sessionId":null,"branchId":"b1","message":"Relief request expired","isRead":true,"readAt":"2026-08-04T22:00:00+08:00","createdAt":"2026-08-04T21:00:00+08:00"}
+            ],"nextCursor":"cursor-1"}"""
+
+        const val HISTORY_PAGE2_JSON =
+            """{"entries":[
+                {"id":"h2","sessionId":"s9","branchId":"b9","message":"Session at 3:00 PM — Old Row","isRead":false,"readAt":null,"createdAt":"2026-08-01T06:00:00+08:00"}
+            ],"nextCursor":null}"""
+
+        const val EMPTY_PAGE_JSON = """{"entries":[],"nextCursor":null}"""
 
         const val READ_JSON =
             """{"id":"n1","sessionId":"s1","branchId":"b1","message":"Session at 2:00 PM — John Doe","isRead":true,"readAt":"2026-08-05T06:00:01+08:00","createdAt":"2026-08-05T06:00:00+08:00"}"""

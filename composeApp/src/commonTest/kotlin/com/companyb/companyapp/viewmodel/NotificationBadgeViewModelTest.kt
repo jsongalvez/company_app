@@ -80,7 +80,7 @@ class NotificationBadgeViewModelTest {
                 mockApiClient(
                     notificationsHandler {
                         when (it.url.encodedPath) {
-                            "/api/notifications" -> notificationsCalls++
+                            "/api/notifications/unread-count" -> notificationsCalls++
                             "/api/relief-invites" -> invitesCalls++
                         }
                     },
@@ -113,7 +113,7 @@ class NotificationBadgeViewModelTest {
                 mockApiClient(
                     notificationsHandler {
                         when (it.url.encodedPath) {
-                            "/api/notifications" -> notificationsCalls++
+                            "/api/notifications/unread-count" -> notificationsCalls++
                             "/api/relief-invites" -> invitesCalls++
                         }
                     },
@@ -133,7 +133,7 @@ class NotificationBadgeViewModelTest {
 
                 assertEquals(expected = 2, actual = notificationsCalls)
                 assertEquals(expected = 2, actual = invitesCalls)
-                // The singleton StateFlow stays at the last successful poll's count (0 — empty list response)
+                // The singleton StateFlow stays at the last successful poll's count (0 — count response)
                 // after the second poll writes Success(Int) → NotificationState.setUnreadCount(data) again.
                 assertIs<UiState.Success<Int>>(vm.pollResult.value)
                 assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
@@ -152,7 +152,7 @@ class NotificationBadgeViewModelTest {
                 mockApiClient(
                     notificationsHandler {
                         when (it.url.encodedPath) {
-                            "/api/notifications" -> notificationsCalls++
+                            "/api/notifications/unread-count" -> notificationsCalls++
                             "/api/relief-invites" -> invitesCalls++
                         }
                     },
@@ -199,7 +199,7 @@ class NotificationBadgeViewModelTest {
                     notificationsHandler(
                         onHit = { request ->
                             when (request.url.encodedPath) {
-                                "/api/notifications" -> notificationsCalls++
+                                "/api/notifications/unread-count" -> notificationsCalls++
                                 "/api/relief-invites" -> invitesCalls++
                             }
                         },
@@ -257,6 +257,8 @@ class NotificationBadgeViewModelTest {
             }
         }
 
+    // #508 — the unread poll reads one integer, never the mailbox rows; invites still
+    // serve the full received list for the actionable count.
     private fun notificationsHandler(
         responseDelayMs: Long = 0,
         dispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
@@ -267,8 +269,14 @@ class NotificationBadgeViewModelTest {
             if (responseDelayMs > 0) {
                 withContext(dispatcher) { delay(responseDelayMs) }
             }
+            val body =
+                if (it.url.encodedPath == "/api/notifications/unread-count") {
+                    """{"unreadCount":0}"""
+                } else {
+                    "[]"
+                }
             respond(
-                content = ByteReadChannel("[]"),
+                content = ByteReadChannel(body),
                 status = HttpStatusCode.OK,
                 headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
             )

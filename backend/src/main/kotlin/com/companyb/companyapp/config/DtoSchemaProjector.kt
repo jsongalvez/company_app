@@ -67,8 +67,10 @@ import com.companyb.companyapp.dto.MeBranchResponse
 import com.companyb.companyapp.dto.MeResponse
 import com.companyb.companyapp.dto.MemberAttendanceResponse
 import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
+import com.companyb.companyapp.dto.NotificationHistoryResponse
 import com.companyb.companyapp.dto.NotificationMarkAllReadResponse
 import com.companyb.companyapp.dto.NotificationResponse
+import com.companyb.companyapp.dto.NotificationUnreadCountResponse
 import com.companyb.companyapp.dto.PoolSnapshot
 import com.companyb.companyapp.dto.ProductCategoryResponse
 import com.companyb.companyapp.dto.ProductResponse
@@ -207,7 +209,9 @@ internal object DtoSchemaProjector {
             "MemberAttendanceResponse" to MemberAttendanceResponse.serializer(),
             "MonthlyRemittanceSummaryResponse" to MonthlyRemittanceSummaryResponse.serializer(),
             "NotificationMarkAllReadResponse" to NotificationMarkAllReadResponse.serializer(),
+            "NotificationHistoryResponse" to NotificationHistoryResponse.serializer(),
             "NotificationResponse" to NotificationResponse.serializer(),
+            "NotificationUnreadCountResponse" to NotificationUnreadCountResponse.serializer(),
             "PoolSnapshot" to PoolSnapshot.serializer(),
             "ProductCategoryResponse" to ProductCategoryResponse.serializer(),
             "ProductResponse" to ProductResponse.serializer(),

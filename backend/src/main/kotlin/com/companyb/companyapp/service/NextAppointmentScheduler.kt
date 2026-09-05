@@ -22,6 +22,11 @@ object NextAppointmentScheduler {
     private const val RUN_MINUTE = 0
     private const val DAYS_AHEAD = 2L
 
+    // #508 — the sweep's occurrence identity: one delivery per (session, target date,
+    // recipient). A same-sweep retry reuses the key and inserts nothing; a genuinely later
+    // appointment date is a new occurrence and survives alongside the earlier row (#356).
+    const val APPOINTMENT_REMINDER = "APPOINTMENT_REMINDER"
+
     fun targetDate(now: LocalDate): LocalDate = now.plusDays(DAYS_AHEAD)
 
     fun nextRunDelayMs(now: ZonedDateTime): Long {
@@ -56,6 +61,9 @@ object NextAppointmentScheduler {
                         userId = userId,
                         branchId = session.branchId,
                         message = message,
+                        eventType = APPOINTMENT_REMINDER,
+                        sourceId = session.sessionId,
+                        targetDate = target,
                     )
                 }
             }

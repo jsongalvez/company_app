@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.ReliefInviteRepository
 import com.companyb.companyapp.service.branchday.BranchDayService
@@ -17,10 +16,11 @@ import java.time.ZonedDateTime
  * An ACCEPTED invite is reminded at T-3 days, T-1 day, and the duty day itself; only the
  * invitee hears it (#352 rulings — branch quiet until the day).
  *
- * Idempotency mirrors the #358 expiry job: each stored reminder row is its own marker —
- * `existsForSource(eventType, inviteId)` skips already-sent slots, so re-runs and restarts
- * never duplicate. Suppression reads current state: non-ACCEPTED invites never match the
- * scan, and on the duty day an invitee who already clocked in gets nothing.
+ * Re-run safety mirrors the #358 expiry job: each reminder slot is its own occurrence key,
+ * so the UNIQUE (dedup_key, user_id) constraint (#508) — not a pre-write marker read —
+ * keeps re-runs and restarts from duplicating. Suppression still reads current state:
+ * non-ACCEPTED invites never match the scan, and on the duty day an invitee who already
+ * clocked in gets nothing.
  */
 object ReliefInviteReminderJob {
     private val logger = KotlinLogging.logger {}
@@ -30,11 +30,10 @@ object ReliefInviteReminderJob {
         var sent = 0
         for ((dutyDate, eventType) in reminderSlots(today)) {
             for (invite in ReliefInviteRepository.findAcceptedForDutyDate(dutyDate)) {
-                val reminded = NotificationRepository.existsForSource(eventType, invite.inviteId)
                 val showedUp =
                     eventType == ReliefNotifications.REMINDER_DAY_OF &&
                         ReliefAccessRepository.hasActiveClockIn(invite.invitee, invite.branchDayId)
-                if (reminded || showedUp) continue
+                if (showedUp) continue
                 sent +=
                     ReliefNotifications.inviteReminder(
                         eventType = eventType,

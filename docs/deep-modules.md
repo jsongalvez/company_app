@@ -126,7 +126,7 @@ intentionally shallow.
 **Anchors:** `service/ReliefAccessService.kt`, `service/ReliefInviteService.kt`, `repository/ReliefAccessRepository.kt` (`grantReliefCapability` shared writer).
 **Public seam:** `ReliefAccessService` commands (request/grant/deny/cancel/list) · `ReliefInviteService` commands (create/accept/decline/retract/search) · `MedicalMissionDelegateService.assignDelegate` / `revokeDelegate` · `ReliefNotifications.*` (command-transaction broadcasts).
 **Depends on:** Branch Day (day-open gate, `expirationUtc`), Assignments (membership gates), Capability view, Notifications.
-**Expansion triggers:** partial unique indexes `idx_one_live_relief_request` / `idx_one_pending_accepted_invite`; job idempotency markers (`existsForSource`); accepted-invite revocation follow-up (#363 pending).
+**Expansion triggers:** partial unique indexes `idx_one_live_relief_request` / `idx_one_pending_accepted_invite`; job re-run safety via UNIQUE `(dedup_key, user_id)` (#508); accepted-invite revocation follow-up (#363 pending).
 **Tests/authority:** relief-cluster rules live in code comments (#159/#352/#357/#358); backend `AGENTS.md` day-scoped gate section.
 **Search:** `grantReliefCapability`, `hasPendingOrAcceptedInvite`, `ReliefNotifications.`
 
@@ -144,9 +144,9 @@ intentionally shallow.
 
 **Owns:** universal post-clock-in dashboard read (enrichment aggregation + live commission replication mirroring the engine), notification-as-authorization session detail (#152), the notification store (event identity without schema uniqueness), appointment reminder sweep, scheduler lifecycle.
 **Anchors:** `service/dashboard/DashboardService.kt`, `repository/NotificationRepository.kt`, `service/SchedulerLifecycle.kt`.
-**Public seam:** `DashboardService.getToday` / `getSessionDetail` · `NotificationService.listUnread` / `listHistory` / `markRead` / `markAllRead` · `NotificationRepository.insertBatch` (the write commands use for broadcasts).
+**Public seam:** `DashboardService.getToday` / `getSessionDetail` · `NotificationService.listUnread` / `browseHistory` / `countUnread` / `markRead` / `markAllRead` · `NotificationRepository.insertBatch` (the write commands use for broadcasts).
 **Depends on:** Attendance (dashboard gate), Commission (live eligibility replication), Sessions (detail + reminders), Branch Day (scheduler operational dates).
-**Expansion triggers:** event-identity dedup keys ((session,user) vs (event,source,user)); `existsForSource` marker pattern reused by relief jobs; ownership-in-WHERE read-state rule (#141).
+**Expansion triggers:** occurrence-identity dedup keys (appointment session+target date, relief event+source, revocation `:direct` audience split) under UNIQUE `(dedup_key, user_id)` (#508); ownership-in-WHERE read-state rule (#141).
 **Tests/authority:** backend `AGENTS.md` "Sessions" (dashboard + detail gate exceptions).
 **Search:** `mapDashboardSession`, `existsForSessionAndUser`, `insertBatch`.
 

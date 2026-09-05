@@ -164,6 +164,16 @@ object ApiRoutes {
 
     const val NOTIFICATIONS_READ_ALL = "$NOTIFICATIONS/read-all"
     const val NOTIFICATIONS_HISTORY = "$NOTIFICATIONS/history"
+    const val NOTIFICATIONS_UNREAD_COUNT = "$NOTIFICATIONS/unread-count"
+
+    /** #508 — paged history read: optional cursor + limit (bounded per response). */
+    fun notificationsHistory(
+        cursor: String?,
+        limit: Int?,
+    ): String {
+        val params = listOfNotNull(cursor?.let { "cursor=$it" }, limit?.let { "limit=$it" })
+        return if (params.isEmpty()) NOTIFICATIONS_HISTORY else "$NOTIFICATIONS_HISTORY?${params.joinToString("&")}"
+    }
 
     fun reliefInvite(id: String) = "$RELIEF_INVITES/$id"
 

@@ -425,6 +425,7 @@ object DatabaseTestHelper {
         sessionId: UUID,
         userId: UUID,
         branchId: UUID,
+        dedupKey: String? = null,
     ): com.companyb.companyapp.repository.model.Notification {
         transaction {
             NotificationTable.insert {
@@ -433,6 +434,9 @@ object DatabaseTestHelper {
                 it[NotificationTable.userId] = userId
                 it[NotificationTable.branchId] = branchId
                 it[NotificationTable.message] = "Test notification"
+                // #508 — unique per row by default so helper repeats never collide; pass an
+                // explicit key to pin occurrence identity.
+                it[NotificationTable.dedupKey] = dedupKey ?: "APPT:$sessionId:$id"
             }
         }
         return transaction {

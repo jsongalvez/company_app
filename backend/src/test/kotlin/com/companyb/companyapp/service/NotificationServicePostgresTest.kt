@@ -29,6 +29,10 @@ class NotificationServicePostgresTest : BasePostgresTest() {
     private val clientId = TestFixtures.uuid()
     private lateinit var branchDayId: UUID
 
+    private companion object {
+        private const val HISTORY_LIMIT = 20
+    }
+
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "notification-caller")
         DatabaseTestHelper.insertTestUser(otherUserId, "notification-other")
@@ -188,15 +192,15 @@ class NotificationServicePostgresTest : BasePostgresTest() {
     // new row rather than vanishing, and history lists read + unread indefinitely.
     @Test
     fun `repeat event inserts a new row rather than vanishing`() {
-        val first = insertNotification(sessionId, callerId, branchId, "First ping")
-        val second = insertNotification(sessionId, callerId, branchId, "Second ping")
+        insertNotification(sessionId, callerId, branchId, "First ping")
+        insertNotification(sessionId, callerId, branchId, "Second ping")
 
-        assertEquals(2, NotificationService.listHistory(callerId).size)
+        assertEquals(2, NotificationService.browseHistory(callerId, null, HISTORY_LIMIT).entries.size)
         assertTrue(NotificationService.listUnread(callerId).size == 2)
     }
 
     @Test
-    fun `listHistory returns read and unread newest first for caller only`() {
+    fun `browseHistory returns read and unread newest first for caller only`() {
         val older = insertNotificationForNewSession(callerId, branchId)
         NotificationService.markRead(callerId, older.id)
 
@@ -204,10 +208,11 @@ class NotificationServicePostgresTest : BasePostgresTest() {
         insertNotificationForNewSession(otherUserId, branchId).let {
         }
 
-        val history = NotificationService.listHistory(callerId)
+        val history = NotificationService.browseHistory(callerId, null, HISTORY_LIMIT)
 
-        assertEquals(listOf(newer.id, older.id), history.map { it.id })
-        assertTrue(history.any { it.isRead } && history.any { !it.isRead })
+        assertEquals(listOf(newer.id.toString(), older.id.toString()), history.entries.map { it.id })
+        assertTrue(history.nextCursor == null)
+        assertTrue(history.entries.any { it.isRead } && history.entries.any { !it.isRead })
     }
 
     @Test
@@ -225,6 +230,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
                 it[NotificationTable.userId] = userId
                 it[NotificationTable.branchId] = ownerBranchId
                 it[NotificationTable.message] = "Relief event"
+                it[NotificationTable.dedupKey] = "RELIEF_TEST:$reliefNotificationId"
             }
         }
 
@@ -290,16 +296,22 @@ class NotificationServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `insertBatch deduplicates repeated session-user pairs across and within batches`() {
-        insertNotification(sessionId, callerId, branchId)
+    fun `insertBatch deduplicates repeated occurrence deliveries across and within batches`() {
+        // #508 — occurrence identity (session + target date), not the raw pair, owns dedup:
+        // seeding through the write path and repeating it inserts nothing.
+        val targetDate = TestFixtures.today.plusDays(2)
         val duplicate =
             NotificationCreateParams(
                 sessionId = sessionId,
                 userId = callerId,
                 branchId = branchId,
-                message = "duplicate of the existing row",
+                message = "duplicate of the existing delivery",
+                eventType = NextAppointmentScheduler.APPOINTMENT_REMINDER,
+                sourceId = sessionId,
+                targetDate = targetDate,
             )
 
+        assertEquals(1, NotificationRepository.insertBatch(listOf(duplicate)))
         val created = NotificationRepository.insertBatch(listOf(duplicate, duplicate))
 
         assertEquals(0, created)
@@ -347,6 +359,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
                 it[NotificationTable.userId] = userId
                 it[NotificationTable.branchId] = branchId
                 it[NotificationTable.message] = message
+                it[NotificationTable.dedupKey] = "APPT:$sessionId:$id"
             }
         }
         return transaction {

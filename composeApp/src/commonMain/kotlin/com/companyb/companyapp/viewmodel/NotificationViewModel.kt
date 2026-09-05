@@ -2,6 +2,7 @@ package com.companyb.companyapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.dto.NotificationHistoryResponse
 import com.companyb.companyapp.dto.NotificationMarkAllReadResponse
 import com.companyb.companyapp.dto.NotificationResponse
 import com.companyb.companyapp.network.ApiClient
@@ -77,13 +78,28 @@ class NotificationViewModel(
         )
 
     // #356 — history load; runs alongside the unread fetch on screen entry and on retry.
+    // #508 — keyset-paged under the hood: bounded pages accumulate into the full Earlier
+    // list, so the screen keeps rendering every row while no single response is unbounded.
     fun loadHistory(): Job =
         handler.launch(
             state = _history,
             operation = "loadHistory",
             endpoint = "GET /api/notifications/history",
-            block = { apiClient.httpClient.get(ApiRoutes.NOTIFICATIONS_HISTORY) },
-            transform = { it.body<List<NotificationResponse>>() },
+            block = {
+                apiClient.httpClient.get(ApiRoutes.notificationsHistory(cursor = null, limit = HISTORY_PAGE_LIMIT))
+            },
+            transform = { first ->
+                var page = first.body<NotificationHistoryResponse>()
+                val entries = page.entries.toMutableList()
+                while (page.nextCursor != null) {
+                    page =
+                        apiClient.httpClient
+                            .get(ApiRoutes.notificationsHistory(cursor = page.nextCursor, limit = HISTORY_PAGE_LIMIT))
+                            .body<NotificationHistoryResponse>()
+                    entries.addAll(page.entries)
+                }
+                entries.toList()
+            },
         )
 
     fun markRead(notificationId: String): Job =
@@ -182,4 +198,9 @@ class NotificationViewModel(
     }
 
     private fun currentUnreadList(): List<NotificationResponse>? = keptNotifications.freshestValue()
+
+    private companion object {
+        // #508 — matches the server's max browse page: fewest round-trips per history load.
+        private const val HISTORY_PAGE_LIMIT = 100
+    }
 }

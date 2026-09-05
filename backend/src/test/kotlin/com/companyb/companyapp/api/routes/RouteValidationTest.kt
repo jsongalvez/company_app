@@ -13,6 +13,8 @@ import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.DailySalesSummaryBrowseResponse
+import com.companyb.companyapp.dto.NotificationHistoryResponse
+import com.companyb.companyapp.dto.NotificationUnreadCountResponse
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -1009,6 +1011,7 @@ class RouteValidationTest : BasePostgresTest() {
                 it[NotificationTable.userId] = testUserId
                 it[NotificationTable.branchId] = testBranchId
                 it[NotificationTable.message] = "Test notification"
+                it[NotificationTable.dedupKey] = "APPT:$testSessionId:$notificationId"
             }
         }
         testServer.client.let { client ->
@@ -1036,10 +1039,34 @@ class RouteValidationTest : BasePostgresTest() {
                 it[NotificationTable.userId] = testUserId
                 it[NotificationTable.branchId] = testBranchId
                 it[NotificationTable.message] = "Test notification"
+                it[NotificationTable.dedupKey] = "APPT:$testSessionId:$notificationId"
             }
         }
         testServer.client.let { client ->
             assertEquals(200, client.patch("/api/notifications/$notificationId/read").code)
+        }
+    }
+
+    @Test
+    fun `GET notifications unread-count returns count without rows`() {
+        testServer.client.let { client ->
+            val response = client.get("/api/notifications/unread-count")
+            assertEquals(200, response.code)
+            val body = json.decodeFromString<NotificationUnreadCountResponse>(response.body.string())
+            assertEquals(0, body.unreadCount)
+        }
+    }
+
+    @Test
+    fun `GET notifications history pages bounded entries with cursor`() {
+        testServer.client.let { client ->
+            val first = client.get("/api/notifications/history?limit=1")
+            assertEquals(200, first.code)
+            val firstBody = json.decodeFromString<NotificationHistoryResponse>(first.body.string())
+            assertTrue(firstBody.entries.size <= 1)
+
+            val second = client.get("/api/notifications/history?cursor=bad-cursor&limit=1")
+            assertEquals(400, second.code)
         }
     }
 

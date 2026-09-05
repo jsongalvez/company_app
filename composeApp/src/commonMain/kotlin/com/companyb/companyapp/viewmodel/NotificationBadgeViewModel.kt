@@ -2,7 +2,7 @@ package com.companyb.companyapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
-import com.companyb.companyapp.dto.NotificationResponse
+import com.companyb.companyapp.dto.NotificationUnreadCountResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.NotificationState
@@ -77,13 +77,14 @@ class NotificationBadgeViewModel(
         // reliable because viewModelScope's Main.immediate dispatcher runs handler.launch's body
         // (which pre-sets Loading as its first statement) synchronously in the poll loop's frame —
         // so by the next 60s iteration, a started-but-slow poll is already visible as Loading.
+        // #508 — the poll reads one integer, never the mailbox rows.
         if (_pollResult.value is UiState.Loading) return
         handler.launch(
             state = _pollResult,
             operation = "refreshUnreadCount",
-            endpoint = "GET /api/notifications",
-            block = { apiClient.httpClient.get(ApiRoutes.NOTIFICATIONS) },
-            transform = { it.body<List<NotificationResponse>>().size },
+            endpoint = "GET /api/notifications/unread-count",
+            block = { apiClient.httpClient.get(ApiRoutes.NOTIFICATIONS_UNREAD_COUNT) },
+            transform = { it.body<NotificationUnreadCountResponse>().unreadCount },
         )
     }
 

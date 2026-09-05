@@ -15,7 +15,14 @@ import java.util.UUID
 //
 // #358 — relief rows carry the event family (event_type), the causing record (source_id —
 // polymorphic: grant_relief_access or relief_invite id, no FK), and the branch day the tap
-// destination points at (target_date). Appointment rows leave all three NULL.
+// destination points at (target_date). Appointment rows carry the sweep identity instead:
+// event_type APPOINTMENT_REMINDER, source_id = the session, target_date = the upcoming
+// appointment date the sweep announced (#508 — the occurrence dimension that lets a
+// genuinely later appointment survive while a same-sweep retry dedups).
+//
+// #508 — every row carries the stable occurrence key (dedup_key): appointment identity is
+// session + target date, relief identity event + source. UNIQUE (dedup_key, user_id) is the
+// durable idempotency guarantee — concurrent batches and job re-runs collapse atomically.
 data class Notification(
     val id: UUID,
     val sessionId: UUID?,
@@ -40,6 +47,10 @@ data class NotificationCreateParams(
     val eventType: String? = null,
     val sourceId: UUID? = null,
     val targetDate: LocalDate? = null,
+    // #508 — explicit occurrence-key override. Only the revocation direct notice uses
+    // it (same event + source as the branch broadcast, distinct audience message);
+    // every other writer derives the key from the identity columns above.
+    val dedupKey: String? = null,
 )
 
 object NotificationTable : Table("notification") {
@@ -54,8 +65,10 @@ object NotificationTable : Table("notification") {
     val eventType = varchar("event_type", EVENT_TYPE_LENGTH).nullable()
     val sourceId = javaUUID("source_id").nullable()
     val targetDate = date("target_date").nullable()
+    val dedupKey = varchar("dedup_key", DEDUP_KEY_LENGTH)
 
     override val primaryKey = PrimaryKey(id)
 
     private const val EVENT_TYPE_LENGTH = 50
+    private const val DEDUP_KEY_LENGTH = 120
 }

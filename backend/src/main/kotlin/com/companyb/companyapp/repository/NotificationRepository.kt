@@ -8,55 +8,57 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.less
+import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.statements.BatchInsertStatement
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.statements.BatchInsertBlockingExecutable
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
+import java.time.OffsetDateTime
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
+/** Keyset cursor for notification history: strictly-before position on `(created_at, id) DESC`. */
+data class NotificationHistoryCursor(
+    val createdAt: OffsetDateTime,
+    val id: UUID,
+)
+
+/** Opaque URL-safe cursor for [NotificationHistoryCursor]: `createdAt|id`, base64url. */
+fun encodeNotificationCursor(cursor: NotificationHistoryCursor): String =
+    encodeOpaqueCursor(cursor.createdAt.toString(), cursor.id.toString())
+
+fun decodeNotificationCursor(raw: String): NotificationHistoryCursor {
+    val parts =
+        runCatching { decodeOpaqueCursor(raw) }
+            .getOrElse { throw IllegalArgumentException("Invalid notification cursor") }
+    require(parts.size == 2) { "Invalid notification cursor" }
+    return NotificationHistoryCursor(
+        createdAt = OffsetDateTime.parse(parts[0]),
+        id = UUID.fromString(parts[1]),
+    )
+}
+
 object NotificationRepository {
-    // #356 — storage widening moved uniqueness out of the schema (pre-squash V25 dropped
-    // idx_notification_unique), so the write path owns event identity instead: appointment
-    // reminders stay one-per-(session,user) — a scheduler re-run or an in-batch duplicate
-    // updates nothing — while null-session events (relief, #358) bypass pair identity and
-    // always insert. Returns the number of rows actually created.
+    // #508 — the write path no longer pre-reads: every occurrence carries a stable key and
+    // UNIQUE (dedup_key, user_id) is the dedup guarantee, so concurrent batches and job
+    // re-runs collapse to one delivery per recipient atomically (insertIgnore = ON CONFLICT
+    // DO NOTHING). Appointment identity is session + target appointment date — a same-sweep
+    // retry reuses the key while a genuinely later appointment gets a new one (#356: distinct
+    // repeat events survive). Relief identity is event + source. Returns rows actually created.
     fun insertBatch(params: List<NotificationCreateParams>): Int {
         if (params.isEmpty()) return 0
 
         return transaction {
-            val sessionIds = params.mapNotNull { it.sessionId }
-            val userIds = params.map { it.userId }.toSet()
-            val existingPairs =
-                if (sessionIds.isEmpty()) {
-                    emptySet<Pair<UUID, UUID>>()
-                } else {
-                    NotificationTable
-                        .selectAll()
-                        .where {
-                            (NotificationTable.sessionId inList sessionIds) and
-                                (NotificationTable.userId inList userIds)
-                        }.map { it[NotificationTable.sessionId] to it[NotificationTable.userId] }
-                        .toSet()
-                }
-
-            // In-batch event identity (#358): appointment rows stay keyed by (session,user);
-            // null-session relief rows by (event,source,user), so one command's broadcast
-            // writes one message per person even when several events share the batch.
-            val seen = HashSet<Pair<Any?, UUID>>()
+            // In-batch event identity: one command's broadcast writes one message per
+            // (occurrence, recipient) even when several events share the batch.
+            val seen = HashSet<Pair<String, UUID>>()
             val fresh =
                 params.filter { candidate ->
-                    val key: Pair<Any?, UUID> =
-                        if (candidate.sessionId != null) {
-                            Pair(candidate.sessionId, candidate.userId)
-                        } else {
-                            Pair("${candidate.eventType}:${candidate.sourceId}", candidate.userId)
-                        }
-                    (candidate.sessionId == null || key !in existingPairs) && seen.add(key)
+                    seen.add(dedupKeyFor(candidate) to candidate.userId)
                 }
             if (fresh.isEmpty()) {
                 0
@@ -67,22 +69,44 @@ object NotificationRepository {
                         ignore = true,
                         shouldReturnGeneratedValues = false,
                     )
-                fresh.forEach { params ->
+                fresh.forEach { candidate ->
                     statement.addBatch()
-                    statement[NotificationTable.sessionId] = params.sessionId
-                    statement[NotificationTable.userId] = params.userId
-                    statement[NotificationTable.branchId] = params.branchId
-                    statement[NotificationTable.message] = params.message
+                    statement[NotificationTable.sessionId] = candidate.sessionId
+                    statement[NotificationTable.userId] = candidate.userId
+                    statement[NotificationTable.branchId] = candidate.branchId
+                    statement[NotificationTable.message] = candidate.message
                     statement[NotificationTable.createdAt] = CurrentTimestampWithTimeZone
-                    statement[NotificationTable.eventType] = params.eventType
-                    statement[NotificationTable.sourceId] = params.sourceId
-                    statement[NotificationTable.targetDate] = params.targetDate
+                    statement[NotificationTable.eventType] = candidate.eventType
+                    statement[NotificationTable.sourceId] = candidate.sourceId
+                    statement[NotificationTable.targetDate] = candidate.targetDate
+                    statement[NotificationTable.dedupKey] = dedupKeyFor(candidate)
                 }
                 BatchInsertBlockingExecutable(statement).execute(this) ?: 0
             }
         }.also {
             logger.info { "[INSERT-NOTIFICATIONS] created=$it candidates=${params.size}" }
         }
+    }
+
+    /**
+     * Stable occurrence identity for one delivery. Explicit [NotificationCreateParams.dedupKey]
+     * wins (the revocation direct notice); otherwise appointment rows key on session + target
+     * appointment date and event rows on event + source. The legacy fallback (no session, no
+     * event identity) keys on branch + message hash — reachable only by writers that predate
+     * occurrence identity, never by production broadcasts.
+     */
+    fun dedupKeyFor(params: NotificationCreateParams): String {
+        val sessionId = params.sessionId
+        val eventType = params.eventType
+        val sourceId = params.sourceId
+        return params.dedupKey
+            ?: if (sessionId != null) {
+                "$APPOINTMENT_KEY_PREFIX$sessionId:${params.targetDate}"
+            } else if (eventType != null && sourceId != null) {
+                "$eventType:$sourceId"
+            } else {
+                "$LEGACY_KEY_PREFIX${params.branchId}:${params.message.hashCode()}"
+            }
     }
 
     fun findUnreadByUserId(userId: UUID): List<Notification> =
@@ -98,18 +122,65 @@ object NotificationRepository {
 
     // #356 — history: every row the caller owns, read + unread, newest first. Read rows are
     // never deleted (they carry session access), so the list is stable indefinitely.
+    // Kept for server-side/test reads; the HTTP history response is keyset-paged below (#508).
     fun findHistoryByUserId(userId: UUID): List<Notification> =
         transaction {
             NotificationTable
                 .selectAll()
                 .where { NotificationTable.userId eq userId }
                 .orderBy(NotificationTable.createdAt, SortOrder.DESC)
+                .orderBy(NotificationTable.id, SortOrder.DESC)
                 .map { it.toNotification() }
         }
 
+    /**
+     * #508 — bounded permanent-history page over `(created_at DESC, id DESC)`. [cursor] is the
+     * strictly-before position (exclusive, from [encodeNotificationCursor] on the previous
+     * page's last row); at most [limit] rows are returned. Equal timestamps order by id, so
+     * concurrent inserts shift only newer rows ahead of the cursor — fetched pages never skip
+     * or duplicate. Served by idx_notification_history.
+     */
+    fun findHistoryPage(
+        userId: UUID,
+        cursor: NotificationHistoryCursor?,
+        limit: Int,
+    ): List<Notification> =
+        transaction {
+            var condition = (NotificationTable.userId eq userId)
+            if (cursor != null) {
+                val keyset =
+                    (NotificationTable.createdAt less cursor.createdAt) or
+                        (
+                            (NotificationTable.createdAt eq cursor.createdAt) and
+                                (NotificationTable.id less cursor.id)
+                        )
+                condition = condition and keyset
+            }
+            NotificationTable
+                .selectAll()
+                .where { condition }
+                .orderBy(NotificationTable.createdAt, SortOrder.DESC)
+                .orderBy(NotificationTable.id, SortOrder.DESC)
+                .limit(limit)
+                .map { it.toNotification() }
+        }.also {
+            logger.info { "[HISTORY-PAGE] user=${userId.toString().maskUUID()} returned=${it.size}" }
+        }
+
+    // #508 — badge count without row hydration: the 60s poller reads one integer, never the
+    // mailbox. Served by idx_notification_unread.
+    fun countUnreadByUserId(userId: UUID): Int =
+        transaction {
+            NotificationTable
+                .selectAll()
+                .where { (NotificationTable.userId eq userId) and (NotificationTable.isRead eq false) }
+                .count()
+                .toInt()
+        }
+
     // #152 bearer check for the session-detail read (#151 Q1): the notification row IS the
-    // authorization — any read state. Served by the UNIQUE idx_notification_unique
-    // (session_id, user_id), so the lookup is one indexed hit.
+    // authorization — any read state. Served by idx_notification_session_user (#508), so the
+    // lookup is one indexed hit.
     fun existsForSessionAndUser(
         sessionId: UUID,
         userId: UUID,
@@ -120,22 +191,6 @@ object NotificationRepository {
                 .where {
                     (NotificationTable.sessionId eq sessionId) and
                         (NotificationTable.userId eq userId)
-                }.empty()
-                .not()
-        }
-
-    // #358 — idempotency marker for the expiry job: a request with a stored EXPIRED notice
-    // is never announced twice (job re-runs, restarts).
-    fun existsForSource(
-        eventType: String,
-        sourceId: UUID,
-    ): Boolean =
-        transaction {
-            NotificationTable
-                .selectAll()
-                .where {
-                    (NotificationTable.eventType eq eventType) and
-                        (NotificationTable.sourceId eq sourceId)
                 }.empty()
                 .not()
         }
@@ -196,18 +251,21 @@ object NotificationRepository {
             .toNotification()
     }
 
-    private fun org.jetbrains.exposed.v1.core.ResultRow.toNotification(): Notification =
-        Notification(
-            id = this[NotificationTable.id],
-            sessionId = this[NotificationTable.sessionId],
-            userId = this[NotificationTable.userId],
-            branchId = this[NotificationTable.branchId],
-            message = this[NotificationTable.message],
-            isRead = this[NotificationTable.isRead],
-            readAt = this[NotificationTable.readAt],
-            createdAt = this[NotificationTable.createdAt],
-            eventType = this[NotificationTable.eventType],
-            sourceId = this[NotificationTable.sourceId],
-            targetDate = this[NotificationTable.targetDate],
-        )
+    private const val APPOINTMENT_KEY_PREFIX = "APPT:"
+    private const val LEGACY_KEY_PREFIX = "MISC:"
 }
+
+private fun org.jetbrains.exposed.v1.core.ResultRow.toNotification(): Notification =
+    Notification(
+        id = this[NotificationTable.id],
+        sessionId = this[NotificationTable.sessionId],
+        userId = this[NotificationTable.userId],
+        branchId = this[NotificationTable.branchId],
+        message = this[NotificationTable.message],
+        isRead = this[NotificationTable.isRead],
+        readAt = this[NotificationTable.readAt],
+        createdAt = this[NotificationTable.createdAt],
+        eventType = this[NotificationTable.eventType],
+        sourceId = this[NotificationTable.sourceId],
+        targetDate = this[NotificationTable.targetDate],
+    )

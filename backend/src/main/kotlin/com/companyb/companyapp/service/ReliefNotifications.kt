@@ -60,11 +60,13 @@ internal object ReliefNotifications {
         val names = findDisplayNamesByIds(listOf(requesterId))
         val requesterName = names[requesterId] ?: "A user"
         broadcast(
-            eventType = REQUESTED,
-            sourceId = requestId,
-            recipients = members(context.branchId),
-            message = "$requesterName requested relief duty at ${context.branchName} ${dayPhrase(context.date)}",
-            context = context,
+            ReliefBroadcast(
+                eventType = REQUESTED,
+                sourceId = requestId,
+                recipients = members(context.branchId),
+                message = "$requesterName requested relief duty at ${context.branchName} ${dayPhrase(context.date)}",
+                context = context,
+            ),
         )
     }
 
@@ -81,13 +83,15 @@ internal object ReliefNotifications {
         val requesterName = names[requesterId] ?: "a user"
         val verb = if (eventType == GRANTED) "granted" else "denied"
         broadcast(
-            eventType = eventType,
-            sourceId = requestId,
-            recipients = members(context.branchId) + requesterId,
-            message =
-                "$actorName $verb $requesterName's relief duty request " +
-                    "at ${context.branchName} ${dayPhrase(context.date)}",
-            context = context,
+            ReliefBroadcast(
+                eventType = eventType,
+                sourceId = requestId,
+                recipients = members(context.branchId) + requesterId,
+                message =
+                    "$actorName $verb $requesterName's relief duty request " +
+                        "at ${context.branchName} ${dayPhrase(context.date)}",
+                context = context,
+            ),
         )
     }
 
@@ -101,11 +105,13 @@ internal object ReliefNotifications {
         val inviteeName = findDisplayNamesByIds(listOf(inviteeId))[inviteeId] ?: "A user"
         val verb = if (eventType == INVITE_ACCEPTED) "accepted" else "declined"
         broadcast(
-            eventType = eventType,
-            sourceId = inviteId,
-            recipients = members(context.branchId),
-            message = "$inviteeName $verb the relief invite at ${context.branchName} ${dayPhrase(context.date)}",
-            context = context,
+            ReliefBroadcast(
+                eventType = eventType,
+                sourceId = inviteId,
+                recipients = members(context.branchId),
+                message = "$inviteeName $verb the relief invite at ${context.branchName} ${dayPhrase(context.date)}",
+                context = context,
+            ),
         )
     }
 
@@ -125,20 +131,29 @@ internal object ReliefNotifications {
         val actorName = names[actorId] ?: "A member"
         val inviteeName = names[inviteeId] ?: "a user"
         broadcast(
-            eventType = INVITE_REVOKED,
-            sourceId = inviteId,
-            recipients = members(context.branchId),
-            message =
-                "$actorName revoked $inviteeName's relief duty at ${context.branchName} " +
-                    dayPhrase(context.date),
-            context = context,
+            ReliefBroadcast(
+                eventType = INVITE_REVOKED,
+                sourceId = inviteId,
+                recipients = members(context.branchId),
+                message =
+                    "$actorName revoked $inviteeName's relief duty at ${context.branchName} " +
+                        dayPhrase(context.date),
+                context = context,
+            ),
         )
+        // #508 — the invitee's explicit notice shares the event + source but carries its own
+        // occurrence key: per (occurrence, recipient) uniqueness must keep BOTH rows even
+        // when the invitee is a branch member holding the broadcast above.
         broadcast(
-            eventType = INVITE_REVOKED,
-            sourceId = inviteId,
-            recipients = listOf(inviteeId),
-            message = "Your relief duty at ${context.branchName} ${dayPhrase(context.date)} was revoked",
-            context = context,
+            ReliefBroadcast(
+                eventType = INVITE_REVOKED,
+                sourceId = inviteId,
+                recipients = listOf(inviteeId),
+                message =
+                    "Your relief duty at ${context.branchName} ${dayPhrase(context.date)} was revoked",
+                context = context,
+                dedupKey = "$INVITE_REVOKED:$inviteId:direct",
+            ),
         )
     }
 
@@ -155,11 +170,13 @@ internal object ReliefNotifications {
     ): Int {
         val phrase = if (eventType == REMINDER_DAY_OF) "for today" else "on ${context.date}"
         return broadcast(
-            eventType = eventType,
-            sourceId = inviteId,
-            recipients = listOf(inviteeId),
-            message = "You have relief duty at ${context.branchName} $phrase",
-            context = context,
+            ReliefBroadcast(
+                eventType = eventType,
+                sourceId = inviteId,
+                recipients = listOf(inviteeId),
+                message = "You have relief duty at ${context.branchName} $phrase",
+                context = context,
+            ),
         )
     }
 
@@ -177,13 +194,15 @@ internal object ReliefNotifications {
         val requesterName =
             findDisplayNamesByIds(listOf(requesterId))[requesterId] ?: "A user"
         return broadcast(
-            eventType = EXPIRED,
-            sourceId = requestId,
-            recipients = originalPingList,
-            message =
-                "$requesterName's relief duty request at ${context.branchName} on ${context.date} " +
-                    "expired unanswered",
-            context = context,
+            ReliefBroadcast(
+                eventType = EXPIRED,
+                sourceId = requestId,
+                recipients = originalPingList,
+                message =
+                    "$requesterName's relief duty request at ${context.branchName} on ${context.date} " +
+                        "expired unanswered",
+                context = context,
+            ),
         )
     }
 
@@ -196,23 +215,30 @@ internal object ReliefNotifications {
     private fun dayPhrase(date: LocalDate): String =
         if (date == BranchDayService.currentOperationalDate()) "for today" else "on $date"
 
-    private fun broadcast(
-        eventType: String,
-        sourceId: UUID,
-        recipients: Collection<UUID>,
-        message: String,
-        context: ReliefEventContext,
-    ): Int =
+    // #508 — one broadcast param object: the revocation direct notice adds an occurrence-key
+    // override to the shared event + source identity, which a sixth function parameter would
+    // push past LongParameterList.
+    private data class ReliefBroadcast(
+        val eventType: String,
+        val sourceId: UUID,
+        val recipients: Collection<UUID>,
+        val message: String,
+        val context: ReliefEventContext,
+        val dedupKey: String? = null,
+    )
+
+    private fun broadcast(broadcast: ReliefBroadcast): Int =
         NotificationRepository.insertBatch(
-            recipients.distinct().map { recipient ->
+            broadcast.recipients.distinct().map { recipient ->
                 NotificationCreateParams(
                     sessionId = null,
                     userId = recipient,
-                    branchId = context.branchId,
-                    message = message,
-                    eventType = eventType,
-                    sourceId = sourceId,
-                    targetDate = context.date,
+                    branchId = broadcast.context.branchId,
+                    message = broadcast.message,
+                    eventType = broadcast.eventType,
+                    sourceId = broadcast.sourceId,
+                    targetDate = broadcast.context.date,
+                    dedupKey = broadcast.dedupKey,
                 )
             },
         )
