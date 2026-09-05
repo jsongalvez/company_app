@@ -91,7 +91,7 @@ object AuthService {
             } else {
                 transaction {
                     val liveVersion =
-                        UserRepository.revalidateCredentialLockedInTransaction(userId!!, appUser!!.passwordHash)
+                        UserRepository.revalidateCredentialLockedInTransaction(userId, appUser.passwordHash)
                             ?: return@transaction null
                     val boundary = UserRepository.revocationBoundaryInTransaction(userId)
                     val issuedAt =
