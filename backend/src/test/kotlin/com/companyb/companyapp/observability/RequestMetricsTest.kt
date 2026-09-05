@@ -1,8 +1,12 @@
 package com.companyb.companyapp.observability
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.middleware.TraceIdFilter
 import com.companyb.companyapp.database.DatabaseConfig
+import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.logging.RequestLog
 import io.javalin.Javalin
+import io.javalin.http.HttpStatus
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -108,6 +112,48 @@ class RequestMetricsTest {
     }
 
     @Test
+    fun `handler plus after records each error exactly once`() {
+        val app =
+            Javalin.create { cfg ->
+                cfg.routes.after {
+                    TraceIdFilter.echo(it)
+                    RequestMetrics.observe(it)
+                    RequestLog.complete(it)
+                }
+                cfg.routes.exception(ValidationException::class.java) { e, ctx ->
+                    TraceIdFilter.echo(ctx)
+                    ctx.status(HTTP_BAD_REQUEST).json(mapOf("error" to (e.message ?: "Bad Request")))
+                    RequestMetrics.observe(ctx)
+                    RequestLog.complete(ctx)
+                }
+                cfg.routes.error(HttpStatus.INTERNAL_SERVER_ERROR) { ctx ->
+                    TraceIdFilter.echo(ctx)
+                    ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(mapOf("error" to "Internal Server Error"))
+                    RequestMetrics.observe(ctx)
+                    RequestLog.complete(ctx)
+                }
+                cfg.routes.get("/boom-4xx") { throw ValidationException("bad") }
+                cfg.routes.get("/boom-5xx") { throw RuntimeException("boom") }
+                cfg.routes.get("/ok") { it.result("ok") }
+            }
+        app.start(0)
+        try {
+            val client = HttpClient.newHttpClient()
+            assertEquals(HTTP_BAD_REQUEST, client.get(app.port(), "/boom-4xx").statusCode())
+            assertEquals(HTTP_INTERNAL_ERROR, client.get(app.port(), "/boom-5xx").statusCode())
+            assertEquals(HTTP_OK, client.get(app.port(), "/ok").statusCode())
+            val counts = RequestMetrics.snapshot()
+            assertEquals(1, counts["GET" to "/boom-4xx"])
+            assertEquals(1, counts["GET" to "/boom-5xx"])
+            assertEquals(1, counts["GET" to "/ok"])
+            val body = RequestMetrics.render(DatabaseConfig.PoolStats.empty())
+            assertContains(body, "http_request_errors_total{method=\"GET\",route=\"/boom-5xx\"} 1")
+        } finally {
+            app.stop()
+        }
+    }
+
+    @Test
     fun `recording overhead stays negligible on hot paths`() {
         val (_, duration) =
             measureTimedValue {
@@ -130,5 +176,8 @@ class RequestMetricsTest {
         const val SLOW_MS = 80L
         const val RECORDING_ITERATIONS = 5000
         const val RECORDING_BUDGET_MS = 2000L
+        const val HTTP_OK = 200
+        const val HTTP_BAD_REQUEST = 400
+        const val HTTP_INTERNAL_ERROR = 500
     }
 }

@@ -195,25 +195,21 @@ private fun registerExceptionHandlers(config: io.javalin.config.JavalinConfig) {
     config.routes.exception(ValidationException::class.java) { e, ctx ->
         TraceIdFilter.echo(ctx)
         ctx.status(HTTP_BAD_REQUEST).json(mapOf("error" to (e.message ?: "Bad Request")))
-        RequestMetrics.observe(ctx)
         RequestLog.complete(ctx)
     }
     config.routes.exception(ForbiddenException::class.java) { e, ctx ->
         TraceIdFilter.echo(ctx)
         ctx.status(HTTP_FORBIDDEN).json(mapOf("error" to (e.message ?: "Forbidden")))
-        RequestMetrics.observe(ctx)
         RequestLog.complete(ctx)
     }
     config.routes.exception(NotFoundException::class.java) { e, ctx ->
         TraceIdFilter.echo(ctx)
         ctx.status(HTTP_NOT_FOUND).json(mapOf("error" to (e.message ?: "Not Found")))
-        RequestMetrics.observe(ctx)
         RequestLog.complete(ctx)
     }
     config.routes.exception(ConflictException::class.java) { e, ctx ->
         TraceIdFilter.echo(ctx)
         ctx.status(HTTP_CONFLICT).json(mapOf("error" to (e.message ?: "Conflict")))
-        RequestMetrics.observe(ctx)
         RequestLog.complete(ctx)
     }
 }
@@ -239,7 +235,6 @@ private fun registerServerErrorHandler(config: io.javalin.config.JavalinConfig) 
             ),
         )
         ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(mapOf("error" to "Internal Server Error"))
-        RequestMetrics.observe(ctx)
         RequestLog.complete(ctx)
     }
 }

@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicLong
  * excludes it, so search terms stay out of metrics).
  */
 object RequestMetrics {
+    const val OBSERVED_ATTRIBUTE = "requestMetricsObserved"
     private const val STATUS_UNKNOWN = 0
     private const val SERVER_ERROR_THRESHOLD = 500
     private const val MILLIS_PER_SECOND = 1000.0
@@ -91,7 +92,14 @@ object RequestMetrics {
         }
     }
 
+    /**
+     * Records one request exactly once: exception handlers and the global
+     * `after` filter both call this, and whichever runs first wins (mirrors
+     * `RequestLog.COMPLETED_ATTRIBUTE`).
+     */
     fun observe(context: Context) {
+        if (context.attribute<Boolean>(OBSERVED_ATTRIBUTE) == true) return
+        context.attribute(OBSERVED_ATTRIBUTE, true)
         val status = runCatching { context.statusCode() }.getOrDefault(STATUS_UNKNOWN)
         observe(context.method().name, context.path(), status, RequestElapsedConverter.currentElapsedMs())
     }
