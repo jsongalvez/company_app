@@ -33,6 +33,7 @@ internal fun FinanceReportsViewModel.applyMonth() {
         return
     }
     paramErrorState.value = null
+    appliedMonthState.value = month
     monthlyRollupState.value = UiState.Idle
     refreshWindowAndFeed()
     loadMonthlyRollup()

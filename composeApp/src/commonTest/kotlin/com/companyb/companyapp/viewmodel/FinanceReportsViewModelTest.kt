@@ -141,6 +141,14 @@ class FinanceReportsViewModelTest {
         }
     }
 
+    private fun rollupJson(
+        branch: String = BRANCH_A,
+        month: Int = 7,
+    ): String =
+        """{"branchId":"$branch","year":2026,"month":$month,"totalRemittances":1,""" +
+            """"sessionCount":1,"productCount":0,"grossIncome":"1000.00",""" +
+            """"totalCompensation":"200.00","totalExpenses":"50.00","netIncome":"750.00"}"""
+
     private fun expenseJson(
         id: String,
         deleted: Boolean = false,
@@ -288,6 +296,158 @@ class FinanceReportsViewModelTest {
 
             // DAILY window first (to=today), then MONTHLY window (Aug 2026 bounds)
             assertEquals("2026-08-01" to "2026-08-31", windows.last())
+        }
+
+    @Test
+    fun applyMonth_commitsAppliedMonthAndLoadsThatWindow() =
+        runTest(testScheduler) {
+            val windows = mutableListOf<Pair<String?, String?>>()
+            val rollupParams = mutableListOf<Pair<String?, String?>>()
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        windows += (request.url.parameters["from"] to request.url.parameters["to"])
+                        respondJson(feedResponse(listOf("2026-07-15")))
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/monthly-summary" -> {
+                        rollupParams += (request.url.parameters["year"] to request.url.parameters["month"])
+                        respondJson(
+                            rollupJson(),
+                        )
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+
+            vm.setMode(ReportMode.MONTHLY)
+            runCurrent()
+            vm.setMonthInput("2026-07")
+            vm.applyMonth()
+            runCurrent()
+
+            assertEquals("2026-07", vm.appliedMonth.value.toString())
+            assertNull(vm.paramError.value)
+            assertEquals("2026-07-01" to "2026-07-31", windows.last())
+            assertEquals("2026" to "7", rollupParams.last())
+        }
+
+    @Test
+    fun monthlyDraftEdit_withoutApply_refreshAndExportTargetAppliedMonth() =
+        runTest(testScheduler) {
+            val windows = mutableListOf<Pair<String?, String?>>()
+            val rollupParams = mutableListOf<Pair<String?, String?>>()
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        windows += (request.url.parameters["from"] to request.url.parameters["to"])
+                        respondJson(feedResponse(listOf("2026-07-15")))
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/monthly-summary" -> {
+                        rollupParams += (request.url.parameters["year"] to request.url.parameters["month"])
+                        respondJson(
+                            rollupJson(),
+                        )
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+
+            vm.setMode(ReportMode.MONTHLY)
+            runCurrent()
+            vm.setMonthInput("2026-07")
+            vm.applyMonth()
+            runCurrent()
+            val appliedWindows = windows.size
+            val appliedRollups = rollupParams.size
+
+            // Half-typed August draft — never applied.
+            vm.setMonthInput("2026-08")
+            vm.refreshFeed()
+            runCurrent()
+
+            assertEquals(
+                "2026-07-01" to "2026-07-31",
+                windows.last(),
+                "refresh with an unapplied draft must target the applied month",
+            )
+            assertEquals(appliedWindows + 1, windows.size)
+
+            val url = vm.modeExportUrl(ReportMode.MONTHLY, BRANCH_A, "csv")
+            assertTrue(url.contains("year=2026&month=7"), "export must cover the applied month, not the draft: $url")
+
+            // The rollup loader reads the applied month too — no consumer parses the draft.
+            vm.loadMonthlyRollup()
+            runCurrent()
+            assertEquals("2026" to "7", rollupParams.last())
+            assertEquals(appliedRollups + 1, rollupParams.size)
+        }
+
+    @Test
+    fun applyMonth_invalidInput_keepsAppliedMonthWithoutRefetch() =
+        runTest(testScheduler) {
+            var feedRequests = 0
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        feedRequests++
+                        respondJson(feedResponse(listOf("2026-07-15")))
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/monthly-summary" -> {
+                        respondJson(
+                            rollupJson(),
+                        )
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+
+            vm.setMode(ReportMode.MONTHLY)
+            runCurrent()
+            vm.setMonthInput("2026-07")
+            vm.applyMonth()
+            runCurrent()
+            val pinned = feedRequests
+
+            vm.setMonthInput("not-a-month")
+            vm.applyMonth()
+            runCurrent()
+
+            assertEquals("Month must be yyyy-MM", vm.paramError.value)
+            assertEquals("2026-07", vm.appliedMonth.value.toString())
+            assertEquals(pinned, feedRequests, "a rejected apply must not refetch")
         }
 
     @Test

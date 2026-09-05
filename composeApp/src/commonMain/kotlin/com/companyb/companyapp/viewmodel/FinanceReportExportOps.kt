@@ -68,9 +68,7 @@ internal fun FinanceReportsViewModel.modeExportUrl(
         }
 
         ReportMode.MONTHLY -> {
-            val month =
-                com.companyb.companyapp.ui.screen
-                    .parseYearMonthInput(monthInputState.value) ?: defaultMonth
+            val month = appliedMonthState.value
             ApiRoutes.branchExportWithQuery(
                 ApiRoutes.branchExportMonthly(branchId),
                 "year=${month.year}&month=${month.month.ordinal + 1}&format=$format",

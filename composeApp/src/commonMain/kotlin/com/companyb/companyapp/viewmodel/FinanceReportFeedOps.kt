@@ -74,10 +74,7 @@ internal fun FinanceReportsViewModel.currentWindow(): FeedWindow =
         com.companyb.companyapp.ui.screen.FeedWindowRequest(
             mode = modeState.value,
             today = today,
-            month =
-                com.companyb.companyapp.ui.screen
-                    .parseYearMonthInput(monthInputState.value)
-                    ?: defaultMonth,
+            month = appliedMonthState.value,
             rangeFrom = appliedRangeState.value?.first,
             rangeTo = appliedRangeState.value?.second,
             jumpMonth = jumpMonthState.value,
@@ -189,10 +186,7 @@ internal fun FinanceReportsViewModel.finish(mode: FeedFetchMode) {
 
 internal fun FinanceReportsViewModel.loadMonthlyRollup() {
     val branchId = selectedBranchIdState.value ?: return
-    val month =
-        com.companyb.companyapp.ui.screen
-            .parseYearMonthInput(monthInputState.value)
-            ?: defaultMonth
+    val month = appliedMonthState.value
     rollupGeneration++
     val generation = rollupGeneration
     monthlyRollupState.value = UiState.Loading

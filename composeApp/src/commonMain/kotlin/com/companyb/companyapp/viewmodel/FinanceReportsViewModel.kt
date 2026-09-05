@@ -135,6 +135,10 @@ class FinanceReportsViewModel(
     internal val monthInputState = MutableStateFlow(defaultMonth.toString())
     val monthInput: StateFlow<String> = monthInputState.asStateFlow()
 
+    /** Applied MONTHLY month (validated at apply time — #485: feed/rollup/export read this, never the draft). */
+    internal val appliedMonthState = MutableStateFlow(defaultMonth)
+    val appliedMonth: StateFlow<YearMonth> = appliedMonthState.asStateFlow()
+
     internal val rangeFromInputState = MutableStateFlow("")
     val rangeFromInput: StateFlow<String> = rangeFromInputState.asStateFlow()
 
