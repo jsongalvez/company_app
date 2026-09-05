@@ -53,7 +53,7 @@ pass gradle args to override. Keep the daemon and configuration/build caches war
 |---|---|
 | Backend pure-service logic | `./gradlew :backend:test --tests '<Fqcn>'` |
 | Backend DB/transaction/locking change | focused `*PostgresTest` (owned schema per JVM + automatic per-test reset — no manual cleanup) |
-| Backend route/DTO contract change | `bash scripts/check-openapi-spec.sh` (pays its hidden compile once) |
+| Backend route/DTO contract change | `./gradlew :backend:verifyOpenApiContract` |
 | Shared DTO/domain type | `./gradlew :shared:compileKotlinJvm :shared:jvmTest` |
 | Compose desktop UI only | `./gradlew :composeApp:compileKotlinDesktop` (+ `:composeApp:desktopTest` for VM logic) |
 | Build logic / detekt config | compile one target per module; Detekt on affected modules |

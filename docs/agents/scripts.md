@@ -31,26 +31,19 @@ on unsafe identifiers or unreadable DB — unreadable must never look clean),
 | `check-test-cleanliness.sh` | Asserts zero leftover rows in any `public`-schema test-managed table (seed tables `role`/`capability`/`role_capability` + Flyway metadata excepted). k6/manual `public`-DB evidence only (#493) — backend workers use owned `test_w_*` schemas and never touch `public` (lifecycle proof: `WorkerSchemaLifecycleTest`). |
 | `clean-test-db.sh` | Truncates `public` user-data tables preserving seeds, then re-runs the cleanliness check as proof. Run after k6 sessions. Backend focused tests need no cleanup — each worker mints a fresh owned schema per JVM. |
 
-## OpenAPI contract gate
+## OpenAPI contract gate (#495 contract, #496 old-pipeline deletion)
 
-Pipeline: Kotlin compile (kapt emits the spec) → `normalize-openapi-spec.mjs` →
-`verify-openapi-spec.sh`. The normalizer binds every operation to its exact route
-registration + handler source (hashed, ranged `x-route-source`) and its exact source
-`@OpenApi` annotation (`x-openapi-source`), traces handler/service/mapper code to derive
-response schemas, request bodies, query params, and error responses, and finally compares
-the whole route-contract fingerprint against `openapi-route-contract.json`. The verifier
-re-parses the Kotlin sources and asserts coverage, bearer security, operationId hygiene,
-ErrorResponse/bodyless rules, schema resolution, binding freshness, and scans for leaked
-secret names. Deliberately off every compile path so JVM-only Docker builders can
-`:backend:installDist` without Node (#372).
+Pipeline: Kotlin compile (kapt emits the spec) → `OpenApiCanonical.canonicalize`
+(replaces DTO component schemas from actual serializer descriptors) → served by
+production `OpenApiPlugin` and the offline export identically. No Node, no
+source parsing, no fingerprint state, no freshness/mtime checks: inputs are
+compiled classes/resources plus serializer metadata. Deliberately off every
+compile/installDist path so JVM-only Docker builders stay Node-free (#372).
 
-| File | Purpose |
+| Task | Purpose |
 |---|---|
-| `check-openapi-spec.sh` | Full local gate (the verbatim CI step): compile + publish spec, verify, then two negative controls — a drifted spec and a stale fingerprint must both fail closed. Emits the `OPENAPI_*_OK` markers. |
-| `verify-openapi-spec.sh` | Verifier over a normalized spec; freshness check (spec newer than all inputs) skippable via `OPENAPI_VERIFY_SKIP_FRESHNESS=1`. |
-| `normalize-openapi-spec.mjs` | Normalization + fingerprint computation. Stale fingerprint throws unless `UPDATE_OPENAPI_ROUTE_CONTRACT=1` (the documented refresh flow). |
-| `openapi-source-parser.mjs` | Comment-stripping, delimiter-balancing, and `@OpenApi` annotation parsing helpers shared by normalizer and verifier. |
-| `openapi-route-contract.json` | Stored fingerprint state consumed by normalizer + verifier. Changed only via the `UPDATE_OPENAPI_ROUTE_CONTRACT=1` flow, never by hand. |
+| `./gradlew :backend:verifyOpenApiContract` | Sole contract gate (the verbatim CI step): DB-free `OpenApiContractTest` over the kapt resource through the canonical transform. Failing contract tests fail this check. |
+| `./gradlew :backend:exportOpenApiSpec` | Writes the canonical document to `backend/build/openapi/openapi-canonical.json` (build artifact, never committed) for import into API clients — see `docs/api.md`. |
 
 ## Git hooks and their guards
 

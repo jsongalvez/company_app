@@ -34,7 +34,7 @@ QUALITY_TASKS=':backend:detekt :backend:ktlintCheck :backend:test
 :composeApp:detektMetadataCommonMain :composeApp:detektDesktopMain
 :composeApp:detektAndroidDebug :composeApp:detektIosArm64Main
 :composeApp:detektIosSimulatorArm64Main
-:shared:compileKotlinJvm :shared:jvmTest -x :backend:publishOpenApiSpec'
+:shared:compileKotlinJvm :shared:jvmTest'
 
 record() { # record <gate> <PASS|FAIL|SKIP|RUNNING> [note]
     local gate=$1 state=$2 note=${3:-}
@@ -81,8 +81,8 @@ run_gates() {
     # public-table check no longer evidences backend tests (lifecycle test owns it).
     # Kept scripts stay for k6/manual public-DB cleanup; no backend gate here.
 
-    # Gate: openapi — mirrors the hosted step.
-    if bash scripts/check-openapi-spec.sh >>"$RUN_LOG" 2>&1; then
+    # Gate: openapi — mirrors the hosted step (#495 Gradle contract gate).
+    if ./gradlew :backend:verifyOpenApiContract -PwarningsAsErrors=true >>"$RUN_LOG" 2>&1; then
         record openapi PASS
     else
         record openapi FAIL "see $RUN_LOG"

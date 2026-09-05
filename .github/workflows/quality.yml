@@ -25,11 +25,6 @@ on:
       - 'scripts/clean-test-db.sh'
       - 'scripts/lib/**'
       - 'docker/**'
-      - 'scripts/check-openapi-spec.sh'
-      - 'scripts/normalize-openapi-spec.mjs'
-      - 'scripts/openapi-source-parser.mjs'
-      - 'scripts/openapi-route-contract.json'
-      - 'scripts/verify-openapi-spec.sh'
       - '.github/workflows/quality.yml'
   pull_request:
     paths:
@@ -49,11 +44,6 @@ on:
       - 'scripts/clean-test-db.sh'
       - 'scripts/lib/**'
       - 'docker/**'
-      - 'scripts/check-openapi-spec.sh'
-      - 'scripts/normalize-openapi-spec.mjs'
-      - 'scripts/openapi-source-parser.mjs'
-      - 'scripts/openapi-route-contract.json'
-      - 'scripts/verify-openapi-spec.sh'
       - '.github/workflows/quality.yml'
   workflow_dispatch:
 
@@ -137,15 +127,15 @@ jobs:
           :composeApp:detektMetadataCommonMain :composeApp:detektDesktopMain
           :composeApp:detektAndroidDebug :composeApp:detektIosArm64Main
           :composeApp:detektIosSimulatorArm64Main
-          :shared:compileKotlinJvm :shared:jvmTest -x :backend:publishOpenApiSpec
+          :shared:compileKotlinJvm :shared:jvmTest
           -PwarningsAsErrors=true
 
       # Backend workers use owned test_w_* schemas (#493); public-table cleanliness no
       # longer evidences backend tests. Lifecycle proof lives in WorkerSchemaLifecycleTest.
       # scripts/check-test-cleanliness.sh stays for k6/manual public-DB cleanup only.
 
-      - name: Verify OpenAPI contract
-        run: bash scripts/check-openapi-spec.sh
+      - name: Verify OpenAPI contract (#495 Gradle gate)
+        run: ./gradlew :backend:verifyOpenApiContract -PwarningsAsErrors=true
 
   compose-compile:
     runs-on: ubuntu-latest
