@@ -71,6 +71,11 @@ object UserRepository {
                         id = row[AppUserTable.id].toString(),
                         username = row[AppUserTable.username],
                         passwordHash = row[AppUserTable.passwordHash],
+                        status = row[AppUserTable.status],
+                        displayName = row[AppUserTable.displayName],
+                        deactivatedAt = row[AppUserTable.deactivatedAt],
+                        jwtRevokedAt = row[AppUserTable.jwtRevokedAt],
+                        credentialVersion = row[AppUserTable.credentialVersion],
                     )
                 }.singleOrNull()
         }.also { logger.info { "[FIND-BY-USERNAME] Fetched username" } }
@@ -166,11 +171,55 @@ object UserRepository {
     fun setPasswordHashInTransaction(
         userId: UUID,
         passwordHash: String,
-    ) {
+    ): Long {
+        val locked =
+            AppUserTable
+                .selectAll()
+                .where { AppUserTable.id eq userId }
+                .forUpdate(ForUpdateOption.ForUpdate)
+                .singleOrNull() ?: error("User not found")
+        val nextVersion = locked[AppUserTable.credentialVersion] + 1
         AppUserTable.update({ AppUserTable.id eq userId }) {
             it[AppUserTable.passwordHash] = passwordHash
+            it[AppUserTable.credentialVersion] = nextVersion
         }
+        return nextVersion
     }
+
+    /**
+     * Login revalidation (#505): runs on the login command's transaction after the
+     * expensive bcrypt check. Locks the account row, then proves the verified hash is
+     * still current and the account is ACTIVE. Returns the live version, or null when
+     * the credential rotated, the account deactivated, or the row vanished.
+     */
+    fun revalidateCredentialLockedInTransaction(
+        userId: UUID,
+        verifiedHash: String,
+    ): Long? {
+        val locked =
+            AppUserTable
+                .selectAll()
+                .where { AppUserTable.id eq userId }
+                .forUpdate(ForUpdateOption.ForUpdate)
+                .singleOrNull() ?: return null
+        if (locked[AppUserTable.status] != UserStatus.ACTIVE) return null
+        if (locked[AppUserTable.passwordHash] != verifiedHash) return null
+        return locked[AppUserTable.credentialVersion]
+    }
+
+    /** Current persisted revocation boundary for [userId], read under the command's lock. */
+    fun revocationBoundaryInTransaction(userId: UUID): OffsetDateTime? =
+        AppUserTable
+            .select(AppUserTable.jwtRevokedAt)
+            .where { AppUserTable.id eq userId }
+            .singleOrNull()
+            ?.get(AppUserTable.jwtRevokedAt)
+
+    /** DB clock read for version-bound token issuance (#505) — runs on the caller's command transaction. */
+    fun dbNowInTransaction(): OffsetDateTime =
+        AppUserTable
+            .select(clockTimestamp)
+            .first()[clockTimestamp]
 
     /**
      * Advances the persisted JWT revocation boundary to the database clock time taken after
@@ -326,23 +375,29 @@ object UserRepository {
         }.also { logger.info { "[FIND-ACTIVE-ASSIGNMENTS-WITH-BRANCH] Fetched ${it.size} active assignment(s)" } }
 
     /**
-     * Token-aware authorization read (#492): one query evaluates ACTIVE status plus the
-     * persisted revocation boundary. A token is accepted iff its owner exists, is ACTIVE,
-     * and was issued strictly after that user's nullable boundary. Same-second issuance
+     * Token-aware authorization read (#492, #505): one query evaluates ACTIVE status,
+     * the credential generation, plus the persisted revocation boundary. A token is
+     * accepted iff its owner exists, is ACTIVE, carries the current generation, and
+     * was issued strictly after that user's nullable boundary. Same-second issuance
      * stays denied — JWT `iat` is second-precision and cannot distinguish before/after.
      */
     fun authorize(
         userId: UUID,
         tokenIssuedAt: Instant,
+        credentialVersion: Long = 0L,
     ): Boolean {
         val authorized =
             transaction {
                 val row =
                     AppUserTable
-                        .select(AppUserTable.status, AppUserTable.jwtRevokedAt)
-                        .where { AppUserTable.id eq userId }
+                        .select(
+                            AppUserTable.status,
+                            AppUserTable.jwtRevokedAt,
+                            AppUserTable.credentialVersion,
+                        ).where { AppUserTable.id eq userId }
                         .singleOrNull() ?: return@transaction false
                 if (row[AppUserTable.status] != UserStatus.ACTIVE) return@transaction false
+                if (row[AppUserTable.credentialVersion] != credentialVersion) return@transaction false
                 val boundary = row[AppUserTable.jwtRevokedAt]?.toInstant() ?: return@transaction true
                 tokenIssuedAt.isAfter(boundary)
             }
@@ -363,5 +418,6 @@ object UserRepository {
             displayName = this[AppUserTable.displayName],
             deactivatedAt = this[AppUserTable.deactivatedAt],
             jwtRevokedAt = this[AppUserTable.jwtRevokedAt],
+            credentialVersion = this[AppUserTable.credentialVersion],
         )
 }

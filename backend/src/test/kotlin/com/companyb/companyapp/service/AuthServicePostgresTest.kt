@@ -61,10 +61,8 @@ class AuthServicePostgresTest : BasePostgresTest() {
     fun `login after logout issues a fresh token that verifies`() {
         AuthService.logout(userId)
 
-        // JWT iat is second-precision: a token minted in the same second as the
-        // revocation is indistinguishable from a pre-revocation token and stays
-        // denied, so cross the second boundary before minting the fresh token.
-        TestFixtures.waitForNextSecond()
+        // #505 — login mints with a DB-derived instant strictly after the boundary,
+        // so the fresh token verifies immediately with no second-boundary wait.
         val result = AuthService.login("logout-test-$userId", "test-password", "203.0.113.${userId.toString().take(8)}")
 
         val token =

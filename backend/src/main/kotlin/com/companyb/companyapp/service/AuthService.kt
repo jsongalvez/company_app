@@ -54,6 +54,10 @@ object AuthService {
     // versa (RateLimiter keys on the exact string).
     private const val RESET_RATE_KEY_PREFIX = "reset:"
 
+    // #505 — DB-derived issuance skew: guarantees the minted iat lands strictly after
+    // the persisted boundary read in the same login transaction.
+    private const val ISSUED_AT_SKEW_SECONDS = 1L
+
     fun login(
         username: String,
         password: String,
@@ -70,15 +74,45 @@ object AuthService {
         val appUser: AppUser? = UserRepository.findByUsername(username)
 
         val isVerified = Password.verify(password, appUser?.passwordHash)
-
-        if (appUser == null || !isVerified) {
+        val userId = appUser?.let { runCatching { UUID.fromString(it.id) }.getOrNull() }
+        val preliminaryOk = appUser != null && isVerified && userId != null
+        if (!preliminaryOk) {
             logger.warn { "[LOGIN] Failed login attempt for user: $username" }
-            return LoginResult.InvalidCredentials
         }
 
-        val token: String = JwtService.generateToken(appUser.id)
-        logger.info { "[LOGIN] User has logged in successfully " }
-        return LoginResult.Success(token)
+        // #505 — bind issuance to the exact credential verified: lock the account,
+        // prove the hash is still current and ACTIVE, then mint with a DB-derived
+        // instant strictly after the persisted boundary so fresh logins verify
+        // immediately without sleeps. A concurrent reset/invite-accept rotates the
+        // hash or deactivates first, and this login fails closed.
+        val token: String? =
+            if (!preliminaryOk) {
+                null
+            } else {
+                transaction {
+                    val liveVersion =
+                        UserRepository.revalidateCredentialLockedInTransaction(userId!!, appUser!!.passwordHash)
+                            ?: return@transaction null
+                    val boundary = UserRepository.revocationBoundaryInTransaction(userId)
+                    val issuedAt =
+                        UserRepository.dbNowInTransaction().toInstant().plusSeconds(ISSUED_AT_SKEW_SECONDS)
+                    // Belt-and-braces: the DB-derived instant is already after the boundary,
+                    // but never mint a token the authorization read would reject.
+                    if (boundary != null && !issuedAt.isAfter(boundary.toInstant())) {
+                        return@transaction null
+                    }
+                    JwtService.generateToken(userId.toString(), liveVersion, issuedAt)
+                }
+            }
+        return if (!preliminaryOk || token == null) {
+            if (preliminaryOk) {
+                logger.warn { "[LOGIN] Credential rotated or account inactive for user: $username" }
+            }
+            LoginResult.InvalidCredentials
+        } else {
+            logger.info { "[LOGIN] User has logged in successfully " }
+            LoginResult.Success(token)
+        }
     }
 
     /**
@@ -105,6 +139,9 @@ object AuthService {
                     throw ValidationException(INVITE_USED_MESSAGE)
                 }
                 val userId = row.userId
+                // #505 — serialize with re-invite mints on the account lock before the
+                // single-use consume, so a concurrent mint cannot leave a second live code.
+                check(UserRepository.acquireLockInTransaction(userId)) { "User not found" }
                 if (!CredentialTokenRepository.consumeIfLiveInTransaction(row.id)) {
                     // Lost the single-use race or expired between read and write — reclassify
                     // precisely so the message names the real failure.
@@ -116,6 +153,8 @@ object AuthService {
                     )
                 }
                 UserRepository.setPasswordHashInTransaction(userId, Password.create(newPassword))
+                // Accepting replaces the credential: kill pre-invite tokens durably (#505).
+                UserRepository.advanceRevocationBoundaryInTransaction(userId)
                 AuthAudit.passwordSet(
                     recordId = userId,
                     oldLabel = "(pending invite)",
@@ -185,6 +224,10 @@ object AuthService {
         transaction {
             val existing =
                 UserRepository.findByUsernameOrEmailInTransaction(identifier, identifier) ?: return@transaction null
+            // #505 — serialize concurrent mints on the account lock: the second mint
+            // observes the first mint's row as outstanding and supersedes it, so only
+            // one live reset code survives.
+            check(UserRepository.acquireLockInTransaction(existing.id)) { "User not found" }
             CredentialTokenRepository
                 .findUnconsumedIdsInTransaction(existing.id, CredentialTokenPurpose.PASSWORD_RESET)
                 .forEach { tokenId ->
@@ -263,6 +306,9 @@ object AuthService {
                     throw ValidationException(RESET_USED_MESSAGE)
                 }
                 val userId = row.userId
+                // #505 — same account-lock order as mint and login: redemption serializes
+                // with concurrent mints and logins on the user row.
+                check(UserRepository.acquireLockInTransaction(userId)) { "User not found" }
                 if (!CredentialTokenRepository.consumeIfLiveInTransaction(row.id)) {
                     val reread =
                         CredentialTokenRepository.findByIdInTransaction(row.id)

@@ -24,6 +24,9 @@ object JwtService {
     private val logger = KotlinLogging.logger {}
     private const val MIN_SECRET_LENGTH = 32
 
+    /** Credential-generation claim (#505): binds the token to the password version verified at login. */
+    const val CREDENTIAL_VERSION_CLAIM = "cred_ver"
+
     @Volatile
     private var runtime: Runtime? = null
 
@@ -46,11 +49,21 @@ object JwtService {
         runtime = Runtime(issuer, audience, algo, verifier)
     }
 
-    fun generateToken(userId: String): String {
+    fun generateToken(userId: String): String = generateToken(userId, 0L, Instant.now())
+
+    /**
+     * Version-bound issuance (#505): [credentialVersion] is the account's current
+     * generation, [issuedAt] the DB-derived instant guaranteed strictly after the
+     * persisted revocation boundary so immediate fresh logins verify without sleeps.
+     */
+    fun generateToken(
+        userId: String,
+        credentialVersion: Long,
+        issuedAt: Instant,
+    ): String {
         logger.info { "[GENERATE-TOKEN] Generating token for ${userId.maskUUID()}" }
         val configured = runtime ?: error("JwtService.init() must be called before generateToken()")
-        val now = Instant.now()
-        val expiresAt = now.plus(1, ChronoUnit.DAYS)
+        val expiresAt = issuedAt.plus(1, ChronoUnit.DAYS)
         logger.info { "[GENERATE-TOKEN] Token expires at $expiresAt" }
         val token =
             JWT
@@ -59,7 +72,8 @@ object JwtService {
                 .withAudience(configured.audience)
                 .withSubject(userId)
                 .withExpiresAt(Date.from(expiresAt))
-                .withIssuedAt(Date.from(now))
+                .withIssuedAt(Date.from(issuedAt))
+                .withClaim(CREDENTIAL_VERSION_CLAIM, credentialVersion)
                 .sign(configured.algorithm)
         logger.info { "[GENERATE-TOKEN] Successfully generated token" }
         return token
@@ -85,7 +99,11 @@ object JwtService {
                 decoded.issuedAt?.toInstant() ?: return null.also {
                     logger.warn { "[VERIFY-TOKEN] Token has no issued-at claim" }
                 }
-            if (UserRepository.authorize(parsedId, issuedAt)) {
+            // Pre-#505 tokens carry no version claim — treat as generation 0.
+            val versionClaim = decoded.getClaim(CREDENTIAL_VERSION_CLAIM)
+            val credentialVersion =
+                versionClaim.takeIf { !it.isMissing && !it.isNull }?.asLong() ?: 0L
+            if (UserRepository.authorize(parsedId, issuedAt, credentialVersion)) {
                 subj
             } else {
                 null.also { logger.warn { "[VERIFY-TOKEN] User ${subj.maskUUID()} is unauthorized" } }

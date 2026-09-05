@@ -96,6 +96,12 @@ object UserService {
         expiresAt: OffsetDateTime,
     ): MintedInvite {
         val existing = UserRepository.findByUsernameOrEmailInTransaction(request.username, request.email)
+        // #505 — serialize with acceptInvite on the account lock before observing or
+        // invalidating outstanding codes; the check-then-invalidate runs under the lock.
+        if (existing != null) {
+            val locked = UserRepository.acquireLockInTransaction(existing.id)
+            check(locked) { "User row not found after invite target resolution" }
+        }
         val reinvite =
             existing != null &&
                 CredentialTokenRepository.hasOutstandingInTransaction(

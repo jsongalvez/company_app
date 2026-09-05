@@ -16,6 +16,7 @@ data class AppUser(
     val displayName: String = "User",
     val deactivatedAt: OffsetDateTime? = null,
     val jwtRevokedAt: OffsetDateTime? = null,
+    val credentialVersion: Long = 0L,
 )
 
 object AppUserTable : Table("app_user") {
@@ -44,6 +45,7 @@ object AppUserTable : Table("app_user") {
     val displayName = varchar("display_name", DISPLAY_NAME_LENGTH).default("User")
     val deactivatedAt = timestampWithTimeZone("deactivated_at").nullable()
     val jwtRevokedAt = timestampWithTimeZone("jwt_revoked_at").nullable()
+    val credentialVersion = long("credential_version").default(0L)
     val createdAt =
         timestampWithTimeZone("created_at")
             .defaultExpression(CurrentTimestampWithTimeZone)
