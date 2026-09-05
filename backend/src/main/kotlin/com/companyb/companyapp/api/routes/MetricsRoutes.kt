@@ -3,7 +3,19 @@ package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.observability.RequestMetrics
 import io.javalin.config.JavalinConfig
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiResponse
 
+// #473 annotation added in #475: the contract gate requires every registered
+// route to carry a source annotation (mirrors HealthRoutes' public shape).
+@OpenApi(
+    path = ApiRoutes.METRICS,
+    methods = [HttpMethod.GET],
+    operationId = "metrics",
+    security = [],
+    responses = [OpenApiResponse(status = "200")],
+)
 object MetricsRoutes {
     private const val PROMETHEUS_CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 

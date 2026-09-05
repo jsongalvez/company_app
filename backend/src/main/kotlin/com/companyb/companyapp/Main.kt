@@ -16,6 +16,7 @@ import com.companyb.companyapp.api.routes.DailySalesSummaryRoutes
 import com.companyb.companyapp.api.routes.DashboardRoutes
 import com.companyb.companyapp.api.routes.ExpenseRoutes
 import com.companyb.companyapp.api.routes.ExportRoutes
+import com.companyb.companyapp.api.routes.FeedbackRoutes
 import com.companyb.companyapp.api.routes.HealthRoutes
 import com.companyb.companyapp.api.routes.MeRoutes
 import com.companyb.companyapp.api.routes.MedicalMissionDelegateRoutes
@@ -46,10 +47,13 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
 import com.companyb.companyapp.logging.RequestLog
+import com.companyb.companyapp.observability.IncidentDelivery
+import com.companyb.companyapp.observability.IncidentService
 import com.companyb.companyapp.observability.RequestMetrics
 import com.companyb.companyapp.service.SchedulerLifecycle
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
+import io.javalin.http.HttpStatus
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.openapi.plugin.OpenApiPlugin
 import io.javalin.openapi.plugin.swagger.SwaggerPlugin
@@ -62,6 +66,8 @@ private const val HTTP_BAD_REQUEST = 400
 private const val HTTP_FORBIDDEN = 403
 private const val HTTP_NOT_FOUND = 404
 private const val HTTP_CONFLICT = 409
+private const val HTTP_INTERNAL_ERROR = 500
+private const val TRACE_UNKNOWN = "unknown"
 
 fun initializeJavalin(config: AppConfig) {
     logger.info { "[INITIALIZE-JAVALIN] Starting application" }
@@ -120,6 +126,7 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
         context.attribute("userId", userId)
     }
     registerExceptionHandlers(config)
+    registerServerErrorHandler(config)
     HealthRoutes.register(config)
     MetricsRoutes.register(config)
     AuthRoutes.login(config)
@@ -163,6 +170,7 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     ExpenseRoutes.register(config)
     AllowanceRoutes.register(config)
     NotificationRoutes.register(config)
+    FeedbackRoutes.register(config)
     MonthlyRemittanceSummaryRoutes.register(config)
     RemittanceRoutes.register(config)
     AuditLogRoutes.register(config)
@@ -196,6 +204,30 @@ private fun registerExceptionHandlers(config: io.javalin.config.JavalinConfig) {
     }
 }
 
+/**
+ * #475 — 5xx auto-file. A status handler (not a generic `Exception` handler)
+ * so the domain handlers above keep their specificity: any response that
+ * leaves the server as 500 files the same packet shape as a user report,
+ * without user action. Dedup by trace id collapses the auto-file with a
+ * user report for the same request.
+ */
+private fun registerServerErrorHandler(config: io.javalin.config.JavalinConfig) {
+    config.routes.error(HttpStatus.INTERNAL_SERVER_ERROR) { ctx ->
+        TraceIdFilter.echo(ctx)
+        IncidentService.fileAuto5xx(
+            traceId = ctx.attribute<String>(TraceIdFilter.ATTRIBUTE) ?: TRACE_UNKNOWN,
+            method = ctx.method().name,
+            route = ctx.path(),
+            status = runCatching { ctx.statusCode() }.getOrDefault(HTTP_INTERNAL_ERROR),
+            elapsedMs = RequestElapsedConverter.currentElapsedMs(),
+            reporterRaw = ctx.attribute<String>("userId"),
+        )
+        ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(mapOf("error" to "Internal Server Error"))
+        RequestMetrics.observe(ctx)
+        RequestLog.complete(ctx)
+    }
+}
+
 fun initializeDenyList() {
     logger.info { "[INITIALIZE-DENY-LIST] Loading persisted revocations into deny list" }
     DenyList.loadPersistedRevocations()
@@ -216,6 +248,7 @@ private fun shutdownLifecycle(
 ) {
     if (stopScheduler) shutdownScheduler()
     PasswordResetDelivery.shutdown()
+    IncidentDelivery.shutdown()
     if (closeDb) DatabaseConfig.close()
 }
 
@@ -235,6 +268,7 @@ fun main(config: AppConfig) {
     JwtService.init(config)
     Password.init(config.authDummyPassword)
     PasswordResetDelivery.configure(config.smtp)
+    IncidentDelivery.configure(config.githubIssue)
 
     DatabaseConfig.initialize(config)
     runCatching {

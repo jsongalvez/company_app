@@ -402,7 +402,7 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
         operation.operationId === "auth_logout" ||
         (method === "post" && routePath === "/api/branches/{branchId}/inventory") ||
         routePath.includes("/export/");
-      if (routePath !== "/health" && successStatuses.length > 0 && resolvedResponseType === undefined && !explicitlyBodylessSuccess) {
+      if (routePath !== "/health" && routePath !== "/metrics" && successStatuses.length > 0 && resolvedResponseType === undefined && !explicitlyBodylessSuccess) {
         throw new Error(`Response contract is missing or ambiguous: ${method.toUpperCase()} ${routePath}`);
       }
     if (resolvedResponseType && successStatuses.length) {
@@ -415,6 +415,9 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
     if (routePath === "/health") {
       const healthSchema = { type: "object", additionalProperties: false, required: ["status"], properties: { status: { type: "string", enum: ["UP", "DOWN"] }, error: { type: "string" } } };
       for (const status of ["200", "503"]) operation.responses[status].content = { "application/json": { schema: healthSchema } };
+    }
+    if (routePath === "/metrics") {
+      operation.responses["200"].content = { "text/plain": { schema: { type: "string" } } };
     }
      const behaviorSource = `${registration.source}\n${serviceBehavior(registration.source)}`;
       const behaviorStatuses = [...behaviorSource.matchAll(/HttpStatus\.(\w+)/g)].map((match) => match[1]);

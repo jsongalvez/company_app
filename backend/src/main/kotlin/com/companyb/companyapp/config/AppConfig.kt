@@ -20,6 +20,7 @@ data class AppConfig(
     val reliefTestUsername: String?,
     val reliefTestPassword: String?,
     val smtp: SmtpConfig? = null,
+    val githubIssue: GithubIssueConfig? = null,
 ) {
     companion object {
         fun parse(): AppConfig {
@@ -56,6 +57,13 @@ data class AppConfig(
                             SmtpConfig.USERNAME_ENV to env[SmtpConfig.USERNAME_ENV],
                             SmtpConfig.PASSWORD_ENV to env[SmtpConfig.PASSWORD_ENV],
                             SmtpConfig.FROM_ENV to env[SmtpConfig.FROM_ENV],
+                        ),
+                    ),
+                githubIssue =
+                    GithubIssueConfig.fromEnvironment(
+                        mapOf(
+                            GithubIssueConfig.TOKEN_ENV to env[GithubIssueConfig.TOKEN_ENV],
+                            GithubIssueConfig.REPOSITORY_ENV to env[GithubIssueConfig.REPOSITORY_ENV],
                         ),
                     ),
             )

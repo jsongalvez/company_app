@@ -47,3 +47,7 @@ enum class CapabilityContextType { GLOBAL, BRANCH, BRANCH_DAY, MEDICAL_MISSION, 
 
 @Serializable
 enum class CapabilitySourceType { RELIEF_ACCESS, MEDICAL_MISSION_DELEGATE, MANUAL_OVERRIDE, SYSTEM, ROLE }
+
+/** #475 — origin of a triage-ready incident packet; the packet shape is identical either way. */
+@Serializable
+enum class IncidentSource { USER_REPORT, AUTO_5XX }
