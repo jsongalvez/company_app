@@ -265,30 +265,13 @@ internal fun UserManagementBranchDialogs(
         )
     }
 
-    val assignmentBranch = branchActions.assignmentBranch
-    val assignmentDialogBranch = assignmentBranch
-    if (branchActions.showAssignUserDialog && assignmentDialogBranch != null) {
-        val loadedUsers =
-            viewModel.freshestUsers
-                .collectAsState()
-                .value
-                .orEmpty()
-        AssignUserDialog(
-            branch = assignmentDialogBranch,
-            users = loadedUsers,
-            state = assignmentResult,
-            mutationsDisabled = mutationsDisabled,
-            actions =
-                AssignmentDialogActions(
-                    onAssign = { request -> branchViewModel.createAssignment(assignmentDialogBranch.id, request) },
-                    onDismiss = {
-                        branchViewModel.resetAdministrationState()
-                        branchActions.onAssignDialog(false)
-                        branchActions.onAssignmentBranchChange(null)
-                    },
-                ),
-        )
-    }
+    UserManagementAssignDialog(
+        viewModel = viewModel,
+        branchViewModel = branchViewModel,
+        mutationsDisabled = mutationsDisabled,
+        assignmentResult = assignmentResult,
+        branchActions = branchActions,
+    )
 
     branchActions.removeAssignmentTarget?.let { target ->
         RemoveAssignmentDialog(

@@ -248,9 +248,15 @@ internal fun userManagementTopSectionsActions(
             callbacks.onShowCreateBranch(true)
         },
         onAssign = {
-            callbacks.onResetAdministration()
-            callbacks.onAssignmentBranchChange(callbacks.selectedBranch)
-            callbacks.onShowAssignDialog(true)
+            // #482 — the pair opens atomically or not at all: a null selected branch must
+            // never leave the dialog flag true with no branch (the button hides in that
+            // state; this is the defense at the source).
+            val target = callbacks.selectedBranch
+            if (target != null) {
+                callbacks.onResetAdministration()
+                callbacks.onAssignmentBranchChange(target)
+                callbacks.onShowAssignDialog(true)
+            }
         },
         pickerDisabled = mutationsDisabled,
         createEnabled = !mutationsDisabled,
