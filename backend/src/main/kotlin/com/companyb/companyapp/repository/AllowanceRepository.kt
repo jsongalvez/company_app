@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.Allowance
@@ -11,7 +12,6 @@ import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.math.BigDecimal
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -38,14 +38,30 @@ object AllowanceRepository {
         val existing =
             findByIdInTransaction(params.id)
                 ?: error("allowance not found after insert for ${params.id}")
-        if (existing.branchDayId != params.branchDayId) {
-            throw NotFoundException("Allowance not found for this branch day")
-        }
+        validateReplayOwnership(existing, params)
         if (insertedCount == 0) {
             return AllowanceCreateResult(existing, created = false)
         }
 
         return AllowanceCreateResult(existing, created = true)
+    }
+
+    /**
+     * Ownership-validated replay (mirrors expense #510 / compensation #511): a same-id row
+     * only acks the caller's own identical request; a foreign row fails closed so the
+     * service-level pre-gate replay is not silently widened here.
+     */
+    private fun validateReplayOwnership(
+        existing: Allowance,
+        params: AllowanceCreateParams,
+    ): Allowance {
+        if (existing.branchDayId != params.branchDayId) {
+            throw NotFoundException("Allowance not found for this branch day")
+        }
+        if (existing.userId != params.userId || existing.assignedBy != params.assignedBy) {
+            throw ConflictException("Allowance id already belongs to another create request")
+        }
+        return existing
     }
 
     fun findByBranchDayId(branchDayId: UUID): List<Allowance> =
@@ -58,7 +74,8 @@ object AllowanceRepository {
             logger.info { "[FIND-ALLOWANCES] Found ${it.size} allowances for branchDay $branchDayId" }
         }
 
-    private fun findByIdInTransaction(id: UUID): Allowance? =
+    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
+    fun findByIdInTransaction(id: UUID): Allowance? =
         AllowanceTable
             .selectAll()
             .where { AllowanceTable.id eq id }

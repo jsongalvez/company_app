@@ -1,5 +1,7 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.AllowanceRepository
 import com.companyb.companyapp.repository.AuditContext
@@ -29,10 +31,24 @@ object AllowanceService {
         userId: UUID,
         amount: BigDecimal,
         reason: String? = null,
-    ): Allowance {
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
+    ): Allowance =
+        transaction {
+            // In-tx replay classification before the day gate (mirrors #509/#510/#511):
+            // a same-id row already committed acks without gating so retries landing
+            // after a day transition still ack; ownership matches createInTransaction below.
+            AllowanceRepository.findByIdInTransaction(id)?.let { existing ->
+                if (existing.branchDayId != branchDayId) {
+                    throw NotFoundException("Allowance not found for this branch day")
+                }
+                if (existing.userId != userId || existing.assignedBy != callerId) {
+                    throw ConflictException("Allowance id already belongs to another create request")
+                }
+                return@transaction existing
+            }
+            // Locked day read: serializes this create with remittance's REMITTED transition.
+            val (branchDay, isRemitted) =
+                BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason)
 
-        return transaction {
             val result =
                 AllowanceRepository.createInTransaction(
                     AllowanceCreateParams(
@@ -53,7 +69,6 @@ object AllowanceService {
         }.also { created ->
             logger.info { "[CREATE-ALLOWANCE] Allowance ${created.id.toString().maskUUID()} created" }
         }
-    }
 
     fun findByBranchDayId(branchDayId: UUID): List<Allowance> = AllowanceRepository.findByBranchDayId(branchDayId)
 }
