@@ -3,94 +3,16 @@ package com.companyb.companyapp.test
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
-import com.companyb.companyapp.repository.model.AllowanceTable
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchInventoryTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.CapabilityTable
-import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
-import com.companyb.companyapp.repository.model.CommissionSplitTable
-import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.ConcernTable
-import com.companyb.companyapp.repository.model.CredentialTokenTable
-import com.companyb.companyapp.repository.model.ExpenseTable
-import com.companyb.companyapp.repository.model.GrantReliefAccessTable
-import com.companyb.companyapp.repository.model.InventoryMovementTable
-import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
-import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.repository.model.ProductCategoryTable
-import com.companyb.companyapp.repository.model.ProductSaleTable
-import com.companyb.companyapp.repository.model.ProductTable
-import com.companyb.companyapp.repository.model.ReliefInviteTable
-import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
-import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
-import com.companyb.companyapp.repository.model.RemittanceLineTable
-import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.RoleTable
-import com.companyb.companyapp.repository.model.SessionBaseRateTable
-import com.companyb.companyapp.repository.model.SessionConcernTable
-import com.companyb.companyapp.repository.model.SessionPractitionerTable
-import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.repository.model.SessionVoidTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
-import com.companyb.companyapp.repository.model.UserRoleTable
-import org.jetbrains.exposed.v1.core.Column
-import org.jetbrains.exposed.v1.core.Table
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.UUID
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 
+/**
+ * #494 — test fixture lifecycle owns no rows. Each worker JVM owns its whole mutable
+ * fixture namespace (#493); per-test isolation is one RESTRICT truncate of the owned
+ * schema before setup and after the test. Seed reference rows survive; snapshot
+ * immutability is never toggled (TRUNCATE fires no ON DELETE trigger).
+ */
 abstract class BasePostgresTest {
-    private data class TrackedRow(
-        val table: Table,
-        val column: Column<UUID>,
-        val id: UUID,
-    )
-
-    // #418 — child rows created as a side effect of a tracked parent's command (e.g. the
-    // default base rates seeded inside BranchService.create) can't be tracked by id at the
-    // call site; track them by FK match instead so cleanup removes them before the parent.
-    private data class TrackedChildRow(
-        val table: Table,
-        val fkColumn: Column<UUID>,
-        val parentId: UUID,
-    )
-
-    private val tracked = mutableListOf<TrackedRow>()
-    private val trackedChildren = mutableListOf<TrackedChildRow>()
-
-    protected fun trackOwned(
-        table: Table,
-        column: Column<UUID>,
-        id: UUID,
-    ) {
-        tracked.add(TrackedRow(table, column, id))
-    }
-
-    /**
-     * #418 — deletes every row of [table] whose [fkColumn] equals [parentId] during cleanup,
-     * before the tracked parent rows. Use for rows a command writes as a side effect of a
-     * tracked parent (branch-create default rate seeding) when their ids are generated inside
-     * the command.
-     */
-    protected fun trackChildRowsOfParent(
-        table: Table,
-        fkColumn: Column<UUID>,
-        parentId: UUID,
-    ) {
-        trackedChildren.add(TrackedChildRow(table, fkColumn, parentId))
-    }
-
     protected abstract fun initTestData()
 
     @BeforeTest
@@ -99,122 +21,14 @@ abstract class BasePostgresTest {
         val config = AppConfig.parse()
         JwtService.init(config)
         Password.init(config.authDummyPassword)
-        DatabaseTestHelper.withSnapshotTriggerDisabled {
-            cleanTrackedRows()
-        }
-        tracked.clear()
-        trackedChildren.clear()
+        DatabaseTestHelper.resetWorkerSchema()
         initTestData()
     }
 
     @AfterTest
     open fun tearDownBase() {
         if (DatabaseTestHelper.isDatabaseReady()) {
-            DatabaseTestHelper.withSnapshotTriggerDisabled {
-                cleanTrackedRows()
-            }
-        }
-    }
-
-    @Suppress("UnreachableCode")
-    protected fun cleanTrackedRows() {
-        val grouped = tracked.groupBy({ it.table to it.column }) { it.id }
-        val childGroups = trackedChildren.groupBy({ it.table to it.fkColumn }) { it.parentId }
-        transaction {
-            // Children first: their parent rows are deleted below by the DELETION_ORDER pass.
-            for (entry in childGroups) {
-                val (table, fkColumn) = entry.key
-                val uniqueParentIds = entry.value.distinct()
-                table.deleteWhere {
-                    if (uniqueParentIds.size == 1) {
-                        fkColumn eq uniqueParentIds.single()
-                    } else {
-                        fkColumn inList uniqueParentIds
-                    }
-                }
-            }
-            for (table in DELETION_ORDER) {
-                val entries = grouped.filterKeys { (t, _) -> t === table }
-                for ((_, column) in entries.keys) {
-                    val ids = entries[table to column] ?: continue
-                    val uniqueIds = ids.distinct()
-                    table.deleteWhere {
-                        if (uniqueIds.size == 1) {
-                            column eq uniqueIds.single()
-                        } else {
-                            column inList uniqueIds
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    companion object {
-        private val FK_GRAPH: Map<Table, Set<Table>> =
-            mapOf(
-                AllowanceTable to setOf(AppUserTable, BranchDayTable),
-                AttendanceTable to setOf(BranchDayTable, AppUserTable),
-                AuditLogTable to setOf(AppUserTable, BranchTable),
-                BranchDayAssignmentTable to setOf(BranchDayTable, AppUserTable),
-                BranchInventoryTable to setOf(BranchTable, ProductTable),
-                CommissionManualInclusionTable to setOf(BranchDayTable),
-                CommissionSplitTable to setOf(BranchDayTable, AppUserTable),
-                CompensationTable to setOf(BranchDayTable, AppUserTable),
-                ConcernTable to setOf(AppUserTable),
-                ExpenseTable to setOf(BranchDayTable, AppUserTable),
-                GrantReliefAccessTable to setOf(AppUserTable),
-                InventoryMovementTable to
-                    setOf(ProductTable, ProductSaleTable, BranchTable, BranchDayTable, AppUserTable),
-                MedicalMissionDelegateTable to setOf(AppUserTable, BranchTable),
-                NotificationTable to setOf(SessionTable, AppUserTable, BranchTable),
-                RemittanceDayBreakdownTable to setOf(RemittanceTable, BranchDayTable),
-                RemittanceFinancialSnapshotTable to setOf(RemittanceTable),
-                RemittanceLineTable to setOf(RemittanceTable, SessionTable, ProductTable),
-                RemittanceTable to setOf(BranchTable),
-                SessionBaseRateTable to setOf(BranchTable, AppUserTable),
-                SessionConcernTable to setOf(SessionTable, ConcernTable),
-                SessionPractitionerTable to setOf(SessionTable, AppUserTable),
-                SessionVoidTable to setOf(SessionTable, AppUserTable),
-                UserBranchAssignmentTable to setOf(AppUserTable, BranchTable),
-                UserCapabilityTable to setOf(AppUserTable, CapabilityTable),
-                UserRoleTable to setOf(AppUserTable, RoleTable),
-                CredentialTokenTable to setOf(AppUserTable),
-                ProductSaleTable to setOf(BranchDayTable, SessionTable, ProductTable, AppUserTable, ClientTable),
-                ProductTable to setOf(ProductCategoryTable),
-                ReliefInviteTable to setOf(AppUserTable, BranchDayTable),
-                SessionTable to setOf(BranchDayTable, ClientTable),
-                BranchDayTable to setOf(BranchTable),
-            )
-
-        private val ALL_TABLES: Set<Table> =
-            FK_GRAPH.keys + FK_GRAPH.values.flatten()
-
-        val DELETION_ORDER: List<Table> by lazy { topologicalSort() }
-
-        private fun topologicalSort(): List<Table> {
-            val reverseEdgeCount = mutableMapOf<Table, Int>()
-            for (table in ALL_TABLES) {
-                reverseEdgeCount[table] = 0
-            }
-            for ((_, parents) in FK_GRAPH) {
-                for (parent in parents) {
-                    reverseEdgeCount[parent] = reverseEdgeCount[parent]!! + 1
-                }
-            }
-            val result = mutableListOf<Table>()
-            while (reverseEdgeCount.isNotEmpty()) {
-                val leaf =
-                    reverseEdgeCount.entries.firstOrNull { (_, count) -> count == 0 }
-                        ?: error("FK_GRAPH has a cycle: remaining tables $reverseEdgeCount")
-                result.add(leaf.key)
-                reverseEdgeCount.remove(leaf.key)
-                val childParents = FK_GRAPH[leaf.key] ?: emptySet()
-                for (parent in childParents) {
-                    reverseEdgeCount.computeIfPresent(parent) { _, c -> c - 1 }
-                }
-            }
-            return result
+            DatabaseTestHelper.resetWorkerSchema()
         }
     }
 }

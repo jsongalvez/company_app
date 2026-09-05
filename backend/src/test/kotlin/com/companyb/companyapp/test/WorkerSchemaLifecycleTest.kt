@@ -1,11 +1,6 @@
 package com.companyb.companyapp.test
 
 import com.companyb.companyapp.config.AppConfig
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.SessionTable
 import com.zaxxer.hikari.HikariDataSource
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -189,11 +184,6 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
         val clientId = DatabaseTestHelper.insertTestClient()
         val sessionId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestSession(sessionId, clientId, dayId)
-        trackOwned(SessionTable, SessionTable.id, sessionId)
-        trackOwned(BranchDayTable, BranchDayTable.id, dayId)
-        trackOwned(BranchTable, BranchTable.id, branchId)
-        trackOwned(AppUserTable, AppUserTable.id, userId)
-        trackOwned(ClientTable, ClientTable.id, clientId)
     }
 
     private fun sentinelTable(): String {
@@ -236,7 +226,6 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
 
     private fun insertFirstBranch(firstBranch: UUID) {
         DatabaseTestHelper.insertTestBranch(firstBranch)
-        trackOwned(BranchTable, BranchTable.id, firstBranch)
     }
 
     private fun insertSecondBranch(

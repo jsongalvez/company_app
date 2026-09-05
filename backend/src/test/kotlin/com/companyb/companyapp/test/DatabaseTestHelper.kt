@@ -596,23 +596,14 @@ object DatabaseTestHelper {
             .orEmpty()
     }
 
-    private const val SNAPSHOT_TABLE = "remittance_financial_snapshot"
-    private const val SNAPSHOT_TRIGGER = "trg_remittance_snapshot_immutable"
-
     /**
-     * Executes [block] inside an Exposed transaction with the remittance_financial_snapshot
-     * trigger disabled. The trigger is session-level, so DDL + DML share the same connection.
-     *
-     * The trigger is re-enabled in a finally block after [block] completes.
-     * Raw DDL is unavoidable here — Exposed has no API for trigger management.
+     * #494 — resets the owned worker schema by truncating every mutable table in one
+     * RESTRICT statement (seed reference rows and Flyway history preserved).
+     * Requires #493's positively identified owned schema; failure is loud, never silent.
+     * Raw TRUNCATE DDL is unavoidable here — Exposed has no truncate API.
      */
-    fun <T> withSnapshotTriggerDisabled(block: org.jetbrains.exposed.v1.jdbc.JdbcTransaction.() -> T): T =
-        transaction {
-            exec("ALTER TABLE $SNAPSHOT_TABLE DISABLE TRIGGER $SNAPSHOT_TRIGGER")
-            try {
-                block()
-            } finally {
-                exec("ALTER TABLE $SNAPSHOT_TABLE ENABLE TRIGGER $SNAPSHOT_TRIGGER")
-            }
-        }
+    fun resetWorkerSchema() {
+        val schema = requireWorkerSchema()
+        TestWorkerSchema.reset(schema, requireTestDataSource())
+    }
 }
