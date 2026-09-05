@@ -62,8 +62,11 @@ internal fun startDestination(): Route =
         Route.Login
     }
 
-// #456 — shared shell boundary (#96 Q5: Login + BranchSelect render full-screen).
-internal fun Route?.isPostClockIn(): Boolean = this != null && this !is Route.Login && this !is Route.BranchSelect
+// #456 — shared shell boundary (#96 Q5: Login + BranchSelect render full-screen;
+// #487: AcceptInvite + ForgotPassword are public too — all four stay chrome-free).
+internal fun Route?.isPostClockIn(): Boolean =
+    this != null && this !is Route.Login && this !is Route.BranchSelect &&
+        this !is Route.AcceptInvite && this !is Route.ForgotPassword
 
 fun NavGraphBuilder.appRouteGraph(
     apiClient: ApiClient,

@@ -45,7 +45,8 @@ actual fun AppNavHost(
 ) {
     val start = startDestination()
     // #96 Q5 — shell wraps the post-clock-in sub-graph of one AppNavHost. Pre-shell routes
-    // (Login, BranchSelect) render full-screen: empty `drawerContent` lambda produces a no-op
+    // (Login, BranchSelect, AcceptInvite, ForgotPassword — #487) render full-screen:
+    // empty `drawerContent` lambda produces a no-op
     // Row child, so Row collapses to just `Box { content() }` (verified at Material3 source
     // NavigationDrawer.kt:621-624). Post-shell routes get the permanent drawer on-screen by
     // structural always-on rendering (no parent-swap of NavHost — keeps NavController back-stack

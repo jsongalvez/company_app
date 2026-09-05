@@ -47,7 +47,7 @@ internal fun MobileAppNavHost(
 ) {
     val start = startDestination()
     // #96 Q5 — shell wraps the post-clock-in sub-graph of one AppNavHost. Pre-shell routes
-    // (Login, BranchSelect) render full-screen: empty `drawerContent` lambda is invisible
+    // (Login, BranchSelect, AcceptInvite, ForgotPassword — #487) render full-screen: empty `drawerContent` lambda is invisible
     // inside ModalNavigationDrawer's Box (drawer closed + Sheet has no measurable children);
     // no Scaffold topBar pre-shell either, so NavHost gets full content area.
     val currentRoute = navController.currentRoute()
