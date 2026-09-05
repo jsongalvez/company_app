@@ -4,6 +4,7 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.RateResponse
 import com.companyb.companyapp.dto.SetRateRequest
 import com.companyb.companyapp.repository.model.SessionBaseRate
@@ -14,7 +15,10 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiRequestBody
+import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
@@ -24,6 +28,10 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "session_rates_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<RateResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.BRANCH_RATES_PATH,
@@ -31,6 +39,12 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "session_rates_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = SetRateRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = RateResponse::class)]),
+        OpenApiResponse(status = "201", content = [OpenApiContent(from = RateResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object SessionBaseRateRoutes {
     private const val BRANCH_ID_PARAM = "branchId"

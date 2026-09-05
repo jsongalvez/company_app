@@ -11,29 +11,24 @@ import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.dto.AddDayBreakdownRequest
 import com.companyb.companyapp.dto.CreateRemittanceDraftRequest
 import com.companyb.companyapp.dto.CreateRemittanceLineRequest
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.RemittanceDayBreakdownResponse
-import com.companyb.companyapp.dto.RemittanceDayPickerEntryResponse
 import com.companyb.companyapp.dto.RemittanceDetailResponse
 import com.companyb.companyapp.dto.RemittanceDriftResponse
 import com.companyb.companyapp.dto.RemittanceFinancialSnapshotResponse
 import com.companyb.companyapp.dto.RemittanceLineResponse
-import com.companyb.companyapp.dto.RemittanceProductSalePickerEntryResponse
 import com.companyb.companyapp.dto.RemittanceResponse
-import com.companyb.companyapp.dto.RemittanceSessionPickerEntryResponse
 import com.companyb.companyapp.dto.RemittanceSubmitResponse
 import com.companyb.companyapp.dto.SubmitRemittanceRequest
 import com.companyb.companyapp.dto.UndoRemittanceRequest
 import com.companyb.companyapp.dto.UpdateRemittanceHeaderRequest
 import com.companyb.companyapp.service.finance.remittance.Remittance
 import com.companyb.companyapp.service.finance.remittance.RemittanceDayBreakdown
-import com.companyb.companyapp.service.finance.remittance.RemittanceDayPickerEntry
 import com.companyb.companyapp.service.finance.remittance.RemittanceDetail
 import com.companyb.companyapp.service.finance.remittance.RemittanceDrift
 import com.companyb.companyapp.service.finance.remittance.RemittanceFinancialSnapshot
 import com.companyb.companyapp.service.finance.remittance.RemittanceLine
-import com.companyb.companyapp.service.finance.remittance.RemittanceProductSalePickerEntry
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
-import com.companyb.companyapp.service.finance.remittance.RemittanceSessionPickerEntry
 import com.companyb.companyapp.service.finance.remittance.RemittanceSubmissionResult
 import com.companyb.companyapp.service.finance.remittance.RemittanceWithNet
 import io.javalin.config.JavalinConfig
@@ -44,7 +39,10 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiRequestBody
+import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.util.UUID
@@ -53,14 +51,34 @@ import java.util.UUID
 @OpenApi(
     path = ApiRoutes.REMITTANCES,
     methods = [HttpMethod.GET],
+    queryParams = [
+        OpenApiParam(
+            name = "status",
+            type = String::class,
+            required = false,
+        ), OpenApiParam(name = "branchId", type = UUID::class, required = true),
+    ],
     operationId = "remittances_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<RemittanceResponse>::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.REMITTANCES,
     methods = [HttpMethod.POST],
     operationId = "remittances_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = CreateRemittanceDraftRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "201", content = [OpenApiContent(from = RemittanceResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.REMITTANCE_PATH,
@@ -68,6 +86,11 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = RemittanceDetailResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.REMITTANCE_PATH,
@@ -75,6 +98,13 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_patch",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = UpdateRemittanceHeaderRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = RemittanceResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.REMITTANCE_DRIFT_PATH,
@@ -82,6 +112,11 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_drift",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = RemittanceDriftResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.REMITTANCE_DAY_BREAKDOWNS_PATH,
@@ -89,6 +124,12 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_day_breakdowns",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = AddDayBreakdownRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "201", content = [OpenApiContent(from = RemittanceDayBreakdownResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.REMITTANCE_DAY_BREAKDOWN_PATH,
@@ -102,6 +143,11 @@ import java.util.UUID
     ],
     operationId = "remittance_day_breakdown_delete",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = RemittanceDayBreakdownResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.REMITTANCE_LINES_PATH,
@@ -109,6 +155,13 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_lines",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = CreateRemittanceLineRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "201", content = [OpenApiContent(from = RemittanceLineResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.REMITTANCE_LINE_PATH,
@@ -122,6 +175,11 @@ import java.util.UUID
     ],
     operationId = "remittance_line_delete",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = RemittanceLineResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.REMITTANCE_SUBMIT_PATH,
@@ -129,6 +187,12 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_submit",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = SubmitRemittanceRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = RemittanceSubmitResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.REMITTANCE_UNDO_PATH,
@@ -136,27 +200,13 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_undo",
     security = [OpenApiSecurity(name = "BearerAuth")],
-)
-@OpenApi(
-    path = ApiRoutes.BRANCH_REMITTANCE_DAYS_PATH,
-    methods = [HttpMethod.GET],
-    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
-    operationId = "branch_remittance_days",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-)
-@OpenApi(
-    path = ApiRoutes.BRANCH_REMITTANCE_PRODUCT_SALES_PATH,
-    methods = [HttpMethod.GET],
-    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
-    operationId = "branch_remittance_product_sales",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-)
-@OpenApi(
-    path = ApiRoutes.BRANCH_REMITTANCE_SESSIONS_PATH,
-    methods = [HttpMethod.GET],
-    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
-    operationId = "branch_remittance_sessions",
-    security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = UndoRemittanceRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = RemittanceResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object RemittanceRoutes {
     @Suppress("LongMethod")
@@ -240,30 +290,6 @@ object RemittanceRoutes {
             )
         }
 
-        config.routes.before(ApiRoutes.BRANCH_REMITTANCE_SESSIONS_PATH) { context ->
-            CapabilityFilter.requireBranchCapabilityForBranchId(
-                context,
-                context.pathParamAsUuid("branchId"),
-                CapabilityCodes.SUBMIT_REMITTANCE,
-            )
-        }
-
-        config.routes.before(ApiRoutes.BRANCH_REMITTANCE_PRODUCT_SALES_PATH) { context ->
-            CapabilityFilter.requireBranchCapabilityForBranchId(
-                context,
-                context.pathParamAsUuid("branchId"),
-                CapabilityCodes.SUBMIT_REMITTANCE,
-            )
-        }
-
-        config.routes.before(ApiRoutes.BRANCH_REMITTANCE_DAYS_PATH) { context ->
-            CapabilityFilter.requireBranchCapabilityForBranchId(
-                context,
-                context.pathParamAsUuid("branchId"),
-                CapabilityCodes.SUBMIT_REMITTANCE,
-            )
-        }
-
         config.routes.post(ApiRoutes.REMITTANCES, ::handleCreateDraft)
         config.routes.get(ApiRoutes.REMITTANCES, ::handleListRemittances)
         config.routes.get(ApiRoutes.REMITTANCE_PATH, ::handleGetRemittance)
@@ -275,9 +301,6 @@ object RemittanceRoutes {
         config.routes.post(ApiRoutes.REMITTANCE_SUBMIT_PATH, ::handleSubmit)
         config.routes.post(ApiRoutes.REMITTANCE_UNDO_PATH, ::handleUndo)
         config.routes.patch(ApiRoutes.REMITTANCE_PATH, ::handleUpdateHeader)
-        config.routes.get(ApiRoutes.BRANCH_REMITTANCE_SESSIONS_PATH, ::handleListSessionsInRange)
-        config.routes.get(ApiRoutes.BRANCH_REMITTANCE_PRODUCT_SALES_PATH, ::handleListProductSalesInRange)
-        config.routes.get(ApiRoutes.BRANCH_REMITTANCE_DAYS_PATH, ::handleListDaysInRange)
     }
 
     @Suppress("ThrowsCount")
@@ -388,46 +411,6 @@ object RemittanceRoutes {
 
         val breakdown = RemittanceService.removeDayBreakdown(callerId, remittanceId, breakdownId)
         context.json(breakdown.toResponse())
-    }
-
-    @Suppress("ThrowsCount")
-    private fun handleListSessionsInRange(context: Context) {
-        val branchId = context.pathParamAsUuid("branchId")
-        val (from, to) = parseRange(context)
-
-        context.json(RemittanceService.findSessionsInRange(branchId, from, to).map { it.toResponse() })
-    }
-
-    @Suppress("ThrowsCount")
-    private fun handleListProductSalesInRange(context: Context) {
-        val branchId = context.pathParamAsUuid("branchId")
-        val (from, to) = parseRange(context)
-
-        context.json(RemittanceService.findProductSalesInRange(branchId, from, to).map { it.toResponse() })
-    }
-
-    @Suppress("ThrowsCount")
-    private fun handleListDaysInRange(context: Context) {
-        val branchId = context.pathParamAsUuid("branchId")
-        val (from, to) = parseRange(context)
-
-        context.json(RemittanceService.findBranchDaysInRange(branchId, from, to).map { it.toResponse() })
-    }
-
-    private fun parseRange(context: Context): Pair<LocalDate, LocalDate> {
-        val from = parseDateParam(context, "from")
-        val to = parseDateParam(context, "to")
-        if (to.isBefore(from)) throw BadRequestResponse("to must not be before from")
-        return from to to
-    }
-
-    private fun parseDateParam(
-        context: Context,
-        name: String,
-    ): LocalDate {
-        val raw = context.queryParam(name) ?: throw BadRequestResponse("$name is required")
-        return runCatching { LocalDate.parse(raw) }
-            .getOrElse { throw BadRequestResponse("Invalid $name") }
     }
 
     @Suppress("ThrowsCount")
@@ -639,31 +622,6 @@ object RemittanceRoutes {
             currentCompensation = currentCompensation.toPlainString(),
             currentExpenses = currentExpenses.toPlainString(),
             currentNet = currentNet.toPlainString(),
-        )
-
-    private fun RemittanceSessionPickerEntry.toResponse(): RemittanceSessionPickerEntryResponse =
-        RemittanceSessionPickerEntryResponse(
-            id = id.toString(),
-            clientName = clientName,
-            bookedAt = bookedAt?.toString(),
-            sessionStatus = sessionStatus,
-            finalPrice = finalPrice.toPlainString(),
-        )
-
-    private fun RemittanceProductSalePickerEntry.toResponse(): RemittanceProductSalePickerEntryResponse =
-        RemittanceProductSalePickerEntryResponse(
-            id = id.toString(),
-            productName = productName,
-            quantity = quantity,
-            totalAmountAtTime = totalAmountAtTime.toPlainString(),
-            soldAt = soldAt.toString(),
-        )
-
-    private fun RemittanceDayPickerEntry.toResponse(): RemittanceDayPickerEntryResponse =
-        RemittanceDayPickerEntryResponse(
-            id = id.toString(),
-            date = date.toString(),
-            status = status,
         )
 
     private fun RemittanceSubmissionResult.toSubmitResponse(): RemittanceSubmitResponse =

@@ -7,6 +7,7 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.CommissionInclusionResponse
 import com.companyb.companyapp.dto.CommissionSplitResponse
 import com.companyb.companyapp.dto.CreateCommissionInclusionRequest
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.CommissionSplit
 import com.companyb.companyapp.service.finance.commission.CommissionService
@@ -17,7 +18,10 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiRequestBody
+import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
@@ -26,6 +30,11 @@ import java.util.UUID
     methods = [HttpMethod.POST],
     operationId = "commission_inclusions",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = CreateCommissionInclusionRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "201", content = [OpenApiContent(from = CommissionInclusionResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.COMMISSION_SPLITS_PATH,
@@ -33,6 +42,10 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "branchDayId", type = UUID::class, required = true)],
     operationId = "commission_splits",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<CommissionSplitResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.COMMISSION_RECALCULATE_PATH,
@@ -40,6 +53,10 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "branchDayId", type = UUID::class, required = true)],
     operationId = "commission_recalculate",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<CommissionSplitResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object CommissionRoutes {
     fun register(config: JavalinConfig) {

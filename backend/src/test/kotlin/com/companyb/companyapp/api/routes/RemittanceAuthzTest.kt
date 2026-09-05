@@ -192,6 +192,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
                     ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
                 }
                 RemittanceRoutes.register(cfg)
+                RemittancePickerRoutes.register(cfg)
             }
         }
     }

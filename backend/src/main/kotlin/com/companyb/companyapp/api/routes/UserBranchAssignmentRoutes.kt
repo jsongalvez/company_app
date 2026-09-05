@@ -5,6 +5,7 @@ import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.BranchMemberResponse
 import com.companyb.companyapp.dto.CreateAssignmentRequest
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.SwapSlotsRequest
 import com.companyb.companyapp.dto.UpdateSlotRequest
 import com.companyb.companyapp.repository.model.UserBranchAssignment
@@ -16,7 +17,10 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiRequestBody
+import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
@@ -26,6 +30,10 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_assignments_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<AssignmentResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.BRANCH_ASSIGNMENTS_PATH,
@@ -33,6 +41,14 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_assignments_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = CreateAssignmentRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = AssignmentResponse::class)]),
+        OpenApiResponse(status = "201", content = [OpenApiContent(from = AssignmentResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.BRANCH_ASSIGNMENT_PATH,
@@ -46,6 +62,11 @@ import java.util.UUID
     ],
     operationId = "branch_assignment_delete",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "204"),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.BRANCH_ASSIGNMENT_SLOT_PATH,
@@ -59,6 +80,14 @@ import java.util.UUID
     ],
     operationId = "branch_assignment_slot",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = UpdateSlotRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "204"),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.BRANCH_SLOTS_SWAP_PATH,
@@ -66,6 +95,14 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_slots_swap",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = SwapSlotsRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "204"),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.BRANCH_MEMBERS_PATH,
@@ -73,6 +110,10 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_members_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<BranchMemberResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object UserBranchAssignmentRoutes {
     private const val BRANCH_ID_PARAM = "branchId"

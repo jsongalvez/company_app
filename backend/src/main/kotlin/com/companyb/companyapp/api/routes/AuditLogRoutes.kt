@@ -6,6 +6,7 @@ import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.dto.AuditLogBrowseResponse
 import com.companyb.companyapp.dto.AuditLogEntryResponse
 import com.companyb.companyapp.dto.AuditLogTableResponse
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.repository.decodeCursor
 import com.companyb.companyapp.service.AuditLogService
 import com.companyb.companyapp.service.branchday.BranchDayService
@@ -15,7 +16,9 @@ import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -24,26 +27,78 @@ import java.util.UUID
 @OpenApi(
     path = ApiRoutes.AUDIT_LOG,
     methods = [HttpMethod.GET],
+    queryParams = [
+        OpenApiParam(
+            name = "tableName",
+            type = String::class,
+            required = true,
+        ), OpenApiParam(name = "recordId", type = String::class, required = true),
+    ],
     operationId = "audit_log",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<AuditLogEntryResponse>::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.AUDIT_LOG_ENTRIES_PATH,
     methods = [HttpMethod.GET],
+    queryParams = [
+        OpenApiParam(
+            name = "tableName",
+            type = String::class,
+            required = false,
+        ), OpenApiParam(
+            name = "action",
+            type = String::class,
+            required = false,
+        ), OpenApiParam(
+            name = "callerName",
+            type = String::class,
+            required = false,
+        ), OpenApiParam(
+            name = "dateFrom",
+            type = String::class,
+            required = false,
+        ), OpenApiParam(
+            name = "dateTo",
+            type = String::class,
+            required = false,
+        ), OpenApiParam(
+            name = "cursor",
+            type = String::class,
+            required = false,
+        ), OpenApiParam(name = "limit", type = String::class, required = false),
+    ],
     operationId = "audit_log_entries",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = AuditLogBrowseResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.AUDIT_LOG_FLAGGED_PATH,
     methods = [HttpMethod.GET],
     operationId = "audit_log_flagged",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<AuditLogEntryResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.AUDIT_LOG_TABLES_PATH,
     methods = [HttpMethod.GET],
     operationId = "audit_log_tables",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<AuditLogTableResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.AUDIT_LOG_ACKNOWLEDGE_PATH,
@@ -51,6 +106,12 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "entryId", type = UUID::class, required = true)],
     operationId = "audit_log_acknowledge",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = AuditLogEntryResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "409", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object AuditLogRoutes {
     @Suppress("LongMethod", "ThrowsCount")

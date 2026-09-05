@@ -4,9 +4,12 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.InviteMintRequest
 import com.companyb.companyapp.dto.InviteMintResponse
+import com.companyb.companyapp.dto.RoleResponse
 import com.companyb.companyapp.dto.UserRoleReplaceRequest
+import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.service.UserService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus
@@ -25,6 +28,10 @@ import java.util.UUID
     methods = [HttpMethod.GET],
     operationId = "users",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<UserSummaryResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.ROLES,
@@ -32,10 +39,8 @@ import java.util.UUID
     operationId = "roles_list",
     security = [OpenApiSecurity(name = "BearerAuth")],
     responses = [
-        OpenApiResponse(
-            status = "200",
-            content = [OpenApiContent(from = com.companyb.companyapp.dto.RoleResponse::class)],
-        ),
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<RoleResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 @OpenApi(
@@ -45,10 +50,10 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
     requestBody = OpenApiRequestBody(content = [OpenApiContent(from = InviteMintRequest::class)]),
     responses = [
-        OpenApiResponse(
-            status = "201",
-            content = [OpenApiContent(from = InviteMintResponse::class)],
-        ), OpenApiResponse(status = "400"), OpenApiResponse(status = "409"),
+        OpenApiResponse(status = "201", content = [OpenApiContent(from = InviteMintResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "409", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 @OpenApi(
@@ -57,6 +62,12 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "userId", type = UUID::class, required = true)],
     operationId = "user_deactivate",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "204"),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.USER_REACTIVATE_PATH,
@@ -64,6 +75,11 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "userId", type = UUID::class, required = true)],
     operationId = "user_reactivate",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "204"),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.USER_ROLES_PATH,
@@ -72,7 +88,12 @@ import java.util.UUID
     operationId = "user_roles_replace",
     security = [OpenApiSecurity(name = "BearerAuth")],
     requestBody = OpenApiRequestBody(content = [OpenApiContent(from = UserRoleReplaceRequest::class)]),
-    responses = [OpenApiResponse(status = "204"), OpenApiResponse(status = "400"), OpenApiResponse(status = "404")],
+    responses = [
+        OpenApiResponse(status = "204"),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object UserRoutes {
     private const val USER_ID_PARAM = "userId"

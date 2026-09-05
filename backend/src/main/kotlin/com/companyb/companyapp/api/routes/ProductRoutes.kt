@@ -4,6 +4,7 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.CreateProductRequest
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.ProductResponse
 import com.companyb.companyapp.dto.UpdateProductRequest
 import com.companyb.companyapp.repository.model.Product
@@ -14,7 +15,10 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiRequestBody
+import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
@@ -22,14 +26,26 @@ import java.util.UUID
     path = ApiRoutes.PRODUCTS,
     methods = [HttpMethod.GET],
     operationId = "products_get",
-    queryParams = [OpenApiParam(name = "includeInactive", type = Boolean::class, required = false)],
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<ProductResponse>::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.PRODUCTS,
     methods = [HttpMethod.POST],
     operationId = "products_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = CreateProductRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = ProductResponse::class)]),
+        OpenApiResponse(status = "201", content = [OpenApiContent(from = ProductResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.PRODUCT_PATH,
@@ -37,6 +53,12 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "productId", type = UUID::class, required = true)],
     operationId = "product_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = ProductResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.PRODUCT_PATH,
@@ -44,6 +66,13 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "productId", type = UUID::class, required = true)],
     operationId = "product_patch",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = UpdateProductRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = ProductResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object ProductRoutes {
     private const val PRODUCT_ID_PARAM = "productId"

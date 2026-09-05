@@ -5,6 +5,7 @@ import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.dto.CreateExpenseRequest
 import com.companyb.companyapp.dto.DeleteExpenseRequest
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.ExpenseResponse
 import com.companyb.companyapp.dto.RestoreExpenseRequest
 import com.companyb.companyapp.dto.UpdateExpenseRequest
@@ -17,21 +18,34 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiRequestBody
+import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
     path = ApiRoutes.EXPENSES,
     methods = [HttpMethod.GET],
+    queryParams = [OpenApiParam(name = "branchDayId", type = UUID::class, required = true)],
     operationId = "expenses_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<ExpenseResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.EXPENSES,
     methods = [HttpMethod.POST],
     operationId = "expenses_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = CreateExpenseRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "201", content = [OpenApiContent(from = ExpenseResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.EXPENSE_PATH,
@@ -39,6 +53,13 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "expenseId", type = UUID::class, required = true)],
     operationId = "expense_patch",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = UpdateExpenseRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = ExpenseResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.EXPENSE_PATH,
@@ -46,6 +67,13 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "expenseId", type = UUID::class, required = true)],
     operationId = "expense_delete",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = DeleteExpenseRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = ExpenseResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.EXPENSE_RESTORE_PATH,
@@ -53,6 +81,13 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "expenseId", type = UUID::class, required = true)],
     operationId = "expense_restore",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = RestoreExpenseRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = ExpenseResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object ExpenseRoutes {
     @Suppress("ThrowsCount", "LongMethod")

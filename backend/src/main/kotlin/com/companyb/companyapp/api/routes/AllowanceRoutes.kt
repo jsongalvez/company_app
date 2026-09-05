@@ -5,6 +5,7 @@ import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.AllowanceResponse
 import com.companyb.companyapp.dto.CreateAllowanceRequest
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.repository.model.Allowance
 import com.companyb.companyapp.service.AllowanceService
 import io.javalin.config.JavalinConfig
@@ -13,20 +14,34 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
+import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiRequestBody
+import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
     path = ApiRoutes.ALLOWANCES,
     methods = [HttpMethod.GET],
+    queryParams = [OpenApiParam(name = "branchDayId", type = UUID::class, required = true)],
     operationId = "allowances_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<AllowanceResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.ALLOWANCES,
     methods = [HttpMethod.POST],
     operationId = "allowances_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = CreateAllowanceRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "201", content = [OpenApiContent(from = AllowanceResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object AllowanceRoutes {
     @Suppress("ThrowsCount")

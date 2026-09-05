@@ -28,6 +28,7 @@ import com.companyb.companyapp.api.routes.ProductRoutes
 import com.companyb.companyapp.api.routes.ProductSaleRoutes
 import com.companyb.companyapp.api.routes.ReliefAccessRoutes
 import com.companyb.companyapp.api.routes.ReliefInviteRoutes
+import com.companyb.companyapp.api.routes.RemittancePickerRoutes
 import com.companyb.companyapp.api.routes.RemittanceRoutes
 import com.companyb.companyapp.api.routes.SessionBaseRateRoutes
 import com.companyb.companyapp.api.routes.SessionRoutes
@@ -38,6 +39,7 @@ import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.auth.PasswordResetDelivery
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
+import com.companyb.companyapp.config.OpenApiCanonical
 import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
@@ -90,8 +92,10 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
                     info.version("1.0.0")
                 }
                 builder.withBearerAuth("BearerAuth")
-                builder.withGlobalSecurity("BearerAuth")
             }
+            // #495 — one canonical transformation owns the served document; offline
+            // export calls the same function so the packaged app and export agree.
+            openapi.withDefinitionProcessor(OpenApiCanonical.processor)
         },
     )
     config.registerPlugin(SwaggerPlugin())
@@ -127,6 +131,15 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     }
     registerExceptionHandlers(config)
     registerServerErrorHandler(config)
+    registerAllRoutes(config)
+}
+
+/**
+ * #495 — narrow production route seam callable by contract tests without database
+ * or scheduler startup. Retains #471 TraceIdFilter behavior via the caller's
+ * config; tests capture method/path pairs with `config.events.handlerAdded`.
+ */
+fun registerAllRoutes(config: io.javalin.config.JavalinConfig) {
     HealthRoutes.register(config)
     MetricsRoutes.register(config)
     AuthRoutes.login(config)
@@ -173,6 +186,7 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     FeedbackRoutes.register(config)
     MonthlyRemittanceSummaryRoutes.register(config)
     RemittanceRoutes.register(config)
+    RemittancePickerRoutes.register(config)
     AuditLogRoutes.register(config)
     ExportRoutes.register(config)
 }

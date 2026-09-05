@@ -6,6 +6,7 @@ import com.companyb.companyapp.dto.ClockInRequest
 import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.ClockOutRequest
 import com.companyb.companyapp.dto.ClockOutResponse
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.MarkAttendanceRequest
 import com.companyb.companyapp.dto.MemberAttendanceResponse
 import com.companyb.companyapp.service.attendance.AttendanceMarkResult
@@ -16,7 +17,10 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiRequestBody
+import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
@@ -25,12 +29,25 @@ import java.util.UUID
     methods = [HttpMethod.POST],
     operationId = "attendance_clock_in",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = ClockInRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = ClockInResponse::class)]),
+        OpenApiResponse(status = "201", content = [OpenApiContent(from = ClockInResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.ATTENDANCE_CLOCK_OUT,
     methods = [HttpMethod.POST],
     operationId = "attendance_clock_out",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = ClockOutRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = ClockOutResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.BRANCH_ATTENDANCE_TODAY_PATH,
@@ -38,6 +55,10 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_attendance_today_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<MemberAttendanceResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.BRANCH_ATTENDANCE_MARKS_PATH,
@@ -45,6 +66,11 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_attendance_marks_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = MarkAttendanceRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = AttendanceMarkResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object AttendanceRoutes {
     private const val BRANCH_ID_PARAM = "branchId"

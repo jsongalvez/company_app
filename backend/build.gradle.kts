@@ -70,6 +70,25 @@ tasks.register<Exec>("publishOpenApiSpec") {
     commandLine("node", "../scripts/normalize-openapi-spec.mjs", generated.get().asFile, generated.get().asFile)
 }
 
+// #495 — canonical contract export + verification. Reads the kapt-generated classpath
+// resource (the same document production serves) and applies OpenApiCanonical.
+// Deliberately NOT wired into compile/installDist: Docker builders have no Node,
+// and this path is JVM-only (#372).
+tasks.register<JavaExec>("exportOpenApiSpec") {
+    dependsOn("compileKotlin")
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass = "com.companyb.companyapp.config.ExportOpenApiSpecKt"
+    workingDir = rootProject.projectDir
+    args = listOf(layout.buildDirectory.file("openapi/openapi-canonical.json").get().asFile.path)
+}
+
+tasks.register<Test>("verifyOpenApiContract") {
+    useJUnit()
+    workingDir = rootProject.projectDir
+    filter { includeTestsMatching("*OpenApiContractTest") }
+    dependsOn("compileKotlin")
+}
+
 application {
     mainClass = "com.companyb.companyapp.MainKt"
 }

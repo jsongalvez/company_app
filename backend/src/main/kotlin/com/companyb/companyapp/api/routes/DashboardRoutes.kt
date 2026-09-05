@@ -7,6 +7,7 @@ import com.companyb.companyapp.dto.DashboardCommissionResponse
 import com.companyb.companyapp.dto.DashboardPractitionerResponse
 import com.companyb.companyapp.dto.DashboardResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.repository.ClientNames
 import com.companyb.companyapp.repository.ConcernWithSessionId
 import com.companyb.companyapp.repository.SessionPractitionerWithName
@@ -18,7 +19,9 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.Context
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
@@ -28,6 +31,11 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "dashboard_today",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = DashboardResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object DashboardRoutes {
     private const val BRANCH_ID_PARAM = "branchId"

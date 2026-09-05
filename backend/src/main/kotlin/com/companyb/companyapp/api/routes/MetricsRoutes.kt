@@ -5,6 +5,7 @@ import com.companyb.companyapp.observability.RequestMetrics
 import io.javalin.config.JavalinConfig
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiResponse
 
 // #473 annotation added in #475: the contract gate requires every registered
@@ -14,7 +15,7 @@ import io.javalin.openapi.OpenApiResponse
     methods = [HttpMethod.GET],
     operationId = "metrics",
     security = [],
-    responses = [OpenApiResponse(status = "200")],
+    responses = [OpenApiResponse(status = "200", content = [OpenApiContent(mimeType = "text/plain", type = "string")])],
 )
 object MetricsRoutes {
     private const val PROMETHEUS_CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"

@@ -3,6 +3,7 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.DenyReliefAccessRequest
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.GrantReliefAccessRequest
 import com.companyb.companyapp.dto.ReliefAccessRequest
 import com.companyb.companyapp.dto.ReliefAccessResponse
@@ -20,6 +21,7 @@ import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
 import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiRequestBody
 import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
@@ -31,26 +33,36 @@ import java.util.UUID
     methods = [HttpMethod.POST],
     operationId = "relief_access_request",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = ReliefAccessRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "201", content = [OpenApiContent(from = ReliefAccessResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "409", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.RELIEF_ACCESS,
     methods = [HttpMethod.GET],
-    operationId = "relief_access_list",
-    // #358 — two addressing forms: branchDayId, or the notification deep-link pair
-    // (branchId + date). Response documented explicitly: the handler's when-expression
-    // defeats source-level response inference.
     queryParams = [
-        OpenApiParam(name = "branchDayId", type = UUID::class, required = false),
-        OpenApiParam(name = "branchId", type = UUID::class, required = false),
-        OpenApiParam(name = "date", type = String::class, required = false),
+        OpenApiParam(
+            name = "branchDayId",
+            type = String::class,
+            required = false,
+        ), OpenApiParam(
+            name = "branchId",
+            type = String::class,
+            required = true,
+        ), OpenApiParam(name = "date", type = String::class, required = true),
     ],
+    operationId = "relief_access_list",
     security = [OpenApiSecurity(name = "BearerAuth")],
     responses = [
-        OpenApiResponse(
-            status = "200",
-            content = [OpenApiContent(from = ReliefAccessResponse::class)],
-        ),
-        OpenApiResponse(status = "400"),
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<ReliefAccessResponse>::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 @OpenApi(
@@ -58,12 +70,21 @@ import java.util.UUID
     methods = [HttpMethod.GET],
     operationId = "relief_access_mine",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<ReliefAccessResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.RELIEF_ACCESS_BRANCH_OPTIONS,
     methods = [HttpMethod.GET],
     operationId = "relief_access_branch_options",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<ReliefBranchOptionResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.RELIEF_ACCESS_CANCEL_PATH,
@@ -71,6 +92,13 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "requestId", type = UUID::class, required = true)],
     operationId = "relief_access_cancel",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = DenyReliefAccessRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = ReliefAccessResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "409", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.RELIEF_ACCESS_DENY_PATH,
@@ -78,6 +106,13 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "requestId", type = UUID::class, required = true)],
     operationId = "relief_access_deny",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = DenyReliefAccessRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = ReliefAccessResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.RELIEF_ACCESS_GRANT_PATH,
@@ -85,6 +120,12 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "requestId", type = UUID::class, required = true)],
     operationId = "relief_access_grant",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = GrantReliefAccessRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = ReliefAccessResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @Suppress("TooManyFunctions")
 object ReliefAccessRoutes {

@@ -3,6 +3,7 @@ package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.auth.RateLimiter
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.FeedbackRequest
 import com.companyb.companyapp.dto.FeedbackResponse
 import com.companyb.companyapp.observability.IncidentService
@@ -21,14 +22,14 @@ import java.util.UUID
     path = ApiRoutes.FEEDBACK,
     methods = [HttpMethod.POST],
     operationId = "submit_feedback",
+    security = [OpenApiSecurity(name = "BearerAuth")],
     requestBody = OpenApiRequestBody(content = [OpenApiContent(from = FeedbackRequest::class)]),
     responses = [
-        OpenApiResponse(status = "200"),
-        OpenApiResponse(status = "400"),
-        OpenApiResponse(status = "401"),
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = FeedbackResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "429"),
     ],
-    security = [OpenApiSecurity(name = "BearerAuth")],
 )
 object FeedbackRoutes {
     private const val USER_KEY_PREFIX = "feedback:user:"

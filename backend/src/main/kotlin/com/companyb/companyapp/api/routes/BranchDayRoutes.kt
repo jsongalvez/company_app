@@ -6,13 +6,16 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.dto.BranchDayTodayResponse
 import com.companyb.companyapp.dto.BranchDayUserResponse
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.Context
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
@@ -22,6 +25,10 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "branchDayId", type = UUID::class, required = true)],
     operationId = "branch_day_users",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<BranchDayUserResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.BRANCH_TODAY_PATH,
@@ -29,6 +36,11 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_today",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = BranchDayTodayResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object BranchDayRoutes {
     private const val BRANCH_ID_PARAM = "branchId"

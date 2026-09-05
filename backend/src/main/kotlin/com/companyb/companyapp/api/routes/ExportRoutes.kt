@@ -4,6 +4,7 @@ import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.service.export.ExportService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
@@ -11,7 +12,9 @@ import io.javalin.http.Header
 import io.javalin.http.HttpStatus
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.util.UUID
@@ -20,42 +23,142 @@ import java.util.UUID
 @OpenApi(
     path = ApiRoutes.BRANCHES_EXPORT_MEDICAL_MISSION_PATH,
     methods = [HttpMethod.GET],
+    queryParams = [
+        OpenApiParam(
+            name = "year",
+            type = Int::class,
+            required = false,
+        ), OpenApiParam(
+            name = "month",
+            type = Int::class,
+            required = false,
+        ), OpenApiParam(name = "format", type = String::class, required = true),
+    ],
     operationId = "export_medical_mission",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(
+            status = "200",
+            content = [OpenApiContent(mimeType = "application/octet-stream", type = "string", format = "binary")],
+        ),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.BRANCHES_EXPORT_PROVINCIAL_PATH,
     methods = [HttpMethod.GET],
+    queryParams = [
+        OpenApiParam(
+            name = "year",
+            type = Int::class,
+            required = false,
+        ), OpenApiParam(
+            name = "month",
+            type = Int::class,
+            required = false,
+        ), OpenApiParam(name = "format", type = String::class, required = true),
+    ],
     operationId = "export_provincial",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(
+            status = "200",
+            content = [OpenApiContent(mimeType = "application/octet-stream", type = "string", format = "binary")],
+        ),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.BRANCH_EXPORT_ALL_TIME_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    queryParams = [OpenApiParam(name = "format", type = String::class, required = true)],
     operationId = "export_all_time",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(
+            status = "200",
+            content = [OpenApiContent(mimeType = "application/octet-stream", type = "string", format = "binary")],
+        ),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.BRANCH_EXPORT_DAILY_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    queryParams = [
+        OpenApiParam(
+            name = "date",
+            type = String::class,
+            required = true,
+        ), OpenApiParam(name = "format", type = String::class, required = true),
+    ],
     operationId = "export_daily",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(
+            status = "200",
+            content = [OpenApiContent(mimeType = "application/octet-stream", type = "string", format = "binary")],
+        ),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.BRANCH_EXPORT_MONTHLY_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    queryParams = [
+        OpenApiParam(
+            name = "year",
+            type = Int::class,
+            required = true,
+        ), OpenApiParam(
+            name = "month",
+            type = Int::class,
+            required = true,
+        ), OpenApiParam(name = "format", type = String::class, required = true),
+    ],
     operationId = "export_monthly",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(
+            status = "200",
+            content = [OpenApiContent(mimeType = "application/octet-stream", type = "string", format = "binary")],
+        ),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.BRANCH_EXPORT_RANGE_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    queryParams = [
+        OpenApiParam(
+            name = "from",
+            type = String::class,
+            required = true,
+        ), OpenApiParam(
+            name = "to",
+            type = String::class,
+            required = true,
+        ), OpenApiParam(name = "format", type = String::class, required = true),
+    ],
     operationId = "export_range",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(
+            status = "200",
+            content = [OpenApiContent(mimeType = "application/octet-stream", type = "string", format = "binary")],
+        ),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object ExportRoutes {
     private const val MAX_MONTH = 12

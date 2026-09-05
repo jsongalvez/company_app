@@ -6,6 +6,7 @@ import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.CreateClientRequest
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.UpdateClientRequest
 import com.companyb.companyapp.repository.model.Client
 import com.companyb.companyapp.service.ClientService
@@ -16,21 +17,38 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiRequestBody
+import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
     path = ApiRoutes.CLIENTS,
     methods = [HttpMethod.GET],
+    queryParams = [OpenApiParam(name = "q", type = String::class, required = true)],
     operationId = "clients_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<ClientResponse>::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.CLIENTS,
     methods = [HttpMethod.POST],
     operationId = "clients_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = CreateClientRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = ClientResponse::class)]),
+        OpenApiResponse(status = "201", content = [OpenApiContent(from = ClientResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.CLIENT_PATH,
@@ -38,6 +56,11 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "clientId", type = UUID::class, required = true)],
     operationId = "client_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = ClientResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.CLIENT_PATH,
@@ -45,6 +68,13 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "clientId", type = UUID::class, required = true)],
     operationId = "client_patch",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = UpdateClientRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = ClientResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.CLIENT_ANONYMIZE_PATH,
@@ -52,6 +82,12 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "clientId", type = UUID::class, required = true)],
     operationId = "client_anonymize",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "204"),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "409", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object ClientRoutes {
     private const val CLIENT_ID_PARAM = "clientId"

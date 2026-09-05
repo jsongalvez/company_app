@@ -3,6 +3,7 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.domain.LoginResult
 import com.companyb.companyapp.dto.AcceptInviteRequest
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.ForgotPasswordRequest
 import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
@@ -24,7 +25,11 @@ import io.javalin.openapi.OpenApiSecurity
     operationId = "auth_login",
     security = [],
     requestBody = OpenApiRequestBody(content = [OpenApiContent(from = LoginRequest::class)]),
-    responses = [OpenApiResponse(status = "200"), OpenApiResponse(status = "401"), OpenApiResponse(status = "429")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = LoginResponse::class)]),
+        OpenApiResponse(status = "401"),
+        OpenApiResponse(status = "429"),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.AUTH_ACCEPT_INVITE,
@@ -32,7 +37,10 @@ import io.javalin.openapi.OpenApiSecurity
     operationId = "auth_accept_invite",
     security = [],
     requestBody = OpenApiRequestBody(content = [OpenApiContent(from = AcceptInviteRequest::class)]),
-    responses = [OpenApiResponse(status = "204"), OpenApiResponse(status = "400")],
+    responses = [
+        OpenApiResponse(status = "204"),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.AUTH_FORGOT_PASSWORD,
@@ -41,7 +49,10 @@ import io.javalin.openapi.OpenApiSecurity
     security = [],
     requestBody = OpenApiRequestBody(content = [OpenApiContent(from = ForgotPasswordRequest::class)]),
     // 204 regardless of whether the identifier matched — enumeration resistance (#353).
-    responses = [OpenApiResponse(status = "204"), OpenApiResponse(status = "429")],
+    responses = [
+        OpenApiResponse(status = "204"),
+        OpenApiResponse(status = "429"),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.AUTH_RESET_PASSWORD,
@@ -49,14 +60,20 @@ import io.javalin.openapi.OpenApiSecurity
     operationId = "auth_reset_password",
     security = [],
     requestBody = OpenApiRequestBody(content = [OpenApiContent(from = ResetPasswordRequest::class)]),
-    responses = [OpenApiResponse(status = "204"), OpenApiResponse(status = "400")],
+    responses = [
+        OpenApiResponse(status = "204"),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.AUTH_LOGOUT,
     methods = [HttpMethod.POST],
     operationId = "auth_logout",
     security = [OpenApiSecurity(name = "BearerAuth")],
-    responses = [OpenApiResponse(status = "200")],
+    responses = [
+        OpenApiResponse(status = "200"),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object AuthRoutes {
     fun login(context: JavalinConfig) {

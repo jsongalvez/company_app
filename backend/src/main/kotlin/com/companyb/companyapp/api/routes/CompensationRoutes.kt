@@ -6,6 +6,7 @@ import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.CompensationResponse
 import com.companyb.companyapp.dto.CreateCompensationRequest
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.UpdateCompensationRequest
 import com.companyb.companyapp.repository.CompensationWithUser
 import com.companyb.companyapp.repository.model.Compensation
@@ -17,7 +18,10 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiRequestBody
+import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
@@ -26,6 +30,11 @@ import java.util.UUID
     methods = [HttpMethod.POST],
     operationId = "compensation_create",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = CreateCompensationRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "201", content = [OpenApiContent(from = CompensationResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.COMPENSATION_PATH,
@@ -33,12 +42,23 @@ import java.util.UUID
     pathParams = [OpenApiParam(name = "compensationId", type = UUID::class, required = true)],
     operationId = "compensation_update",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = UpdateCompensationRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = CompensationResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.COMPENSATIONS,
     methods = [HttpMethod.GET],
+    queryParams = [OpenApiParam(name = "branchDayId", type = UUID::class, required = true)],
     operationId = "compensations",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<CompensationResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object CompensationRoutes {
     @Suppress("ThrowsCount", "LongMethod")

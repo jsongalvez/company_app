@@ -4,6 +4,7 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.CreateProductSaleRequest
+import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.ProductSaleResponse
 import com.companyb.companyapp.repository.model.ProductSale
 import com.companyb.companyapp.service.ProductSaleService
@@ -13,6 +14,9 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
+import io.javalin.openapi.OpenApiRequestBody
+import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
@@ -21,6 +25,13 @@ import java.util.UUID
     methods = [HttpMethod.POST],
     operationId = "product_sales",
     security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = CreateProductSaleRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "201", content = [OpenApiContent(from = ProductSaleResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
 )
 object ProductSaleRoutes {
     @Suppress("ThrowsCount", "CyclomaticComplexMethod")
