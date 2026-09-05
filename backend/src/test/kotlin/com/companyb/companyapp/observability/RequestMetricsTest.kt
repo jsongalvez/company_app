@@ -4,6 +4,7 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.TraceIdFilter
 import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.logging.RequestElapsedConverter
 import com.companyb.companyapp.logging.RequestLog
 import io.javalin.Javalin
 import io.javalin.http.HttpStatus
@@ -115,6 +116,7 @@ class RequestMetricsTest {
     fun `handler plus after records each error exactly once`() {
         val app =
             Javalin.create { cfg ->
+                cfg.routes.before { RequestElapsedConverter.startRequest() }
                 cfg.routes.after {
                     TraceIdFilter.echo(it)
                     RequestMetrics.observe(it)
@@ -132,9 +134,18 @@ class RequestMetricsTest {
                     RequestMetrics.observe(ctx)
                     RequestLog.complete(ctx)
                 }
-                cfg.routes.get("/boom-4xx") { throw ValidationException("bad") }
-                cfg.routes.get("/boom-5xx") { throw IllegalStateException("boom") }
-                cfg.routes.get("/ok") { it.result("ok") }
+                cfg.routes.get("/boom-4xx") {
+                    Thread.sleep(ERROR_SLEEP_MS)
+                    throw ValidationException("bad")
+                }
+                cfg.routes.get("/boom-5xx") {
+                    Thread.sleep(ERROR_SLEEP_MS)
+                    error("boom")
+                }
+                cfg.routes.get("/ok") {
+                    Thread.sleep(ERROR_SLEEP_MS)
+                    it.result("ok")
+                }
             }
         app.start(0)
         try {
@@ -148,6 +159,10 @@ class RequestMetricsTest {
             assertEquals(1, counts["GET" to "/ok"])
             val body = RequestMetrics.render(DatabaseConfig.PoolStats.empty())
             assertContains(body, "http_request_errors_total{method=\"GET\",route=\"/boom-5xx\"} 1")
+            // #501 — handler-first observe keeps real elapsed; after-only recorded 0.0 on error paths.
+            assertTrue(durationSum(body, "/boom-4xx") > 0.0, "4xx latency lost")
+            assertTrue(durationSum(body, "/boom-5xx") > 0.0, "5xx latency lost")
+            assertTrue(durationSum(body, "/ok") > 0.0, "ok latency lost")
         } finally {
             app.stop()
         }
@@ -171,9 +186,20 @@ class RequestMetricsTest {
             HttpResponse.BodyHandlers.ofString(),
         )
 
+    private fun durationSum(
+        body: String,
+        route: String,
+    ): Double {
+        val match =
+            Regex("http_request_duration_seconds_sum\\{method=\"GET\",route=\"$route\"\\} ([0-9.Ee+-]+)")
+                .find(body) ?: return -1.0
+        return match.groupValues[1].toDouble()
+    }
+
     private companion object {
         const val FAST_MS = 10L
         const val SLOW_MS = 80L
+        const val ERROR_SLEEP_MS = 50L
         const val RECORDING_ITERATIONS = 5000
         const val RECORDING_BUDGET_MS = 2000L
         const val HTTP_OK = 200
