@@ -43,20 +43,20 @@ class SchedulerLifecycle(
             candidate.scheduleAtFixedRate(
                 { runTask("Notification", task) },
                 NextAppointmentScheduler.nextRunDelayMs(now()),
-                PERIOD_HOURS,
-                TimeUnit.HOURS,
+                TimeUnit.HOURS.toMillis(PERIOD_HOURS),
+                TimeUnit.MILLISECONDS,
             )
             candidate.scheduleAtFixedRate(
                 { runTask("Relief-expiry", expiryTask) },
                 ReliefRequestExpiryJob.nextRunDelayMs(now()),
-                PERIOD_HOURS,
-                TimeUnit.HOURS,
+                TimeUnit.HOURS.toMillis(PERIOD_HOURS),
+                TimeUnit.MILLISECONDS,
             )
             candidate.scheduleAtFixedRate(
                 { runTask("Relief-reminder", reminderTask) },
                 ReliefInviteReminderJob.nextRunDelayMs(now()),
-                PERIOD_HOURS,
-                TimeUnit.HOURS,
+                TimeUnit.HOURS.toMillis(PERIOD_HOURS),
+                TimeUnit.MILLISECONDS,
             )
             executor = candidate
         } catch (e: Exception) {
