@@ -307,12 +307,17 @@ object BranchDayService {
      * covered day REMITTED and returns before/after images for the caller's audit rows. Runs
      * on the caller's open transaction — no transaction of its own (ADR-0024 rule 2). This is
      * the Branch Day feature boundary: remittance code never touches branch-day tables.
+     *
+     * #507 — locks days in stable sorted order (same order as the undo release) so
+     * concurrent cross-type submit/undo serialize instead of deadlocking. Days already
+     * REMITTED by surviving coverage are skipped: no write, no audit pair.
      */
     fun markDaysRemittedInTransaction(branchDayIds: List<UUID>): List<Pair<BranchDay, BranchDay>> =
-        branchDayIds.map { id ->
+        branchDayIds.sorted().mapNotNull { id ->
             val before =
-                BranchDayRepository.findByIdInTransaction(id)
+                BranchDayRepository.acquireLockInTransaction(id)
                     ?: error("branch day not found for remittance submit: $id")
+            if (before.status == DayStatus.REMITTED) return@mapNotNull null
             BranchDayRepository.updateStatusInTransaction(id, DayStatus.REMITTED)
             val after =
                 BranchDayRepository.findByIdInTransaction(id)
@@ -321,20 +326,39 @@ object BranchDayService {
         }
 
     /**
+     * Locks the given days in stable sorted order on the caller's open transaction.
+     * #507 — the undo path holds these locks while checking surviving SUBMITTED coverage,
+     * so the check and the conditional release join the same serialization order as submit.
+     */
+    fun lockDaysInTransaction(branchDayIds: List<UUID>) {
+        branchDayIds.sorted().forEach { id ->
+            BranchDayRepository.acquireLockInTransaction(id)
+                ?: error("branch day not found for remittance day lock: $id")
+        }
+    }
+
+    /**
      * In-transaction inverse of [markDaysRemittedInTransaction] (#320, undo path): each released
      * day re-derives its status from its operational date via [evaluateStatus] (an OPEN day whose
      * date has passed becomes PAST) and returns before/after images for audit. Runs on the
      * caller's open transaction.
+     *
+     * #507 — days in [retainRemitted] stay REMITTED (surviving SUBMITTED coverage from the
+     * other flow) and produce no audit pair, so audit rows match actual state changes.
+     * Locks in stable sorted order, shared with [markDaysRemittedInTransaction].
      */
     fun releaseDaysFromRemittanceInTransaction(
         branchDayIds: List<UUID>,
         today: LocalDate,
+        retainRemitted: Set<UUID> = emptySet(),
     ): List<Pair<BranchDay, BranchDay>> =
-        branchDayIds.map { id ->
+        branchDayIds.sorted().mapNotNull { id ->
+            if (id in retainRemitted) return@mapNotNull null
             val before =
-                BranchDayRepository.findByIdInTransaction(id)
+                BranchDayRepository.acquireLockInTransaction(id)
                     ?: error("branch day not found for remittance undo: $id")
             val afterStatus = evaluateStatus(DayStatus.OPEN, before.date, today)
+            if (before.status == afterStatus) return@mapNotNull null
             BranchDayRepository.updateStatusInTransaction(id, afterStatus)
             val after =
                 BranchDayRepository.findByIdInTransaction(id)

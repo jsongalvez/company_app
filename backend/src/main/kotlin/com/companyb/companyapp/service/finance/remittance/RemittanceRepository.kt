@@ -30,6 +30,7 @@ import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.leftJoin
 import org.jetbrains.exposed.v1.core.lessEq
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -267,6 +268,28 @@ internal object RemittanceRepository {
             .selectAll()
             .where { RemittanceDayBreakdownTable.remittanceId eq remittanceId }
             .map { it[RemittanceDayBreakdownTable.branchDayId] }
+
+    /**
+     * #507 — surviving SUBMITTED coverage for [dayIds] excluding [excludeRemittanceId].
+     * The undo path retains REMITTED on every day in the returned set; all reads run on
+     * the caller's open transaction so the check joins the same SERIALIZABLE order as
+     * submit/undo day locks.
+     */
+    fun findDaysCoveredByOtherSubmittedInTransaction(
+        dayIds: List<UUID>,
+        excludeRemittanceId: UUID,
+    ): Set<UUID> {
+        if (dayIds.isEmpty()) return emptySet()
+        return RemittanceDayBreakdownTable
+            .innerJoin(RemittanceTable, { RemittanceDayBreakdownTable.remittanceId }, { RemittanceTable.id })
+            .select(RemittanceDayBreakdownTable.branchDayId)
+            .where {
+                (RemittanceDayBreakdownTable.branchDayId inList dayIds) and
+                    (RemittanceTable.status eq RemittanceStatus.SUBMITTED) and
+                    (RemittanceTable.id neq excludeRemittanceId)
+            }.map { it[RemittanceDayBreakdownTable.branchDayId] }
+            .toSet()
+    }
 
     fun sumGrossIncomeInTransaction(remittanceId: UUID): BigDecimal =
         RemittancePolicy.sum(

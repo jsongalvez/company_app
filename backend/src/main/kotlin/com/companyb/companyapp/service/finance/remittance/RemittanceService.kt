@@ -205,10 +205,19 @@ object RemittanceService {
                 RemittanceRepository.markRevertedToDraftInTransaction(remittanceId, expectedVersion)
                 val snapshotBefore =
                     RemittanceFinancialSnapshotRepository.deleteByRemittanceIdInTransaction(remittanceId)
+                // #507 — surviving SUBMITTED coverage keeps REMITTED. Lock days in stable
+                // order before the coverage read so cross-type submit/undo serialize.
+                BranchDayService.lockDaysInTransaction(breakdownIds)
+                val retainRemitted =
+                    RemittanceRepository.findDaysCoveredByOtherSubmittedInTransaction(
+                        breakdownIds,
+                        remittanceId,
+                    )
                 val branchDayPairs =
                     BranchDayService.releaseDaysFromRemittanceInTransaction(
                         breakdownIds,
                         today = BranchDayService.currentOperationalDate(),
+                        retainRemitted = retainRemitted,
                     )
 
                 val after =
