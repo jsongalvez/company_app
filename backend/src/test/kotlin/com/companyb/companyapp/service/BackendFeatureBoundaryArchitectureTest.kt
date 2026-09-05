@@ -7,7 +7,7 @@ import kotlin.test.assertTrue
 
 /**
  * #324 executable backend feature boundaries — whole-backend scans that generalize the
- * per-batch pins of SimpleCrudCommandOwnershipArchitectureTest:
+ * per-batch pins of CrudCommandOwnershipArchitectureTest:
  *
  * 1. The api layer stays an HTTP adapter: no Exposed imports, no transaction blocks,
  *    no persistence-table imports, no raw-SQL exec.

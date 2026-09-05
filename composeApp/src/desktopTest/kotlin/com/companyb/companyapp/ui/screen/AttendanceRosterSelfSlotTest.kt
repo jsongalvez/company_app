@@ -82,7 +82,8 @@ class AttendanceRosterSelfSlotTest {
                 candidateAssignmentIds = listOf("assignment-other-old"),
             )
 
-        val saved = checkNotNull(with(RosterSelfSlotStateSaver) { with(SaveEverythingScope) { save(original) } })
+        // #469 — NestedScopeFunctions: single scope call via helper (was with{with{}}).
+        val saved = checkNotNull(saveWithEverything(original))
         val restored = assertNotNull(RosterSelfSlotStateSaver.restore(saved))
 
         assertEquals("assignment-me-old", restored.editTarget?.assignmentId)
@@ -94,3 +95,8 @@ class AttendanceRosterSelfSlotTest {
 private object SaveEverythingScope : SaverScope {
     override fun canBeSaved(value: Any): Boolean = true
 }
+
+// #469 — NestedScopeFunctions helper: one scope-function deep; the save call
+// keeps its original receivers (dispatch = saver, extension = scope).
+private fun saveWithEverything(original: RosterSelfSlotState): List<String>? =
+    with(RosterSelfSlotStateSaver) { SaveEverythingScope.save(original) }

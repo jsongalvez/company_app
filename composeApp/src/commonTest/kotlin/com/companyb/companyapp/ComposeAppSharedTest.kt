@@ -5,7 +5,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
-class ComposeAppCommonTest {
+class ComposeAppSharedTest {
     @Test
     fun `example math`() {
         assertEquals(3, 1 + 2)

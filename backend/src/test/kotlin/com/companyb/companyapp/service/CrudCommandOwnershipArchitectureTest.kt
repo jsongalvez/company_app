@@ -15,7 +15,7 @@ import kotlin.test.assertTrue
  * knowledge stays behind the feature/audit seam. Mechanical enforcement for the whole backend
  * arrives with #324; this pins these migration batches until then.
  */
-class SimpleCrudCommandOwnershipArchitectureTest {
+class CrudCommandOwnershipArchitectureTest {
     private fun mainSource(relative: String): String =
         File("backend/src/main/kotlin/com/companyb/companyapp/$relative").readText()
 

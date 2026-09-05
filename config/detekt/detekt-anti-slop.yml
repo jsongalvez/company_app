@@ -41,7 +41,7 @@ complexity:
     threshold: 4
 
   ComplexInterface:
-    active: false
+    active: true
     threshold: 10
 
   CyclomaticComplexMethod:
@@ -70,7 +70,7 @@ complexity:
     ignoreDataClasses: true
 
   MethodOverloading:
-    active: false
+    active: true
     threshold: 6
 
   NamedArguments:
@@ -83,7 +83,7 @@ complexity:
     threshold: 4
 
   NestedScopeFunctions:
-    active: false
+    active: true
     threshold: 1
 
   StringLiteralDuplication:
@@ -155,7 +155,7 @@ naming:
     allowedPattern: '^(is|has|can|should|was|will|needs)[A-Z].*'
 
   ForbiddenClassName:
-    active: false
+    active: true
     forbiddenName:
       - '*Shape'
       - '*Manager'
@@ -278,7 +278,9 @@ style:
       # #465: every effective-active rule ID (merged default + detekt.yml +
       # overlay) plus UNCHECKED_CAST (compiler ID, restored) and the
       # CompanyApp custom rules (#466 NoAny/NoWeakMap, #467 NoWiden/RequireSafety,
-      # #468 NoRuntimeTypeCheck, SuppressRequiresTicket self-protection). Existing sites
+      # #468 NoRuntimeTypeCheck, SuppressRequiresTicket self-protection) and the
+      # #469 re-enabled first-party rules (ComplexInterface, ForbiddenClassName,
+      # MethodOverloading, NestedScopeFunctions). Existing sites
       # stay green via the frozen excludes in detekt.yml and the frozen pair
       # list in :detekt-rules resources. Regenerate from real annotations only
       # (:detekt-rules test fixtures hold "@Suppress(" inside string literals),
@@ -291,6 +293,7 @@ style:
       - 'ClassNaming'
       - 'CognitiveComplexMethod'
       - 'ComplexCondition'
+      - 'ComplexInterface'
       - 'ConstructorParameterNaming'
       - 'CyclomaticComplexMethod'
       - 'DataClassShouldBeImmutable'
@@ -325,6 +328,7 @@ style:
       - 'ExplicitItLambdaParameter'
       - 'ForEachOnRange'
       - 'ForbiddenComment'
+      - 'ForbiddenClassName'
       - 'ForbiddenImport'
       - 'ForbiddenMethodCall'
       - 'ForbiddenSuppress'
@@ -352,9 +356,11 @@ style:
       - 'MaxLineLength'
       - 'MayBeConst'
       - 'MemberNameEqualsClassName'
+      - 'MethodOverloading'
       - 'ModifierOrder'
       - 'NestedBlockDepth'
       - 'NestedClassesVisibility'
+      - 'NestedScopeFunctions'
       - 'NewLineAtEndOfFile'
       - 'NoAnyInPublicSignature'
       - 'NoNameShadowing'

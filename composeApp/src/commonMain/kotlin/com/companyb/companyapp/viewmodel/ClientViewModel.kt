@@ -108,11 +108,18 @@ class ClientViewModel(
                             mutationLease?.let(ClientState::finishClientMutation)
                         },
                     ),
-                ).also { job ->
-                    job.invokeOnCompletion { cause ->
-                        if (cause is CancellationException) mutationLease?.let(ClientState::finishClientMutation)
-                    }
-                }
+                ).also { job -> watchDetailCompletion(job, mutationLease) }
+    }
+
+    // #469 — NestedScopeFunctions: the completion watcher lives here so the
+    // launch chain stays one scope-function deep (also + nested let tripped it).
+    private fun watchDetailCompletion(
+        job: Job,
+        mutationLease: ClientMutationLease?,
+    ) {
+        job.invokeOnCompletion { cause ->
+            if (cause is CancellationException) mutationLease?.let(ClientState::finishClientMutation)
+        }
     }
 
     fun applyClientMutation(mutation: ClientMutation) {

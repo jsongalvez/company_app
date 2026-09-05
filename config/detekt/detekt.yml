@@ -140,11 +140,13 @@ complexity:
     threshold: 4
     excludes:
   ComplexInterface:
-    active: false
+    active: true
     threshold: 10
     includeStaticDeclarations: false
     includePrivateDeclarations: false
     ignoreOverloaded: false
+    excludes:
+      - '**/commonMain/**/viewmodel/SessionCreateViewModel.kt' #469 SessionCreateFormApi seam kept whole deliberately (see #460 note on TooManyFunctions)
   CyclomaticComplexMethod:
     active: true
     threshold: 15
@@ -183,7 +185,7 @@ complexity:
     ignoreAnnotatedParameter: []
     excludes:
   MethodOverloading:
-    active: false
+    active: true
     threshold: 6
   NamedArguments:
     active: false
@@ -193,7 +195,7 @@ complexity:
     active: true
     threshold: 4
   NestedScopeFunctions:
-    active: false
+    active: true
     threshold: 1
     functions:
       - 'kotlin.apply'
@@ -380,7 +382,7 @@ naming:
     active: true
     enumEntryPattern: '[A-Z][_a-zA-Z0-9]*'
   ForbiddenClassName:
-    active: false
+    active: true
     forbiddenName: []
   FunctionMaxLength:
     active: false

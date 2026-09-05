@@ -45,7 +45,7 @@ import kotlin.test.assertTrue
  * insert into that same transaction — commits atomically, and that neither a failing audit
  * statement nor a failing mutation can leave one side of the pair behind.
  */
-class SimpleCrudCommandAtomicityPostgresTest : BasePostgresTest() {
+class CrudCommandAtomicityPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
 
