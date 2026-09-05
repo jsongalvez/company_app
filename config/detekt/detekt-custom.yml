@@ -1,0 +1,8 @@
+# Custom-rule activation (#465). Separate file because :detekt-rules:detekt runs
+# WITHOUT the plugin on its own classpath (self-cycle guard in build.gradle.kts):
+# an unknown top-level key fails config validation there. Applied only to
+# plugin-bearing modules; :detekt-rules validates against detekt.yml +
+# detekt-anti-slop.yml alone.
+CompanyApp:
+  SuppressRequiresTicket:
+    active: true

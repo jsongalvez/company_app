@@ -9,10 +9,12 @@ import kotlin.test.assertTrue
 
 class CompanyAppRuleSetProviderTest {
     @Test
-    fun `empty CompanyApp ruleset registers with no rules`() {
+    fun `CompanyApp ruleset registers SuppressRequiresTicket`() {
         val provider = CompanyAppRuleSetProvider()
         assertEquals("CompanyApp", provider.ruleSetId)
-        assertTrue(provider.instance(Config.empty).rules.isEmpty())
+        val rules = provider.instance(Config.empty).rules
+        assertEquals(1, rules.size)
+        assertTrue(rules.single() is SuppressRequiresTicket)
     }
 
     @Test

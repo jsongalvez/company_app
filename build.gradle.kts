@@ -34,6 +34,10 @@ subprojects {
                 "$rootDir/config/detekt/detekt-anti-slop.yml",
             ),
         )
+        // #465: custom-rule activation only where the plugin is on the classpath.
+        if (path != ":detekt-rules") {
+            config.from(files("$rootDir/config/detekt/detekt-custom.yml"))
+        }
     }
 
     dependencies {

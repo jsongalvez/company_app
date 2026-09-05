@@ -9,6 +9,36 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
+# Anti-suppression governance (#465): new config/detekt excludes entries must
+# link a ticket; baseline/lint.xml escape hatches are banned (frozen at zero).
+# Excludes use `**/`-rooted globs by convention, so added glob entries are new
+# excludes. Frozen grandfather lines carry their own #465 marker and pass.
+check_detekt_governance() {
+  local bad_excludes
+  bad_excludes=$(
+    git diff HEAD -U0 -- 'config/detekt/*' 2>/dev/null \
+      | grep -P '^\+\s*-\s*.*\*\*' \
+      | grep -vP '#\d+' || true
+  )
+  if [ -n "$bad_excludes" ]; then
+    echo "validate: new config/detekt excludes entries must link a ticket (#<n>), ref #465:" >&2
+    echo "$bad_excludes" >&2
+    return 1
+  fi
+  local banned
+  banned=$(
+    {
+      git ls-files
+      git ls-files --others --exclude-standard
+    } | grep -P '(^|/)lint\.xml$|baseline[^/]*\.xml$' | grep -vP '(^|/)build/' || true
+  )
+  if [ -n "$banned" ]; then
+    echo "validate: baseline/lint.xml escape hatches are banned (ref #465):" >&2
+    echo "$banned" >&2
+    return 1
+  fi
+}
+
 if [ "$#" -gt 0 ]; then
   start=$SECONDS
   ./gradlew "$@"
@@ -71,6 +101,8 @@ if [ $((backend + shared + compose + buildlogic)) -eq 0 ]; then
   echo "validate: docs-only change — no build validation needed"
   exit 0
 fi
+
+check_detekt_governance
 
 if [ $buildlogic -eq 1 ]; then
   # Build logic touches every module's configuration; compile one target per module.
