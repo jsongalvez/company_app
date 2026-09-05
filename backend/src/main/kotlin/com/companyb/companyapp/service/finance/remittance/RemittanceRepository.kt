@@ -119,6 +119,10 @@ internal object RemittanceRepository {
     /**
      * Locks the remittance row (`FOR UPDATE`) on the caller's transaction and returns its current
      * state — the serialization anchor for submit/undo. Null when the remittance does not exist.
+     *
+     * #506 — every header/line/day mutation acquires this lock before draft validation, with
+     * the parent always first in the lock order, so draft checks and child writes serialize
+     * with submit/undo and with each other.
      */
     fun lockByIdInTransaction(id: UUID): Remittance? =
         RemittanceTable
@@ -127,6 +131,27 @@ internal object RemittanceRepository {
             .forUpdate(ForUpdateOption.ForUpdate)
             .singleOrNull()
             ?.toRemittance()
+
+    /**
+     * #506 — bumps the parent version for an actual content change. The caller must already
+     * hold the parent `FOR UPDATE` lock; the version predicate closes any residual race and
+     * surfaces a lost update as [VersionMismatchException]. No-op retries must not call this.
+     */
+    fun bumpVersionInTransaction(
+        remittanceId: UUID,
+        expectedVersion: Int,
+    ) {
+        val updated =
+            RemittanceTable.update({
+                (RemittanceTable.id eq remittanceId) and
+                    (RemittanceTable.version eq expectedVersion)
+            }) {
+                it[RemittanceTable.version] = expectedVersion + 1
+            }
+        if (updated == 0) {
+            throw remittanceVersionMismatch(remittanceId)
+        }
+    }
 
     fun createDraftInTransaction(params: CreateDraftParams): RemittanceCreateResult {
         val existing = findByIdInTransaction(params.id)

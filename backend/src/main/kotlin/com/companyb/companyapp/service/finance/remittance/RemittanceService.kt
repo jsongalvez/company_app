@@ -244,11 +244,13 @@ object RemittanceService {
     ): Remittance {
         val remittance =
             transaction {
-                val before =
-                    RemittanceRepository.findByIdInTransaction(remittanceId)
+                // #506 — parent lock first, then draft + content checks under it so a
+                // concurrent breakdown insert cannot orphan content outside the new range.
+                val locked =
+                    RemittanceRepository.lockByIdInTransaction(remittanceId)
                         ?: throw NotFoundException("Remittance not found")
 
-                RemittancePolicy.assertDraft(before.status, "update header of")
+                RemittancePolicy.assertDraft(locked.status, "update header of")
 
                 assertExistingContentInRange(
                     remittanceId = remittanceId,
@@ -268,7 +270,7 @@ object RemittanceService {
                         ),
                     )
 
-                RemittanceAudit.remittanceUpdated(callerId, before, after)
+                RemittanceAudit.remittanceUpdated(callerId, locked, after)
                 after
             }
 
@@ -290,11 +292,13 @@ object RemittanceService {
     ): RemittanceLine {
         val line =
             transaction {
-                val remittance =
-                    RemittanceRepository.findByIdInTransaction(remittanceId)
+                // #506 — parent lock first so the draft check, range check, and version
+                // bump serialize with submit/undo and sibling mutations.
+                val locked =
+                    RemittanceRepository.lockByIdInTransaction(remittanceId)
                         ?: throw NotFoundException("Remittance not found")
 
-                RemittancePolicy.assertDraft(remittance.status, "add lines to")
+                RemittancePolicy.assertDraft(locked.status, "add lines to")
 
                 val params =
                     AddLineParams(
@@ -305,15 +309,15 @@ object RemittanceService {
                         productSaleId = productSaleId,
                         amount = amount,
                         createdBy = callerId,
-                        expectedVersion = remittance.version,
+                        expectedVersion = locked.version,
                     )
                 RemittanceLineRepository.findExistingRequestInTransaction(params)?.let { return@transaction it }
 
-                requireSourceInRange(type, sessionId, productSaleId, remittance)
+                requireSourceInRange(type, sessionId, productSaleId, locked)
 
                 val addResult = RemittanceLineRepository.addLineInTransaction(params)
                 if (addResult.created) {
-                    RemittanceAudit.lineInserted(callerId, remittance.branchId, addResult.line)
+                    RemittanceAudit.lineInserted(callerId, locked.branchId, addResult.line)
                 }
                 addResult.line
             }
@@ -368,23 +372,25 @@ object RemittanceService {
     ): RemittanceLine {
         val line =
             transaction {
-                val remittance =
-                    RemittanceRepository.findByIdInTransaction(remittanceId)
+                // #506 — parent lock first so the draft check and version bump join the
+                // same serialization order as every other aggregate mutation.
+                val locked =
+                    RemittanceRepository.lockByIdInTransaction(remittanceId)
                         ?: throw NotFoundException("Remittance not found")
 
-                RemittancePolicy.assertDraft(remittance.status, "delete lines from")
+                RemittancePolicy.assertDraft(locked.status, "delete lines from")
 
                 val (before, after) =
                     RemittanceLineRepository.softDeleteLineInTransaction(
                         lineId,
                         remittanceId,
                         callerId,
-                        remittance.version,
+                        locked.version,
                     ) ?: throw NotFoundException("Remittance line not found")
 
                 // An idempotent retry of an already-deleted line returns it unchanged, no new audit.
                 if (before.deletedAt == null) {
-                    RemittanceAudit.lineUpdated(callerId, remittance.branchId, before, after)
+                    RemittanceAudit.lineUpdated(callerId, locked.branchId, before, after)
                 }
                 after
             }
@@ -402,19 +408,21 @@ object RemittanceService {
     ): RemittanceDayBreakdown {
         val breakdown =
             transaction {
-                val remittance =
-                    RemittanceRepository.findByIdInTransaction(remittanceId)
+                // #506 — parent lock first, then draft + range checks; the version bump
+                // makes this content change visible to submit/header stale-version guards.
+                val locked =
+                    RemittanceRepository.lockByIdInTransaction(remittanceId)
                         ?: throw NotFoundException("Remittance not found")
 
-                RemittancePolicy.assertDraft(remittance.status, "add day breakdowns to")
+                RemittancePolicy.assertDraft(locked.status, "add day breakdowns to")
 
                 // #483 — same range contract as lines: the day picker only offers the loaded
                 // range, so an out-of-range day is a stale-client or forged write (400).
-                val day = BranchDayService.requireBranchDayForBranch(branchDayId, remittance.branchId)
+                val day = BranchDayService.requireBranchDayForBranch(branchDayId, locked.branchId)
                 RemittancePolicy.assertDateInRange(
                     day.date,
-                    remittance.dateRangeStart,
-                    remittance.dateRangeEnd,
+                    locked.dateRangeStart,
+                    locked.dateRangeEnd,
                     "Branch day",
                 )
 
@@ -425,7 +433,8 @@ object RemittanceService {
                         branchDayId = branchDayId,
                     )
                 if (addResult.created) {
-                    RemittanceAudit.breakdownInserted(callerId, remittance.branchId, addResult.breakdown)
+                    RemittanceRepository.bumpVersionInTransaction(remittanceId, locked.version)
+                    RemittanceAudit.breakdownInserted(callerId, locked.branchId, addResult.breakdown)
                 }
                 addResult.breakdown
             }
@@ -442,11 +451,13 @@ object RemittanceService {
     ): RemittanceDayBreakdown {
         val breakdown =
             transaction {
-                val remittance =
-                    RemittanceRepository.findByIdInTransaction(remittanceId)
+                // #506 — parent lock first; the version bump keeps submit/header guards
+                // honest about this content change. No-op misses bump nothing.
+                val locked =
+                    RemittanceRepository.lockByIdInTransaction(remittanceId)
                         ?: throw NotFoundException("Remittance not found")
 
-                RemittancePolicy.assertDraft(remittance.status, "remove day breakdowns from")
+                RemittancePolicy.assertDraft(locked.status, "remove day breakdowns from")
 
                 val deleted =
                     RemittanceDayBreakdownRepository.deleteDayBreakdownInTransaction(
@@ -454,7 +465,8 @@ object RemittanceService {
                         remittanceId = remittanceId,
                     ) ?: throw NotFoundException("Day breakdown not found")
 
-                RemittanceAudit.breakdownDeleted(callerId, remittance.branchId, deleted)
+                RemittanceRepository.bumpVersionInTransaction(remittanceId, locked.version)
+                RemittanceAudit.breakdownDeleted(callerId, locked.branchId, deleted)
                 deleted
             }
 

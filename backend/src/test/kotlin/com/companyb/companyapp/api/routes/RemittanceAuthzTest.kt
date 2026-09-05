@@ -811,13 +811,13 @@ class RemittanceAuthzTest : BasePostgresTest() {
                     "method" to "HANDED_TO_ACCOUNTANT",
                     "dateRangeStart" to rangeStart.toString(),
                     "dateRangeEnd" to rangeEnd.toString(),
-                    "expectedVersion" to 2,
+                    "expectedVersion" to 3,
                 )
             val response = client.patch("/api/remittances/$draftRemittanceId", body, asUser(submitUser))
             assertEquals(200, response.code)
             val responseBody = response.body.string().orEmpty()
             assertTrue(responseBody.contains("\"method\":\"HANDED_TO_ACCOUNTANT\""))
-            assertTrue(responseBody.contains("\"version\":3"))
+            assertTrue(responseBody.contains("\"version\":4"))
         }
     }
 
@@ -830,7 +830,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
                     "method" to "HANDED_TO_ACCOUNTANT",
                     "dateRangeStart" to rangeStart.toString(),
                     "dateRangeEnd" to rangeEnd.toString(),
-                    "expectedVersion" to 2,
+                    "expectedVersion" to 3,
                 )
             assertEquals(200, client.patch("/api/remittances/$draftRemittanceId", body, asUser(submitUser)).code)
         }

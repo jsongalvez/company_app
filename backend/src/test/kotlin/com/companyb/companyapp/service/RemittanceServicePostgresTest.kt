@@ -553,6 +553,8 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         createDraftRemittance(remittanceId)
         val branchDayId = resolveBranchDay()
         addDayBreakdown(remittanceId, TestFixtures.uuid(), branchDayId)
+        // #506 — day breakdowns are versioned content changes, so the draft is at v2 here.
+        val draftVersion = RemittanceService.getRemittance(remittanceId).remittance.version
 
         val threads = 2
         val executor = Executors.newFixedThreadPool(threads)
@@ -563,7 +565,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
                 executor.submit<Result<RemittanceSubmissionResult>> {
                     ready.countDown()
                     start.await()
-                    runCatching { RemittanceService.submit(callerId, remittanceId, 1) }
+                    runCatching { RemittanceService.submit(callerId, remittanceId, draftVersion) }
                 }
             }
 
@@ -607,7 +609,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
                 )
             }
         assertEquals(RemittanceStatus.SUBMITTED, outcome.status)
-        assertEquals(2, outcome.version, "one winner, one version bump")
+        assertEquals(draftVersion + 1, outcome.version, "one winner, one version bump")
         assertEquals(DayStatus.REMITTED, outcome.dayStatus)
         assertEquals(1L, outcome.remittanceAudits, "one remittance audit row total")
         assertEquals(1L, outcome.dayAudits, "one branch-day audit row total")
