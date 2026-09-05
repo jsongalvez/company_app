@@ -44,13 +44,6 @@ internal class PaneDialogTargets {
 
     // #419 — the session-linked product-sale dialog slot (per-selection, like the rest).
     var showSell by mutableStateOf(false)
-
-    // #406 — the sticky void/unvoid flows are armed with the issuing session id (#486
-    // keys one VM per selection, so the armed landing always belongs to this scope; the
-    // check stays as the same-scope guard): only an armed landing acts, a late landing
-    // from a switched-away selection drains silently instead of repainting the wrong pane.
-    var voidArmedFor by mutableStateOf<String?>(null)
-    var unvoidArmedFor by mutableStateOf<String?>(null)
 }
 
 /** #406 — which void affordance an editable row offers, or none when the gate is closed. */
@@ -102,28 +95,32 @@ internal fun VoidActionSection(
 }
 
 /**
- * #406 — void/unvoid landings: any terminal result drains exactly once, but only an
- * armed landing (submitted by THIS selection — see [PaneDialogTargets]) acts. Success
- * reloads the authoritative row (VoidedPill + dimming repaint); a 409/403/4xx failure
+ * #406 — void/unvoid landings: any terminal result drains exactly once and refreshes
+ * the authoritative row (VoidedPill + dimming repaint); a 409/403/4xx failure
  * unwedges via the same authoritative reload instead of wedging.
+ *
+ * #489 — no arming gate: VMs are keyed by session id (#486), so a terminal observed
+ * in this pane always belongs to this session — each pane reads only its own VM,
+ * and a landing from a switched-away selection can never repaint the visible pane.
+ * Gating the refresh on composition-scoped targets dropped revisit-retained
+ * terminals silently (A→B→A without refresh); every terminal refreshes instead,
+ * mirroring the practitioner/concern drains.
  */
 @Composable
 internal fun VoidUnvoidEffects(
     sessionVm: SessionViewModel,
-    sessionId: String,
     results: PaneResults,
-    targets: PaneDialogTargets,
     refreshSession: () -> Unit,
 ) {
     LaunchedEffect(results.voidResult) {
         when (val result = results.voidResult) {
             is UiState.Success -> {
-                if (targets.voidArmedFor == sessionId) refreshSession()
+                refreshSession()
             }
 
             is UiState.Error -> {
                 logWarn("SessionDetailVM", "void failed: ${result.message}")
-                if (targets.voidArmedFor == sessionId) refreshSession()
+                refreshSession()
             }
 
             else -> {
@@ -135,12 +132,12 @@ internal fun VoidUnvoidEffects(
     LaunchedEffect(results.unvoidResult) {
         when (val result = results.unvoidResult) {
             is UiState.Success -> {
-                if (targets.unvoidArmedFor == sessionId) refreshSession()
+                refreshSession()
             }
 
             is UiState.Error -> {
                 logWarn("SessionDetailVM", "unvoid failed: ${result.message}")
-                if (targets.unvoidArmedFor == sessionId) refreshSession()
+                refreshSession()
             }
 
             else -> {
@@ -151,7 +148,7 @@ internal fun VoidUnvoidEffects(
     }
 }
 
-/** The pane's two reason dialogs plus their arm-on-submit wiring (#406). */
+/** The pane's two reason dialogs (#406). */
 @OptIn(ExperimentalUuidApi::class)
 @Composable
 internal fun PaneVoidDialogs(
@@ -164,7 +161,6 @@ internal fun PaneVoidDialogs(
         visible = targets.showVoid,
         mutating = mutating,
         onConfirmed = { request ->
-            targets.voidArmedFor = session.id
             sessionVm.voidSession(session.id, request)
         },
         onDismissed = { targets.showVoid = false },
@@ -173,7 +169,6 @@ internal fun PaneVoidDialogs(
         visible = targets.showUnvoid,
         mutating = mutating,
         onConfirmed = { request ->
-            targets.unvoidArmedFor = session.id
             sessionVm.unvoidSession(session.id, request)
         },
         onDismissed = { targets.showUnvoid = false },

@@ -13,7 +13,9 @@ import io.ktor.client.request.setBody
 
 // #479 — the session roster + member-directory seam, extracted from SessionViewModel so the
 // file-function wall (TMF) stays honest. The #382 generation discipline travels with it:
-// #486 keys one VM per selection, so a switch starts a fresh scope; within a scope,
+// #486 keys one VM per selection, so a switch to a new selection starts a fresh
+// scope (a revisit reuses the cached keyed VM — see the `key(session.id)` note on
+// [SessionDetailPane]); within a scope,
 // rapid successive loads still race, and a superseded roster or member GET must not
 // commit over the newer request (stale body never deserialized — the committed value
 // stands). These are extension functions on the ViewModel: SessionDetailPane and

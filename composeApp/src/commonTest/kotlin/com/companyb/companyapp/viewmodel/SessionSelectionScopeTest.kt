@@ -1,6 +1,9 @@
 package com.companyb.companyapp.viewmodel
 
 import com.companyb.companyapp.dto.SessionPractitionerResponse
+import com.companyb.companyapp.dto.SessionVoidResponse
+import com.companyb.companyapp.dto.UnvoidSessionRequest
+import com.companyb.companyapp.dto.VoidSessionRequest
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
@@ -29,10 +32,11 @@ import kotlin.test.assertTrue
 
 /**
  * #486 — the desktop pane keys one VM per selection (`viewModel(key = session.id)`), so
- * every selection starts from a fresh scope: raw roster/member state is Idle (nothing
+ * every new selection starts from a fresh scope: raw roster/member state is Idle (nothing
  * stale for `mergeRosterNames` to map) and no sticky result replays into the new pane.
- * Within a scope the #382 stamp/fallback guard keeps latest-wins: a superseded roster
- * GET never deserializes over the newer commit.
+ * A revisit reuses the cached keyed VM — retained terminals refresh on re-entry (#489)
+ * instead of replaying silently. Within a scope the #382 stamp/fallback guard keeps
+ * latest-wins: a superseded roster GET never deserializes over the newer commit.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionSelectionScopeTest {
@@ -111,6 +115,45 @@ class SessionSelectionScopeTest {
             assertTrue(committed.data.none { it.practitionerId == "p-old" })
         }
 
+    @Test
+    fun voidUnvoid_retainedTerminalUntilConsumed() =
+        runTest(testScheduler) {
+            // #489 — the revisit-refresh contract: a terminal void/unvoid landing is
+            // retained in the keyed VM until the pane drains it, so a re-entered
+            // selection still observes (and refreshes on) the retained terminal.
+            val vm =
+                SessionViewModel(
+                    mockApiClient { request ->
+                        when (request.url.encodedPath) {
+                            "/api/sessions/s1/void" -> {
+                                jsonRespond(status = HttpStatusCode.OK, body = VOID_JSON)
+                            }
+
+                            "/api/sessions/s1/unvoid" -> {
+                                jsonRespond(status = HttpStatusCode.OK, body = VOID_JSON)
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                )
+            runCurrent()
+
+            vm.voidSession("s1", VoidSessionRequest(id = "cmd-1", voidReason = "no-show"))
+            advanceUntilIdle()
+            assertIs<UiState.Success<SessionVoidResponse>>(vm.voidResult.value)
+            vm.consumeVoidResult()
+            assertIs<UiState.Idle>(vm.voidResult.value)
+
+            vm.unvoidSession("s1", UnvoidSessionRequest(unvoidedReason = "returned"))
+            advanceUntilIdle()
+            assertIs<UiState.Success<SessionVoidResponse>>(vm.unvoidResult.value)
+            vm.consumeUnvoidResult()
+            assertIs<UiState.Idle>(vm.unvoidResult.value)
+        }
+
     private fun MockRequestHandleScope.jsonRespond(
         status: HttpStatusCode,
         body: String,
@@ -125,5 +168,8 @@ class SessionSelectionScopeTest {
             """[{"id":"rp-old","sessionId":"s1","practitionerId":"p-old","remarks":"old","slotAtTime":2}]"""
         const val NEW_ROSTER_JSON =
             """[{"id":"rp-new","sessionId":"s1","practitionerId":"p-new","remarks":null,"slotAtTime":1}]"""
+        const val VOID_JSON =
+            """{"id":"v1","sessionId":"s1","voidedAt":"2026-09-05T10:00:00+08:00",""" +
+                """"voidedBy":"u1","voidReason":"no-show"}"""
     }
 }

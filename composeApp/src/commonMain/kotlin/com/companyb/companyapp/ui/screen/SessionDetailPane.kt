@@ -91,11 +91,14 @@ internal fun SessionDetailPane(
         return
     }
     // #486 — selection-owned scopes: every side-loaded VM is keyed by session.id, so
-    // switching the desktop selection creates a fresh scope (roster/members/results start
+    // a new selection starts from a fresh scope (roster/members/results start
     // Idle — no stale rows for mergeRosterNames, no sticky result replay into the new
     // pane). A late landing from a switched-away selection commits into its dead scope,
     // never the visible pane (the roster/members stamp guards still cover same-scope
-    // races: a superseded load never deserializes over the newer commit).
+    // races: a superseded load never deserializes over the newer commit). Revisiting
+    // a selection reuses its cached keyed VM (#489): any retained terminal refreshes
+    // on re-entry (the void/unvoid drains refresh unconditionally, mirroring the
+    // practitioner/concern drains) instead of replaying silently.
     val sessionVm: SessionViewModel =
         viewModel(key = "session-detail-${session.id}") { SessionViewModel(apiClient) }
     val productSaleVm: ProductSaleViewModel =
@@ -242,7 +245,7 @@ private fun EditableSessionPane(
     val gate = SessionEditGate(canEdit = gates.canEdit, mutating = mutating)
     val displaySession = mergeRosterNames(session, state.rosterRows)
 
-    PaneEffects(vms.session, session.id, state.results, targets, refreshSession)
+    PaneEffects(vms.session, session.id, state.results, refreshSession)
     SaleEffects(vms.productSale, state.results.saleResult, refreshSession)
 
     Column(modifier = modifier) {
@@ -314,7 +317,6 @@ private fun PaneEffects(
     sessionVm: SessionViewModel,
     sessionId: String,
     results: PaneResults,
-    targets: PaneDialogTargets,
     refreshSession: () -> Unit,
 ) {
     LaunchedEffect(sessionId) {
@@ -358,8 +360,8 @@ private fun PaneEffects(
         }
         sessionVm.consumeConcernResult()
     }
-    // #406 — the armed void/unvoid drains live with their dialogs in SessionDetailVoidFlow.kt.
-    VoidUnvoidEffects(sessionVm, sessionId, results, targets, refreshSession)
+    // #406 — the void/unvoid drains live with their dialogs in SessionDetailVoidFlow.kt.
+    VoidUnvoidEffects(sessionVm, results, refreshSession)
 }
 
 private fun paneActions(targets: PaneDialogTargets): SessionDetailActions =
