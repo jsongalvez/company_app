@@ -87,7 +87,10 @@ jobs:
       API_BASE_URL: http://localhost:8080
       DB_HOST: localhost
       DB_PORT: 5432
-      POSTGRES_DB: company_app_test
+      # POSTGRES_DB names the application database the test guard must never target (#493);
+      # it intentionally differs from TEST_DB_NAME. The postgres service provisions
+      # company_app_test below; backend workers mint owned test_w_* schemas inside it.
+      POSTGRES_DB: company_app
       POSTGRES_USER: company_user
       POSTGRES_PASSWORD: company_password
       TEST_DB_NAME: company_app_test
@@ -137,8 +140,9 @@ jobs:
           :shared:compileKotlinJvm :shared:jvmTest -x :backend:publishOpenApiSpec
           -PwarningsAsErrors=true
 
-      - name: Verify test database cleanliness
-        run: bash scripts/check-test-cleanliness.sh
+      # Backend workers use owned test_w_* schemas (#493); public-table cleanliness no
+      # longer evidences backend tests. Lifecycle proof lives in WorkerSchemaLifecycleTest.
+      # scripts/check-test-cleanliness.sh stays for k6/manual public-DB cleanup only.
 
       - name: Verify OpenAPI contract
         run: bash scripts/check-openapi-spec.sh

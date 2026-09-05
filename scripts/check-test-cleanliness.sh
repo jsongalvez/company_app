@@ -1,7 +1,8 @@
 #!/bin/bash
-# Check that the test database has zero leftover rows in any test-managed table
-# after a full test-suite run. Only seed tables (role, capability, role_capability)
-# and Flyway metadata are expected to have rows.
+# Check that the PUBLIC schema of the test database has zero leftover rows in any
+# test-managed table. k6/manual public-DB cleanup evidence only (#493): backend test
+# workers use owned test_w_* schemas and never touch public, so this script no longer
+# evidences backend suites (see WorkerSchemaLifecycleTest + ADR-0006).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

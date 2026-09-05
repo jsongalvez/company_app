@@ -15,7 +15,7 @@ relevant self-test whenever you edit its sibling.
 | Script | Purpose |
 |---|---|
 | `validate.sh` | Targeted-validation entry point (see AGENTS.md Commands). Auto mode classifies changed files into the narrowest warm Gradle set (focused `--tests` filters for changed test files; docs-only changes skip builds entirely). Passthrough mode runs any gradle args given. Agent-invoked only — hooks never call it. |
-| `local-ci.sh` | Replicates the hosted `quality.yml` gate set locally, detached: quality tasks verbatim, then cleanliness, OpenAPI, and the compose-compile matrix (Android leg skips without an SDK). `--status` prints per-gate PASS/FAIL/SKIP/RUNNING; state under gitignored `logs/local-ci/`. Opt-in diagnostic, never a gate. |
+| `local-ci.sh` | Replicates the hosted `quality.yml` gate set locally, detached: quality tasks verbatim, then OpenAPI and the compose-compile matrix (Android leg skips without an SDK). `--status` prints per-gate PASS/FAIL/SKIP/RUNNING; state under gitignored `logs/local-ci/`. Opt-in diagnostic, never a gate. |
 | `run-k6-contract-suites.sh` | Boots the backend on the **test** DB (never the app DB; port 8180 default, refuses a busy port) with DevSeeder provisioning both the GLOBAL owner and — when `SCOPED_USERNAME`/`SCOPED_PASSWORD` are set (#411) — the branch-scoped principal that drives the authz 403 contract and full-suite's scoped leg group, then runs every k6 suite — remittance-race first (it needs a fresh clock-in; strict 201 vs the others' 409 tolerance). Failure-safe cleanup always restores test-DB cleanliness. Manual diagnostic when load/contract behavior is the ticket's actual question. |
 | `check-baselines.sh` | Compares JMH output (default `/tmp/company-app-jmh.log`, `BASELINE` env overrides the baseline file) against `backend/jmh-baselines.md`. Exit 1 = regression past threshold (20% default, 40% for `BranchDayBenchmark.*` noise-class); exit 2 = missing/malformed/incomplete benchmark evidence, which also fails. New benchmarks report NEW, not fail. Companion to `./gradlew :backend:jmh`. |
 
@@ -28,8 +28,8 @@ on unsafe identifiers or unreadable DB — unreadable must never look clean),
 
 | Script | Purpose |
 |---|---|
-| `check-test-cleanliness.sh` | Asserts zero leftover rows in any test-managed table post-suite (seed tables `role`/`capability`/`role_capability` + Flyway metadata excepted). The CI cleanliness step. |
-| `clean-test-db.sh` | Truncates user-data tables preserving seeds, then re-runs the cleanliness check as proof. Run after k6 sessions or before rerunning contaminated focused tests. |
+| `check-test-cleanliness.sh` | Asserts zero leftover rows in any `public`-schema test-managed table (seed tables `role`/`capability`/`role_capability` + Flyway metadata excepted). k6/manual `public`-DB evidence only (#493) — backend workers use owned `test_w_*` schemas and never touch `public` (lifecycle proof: `WorkerSchemaLifecycleTest`). |
+| `clean-test-db.sh` | Truncates `public` user-data tables preserving seeds, then re-runs the cleanliness check as proof. Run after k6 sessions. Backend focused tests need no cleanup — each worker mints a fresh owned schema per JVM. |
 
 ## OpenAPI contract gate
 

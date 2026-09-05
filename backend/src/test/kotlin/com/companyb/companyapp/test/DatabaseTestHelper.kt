@@ -31,12 +31,10 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.TestFixtures
-import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -55,43 +53,66 @@ import java.util.UUID
 
 object DatabaseTestHelper {
     private const val TEST_CLIENT_AGE = 30
-    private const val MAX_POOL_SIZE = 3
-    private const val MIN_IDLE = 3
-    private const val CONNECTION_TIMEOUT_MS = 30_000L
     private var databaseReady = false
 
     @Volatile
     var testDataSource: HikariDataSource? = null
         private set
 
+    @Volatile
+    var workerSchema: String? = null
+        private set
+
     fun ensureDatabase() {
-        if (!databaseReady) {
-            val config = AppConfig.parse()
-            val dbName = System.getenv("TEST_DB_NAME") ?: "${config.dbName}_test"
-            val ds =
-                HikariDataSource(
-                    HikariConfig().apply {
-                        dataSourceClassName = "org.postgresql.ds.PGSimpleDataSource"
-                        addDataSourceProperty("user", config.dbUser)
-                        addDataSourceProperty("password", config.dbPassword)
-                        addDataSourceProperty("databaseName", dbName)
-                        addDataSourceProperty("serverName", config.dbHost)
-                        addDataSourceProperty("portNumber", config.dbPort)
-                        maximumPoolSize = MAX_POOL_SIZE
-                        minimumIdle = MIN_IDLE
-                        connectionTimeout = CONNECTION_TIMEOUT_MS
-                    },
-                )
-            Flyway
-                .configure()
-                .dataSource(ds)
-                .locations("classpath:db/migration")
-                .load()
-                .migrate()
-            Database.connect(ds)
-            testDataSource = ds
-            databaseReady = true
+        if (databaseReady) {
+            return
         }
+        synchronized(this) {
+            if (databaseReady) {
+                return
+            }
+            val config = AppConfig.parse()
+            val handle = TestWorkerSchema.provision(config)
+            Database.connect(handle.dataSource)
+            testDataSource = handle.dataSource
+            workerSchema = handle.schema
+            databaseReady = true
+            registerDisposalHook(config, handle.dbName, handle.schema)
+        }
+    }
+
+    fun requireWorkerSchema(): String =
+        workerSchema
+            ?: error("DatabaseTestHelper.ensureDatabase() has not been called — workerSchema is null")
+
+    fun isOwnedSchema(name: String?): Boolean = TestWorkerSchema.isOwned(name)
+
+    fun requireOwnedSchema(name: String?) = TestWorkerSchema.requireOwned(name)
+
+    fun requireTestDatabase(
+        dbName: String,
+        appDbName: String,
+    ) = TestWorkerSchema.requireTestDatabase(dbName, appDbName)
+
+    fun generateWorkerSchema(): String = TestWorkerSchema.generate()
+
+    fun workerJdbcUrl(
+        config: AppConfig,
+        dbName: String,
+    ): String = TestWorkerSchema.jdbcUrl(config, dbName)
+
+    private fun registerDisposalHook(
+        config: AppConfig,
+        dbName: String,
+        schema: String,
+    ) {
+        Runtime.getRuntime().addShutdownHook(
+            Thread {
+                runCatching { testDataSource?.close() }
+                testDataSource = null
+                runCatching { TestWorkerSchema.drop(config, dbName, schema) }
+            },
+        )
     }
 
     fun isDatabaseReady(): Boolean = databaseReady

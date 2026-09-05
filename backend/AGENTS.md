@@ -52,7 +52,7 @@ pass gradle args to override. Keep the daemon and configuration/build caches war
 | Change | Narrowest useful check |
 |---|---|
 | Backend pure-service logic | `./gradlew :backend:test --tests '<Fqcn>'` |
-| Backend DB/transaction/locking change | focused `*PostgresTest`; `bash scripts/clean-test-db.sh` after contamination |
+| Backend DB/transaction/locking change | focused `*PostgresTest` (fresh owned schema per JVM — no cleanup step) |
 | Backend route/DTO contract change | `bash scripts/check-openapi-spec.sh` (pays its hidden compile once) |
 | Shared DTO/domain type | `./gradlew :shared:compileKotlinJvm :shared:jvmTest` |
 | Compose desktop UI only | `./gradlew :composeApp:compileKotlinDesktop` (+ `:composeApp:desktopTest` for VM logic) |
@@ -91,10 +91,11 @@ Install hooks once: `bash scripts/setup-hooks.sh` (sets `core.hooksPath = .githo
 `-PwarningsAsErrors=true` is available for targeted local compiles and stays on in
 asynchronous CI. Warnings must be fixed, not suppressed or baselined.
 
-Postgres test database is shared by all backend test processes. Clean it with
-`bash scripts/clean-test-db.sh` before rerunning contaminated tests, then rerun the
-focused tests as one Gradle invocation. Parallel `./gradlew :backend:test`
-processes race on test data and can produce false duplicate-key or scope failures.
+Postgres test database hosts one owned `test_w_*` schema per backend test JVM (#493).
+Parallel `./gradlew :backend:test` workers no longer race — each owns disjoint tables.
+`bash scripts/clean-test-db.sh` remains for k6/manual `public` cleanup only, never for
+backend workers (their schemas drop on JVM shutdown; a killed worker leaves its uniquely
+named schema behind and never scans/deletes others).
 
 Auto-fix formatting: `./gradlew :backend:ktlintFormat`.
 
@@ -406,7 +407,10 @@ write an audit log entry for the UPDATE, and return the updated record. `isRelie
 ## Testing
 
 Integration tests use a real Postgres instance via `DatabaseTestHelper.ensureDatabase()` (connects
-via the root `.env` configuration). Run all tests with `./gradlew :backend:test`. Prefer DB-free
+via the root `.env` configuration). Each test JVM owns one `test_w_<pid>_<rand>` schema in the
+dedicated test database (one Flyway migration per worker, `search_path "<owned>", public` on every
+pooled connection); methods within a worker stay serial, isolation is between JVMs only (#493,
+ADR-0006). Run all tests with `./gradlew :backend:test`. Prefer DB-free
 unit tests for pure-logic helpers; inject time through internal `*At(now: Instant)` helpers.
 
 Fixture clocks and validity windows must agree: a fixture that seeds a

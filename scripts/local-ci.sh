@@ -77,12 +77,9 @@ run_gates() {
         record quality FAIL "see $RUN_LOG"
     fi
 
-    # Gate: cleanliness — mirrors the hosted step.
-    if bash scripts/check-test-cleanliness.sh >>"$RUN_LOG" 2>&1; then
-        record cleanliness PASS
-    else
-        record cleanliness FAIL "test DB contaminated — bash scripts/clean-test-db.sh, then rerun"
-    fi
+    # Gate: cleanliness — backend workers use owned test_w_* schemas (#493), so the
+    # public-table check no longer evidences backend tests (lifecycle test owns it).
+    # Kept scripts stay for k6/manual public-DB cleanup; no backend gate here.
 
     # Gate: openapi — mirrors the hosted step.
     if bash scripts/check-openapi-spec.sh >>"$RUN_LOG" 2>&1; then
