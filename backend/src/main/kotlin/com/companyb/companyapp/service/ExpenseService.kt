@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.ExpenseCategory
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditContext
@@ -24,7 +25,7 @@ import java.util.UUID
 object ExpenseService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList", "ThrowsCount")
     fun create(
         callerId: UUID,
         id: UUID,
@@ -33,10 +34,24 @@ object ExpenseService {
         category: ExpenseCategory,
         notes: String?,
         reason: String? = null,
-    ): Expense {
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
+    ): Expense =
+        transaction {
+            // #510 — in-tx replay classification before the day gate (mirrors #509): a same-id
+            // row already committed acks without gating so retries landing after a day transition
+            // still ack; ownership matches createInTransaction below.
+            ExpenseRepository.findByIdInTransaction(id)?.let { existing ->
+                if (existing.branchDayId != branchDayId) {
+                    throw NotFoundException("Expense not found for this branch day")
+                }
+                if (existing.createdBy != callerId) {
+                    throw ConflictException("Expense id already belongs to another create request")
+                }
+                return@transaction existing
+            }
+            // Locked day read: serializes this create with remittance's REMITTED transition.
+            val (branchDay, isRemitted) =
+                BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason)
 
-        return transaction {
             val result =
                 ExpenseRepository.createInTransaction(
                     ExpenseCreateParams(
@@ -56,7 +71,6 @@ object ExpenseService {
             }
             result.expense
         }
-    }
 
     @Suppress("ThrowsCount", "LongParameterList")
     fun update(
@@ -79,7 +93,8 @@ object ExpenseService {
                 throw ValidationException("Cannot update a deleted expense")
             }
 
-            val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
+            val (branchDay, isRemitted) =
+                BranchDayService.checkBranchDayEditableInTransaction(callerId, before.branchDayId, reason)
 
             val after =
                 ExpenseRepository.updateInTransaction(expenseId, amount, category, notes, expectedVersion)
@@ -103,7 +118,8 @@ object ExpenseService {
                 ExpenseRepository.findByIdInTransaction(expenseId)
                     ?: throw NotFoundException("Expense not found")
 
-            val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
+            val (branchDay, isRemitted) =
+                BranchDayService.checkBranchDayEditableInTransaction(callerId, before.branchDayId, reason)
 
             val after =
                 ExpenseRepository.softDeleteInTransaction(expenseId, callerId, reason)
@@ -140,7 +156,8 @@ object ExpenseService {
                 throw ValidationException("Expense is not deleted")
             }
 
-            val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
+            val (branchDay, isRemitted) =
+                BranchDayService.checkBranchDayEditableInTransaction(callerId, before.branchDayId, reason)
 
             val after =
                 ExpenseRepository.restoreInTransaction(expenseId)

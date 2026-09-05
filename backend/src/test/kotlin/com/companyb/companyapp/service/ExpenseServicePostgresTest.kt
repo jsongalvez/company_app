@@ -5,7 +5,10 @@ import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.ExpenseCategory
+import com.companyb.companyapp.domain.RemittanceMethod
+import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
@@ -15,6 +18,7 @@ import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.ExpenseCreateParams
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.service.branchday.BranchDayService
+import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -1005,6 +1009,119 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         assertEquals(created.version, rowVersion, "row untouched")
         assertEquals(0L, updateAudits, "no audit row for a failed mutation")
     }
+
+    // ===== #510 — expense mutations serialize with the remittance REMITTED transition =====
+
+    @Test
+    fun `create on day REMITTED by remittance submit is rejected with no row`() {
+        submitRemittanceCoveringDay(branchDayId)
+
+        val expenseId = TestFixtures.uuid()
+        val auditsBefore = callerAuditCount()
+
+        assertFailsWith<ForbiddenException> {
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = "Late expense",
+            )
+        }
+        assertEquals(auditsBefore, callerAuditCount(), "rejected create writes no audit rows")
+        assertNull(ExpenseRepository.findById(expenseId), "rejected create writes no expense row")
+    }
+
+    @Test
+    fun `replay of pre-submit create after remittance submit acks without duplicate audit`() {
+        val expenseId = TestFixtures.uuid()
+        ExpenseService.create(
+            callerId = callerId,
+            id = expenseId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("500.00"),
+            category = ExpenseCategory.PANTRY,
+            notes = "First",
+        )
+
+        submitRemittanceCoveringDay(branchDayId)
+
+        val insertsBefore = expenseInsertAuditCount(expenseId)
+        val replayed =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = "First",
+            )
+
+        assertEquals(expenseId, replayed.id)
+        assertEquals(insertsBefore, expenseInsertAuditCount(expenseId), "replay writes no duplicate audit")
+    }
+
+    @Test
+    fun `update on day REMITTED by remittance submit is rejected`() {
+        val expenseId = TestFixtures.uuid()
+        val created =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = null,
+            )
+
+        submitRemittanceCoveringDay(branchDayId)
+
+        val auditsBefore = callerAuditCount()
+        assertFailsWith<ForbiddenException> {
+            ExpenseService.update(
+                callerId = callerId,
+                expenseId = expenseId,
+                amount = BigDecimal("750.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = null,
+                expectedVersion = created.version,
+            )
+        }
+        assertEquals(auditsBefore, callerAuditCount(), "rejected update writes no audit rows")
+    }
+
+    private fun submitRemittanceCoveringDay(dayId: UUID) {
+        val remittanceId = TestFixtures.uuid()
+        RemittanceService.createDraft(
+            callerId = callerId,
+            id = remittanceId,
+            type = RemittanceType.SESSION,
+            branchId = branchId,
+            method = RemittanceMethod.BANK_TRANSFER,
+            dateRangeStart = TestFixtures.today.minusDays(1),
+            dateRangeEnd = TestFixtures.today,
+        )
+        RemittanceService.addDayBreakdown(
+            callerId = callerId,
+            remittanceId = remittanceId,
+            id = TestFixtures.uuid(),
+            branchDayId = dayId,
+        )
+        val version = RemittanceService.getRemittance(remittanceId).remittance.version
+        RemittanceService.submit(callerId, remittanceId, version)
+    }
+
+    private fun expenseInsertAuditCount(expenseId: UUID): Long =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where {
+                    (AuditLogTable.auditTableName eq ExpenseTable.tableName) and
+                        (AuditLogTable.recordId eq expenseId) and
+                        (AuditLogTable.action eq AuditAction.INSERT)
+                }.count()
+        }
 
     private fun callerAuditCount(): Long =
         transaction {
