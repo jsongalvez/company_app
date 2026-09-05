@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
@@ -61,10 +62,26 @@ object CompensationService {
     ): Compensation {
         val workDay = BranchDayService.requireBranchDayExists(workBranchDayId)
 
-        val (payingDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, payingBranchDayId, reason)
-        assertPayingMatchesWork(workDay, payingDay)
-
         return transaction {
+            // #511 — in-tx replay classification before the day gate (mirrors #509/#510):
+            // a same-id row already committed acks without gating so retries landing
+            // after a day transition still ack; a foreign row fails closed.
+            CompensationRepository.findByIdInTransaction(id)?.let { existing ->
+                if (existing.workBranchDayId != workBranchDayId ||
+                    existing.payingBranchDayId != payingBranchDayId
+                ) {
+                    throw NotFoundException("Compensation not found for this branch day")
+                }
+                if (existing.userId != userId || existing.assignedBy != callerId) {
+                    throw ConflictException("Compensation id already belongs to another create request")
+                }
+                return@transaction existing
+            }
+            // Locked day read: serializes this create with remittance's REMITTED transition.
+            val (payingDay, isRemitted) =
+                BranchDayService.checkBranchDayEditableInTransaction(callerId, payingBranchDayId, reason)
+            assertPayingMatchesWork(workDay, payingDay)
+
             val result =
                 CompensationRepository.createInTransaction(
                     CompensationCreateParams(
@@ -107,7 +124,7 @@ object CompensationService {
                     ?: throw NotFoundException("Compensation not found")
 
             val (payingDay, isRemitted) =
-                BranchDayService.checkBranchDayEditable(
+                BranchDayService.checkBranchDayEditableInTransaction(
                     callerId,
                     before.payingBranchDayId,
                     reason,

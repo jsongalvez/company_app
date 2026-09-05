@@ -1,6 +1,7 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -60,7 +61,7 @@ object CompensationRepository {
             val existingByKey = findByUserAndPayingDayInTransaction(params.userId, params.payingBranchDayId)
             val existingById = findByIdInTransaction(params.id)
             if (existingById != null) {
-                return CompensationCreateResult(existingById, created = false)
+                return CompensationCreateResult(validateReplayOwnership(existingById, params), created = false)
             }
             if (existingByKey != null) {
                 throw ConflictException("Compensation already exists for this user and paying branch day")
@@ -71,6 +72,26 @@ object CompensationRepository {
         val compensation =
             findByIdInTransaction(params.id) ?: error("compensation not found after insert for ${params.id}")
         return CompensationCreateResult(compensation, created = true)
+    }
+
+    /**
+     * #511 — ownership-validated replay (mirrors expense): a same-id row only acks the
+     * caller's own identical request; a foreign row fails closed so the service-level
+     * pre-gate replay is not silently widened here.
+     */
+    private fun validateReplayOwnership(
+        existing: Compensation,
+        params: CompensationCreateParams,
+    ): Compensation {
+        if (existing.workBranchDayId != params.workBranchDayId ||
+            existing.payingBranchDayId != params.payingBranchDayId
+        ) {
+            throw NotFoundException("Compensation not found for this branch day")
+        }
+        if (existing.userId != params.userId || existing.assignedBy != params.assignedBy) {
+            throw ConflictException("Compensation id already belongs to another create request")
+        }
+        return existing
     }
 
     /**
