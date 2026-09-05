@@ -71,8 +71,18 @@ class SchedulerLifecycleTest {
             val delaysMs = executor.calls.map { it.unit.toMillis(it.initialDelay) }
             val periodsMs = executor.calls.map { it.unit.toMillis(it.period) }
 
-            assertEquals(java.time.Duration.ofHours(1).toMillis(), delaysMs[0])
-            assertEquals(java.time.Duration.ofHours(1).toMillis(), delaysMs[2])
+            assertEquals(
+                java.time.Duration
+                    .ofHours(1)
+                    .toMillis(),
+                delaysMs[0],
+            )
+            assertEquals(
+                java.time.Duration
+                    .ofHours(1)
+                    .toMillis(),
+                delaysMs[2],
+            )
             assertEquals(
                 java.time.Duration
                     .between(
@@ -86,7 +96,14 @@ class SchedulerLifecycleTest {
                     ).toMillis(),
                 delaysMs[1],
             )
-            periodsMs.forEach { assertEquals(java.time.Duration.ofHours(24).toMillis(), it) }
+            periodsMs.forEach {
+                assertEquals(
+                    java.time.Duration
+                        .ofHours(24)
+                        .toMillis(),
+                    it,
+                )
+            }
         } finally {
             lifecycle.stop()
         }
@@ -94,14 +111,16 @@ class SchedulerLifecycleTest {
 
     @Test
     fun `start covers before at and after run boundaries`() {
+        assertAppointmentBoundaries()
+        assertExpiryBoundaries()
+    }
+
+    private fun assertAppointmentBoundaries() {
         val cases =
             listOf(
-                ZonedDateTime.of(2026, 8, 18, 6, 59, 0, 0, manilaZone) to
-                    java.time.Duration.ofMinutes(1).toMillis(),
-                ZonedDateTime.of(2026, 8, 18, 7, 0, 0, 0, manilaZone) to
-                    java.time.Duration.ofHours(24).toMillis(),
-                ZonedDateTime.of(2026, 8, 18, 8, 0, 0, 0, manilaZone) to
-                    java.time.Duration.ofHours(23).toMillis(),
+                ZonedDateTime.of(2026, 8, 18, 6, 59, 0, 0, manilaZone) to minutesToMs(1),
+                ZonedDateTime.of(2026, 8, 18, 7, 0, 0, 0, manilaZone) to hoursToMs(24),
+                ZonedDateTime.of(2026, 8, 18, 8, 0, 0, 0, manilaZone) to hoursToMs(23),
             )
         for ((now, expectedAppointmentMs) in cases) {
             val executor = RecordingExecutor()
@@ -112,20 +131,24 @@ class SchedulerLifecycleTest {
                 assertEquals(expectedAppointmentMs, delaysMs[0], "now=$now")
                 assertEquals(expectedAppointmentMs, delaysMs[2], "now=$now")
                 executor.calls.map { it.unit.toMillis(it.period) }.forEach {
-                    assertEquals(java.time.Duration.ofHours(24).toMillis(), it, "now=$now")
+                    assertEquals(hoursToMs(24), it, "now=$now")
                 }
             } finally {
                 lifecycle.stop()
             }
         }
+    }
 
+    private fun assertExpiryBoundaries() {
         val expiryCases =
             listOf(
-                ZonedDateTime.of(2026, 8, 18, 4, 4, 0, 0, manilaZone) to
-                    java.time.Duration.ofMinutes(1).toMillis(),
+                ZonedDateTime.of(2026, 8, 18, 4, 4, 0, 0, manilaZone) to minutesToMs(1),
                 ZonedDateTime.of(2026, 8, 18, 4, 5, 0, 0, manilaZone) to 0L,
                 ZonedDateTime.of(2026, 8, 18, 4, 6, 0, 0, manilaZone) to
-                    java.time.Duration.ofHours(24).minusMinutes(1).toMillis(),
+                    java.time.Duration
+                        .ofHours(24)
+                        .minusMinutes(1)
+                        .toMillis(),
             )
         for ((now, expectedExpiryMs) in expiryCases) {
             val executor = RecordingExecutor()
@@ -139,6 +162,16 @@ class SchedulerLifecycleTest {
             }
         }
     }
+
+    private fun minutesToMs(minutes: Long): Long =
+        java.time.Duration
+            .ofMinutes(minutes)
+            .toMillis()
+
+    private fun hoursToMs(hours: Long): Long =
+        java.time.Duration
+            .ofHours(hours)
+            .toMillis()
 
     private class FailingExecutor : ScheduledThreadPoolExecutor(THREAD_COUNT) {
         override fun scheduleAtFixedRate(
@@ -178,7 +211,10 @@ class SchedulerLifecycleTest {
 
                 override fun get(): Any = error("no result")
 
-                override fun get(timeout: Long, unit: TimeUnit): Any = error("no result")
+                override fun get(
+                    timeout: Long,
+                    unit: TimeUnit,
+                ): Any = error("no result")
             }
         }
     }
