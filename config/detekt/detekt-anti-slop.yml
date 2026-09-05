@@ -512,12 +512,14 @@ style:
 # A configuration-only Detekt preset cannot faithfully implement these parts of
 # the TypeScript anti-slop plugin:
 #
-# - reject Any/Any? in parameters and return types;
-# - reject Map<String, Any?> and equivalent weak dictionary contracts;
 # - reject a known value widened to Any and later cast back;
 # - require a specific SAFETY comment for every unavoidable cast;
 # - reject every unsafe cast that remains runtime-plausible;
 # - ban ad-hoc runtime type checks while allowing named boundary parsers.
+#
+# Landed as custom rules in :detekt-rules (ref #466, active via
+# detekt-custom.yml): NoAnyInPublicSignature (Any/Any?/object params + returns
+# in public signatures) and NoWeakMapContract (Map<String, Any?> equivalents).
 #
 # Those require custom PSI/type-resolution rules. Do not approximate them with
 # regex naming rules: that creates blind spots and false confidence.

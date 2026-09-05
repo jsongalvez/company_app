@@ -6,3 +6,7 @@
 CompanyApp:
   SuppressRequiresTicket:
     active: true
+  NoAnyInPublicSignature:
+    active: true
+  NoWeakMapContract:
+    active: true
