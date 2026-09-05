@@ -12,15 +12,16 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 
 // #479 — the session roster + member-directory seam, extracted from SessionViewModel so the
-// file-function wall (TMF) stays honest. The #382 generation discipline travels with it: one
-// VM serves the desktop pane across selection switches, so a superseded roster or member GET
-// must not commit over the newer request (stale body never deserialized — the committed value
+// file-function wall (TMF) stays honest. The #382 generation discipline travels with it:
+// #486 keys one VM per selection, so a switch starts a fresh scope; within a scope,
+// rapid successive loads still race, and a superseded roster or member GET must not
+// commit over the newer request (stale body never deserialized — the committed value
 // stands). These are extension functions on the ViewModel: SessionDetailPane and
 // SessionDetailPaneDialogs call sites resolve identically, with imports added at the top.
 
 internal fun SessionViewModel.loadSessionPractitioners(sessionId: String) {
-    // #382 — generation guard: the desktop pane reuses one VM across selection switches,
-    // so a superseded roster GET (session switched mid-flight) must not commit over the
+    // #382 — generation guard: the desktop pane reuses one VM per selection, so a
+    // superseded roster GET (a newer load dispatched mid-flight) must not commit over the
     // newer request — a stale body is never deserialized; the committed value stands.
     ++rosterGeneration
     handler.launch(

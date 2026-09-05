@@ -45,10 +45,10 @@ internal class PaneDialogTargets {
     // #419 — the session-linked product-sale dialog slot (per-selection, like the rest).
     var showSell by mutableStateOf(false)
 
-    // #406 — the sticky void/unvoid flows are shared across selection switches (one VM
-    // serves the whole desktop pane), so each submit arms the issuing session id and the
-    // effects act only on an armed landing; a late landing from a switched-away selection
-    // drains silently instead of repainting the wrong pane.
+    // #406 — the sticky void/unvoid flows are armed with the issuing session id (#486
+    // keys one VM per selection, so the armed landing always belongs to this scope; the
+    // check stays as the same-scope guard): only an armed landing acts, a late landing
+    // from a switched-away selection drains silently instead of repainting the wrong pane.
     var voidArmedFor by mutableStateOf<String?>(null)
     var unvoidArmedFor by mutableStateOf<String?>(null)
 }

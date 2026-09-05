@@ -55,7 +55,7 @@ class SessionViewModel(
     // #382 — post-create practitioner adds need the branch member directory (the same read
     // SessionCreate uses); loaded lazily when the picker dialog opens.
     // #382 — generation counters for the superseded-landing guards in the roster/members
-    // loaders (one VM serves the desktop pane across selection switches).
+    // loaders (one VM serves one selection since #486; the guards cover same-scope races).
     internal var rosterGeneration = 0L
     internal var membersGeneration = 0L
 

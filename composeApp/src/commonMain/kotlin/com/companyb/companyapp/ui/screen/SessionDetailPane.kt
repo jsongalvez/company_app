@@ -55,7 +55,8 @@ import kotlin.uuid.Uuid
  * the desktop master-detail inline pane and the mobile pushed SessionDetail route (#152's
  * byte-identical-content rule, extended to the editable path).
  *
- * A side-loaded [SessionViewModel] owns the roster (`GET .../practitioners`) and every
+ * A per-selection side-loaded [SessionViewModel] (keyed by session id, #486) owns
+ * the roster (`GET .../practitioners`) and every
  * mutation; the authoritative row arrives via the [session] param and is reloaded by
  * [refreshSession] after each landing — pessimistic model (ADR-0022): nothing commits
  * locally, server truth repaints. ANY non-success mutation landing also calls
@@ -89,9 +90,18 @@ internal fun SessionDetailPane(
         EmptySessionPlaceholder(modifier)
         return
     }
-    val sessionVm: SessionViewModel = viewModel { SessionViewModel(apiClient) }
-    val productSaleVm: ProductSaleViewModel = viewModel { ProductSaleViewModel(apiClient) }
-    val inventoryVm: InventoryViewModel = viewModel { InventoryViewModel(apiClient) }
+    // #486 — selection-owned scopes: every side-loaded VM is keyed by session.id, so
+    // switching the desktop selection creates a fresh scope (roster/members/results start
+    // Idle — no stale rows for mergeRosterNames, no sticky result replay into the new
+    // pane). A late landing from a switched-away selection commits into its dead scope,
+    // never the visible pane (the roster/members stamp guards still cover same-scope
+    // races: a superseded load never deserializes over the newer commit).
+    val sessionVm: SessionViewModel =
+        viewModel(key = "session-detail-${session.id}") { SessionViewModel(apiClient) }
+    val productSaleVm: ProductSaleViewModel =
+        viewModel(key = "session-sale-${session.id}") { ProductSaleViewModel(apiClient) }
+    val inventoryVm: InventoryViewModel =
+        viewModel(key = "session-inventory-${session.id}") { InventoryViewModel(apiClient) }
     val currentUser by SessionState.currentUser.collectAsState()
     val roster by sessionVm.practitioners.collectAsState()
     val practitionerResult by sessionVm.practitionerResult.collectAsState()
