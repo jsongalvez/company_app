@@ -1,7 +1,6 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.auth.CredentialTokens
-import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.auth.PasswordResetDelivery
@@ -229,11 +228,22 @@ object AuthService {
         }
 
     /**
+     * #492 — authenticated logout: persists the JWT revocation boundary before returning
+     * success, so pre-logout tokens stay dead across restart and backend processes.
+     */
+    fun logout(userId: UUID) {
+        transaction {
+            UserRepository.advanceRevocationBoundaryInTransaction(userId)
+        }
+        logger.info { "[LOGOUT] Logout processed for ${userId.toString().maskUUID()}" }
+    }
+
+    /**
      * #353 — public single-use reset redemption: same atomic consume as [acceptInvite]
      * (single-use + expiry in one UPDATE predicate, DB clock), purpose-scoped to
      * PASSWORD_RESET. Replaces the password hash (the prior credential stops working) and
-     * denies the user's live JWTs so an attacker holding a session cannot outlive the reset.
-     * changedBy is the requesting user themself.
+     * advances the persisted revocation boundary in the same transaction so live JWTs die
+     * atomically with the reset. changedBy is the requesting user themself.
      */
     fun resetPassword(
         rawCode: String,
@@ -262,6 +272,7 @@ object AuthService {
                     )
                 }
                 UserRepository.setPasswordHashInTransaction(userId, Password.create(newPassword))
+                UserRepository.advanceRevocationBoundaryInTransaction(userId)
                 AuthAudit.passwordSet(
                     recordId = userId,
                     oldLabel = "(previous)",
@@ -276,7 +287,6 @@ object AuthService {
                 )
                 userId
             }
-        DenyList.deny(resetUserId)
         logger.info { "[PASSWORD-RESET] Password reset completed for ${resetUserId.toString().maskUUID()}" }
     }
 }

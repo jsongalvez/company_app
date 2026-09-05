@@ -239,9 +239,10 @@ Build JSON values with `AuditLogRepository.jsonField(key, value)` (safely escape
 convenience methods `recordInsert`, `recordUpdate`, `recordDelete` which accept
 and `Map<String, String>` field maps.
 
-Immediate revocation uses the in-memory `DenyList` (`ConcurrentHashMap<UUID, Instant>`), checked
-inside `JwtService.verifyToken` BEFORE any DB lookup, populated at startup
-(`Main.initializeDenyList`), and auto-evicting entries older than 24h (JWT max expiry).
+Immediate revocation is durable (#492): logout, password reset, and deactivation advance
+the persisted `app_user.jwt_revoked_at` boundary inside their command transaction, and
+`JwtService.verifyToken` accepts a token only through the single `UserRepository.authorize`
+read (ACTIVE status plus issuance strictly after the boundary). No process-local state.
 
 ## HTTP errors & day state
 
@@ -406,8 +407,7 @@ write an audit log entry for the UPDATE, and return the updated record. `isRelie
 
 Integration tests use a real Postgres instance via `DatabaseTestHelper.ensureDatabase()` (connects
 via the root `.env` configuration). Run all tests with `./gradlew :backend:test`. Prefer DB-free
-unit tests for pure-logic helpers; inject time through internal `*At(now: Instant)` helpers (see
-`DenyListTest`).
+unit tests for pure-logic helpers; inject time through internal `*At(now: Instant)` helpers.
 
 Fixture clocks and validity windows must agree: a fixture that seeds a
 `validFrom`/`validTo` window (or any time-gated state) derives it from an injectable real clock

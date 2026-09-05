@@ -88,7 +88,7 @@ company-app/
 │       ├── api/routes/       # HTTP endpoints
 │       ├── api/middleware/    # Capability enforcement filters
 │       ├── api/mapping/      # Domain results → HTTP responses
-│       ├── auth/             # JWT handling, rate limiting, deny list
+│       ├── auth/             # JWT handling, rate limiting, password hashing
 │       ├── config/           # Javalin config, serialization mapper
 │       ├── database/         # HikariCP + Flyway + Exposed setup
 │       ├── logging/          # Logback converters, logging extensions
@@ -142,7 +142,7 @@ iosApp ──────imports────> shared (as KMP framework)
   command's transaction (ADR-0024)
 
 ### Auth (`auth/`)
-- JWT issuance and verification, bcrypt password hashing, rate limiting, deny list
+- JWT issuance and verification, bcrypt password hashing, rate limiting, persisted revocation
 - Middleware reads JWT → resolves userId for subsequent capability checks
 
 ### Database (`database/`)
@@ -265,9 +265,7 @@ The `active_user_capabilities` view's time-window filter (`now() <= valid_to`) h
 
 ### 9.6 Inactive User Revocation
 
-`active_user_capabilities` joins `app_user` and filters `status = 'ACTIVE'`. Setting a user to `INACTIVE` immediately revokes all capability checks. The session token itself is also rejected via an in-memory deny list keyed by `userId`.
-
-**Deny list:** `ConcurrentHashMap<UUID, Instant>` — evicted after 24h (JWT max expiry). Deactivation persists an independent `jwt_revoked_at` boundary; on server restart, the cache repopulates from all persisted boundaries so Reactivate does not revive old JWTs.
+`active_user_capabilities` joins `app_user` and filters `status = 'ACTIVE'`. Setting a user to `INACTIVE` immediately revokes all capability checks. The session token itself is rejected by the persisted revocation check in `UserRepository.authorize`: logout, password reset, and deactivation advance `app_user.jwt_revoked_at`, and a token verifies only when its `iat` is strictly later than that boundary (#492). Reactivate never clears the boundary, so old JWTs stay dead.
 
 ### 9.7 Relief Access Grant Flow
 
@@ -555,7 +553,7 @@ Javalin + HikariCP + Flyway wired up. JWT auth, login/register, rate limiting, b
 
 ### Phase 2 — Business Features (scoped below)
 
-**2A — Foundation:** Seed roles + capabilities, `CapabilityService` + `active_user_capabilities` view, JWT deny list, `BranchDayRepository.resolveOrCreate`.
+**2A — Foundation:** Seed roles + capabilities, `CapabilityService` + `active_user_capabilities` view, persisted JWT revocation boundaries, `BranchDayRepository.resolveOrCreate`.
 
 **2B — Attendance + Auth:** Clock-in/out, relief access grant flow, medical mission delegate assign/revoke.
 

@@ -1,6 +1,6 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.auth.DenyList
+import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.PasswordResetSender
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.CredentialTokenPurpose
@@ -18,7 +18,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -105,14 +104,14 @@ class PasswordResetFlowPostgresTest : BasePostgresTest() {
     @Test
     fun `a code works exactly once and the new password replaces the old credential`() {
         val userId = newUser("reset-once")
+        val liveToken = JwtService.generateToken(userId.toString())
+        assertNotNull(JwtService.verifyToken(liveToken), "token must verify before the reset")
         val code = assertNotNull(AuthService.mintResetCode(username(userId)))
 
         AuthService.resetPassword(code, "valid-password")
 
         assertIs<LoginResult.Success>(AuthService.login(username(userId), "valid-password", "127.0.0.1"))
-        // Tokens issued before the reset are denied; compare against a pre-reset issue time
-        // (deny records the reset instant, and the test clock must not race past it).
-        assertTrue(DenyList.isDenied(userId, Instant.now().minusSeconds(60)), "live JWTs must not survive a reset")
+        assertNull(JwtService.verifyToken(liveToken), "live JWTs must not survive a reset")
 
         val error =
             assertFailsWith<ValidationException> {

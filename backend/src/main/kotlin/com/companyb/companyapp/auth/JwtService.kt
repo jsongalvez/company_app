@@ -80,21 +80,15 @@ object JwtService {
                         logger.warn { "[VERIFY-TOKEN] Invalid UUID in subject: ${subj.maskUUID()}" }
                         return null
                     }
-            // Missing iat fails closed (treated as epoch — denied while any deny entry exists);
-            // tokens we sign always carry iat.
-            val issuedAt = decoded.issuedAt?.toInstant() ?: Instant.EPOCH
-            when {
-                DenyList.isDenied(parsedId, issuedAt) -> {
-                    null.also { logger.warn { "[VERIFY-TOKEN] User ${subj.maskUUID()} is on the deny list" } }
+            // Missing iat is rejected explicitly (#492); tokens we sign always carry iat.
+            val issuedAt =
+                decoded.issuedAt?.toInstant() ?: return null.also {
+                    logger.warn { "[VERIFY-TOKEN] Token has no issued-at claim" }
                 }
-
-                UserRepository.authorize(subj) -> {
-                    subj
-                }
-
-                else -> {
-                    null.also { logger.warn { "[VERIFY-TOKEN] User ${subj.maskUUID()} is unauthorized" } }
-                }
+            if (UserRepository.authorize(parsedId, issuedAt)) {
+                subj
+            } else {
+                null.also { logger.warn { "[VERIFY-TOKEN] User ${subj.maskUUID()} is unauthorized" } }
             }
         } catch (e: JWTVerificationException) {
             logger.warn(e) { "[VERIFY-TOKEN] Invalid token" }

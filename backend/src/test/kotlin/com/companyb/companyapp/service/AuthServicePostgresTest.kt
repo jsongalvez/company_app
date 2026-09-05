@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.domain.LoginResult
@@ -17,7 +16,6 @@ import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.time.Instant
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -29,7 +27,6 @@ class AuthServicePostgresTest : BasePostgresTest() {
     private val userId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DenyList.clear()
         val passwordHash = Password.create("test-password")
         DatabaseTestHelper.insertUser(
             id = userId,
@@ -50,7 +47,7 @@ class AuthServicePostgresTest : BasePostgresTest() {
         assertNotNull(beforeLogout, "Token should be valid before logout")
         assertEquals(userId.toString(), beforeLogout)
 
-        DenyList.deny(userId)
+        AuthService.logout(userId)
 
         val afterLogout = JwtService.verifyToken(token)
         assertNull(afterLogout, "Token should be invalid after logout")
@@ -58,20 +55,23 @@ class AuthServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `logout is idempotent`() {
-        DenyList.deny(userId)
-        DenyList.deny(userId)
+        AuthService.logout(userId)
+        AuthService.logout(userId)
     }
 
     @Test
-    fun `login after deny issues a fresh token that verifies`() {
-        // Stamp the deny 5s in the past: JWT iat is second-precision, so any token
-        // minted now has iat strictly after the deny — no clock boundary to cross.
-        DenyList.denyAt(userId, TestFixtures.realNow().minusSeconds(5))
+    fun `login after logout issues a fresh token that verifies`() {
+        AuthService.logout(userId)
 
+        // JWT iat is second-precision: a token minted in the same second as the
+        // revocation is indistinguishable from a pre-revocation token and stays
+        // denied, so cross the second boundary before minting the fresh token.
+        TestFixtures.waitForNextSecond()
         val result = AuthService.login("logout-test-$userId", "test-password", "203.0.113.${userId.toString().take(8)}")
 
-        val token = (result as? LoginResult.Success)?.token ?: error("login must succeed after deny for an ACTIVE user")
-        assertNotNull(JwtService.verifyToken(token), "fresh token issued after deny must verify")
+        val token =
+            (result as? LoginResult.Success)?.token ?: error("login must succeed after logout for an ACTIVE user")
+        assertNotNull(JwtService.verifyToken(token), "fresh token issued after logout must verify")
     }
 
     @Test
@@ -82,7 +82,7 @@ class AuthServicePostgresTest : BasePostgresTest() {
         assertNotNull(JwtService.verifyToken(token1))
         assertNotNull(JwtService.verifyToken(token2))
 
-        DenyList.deny(userId)
+        AuthService.logout(userId)
 
         assertNull(JwtService.verifyToken(token1))
         assertNull(JwtService.verifyToken(token2))

@@ -1,7 +1,6 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
-import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.domain.LoginResult
 import com.companyb.companyapp.dto.AcceptInviteRequest
 import com.companyb.companyapp.dto.ForgotPasswordRequest
@@ -18,7 +17,6 @@ import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiRequestBody
 import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
-import java.util.UUID
 
 @OpenApi(
     path = ApiRoutes.AUTH_LOGIN,
@@ -131,8 +129,7 @@ object AuthRoutes {
 
     fun logout(config: JavalinConfig) {
         config.routes.post(ApiRoutes.AUTH_LOGOUT) { context ->
-            val callerId = context.callerUuid()
-            DenyList.deny(callerId)
+            AuthService.logout(context.callerUuid())
             context.status(HttpStatus.OK)
         }
     }

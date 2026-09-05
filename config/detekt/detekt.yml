@@ -699,7 +699,6 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/RoutesUtil.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/SessionBaseRateRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/SessionRoutes.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/auth/DenyList.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/auth/JwtService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/auth/Password.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/auth/PasswordResetDelivery.kt' #465 frozen

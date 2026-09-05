@@ -33,7 +33,6 @@ import com.companyb.companyapp.api.routes.SessionBaseRateRoutes
 import com.companyb.companyapp.api.routes.SessionRoutes
 import com.companyb.companyapp.api.routes.UserBranchAssignmentRoutes
 import com.companyb.companyapp.api.routes.UserRoutes
-import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.auth.PasswordResetDelivery
@@ -231,12 +230,6 @@ private fun registerServerErrorHandler(config: io.javalin.config.JavalinConfig) 
     }
 }
 
-fun initializeDenyList() {
-    logger.info { "[INITIALIZE-DENY-LIST] Loading persisted revocations into deny list" }
-    DenyList.loadPersistedRevocations()
-    logger.info { "[INITIALIZE-DENY-LIST] Deny list initialized" }
-}
-
 private val schedulerLifecycle = SchedulerLifecycle()
 
 /**
@@ -275,7 +268,6 @@ fun main(config: AppConfig) {
 
     DatabaseConfig.initialize(config)
     runCatching {
-        initializeDenyList()
         initializeScheduler()
         initializeJavalin(config)
     }.onFailure {

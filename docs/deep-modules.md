@@ -56,12 +56,12 @@ intentionally shallow.
 
 ## Auth & Credentials
 
-**Owns:** login, JWT issue/verify, immediate revocation (in-memory deny list over persisted `jwt_revoked_at` boundaries), password hashing with timing-shield dummy hash, single-use credential tokens (invite redemption #350, password reset #353), per-IP rate limiting.
-**Anchors:** `auth/JwtService.kt`, `auth/DenyList.kt`, `service/AuthService.kt`.
-**Public seam:** `JwtService.generateToken` / `verifyToken` · `DenyList.deny` (crossed by Users deactivation + logout) · `Password.create` / `verify` · `CredentialTokens.generate` / `hash` · `AuthService.login` / `acceptInvite` / `requestPasswordReset` / `resetPassword`.
+**Owns:** login, JWT issue/verify, durable revocation (persisted `jwt_revoked_at` boundaries checked in the authorization read), password hashing with timing-shield dummy hash, single-use credential tokens (invite redemption #350, password reset #353), per-IP rate limiting.
+**Anchors:** `auth/JwtService.kt`, `repository/UserRepository.kt` (authorization + boundary), `service/AuthService.kt`.
+**Public seam:** `JwtService.generateToken` / `verifyToken` · `UserRepository.authorize` / `advanceRevocationBoundaryInTransaction` · `Password.create` / `verify` · `CredentialTokens.generate` / `hash` · `AuthService.login` / `logout` / `acceptInvite` / `requestPasswordReset` / `resetPassword`.
 **Depends on:** Users (authorization lookup, revocation boundaries), Audit (token consumption rows).
-**Expansion triggers:** JWT claims/expiry (deny-list eviction horizon derives from them); `credential_token` schema; second-precision `iat` ambiguity rules (documented in `DenyList` header).
-**Tests/authority:** `DenyListTest` (clock-injected); token lifecycle comments in `AuthService`/`CredentialTokens`.
+**Expansion triggers:** JWT claims/expiry; `credential_token` schema; second-precision `iat` ambiguity rules (#492: same-second issuance stays denied).
+**Tests/authority:** `PersistentRevocationPostgresTest`; token lifecycle comments in `AuthService`/`CredentialTokens`.
 **Search:** `mintResetCode` (internal test seam for the reset flow), `RateLimiter.isAllowed`, `consumeIfLive`.
 
 ## Users & Roles
@@ -69,8 +69,8 @@ intentionally shallow.
 **Owns:** user lifecycle (idempotent deactivate/reactivate + persisted JWT revocation boundary), invite minting with re-invite recovery, full-replace role membership (SUPERUSER guarded both directions), user listing with assignments + roles.
 **Anchors:** `service/UserService.kt`, `repository/UserRepository.kt`, `repository/RoleRepository.kt`.
 **Public seam:** `UserService` commands (`deactivate`, `reactivate`, `replaceRoles`, `mintInvite`, `listUsers`, `getRoles`).
-**Depends on:** Auth (tokens, deny list, hashing), Audit. Role→capability derivation lives in SQL (view union: V16-era GLOBAL leg, V21 branch-scoped leg, V25 OWNER GLOBAL read), not this module.
-**Expansion triggers:** role-derived capability semantics (ADR-0023 + its #417/#431 amendments); deactivation/revocation interplay with the deny list.
+**Depends on:** Auth (tokens, persisted revocation, hashing), Audit. Role→capability derivation lives in SQL (view union: V16-era GLOBAL leg, V21 branch-scoped leg, V25 OWNER GLOBAL read), not this module.
+**Expansion triggers:** role-derived capability semantics (ADR-0023 + its #417/#431 amendments); deactivation/revocation interplay with the persisted boundary.
 **Search:** `SUPERUSER_GUARD_MESSAGE`, `deactivateInTransaction`, `user_role`.
 
 ## Session

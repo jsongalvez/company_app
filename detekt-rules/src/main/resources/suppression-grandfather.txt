@@ -37,7 +37,6 @@ backend/src/main/kotlin/com/companyb/companyapp/api/routes/SessionBaseRateRoutes
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/SessionRoutes.kt:LongMethod
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/SessionRoutes.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/SessionRoutes.kt:TooManyFunctions
-backend/src/main/kotlin/com/companyb/companyapp/auth/DenyList.kt:TooManyFunctions
 backend/src/main/kotlin/com/companyb/companyapp/auth/JwtService.kt:ReturnCount
 backend/src/main/kotlin/com/companyb/companyapp/auth/JwtService.kt:UnreachableCode
 backend/src/main/kotlin/com/companyb/companyapp/auth/Password.kt:ReturnCount

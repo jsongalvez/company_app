@@ -1,6 +1,6 @@
 package com.companyb.companyapp.service
-import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
+import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.UserStatus
@@ -25,7 +25,6 @@ import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -43,7 +42,6 @@ class UserServicePostgresTest : BasePostgresTest() {
     private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DenyList.clear()
         DatabaseTestHelper.insertTestUser(callerId, "caller")
         trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestUser(targetUserId, "target")
@@ -61,7 +59,7 @@ class UserServicePostgresTest : BasePostgresTest() {
         UserService.deactivate(callerId, targetUserId)
 
         assertEquals(UserStatus.INACTIVE, userStatus(targetUserId))
-        assertTrue(DenyList.isDenied(targetUserId, Instant.EPOCH), "pre-deny token must stay denied")
+        assertNotNull(jwtRevokedAt(targetUserId), "deactivation must persist the revocation boundary")
         assertNull(JwtService.verifyToken(targetToken))
 
         val auditEntry = latestAuditEntry(targetUserId)
@@ -120,9 +118,9 @@ class UserServicePostgresTest : BasePostgresTest() {
 
         assertEquals(UserStatus.ACTIVE, userStatus(targetUserId))
         assertNull(deactivatedAt(targetUserId))
-        assertTrue(
-            DenyList.isDenied(targetUserId, Instant.EPOCH),
-            "old tokens stay dead — DenyList is not cleared by reactivate",
+        assertNotNull(
+            jwtRevokedAt(targetUserId),
+            "old tokens stay dead — reactivation never clears the persisted boundary",
         )
         val auditEntry = latestAuditEntry(targetUserId)
         assertEquals("UPDATE", auditEntry.action)
@@ -148,8 +146,8 @@ class UserServicePostgresTest : BasePostgresTest() {
             "pre-deactivation token must stay dead after reactivation",
         )
 
-        // JWT iat is second-precision: a token generated in the same second as the deny
-        // is indistinguishable from a pre-deny token and stays denied (DenyList KDoc).
+        // JWT iat is second-precision: a token generated in the same second as the
+        // revocation is indistinguishable from a pre-revocation token and stays denied.
         waitForNextSecond()
         val freshToken = JwtService.generateToken(targetUserId.toString())
         assertEquals(
@@ -160,16 +158,15 @@ class UserServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `persisted revocation survives deny list restart after reactivation`() {
+    fun `persisted revocation survives fresh JwtService init after reactivation`() {
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         val oldToken = JwtService.generateToken(targetUserId.toString())
 
         UserService.deactivate(callerId, targetUserId)
         UserService.reactivate(callerId, targetUserId)
-        DenyList.clear()
-        DenyList.loadPersistedRevocations()
+        JwtService.init(AppConfig.parse())
 
-        assertNull(JwtService.verifyToken(oldToken), "old token must stay dead after deny-list restart")
+        assertNull(JwtService.verifyToken(oldToken), "old token must stay dead without any cache warm-up")
         waitForNextSecond()
         val freshToken = JwtService.generateToken(targetUserId.toString())
         assertEquals(targetUserId.toString(), JwtService.verifyToken(freshToken))
@@ -374,6 +371,14 @@ class UserServicePostgresTest : BasePostgresTest() {
                 .selectAll()
                 .where { AppUserTable.id eq userId }
                 .single()[AppUserTable.deactivatedAt]
+        }
+
+    private fun jwtRevokedAt(userId: UUID): OffsetDateTime? =
+        transaction {
+            AppUserTable
+                .selectAll()
+                .where { AppUserTable.id eq userId }
+                .single()[AppUserTable.jwtRevokedAt]
         }
 
     private fun userStatus(userId: UUID): UserStatus =

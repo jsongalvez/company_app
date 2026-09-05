@@ -45,7 +45,6 @@ class TimeOwnershipArchitectureTest {
         // Branch Day's overload IS the authority.
         val allowedFiles =
             setOf(
-                "backend/src/main/kotlin/com/companyb/companyapp/auth/DenyList.kt",
                 "backend/src/main/kotlin/com/companyb/companyapp/auth/JwtService.kt",
                 "backend/src/main/kotlin/com/companyb/companyapp/service/AuthService.kt",
                 "backend/src/main/kotlin/com/companyb/companyapp/service/UserService.kt",

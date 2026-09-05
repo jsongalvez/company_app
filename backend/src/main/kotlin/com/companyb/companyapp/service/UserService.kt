@@ -1,7 +1,6 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.auth.CredentialTokens
-import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.domain.CredentialTokenPurpose
 import com.companyb.companyapp.dto.InviteMintRequest
@@ -33,9 +32,9 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 /**
- * User administration. Deactivation revokes all access immediately by both persisting
- * INACTIVE status (so future tokens fail DB authorization) and adding the user to the
- * in-memory [DenyList] (so already-issued tokens are rejected before any DB lookup).
+ * User administration. Deactivation revokes all access immediately by persisting INACTIVE
+ * status plus the JWT revocation boundary in the same transaction (#492) — already-issued
+ * tokens fail the persisted-boundary authorization read without any process-local state.
  *
  * Mutating commands own exactly one transaction (#323, ADR-0024): persistence runs on it
  * via `UserRepository.*InTransaction` store operations and the audit row is inserted into
@@ -260,22 +259,15 @@ object UserService {
         if (callerId == targetUserId) {
             throw ValidationException(SELF_DEACTIVATE_MESSAGE)
         }
-        val transition =
-            transaction {
-                val t =
-                    UserRepository.deactivateInTransaction(targetUserId)
-                        ?: throw NotFoundException("User not found")
-                if (t.changed) {
-                    UserAudit.statusUpdated(AuditContext(callerId), t.before, t.after)
-                }
-                t
+        transaction {
+            val t =
+                UserRepository.deactivateInTransaction(targetUserId)
+                    ?: throw NotFoundException("User not found")
+            if (t.changed) {
+                UserAudit.statusUpdated(AuditContext(callerId), t.before, t.after)
             }
-        DenyList.denyAt(
-            targetUserId,
-            transition.after.jwtRevokedAt?.toInstant()
-                ?: error("Deactivation did not persist JWT revocation"),
-        )
-        logger.info { "[DEACTIVATE] Deactivation request processed; user added to deny list" }
+        }
+        logger.info { "[DEACTIVATE] Deactivation request processed" }
     }
 
     fun reactivate(

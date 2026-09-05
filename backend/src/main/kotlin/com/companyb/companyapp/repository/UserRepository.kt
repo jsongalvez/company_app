@@ -11,12 +11,12 @@ import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserRoleTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.core.CustomFunction
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.innerJoin
-import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
@@ -27,6 +27,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.util.UUID
 
 private val logger = KotlinLogging.logger { }
@@ -58,6 +59,8 @@ data class UserStatusTransition(
 
 @Suppress("UnreachableCode", "TooManyFunctions")
 object UserRepository {
+    private val clockTimestamp = CustomFunction("clock_timestamp", CurrentTimestampWithTimeZone.columnType)
+
     fun findByUsername(username: String): AppUser? =
         transaction {
             AppUserTable
@@ -169,15 +172,32 @@ object UserRepository {
         }
     }
 
-    fun findJwtRevocationBoundaries(): Map<UUID, Instant> =
-        transaction {
+    /**
+     * Advances the persisted JWT revocation boundary to the database clock time taken after
+     * acquiring the user-row lock (#492). Retains the maximum boundary so concurrent
+     * reset/logout/deactivation cannot move it backward. Runs on the caller's command
+     * transaction and returns the stored boundary.
+     */
+    fun advanceRevocationBoundaryInTransaction(userId: UUID): OffsetDateTime {
+        val locked =
             AppUserTable
-                .select(AppUserTable.id, AppUserTable.jwtRevokedAt)
-                .where { AppUserTable.jwtRevokedAt.isNotNull() }
-                .associate { row ->
-                    row[AppUserTable.id] to row[AppUserTable.jwtRevokedAt]!!.toInstant()
-                }
-        }.also { logger.info { "[FIND-JWT-REVOCATIONS] Fetched ${it.size} persisted revocation boundary(ies)" } }
+                .selectAll()
+                .where { AppUserTable.id eq userId }
+                .forUpdate(ForUpdateOption.ForUpdate)
+                .singleOrNull() ?: error("User not found")
+        val now =
+            AppUserTable
+                .select(clockTimestamp)
+                .first()[clockTimestamp]
+        val existing = locked[AppUserTable.jwtRevokedAt]
+        val boundary = if (existing == null || now.isAfter(existing)) now else existing
+        if (existing == null || boundary.isAfter(existing)) {
+            AppUserTable.update({ AppUserTable.id eq userId }) {
+                it[jwtRevokedAt] = boundary
+            }
+        }
+        return boundary
+    }
 
     /**
      * Sets INACTIVE status and stamps [AppUserTable.deactivatedAt]. Idempotent for
@@ -190,6 +210,7 @@ object UserRepository {
             AppUserTable
                 .selectAll()
                 .where { AppUserTable.id eq userId }
+                .forUpdate(ForUpdateOption.ForUpdate)
                 .singleOrNull() ?: return null
 
         if (beforeRow[AppUserTable.status] == UserStatus.INACTIVE) {
@@ -197,10 +218,16 @@ object UserRepository {
             return UserStatusTransition(before, before, changed = false)
         }
 
+        val now =
+            AppUserTable
+                .select(clockTimestamp)
+                .first()[clockTimestamp]
+        val existingBoundary = beforeRow[AppUserTable.jwtRevokedAt]
+        val boundary = if (existingBoundary == null || now.isAfter(existingBoundary)) now else existingBoundary
         AppUserTable.update({ AppUserTable.id eq userId }) {
             it[status] = UserStatus.INACTIVE
-            it[deactivatedAt] = CurrentTimestampWithTimeZone
-            it[jwtRevokedAt] = CurrentTimestampWithTimeZone
+            it[deactivatedAt] = boundary
+            it[jwtRevokedAt] = boundary
         }
 
         val after =
@@ -298,21 +325,31 @@ object UserRepository {
                 }
         }.also { logger.info { "[FIND-ACTIVE-ASSIGNMENTS-WITH-BRANCH] Fetched ${it.size} active assignment(s)" } }
 
-    fun authorize(id: String): Boolean {
-        // safe: id is non-null String; caller guards null before calling
-        val userId = UUID.fromString(id)
+    /**
+     * Token-aware authorization read (#492): one query evaluates ACTIVE status plus the
+     * persisted revocation boundary. A token is accepted iff its owner exists, is ACTIVE,
+     * and was issued strictly after that user's nullable boundary. Same-second issuance
+     * stays denied — JWT `iat` is second-precision and cannot distinguish before/after.
+     */
+    fun authorize(
+        userId: UUID,
+        tokenIssuedAt: Instant,
+    ): Boolean {
         val authorized =
             transaction {
-                AppUserTable
-                    .select(AppUserTable.id)
-                    .where { (AppUserTable.id eq userId) and (AppUserTable.status eq UserStatus.ACTIVE) }
-                    .empty()
-                    .not()
+                val row =
+                    AppUserTable
+                        .select(AppUserTable.status, AppUserTable.jwtRevokedAt)
+                        .where { AppUserTable.id eq userId }
+                        .singleOrNull() ?: return@transaction false
+                if (row[AppUserTable.status] != UserStatus.ACTIVE) return@transaction false
+                val boundary = row[AppUserTable.jwtRevokedAt]?.toInstant() ?: return@transaction true
+                tokenIssuedAt.isAfter(boundary)
             }
         if (authorized) {
-            logger.info { "[AUTHORIZE] User ${id.maskUUID()} is authorized" }
+            logger.info { "[AUTHORIZE] User ${userId.toString().maskUUID()} is authorized" }
         } else {
-            logger.warn { "[AUTHORIZE] User ${id.maskUUID()} is not authorized" }
+            logger.warn { "[AUTHORIZE] User ${userId.toString().maskUUID()} is not authorized" }
         }
         return authorized
     }
