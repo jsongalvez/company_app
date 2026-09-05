@@ -1,7 +1,12 @@
 # ADR-0005: Trigger DDL in test helpers via raw exec()
 
-**Status:** Accepted
-**Date:** 2026-07-16
+**Status:** Superseded by #494 (no trigger toggle)
+**Date:** 2026-07-16, superseded 2026-09-05
+
+Superseded: the helper is deleted. `TRUNCATE` fires no `ON DELETE` trigger, so reset
+never disables snapshot immutability. The prior "session-level, same-connection" claim
+was incorrect — `ALTER TABLE ... DISABLE TRIGGER` is transactional DDL, not
+connection-local — and is removed with the helper. History below, not active guidance.
 
 ## Context
 

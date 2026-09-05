@@ -1,7 +1,12 @@
 # ADR-0004: Entity-registry test teardown
 
-**Status:** Accepted
-**Date:** 2026-07-16
+**Status:** Superseded by #494 (owned-schema reset)
+**Date:** 2026-07-16, superseded 2026-09-05
+
+Superseded: #494 deletes the registry. Each worker owns its mutable fixture namespace
+(#493); per-test isolation is one `TRUNCATE ... RESTRICT` of the owned schema
+(`TestWorkerSchema.reset` via `DatabaseTestHelper.resetWorkerSchema`), seeds preserved,
+no per-row registration. History below, not active guidance.
 
 ## Context
 

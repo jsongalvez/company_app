@@ -52,7 +52,7 @@ pass gradle args to override. Keep the daemon and configuration/build caches war
 | Change | Narrowest useful check |
 |---|---|
 | Backend pure-service logic | `./gradlew :backend:test --tests '<Fqcn>'` |
-| Backend DB/transaction/locking change | focused `*PostgresTest` (fresh owned schema per JVM — no cleanup step) |
+| Backend DB/transaction/locking change | focused `*PostgresTest` (owned schema per JVM + automatic per-test reset — no manual cleanup) |
 | Backend route/DTO contract change | `bash scripts/check-openapi-spec.sh` (pays its hidden compile once) |
 | Shared DTO/domain type | `./gradlew :shared:compileKotlinJvm :shared:jvmTest` |
 | Compose desktop UI only | `./gradlew :composeApp:compileKotlinDesktop` (+ `:composeApp:desktopTest` for VM logic) |
@@ -410,7 +410,10 @@ Integration tests use a real Postgres instance via `DatabaseTestHelper.ensureDat
 via the root `.env` configuration). Each test JVM owns one `test_w_<pid>_<rand>` schema in the
 dedicated test database (one Flyway migration per worker, `search_path "<owned>", public` on every
 pooled connection); methods within a worker stay serial, isolation is between JVMs only (#493,
-ADR-0006). Run all tests with `./gradlew :backend:test`. Prefer DB-free
+ADR-0006). Per-test isolation is one `TRUNCATE ... RESTRICT` of the owned schema before setup
+and after each test (`DatabaseTestHelper.resetWorkerSchema`, seeds + Flyway history preserved,
+snapshot trigger never toggled — #494). Tests describe scenarios and assertions only, never
+row ownership. Run all tests with `./gradlew :backend:test`. Prefer DB-free
 unit tests for pure-logic helpers; inject time through internal `*At(now: Instant)` helpers.
 
 Fixture clocks and validity windows must agree: a fixture that seeds a

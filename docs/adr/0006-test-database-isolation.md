@@ -1,6 +1,6 @@
 # ADR-0006: Test database isolation and post-test cleanliness check
 
-**Status:** Accepted, amended by #493 (owned schema per test JVM)
+**Status:** Accepted, amended by #493 (owned schema per test JVM) and #494 (owned-schema reset)
 **Date:** 2026-07-16, amended 2026-09-05
 
 ## Context
@@ -59,12 +59,16 @@ not make concurrent test methods in one JVM safe.
 
 This is one migration per JVM, not ADR-0004's rejected per-class migration: ADR-0004
 rejected Flyway clean+migrate per test class (~2s x hundreds of classes); #493 pays
-one migration per `./gradlew :backend:test` worker and keeps the existing row
-registry as a temporary bridge until #494 replaces per-row teardown with schema
-reset. `WorkerSchemaLifecycleTest` owns the lifecycle proof (search_path order,
+one migration per `./gradlew :backend:test` worker. #494 replaces per-row teardown
+with schema reset: `BasePostgresTest` truncates the owned schema before setup and
+after each test (`TestWorkerSchema.reset` — metadata-discovered BASE TABLEs, seeds +
+Flyway history preserved, single `TRUNCATE ... RESTRICT`, no trigger toggle).
+`WorkerSchemaLifecycleTest` owns the lifecycle proof (search_path order,
 `current_schema()`, extension placement + `similarity()` usability, migration/view/
 trigger presence, enum-backed writes, two-schema disjointness, public-sentinel
-survival across init and disposal, guard rejections).
+survival across init and disposal, guard rejections); `WorkerSchemaResetTest` owns
+the reset proof (unregistered side-effect rows disappear, seeds survive, repeat setup
+works, snapshot UPDATE stays rejected before and after reset).
 
 Backend-suite evidence is that lifecycle test plus the full `:backend:test` run —
 `scripts/check-test-cleanliness.sh` no longer proves anything about backend tests
@@ -81,10 +85,9 @@ database; quality/local-ci no longer run the public check as a backend gate.
   worker mints a fresh owned schema and drops it on normal JVM shutdown; a killed worker's
   uniquely named leftover never blocks the next run (no scanning/deleting others).
 - `DatabaseTestHelper.testDataSource` provides the HikariDataSource for remaining raw JDBC
-  helpers (trigger DDL, legacy product-sale inserts in RemittanceService and
-  MonthlyRemittanceSummary tests). Raw JDBC is confined to test code only.
+  helpers (owned-schema reset TRUNCATE, legacy product-sale inserts in RemittanceService and
+  MonthlyRemittanceSummary tests). Raw JDBC and raw TRUNCATE DDL are confined to test code only.
 - Seed data (roles, capabilities) is migrated per worker schema by Flyway (V2) — no shared
   seed rows across workers; the `public` cleanliness scripts stay for k6 only.
 - Adding a new table to the schema requires no test-infrastructure changes; per-worker Flyway
-  migrates it automatically. The temporary row registry (`BasePostgresTest.trackOwned`) stays
-  until #494 replaces it with schema reset.
+  migrates it automatically and reset discovers it via metadata. No per-row registration.
