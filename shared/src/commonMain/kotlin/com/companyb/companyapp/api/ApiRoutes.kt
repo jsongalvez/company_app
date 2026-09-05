@@ -4,6 +4,9 @@ package com.companyb.companyapp.api
 @Suppress("TooManyFunctions")
 object ApiRoutes {
     const val API_PREFIX = "/api/"
+
+    // #471 — opaque per-request id minted server-side; echoed on every response.
+    const val TRACE_ID_HEADER = "X-Trace-Id"
     private const val API_ROOT = "/api"
     const val AUTH_LOGIN = "/auth/login"
     const val AUTH_ACCEPT_INVITE = "/auth/accept-invite"

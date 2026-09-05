@@ -1,6 +1,7 @@
 package com.companyb.companyapp
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.middleware.TraceIdFilter
 import com.companyb.companyapp.api.routes.AllowanceRoutes
 import com.companyb.companyapp.api.routes.AttendanceRoutes
 import com.companyb.companyapp.api.routes.AuditLogRoutes
@@ -44,7 +45,6 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
 import com.companyb.companyapp.service.SchedulerLifecycle
-import com.companyb.companyapp.utils.RandomIdGenerator
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
@@ -92,11 +92,11 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
         // logback.xml %X{traceId} %X == %mdc
         RequestElapsedConverter.startRequest()
         DeltaTimeConverter.startRequest()
-        val traceId = RandomIdGenerator.generate()
-        MDC.put("traceId", traceId)
+        TraceIdFilter.before(it)
         logger.info { "[REQUEST] starting request" }
     }
     config.routes.after {
+        TraceIdFilter.echo(it)
         val elapsed = RequestElapsedConverter.currentElapsedMs()
         logger.info { "[REQUEST] completed in ${elapsed}ms" }
         RequestElapsedConverter.endRequest()
@@ -171,15 +171,19 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
 
 private fun registerExceptionHandlers(config: io.javalin.config.JavalinConfig) {
     config.routes.exception(ValidationException::class.java) { e, ctx ->
+        TraceIdFilter.echo(ctx)
         ctx.status(HTTP_BAD_REQUEST).json(mapOf("error" to (e.message ?: "Bad Request")))
     }
     config.routes.exception(ForbiddenException::class.java) { e, ctx ->
+        TraceIdFilter.echo(ctx)
         ctx.status(HTTP_FORBIDDEN).json(mapOf("error" to (e.message ?: "Forbidden")))
     }
     config.routes.exception(NotFoundException::class.java) { e, ctx ->
+        TraceIdFilter.echo(ctx)
         ctx.status(HTTP_NOT_FOUND).json(mapOf("error" to (e.message ?: "Not Found")))
     }
     config.routes.exception(ConflictException::class.java) { e, ctx ->
+        TraceIdFilter.echo(ctx)
         ctx.status(HTTP_CONFLICT).json(mapOf("error" to (e.message ?: "Conflict")))
     }
 }
