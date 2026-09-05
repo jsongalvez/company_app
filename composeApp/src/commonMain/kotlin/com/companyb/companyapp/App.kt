@@ -22,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
-import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.navigation.AppNavHost
 import com.companyb.companyapp.navigation.Route
 import com.companyb.companyapp.network.ApiClient
@@ -77,21 +76,19 @@ fun App() {
     )
 
     LaunchedEffect(apiClient) {
-        // #94 Q3 — the 401'd path discriminates credential 401s (login → inline
-        // form error, no global reaction) from session 401s (clear token → Login). Mid-session
-        // 401s carry the "session expired" notice (Q3c(ii)); launch-validation 401s stay
-        // silent (Q3c(i)) — the splash derives from hasToken, so clearing is enough. The
-        // navigate is skipped while launch validation is active: no NavHost graph is composed
-        // yet (pre-NavHost navigate would throw).
-        apiClient.onUnauthorized.collectLatest { path ->
-            if (path.endsWith(ApiRoutes.AUTH_LOGIN)) {
+        // #94 Q3 + #504 — path discriminates credential 401s (public auth → inline
+        // form error, no global reaction) from session 401s (clear → Login). #504:
+        // the event carries the credential that sent it; a delayed 401 from a
+        // superseded session never clears the live one.
+        apiClient.onUnauthorized.collectLatest { event ->
+            if (!apiClient.isCurrentSessionEvent(event)) {
                 return@collectLatest
             }
             // Read BEFORE clearing: the launch-401 is silent, the mid-session 401 is not.
             handleSessionUnauthorized(
-                tokenStore = tokenStore,
+                apiClient = apiClient,
                 navController = navController,
-                path = path,
+                path = event.path,
                 isLaunchValidationActive = { launchValidationActive },
                 onSessionStateChange = { h, v ->
                     hasToken = h
@@ -118,7 +115,7 @@ fun App() {
             else -> {
                 AppNavHost(
                     apiClient = apiClient,
-                    tokenStore = tokenStore,
+                    tokenStore = apiClient.sessionTokens,
                     navController = navController,
                 )
             }
@@ -165,7 +162,7 @@ private fun AppLaunchValidationEffects(
 
 @Suppress("TooGenericExceptionCaught")
 private suspend fun handleSessionUnauthorized(
-    tokenStore: TokenStore,
+    apiClient: ApiClient,
     navController: NavHostController,
     path: String,
     isLaunchValidationActive: () -> Boolean,
@@ -173,7 +170,7 @@ private suspend fun handleSessionUnauthorized(
 ) {
     logInfo("App", "onUnauthorized on $path, clearing token + SessionState")
     try {
-        tokenStore.clearToken()
+        apiClient.clearSession()
     } catch (e: Exception) {
         logError("App", "Failed to clear token on unauthorized", e)
     }
