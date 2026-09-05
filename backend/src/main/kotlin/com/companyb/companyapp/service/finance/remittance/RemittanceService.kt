@@ -11,6 +11,8 @@ import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.SessionRepository
+import com.companyb.companyapp.repository.findSessionByIdInTransaction
+import com.companyb.companyapp.service.branchday.BranchDayRepository
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
@@ -248,6 +250,12 @@ object RemittanceService {
 
                 RemittancePolicy.assertDraft(before.status, "update header of")
 
+                assertExistingContentInRange(
+                    remittanceId = remittanceId,
+                    rangeStart = dateRangeStart,
+                    rangeEnd = dateRangeEnd,
+                )
+
                 val after =
                     RemittanceRepository.updateHeaderInTransaction(
                         UpdateHeaderParams(
@@ -301,7 +309,7 @@ object RemittanceService {
                     )
                 RemittanceLineRepository.findExistingRequestInTransaction(params)?.let { return@transaction it }
 
-                requireSourceBelongsToBranch(type, sessionId, productSaleId, remittance.branchId)
+                requireSourceInRange(type, sessionId, productSaleId, remittance)
 
                 val addResult = RemittanceLineRepository.addLineInTransaction(params)
                 if (addResult.created) {
@@ -315,11 +323,11 @@ object RemittanceService {
     }
 
     @Suppress("ThrowsCount")
-    private fun requireSourceBelongsToBranch(
+    private fun requireSourceInRange(
         type: RemittanceLineType,
         sessionId: UUID?,
         productSaleId: UUID?,
-        branchId: UUID,
+        remittance: Remittance,
     ) {
         val sourceBranchDayId =
             when (type) {
@@ -337,9 +345,19 @@ object RemittanceService {
                         ?: throw NotFoundException("Product sale not found")
                 }
             }
-        if (BranchDayService.requireBranchDayExists(sourceBranchDayId).branchId != branchId) {
+        // #483 — the pickers only offer the loaded range, so an out-of-range source is a
+        // stale-client or forged write; the branch check stays 404 (indistinguishable),
+        // the range check is an explicit 400.
+        val day = BranchDayService.requireBranchDayExists(sourceBranchDayId)
+        if (day.branchId != remittance.branchId) {
             throw NotFoundException("Source does not belong to remittance branch")
         }
+        RemittancePolicy.assertDateInRange(
+            day.date,
+            remittance.dateRangeStart,
+            remittance.dateRangeEnd,
+            "Source",
+        )
     }
 
     @Suppress("ThrowsCount")
@@ -390,7 +408,15 @@ object RemittanceService {
 
                 RemittancePolicy.assertDraft(remittance.status, "add day breakdowns to")
 
-                BranchDayService.requireBranchDayForBranch(branchDayId, remittance.branchId)
+                // #483 — same range contract as lines: the day picker only offers the loaded
+                // range, so an out-of-range day is a stale-client or forged write (400).
+                val day = BranchDayService.requireBranchDayForBranch(branchDayId, remittance.branchId)
+                RemittancePolicy.assertDateInRange(
+                    day.date,
+                    remittance.dateRangeStart,
+                    remittance.dateRangeEnd,
+                    "Branch day",
+                )
 
                 val addResult =
                     RemittanceDayBreakdownRepository.addDayBreakdownInTransaction(
@@ -434,6 +460,49 @@ object RemittanceService {
 
         logger.info { "[DELETE-REMITTANCE-BREAKDOWN] Day breakdown $breakdownId removed from remittance $remittanceId" }
         return breakdown
+    }
+
+    /**
+     * #483 — a header range edit must not orphan already-added content: every active line's
+     * source date and every covered day must sit inside the new range, else 400. All reads
+     * here are `*InTransaction` on the caller's open transaction.
+     */
+    @Suppress("ThrowsCount")
+    private fun assertExistingContentInRange(
+        remittanceId: UUID,
+        rangeStart: LocalDate,
+        rangeEnd: LocalDate,
+    ) {
+        RemittanceLineRepository.findByRemittanceIdInTransaction(remittanceId).forEach { line ->
+            val sourceBranchDayId =
+                when (line.type) {
+                    RemittanceLineType.SESSION -> {
+                        findSessionByIdInTransaction(
+                            line.sessionId ?: throw ValidationException("sessionId is required for SESSION line type"),
+                        )?.branchDayId ?: throw NotFoundException("Session not found")
+                    }
+
+                    RemittanceLineType.PRODUCT_SALE -> {
+                        ProductSaleRepository
+                            .findByIdInTransaction(
+                                line.productSaleId
+                                    ?: throw ValidationException(
+                                        "productSaleId is required for PRODUCT_SALE line type",
+                                    ),
+                            )?.branchDayId ?: throw NotFoundException("Product sale not found")
+                    }
+                }
+            val date =
+                BranchDayRepository.findByIdInTransaction(sourceBranchDayId)?.date
+                    ?: throw NotFoundException("Branch day not found")
+            RemittancePolicy.assertDateInRange(date, rangeStart, rangeEnd, "Source")
+        }
+        RemittanceDayBreakdownRepository.findByRemittanceIdInTransaction(remittanceId).forEach { breakdown ->
+            val date =
+                BranchDayRepository.findByIdInTransaction(breakdown.branchDayId)?.date
+                    ?: throw NotFoundException("Branch day not found")
+            RemittancePolicy.assertDateInRange(date, rangeStart, rangeEnd, "Branch day")
+        }
     }
 
     @Suppress("ReturnCount")

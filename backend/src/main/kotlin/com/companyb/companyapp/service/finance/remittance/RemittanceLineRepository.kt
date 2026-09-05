@@ -176,13 +176,17 @@ internal object RemittanceLineRepository {
 
     fun findByRemittanceId(remittanceId: UUID): List<RemittanceLine> =
         transaction {
-            RemittanceLineTable
-                .selectAll()
-                .where {
-                    (RemittanceLineTable.remittanceId eq remittanceId) and
-                        RemittanceLineTable.deletedAt.isNull()
-                }.map { it.toRemittanceLine() }
+            findByRemittanceIdInTransaction(remittanceId)
         }
+
+    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
+    fun findByRemittanceIdInTransaction(remittanceId: UUID): List<RemittanceLine> =
+        RemittanceLineTable
+            .selectAll()
+            .where {
+                (RemittanceLineTable.remittanceId eq remittanceId) and
+                    RemittanceLineTable.deletedAt.isNull()
+            }.map { it.toRemittanceLine() }
 
     fun sumAmountsByRemittanceId(remittanceId: UUID): BigDecimal =
         transaction {

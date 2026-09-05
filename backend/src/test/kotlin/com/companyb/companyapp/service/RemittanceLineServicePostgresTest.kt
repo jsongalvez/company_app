@@ -232,6 +232,79 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `add SESSION line rejects source outside remittance range`() {
+        val remittance = createDraftRemittance()
+        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
+        val outOfRangeDay = BranchDayService.resolveOrCreate(branchId, LocalDate.of(2026, 6, 1))
+        trackOwned(BranchDayTable, BranchDayTable.id, outOfRangeDay.id)
+        val outOfRangeSessionId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestSession(
+            id = outOfRangeSessionId,
+            clientId = clientId,
+            branchDayId = outOfRangeDay.id,
+        )
+        trackOwned(SessionTable, SessionTable.id, outOfRangeSessionId)
+
+        val error =
+            assertFailsWith<ValidationException> {
+                RemittanceService.addLine(
+                    callerId = callerId,
+                    remittanceId = remittance.id,
+                    id = TestFixtures.uuid(),
+                    type = RemittanceLineType.SESSION,
+                    sessionId = outOfRangeSessionId,
+                    productSaleId = null,
+                    amount = BigDecimal("1500.00"),
+                )
+            }
+        assertTrue(checkNotNull(error.message).contains("outside remittance range"))
+
+        assertEquals(remittance.version, RemittanceService.getRemittance(remittance.id).remittance.version)
+        assertTrue(RemittanceService.getRemittance(remittance.id).lines.isEmpty())
+        assertEquals(0, remittanceLineAuditCount())
+    }
+
+    @Test
+    fun `add PRODUCT_SALE line rejects source outside remittance range`() {
+        val remittance = createDraftRemittance()
+        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
+        val outOfRangeDay = BranchDayService.resolveOrCreate(branchId, LocalDate.of(2026, 6, 1))
+        trackOwned(BranchDayTable, BranchDayTable.id, outOfRangeDay.id)
+        insertProductCategory()
+        trackOwned(ProductCategoryTable, ProductCategoryTable.id, productCategoryId)
+        insertProduct()
+        trackOwned(ProductTable, ProductTable.id, productId)
+        val outOfRangeSaleId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestProductSale(
+            id = outOfRangeSaleId,
+            branchDayId = outOfRangeDay.id,
+            productId = productId,
+            handledBy = callerId,
+        )
+        trackOwned(ProductSaleTable, ProductSaleTable.id, outOfRangeSaleId)
+
+        val error =
+            assertFailsWith<ValidationException> {
+                RemittanceService.addLine(
+                    callerId = callerId,
+                    remittanceId = remittance.id,
+                    id = TestFixtures.uuid(),
+                    type = RemittanceLineType.PRODUCT_SALE,
+                    sessionId = null,
+                    productSaleId = outOfRangeSaleId,
+                    amount = BigDecimal("500.00"),
+                )
+            }
+        assertTrue(checkNotNull(error.message).contains("outside remittance range"))
+
+        assertEquals(remittance.version, RemittanceService.getRemittance(remittance.id).remittance.version)
+        assertTrue(RemittanceService.getRemittance(remittance.id).lines.isEmpty())
+        assertEquals(0, remittanceLineAuditCount())
+    }
+
+    @Test
     fun `add line idempotent duplicate returns existing`() {
         val remittance = createDraftRemittance()
         trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
@@ -951,6 +1024,71 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `add day breakdown rejects day outside remittance range`() {
+        val remittance = createDraftRemittance()
+        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
+        val outOfRangeDay = BranchDayService.resolveOrCreate(branchId, LocalDate.of(2026, 6, 1))
+        trackOwned(BranchDayTable, BranchDayTable.id, outOfRangeDay.id)
+
+        val error =
+            assertFailsWith<ValidationException> {
+                RemittanceService.addDayBreakdown(
+                    callerId = callerId,
+                    remittanceId = remittance.id,
+                    id = TestFixtures.uuid(),
+                    branchDayId = outOfRangeDay.id,
+                )
+            }
+        assertTrue(checkNotNull(error.message).contains("outside remittance range"))
+        assertTrue(RemittanceService.getRemittance(remittance.id).dayBreakdowns.isEmpty())
+        assertEquals(0, remittanceDayBreakdownAuditCount())
+    }
+
+    @Test
+    fun `update header rejects range excluding existing line and day`() {
+        val remittance = createDraftRemittance()
+        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
+        createSession()
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        RemittanceService.addLine(
+            callerId = callerId,
+            remittanceId = remittance.id,
+            id = TestFixtures.uuid(),
+            type = RemittanceLineType.SESSION,
+            sessionId = sessionId,
+            productSaleId = null,
+            amount = BigDecimal("1500.00"),
+        )
+        RemittanceService.addDayBreakdown(
+            callerId = callerId,
+            remittanceId = remittance.id,
+            id = TestFixtures.uuid(),
+            branchDayId = branchDayId,
+        )
+        val versionBefore = RemittanceService.getRemittance(remittance.id).remittance.version
+
+        // Both fixtures sit on the operational today; a range strictly before today orphans them.
+        val error =
+            assertFailsWith<ValidationException> {
+                RemittanceService.updateHeader(
+                    callerId = callerId,
+                    remittanceId = remittance.id,
+                    type = RemittanceType.SESSION,
+                    method = RemittanceMethod.BANK_TRANSFER,
+                    dateRangeStart = TestFixtures.today.minusDays(60),
+                    dateRangeEnd = TestFixtures.today.minusDays(30),
+                    expectedVersion = versionBefore,
+                )
+            }
+        assertTrue(checkNotNull(error.message).contains("outside remittance range"))
+        assertEquals(versionBefore, RemittanceService.getRemittance(remittance.id).remittance.version)
+    }
+
+    @Test
     fun `add day breakdown without capability is allowed at service layer`() {
         val otherUser = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherUser, "rl")
@@ -1201,8 +1339,10 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             type = type,
             branchId = branchId,
             method = RemittanceMethod.BANK_TRANSFER,
+            // #483 — the range must cover the operational today the session/sale fixtures
+            // land on; out-of-range writes are rejected, so a fixed July window would fail.
             dateRangeStart = LocalDate.of(2026, 7, 1),
-            dateRangeEnd = LocalDate.of(2026, 7, 15),
+            dateRangeEnd = TestFixtures.today,
         )
 
     private fun createSession(sid: UUID = sessionId) {

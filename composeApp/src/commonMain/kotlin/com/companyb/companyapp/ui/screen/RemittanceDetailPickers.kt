@@ -200,20 +200,22 @@ private val ProductSaleIncomePicker =
 /** D3 — sessions picker over the shared income picker. */
 @Composable
 internal fun SessionPickerDialog(
+    rangeKey: String,
     data: IncomePickerData<RemittanceSessionPickerEntryResponse>,
     flow: IncomePickerFlow,
 ) {
-    val session = remember { IncomePickerSession(SessionIncomePicker) }
+    val session = remember(rangeKey) { IncomePickerSession(SessionIncomePicker) }
     IncomePickerDialog(session = session, data = data, flow = flow)
 }
 
 /** D3 — product-sales picker over the shared income picker. */
 @Composable
 internal fun ProductSalePickerDialog(
+    rangeKey: String,
     data: IncomePickerData<RemittanceProductSalePickerEntryResponse>,
     flow: IncomePickerFlow,
 ) {
-    val session = remember { IncomePickerSession(ProductSaleIncomePicker) }
+    val session = remember(rangeKey) { IncomePickerSession(ProductSaleIncomePicker) }
     IncomePickerDialog(session = session, data = data, flow = flow)
 }
 
@@ -405,12 +407,15 @@ internal class DayPickerData(
 /** D4 — days-covered picker: effective statuses from #118 G4; already-remitted greyed out. */
 @Composable
 internal fun DayPickerDialog(
+    rangeKey: String,
     data: DayPickerData,
     onLoad: () -> Unit,
     onAdd: (List<AddDayBreakdownRequest>) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var selectedIds by remember { mutableStateOf(emptySet<String>()) }
+    // #483 — selections key on the loaded range: a header range edit resets ticked days
+    // instead of silently keeping out-of-range selections.
+    var selectedIds by remember(rangeKey) { mutableStateOf(emptySet<String>()) }
     var pending by remember { mutableStateOf<List<AddDayBreakdownRequest>>(emptyList()) }
 
     // One POST per selected day, advanced on each success; a failure or the VM's 403/409 Idle

@@ -126,6 +126,13 @@ class RemittanceViewModel(
         MutableStateFlow<UiState<List<RemittanceDayPickerEntryResponse>>>(UiState.Idle)
     val dayPicker: StateFlow<UiState<List<RemittanceDayPickerEntryResponse>>> = _dayPicker.asStateFlow()
 
+    // #483 — the range the picker caches were loaded for (all three pickers load the detail's
+    // range together). Screens render a cached Success only when it matches the detail's
+    // current range; a header range edit invalidates the caches until the reloads land, and
+    // picker dialogs key their tick-selection on it so out-of-range selections never survive.
+    private val _pickerLoadedRange = MutableStateFlow<Pair<String, String>?>(null)
+    val pickerLoadedRange: StateFlow<Pair<String, String>?> = _pickerLoadedRange.asStateFlow()
+
     // D3 — line mutations (version-bumped server-side; no expectedVersion in the request body).
     internal val lineResultState = MutableStateFlow<UiState<RemittanceLineResponse>>(UiState.Idle)
     val lineResult: StateFlow<UiState<RemittanceLineResponse>> = lineResultState.asStateFlow()
@@ -217,7 +224,10 @@ class RemittanceViewModel(
                         parameter("to", to)
                     }
                 },
-                transform = { it.body() },
+                transform = {
+                    _pickerLoadedRange.value = from to to
+                    it.body()
+                },
             ),
         )
     }
@@ -240,7 +250,10 @@ class RemittanceViewModel(
                         parameter("to", to)
                     }
                 },
-                transform = { it.body() },
+                transform = {
+                    _pickerLoadedRange.value = from to to
+                    it.body()
+                },
             ),
         )
     }
@@ -263,7 +276,10 @@ class RemittanceViewModel(
                         parameter("to", to)
                     }
                 },
-                transform = { it.body() },
+                transform = {
+                    _pickerLoadedRange.value = from to to
+                    it.body()
+                },
             ),
         )
     }

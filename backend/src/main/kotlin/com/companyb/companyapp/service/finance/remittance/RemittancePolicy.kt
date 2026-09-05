@@ -5,6 +5,7 @@ import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
 
@@ -72,6 +73,22 @@ object RemittancePolicy {
     ) {
         if (status != RemittanceStatus.DRAFT) {
             throw ValidationException("Can only $mutation DRAFT remittances")
+        }
+    }
+
+    /**
+     * Range-membership guard (#483): a line or day breakdown may only join a remittance whose
+     * loaded range covers its branch-day date (inclusive on both ends). The pickers only offer
+     * in-range entries, so an out-of-range write means a stale client or a forged request.
+     */
+    fun assertDateInRange(
+        date: LocalDate,
+        rangeStart: LocalDate,
+        rangeEnd: LocalDate,
+        what: String,
+    ) {
+        if (date.isBefore(rangeStart) || date.isAfter(rangeEnd)) {
+            throw ValidationException("$what date $date is outside remittance range $rangeStart..$rangeEnd")
         }
     }
 

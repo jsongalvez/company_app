@@ -365,7 +365,16 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
         val pastOpenDayId = DatabaseTestHelper.createBranchDayForDate(branchId, today.minusDays(5))
         val remittedDayId = DatabaseTestHelper.createBranchDayForDate(branchId, today.minusDays(10))
         val submittedId = TestFixtures.uuid()
-        createDraftRemittance(submittedId)
+        // #483 — the covered day must sit inside the draft range; use the query window itself.
+        RemittanceService.createDraft(
+            callerId = callerId,
+            id = submittedId,
+            type = RemittanceType.SESSION,
+            branchId = branchId,
+            method = RemittanceMethod.BANK_TRANSFER,
+            dateRangeStart = today.minusDays(15),
+            dateRangeEnd = today.plusDays(15),
+        )
         val breakdownId = TestFixtures.uuid()
         RemittanceService.addDayBreakdown(callerId, submittedId, breakdownId, remittedDayId)
         val version = RemittanceService.getRemittance(submittedId).remittance.version

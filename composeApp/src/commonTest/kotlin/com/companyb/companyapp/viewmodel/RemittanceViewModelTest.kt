@@ -311,6 +311,23 @@ class RemittanceViewModelTest {
         }
 
     @Test
+    fun picker_loaded_range_tracks_requested_range_per_load() =
+        runTest(testScheduler) {
+            val vm = RemittanceViewModel(mockApiClient(remittanceHandler()))
+
+            assertEquals(expected = null, actual = vm.pickerLoadedRange.value)
+
+            vm.loadSessionPicker("b1", "2026-08-01", "2026-08-09")
+            runCurrent()
+            assertEquals(expected = "2026-08-01" to "2026-08-09", actual = vm.pickerLoadedRange.value)
+
+            // A header range edit reloads for the new range (#483) — the key follows the load.
+            vm.loadDayPicker("b1", "2026-08-10", "2026-08-20")
+            runCurrent()
+            assertEquals(expected = "2026-08-10" to "2026-08-20", actual = vm.pickerLoadedRange.value)
+        }
+
+    @Test
     fun addLine_success_emits_line() =
         runTest(testScheduler) {
             val vm = RemittanceViewModel(mockApiClient(remittanceHandler()))

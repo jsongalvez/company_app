@@ -89,6 +89,7 @@ internal data class RemittanceDetailCollected(
     val sessionPickerState: UiState<List<RemittanceSessionPickerEntryResponse>>,
     val productSalePickerState: UiState<List<RemittanceProductSalePickerEntryResponse>>,
     val dayPickerState: UiState<List<RemittanceDayPickerEntryResponse>>,
+    val pickerLoadedRange: Pair<String, String>?,
     val lineState: UiState<RemittanceLineResponse>,
     val deleteLineState: UiState<Unit>,
     val dayBreakdownState: UiState<RemittanceDayBreakdownResponse>,
@@ -104,6 +105,7 @@ internal fun rememberRemittanceDetailCollected(viewModel: RemittanceViewModel): 
     val sessionPickerState by viewModel.sessionPicker.collectAsState()
     val productSalePickerState by viewModel.productSalePicker.collectAsState()
     val dayPickerState by viewModel.dayPicker.collectAsState()
+    val pickerLoadedRange by viewModel.pickerLoadedRange.collectAsState()
     val lineState by viewModel.lineResult.collectAsState()
     val deleteLineState by viewModel.deleteLineResult.collectAsState()
     val dayBreakdownState by viewModel.dayBreakdownResult.collectAsState()
@@ -116,6 +118,7 @@ internal fun rememberRemittanceDetailCollected(viewModel: RemittanceViewModel): 
         sessionPickerState = sessionPickerState,
         productSalePickerState = productSalePickerState,
         dayPickerState = dayPickerState,
+        pickerLoadedRange = pickerLoadedRange,
         lineState = lineState,
         deleteLineState = deleteLineState,
         dayBreakdownState = dayBreakdownState,
@@ -351,6 +354,35 @@ private fun RemittanceDetailSubmitUndoHost(
     }
 }
 
+/**
+ * #483 — range-bound picker gate: the three picker caches belong to one loaded range. A
+ * header range edit invalidates them until the reloads land (stale Success would offer the
+ * old range's entries), and dialog tick-selections key on [rangeKey] so out-of-range
+ * selections reset instead of surviving silently.
+ */
+private data class PickerRangeGate(
+    val rangeKey: String,
+    val stale: Boolean,
+) {
+    // Only cached Success entries are invalidated: an Error keeps its Retry (fired with the
+    // current range), and Idle/Loading already render as spinners.
+    fun <T> gated(state: UiState<T>): UiState<T> = if (stale && state is UiState.Success) UiState.Loading else state
+
+    companion object {
+        fun of(
+            collected: RemittanceDetailCollected,
+            detail: RemittanceDetailResponse,
+        ): PickerRangeGate {
+            val range = detail.dateRangeStart to detail.dateRangeEnd
+            val stale = collected.pickerLoadedRange != null && collected.pickerLoadedRange != range
+            return PickerRangeGate(
+                rangeKey = "${detail.dateRangeStart}..${detail.dateRangeEnd}",
+                stale = stale,
+            )
+        }
+    }
+}
+
 @Composable
 private fun RemittanceDetailLinePickerHost(
     detail: RemittanceDetailResponse,
@@ -359,6 +391,7 @@ private fun RemittanceDetailLinePickerHost(
     dialogs: RemittanceDetailDialogState,
 ) {
     val branchId = args.branchId
+    val gate = PickerRangeGate.of(collected, detail)
     // D3 — tick-to-include pickers; the dialog owns its add-queue (one POST per selected row,
     // advanced on each mutation success).
     if (dialogs.sessionPicker && branchId != null) {
@@ -368,9 +401,10 @@ private fun RemittanceDetailLinePickerHost(
                 .mapNotNull { it.sessionId }
                 .toSet()
         SessionPickerDialog(
+            rangeKey = gate.rangeKey,
             data =
                 IncomePickerData(
-                    state = collected.sessionPickerState,
+                    state = gate.gated(collected.sessionPickerState),
                     mutationState = collected.lineState,
                     includedIds = includedIds,
                 ),
@@ -388,6 +422,24 @@ private fun RemittanceDetailLinePickerHost(
                 ),
         )
     }
+    RemittanceDetailProductSalePickerDialog(
+        detail = detail,
+        collected = collected,
+        args = args,
+        dialogs = dialogs,
+        gate = gate,
+    )
+}
+
+@Composable
+private fun RemittanceDetailProductSalePickerDialog(
+    detail: RemittanceDetailResponse,
+    collected: RemittanceDetailCollected,
+    args: RemittanceDetailArgs,
+    dialogs: RemittanceDetailDialogState,
+    gate: PickerRangeGate,
+) {
+    val branchId = args.branchId
     if (dialogs.productSalePicker && branchId != null) {
         val includedIds =
             detail.lines
@@ -395,9 +447,10 @@ private fun RemittanceDetailLinePickerHost(
                 .mapNotNull { it.productSaleId }
                 .toSet()
         ProductSalePickerDialog(
+            rangeKey = gate.rangeKey,
             data =
                 IncomePickerData(
-                    state = collected.productSalePickerState,
+                    state = gate.gated(collected.productSalePickerState),
                     mutationState = collected.lineState,
                     includedIds = includedIds,
                 ),
@@ -425,13 +478,16 @@ private fun RemittanceDetailDayPickerHost(
     dialogs: RemittanceDetailDialogState,
 ) {
     val branchId = args.branchId
+    // #483 — same range gate as the line pickers: stale day Success never renders.
+    val gate = PickerRangeGate.of(collected, detail)
     // D4 — days-covered picker: already-remitted greyed (no double-covering a day, F10).
     if (dialogs.dayPicker && branchId != null) {
         val includedIds = detail.dayBreakdowns.map { it.branchDayId }.toSet()
         DayPickerDialog(
+            rangeKey = gate.rangeKey,
             data =
                 DayPickerData(
-                    state = collected.dayPickerState,
+                    state = gate.gated(collected.dayPickerState),
                     mutationState = collected.dayBreakdownState,
                     includedIds = includedIds,
                 ),

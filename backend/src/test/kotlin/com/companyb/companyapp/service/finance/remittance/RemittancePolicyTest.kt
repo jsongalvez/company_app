@@ -5,6 +5,7 @@ import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -179,6 +180,31 @@ class RemittancePolicyTest {
     fun `undo window expires strictly after 48 hours`() {
         assertFailsWith<ValidationException> {
             RemittancePolicy.assertWithinUndoWindow(submissionInstant = at(0), comparisonInstant = at(49))
+        }
+    }
+
+    // ===== range membership (#483) =====
+
+    @Test
+    fun `range guard accepts boundary dates inclusively`() {
+        val start = LocalDate.of(2026, 7, 1)
+        val end = LocalDate.of(2026, 7, 15)
+        RemittancePolicy.assertDateInRange(start, start, end, "Source")
+        RemittancePolicy.assertDateInRange(end, start, end, "Source")
+        RemittancePolicy.assertDateInRange(LocalDate.of(2026, 7, 10), start, end, "Source")
+    }
+
+    @Test
+    fun `range guard rejects dates outside the range`() {
+        val start = LocalDate.of(2026, 7, 1)
+        val end = LocalDate.of(2026, 7, 15)
+        val before =
+            assertFailsWith<ValidationException> {
+                RemittancePolicy.assertDateInRange(LocalDate.of(2026, 6, 30), start, end, "Source")
+            }
+        assertTrue(checkNotNull(before.message).contains("outside remittance range"))
+        assertFailsWith<ValidationException> {
+            RemittancePolicy.assertDateInRange(LocalDate.of(2026, 7, 16), start, end, "Branch day")
         }
     }
 }

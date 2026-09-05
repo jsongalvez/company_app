@@ -732,8 +732,9 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
             type = RemittanceType.SESSION,
             branchId = branchId,
             method = RemittanceMethod.BANK_TRANSFER,
+            // #483 — covers both the fixed July fixtures and the operational-today breakdown.
             dateRangeStart = LocalDate.of(2026, 7, 1),
-            dateRangeEnd = LocalDate.of(2026, 7, 15),
+            dateRangeEnd = TestFixtures.today,
         )
     }
 
@@ -744,8 +745,9 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
             type = RemittanceType.PRODUCT,
             branchId = branchId,
             method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
+            // #483 — same widened range as the SESSION draft helper above.
             dateRangeStart = LocalDate.of(2026, 7, 1),
-            dateRangeEnd = LocalDate.of(2026, 7, 15),
+            dateRangeEnd = TestFixtures.today,
         )
     }
 
