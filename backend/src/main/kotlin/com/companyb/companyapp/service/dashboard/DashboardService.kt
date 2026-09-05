@@ -6,17 +6,14 @@ import com.companyb.companyapp.repository.ClientNames
 import com.companyb.companyapp.repository.ConcernWithSessionId
 import com.companyb.companyapp.repository.DashboardRepository
 import com.companyb.companyapp.repository.NotificationRepository
-import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.SessionPractitionerWithName
 import com.companyb.companyapp.repository.SessionRepository
-import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.branchday.BranchDayRepository
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import java.math.BigDecimal
-import java.time.OffsetDateTime
 import java.util.UUID
 
 data class CommissionSummary(
@@ -59,10 +56,10 @@ data class SessionDetailData(
  * clocked-in practitioner may view the day, a caller clocked in elsewhere cannot read this
  * branch's data (no cross-branch window without a capability).
  *
- * Commission is computed live by replicating [CommissionService.recalculate]'s per-sale
- * eligibility (clocked-in at sale time + manual inclusions) for the caller only — the split
- * rows are authoritative while the day is OPEN but a live pass keeps the card consistent
- * with the sales actually counted.
+ * Commission is the live view over [CommissionService]'s shared batched aggregation
+ * (clocked-in at sale time + manual inclusions) for the caller only — the split rows are
+ * authoritative while the day is OPEN but a forced recalc on a PAST day could serve stale
+ * splits, so the card never reads them.
  */
 object DashboardService {
     /**
@@ -85,7 +82,13 @@ object DashboardService {
         val voidedSessionIds = DashboardRepository.findVoidedSessionIds(sessionIds)
         val practitioners = DashboardRepository.findPractitioners(sessionIds)
         val concerns = DashboardRepository.findConcernsForSessionIds(sessionIds)
-        val commission = computeCommission(callerId, branchDay.id)
+        val live = CommissionService.liveCommissions(branchDay.id)[callerId]
+        val commission =
+            if (live == null) {
+                CommissionSummary(BigDecimal.ZERO, 0)
+            } else {
+                CommissionSummary(live.amount, live.eligibleSaleCount)
+            }
 
         return DashboardData(
             sessions = sessions,
@@ -150,67 +153,4 @@ object DashboardService {
                 } ?: emptyMap(),
         )
     }
-
-    /**
-     * Replicates [CommissionService.recalculate]'s per-sale eligibility for the caller: for each
-     * non-voided sale, the eligible set is the users clocked in at sale time plus manual
-     * inclusions (isIncluded adds, otherwise removes). The caller's share of a sale equals
-     * [CommissionService.splitCommission]'s formula; the count is the number of sales the
-     * caller was eligible for.
-     */
-    private fun computeCommission(
-        callerId: UUID,
-        branchDayId: UUID,
-    ): CommissionSummary {
-        val sales = ProductSaleRepository.findNonVoidedSalesByBranchDay(branchDayId)
-        if (sales.isEmpty()) {
-            return CommissionSummary(BigDecimal.ZERO, 0)
-        }
-
-        val attendance = DashboardRepository.findAttendanceByBranchDay(branchDayId)
-        val inclusions = DashboardRepository.findInclusionsBySaleIds(sales.map { it.id })
-
-        var amount = BigDecimal.ZERO
-        var count = 0
-
-        for (sale in sales) {
-            val eligibleUsers = mutableSetOf<UUID>()
-
-            attendance
-                .filter { it.isClockedInAt(sale.soldAt) }
-                .forEach { eligibleUsers.add(it.userId) }
-
-            applyInclusions(eligibleUsers, inclusions.filter { it.productSaleId == sale.id })
-
-            if (callerId in eligibleUsers) {
-                count++
-                amount =
-                    amount.add(
-                        CommissionService.splitCommission(
-                            commissionAmount = sale.commissionAmountAtTime,
-                            quantity = sale.quantity,
-                            eligibleUserCount = eligibleUsers.size,
-                        ),
-                    )
-            }
-        }
-
-        return CommissionSummary(amount, count)
-    }
-
-    private fun applyInclusions(
-        eligibleUsers: MutableSet<UUID>,
-        inclusions: List<CommissionManualInclusion>,
-    ) {
-        for (inclusion in inclusions) {
-            if (inclusion.isIncluded) {
-                eligibleUsers.add(inclusion.userId)
-            } else {
-                eligibleUsers.remove(inclusion.userId)
-            }
-        }
-    }
 }
-
-private fun com.companyb.companyapp.repository.model.Attendance.isClockedInAt(at: OffsetDateTime): Boolean =
-    clockIn <= at && (clockOut == null || clockOut >= at)

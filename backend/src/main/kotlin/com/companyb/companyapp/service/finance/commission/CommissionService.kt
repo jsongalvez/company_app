@@ -7,11 +7,13 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.CommissionSplitRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
+import com.companyb.companyapp.repository.model.Attendance
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertParams
 import com.companyb.companyapp.repository.model.CommissionSplit
-import com.companyb.companyapp.service.attendance.AttendanceService
+import com.companyb.companyapp.repository.model.ProductSale
+import com.companyb.companyapp.service.attendance.AttendanceRepository
 import com.companyb.companyapp.service.branchday.BranchDayRepository
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -19,6 +21,62 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.UUID
+
+/** Per-user commission (#497): summed scale-4 shares plus the eligible sale count. */
+data class CommissionShare(
+    val amount: BigDecimal,
+    val eligibleSaleCount: Int,
+)
+
+/**
+ * Pure per-sale eligibility/split (#497, docs/engines.md Engine 1): a user is eligible for a
+ * sale when an attendance window covers soldAt (clockIn <= soldAt, clockOut null or >=
+ * soldAt), manual true adds and manual false removes; each sale's commissionAmountAtTime *
+ * quantity splits at scale 4 HALF_UP and the rounded shares sum per user. eligibleSaleCount
+ * counts eligible sale records (zero-commission sales included); sales with an empty
+ * eligible set contribute nothing.
+ */
+internal fun aggregateShares(
+    sales: List<ProductSale>,
+    attendance: List<Attendance>,
+    inclusions: List<CommissionManualInclusion>,
+): Map<UUID, CommissionShare> {
+    val inclusionsBySale = inclusions.groupBy { it.productSaleId }
+    val totals = mutableMapOf<UUID, CommissionShare>()
+    for (sale in sales) {
+        val eligibleUsers = eligibleUsersFor(sale, attendance, inclusionsBySale)
+        if (eligibleUsers.isNotEmpty()) {
+            val perUser =
+                CommissionService.splitCommission(sale.commissionAmountAtTime, sale.quantity, eligibleUsers.size)
+            for (userId in eligibleUsers) {
+                val current = totals[userId] ?: CommissionShare(BigDecimal.ZERO, 0)
+                totals[userId] = CommissionShare(current.amount.add(perUser), current.eligibleSaleCount + 1)
+            }
+        }
+    }
+    return totals
+}
+
+private fun eligibleUsersFor(
+    sale: ProductSale,
+    attendance: List<Attendance>,
+    inclusionsBySale: Map<UUID, List<CommissionManualInclusion>>,
+): Set<UUID> {
+    val eligibleUsers = mutableSetOf<UUID>()
+    for (row in attendance) {
+        if (row.clockIn <= sale.soldAt && (row.clockOut == null || row.clockOut >= sale.soldAt)) {
+            eligibleUsers.add(row.userId)
+        }
+    }
+    for (inclusion in inclusionsBySale[sale.id].orEmpty()) {
+        if (inclusion.isIncluded) {
+            eligibleUsers.add(inclusion.userId)
+        } else {
+            eligibleUsers.remove(inclusion.userId)
+        }
+    }
+    return eligibleUsers
+}
 
 object CommissionService {
     private val logger = KotlinLogging.logger {}
@@ -135,47 +193,39 @@ object CommissionService {
             return
         }
 
-        val sales = ProductSaleRepository.findNonVoidedSalesByBranchDay(branchDayId)
-        if (sales.isEmpty()) {
-            logger.info { "[COMMISSION-SERVICE] No non-voided sales for branchDay=$branchDayId" }
-            CommissionSplitRepository.replaceForBranchDayInTransaction(branchDayId, emptyMap())
-            failIfInjectedForTests()
-            return
-        }
+        val totals = computeTotalsInTransaction(branchDayId)
 
-        val accumulatedTotals = mutableMapOf<UUID, BigDecimal>()
-
-        for (sale in sales) {
-            val eligibleUsers = mutableSetOf<UUID>()
-
-            val clockedInUsers = AttendanceService.findUsersClockedInAt(branchDayId, sale.soldAt)
-            eligibleUsers.addAll(clockedInUsers)
-
-            val inclusions = CommissionManualInclusionRepository.findByProductSaleId(sale.id)
-            for (inclusion in inclusions) {
-                if (inclusion.isIncluded) {
-                    eligibleUsers.add(inclusion.userId)
-                } else {
-                    eligibleUsers.remove(inclusion.userId)
-                }
-            }
-
-            if (eligibleUsers.isNotEmpty()) {
-                val perUser = splitCommission(sale.commissionAmountAtTime, sale.quantity, eligibleUsers.size)
-
-                for (userId in eligibleUsers) {
-                    accumulatedTotals.merge(userId, perUser, BigDecimal::add)
-                }
-            }
-        }
-
-        CommissionSplitRepository.replaceForBranchDayInTransaction(branchDayId, accumulatedTotals)
+        CommissionSplitRepository.replaceForBranchDayInTransaction(branchDayId, totals.mapValues { it.value.amount })
         failIfInjectedForTests()
 
         logger.info {
             "[COMMISSION-SERVICE] Recalculated commission for branchDay=$branchDayId: " +
-                "${accumulatedTotals.size} users, ${sales.size} sales"
+                "${totals.size} users"
         }
+    }
+
+    /**
+     * Live commission view (#497): the same batched aggregation the persisted recalculation
+     * writes, computed on demand and never stored. The dashboard selects the caller's entry;
+     * split rows stay the frozen history (a forced recalc on a PAST day must not move the card).
+     */
+    fun liveCommissions(branchDayId: UUID): Map<UUID, CommissionShare> =
+        transaction {
+            computeTotalsInTransaction(branchDayId)
+        }
+
+    /**
+     * Single batched aggregation (#497) serving both the persisted recalculation and the live
+     * card: one read each of the day's non-voided sales, attendance windows and manual
+     * inclusions, grouped once by sale. Runs on the caller's transaction so enclosing commands
+     * observe their own uncommitted writes.
+     */
+    internal fun computeTotalsInTransaction(branchDayId: UUID): Map<UUID, CommissionShare> {
+        val sales = ProductSaleRepository.findNonVoidedSalesByBranchDayInTransaction(branchDayId)
+        if (sales.isEmpty()) return emptyMap()
+        val attendance = AttendanceRepository.findByBranchDayIdInTransaction(branchDayId)
+        val inclusions = CommissionManualInclusionRepository.findBySaleIdsInTransaction(sales.map { it.id })
+        return aggregateShares(sales, attendance, inclusions)
     }
 
     fun manualRecalculate(branchDayId: UUID) {

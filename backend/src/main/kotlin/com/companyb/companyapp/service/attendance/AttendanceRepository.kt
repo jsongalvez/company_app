@@ -240,6 +240,16 @@ internal object AttendanceRepository {
                 }.map { it[AttendanceTable.userId] }
         }
 
+    /**
+     * In-transaction full-window read (#497) — the shared commission aggregation needs every
+     * clock-in/out window for the day, not just the open ones.
+     */
+    fun findByBranchDayIdInTransaction(branchDayId: UUID): List<Attendance> =
+        AttendanceTable
+            .selectAll()
+            .where { AttendanceTable.branchDayId eq branchDayId }
+            .map { it.toAttendance() }
+
     fun findUsersByBranchDayId(branchDayId: UUID): List<BranchDayUser> =
         transaction {
             val join =

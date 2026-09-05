@@ -6,6 +6,7 @@ import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertP
 import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertResult
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -92,11 +93,23 @@ object CommissionManualInclusionRepository {
             findByProductSaleAndUserInTransaction(productSaleId, userId)
         }
 
-    fun findByProductSaleId(productSaleId: UUID): List<CommissionManualInclusion> =
-        transaction {
+    fun findBySaleIds(saleIds: List<UUID>): List<CommissionManualInclusion> =
+        if (saleIds.isEmpty()) {
+            emptyList()
+        } else {
+            transaction {
+                findBySaleIdsInTransaction(saleIds)
+            }
+        }
+
+    /** In-transaction batched read (#497) — one query for the shared commission aggregation. */
+    fun findBySaleIdsInTransaction(saleIds: List<UUID>): List<CommissionManualInclusion> =
+        if (saleIds.isEmpty()) {
+            emptyList()
+        } else {
             CommissionManualInclusionTable
                 .selectAll()
-                .where { CommissionManualInclusionTable.productSaleId eq productSaleId }
+                .where { CommissionManualInclusionTable.productSaleId inList saleIds }
                 .map { it.toCommissionManualInclusion() }
         }
 

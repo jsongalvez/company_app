@@ -2,11 +2,7 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.Attendance
-import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.CommissionManualInclusion
-import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.ConcernTable
 import com.companyb.companyapp.repository.model.Session
@@ -147,45 +143,6 @@ object DashboardRepository {
                                     createdBy = row[ConcernTable.createdBy],
                                     createdAt = row[ConcernTable.createdAt],
                                 ),
-                        )
-                    }
-            }
-        }
-
-    fun findAttendanceByBranchDay(branchDayId: UUID): List<Attendance> =
-        transaction {
-            AttendanceTable
-                .selectAll()
-                .where { AttendanceTable.branchDayId eq branchDayId }
-                .map {
-                    Attendance(
-                        id = it[AttendanceTable.id],
-                        branchDayId = it[AttendanceTable.branchDayId],
-                        userId = it[AttendanceTable.userId],
-                        markedBy = it[AttendanceTable.markedBy],
-                        clockIn = it[AttendanceTable.clockIn],
-                        clockOut = it[AttendanceTable.clockOut],
-                    )
-                }
-        }
-
-    fun findInclusionsBySaleIds(saleIds: List<UUID>): List<CommissionManualInclusion> =
-        if (saleIds.isEmpty()) {
-            emptyList()
-        } else {
-            transaction {
-                CommissionManualInclusionTable
-                    .selectAll()
-                    .where { CommissionManualInclusionTable.productSaleId inList saleIds }
-                    .map {
-                        CommissionManualInclusion(
-                            id = it[CommissionManualInclusionTable.id],
-                            productSaleId = it[CommissionManualInclusionTable.productSaleId],
-                            userId = it[CommissionManualInclusionTable.userId],
-                            isIncluded = it[CommissionManualInclusionTable.isIncluded],
-                            reason = it[CommissionManualInclusionTable.reason],
-                            assignedBy = it[CommissionManualInclusionTable.assignedBy],
-                            assignedAt = it[CommissionManualInclusionTable.assignedAt],
                         )
                     }
             }

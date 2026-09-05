@@ -131,27 +131,31 @@ object ProductSaleRepository {
 
     fun findNonVoidedSalesByBranchDay(branchDayId: UUID): List<ProductSale> =
         transaction {
-            ProductSaleTable
-                .join(
-                    SessionTable,
-                    JoinType.LEFT,
-                    ProductSaleTable.sessionId,
-                    SessionTable.id,
-                    false,
-                    null,
-                ).join(
-                    ActiveSessionVoidsView,
-                    JoinType.LEFT,
-                    SessionTable.id,
-                    ActiveSessionVoidsView.sessionId,
-                    false,
-                    null,
-                ).selectAll()
-                .where {
-                    (ProductSaleTable.branchDayId eq branchDayId) and
-                        (ActiveSessionVoidsView.sessionId.isNull())
-                }.map { it.toProductSale() }
+            findNonVoidedSalesByBranchDayInTransaction(branchDayId)
         }
+
+    /** In-transaction read (#497) — runs on the caller's transaction for the shared aggregation. */
+    fun findNonVoidedSalesByBranchDayInTransaction(branchDayId: UUID): List<ProductSale> =
+        ProductSaleTable
+            .join(
+                SessionTable,
+                JoinType.LEFT,
+                ProductSaleTable.sessionId,
+                SessionTable.id,
+                false,
+                null,
+            ).join(
+                ActiveSessionVoidsView,
+                JoinType.LEFT,
+                SessionTable.id,
+                ActiveSessionVoidsView.sessionId,
+                false,
+                null,
+            ).selectAll()
+            .where {
+                (ProductSaleTable.branchDayId eq branchDayId) and
+                    (ActiveSessionVoidsView.sessionId.isNull())
+            }.map { it.toProductSale() }
 
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
     fun findByIdInTransaction(id: UUID): ProductSale? =
