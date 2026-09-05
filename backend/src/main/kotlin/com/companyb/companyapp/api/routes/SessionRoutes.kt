@@ -22,6 +22,7 @@ import com.companyb.companyapp.dto.UpdatePractitionerRemarksRequest
 import com.companyb.companyapp.dto.UpdateSessionFinalPriceRequest
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
 import com.companyb.companyapp.dto.VoidSessionRequest
+import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionVoid
@@ -68,6 +69,7 @@ import java.util.UUID
         OpenApiResponse(status = "201", content = [OpenApiContent(from = SessionResponse::class)]),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "409", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
@@ -472,7 +474,8 @@ object SessionRoutes {
         )
     }
 
-    @Suppress("ThrowsCount")
+    // #509 — replay-path 403 fallback is deliberate handling (empty concerns), not swallowing.
+    @Suppress("ThrowsCount", "SwallowedException")
     private fun handleCreateSession(context: Context) {
         val callerId = context.callerUuid()
         val request = context.bodyAsClass<CreateSessionRequest>()
@@ -502,9 +505,23 @@ object SessionRoutes {
                 otherConcerns = request.otherConcerns,
                 nextAppointmentDate = nextAppt,
                 gatedBranchDayId = context.attribute(GATED_BRANCH_DAY_ATTR),
+                reason = request.reason,
             )
 
-        val concerns = SessionConcernService.getForSession(callerId, sessionId).map { it.toResponse() }
+        val concerns =
+            if (result.created) {
+                SessionConcernService.getForSession(callerId, sessionId).map { it.toResponse() }
+            } else {
+                // #509 — idempotent replay that lands after a day transition (e.g. the day
+                // was remitted between the original create and this retry) already committed;
+                // the concern read gates on day readability, so tolerate its 403 and still
+                // acknowledge the write with an empty list instead of failing the retry.
+                try {
+                    SessionConcernService.getForSession(callerId, sessionId).map { it.toResponse() }
+                } catch (_: ForbiddenException) {
+                    emptyList()
+                }
+            }
         context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
         context.json(result.session.toResponse(concerns))
     }

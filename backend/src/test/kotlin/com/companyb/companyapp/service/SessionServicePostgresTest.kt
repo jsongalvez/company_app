@@ -41,6 +41,9 @@ import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -233,6 +236,120 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val result = createSession(otherCaller, sessionId)
 
         assertTrue(result.created)
+    }
+
+    // #509 — session create joins the day-state gate inside the command transaction.
+
+    @Test
+    fun `create on REMITTED today without EDIT_PAST_DAY is rejected with no row written`() {
+        DatabaseTestHelper.createRemittedBranchDay(branchId, TestFixtures.today)
+        val blockedId = TestFixtures.uuid()
+
+        assertFailsWith<ForbiddenException> {
+            createSession(callerId, blockedId)
+        }
+        assertNull(SessionRepository.findById(blockedId))
+        assertEquals(0L, auditEntryCount(SessionTable.tableName, blockedId))
+    }
+
+    @Test
+    fun `coordinator create on REMITTED today without reason is rejected with no row written`() {
+        DatabaseTestHelper.createRemittedBranchDay(branchId, TestFixtures.today)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        val blockedId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            createSession(callerId, blockedId)
+        }
+        assertNull(SessionRepository.findById(blockedId))
+        assertEquals(0L, auditEntryCount(SessionTable.tableName, blockedId))
+    }
+
+    @Test
+    fun `coordinator create on REMITTED today with reason succeeds and flags audit`() {
+        DatabaseTestHelper.createRemittedBranchDay(branchId, TestFixtures.today)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+
+        val result = createSession(callerId, sessionId, reason = "Late walk-in after remittance")
+
+        assertTrue(result.created)
+        val audit = auditEntry(SessionTable.tableName, sessionId)
+        assertEquals(true, audit[AuditLogTable.isFlagged])
+        assertEquals("Late walk-in after remittance", audit[AuditLogTable.reason])
+    }
+
+    @Test
+    fun `create on PAST day requires coordinator and needs no reason`() {
+        val pastDayId =
+            DatabaseTestHelper.createBranchDayForDate(
+                branchId,
+                TestFixtures.today.minusDays(1),
+            )
+        val blockedId = TestFixtures.uuid()
+
+        assertFailsWith<ForbiddenException> {
+            createSession(callerId, blockedId, gatedBranchDayId = pastDayId)
+        }
+        assertNull(SessionRepository.findById(blockedId))
+
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        val result = createSession(callerId, blockedId, gatedBranchDayId = pastDayId)
+
+        assertTrue(result.created)
+        val audit = auditEntry(SessionTable.tableName, blockedId)
+        assertEquals(false, audit[AuditLogTable.isFlagged])
+        assertNull(audit[AuditLogTable.reason])
+    }
+
+    @Test
+    fun `idempotent replay on REMITTED day bypasses the gate`() {
+        createSession(callerId, sessionId)
+        DatabaseTestHelper.createRemittedBranchDay(branchId, TestFixtures.today)
+
+        val replay = createSession(callerId, sessionId)
+
+        assertFalse(replay.created)
+        assertEquals(sessionId, replay.session.id)
+        assertEquals(1L, auditEntryCount(SessionTable.tableName, sessionId))
+    }
+
+    @Test
+    fun `concurrent remittance day transition serializes with session create gate`() {
+        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, TestFixtures.today)
+        val blockedId = TestFixtures.uuid()
+        val dayLocked = CountDownLatch(1)
+
+        // #509 barrier: the submit side holds the day row lock (the same locked primitive
+        // remittance submit/undo use per #506/#507) while the create attempts its in-tx
+        // gate. The create must block on the lock until the transition commits, then read
+        // REMITTED and fail closed — never slipping an insert onto the frozen day. The
+        // elapsed lower bound is the load-bearing assertion: without the in-tx row lock
+        // the create would sail through in milliseconds.
+        val submitter =
+            thread {
+                transaction {
+                    BranchDayService.lockDaysInTransaction(listOf(dayId))
+                    dayLocked.countDown()
+                    Thread.sleep(BARRIER_HOLD_MILLIS)
+                    BranchDayService.markDaysRemittedInTransaction(listOf(dayId))
+                }
+            }
+        assertTrue(dayLocked.await(BARRIER_WAIT_SECONDS, TimeUnit.SECONDS))
+
+        val (failure, blockedFor) =
+            measureTimedValue {
+                runCatching { createSession(callerId, blockedId) }.exceptionOrNull()
+            }
+        submitter.join(BARRIER_JOIN_MILLIS)
+
+        assertTrue(failure is ForbiddenException)
+        assertTrue(
+            blockedFor.inWholeMilliseconds >= BARRIER_MIN_BLOCKED_MILLIS,
+            "create did not block on the day lock: finished in $blockedFor",
+        )
+        assertNull(SessionRepository.findById(blockedId))
+        assertEquals(0L, auditEntryCount(SessionTable.tableName, blockedId))
+        assertEquals(DayStatus.REMITTED, BranchDayService.getEffectiveStatus(dayId))
     }
 
     @Test
@@ -1106,6 +1223,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         finalPrice: BigDecimal = BigDecimal("2500.00"),
         gatedBranchDayId: UUID? = null,
         nextAppointmentDate: LocalDate? = null,
+        reason: String? = null,
     ) = SessionService.create(
         callerId = callerId,
         id = id,
@@ -1118,6 +1236,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         otherConcerns = null,
         nextAppointmentDate = nextAppointmentDate,
         gatedBranchDayId = gatedBranchDayId,
+        reason = reason,
     )
 
     private fun databaseNow() =
@@ -1226,5 +1345,12 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 (AuditLogTable.auditTableName eq tableName) and
                     (AuditLogTable.recordId eq recordId)
             }.single()
+    }
+
+    companion object {
+        private const val BARRIER_HOLD_MILLIS = 5000L
+        private const val BARRIER_MIN_BLOCKED_MILLIS = 3000L
+        private const val BARRIER_WAIT_SECONDS = 10L
+        private const val BARRIER_JOIN_MILLIS = 30000L
     }
 }

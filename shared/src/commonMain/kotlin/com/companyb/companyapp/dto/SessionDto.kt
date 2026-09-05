@@ -15,6 +15,7 @@ data class CreateSessionRequest(
     val remarks: String? = null,
     val otherConcerns: String? = null,
     val nextAppointmentDate: String? = null,
+    val reason: String? = null,
 )
 
 @Serializable

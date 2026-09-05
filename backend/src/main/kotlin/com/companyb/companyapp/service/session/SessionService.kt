@@ -70,6 +70,10 @@ object SessionService {
         // Must belong to [branchId] — a foreign or missing day fails closed with 404
         // (parent-child convention).
         gatedBranchDayId: UUID? = null,
+        // #509 — REMITTED-day reason (BR §Day State Machine): PAST needs coordinator-only,
+        // REMITTED needs coordinator + reason. Plumbed route→service like every sibling
+        // session mutation; null on OPEN days.
+        reason: String? = null,
     ): SessionCreateResult {
         val branchType =
             SessionRepository.getBranchType(branchId)
@@ -85,20 +89,7 @@ object SessionService {
 
         val existing = SessionRepository.findById(id)
         if (existing != null) {
-            // Fast-path replay check (authoritative classification lives in the command
-            // transaction's idempotentResult — this only preserves 409 precedence before
-            // the day resolution below). Ownership is the stored created_by (#453).
-            val expectedBranchDayId =
-                gatedBranchDayId ?: BranchDayService.findToday(branchId)?.id
-            val sameClient = existing.clientId == clientId
-            val sameBranch = SessionRepository.branchDayBelongsToBranch(existing.branchDayId, branchId)
-            val sameDay = existing.branchDayId == expectedBranchDayId
-            val sameCaller = existing.createdBy == callerId
-            if (!sameClient || !sameBranch || !sameDay || !sameCaller) {
-                throw ConflictException("Session id already belongs to another create request")
-            }
-            logger.info { "[CREATE-SESSION] Session $id already exists, returning existing (idempotent)" }
-            return SessionCreateResult(existing, false)
+            return fastPathReplay(existing, clientId, branchId, callerId, gatedBranchDayId)
         }
 
         val today = BranchDayService.currentOperationalDate()
@@ -119,6 +110,16 @@ object SessionService {
         val basePrice = resolveDefaultBasePrice(branchId, clientId, sessionType)
 
         return transaction {
+            // #509 — client-first lock order (matches status/price/void/unvoid): the client
+            // row is locked before the day row so concurrent session mutations serialize
+            // instead of deadlocking. The day gate below locks the day row, serializing
+            // this create with remittance submit/undo's REMITTED transition.
+            ClientRepository.acquireLockInTransaction(clientId)
+            idempotentReplayOrNull(findSessionByIdInTransaction(id), clientId, branchDay.id, callerId)?.let {
+                return@transaction it
+            }
+            val (lockedDay, isRemitted) =
+                BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDay.id, reason)
             val result =
                 SessionRepository.createInTransaction(
                     SessionCreateParams(
@@ -137,7 +138,7 @@ object SessionService {
                     ),
                 )
             if (result.created) {
-                SessionAudit.inserted(AuditContext(callerId, branchId), result.session)
+                SessionAudit.inserted(AuditContext(callerId, lockedDay.branchId, isRemitted, reason), result.session)
             }
 
             logger.info {
@@ -146,6 +147,55 @@ object SessionService {
 
             result
         }
+    }
+
+    /**
+     * Fast-path replay check (authoritative classification lives in the command
+     * transaction's [idempotentReplayOrNull] — this only preserves 409 precedence before
+     * the day resolution below). Ownership is the stored created_by (#453). Extracted so
+     * [create] stays under the complexity gate.
+     */
+    private fun fastPathReplay(
+        existing: Session,
+        clientId: UUID,
+        branchId: UUID,
+        callerId: UUID,
+        gatedBranchDayId: UUID?,
+    ): SessionCreateResult {
+        val expectedBranchDayId =
+            gatedBranchDayId ?: BranchDayService.findToday(branchId)?.id
+        val sameClient = existing.clientId == clientId
+        val sameBranch = SessionRepository.branchDayBelongsToBranch(existing.branchDayId, branchId)
+        val sameDay = existing.branchDayId == expectedBranchDayId
+        val sameCaller = existing.createdBy == callerId
+        if (listOf(sameClient, sameBranch, sameDay, sameCaller).any { !it }) {
+            throw ConflictException("Session id already belongs to another create request")
+        }
+        logger.info { "[CREATE-SESSION] Session ${existing.id} already exists, returning existing (idempotent)" }
+        return SessionCreateResult(existing, false)
+    }
+
+    /**
+     * #509 — in-transaction idempotent-replay classification (runs on the caller's command
+     * transaction, after the client lock, before the day gate): a same-id row already
+     * committed returns without gating so retries that land after a day transition still
+     * acknowledge; a foreign row fails closed with 409. Ownership is the stored created_by
+     * (#453). Extracted so [create] stays under the complexity gate.
+     */
+    private fun idempotentReplayOrNull(
+        existing: Session?,
+        clientId: UUID,
+        branchDayId: UUID,
+        callerId: UUID,
+    ): SessionCreateResult? {
+        if (existing == null) return null
+        val sameClient = existing.clientId == clientId
+        val sameBranchDay = existing.branchDayId == branchDayId
+        val sameCaller = existing.createdBy == callerId
+        if (!sameClient || !sameBranchDay || !sameCaller) {
+            throw ConflictException("Session id already belongs to another create request")
+        }
+        return SessionCreateResult(existing, false)
     }
 
     private fun computeBasePrice(
@@ -451,6 +501,8 @@ internal object SessionAudit {
         changedBy = context.changedBy,
         branchId = context.branchId,
         fields = SessionTable.auditFields(session),
+        isFlagged = context.isFlagged,
+        reason = context.reason,
     )
 
     fun updated(
