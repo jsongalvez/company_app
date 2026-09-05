@@ -7,21 +7,6 @@ import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.ExpenseTable
-import com.companyb.companyapp.repository.model.ProductCategoryTable
-import com.companyb.companyapp.repository.model.ProductSaleTable
-import com.companyb.companyapp.repository.model.ProductTable
-import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
-import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
-import com.companyb.companyapp.repository.model.RemittanceLineTable
-import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
@@ -48,12 +33,8 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "summary-caller")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestBranch(branchId, "Monthly Summary Branch ${TestFixtures.uuid()}")
-        trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestClient(clientId)
-        trackOwned(ClientTable, ClientTable.id, clientId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
         DatabaseTestHelper.grantCapability(
             userId = callerId,
             capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
@@ -68,12 +49,6 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
             contextId = branchId,
             sourceId = sourceId,
         )
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-        trackOwned(SessionTable, SessionTable.clientId, clientId)
-        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
-        trackOwned(CompensationTable, CompensationTable.userId, callerId)
-        trackOwned(ExpenseTable, ExpenseTable.createdBy, callerId)
     }
 
     @Test
@@ -90,11 +65,6 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         val breakdownId = TestFixtures.uuid()
 
         createSubmittedSessionRemittance(remittanceId, lineId, breakdownId, BigDecimal("1000.00"))
-
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
         val summary = getCurrentMonthSummary(branchId)
 
@@ -143,11 +113,6 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         val version = RemittanceService.getRemittance(remittanceId).remittance.version
         RemittanceService.submit(callerId, remittanceId, version)
 
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
-
         val summary = getCurrentMonthSummary(branchId)
 
         assertEquals(1, summary.totalRemittances)
@@ -165,10 +130,6 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
         createSubmittedProductRemittance(remittanceId, lineId, breakdownId)
 
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-
         val summary = getCurrentMonthSummary(branchId)
 
         assertEquals(1, summary.totalRemittances)
@@ -184,14 +145,6 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         val rem2Id = TestFixtures.uuid()
         createSubmittedSessionRemittance(rem1Id, TestFixtures.uuid(), TestFixtures.uuid(), BigDecimal("500.00"))
         createSubmittedProductRemittance(rem2Id, TestFixtures.uuid(), TestFixtures.uuid())
-
-        trackOwned(RemittanceTable, RemittanceTable.id, rem1Id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, rem1Id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, rem1Id)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, rem1Id)
-        trackOwned(RemittanceTable, RemittanceTable.id, rem2Id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, rem2Id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, rem2Id)
 
         val summary = getCurrentMonthSummary(branchId)
 
@@ -226,10 +179,6 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         val breakdownId = TestFixtures.uuid()
 
         createSubmittedProductRemittance(remittanceId, lineId, breakdownId)
-
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
 
         val summary = getCurrentMonthSummary(branchId)
 
@@ -347,8 +296,6 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
             productId = productId,
             handledBy = callerId,
         )
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, productCategoryId)
-        trackOwned(ProductTable, ProductTable.id, productId)
         return psId
     }
 }

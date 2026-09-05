@@ -4,11 +4,7 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.domain.UserStatus
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.RoleTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -65,7 +61,6 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
             contextId = branchA,
             sourceId = sourceId,
         )
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, directGrantCoordinator)
     }
 
     private fun insertUsers() {
@@ -83,7 +78,6 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
             multiBranchCoordinator to "multi-coord",
         ).forEach { (id, prefix) ->
             DatabaseTestHelper.insertTestUser(id, prefix)
-            trackOwned(AppUserTable, AppUserTable.id, id)
         }
         DatabaseTestHelper.insertUser(
             id = inactiveCoordinator,
@@ -93,7 +87,6 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
             displayName = "Test Inactive Coordinator",
             status = UserStatus.INACTIVE,
         )
-        trackOwned(AppUserTable, AppUserTable.id, inactiveCoordinator)
     }
 
     private fun insertBranches() {
@@ -103,7 +96,6 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
             unrelatedBranch to "Unrelated Branch",
         ).forEach { (id, name) ->
             DatabaseTestHelper.insertTestBranch(id, name)
-            trackOwned(BranchTable, BranchTable.id, id)
         }
     }
 
@@ -151,7 +143,6 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
                 it[UserRoleTable.roleId] = roleId
             }
         }
-        trackOwned(UserRoleTable, UserRoleTable.userId, userId)
     }
 
     private fun insertAssignment(
@@ -168,7 +159,6 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
                 assignedBy = userId,
                 ended = ended,
             )
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, id)
     }
 
     private fun hasBranch(

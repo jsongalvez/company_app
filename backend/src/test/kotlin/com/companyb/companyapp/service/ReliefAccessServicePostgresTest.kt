@@ -12,13 +12,9 @@ import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
 import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -59,13 +55,9 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(reliefUserId, "relief")
-        trackOwned(AppUserTable, AppUserTable.id, reliefUserId)
         DatabaseTestHelper.insertTestUser(memberId, "member")
-        trackOwned(AppUserTable, AppUserTable.id, memberId)
         DatabaseTestHelper.insertTestBranch(branchId, branchName)
-        trackOwned(BranchTable, BranchTable.id, branchId)
         insertBranchDay(branchDayId, branchId)
-        trackOwned(BranchDayTable, BranchDayTable.id, branchDayId)
         // The member's home assignment — grant/deny/cancel authority (#357).
         DatabaseTestHelper.insertTestAssignment(
             userId = memberId,
@@ -73,15 +65,9 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
             slot = 1,
             assignedBy = memberId,
         )
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, memberId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, reliefUserId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, reliefUserId)
         // Member-authored grants/denies/cancels write audit rows too (#357 membership authority).
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, memberId)
-        trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.branchDayId, branchDayId)
         // #358 — broadcast writes land in the notification table; every recipient's row
         // carries this branch id, so one column key tracks them all.
-        trackOwned(NotificationTable, NotificationTable.branchId, branchId)
     }
 
     // ──────────────────────────────────────────────
@@ -139,14 +125,12 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     fun `request by an assigned member of the branch fails with 400`() {
         val assignedMember = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(assignedMember, "home-member")
-        trackOwned(AppUserTable, AppUserTable.id, assignedMember)
         DatabaseTestHelper.insertTestAssignment(
             userId = assignedMember,
             branchId = branchId,
             slot = 2,
             assignedBy = memberId,
         )
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, assignedMember)
 
         assertFailsWith<ValidationException> {
             ReliefAccessService.requestReliefAccess(TestFixtures.uuid(), branchId, null, assignedMember)
@@ -156,7 +140,6 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     @Test
     fun `request fails with 403 when requester is deactivated`() {
         DatabaseTestHelper.insertTestUser(inactiveRequester, "inactive")
-        trackOwned(AppUserTable, AppUserTable.id, inactiveRequester)
         transaction {
             AppUserTable.update({ AppUserTable.id eq inactiveRequester }) {
                 it[AppUserTable.status] = UserStatus.INACTIVE
@@ -300,7 +283,6 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     fun `grant by a non-member fails with 403`() {
         val outsider = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(outsider, "outsider")
-        trackOwned(AppUserTable, AppUserTable.id, outsider)
         val requestId = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
 
@@ -326,13 +308,10 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     fun `two requests from different requesters can both be granted (no supersede)`() {
         val secondRelief = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(secondRelief, "relief-2")
-        trackOwned(AppUserTable, AppUserTable.id, secondRelief)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, secondRelief)
         val request1 = TestFixtures.uuid()
         val request2 = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(request1, branchId, TestFixtures.today, reliefUserId)
         ReliefAccessService.requestReliefAccess(request2, branchId, TestFixtures.today, secondRelief)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, secondRelief)
 
         val grant1 = ReliefAccessService.grantAccess(request1, memberId)
         val grant2 = ReliefAccessService.grantAccess(request2, memberId)
@@ -388,7 +367,6 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     fun `deny by a non-member fails with 403`() {
         val outsider = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(outsider, "other")
-        trackOwned(AppUserTable, AppUserTable.id, outsider)
         val requestId = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
 
@@ -422,9 +400,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
                 it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.PENDING
             }
         }
-        trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.id, requestId)
         DatabaseTestHelper.grantEditPastDay(memberId, branchId, TestFixtures.uuid())
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, memberId)
 
         val result = ReliefAccessService.grantAccess(requestId, memberId, "Coordinator correction")
 
@@ -446,7 +422,6 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     fun `grant fails with 403 on REMITTED day without EDIT_PAST_DAY`() {
         val remittedDayId = TestFixtures.uuid()
         insertBranchDay(remittedDayId, branchId, DayStatus.REMITTED, TestFixtures.today.minusDays(1))
-        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
         val requestId = TestFixtures.uuid()
         transaction {
             GrantReliefAccessTable.insert {
@@ -456,7 +431,6 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
                 it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.PENDING
             }
         }
-        trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.id, requestId)
 
         assertFailsWith<ForbiddenException> {
             ReliefAccessService.grantAccess(requestId, memberId)
@@ -492,7 +466,6 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     fun `cancel by a non-member non-requester fails with 403`() {
         val outsider = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(outsider, "cancel-outsider")
-        trackOwned(AppUserTable, AppUserTable.id, outsider)
         val requestId = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
 
@@ -505,7 +478,6 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     fun `withdraw locks once the requester clocks in as relief`() {
         val attendanceId = TestFixtures.uuid()
         insertAttendance(attendanceId, reliefUserId, branchDayId)
-        trackOwned(AttendanceTable, AttendanceTable.branchDayId, branchDayId)
         val requestId = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
 
@@ -544,8 +516,6 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     fun `members see every request on the day, outsiders only their own`() {
         val otherOutsider = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherOutsider, "relief-3")
-        trackOwned(AppUserTable, AppUserTable.id, otherOutsider)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherOutsider)
         val mine = TestFixtures.uuid()
         val theirs = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(mine, branchId, TestFixtures.today, reliefUserId)
@@ -604,14 +574,12 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     fun `broadcast skips deactivated members with open assignments`() {
         val inactiveMember = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(inactiveMember, "inactive-member")
-        trackOwned(AppUserTable, AppUserTable.id, inactiveMember)
         DatabaseTestHelper.insertTestAssignment(
             userId = inactiveMember,
             branchId = branchId,
             slot = 3,
             assignedBy = memberId,
         )
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, inactiveMember)
         transaction {
             AppUserTable.update({ AppUserTable.id eq inactiveMember }) {
                 it[AppUserTable.status] = UserStatus.INACTIVE
@@ -718,18 +686,10 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     fun `invite acceptance broadcasts to the branch members`() {
         val inviteeId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(inviteeId, "relief-invitee")
-        trackOwned(AppUserTable, AppUserTable.id, inviteeId)
         // The acceptance audit row is authored by the invitee; the capability by grant.
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, inviteeId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, inviteeId)
 
         // Mint through the service: the invite lands on the pre-seeded today day row.
         val invite = ReliefInviteService.createInvite(memberId, branchId, inviteeId, TestFixtures.today)
-        trackOwned(
-            com.companyb.companyapp.repository.model.ReliefInviteTable,
-            com.companyb.companyapp.repository.model.ReliefInviteTable.id,
-            invite.id,
-        )
 
         ReliefInviteService.acceptInvite(inviteeId, invite.id)
 
@@ -765,8 +725,6 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     /** Track a service-created request row and its (possibly fresh) branch day for teardown. */
     private fun trackRequest(requestId: UUID) {
         val dayId = ReliefAccessRepository.findById(requestId)?.branchDayId ?: return
-        trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.id, requestId)
-        trackOwned(BranchDayTable, BranchDayTable.id, dayId)
     }
 
     private fun insertBranchDay(

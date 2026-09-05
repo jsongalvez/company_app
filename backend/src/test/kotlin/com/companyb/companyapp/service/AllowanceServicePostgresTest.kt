@@ -2,11 +2,7 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AllowanceTable
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -39,16 +35,10 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "allowance-caller")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestUser(targetUserId, "allowance-target")
-        trackOwned(AppUserTable, AppUserTable.id, targetUserId)
         DatabaseTestHelper.insertTestBranch(branchId, "Test Allowance Branch")
-        trackOwned(BranchTable, BranchTable.id, branchId)
         branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        trackOwned(BranchDayTable, BranchDayTable.id, branchDayId)
         DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
@@ -58,9 +48,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val allowanceId = TestFixtures.uuid()
 
         val allowance =
@@ -74,7 +62,6 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
             )
 
         assertNotNull(allowance)
-        trackOwned(AllowanceTable, AllowanceTable.id, allowanceId)
         val audit =
             transaction {
                 AuditLogTable
@@ -100,8 +87,6 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
                 userId = targetUserId,
                 amount = BigDecimal("500.00"),
             )
-
-        trackOwned(AllowanceTable, AllowanceTable.id, allowanceId)
 
         assertNotNull(allowance)
         assertEquals(allowanceId, allowance.id)
@@ -133,8 +118,6 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
                 amount = BigDecimal("500.00"),
             )
 
-        trackOwned(AllowanceTable, AllowanceTable.id, allowanceId)
-
         assertEquals(first.id, second.id)
     }
 
@@ -146,12 +129,9 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        trackOwned(BranchDayTable, BranchDayTable.id, otherDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         AllowanceService.create(callerId, allowanceId, branchDayId, targetUserId, BigDecimal("500.00"))
-        trackOwned(AllowanceTable, AllowanceTable.id, allowanceId)
 
         assertFailsWith<NotFoundException> {
             AllowanceService.create(
@@ -184,9 +164,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        trackOwned(BranchDayTable, BranchDayTable.id, otherDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val start = CountDownLatch(1)
         val results = Collections.synchronizedList(mutableListOf<Throwable?>())
         val threads =
@@ -220,7 +198,6 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
             assertFalse(it.isAlive, "allowance test worker did not terminate")
         }
 
-        trackOwned(AllowanceTable, AllowanceTable.id, allowanceId)
         assertEquals(2, results.size)
         assertEquals(1, results.count { it == null })
         assertEquals(1, results.count { it is NotFoundException })
@@ -250,7 +227,6 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
                 amount = BigDecimal("500.00"),
             )
 
-        trackOwned(AllowanceTable, AllowanceTable.id, allowanceId)
         assertNotNull(allowance)
         assertEquals(targetUserId, allowance.userId)
     }
@@ -288,9 +264,6 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
             amount = BigDecimal("300.00"),
         )
 
-        trackOwned(AllowanceTable, AllowanceTable.id, allowanceId1)
-        trackOwned(AllowanceTable, AllowanceTable.id, allowanceId2)
-
         val results = AllowanceService.findByBranchDayId(branchDayId)
 
         assertEquals(2, results.size)
@@ -324,8 +297,6 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
             userId = targetUserId,
             amount = BigDecimal("500.00"),
         )
-
-        trackOwned(AllowanceTable, AllowanceTable.id, allowanceId)
 
         val auditCount =
             transaction {

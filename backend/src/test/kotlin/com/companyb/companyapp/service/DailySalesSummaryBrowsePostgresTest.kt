@@ -3,7 +3,6 @@ import com.companyb.companyapp.dto.DailySalesSummaryBrowseResponse
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.decodeDailySummaryCursor
 import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -24,9 +23,7 @@ class DailySalesSummaryBrowsePostgresTest : BasePostgresTest() {
     private val today = TestFixtures.today
 
     override fun initTestData() {
-        trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestBranch(branchId, "Browse Test Branch")
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
     }
 
     @Test
@@ -214,6 +211,5 @@ class DailySalesSummaryBrowsePostgresTest : BasePostgresTest() {
                 it[BranchDayTable.date] = date
             }
         }
-        trackOwned(BranchDayTable, BranchDayTable.id, id)
     }
 }

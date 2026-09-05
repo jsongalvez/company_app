@@ -5,9 +5,6 @@ import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.CredentialTokenTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
@@ -36,9 +33,6 @@ class PasswordResetRoutesTest : BasePostgresTest() {
     fun `known and unknown identifiers answer identically until the rate budget bites`() {
         val userId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(userId, "http-resetee")
-        trackOwned(AppUserTable, AppUserTable.id, userId)
-        trackOwned(CredentialTokenTable, CredentialTokenTable.userId, userId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, userId)
 
         val known =
             testServer.client.post(

@@ -4,13 +4,7 @@ import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.SessionPractitionerRepository
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
-import com.companyb.companyapp.repository.model.SessionPractitionerTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.service.branchday.BranchDayService
@@ -41,17 +35,10 @@ class SessionReadsPostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "session-reads-caller")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestBranch(branchId)
-        trackOwned(BranchTable, BranchTable.id, branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
         insertRate(regularRateId, SessionType.REGULAR, "2500.00")
         insertRate(secondSessionRateId, SessionType.SECOND_SESSION, "2000.00")
-        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, regularRateId)
-        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, secondSessionRateId)
-
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
 
         // Today's day row — the practitioners read gates on its readability.
         BranchDayService.resolveOrCreate(branchId, TestFixtures.today)
@@ -60,7 +47,6 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     @Test
     fun `preview returns REGULAR and base rate for a first-visit client`() {
         val clientId = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, clientId)
 
         val preview = SessionService.previewSession(branchId, clientId)
 
@@ -71,7 +57,6 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     @Test
     fun `preview counts prior sessions into SECOND_SESSION with its own rate`() {
         val clientId = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, clientId)
         insertPriorSession(TestFixtures.uuid(), clientId, SessionType.REGULAR)
 
         val preview = SessionService.previewSession(branchId, clientId)
@@ -83,7 +68,6 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     @Test
     fun `preview excludes voided and medical-mission sessions from history`() {
         val clientId = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, clientId)
         val voidedId = TestFixtures.uuid()
         insertPriorSession(voidedId, clientId, SessionType.REGULAR)
         transaction {
@@ -93,7 +77,6 @@ class SessionReadsPostgresTest : BasePostgresTest() {
                 it[voidReason] = "test"
             }
         }
-        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, voidedId)
         insertPriorSession(TestFixtures.uuid(), clientId, SessionType.MEDICAL_MISSION)
 
         val preview = SessionService.previewSession(branchId, clientId)
@@ -106,7 +89,6 @@ class SessionReadsPostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> { SessionService.previewSession(TestFixtures.uuid(), TestFixtures.uuid()) }
 
         val clientId = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, clientId)
         assertFailsWith<NotFoundException> { SessionService.previewSession(branchId, TestFixtures.uuid()) }
     }
 
@@ -114,7 +96,6 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     fun `preview 400s when no base rate is configured for the predicted type`() {
         // SUBSEQUENT has no rate row at this branch; two priors make it the predicted type.
         val clientId = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, clientId)
         insertPriorSession(TestFixtures.uuid(), clientId, SessionType.REGULAR)
         insertPriorSession(TestFixtures.uuid(), clientId, SessionType.SECOND_SESSION)
 
@@ -127,9 +108,7 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     fun `free last session defaults preview price to SUBSEQUENT base rate`() {
         val subsequentRateId = TestFixtures.uuid()
         insertRate(subsequentRateId, SessionType.SUBSEQUENT, "1500.00")
-        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, subsequentRateId)
         val clientId = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, clientId)
         insertPriorSession(
             TestFixtures.uuid(),
             clientId,
@@ -149,9 +128,7 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     fun `mission session as most recent visit never triggers the SUBSEQUENT default`() {
         val subsequentRateId = TestFixtures.uuid()
         insertRate(subsequentRateId, SessionType.SUBSEQUENT, "1500.00")
-        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, subsequentRateId)
         val clientId = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, clientId)
         insertPriorSession(
             TestFixtures.uuid(),
             clientId,
@@ -176,9 +153,7 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     fun `voided free session does not trigger the SUBSEQUENT default`() {
         val subsequentRateId = TestFixtures.uuid()
         insertRate(subsequentRateId, SessionType.SUBSEQUENT, "1500.00")
-        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, subsequentRateId)
         val clientId = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, clientId)
         insertPriorSession(
             TestFixtures.uuid(),
             clientId,
@@ -200,7 +175,6 @@ class SessionReadsPostgresTest : BasePostgresTest() {
                 it[voidReason] = "test"
             }
         }
-        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, voidedFreeId)
 
         // Most recent non-voided session is the paid one — derived rate stands.
         val preview = SessionService.previewSession(branchId, clientId)
@@ -213,9 +187,7 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     fun `create after free session persists SUBSEQUENT base price while override wins`() {
         val subsequentRateId = TestFixtures.uuid()
         insertRate(subsequentRateId, SessionType.SUBSEQUENT, "1500.00")
-        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, subsequentRateId)
         val clientId = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, clientId)
         insertPriorSession(
             TestFixtures.uuid(),
             clientId,
@@ -238,7 +210,6 @@ class SessionReadsPostgresTest : BasePostgresTest() {
                 otherConcerns = null,
                 nextAppointmentDate = null,
             )
-        trackOwned(SessionTable, SessionTable.id, newSessionId)
 
         assertEquals(SessionType.SECOND_SESSION, result.session.sessionType)
         // Default offered base is SUBSEQUENT; the practitioner's explicit price wins.
@@ -251,17 +222,13 @@ class SessionReadsPostgresTest : BasePostgresTest() {
         val sessionId = TestFixtures.uuid()
         val dayId = BranchDayService.resolveOrCreate(branchId, TestFixtures.today).id
         val clientId = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, clientId)
         DatabaseTestHelper.insertTestSession(sessionId, clientId, dayId)
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         val late = TestFixtures.uuid()
         val early = TestFixtures.uuid()
         val latePractitioner = TestFixtures.uuid()
         val earlyPractitioner = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(latePractitioner, "session-reads-late")
-        trackOwned(AppUserTable, AppUserTable.id, latePractitioner)
         DatabaseTestHelper.insertTestUser(earlyPractitioner, "session-reads-early")
-        trackOwned(AppUserTable, AppUserTable.id, earlyPractitioner)
         transaction {
             SessionPractitionerRepository.addInTransaction(
                 id = late,
@@ -278,7 +245,6 @@ class SessionReadsPostgresTest : BasePostgresTest() {
                 remarks = null,
             )
         }
-        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
 
         val practitioners = SessionPractitionerService.getForSession(callerId, sessionId)
 
@@ -333,7 +299,6 @@ class SessionReadsPostgresTest : BasePostgresTest() {
             sessionStatus = SessionStatus.COMPLETED,
             finalPrice = finalPrice,
         )
-        trackOwned(SessionTable, SessionTable.id, id)
         if (createdAt != null) {
             transaction {
                 SessionTable.update({ SessionTable.id eq id }) {

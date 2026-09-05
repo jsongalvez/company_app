@@ -11,11 +11,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
@@ -56,12 +52,9 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     override fun initTestData() {
         listOf(managerUser, noGrantUser, userAId, userBId).forEach { id ->
             DatabaseTestHelper.insertTestUser(id, id.toString().take(6))
-            trackOwned(AppUserTable, AppUserTable.id, id)
         }
         DatabaseTestHelper.grantManageUsers(managerUser, managerUser)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, managerUser)
         DatabaseTestHelper.insertTestBranch(branchId, "Authz Branch 134")
-        trackOwned(BranchTable, BranchTable.id, branchId)
         assignmentAId =
             DatabaseTestHelper.insertTestAssignment(
                 userId = userAId,
@@ -76,10 +69,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
                 slot = 2,
                 assignedBy = managerUser,
             )
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, assignmentAId)
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, assignmentBId)
         listOf(managerUser, noGrantUser, userAId, userBId).forEach { id ->
-            trackOwned(AuditLogTable, AuditLogTable.changedBy, id)
         }
     }
 
@@ -151,7 +141,6 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
         assertEquals(204, removeResponse.code)
 
         val replacementId = TestFixtures.uuid()
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, replacementId)
         val createResponse =
             testServer.client.post(
                 "/api/branches/$branchId/assignments",
@@ -188,7 +177,6 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     @Test
     fun `POST assignments by manager creates the assignment`() {
         val newId = TestFixtures.uuid()
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, newId)
         var status = 0
         testServer.client.let { client ->
             status =
@@ -284,7 +272,6 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
                 slot = 3,
                 assignedBy = managerUser,
             )
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, managerAssignmentId)
 
         var status = 0
         testServer.client.let { client ->

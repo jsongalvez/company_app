@@ -12,13 +12,6 @@ import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -62,24 +55,6 @@ class SessionEditAuthzTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestBranch(branchId, "Branch A")
         DatabaseTestHelper.insertTestBranch(otherBranchId, "Branch B")
         DatabaseTestHelper.insertTestClient(clientId)
-
-        trackOwned(AppUserTable, AppUserTable.id, editorUser)
-        trackOwned(AppUserTable, AppUserTable.id, noGrantUser)
-        trackOwned(AppUserTable, AppUserTable.id, coordinatorUser)
-        trackOwned(AppUserTable, AppUserTable.id, wrongBranchUser)
-        trackOwned(BranchTable, BranchTable.id, branchId)
-        trackOwned(BranchTable, BranchTable.id, otherBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, otherBranchId)
-        trackOwned(ClientTable, ClientTable.id, clientId)
-        trackOwned(SessionTable, SessionTable.id, sessionId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, editorUser)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, coordinatorUser)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, wrongBranchUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, editorUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, noGrantUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, coordinatorUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, wrongBranchUser)
 
         val branchDay =
             BranchDayService.resolveOrCreate(branchId, TestFixtures.today)

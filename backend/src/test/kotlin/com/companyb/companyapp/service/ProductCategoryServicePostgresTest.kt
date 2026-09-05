@@ -1,9 +1,7 @@
 package com.companyb.companyapp.service
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.ProductCategory
 import com.companyb.companyapp.repository.model.ProductCategoryTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -28,7 +26,6 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "caller")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
     }
 
     private val cat1Name = "Test Category $cat1Id"
@@ -37,12 +34,8 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create persists category and writes audit row`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         val result = ProductCategoryService.create(callerId, cat1Id, cat1Name)
-
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, cat1Id)
 
         assertEquals(cat1Name, result.name)
 
@@ -56,14 +49,10 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `duplicate client generated id returns existing category without extra audit`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         ProductCategoryService.create(callerId, cat1Id, cat1Name)
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, cat1Id)
 
         val duplicate = ProductCategoryService.create(callerId, cat1Id, "Changed Name $cat1Id")
-
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
 
         assertEquals(cat1Name, duplicate.name)
         assertEquals(1L, auditEntryCount(cat1Id))
@@ -72,13 +61,11 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `list returns all categories`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         ProductCategoryService.create(callerId, cat1Id, cat1Name)
         ProductCategoryService.create(callerId, cat2Id, cat2Name)
 
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-        categoryIds.forEach { trackOwned(ProductCategoryTable, ProductCategoryTable.id, it) }
+        categoryIds.forEach { }
 
         val all = ProductCategoryService.findAll()
         val allIds = all.map { it.id }.toSet()
@@ -90,12 +77,8 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `find by id returns persisted category`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         ProductCategoryService.create(callerId, cat1Id, cat1Name)
-
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, cat1Id)
 
         val found = ProductCategoryService.findById(cat1Id)
 
@@ -106,8 +89,6 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
     fun `create without MANAGE_PRODUCTS is allowed at service layer`() {
         val newCatId = TestFixtures.uuid()
         val result = ProductCategoryService.create(callerId, newCatId, "New Category")
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, newCatId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
 
         assertTrue(categoryExists(newCatId))
         assertEquals(1L, auditEntryCount(newCatId))
@@ -122,14 +103,10 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
     fun `findById without MANAGE_PRODUCTS is allowed at service layer`() {
         val newCatId = TestFixtures.uuid()
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         ProductCategoryService.create(callerId, newCatId, "Find Category")
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, newCatId)
 
         val otherCaller = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherCaller, "other")
-        trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
         val found = ProductCategoryService.findById(newCatId)
         assertEquals("Find Category", found.name)

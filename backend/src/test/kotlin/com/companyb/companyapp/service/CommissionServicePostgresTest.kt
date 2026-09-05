@@ -3,22 +3,11 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
-import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchInventoryTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
-import com.companyb.companyapp.repository.model.CommissionSplitTable
-import com.companyb.companyapp.repository.model.InventoryMovementTable
-import com.companyb.companyapp.repository.model.ProductCategoryTable
-import com.companyb.companyapp.repository.model.ProductSaleTable
-import com.companyb.companyapp.repository.model.ProductTable
-import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -55,35 +44,16 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "commission-caller")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestUser(targetUserId, "commission-target")
-        trackOwned(AppUserTable, AppUserTable.id, targetUserId)
         DatabaseTestHelper.insertTestBranch(branchId, "Test Commission Branch")
-        trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestCategory(categoryId, "Test Commission Category")
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, categoryId)
         DatabaseTestHelper.insertTestProduct(productId, "Commission Product", categoryId)
-        trackOwned(ProductTable, ProductTable.id, productId)
         branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
         ensureInventoryCard(branchId, productId, 100)
-        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
         DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
         productSaleId = createProductSale(branchDayId)
-        trackOwned(ProductSaleTable, ProductSaleTable.id, productSaleId)
-        trackOwned(InventoryMovementTable, InventoryMovementTable.branchId, branchId)
         insertClockIn(targetUserId, branchDayId)
-        trackOwned(AttendanceTable, AttendanceTable.userId, targetUserId)
-        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.userId, targetUserId)
         DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, targetUserId)
-        trackOwned(CommissionSplitTable, CommissionSplitTable.branchDayId, branchDayId)
-        trackOwned(CommissionManualInclusionTable, CommissionManualInclusionTable.userId, targetUserId)
-        trackOwned(ClientTable, ClientTable.id, clientId)
-        trackOwned(SessionTable, SessionTable.branchDayId, branchDayId)
     }
 
     @Test
@@ -197,7 +167,6 @@ class CommissionServicePostgresTest : BasePostgresTest() {
                 reason = null,
             )
 
-        trackOwned(CommissionManualInclusionTable, CommissionManualInclusionTable.userId, targetUserId)
         assertNotNull(inclusion)
         assertTrue(inclusion.isIncluded)
     }
@@ -256,7 +225,6 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         )
 
         grantViewBranchData(callerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         val splits =
             CommissionService.getByBranchDayId(branchDayId)

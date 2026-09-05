@@ -14,20 +14,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.ProductCategoryTable
-import com.companyb.companyapp.repository.model.ProductSaleTable
-import com.companyb.companyapp.repository.model.ProductTable
-import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
-import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
-import com.companyb.companyapp.repository.model.RemittanceLineTable
-import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -69,15 +55,10 @@ class RemittanceAuthzTest : BasePostgresTest() {
     @Suppress("LongMethod")
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(submitUser, "submit")
-        trackOwned(AppUserTable, AppUserTable.id, submitUser)
         DatabaseTestHelper.insertTestUser(noneUser, "no-caps")
-        trackOwned(AppUserTable, AppUserTable.id, noneUser)
 
         DatabaseTestHelper.insertTestBranch(branchId, "Remittance Branch $branchId")
-        trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Remittance Branch $otherBranchId")
-        trackOwned(BranchTable, BranchTable.id, otherBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
         DatabaseTestHelper.grantCapability(
             userId = submitUser,
@@ -86,10 +67,8 @@ class RemittanceAuthzTest : BasePostgresTest() {
             contextId = branchId,
             sourceId = sourceId,
         )
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, submitUser)
 
         DatabaseTestHelper.insertTestClient(clientId)
-        trackOwned(ClientTable, ClientTable.id, clientId)
 
         sessionId = TestFixtures.uuid()
         val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
@@ -98,8 +77,6 @@ class RemittanceAuthzTest : BasePostgresTest() {
             clientId = clientId,
             branchDayId = dayId,
         )
-        trackOwned(SessionTable, SessionTable.id, sessionId)
-        trackOwned(BranchDayTable, BranchDayTable.id, dayId)
 
         val catId = TestFixtures.uuid()
         val prodId = TestFixtures.uuid()
@@ -112,9 +89,6 @@ class RemittanceAuthzTest : BasePostgresTest() {
             productId = prodId,
             handledBy = submitUser,
         )
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, catId)
-        trackOwned(ProductTable, ProductTable.id, prodId)
-        trackOwned(ProductSaleTable, ProductSaleTable.id, productSaleId)
 
         draftRemittanceId = TestFixtures.uuid()
         RemittanceService.createDraft(
@@ -137,10 +111,6 @@ class RemittanceAuthzTest : BasePostgresTest() {
             productSaleId = null,
             amount = BigDecimal("100.00"),
         )
-        trackOwned(RemittanceTable, RemittanceTable.id, draftRemittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, draftRemittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, draftRemittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, draftRemittanceId)
 
         otherBranchDraftId = TestFixtures.uuid()
         RemittanceService.createDraft(
@@ -155,11 +125,6 @@ class RemittanceAuthzTest : BasePostgresTest() {
         otherBranchBreakdownId = TestFixtures.uuid()
         val otherDayId = DatabaseTestHelper.createBranchDayForDate(otherBranchId, branchDayDate)
         RemittanceService.addDayBreakdown(submitUser, otherBranchDraftId, otherBranchBreakdownId, otherDayId)
-        trackOwned(RemittanceTable, RemittanceTable.id, otherBranchDraftId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, otherBranchDraftId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, otherBranchDraftId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, otherBranchDraftId)
-        trackOwned(BranchDayTable, BranchDayTable.id, otherDayId)
 
         submittedRemittanceId = TestFixtures.uuid()
         val subLineId = TestFixtures.uuid()
@@ -171,7 +136,6 @@ class RemittanceAuthzTest : BasePostgresTest() {
             branchDayId = dayId,
             sessionStatus = com.companyb.companyapp.domain.SessionStatus.COMPLETED,
         )
-        trackOwned(SessionTable, SessionTable.id, secondSessionId)
         RemittanceService.createDraft(
             callerId = submitUser,
             id = submittedRemittanceId,
@@ -196,16 +160,6 @@ class RemittanceAuthzTest : BasePostgresTest() {
             remittanceId = submittedRemittanceId,
             expectedVersion = RemittanceService.getRemittance(submittedRemittanceId).remittance.version,
         )
-        trackOwned(RemittanceTable, RemittanceTable.id, submittedRemittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, submittedRemittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, submittedRemittanceId)
-        trackOwned(
-            RemittanceFinancialSnapshotTable,
-            RemittanceFinancialSnapshotTable.remittanceId,
-            submittedRemittanceId,
-        )
-
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, submitUser)
     }
 
     companion object {
@@ -307,7 +261,6 @@ class RemittanceAuthzTest : BasePostgresTest() {
             contextId = missingBranchId,
             sourceId = sourceId,
         )
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, submitUser)
         testServer.client.let { client ->
             assertEquals(
                 404,
@@ -659,8 +612,6 @@ class RemittanceAuthzTest : BasePostgresTest() {
             branchDayId = freshDayId,
             sessionStatus = com.companyb.companyapp.domain.SessionStatus.COMPLETED,
         )
-        trackOwned(SessionTable, SessionTable.id, freshSessionId)
-        trackOwned(BranchDayTable, BranchDayTable.id, freshDayId)
         testServer.client.let { client ->
             val body =
                 mapOf(
@@ -687,8 +638,6 @@ class RemittanceAuthzTest : BasePostgresTest() {
             branchDayId = freshDayId,
             sessionStatus = com.companyb.companyapp.domain.SessionStatus.COMPLETED,
         )
-        trackOwned(SessionTable, SessionTable.id, freshSessionId)
-        trackOwned(BranchDayTable, BranchDayTable.id, freshDayId)
         RemittanceService.addLine(
             callerId = submitUser,
             remittanceId = draftRemittanceId,
@@ -698,7 +647,6 @@ class RemittanceAuthzTest : BasePostgresTest() {
             productSaleId = null,
             amount = BigDecimal("75.00"),
         )
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, draftRemittanceId)
         testServer.client.let { client ->
             assertEquals(
                 403,
@@ -715,7 +663,6 @@ class RemittanceAuthzTest : BasePostgresTest() {
     @Test
     fun `POST day-breakdown forbidden for no-capability user`() {
         val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, LocalDate.of(2026, 7, 11))
-        trackOwned(BranchDayTable, BranchDayTable.id, dayId)
         testServer.client.let { client ->
             val body =
                 mapOf(

@@ -1,8 +1,6 @@
 package com.companyb.companyapp.repository
 import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -31,8 +29,6 @@ class AuditLogRepositoryPostgresTest : BasePostgresTest() {
             email = "${callerId.toString().take(8)}@t.st",
             displayName = "Test Audit Repo Caller",
         )
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     private fun findAuditRows(): List<ResultRow> =
@@ -124,7 +120,6 @@ class AuditLogRepositoryPostgresTest : BasePostgresTest() {
     fun `record writes branchId when provided`() {
         val branchId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(branchId)
-        trackOwned(BranchTable, BranchTable.id, branchId)
 
         transaction {
             AuditLogRepository.record(

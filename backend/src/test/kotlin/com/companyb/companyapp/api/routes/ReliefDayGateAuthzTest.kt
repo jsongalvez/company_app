@@ -13,20 +13,8 @@ import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchInventoryTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.ExpenseTable
-import com.companyb.companyapp.repository.model.InventoryMovementTable
-import com.companyb.companyapp.repository.model.ProductCategoryTable
-import com.companyb.companyapp.repository.model.ProductSaleTable
-import com.companyb.companyapp.repository.model.ProductTable
-import com.companyb.companyapp.repository.model.SessionBaseRateTable
-import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.inventory.InventoryService
@@ -102,37 +90,11 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     override fun initTestData() {
         seedUsersAndBranches()
         seedClients()
-        trackOwned(SessionTable, SessionTable.id, sessionOnGrantedDay)
-        trackOwned(SessionTable, SessionTable.id, sessionOnOtherDay)
 
         val today = TestFixtures.today
         grantedDay = BranchDayService.resolveOrCreate(branchA, today).id
         otherDaySameBranch = BranchDayService.resolveOrCreate(branchA, today.plusDays(1)).id
         dayOtherBranch = BranchDayService.resolveOrCreate(branchB, today).id
-
-        trackOwned(ExpenseTable, ExpenseTable.branchDayId, grantedDay)
-        trackOwned(ExpenseTable, ExpenseTable.branchDayId, otherDaySameBranch)
-        trackOwned(ExpenseTable, ExpenseTable.branchDayId, dayOtherBranch)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, reliefUser)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, wrongDayUser)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, expiredUser)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, branchUser)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, branchCUser)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, globalUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, reliefUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, wrongDayUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, expiredUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, branchUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, branchCUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, globalUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, noGrantUser)
-        trackOwned(ProductSaleTable, ProductSaleTable.branchDayId, grantedDay)
-        trackOwned(ProductSaleTable, ProductSaleTable.branchDayId, otherDaySameBranch)
-        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchA)
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, categoryId)
-        trackOwned(ProductTable, ProductTable.id, productId)
-        trackOwned(InventoryMovementTable, InventoryMovementTable.branchDayId, grantedDay)
-        trackOwned(InventoryMovementTable, InventoryMovementTable.branchDayId, otherDaySameBranch)
 
         seedAuxiliaryData()
         seedGrants()
@@ -150,29 +112,12 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestBranch(branchA, "Branch A")
         DatabaseTestHelper.insertTestBranch(branchB, "Branch B")
         DatabaseTestHelper.insertTestBranch(branchC, "Branch C (no day row)")
-
-        trackOwned(AppUserTable, AppUserTable.id, reliefUser)
-        trackOwned(AppUserTable, AppUserTable.id, wrongDayUser)
-        trackOwned(AppUserTable, AppUserTable.id, expiredUser)
-        trackOwned(AppUserTable, AppUserTable.id, branchUser)
-        trackOwned(AppUserTable, AppUserTable.id, branchCUser)
-        trackOwned(AppUserTable, AppUserTable.id, globalUser)
-        trackOwned(AppUserTable, AppUserTable.id, noGrantUser)
-        trackOwned(BranchTable, BranchTable.id, branchA)
-        trackOwned(BranchTable, BranchTable.id, branchB)
-        trackOwned(BranchTable, BranchTable.id, branchC)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchA)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchB)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchC)
     }
 
     private fun seedClients() {
         DatabaseTestHelper.insertTestClient(clientId)
         DatabaseTestHelper.insertTestClient(otherClientId)
         DatabaseTestHelper.insertTestClient(createClientId)
-        trackOwned(ClientTable, ClientTable.id, clientId)
-        trackOwned(ClientTable, ClientTable.id, otherClientId)
-        trackOwned(ClientTable, ClientTable.id, createClientId)
     }
 
     private fun seedAuxiliaryData() {
@@ -209,7 +154,6 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             sessionType = SessionType.REGULAR,
             rate = BigDecimal("2500.00"),
         )
-        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
     }
 
     private fun seedGrants() {
@@ -404,7 +348,6 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     fun `relief user patches an expense on the granted day`() {
         testServer.client.let { client ->
             val expenseId = TestFixtures.uuid()
-            trackOwned(ExpenseTable, ExpenseTable.id, expenseId)
             transaction {
                 ExpenseTable.insert {
                     it[ExpenseTable.id] = expenseId
@@ -434,7 +377,6 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     fun `relief user creates a session on the granted day`() {
         testServer.client.let { client ->
             val sessionId = TestFixtures.uuid()
-            trackOwned(SessionTable, SessionTable.id, sessionId)
             val body =
                 mapOf(
                     "id" to sessionId.toString(),
@@ -452,7 +394,6 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     fun `relief user session create at an ungranted branch is forbidden`() {
         testServer.client.let { client ->
             val sessionId = TestFixtures.uuid()
-            trackOwned(SessionTable, SessionTable.id, sessionId)
             val body =
                 mapOf(
                     "id" to sessionId.toString(),
@@ -472,7 +413,6 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     fun `relief user creates a product sale on the granted day`() {
         testServer.client.let { client ->
             val saleId = TestFixtures.uuid()
-            trackOwned(ProductSaleTable, ProductSaleTable.id, saleId)
             val body =
                 mapOf(
                     "id" to saleId.toString(),
@@ -491,7 +431,6 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     fun `relief user product sale on a non-granted day is forbidden`() {
         testServer.client.let { client ->
             val saleId = TestFixtures.uuid()
-            trackOwned(ProductSaleTable, ProductSaleTable.id, saleId)
             val body =
                 mapOf(
                     "id" to saleId.toString(),
@@ -528,7 +467,6 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     fun `session create at a no-day branch falls back to the branch gate without creating a day`() {
         testServer.client.let { client ->
             val sessionId = TestFixtures.uuid()
-            trackOwned(SessionTable, SessionTable.id, sessionId)
             val body =
                 mapOf(
                     "id" to sessionId.toString(),
@@ -554,7 +492,6 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     fun `branch-granted user creates a session at a branch with no day row`() {
         testServer.client.let { client ->
             val sessionId = TestFixtures.uuid()
-            trackOwned(SessionTable, SessionTable.id, sessionId)
             val body =
                 mapOf(
                     "id" to sessionId.toString(),
@@ -614,10 +551,6 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     private fun seedReadUsers() {
         DatabaseTestHelper.insertTestUser(viewUser, "view-user")
         DatabaseTestHelper.insertTestUser(globalViewUser, "global-view-user")
-        trackOwned(AppUserTable, AppUserTable.id, viewUser)
-        trackOwned(AppUserTable, AppUserTable.id, globalViewUser)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, viewUser)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, globalViewUser)
         DatabaseTestHelper.grantCapability(
             userId = viewUser,
             capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,

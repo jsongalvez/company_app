@@ -5,17 +5,6 @@ import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.ReliefInviteRepository
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.GrantReliefAccessTable
-import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.repository.model.ReliefInviteTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.branchday.BranchDayRepository
 import com.companyb.companyapp.test.BasePostgresTest
@@ -52,15 +41,10 @@ class ShiftGuardCutoffConcurrencyPostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(reliefUserId, "cutoff-relief")
-        trackOwned(AppUserTable, AppUserTable.id, reliefUserId)
         DatabaseTestHelper.insertTestUser(memberId, "cutoff-member")
-        trackOwned(AppUserTable, AppUserTable.id, memberId)
         DatabaseTestHelper.insertTestUser(inviteeId, "cutoff-invitee")
-        trackOwned(AppUserTable, AppUserTable.id, inviteeId)
         DatabaseTestHelper.insertTestBranch(branchId, "Cutoff Branch ${branchId.toString().take(8)}")
-        trackOwned(BranchTable, BranchTable.id, branchId)
         // Day rows are resolved-or-created by the commands under test.
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
         // The member's home assignment — cancel/revoke authority (#357/#374).
         DatabaseTestHelper.insertTestAssignment(
             userId = memberId,
@@ -68,18 +52,7 @@ class ShiftGuardCutoffConcurrencyPostgresTest : BasePostgresTest() {
             slot = 1,
             assignedBy = memberId,
         )
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, memberId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, inviteeId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, reliefUserId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, reliefUserId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, memberId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, inviteeId)
-        trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.requestedBy, reliefUserId)
-        trackOwned(NotificationTable, NotificationTable.branchId, branchId)
-        trackOwned(ReliefInviteTable, ReliefInviteTable.invitee, inviteeId)
-        trackOwned(AttendanceTable, AttendanceTable.userId, reliefUserId)
         // Clock-in upserts a branch_day_assignment row — untracked it blocks user teardown.
-        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.userId, reliefUserId)
     }
 
     @Test

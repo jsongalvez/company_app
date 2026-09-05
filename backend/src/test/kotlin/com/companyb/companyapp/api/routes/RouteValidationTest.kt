@@ -17,19 +17,11 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.repository.model.ProductCategoryTable
-import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
@@ -66,10 +58,7 @@ class RouteValidationTest : BasePostgresTest() {
     private val testSessionId = TestFixtures.uuid()
 
     override fun initTestData() {
-        trackOwned(AppUserTable, AppUserTable.id, testUserId)
         DatabaseTestHelper.insertTestUser(testUserId, "route-test")
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, testUserId)
-        trackOwned(BranchTable, BranchTable.id, testBranchId)
         DatabaseTestHelper.insertTestBranch(testBranchId, "Route Test Branch $testBranchId")
         val allCodes =
             listOf(
@@ -101,17 +90,10 @@ class RouteValidationTest : BasePostgresTest() {
             )
         }
         testBranchDayId = DatabaseTestHelper.createBranchDayForToday(testBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.id, testBranchDayId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, testUserId)
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, testCategoryId)
         DatabaseTestHelper.insertTestCategory(testCategoryId)
-        trackOwned(ProductTable, ProductTable.id, testProductId)
         DatabaseTestHelper.insertTestProduct(testProductId, categoryId = testCategoryId)
-        trackOwned(ClientTable, ClientTable.id, testClientId)
         DatabaseTestHelper.insertTestClient(testClientId)
-        trackOwned(ClientTable, ClientTable.id, testClientNoSessionsId)
         DatabaseTestHelper.insertTestClient(testClientNoSessionsId)
-        trackOwned(SessionTable, SessionTable.id, testSessionId)
         DatabaseTestHelper.insertTestSession(
             id = testSessionId,
             clientId = testClientId,
@@ -264,7 +246,6 @@ class RouteValidationTest : BasePostgresTest() {
                 it[CompensationTable.assignedBy] = testUserId
             }
         }
-        trackOwned(CompensationTable, CompensationTable.id, compId)
         testServer.client.let { client ->
             assertEquals(
                 400,
@@ -341,12 +322,9 @@ class RouteValidationTest : BasePostgresTest() {
                 testBranchId,
                 TestFixtures.today.minusDays(3),
             )
-        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
         val remittedClientId = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, remittedClientId)
         val remittedSessionId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
-        trackOwned(SessionTable, SessionTable.id, remittedSessionId)
 
         testServer.client.let { client ->
             assertEquals(200, client.get("/api/sessions/$remittedSessionId/concerns").code)
@@ -790,7 +768,6 @@ class RouteValidationTest : BasePostgresTest() {
                 it[RemittanceTable.submittedBy] = testUserId
             }
         }
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
         testServer.client.let { client ->
             assertEquals(
                 400,
@@ -822,7 +799,6 @@ class RouteValidationTest : BasePostgresTest() {
                 it[RemittanceTable.submittedBy] = testUserId
             }
         }
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
         testServer.client.let { client ->
             assertEquals(
                 400,
@@ -936,7 +912,6 @@ class RouteValidationTest : BasePostgresTest() {
     @Test
     fun `GET daily-summaries returns 200 empty feed for branch without days`() {
         val noDaysBranchId = TestFixtures.uuid()
-        trackOwned(BranchTable, BranchTable.id, noDaysBranchId)
         DatabaseTestHelper.insertTestBranch(noDaysBranchId, "No-Days Branch")
         testServer.client.let { client ->
             val response = client.get("/api/branches/$noDaysBranchId/daily-summaries")
@@ -1036,7 +1011,6 @@ class RouteValidationTest : BasePostgresTest() {
                 it[NotificationTable.message] = "Test notification"
             }
         }
-        trackOwned(NotificationTable, NotificationTable.id, notificationId)
         testServer.client.let { client ->
             val response = client.post("/api/notifications/read-all")
             assertEquals(200, response.code)
@@ -1064,7 +1038,6 @@ class RouteValidationTest : BasePostgresTest() {
                 it[NotificationTable.message] = "Test notification"
             }
         }
-        trackOwned(NotificationTable, NotificationTable.id, notificationId)
         testServer.client.let { client ->
             assertEquals(200, client.patch("/api/notifications/$notificationId/read").code)
         }
@@ -1129,7 +1102,6 @@ class RouteValidationTest : BasePostgresTest() {
                 it[ExpenseTable.notes] = "Test expense"
             }
         }
-        trackOwned(ExpenseTable, ExpenseTable.id, expenseId)
         testServer.client.let { client ->
             assertEquals(400, client.delete("/api/expenses/$expenseId", mapOf("reason" to "  ")).code)
         }

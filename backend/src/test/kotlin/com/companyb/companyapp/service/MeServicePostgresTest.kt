@@ -3,8 +3,6 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -27,7 +25,6 @@ class MeServicePostgresTest : BasePostgresTest() {
             email = "${userId.toString().take(8)}@t.st",
             displayName = "Me Caller",
         )
-        trackOwned(AppUserTable, AppUserTable.id, userId)
         DatabaseTestHelper.insertUser(
             id = inactiveUserId,
             username = "inactive-$inactiveUserId",
@@ -36,7 +33,6 @@ class MeServicePostgresTest : BasePostgresTest() {
             displayName = "Inactive User",
             status = UserStatus.INACTIVE,
         )
-        trackOwned(AppUserTable, AppUserTable.id, inactiveUserId)
     }
 
     @Test
@@ -70,7 +66,6 @@ class MeServicePostgresTest : BasePostgresTest() {
     fun `getCapabilities returns capabilities for user with grants`() {
         DatabaseTestHelper.grantEditBranchData(userId, sourceId)
         DatabaseTestHelper.grantManageProducts(userId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, userId)
 
         val capabilities = MeService.getCapabilities(userId)
 
@@ -89,7 +84,6 @@ class MeServicePostgresTest : BasePostgresTest() {
     @Test
     fun `getCapabilities excludes inactive users`() {
         DatabaseTestHelper.grantEditBranchData(inactiveUserId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, inactiveUserId)
 
         val capabilities = MeService.getCapabilities(inactiveUserId)
         assertTrue(capabilities.isEmpty())

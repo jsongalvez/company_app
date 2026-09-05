@@ -8,10 +8,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.CredentialTokenTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
@@ -39,7 +35,6 @@ class InviteRoutesAuthzTest : BasePostgresTest() {
     fun `minting an invite without MANAGE_USERS is forbidden`() {
         val caller = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(caller, "no-capability-caller")
-        trackOwned(AppUserTable, AppUserTable.id, caller)
 
         val response =
             testServer.client.post(
@@ -60,14 +55,7 @@ class InviteRoutesAuthzTest : BasePostgresTest() {
         val caller = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(caller, "http-manager")
         DatabaseTestHelper.grantManageUsers(caller, TestFixtures.uuid())
-        trackOwned(AppUserTable, AppUserTable.id, caller)
         // The server-side mint authors its audit rows as the caller — they FK app_user.
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, caller)
-        trackOwned(
-            UserCapabilityTable,
-            UserCapabilityTable.userId,
-            caller,
-        )
 
         val mintResponse =
             testServer.client.post(
@@ -82,14 +70,6 @@ class InviteRoutesAuthzTest : BasePostgresTest() {
         assertEquals(201, mintResponse.code)
         val responseBody = Json.parseToJsonElement(mintResponse.body.string()).jsonObject
         val inviteCode = responseBody["inviteCode"]!!.jsonPrimitive.content
-        val inviteeId = UUID.fromString(responseBody["userId"]!!.jsonPrimitive.content)
-        trackOwned(AppUserTable, AppUserTable.id, inviteeId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, inviteeId)
-        trackOwned(
-            com.companyb.companyapp.repository.model.CredentialTokenTable,
-            com.companyb.companyapp.repository.model.CredentialTokenTable.userId,
-            inviteeId,
-        )
 
         // No auth headers: the code IS the authorization.
         val acceptResponse =

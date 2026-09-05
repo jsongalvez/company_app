@@ -4,18 +4,11 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ProductSaleRepository
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchInventoryTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.InventoryMovementTable
-import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
-import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import com.companyb.companyapp.test.BasePostgresTest
@@ -55,26 +48,14 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "user")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestBranch(branchId, "Test Sale Branch")
-        trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestCategory(categoryId)
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, categoryId)
         DatabaseTestHelper.insertTestProduct(productId, productName, categoryId)
-        trackOwned(ProductTable, ProductTable.id, productId)
         branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
         DatabaseTestHelper.insertTestClient(clientId)
-        trackOwned(ClientTable, ClientTable.id, clientId)
         DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
-        trackOwned(SessionTable, SessionTable.clientId, clientId)
         DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         ensureInventoryCard(branchId, productId, 20)
-        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
-        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
-        trackOwned(InventoryMovementTable, InventoryMovementTable.productId, productId)
     }
 
     @Test
@@ -84,9 +65,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val saleId = TestFixtures.uuid()
 
         val sale =
@@ -115,8 +94,6 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
             }
         assertEquals(true, saleAudit[AuditLogTable.isFlagged])
         assertEquals("Coordinator correction", saleAudit[AuditLogTable.reason])
-        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
-        trackOwned(InventoryMovementTable, InventoryMovementTable.productId, productId)
     }
 
     @Test
@@ -135,8 +112,6 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
                 quantity = 3,
                 expectedVersion = 1,
             )
-
-        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
 
         assertNotNull(sale)
         assertEquals(saleId, sale.id)
@@ -229,13 +204,9 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         val foreignClientId = TestFixtures.uuid()
         val foreignSessionId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(foreignBranchId, "Foreign Sale Branch")
-        trackOwned(BranchTable, BranchTable.id, foreignBranchId)
         val foreignBranchDayId = DatabaseTestHelper.createBranchDayForToday(foreignBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, foreignBranchId)
         DatabaseTestHelper.insertTestClient(foreignClientId)
-        trackOwned(ClientTable, ClientTable.id, foreignClientId)
         DatabaseTestHelper.insertTestSession(foreignSessionId, foreignClientId, foreignBranchDayId)
-        trackOwned(SessionTable, SessionTable.clientId, foreignClientId)
         val saleId = TestFixtures.uuid()
 
         assertFailsWith<NotFoundException> {
@@ -297,13 +268,10 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
                 quantity = 1,
                 expectedVersion = 1,
             )
-        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
 
         val foreignBranchId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(foreignBranchId, "Foreign Retry Branch")
-        trackOwned(BranchTable, BranchTable.id, foreignBranchId)
         val foreignBranchDayId = DatabaseTestHelper.createBranchDayForToday(foreignBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, foreignBranchId)
 
         assertFailsWith<NotFoundException> {
             ProductSaleService.sell(
@@ -347,7 +315,6 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
         assertNotNull(sale)
         assertEquals(1, sale.quantity)
-        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
     }
 
     @Test
@@ -448,8 +415,6 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
                 expectedVersion = 1,
             )
 
-        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
-
         assertEquals(first.id, second.id)
         assertEquals(first.quantity, second.quantity)
 
@@ -482,7 +447,6 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
         val foreignCallerId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(foreignCallerId, "foreign-user")
-        trackOwned(AppUserTable, AppUserTable.id, foreignCallerId)
 
         assertFailsWith<ConflictException> {
             ProductSaleService.sell(
@@ -692,8 +656,6 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
             expectedVersion = 1,
         )
 
-        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
-
         val auditCount =
             transaction {
                 AuditLogTable
@@ -722,8 +684,6 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
                 quantity = 1,
                 expectedVersion = 1,
             )
-
-        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
 
         assertNotNull(sale)
         assertTrue(sale.isWalkIn)

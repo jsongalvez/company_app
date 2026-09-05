@@ -10,11 +10,8 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
@@ -50,20 +47,12 @@ class ReliefAccessRoutesTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(requester, "requester")
-        trackOwned(AppUserTable, AppUserTable.id, requester)
         DatabaseTestHelper.insertTestUser(otherRequester, "requester-2")
-        trackOwned(AppUserTable, AppUserTable.id, otherRequester)
         DatabaseTestHelper.insertTestUser(memberId, "member")
-        trackOwned(AppUserTable, AppUserTable.id, memberId)
         DatabaseTestHelper.insertTestUser(outsider, "outsider")
-        trackOwned(AppUserTable, AppUserTable.id, outsider)
         DatabaseTestHelper.insertTestBranch(branchId, branchName)
-        trackOwned(BranchTable, BranchTable.id, branchId)
         insertBranchDay(branchDayId, branchId)
-        trackOwned(BranchDayTable, BranchDayTable.id, branchDayId)
         DatabaseTestHelper.insertTestAssignment(userId = memberId, branchId = branchId, slot = 1, assignedBy = memberId)
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, memberId)
-        trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.branchDayId, branchDayId)
     }
 
     companion object {

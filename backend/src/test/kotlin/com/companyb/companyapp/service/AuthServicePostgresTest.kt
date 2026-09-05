@@ -6,7 +6,6 @@ import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.RegistrationConflictException
 import com.companyb.companyapp.repository.UserCreateParams
 import com.companyb.companyapp.repository.UserRepository
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -36,7 +35,6 @@ class AuthServicePostgresTest : BasePostgresTest() {
             displayName = "Logout Test User",
             status = UserStatus.ACTIVE,
         )
-        trackOwned(AppUserTable, AppUserTable.id, userId)
     }
 
     @Test

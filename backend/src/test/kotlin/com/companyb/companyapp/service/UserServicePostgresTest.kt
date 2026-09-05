@@ -11,10 +11,6 @@ import com.companyb.companyapp.repository.RoleRepository
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
-import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.CapabilityService.GLOBAL_CONTEXT_ID
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -43,17 +39,12 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "caller")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestUser(targetUserId, "target")
-        trackOwned(AppUserTable, AppUserTable.id, targetUserId)
-        trackOwned(UserRoleTable, UserRoleTable.userId, targetUserId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
     fun `deactivate persists inactive status, writes audit log, and rejects existing token`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val targetToken = JwtService.generateToken(targetUserId.toString())
 
         UserService.deactivate(callerId, targetUserId)
@@ -67,12 +58,10 @@ class UserServicePostgresTest : BasePostgresTest() {
         assertEquals(callerId.toString(), auditEntry.changedBy)
         assertEquals("ACTIVE", auditEntry.oldStatus)
         assertEquals("INACTIVE", auditEntry.newStatus)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
     fun `deactivate without MANAGE_USERS is allowed at service layer`() {
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         UserService.deactivate(callerId, targetUserId)
 
         assertEquals(UserStatus.INACTIVE, userStatus(targetUserId))
@@ -90,7 +79,6 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `deactivate sets deactivatedAt timestamp`() {
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         UserService.deactivate(callerId, targetUserId)
 
         assertNotNull(deactivatedAt(targetUserId))
@@ -98,7 +86,6 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `deactivating an already-inactive user is a no-op without audit row or timestamp reset`() {
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         UserService.deactivate(callerId, targetUserId)
         val firstStamp = deactivatedAt(targetUserId)
         assertNotNull(firstStamp)
@@ -111,7 +98,6 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `reactivate flips status back to ACTIVE and clears deactivatedAt with audit`() {
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         UserService.deactivate(callerId, targetUserId)
 
         UserService.reactivate(callerId, targetUserId)
@@ -131,7 +117,6 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `reactivated user can authenticate with a fresh token while the pre-deactivation token stays dead`() {
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         val preDeactivationToken = JwtService.generateToken(targetUserId.toString())
 
         UserService.deactivate(callerId, targetUserId)
@@ -159,7 +144,6 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `persisted revocation survives fresh JwtService init after reactivation`() {
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         val oldToken = JwtService.generateToken(targetUserId.toString())
 
         UserService.deactivate(callerId, targetUserId)
@@ -195,34 +179,26 @@ class UserServicePostgresTest : BasePostgresTest() {
         val branchB = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(branchA, "Branch A")
         DatabaseTestHelper.insertTestBranch(branchB, "Branch B")
-        trackOwned(BranchTable, BranchTable.id, branchA)
-        trackOwned(BranchTable, BranchTable.id, branchB)
 
-        val assignment1 =
-            DatabaseTestHelper.insertTestAssignment(
-                userId = targetUserId,
-                branchId = branchA,
-                slot = 2,
-                assignedBy = callerId,
-            )
-        val assignment2 =
-            DatabaseTestHelper.insertTestAssignment(
-                userId = targetUserId,
-                branchId = branchB,
-                slot = 1,
-                assignedBy = callerId,
-            )
-        val endedAssignment =
-            DatabaseTestHelper.insertTestAssignment(
-                userId = callerId,
-                branchId = branchA,
-                slot = 9,
-                assignedBy = callerId,
-                ended = true,
-            )
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, assignment1)
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, assignment2)
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, endedAssignment)
+        DatabaseTestHelper.insertTestAssignment(
+            userId = targetUserId,
+            branchId = branchA,
+            slot = 2,
+            assignedBy = callerId,
+        )
+        DatabaseTestHelper.insertTestAssignment(
+            userId = targetUserId,
+            branchId = branchB,
+            slot = 1,
+            assignedBy = callerId,
+        )
+        DatabaseTestHelper.insertTestAssignment(
+            userId = callerId,
+            branchId = branchA,
+            slot = 9,
+            assignedBy = callerId,
+            ended = true,
+        )
 
         val users = UserService.listUsers()
 
@@ -241,7 +217,6 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `list reports deactivatedAt for inactive users`() {
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         UserService.deactivate(callerId, targetUserId)
 
         val users = UserService.listUsers()
@@ -258,8 +233,6 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `replaceRoles assigns seeded bundles whose capabilities derive through the view`() {
-        trackOwned(UserRoleTable, UserRoleTable.userId, targetUserId)
-
         UserService.replaceRoles(callerId, targetUserId, listOf("OWNER"))
 
         assertEquals(listOf("OWNER"), transaction { RoleRepository.findRoleNamesForUserInTransaction(targetUserId) })
@@ -277,7 +250,6 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `replaceRoles rejects unknown role names`() {
-        trackOwned(UserRoleTable, UserRoleTable.userId, targetUserId)
         assertFailsWith<ValidationException> {
             UserService.replaceRoles(callerId, targetUserId, listOf("OWNER", "NOT_A_ROLE"))
         }
@@ -286,7 +258,6 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `replaceRoles rejects SUPERUSER grant and removal`() {
-        trackOwned(UserRoleTable, UserRoleTable.userId, targetUserId)
         assertFailsWith<ValidationException> {
             UserService.replaceRoles(callerId, targetUserId, listOf("SUPERUSER"))
         }
@@ -308,7 +279,6 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `replaceRoles is idempotent without a second audit row`() {
-        trackOwned(UserRoleTable, UserRoleTable.userId, targetUserId)
         UserService.replaceRoles(callerId, targetUserId, listOf("MANAGER", "COORDINATOR"))
         UserService.replaceRoles(callerId, targetUserId, listOf("COORDINATOR", "MANAGER"))
 
@@ -317,7 +287,6 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `replaceRoles rewrites roles of a deactivated user following the deactivate precedent`() {
-        trackOwned(UserRoleTable, UserRoleTable.userId, targetUserId)
         UserService.deactivate(callerId, targetUserId)
 
         UserService.replaceRoles(callerId, targetUserId, listOf("PRACTITIONER"))
@@ -335,7 +304,6 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `listUsers reports each user's role names and getRoles hides SUPERUSER`() {
-        trackOwned(UserRoleTable, UserRoleTable.userId, targetUserId)
         transaction {
             RoleRepository.assignRoleInTransaction(targetUserId, RoleRepository.findIdByNameInTransaction("OWNER")!!)
         }

@@ -5,10 +5,7 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -34,7 +31,6 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
     override fun initTestData() {
         listOf(editorId to "audit-editor", acknowledgerId to "audit-acker").forEach { (id, prefix) ->
             DatabaseTestHelper.insertTestUser(id, prefix)
-            trackOwned(AppUserTable, AppUserTable.id, id)
         }
         // Global VIEW_BRANCH_DATA = the NULL-branch read fallback (AuditLogReadScope).
         listOf(editorId, acknowledgerId).forEach {
@@ -45,9 +41,7 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
                 contextId = CapabilityService.GLOBAL_CONTEXT_ID,
                 sourceId = sourceId,
             )
-            trackOwned(UserCapabilityTable, UserCapabilityTable.userId, it)
         }
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, editorId)
     }
 
     @Test
@@ -73,7 +67,6 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
         insertAuditEntry(recordId, tableName, AuditAction.INSERT, false)
         val noGrantUser = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(noGrantUser, "audit-no-grant")
-        trackOwned(AppUserTable, AppUserTable.id, noGrantUser)
 
         // NULL-branch rows are invisible to a zero-grant caller, but the call
         // is allowed (D9: no route gate; scoping is authoritative, not 403).
@@ -118,7 +111,6 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
         insertAuditEntry(TestFixtures.uuid(), "t1", AuditAction.UPDATE, true)
         val noGrantUser = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(noGrantUser, "audit-no-grant-2")
-        trackOwned(AppUserTable, AppUserTable.id, noGrantUser)
 
         assertTrue(AuditLogService.findFlagged(noGrantUser).isEmpty())
     }
@@ -140,7 +132,6 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
         insertAuditEntryWithId(entryId, recordId, tableName, AuditAction.UPDATE, true)
         val noGrantUser = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(noGrantUser, "audit-no-grant-ack")
-        trackOwned(AppUserTable, AppUserTable.id, noGrantUser)
 
         // No 403: acknowledge is gated by the read window, not a capability
         // route gate (D9). Out-of-window rows are invisible -> 404.
@@ -181,7 +172,6 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
     fun `findByTableAndRecord hides other-branch rows from the caller window`() {
         val branchId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(branchId, "Service Test Branch $branchId")
-        trackOwned(BranchTable, BranchTable.id, branchId)
         val recId = recordId
         val tblName = tableName
         transaction {
@@ -193,7 +183,6 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
                 it[AuditLogTable.branchId] = branchId
             }
         }
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, editorId)
 
         // Global VIEW_BRANCH_DATA holder reads across all branches (window = all).
         assertEquals(1, AuditLogService.findByTableAndRecord(acknowledgerId, tblName, recId).size)
@@ -205,12 +194,10 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
         val branchB = TestFixtures.uuid()
         listOf(branchA to "Svc Branch A", branchB to "Svc Branch B").forEach { (id, name) ->
             DatabaseTestHelper.insertTestBranch(id, "$name $id")
-            trackOwned(BranchTable, BranchTable.id, id)
         }
         // Branch-scoped editor without the global view grant: window = branchA only.
         val windowedUser = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(windowedUser, "audit-windowed")
-        trackOwned(AppUserTable, AppUserTable.id, windowedUser)
         DatabaseTestHelper.grantCapability(
             userId = windowedUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
@@ -218,7 +205,6 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
             contextId = branchA,
             sourceId = sourceId,
         )
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, windowedUser)
         val recId = recordId
         val tblName = tableName
         transaction {
@@ -230,7 +216,6 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
                 it[AuditLogTable.branchId] = branchB
             }
         }
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, editorId)
 
         assertTrue(AuditLogService.findByTableAndRecord(windowedUser, tblName, recId).isEmpty())
     }

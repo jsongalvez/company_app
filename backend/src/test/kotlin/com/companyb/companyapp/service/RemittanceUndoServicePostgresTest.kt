@@ -7,15 +7,10 @@ import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
-import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittanceFinancialSnapshotRepository
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
@@ -50,16 +45,10 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "remittance-undo-caller")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
 
         DatabaseTestHelper.insertTestBranch(branchId, "Undo Branch ${TestFixtures.uuid()}")
-        trackOwned(BranchTable, BranchTable.id, branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
         DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, branchId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
@@ -409,16 +398,11 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
             dateRangeStart = LocalDate.of(2026, 7, 1),
             dateRangeEnd = LocalDate.of(2026, 7, 15),
         )
-        trackOwned(RemittanceTable, RemittanceTable.id, id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, id)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, id)
         return id
     }
 
     private fun addBreakdown(remittanceId: UUID): UUID {
         val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, dayDate)
-        trackOwned(BranchDayTable, BranchDayTable.id, dayId)
         RemittanceService.addDayBreakdown(callerId, remittanceId, TestFixtures.uuid(), dayId)
         return dayId
     }

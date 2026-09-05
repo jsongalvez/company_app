@@ -6,20 +6,11 @@ import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.NotificationCreateParams
 import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.RoleTable
-import com.companyb.companyapp.repository.model.SessionBaseRateTable
-import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.session.SessionBaseRateService
 import com.companyb.companyapp.service.session.SessionService
@@ -71,39 +62,19 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "scheduler-caller")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestUser(coordinatorId, "scheduler-coordinator")
-        trackOwned(AppUserTable, AppUserTable.id, coordinatorId)
         DatabaseTestHelper.insertTestUser(nonCoordinatorId, "scheduler-practitioner")
-        trackOwned(AppUserTable, AppUserTable.id, nonCoordinatorId)
         DatabaseTestHelper.insertTestUser(unassignedCoordinatorId, "scheduler-unassigned-coordinator")
-        trackOwned(AppUserTable, AppUserTable.id, unassignedCoordinatorId)
         DatabaseTestHelper.insertTestBranch(branchId, "Test Scheduler Branch ${branchId.toString().take(8)}")
-        trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Branch ${otherBranchId.toString().take(8)}")
-        trackOwned(BranchTable, BranchTable.id, otherBranchId)
         branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, otherBranchId)
         DatabaseTestHelper.insertTestClient(clientId)
-        trackOwned(ClientTable, ClientTable.id, clientId)
         DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         allTestUsers.forEach { userId ->
-            trackOwned(AuditLogTable, AuditLogTable.changedBy, userId)
-            trackOwned(UserCapabilityTable, UserCapabilityTable.userId, userId)
-            trackOwned(UserRoleTable, UserRoleTable.userId, userId)
-            trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, userId)
-            trackOwned(NotificationTable, NotificationTable.userId, userId)
         }
-        trackOwned(SessionTable, SessionTable.clientId, clientId)
-        trackOwned(SessionVoidTable, SessionVoidTable.voidedBy, callerId)
         insertSessionBaseRate()
-        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
         insertSessionBaseRate(secondSessionRateId, SessionType.SECOND_SESSION)
-        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, secondSessionRateId)
         insertSessionBaseRate(subsequentRateId, SessionType.SUBSEQUENT)
-        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, subsequentRateId)
     }
 
     @Test

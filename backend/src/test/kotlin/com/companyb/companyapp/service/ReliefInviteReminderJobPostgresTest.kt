@@ -2,17 +2,7 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.repository.model.ReliefInviteTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -42,13 +32,9 @@ class ReliefInviteReminderJobPostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(inviterId, "reminder-inviter")
-        trackOwned(AppUserTable, AppUserTable.id, inviterId)
         DatabaseTestHelper.insertTestUser(inviteeId, "reminder-invitee")
-        trackOwned(AppUserTable, AppUserTable.id, inviteeId)
         DatabaseTestHelper.insertTestBranch(branchId, "Reminder Branch ${branchId.toString().take(8)}")
-        trackOwned(BranchTable, BranchTable.id, branchId)
         // Invite creation resolves-or-creates its duty-day rows at this branch.
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
         transaction {
             UserBranchAssignmentRepository.createInTransaction(
                 UserBranchAssignmentCreateParams(
@@ -60,16 +46,9 @@ class ReliefInviteReminderJobPostgresTest : BasePostgresTest() {
                 ),
             )
         }
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, inviterId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, inviterId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, inviteeId)
         // Accept writes the invitee's day-scoped grant as a user_capability row.
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, inviteeId)
         // Branch-keyed notification tracking covers every recipient (the #358 lesson).
-        trackOwned(NotificationTable, NotificationTable.branchId, branchId)
-        trackOwned(AttendanceTable, AttendanceTable.userId, inviteeId)
         // Clock-in upserts a branch_day_assignment row — untracked it blocks user teardown.
-        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.userId, inviteeId)
     }
 
     @Test
@@ -103,7 +82,6 @@ class ReliefInviteReminderJobPostgresTest : BasePostgresTest() {
     fun `pending and declined invites never remind`() {
         val duty = TestFixtures.today.plusDays(3)
         val pending = ReliefInviteService.createInvite(inviterId, branchId, inviteeId, duty)
-        trackOwned(ReliefInviteTable, ReliefInviteTable.id, pending.id)
 
         assertEquals(0, ReliefInviteReminderJob.run(clockAt(TestFixtures.today)), "PENDING stays quiet")
 
@@ -162,7 +140,6 @@ class ReliefInviteReminderJobPostgresTest : BasePostgresTest() {
 
     private fun acceptInviteFor(date: LocalDate): UUID {
         val invite = ReliefInviteService.createInvite(inviterId, branchId, inviteeId, date)
-        trackOwned(ReliefInviteTable, ReliefInviteTable.id, invite.id)
         ReliefInviteService.acceptInvite(inviteeId, invite.id)
         return invite.id
     }

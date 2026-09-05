@@ -3,12 +3,8 @@ import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -43,20 +39,11 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "comp-caller")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestUser(targetUserId, "comp-target")
-        trackOwned(AppUserTable, AppUserTable.id, targetUserId)
         DatabaseTestHelper.insertTestBranch(branchId, "Test Compensation Branch")
-        trackOwned(BranchTable, BranchTable.id, branchId)
         workBranchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
         payingBranchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
         DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, targetUserId)
-        trackOwned(CompensationTable, CompensationTable.userId, targetUserId)
     }
 
     @Test
@@ -66,9 +53,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val compId = TestFixtures.uuid()
 
         val comp =
@@ -253,7 +238,6 @@ class CompensationServicePostgresTest : BasePostgresTest() {
                 note = null,
             )
 
-        trackOwned(CompensationTable, CompensationTable.assignedBy, callerId)
         assertNotNull(comp)
     }
 
@@ -343,9 +327,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     fun `create with paying day at another branch returns validation error`() {
         val otherBranchId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(otherBranchId, "Cross Comp Branch")
-        trackOwned(BranchTable, BranchTable.id, otherBranchId)
         val otherBranchDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.id, otherBranchDayId)
 
         assertFailsWith<ValidationException> {
             CompensationService.create(
@@ -364,9 +346,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     fun `create with work day at another branch returns validation error`() {
         val otherBranchId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(otherBranchId, "Cross Work Comp Branch")
-        trackOwned(BranchTable, BranchTable.id, otherBranchId)
         val otherWorkDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.id, otherWorkDayId)
 
         assertFailsWith<ValidationException> {
             CompensationService.create(
@@ -385,9 +365,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     fun `update rejects stored record whose days span branches`() {
         val otherBranchId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(otherBranchId, "Legacy Comp Branch")
-        trackOwned(BranchTable, BranchTable.id, otherBranchId)
         val legacyPayingDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.id, legacyPayingDayId)
 
         val compId = TestFixtures.uuid()
         transaction {
@@ -400,7 +378,6 @@ class CompensationServicePostgresTest : BasePostgresTest() {
                 it[assignedBy] = callerId
             }
         }
-        trackOwned(CompensationTable, CompensationTable.userId, targetUserId)
 
         assertFailsWith<ValidationException> {
             CompensationService.update(
@@ -457,8 +434,6 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     fun `list compensations for paying branch day returns rows with user names`() {
         val secondUser = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(secondUser, "comp-second")
-        trackOwned(AppUserTable, AppUserTable.id, secondUser)
-        trackOwned(CompensationTable, CompensationTable.userId, secondUser)
 
         CompensationService.create(
             callerId = callerId,
@@ -490,9 +465,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     fun `list compensations excludes other paying days`() {
         val otherBranchId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Comp Branch")
-        trackOwned(BranchTable, BranchTable.id, otherBranchId)
         val otherBranchDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.id, otherBranchDayId)
 
         CompensationService.create(
             callerId = callerId,
@@ -523,9 +496,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     fun `list compensations returns empty for day with no rows`() {
         val emptyBranchId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(emptyBranchId, "Empty Comp Branch")
-        trackOwned(BranchTable, BranchTable.id, emptyBranchId)
         val emptyBranchDayId = DatabaseTestHelper.createBranchDayForToday(emptyBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.id, emptyBranchDayId)
 
         val rows = CompensationService.findByPayingBranchDayId(emptyBranchDayId)
 

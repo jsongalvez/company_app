@@ -41,7 +41,6 @@ class DevSeederScopedPrincipalPostgresTest : BasePostgresTest() {
                 it[name] = "K6 Fixture Branch"
                 it[branchType] = BranchType.CLINIC
             }
-            trackOwned(BranchTable, BranchTable.id, DEV_FIXTURE_BRANCH_ID)
         }
     }
 
@@ -58,7 +57,6 @@ class DevSeederScopedPrincipalPostgresTest : BasePostgresTest() {
                     .where { AppUserTable.username eq scopedUsername }
                     .single()
             val userId = user[AppUserTable.id]
-            trackOwned(AppUserTable, AppUserTable.id, userId)
 
             assertNoRole(userId)
             assertBranchCapabilityShape(userId)
@@ -81,7 +79,6 @@ class DevSeederScopedPrincipalPostgresTest : BasePostgresTest() {
                 .selectAll()
                 .where { UserCapabilityTable.userId eq userId }
                 .toList()
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, userId)
 
         val codeById =
             CapabilityTable
@@ -121,7 +118,6 @@ class DevSeederScopedPrincipalPostgresTest : BasePostgresTest() {
                     (UserBranchAssignmentTable.userId eq userId) and
                         UserBranchAssignmentTable.endedAt.isNull()
                 }
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, userId)
         assertEquals(1, assignments.count(), "Exactly one active home assignment")
         assertEquals(
             DEV_FIXTURE_BRANCH_ID,

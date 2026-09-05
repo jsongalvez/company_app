@@ -10,12 +10,8 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
 import com.companyb.companyapp.repository.model.RoleTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.MedicalMissionDelegateService
 import com.companyb.companyapp.test.BasePostgresTest
@@ -51,18 +47,12 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
     override fun initTestData() {
         listOf(managerUser, noGrantUser, ownerUser, targetUser).forEach { userId ->
             DatabaseTestHelper.insertTestUser(userId, "delegate-${userId.toString().take(6)}")
-            trackOwned(AppUserTable, AppUserTable.id, userId)
         }
         assignRole(targetUser, "MANAGER")
         assignRole(ownerUser, "OWNER")
         DatabaseTestHelper.grantAssignDelegate(managerUser, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, managerUser)
         insertBranch(missionBranch, BranchType.MEDICAL_MISSION)
         insertBranch(clinicBranch, BranchType.CLINIC)
-        trackOwned(BranchTable, BranchTable.id, missionBranch)
-        trackOwned(BranchTable, BranchTable.id, clinicBranch)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, managerUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, ownerUser)
     }
 
     companion object {
@@ -116,11 +106,8 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
         val revokedId = TestFixtures.uuid()
         val activeId = TestFixtures.uuid()
         MedicalMissionDelegateService.assignDelegate(revokedId, targetUser, missionBranch, managerUser)
-        trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, revokedId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUser)
         MedicalMissionDelegateService.revokeDelegate(revokedId, managerUser)
         MedicalMissionDelegateService.assignDelegate(activeId, targetUser, missionBranch, managerUser)
-        trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, activeId)
 
         testServer.client.let { client ->
             val response = client.get("/api/branches/$missionBranch/delegates", asUser(managerUser))
@@ -176,8 +163,6 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
                 "targetUserId" to targetUser.toString(),
                 "branchId" to missionBranch.toString(),
             )
-        trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUser)
 
         testServer.client.let { client ->
             val response = client.post("/api/delegates", body, asUser(ownerUser))
@@ -189,8 +174,6 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
     fun `DELETE delegate is forbidden without global ASSIGN_DELEGATE`() {
         val delegateId = TestFixtures.uuid()
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUser, missionBranch, managerUser)
-        trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUser)
         testServer.client.let { client ->
             assertEquals(403, client.delete("/api/delegates/$delegateId", null, asUser(noGrantUser)).code)
         }
@@ -200,7 +183,6 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
         userId: UUID,
         roleName: String,
     ) {
-        trackOwned(UserRoleTable, UserRoleTable.userId, userId)
         transaction {
             UserRoleTable.insert {
                 it[UserRoleTable.userId] = userId

@@ -1,14 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchInventoryTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.InventoryMovementTable
-import com.companyb.companyapp.repository.model.ProductCategoryTable
-import com.companyb.companyapp.repository.model.ProductSaleTable
-import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.service.inventory.InventoryService
 import com.companyb.companyapp.service.inventory.MovementType
 import com.companyb.companyapp.test.BasePostgresTest
@@ -28,20 +19,15 @@ class BranchInventoryBreakdownPostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "breakdown-caller")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestBranch(branchId, "Breakdown Branch ${branchId.toString().take(8)}")
-        trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestCategory(categoryId)
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, categoryId)
         DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
-        trackOwned(ProductTable, ProductTable.id, productId)
     }
 
     @Test
     fun `breakdown aggregates five values and reconciles available`() {
         InventoryService.ensureCard(callerId, branchId, productId)
         val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
         InventoryService.recordMovement(
             callerId = callerId,
@@ -101,17 +87,11 @@ class BranchInventoryBreakdownPostgresTest : BasePostgresTest() {
             card.inventory.currentStock,
             breakdown.stock - breakdown.sales - breakdown.testerSample - breakdown.missing + breakdown.adjustment,
         )
-        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
-        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
-        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
     fun `empty ledger yields no breakdown row`() {
         InventoryService.ensureCard(callerId, branchId, productId)
         assertEquals(null, InventoryService.getBreakdowns(branchId)[productId])
-        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 }

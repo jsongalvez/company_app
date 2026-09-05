@@ -3,7 +3,6 @@ import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -22,8 +21,6 @@ class BranchDayServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestBranch(branchId, "Test Branch Day Branch")
-        trackOwned(BranchTable, BranchTable.id, branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
     }
 
     @Test

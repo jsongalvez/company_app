@@ -12,14 +12,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.ExpenseTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.ExpenseService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -60,19 +52,13 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             targetUser2 to "target-2",
         ).forEach { (id, prefix) ->
             DatabaseTestHelper.insertTestUser(id, prefix)
-            trackOwned(AppUserTable, AppUserTable.id, id)
         }
 
-        trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestBranch(branchId, "Finance Branch $branchId")
-        trackOwned(BranchTable, BranchTable.id, otherBranchId)
         DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Finance Branch $otherBranchId")
 
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
         branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
         otherBranchDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.id, branchDayId)
-        trackOwned(BranchDayTable, BranchDayTable.id, otherBranchDayId)
 
         DatabaseTestHelper.grantCapability(
             userId = assignUser,
@@ -88,22 +74,13 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             contextId = branchId,
             sourceId = sourceId,
         )
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, assignUser)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, editOnlyUser)
 
         DatabaseTestHelper.insertTestCompensation(branchDayId, targetUser1, BigDecimal("1500.00"), assignUser)
         DatabaseTestHelper.insertTestCompensation(branchDayId, targetUser2, BigDecimal("1200.00"), assignUser)
-        trackOwned(CompensationTable, CompensationTable.userId, targetUser1)
-        trackOwned(CompensationTable, CompensationTable.userId, targetUser2)
-        trackOwned(CompensationTable, CompensationTable.assignedBy, assignUser)
 
         DatabaseTestHelper.insertTestAttendance(branchDayId, targetUser1)
         DatabaseTestHelper.insertTestAttendance(branchDayId, targetUser2)
         DatabaseTestHelper.insertTestAttendance(otherBranchDayId, targetUser1)
-        trackOwned(AttendanceTable, AttendanceTable.userId, targetUser1)
-        trackOwned(AttendanceTable, AttendanceTable.userId, targetUser2)
-        trackOwned(AttendanceTable, AttendanceTable.branchDayId, branchDayId)
-        trackOwned(AttendanceTable, AttendanceTable.branchDayId, otherBranchDayId)
 
         expenseId = TestFixtures.uuid()
         ExpenseService.create(
@@ -114,9 +91,6 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             category = ExpenseCategory.PANTRY,
             notes = null,
         )
-        trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
-        trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, editOnlyUser)
     }
 
     companion object {
@@ -193,7 +167,6 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     fun `GET compensations returns only rows for requested branch day`() {
         val yesterday = TestFixtures.today.minusDays(1)
         val otherDayBranchDayId = DatabaseTestHelper.createBranchDayForDate(branchId, yesterday)
-        trackOwned(BranchDayTable, BranchDayTable.id, otherDayBranchDayId)
         testServer.client.let { client ->
             val response =
                 client.get(
@@ -271,9 +244,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     fun `GET branch-day users returns only users of requested day`() {
         val yesterday = TestFixtures.today.minusDays(1)
         val otherDayBranchDayId = DatabaseTestHelper.createBranchDayForDate(branchId, yesterday)
-        trackOwned(BranchDayTable, BranchDayTable.id, otherDayBranchDayId)
         DatabaseTestHelper.insertTestAttendance(otherDayBranchDayId, targetUser1)
-        trackOwned(AttendanceTable, AttendanceTable.branchDayId, otherDayBranchDayId)
         testServer.client.let { client ->
             val response =
                 client.get(
@@ -402,8 +373,6 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             category = ExpenseCategory.WATER,
             notes = null,
         )
-        trackOwned(ExpenseTable, ExpenseTable.branchDayId, otherBranchDayId)
-        trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
         testServer.client.let { client ->
             val body =
                 mapOf(
@@ -490,8 +459,6 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             expenseId = deletedId,
             reason = "Incorrect entry",
         )
-        trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
-        trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
         testServer.client.let { client ->
             val response =
                 client.post(
@@ -525,8 +492,6 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             expenseId = deletedId,
             reason = "Incorrect entry",
         )
-        trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
-        trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
         testServer.client.let { client ->
             assertEquals(
                 403,
@@ -556,8 +521,6 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             expenseId = deletedId,
             reason = "Incorrect entry",
         )
-        trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
-        trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
         testServer.client.let { client ->
             assertEquals(
                 403,
@@ -587,8 +550,6 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             expenseId = otherDeletedId,
             reason = "Incorrect entry",
         )
-        trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
-        trackOwned(ExpenseTable, ExpenseTable.branchDayId, otherBranchDayId)
         testServer.client.let { client ->
             assertEquals(
                 403,
@@ -648,8 +609,6 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             expenseId = deletedId,
             reason = "Incorrect entry",
         )
-        trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
-        trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
         testServer.client.let { client ->
             val first =
                 client.post(
@@ -684,8 +643,6 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             expenseId = deletedId,
             reason = "Incorrect entry",
         )
-        trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
-        trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
         testServer.client.let { client ->
             val response =
                 client.get(

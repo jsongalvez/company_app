@@ -9,10 +9,8 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.CredentialTokenRepository
 import com.companyb.companyapp.repository.RoleRepository
 import com.companyb.companyapp.repository.UserRepository
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.CredentialTokenTable
-import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -43,7 +41,6 @@ class InviteFlowPostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "inviter")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
     }
 
     private fun mint(
@@ -52,16 +49,6 @@ class InviteFlowPostgresTest : BasePostgresTest() {
         displayName: String = "Invited User",
         roles: List<String> = emptyList(),
     ) = UserService.mintInvite(callerId, InviteMintRequest(username, email, displayName, roles))
-
-    private fun trackMintedArtifacts(userId: UUID) {
-        trackOwned(AppUserTable, AppUserTable.id, userId)
-        trackOwned(UserRoleTable, UserRoleTable.userId, userId)
-        // Value-based: rows written later (tokens on accept, invitee-authored audits,
-        // supersede updates) match at cleanup time.
-        trackOwned(CredentialTokenTable, CredentialTokenTable.userId, userId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, userId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-    }
 
     private fun backdateAllInvites(userId: UUID) {
         transaction {
@@ -121,7 +108,6 @@ class InviteFlowPostgresTest : BasePostgresTest() {
     fun `mint creates an account nobody can log into until the code is accepted`() {
         val minted = mint("invitee-1", "invitee-1@example.test")
         val userId = UUID.fromString(minted.userId)
-        trackMintedArtifacts(userId)
 
         assertEquals(
             LoginResult.InvalidCredentials,
@@ -137,7 +123,6 @@ class InviteFlowPostgresTest : BasePostgresTest() {
     @Test
     fun `a code works exactly once — reuse names the failure`() {
         val minted = mint("invitee-2", "invitee-2@example.test")
-        trackMintedArtifacts(UUID.fromString(minted.userId))
         AuthService.acceptInvite(minted.inviteCode, "valid-password")
 
         val error =
@@ -154,7 +139,6 @@ class InviteFlowPostgresTest : BasePostgresTest() {
     fun `an expired code is rejected with the expired message`() {
         val minted = mint("invitee-3", "invitee-3@example.test")
         val userId = UUID.fromString(minted.userId)
-        trackMintedArtifacts(userId)
         backdateAllInvites(userId)
 
         val error =
@@ -171,7 +155,6 @@ class InviteFlowPostgresTest : BasePostgresTest() {
         assertTrue(invalid.message!!.contains("invalid"))
 
         val minted = mint("invitee-4", "invitee-4@example.test")
-        trackMintedArtifacts(UUID.fromString(minted.userId))
         val weak =
             assertFailsWith<ValidationException> { AuthService.acceptInvite(minted.inviteCode, "short") }
         assertTrue(weak.message!!.contains("policy"))
@@ -183,7 +166,6 @@ class InviteFlowPostgresTest : BasePostgresTest() {
     fun `re-invite recovers the existing account, kills the old code, and applies the new roles`() {
         val first = mint("invitee-5", "invitee-5@example.test", roles = listOf("PRACTITIONER"))
         val userId = UUID.fromString(first.userId)
-        trackMintedArtifacts(userId)
 
         val second =
             UserService.mintInvite(
@@ -212,7 +194,6 @@ class InviteFlowPostgresTest : BasePostgresTest() {
     fun `duplicate identity without an outstanding link conflicts instead of re-inviting`() {
         val first = mint("invitee-6", "invitee-6@example.test")
         val userId = UUID.fromString(first.userId)
-        trackMintedArtifacts(userId)
         // Simulate a fully consumed history: no unconsumed link remains.
         consumeAllInvites(userId)
 
@@ -240,7 +221,6 @@ class InviteFlowPostgresTest : BasePostgresTest() {
     fun `mint and accept write their audit rows`() {
         val minted = mint("audited-invitee", "audited-invitee@example.test")
         val userId = UUID.fromString(minted.userId)
-        trackMintedArtifacts(userId)
 
         assertEquals(1L, auditActionCount("app_user", AuditAction.INSERT, userId))
         assertEquals(1L, tokenAuditCount(AuditAction.INSERT, userId))

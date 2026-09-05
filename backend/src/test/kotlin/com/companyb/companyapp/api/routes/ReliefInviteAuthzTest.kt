@@ -16,13 +16,8 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.ReliefInviteTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -115,31 +110,8 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
         tomorrowDayId = BranchDayService.resolveOrCreate(branchA, tomorrow).id
 
-        trackOwned(AppUserTable, AppUserTable.id, inviter)
-        trackOwned(AppUserTable, AppUserTable.id, otherInviter)
-        trackOwned(AppUserTable, AppUserTable.id, nonAssigned)
-        trackOwned(AppUserTable, AppUserTable.id, invitee)
-        trackOwned(AppUserTable, AppUserTable.id, otherInvitee)
-        trackOwned(AppUserTable, AppUserTable.id, inactiveUser)
-        trackOwned(AppUserTable, AppUserTable.id, aliceUser)
-        trackOwned(AppUserTable, AppUserTable.id, bobUser)
-        trackOwned(BranchTable, BranchTable.id, branchA)
-        trackOwned(BranchTable, BranchTable.id, branchB)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchA)
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, inviter)
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, otherInviter)
-        trackOwned(ReliefInviteTable, ReliefInviteTable.invitee, invitee)
-        trackOwned(ReliefInviteTable, ReliefInviteTable.invitee, otherInvitee)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, invitee)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, otherInvitee)
         // Invite accept/decline broadcast notification rows reference these users (#358
         // lesson) — untracked they block user teardown and cascade duplicate-key failures.
-        trackOwned(NotificationTable, NotificationTable.branchId, branchA)
-        trackOwned(NotificationTable, NotificationTable.branchId, branchB)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, inviter)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherInviter)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, invitee)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherInvitee)
     }
 
     companion object {
@@ -502,9 +474,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             // A past-day invite can only exist via a direct row (create 403s on past days).
             val pastDayId = BranchDayService.resolveOrCreate(branchA, yesterday).id
-            trackOwned(BranchDayTable, BranchDayTable.branchId, branchA)
             val inviteId = TestFixtures.uuid()
-            trackOwned(ReliefInviteTable, ReliefInviteTable.invitee, invitee)
             // Locals only — inside `insert {}` the receiver is the table, so unqualified
             // class fields would resolve to columns (the #118/#152 insert-lambda trap).
             val invitedBy = inviter

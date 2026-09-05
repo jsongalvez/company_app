@@ -13,14 +13,9 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.session.SessionBaseRateService
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
@@ -70,21 +65,11 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
             sourceId = sourceId,
         )
         SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, BigDecimal("2500.00"))
-
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
-        trackOwned(BranchTable, BranchTable.id, branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
-        trackOwned(ClientTable, ClientTable.id, bookedClientId)
-        trackOwned(ClientTable, ClientTable.id, walkInClientId)
-        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
     fun `booked create ignores hostile timestamps and retry keeps original server timestamp`() {
         val sessionId = TestFixtures.uuid()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         val beforeCreate = databaseNow()
         val createdResponse =
             testServer.client.post(
@@ -116,8 +101,6 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
     fun `booked create without timestamp stamps server time and walk-in remains null`() {
         val bookedSessionId = TestFixtures.uuid()
         val walkInSessionId = TestFixtures.uuid()
-        trackOwned(SessionTable, SessionTable.id, bookedSessionId)
-        trackOwned(SessionTable, SessionTable.id, walkInSessionId)
 
         val bookedResponse =
             testServer.client.post(
@@ -150,7 +133,6 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
     @Test
     fun `booked create with past next appointment returns 400 without persistence`() {
         val sessionId = TestFixtures.uuid()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
 
         val response =
             testServer.client.post(

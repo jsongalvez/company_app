@@ -5,14 +5,9 @@ import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.ClientCreateResult
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -47,22 +42,8 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "client-caller")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        trackOwned(ClientTable, ClientTable.id, clientAId)
-        trackOwned(ClientTable, ClientTable.id, clientBId)
-        trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestBranch(branchId, "Client Test Branch $branchId")
         branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        trackOwned(BranchDayTable, BranchDayTable.id, branchDayId)
-        trackOwned(SessionTable, SessionTable.id, pendingSessionId)
-        trackOwned(SessionTable, SessionTable.id, completedSessionId)
-        trackOwned(SessionTable, SessionTable.id, noShowSessionId)
-        trackOwned(SessionTable, SessionTable.id, cancelledSessionId)
-        trackOwned(SessionTable, SessionTable.id, medicalMissionSessionId)
-        trackOwned(SessionTable, SessionTable.id, voidedSessionId)
-        trackOwned(SessionVoidTable, SessionVoidTable.id, sessionVoidId)
     }
 
     @Test

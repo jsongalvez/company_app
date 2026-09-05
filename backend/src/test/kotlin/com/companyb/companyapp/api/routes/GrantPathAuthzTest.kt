@@ -9,7 +9,6 @@ import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.test.BasePostgresTest
@@ -55,7 +54,6 @@ class GrantPathAuthzTest : BasePostgresTest() {
             noRoleUser to "no-role",
         ).forEach { (id, prefix) ->
             DatabaseTestHelper.insertTestUser(id, prefix)
-            trackOwned(AppUserTable, AppUserTable.id, id)
         }
         DatabaseTestHelper.insertUser(
             id = inactiveOwnerUser,
@@ -65,7 +63,6 @@ class GrantPathAuthzTest : BasePostgresTest() {
             displayName = "Test Inactive Owner",
             status = UserStatus.INACTIVE,
         )
-        trackOwned(AppUserTable, AppUserTable.id, inactiveOwnerUser)
 
         listOf(
             ownerUser to "OWNER",
@@ -82,7 +79,6 @@ class GrantPathAuthzTest : BasePostgresTest() {
                     it[UserRoleTable.roleId] = roleId
                 }
             }
-            trackOwned(UserRoleTable, UserRoleTable.userId, userId)
         }
     }
 

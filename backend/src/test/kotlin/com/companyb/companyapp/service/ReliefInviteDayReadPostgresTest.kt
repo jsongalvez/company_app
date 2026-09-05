@@ -2,14 +2,7 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.repository.model.ReliefInviteTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -35,17 +28,11 @@ class ReliefInviteDayReadPostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(inviterId, "dayread-inviter")
-        trackOwned(AppUserTable, AppUserTable.id, inviterId)
         DatabaseTestHelper.insertTestUser(secondInviterId, "dayread-second")
-        trackOwned(AppUserTable, AppUserTable.id, secondInviterId)
         DatabaseTestHelper.insertTestUser(inviteeId, "dayread-invitee")
-        trackOwned(AppUserTable, AppUserTable.id, inviteeId)
         DatabaseTestHelper.insertTestUser(strangerId, "dayread-stranger")
-        trackOwned(AppUserTable, AppUserTable.id, strangerId)
         DatabaseTestHelper.insertTestBranch(branchId, "Day Read Branch ${branchId.toString().take(8)}")
-        trackOwned(BranchTable, BranchTable.id, branchId)
         // Invite creation resolves-or-creates its duty-day rows at this branch.
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
         transaction {
             UserBranchAssignmentRepository.createInTransaction(
@@ -67,23 +54,15 @@ class ReliefInviteDayReadPostgresTest : BasePostgresTest() {
                 ),
             )
         }
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, inviterId)
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, secondInviterId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, inviterId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, secondInviterId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, inviteeId)
         // Invite responses broadcast (#358) — branch-keyed notification tracking covers it.
-        trackOwned(NotificationTable, NotificationTable.branchId, branchId)
     }
 
     @Test
     fun `member sees every invite at the branch on the date across inviters and statuses`() {
         val duty = TestFixtures.today.plusDays(3)
         val first = ReliefInviteService.createInvite(inviterId, branchId, inviteeId, duty)
-        trackOwned(ReliefInviteTable, ReliefInviteTable.id, first.id)
         val second =
             ReliefInviteService.createInvite(secondInviterId, branchId, strangerId, duty.plusDays(0))
-        trackOwned(ReliefInviteTable, ReliefInviteTable.id, second.id)
 
         val rows = ReliefInviteService.listForDay(inviterId, branchId, duty)
 
@@ -97,7 +76,6 @@ class ReliefInviteDayReadPostgresTest : BasePostgresTest() {
         val duty = TestFixtures.today.plusDays(3)
         val other = TestFixtures.today.plusDays(4)
         val invite = ReliefInviteService.createInvite(inviterId, branchId, inviteeId, duty)
-        trackOwned(ReliefInviteTable, ReliefInviteTable.id, invite.id)
 
         assertTrue(ReliefInviteService.listForDay(inviterId, branchId, other).isEmpty())
 
@@ -109,9 +87,7 @@ class ReliefInviteDayReadPostgresTest : BasePostgresTest() {
     fun `invitee who is not a member sees only their own rows`() {
         val duty = TestFixtures.today.plusDays(3)
         val mine = ReliefInviteService.createInvite(inviterId, branchId, inviteeId, duty)
-        trackOwned(ReliefInviteTable, ReliefInviteTable.id, mine.id)
-        val theirs = ReliefInviteService.createInvite(inviterId, branchId, strangerId, duty)
-        trackOwned(ReliefInviteTable, ReliefInviteTable.id, theirs.id)
+        ReliefInviteService.createInvite(inviterId, branchId, strangerId, duty)
 
         val rows = ReliefInviteService.listForDay(inviteeId, branchId, duty)
 
@@ -122,7 +98,6 @@ class ReliefInviteDayReadPostgresTest : BasePostgresTest() {
     fun `unrelated caller sees no rows - no existence leak`() {
         val duty = TestFixtures.today.plusDays(3)
         val invite = ReliefInviteService.createInvite(inviterId, branchId, inviteeId, duty)
-        trackOwned(ReliefInviteTable, ReliefInviteTable.id, invite.id)
 
         assertTrue(ReliefInviteService.listForDay(TestFixtures.uuid(), branchId, duty).isEmpty())
     }
@@ -131,7 +106,6 @@ class ReliefInviteDayReadPostgresTest : BasePostgresTest() {
     fun `resolved statuses stay visible - the tap renders true state`() {
         val duty = TestFixtures.today.plusDays(3)
         val declined = ReliefInviteService.createInvite(inviterId, branchId, inviteeId, duty)
-        trackOwned(ReliefInviteTable, ReliefInviteTable.id, declined.id)
         ReliefInviteService.declineInvite(inviteeId, declined.id)
 
         val rows = ReliefInviteService.listForDay(secondInviterId, branchId, duty)

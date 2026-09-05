@@ -4,13 +4,6 @@ import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.service.attendance.AttendanceRepository
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.attendance.ClockInParams
@@ -36,9 +29,7 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(userId, "me-branches")
-        trackOwned(AppUserTable, AppUserTable.id, userId)
         DatabaseTestHelper.insertTestUser(noAssignmentUserId, "me-no-assignments")
-        trackOwned(AppUserTable, AppUserTable.id, noAssignmentUserId)
         DatabaseTestHelper.insertUser(
             id = inactiveUserId,
             username = "inactive-$inactiveUserId",
@@ -47,21 +38,9 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
             displayName = "Inactive User",
             status = UserStatus.INACTIVE,
         )
-        trackOwned(AppUserTable, AppUserTable.id, inactiveUserId)
         DatabaseTestHelper.insertTestBranch(branchA, "Branch A")
         DatabaseTestHelper.insertTestBranch(branchB, "Branch B")
         DatabaseTestHelper.insertTestBranch(reliefBranch, "Relief Branch")
-        trackOwned(BranchTable, BranchTable.id, branchA)
-        trackOwned(BranchTable, BranchTable.id, branchB)
-        trackOwned(BranchTable, BranchTable.id, reliefBranch)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchA)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchB)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, reliefBranch)
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, userId)
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.assignedBy, userId)
-        trackOwned(AttendanceTable, AttendanceTable.userId, userId)
-        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.userId, userId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, userId)
     }
 
     @Test

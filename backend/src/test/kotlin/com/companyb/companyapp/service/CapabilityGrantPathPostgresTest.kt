@@ -3,10 +3,7 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.domain.UserStatus
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.RoleTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -54,7 +51,6 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
             dedupUser to "dedup",
         ).forEach { (id, prefix) ->
             DatabaseTestHelper.insertTestUser(id, prefix)
-            trackOwned(AppUserTable, AppUserTable.id, id)
         }
         DatabaseTestHelper.insertUser(
             id = inactiveOwnerUser,
@@ -64,10 +60,8 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
             displayName = "Test Inactive Owner",
             status = UserStatus.INACTIVE,
         )
-        trackOwned(AppUserTable, AppUserTable.id, inactiveOwnerUser)
 
         DatabaseTestHelper.insertTestBranch(branchId, "Grant Path Branch")
-        trackOwned(BranchTable, BranchTable.id, branchId)
 
         assignRole(ownerUser, "OWNER")
         assignRole(superuserUser, "SUPERUSER")
@@ -84,22 +78,12 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
             contextId = branchId,
             sourceId = sourceId,
         )
-        trackOwned(
-            UserCapabilityTable,
-            UserCapabilityTable.userId,
-            directUser,
-        )
         DatabaseTestHelper.grantCapability(
             userId = dedupUser,
             capabilityCode = CapabilityCodes.MANAGE_USERS,
             contextType = CapabilityContextType.GLOBAL,
             contextId = CapabilityService.GLOBAL_CONTEXT_ID,
             sourceId = sourceId,
-        )
-        trackOwned(
-            UserCapabilityTable,
-            UserCapabilityTable.userId,
-            dedupUser,
         )
     }
 
@@ -117,7 +101,6 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
                 it[UserRoleTable.roleId] = roleId
             }
         }
-        trackOwned(UserRoleTable, UserRoleTable.userId, userId)
     }
 
     private fun has(

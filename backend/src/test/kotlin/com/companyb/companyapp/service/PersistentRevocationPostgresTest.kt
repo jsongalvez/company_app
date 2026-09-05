@@ -8,8 +8,6 @@ import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.domain.LoginResult
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.CredentialTokenTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -47,9 +45,6 @@ class PersistentRevocationPostgresTest : BasePostgresTest() {
             displayName = "Revoke Test User",
             status = com.companyb.companyapp.domain.UserStatus.ACTIVE,
         )
-        trackOwned(AppUserTable, AppUserTable.id, id)
-        trackOwned(CredentialTokenTable, CredentialTokenTable.userId, id)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, id)
         return id
     }
 

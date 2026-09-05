@@ -15,13 +15,9 @@ import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.RoleTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.test.BasePostgresTest
@@ -89,23 +85,18 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
             noneUser to "no-caps",
         ).forEach { (id, prefix) ->
             DatabaseTestHelper.insertTestUser(id, prefix)
-            trackOwned(AppUserTable, AppUserTable.id, id)
         }
 
-        trackOwned(BranchTable, BranchTable.id, branchA)
         DatabaseTestHelper.insertTestBranch(branchA, "Reports Branch 131 A")
-        trackOwned(BranchTable, BranchTable.id, branchB)
         DatabaseTestHelper.insertTestBranch(branchB, "Reports Branch 131 B")
 
         assignRole(ownerUser, "OWNER")
-        val ownerAssignment =
-            DatabaseTestHelper.insertTestAssignment(
-                userId = ownerUser,
-                branchId = branchA,
-                slot = 1,
-                assignedBy = ownerUser,
-            )
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, ownerAssignment)
+        DatabaseTestHelper.insertTestAssignment(
+            userId = ownerUser,
+            branchId = branchA,
+            slot = 1,
+            assignedBy = ownerUser,
+        )
 
         // Branch-scoped VIEW_BRANCH_DATA at branchA only.
         DatabaseTestHelper.grantCapability(
@@ -132,7 +123,6 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
             sourceId = sourceId,
         )
         listOf(viewA, editB, globalViewUser).forEach {
-            trackOwned(UserCapabilityTable, UserCapabilityTable.userId, it)
         }
     }
 
@@ -150,7 +140,6 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
                 it[UserRoleTable.roleId] = roleId
             }
         }
-        trackOwned(UserRoleTable, UserRoleTable.userId, userId)
     }
 
     companion object {
@@ -355,11 +344,8 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         branchType: BranchType,
         snapshot: FinancialSnapshot,
     ) {
-        trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestBranch(branchId, branchName, branchType)
         val remittanceId = TestFixtures.uuid()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
         val today = TestFixtures.today
         transaction {
             RemittanceTable.insert {

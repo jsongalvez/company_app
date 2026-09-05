@@ -4,19 +4,12 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CommissionSplitTable
-import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
-import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -42,25 +35,13 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "summary-user")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestBranch(branchId, "Summary Test Branch")
-        trackOwned(BranchTable, BranchTable.id, branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
         insertBranchDay(branchDayId, branchId, today)
-        trackOwned(BranchDayTable, BranchDayTable.id, branchDayId)
-        trackOwned(SessionTable, SessionTable.branchDayId, branchDayId)
-        trackOwned(CompensationTable, CompensationTable.workBranchDayId, branchDayId)
-        trackOwned(CompensationTable, CompensationTable.payingBranchDayId, branchDayId)
-        trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
-        trackOwned(ProductSaleTable, ProductSaleTable.branchDayId, branchDayId)
-        trackOwned(CommissionSplitTable, CommissionSplitTable.branchDayId, branchDayId)
-        trackOwned(SessionVoidTable, SessionVoidTable.voidedBy, callerId)
     }
 
     @Test
     fun `returns zero summary when no data exists for branch day`() {
         grantViewBranchData(callerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         val summary = DailySalesSummaryService.getDailySummary(branchId, today)
 
@@ -75,9 +56,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `returns correct gross income from completed sessions`() {
         grantViewBranchData(callerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val client1Id = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, client1Id)
         DatabaseTestHelper.insertTestSession(
             id = TestFixtures.uuid(),
             clientId = client1Id,
@@ -88,7 +67,6 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
             finalPrice = BigDecimal("2500.00"),
         )
         val client2Id = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, client2Id)
         DatabaseTestHelper.insertTestSession(
             id = TestFixtures.uuid(),
             clientId = client2Id,
@@ -107,9 +85,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `excludes non-completed sessions from gross income`() {
         grantViewBranchData(callerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val testClientId = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, testClientId)
         DatabaseTestHelper.insertTestSession(
             id = TestFixtures.uuid(),
             clientId = testClientId,
@@ -128,10 +104,8 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `excludes voided sessions from gross income`() {
         grantViewBranchData(callerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val sessionId = TestFixtures.uuid()
         val testClientId = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, testClientId)
         DatabaseTestHelper.insertTestSession(
             id = sessionId,
             clientId = testClientId,
@@ -151,10 +125,8 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `includes completed sessions that were unvoided`() {
         grantViewBranchData(callerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val sessionId = TestFixtures.uuid()
         val testClientId = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, testClientId)
         DatabaseTestHelper.insertTestSession(
             id = sessionId,
             clientId = testClientId,
@@ -175,13 +147,10 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `returns correct total compensation`() {
         grantViewBranchData(callerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val user1 = TestFixtures.uuid()
         val user2 = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(user1, "summary-user")
-        trackOwned(AppUserTable, AppUserTable.id, user1)
         DatabaseTestHelper.insertTestUser(user2, "summary-user")
-        trackOwned(AppUserTable, AppUserTable.id, user2)
         DatabaseTestHelper.insertTestCompensation(branchDayId, user1, BigDecimal("500.00"), assignedBy = callerId)
         DatabaseTestHelper.insertTestCompensation(branchDayId, user2, BigDecimal("300.00"), assignedBy = callerId)
 
@@ -193,10 +162,8 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `returns correct total expenses excluding deleted`() {
         grantViewBranchData(callerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val userId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(userId, "summary-user")
-        trackOwned(AppUserTable, AppUserTable.id, userId)
         DatabaseTestHelper.insertTestExpense(branchDayId, userId, BigDecimal("200.00"), deleted = false)
         DatabaseTestHelper.insertTestExpense(branchDayId, userId, BigDecimal("100.00"), deleted = true)
 
@@ -208,10 +175,8 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `returns correct product sales total`() {
         grantViewBranchData(callerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val userId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(userId, "summary-user")
-        trackOwned(AppUserTable, AppUserTable.id, userId)
         insertProductSale(branchDayId, userId, BigDecimal("300.00"))
 
         val summary = DailySalesSummaryService.getDailySummary(branchId, today)
@@ -222,10 +187,8 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `returns correct commission total`() {
         grantViewBranchData(callerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val userId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(userId, "summary-user")
-        trackOwned(AppUserTable, AppUserTable.id, userId)
         insertCommissionSplit(branchDayId, userId, BigDecimal("150.0000"))
 
         val summary = DailySalesSummaryService.getDailySummary(branchId, today)
@@ -236,12 +199,9 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `calculates net income correctly`() {
         grantViewBranchData(callerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val userId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(userId, "summary-user")
-        trackOwned(AppUserTable, AppUserTable.id, userId)
         val netIncomeTestClientId = DatabaseTestHelper.insertTestClient()
-        trackOwned(ClientTable, ClientTable.id, netIncomeTestClientId)
         DatabaseTestHelper.insertTestSession(
             id = TestFixtures.uuid(),
             clientId = netIncomeTestClientId,
@@ -277,7 +237,6 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `throws 404 when branch does not exist`() {
         grantViewBranchData(callerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val fakeBranchId = TestFixtures.uuid()
 
         assertFailsWith<NotFoundException> {
@@ -352,8 +311,6 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
                 it[ProductSaleTable.isWalkIn] = true
             }
         }
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, productCategoryId)
-        trackOwned(ProductTable, ProductTable.id, productId)
     }
 
     private fun insertCommissionSplit(

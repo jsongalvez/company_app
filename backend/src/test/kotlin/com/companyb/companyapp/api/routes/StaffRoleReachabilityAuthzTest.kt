@@ -8,15 +8,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.RoleTable
-import com.companyb.companyapp.repository.model.SessionBaseRateTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
@@ -73,12 +65,10 @@ class StaffRoleReachabilityAuthzTest : BasePostgresTest() {
             endedCoordinator to "reach-ended",
         ).forEach { (id, prefix) ->
             DatabaseTestHelper.insertTestUser(id, prefix)
-            trackOwned(AppUserTable, AppUserTable.id, id)
         }
 
         listOf(branchA to "Reachability Branch A", unrelatedBranch to "Unrelated Branch").forEach { (id, name) ->
             DatabaseTestHelper.insertTestBranch(id, name)
-            trackOwned(BranchTable, BranchTable.id, id)
         }
 
         assignRole(coordinatorUser, "COORDINATOR")
@@ -92,18 +82,11 @@ class StaffRoleReachabilityAuthzTest : BasePostgresTest() {
         insertAssignment(endedCoordinator, branchA, ended = true)
 
         todayAtBranchA = DatabaseTestHelper.createBranchDayForToday(branchA)
-        trackOwned(BranchDayTable, BranchDayTable.id, todayAtBranchA)
         todayAtUnrelatedBranch = DatabaseTestHelper.createBranchDayForToday(unrelatedBranch)
-        trackOwned(BranchDayTable, BranchDayTable.id, todayAtUnrelatedBranch)
         // Compensations created below are torn down with their owning user (#421 probes).
-        trackOwned(CompensationTable, CompensationTable.userId, practitionerUser)
         // Expenses created below are torn down with their owning day.
-        trackOwned(ExpenseTable, ExpenseTable.branchDayId, todayAtBranchA)
-        trackOwned(SessionBaseRateTable, SessionBaseRateTable.branchId, branchA)
         // Audited writes (expense insert, rate set) reference their caller —
         // audit rows must be removed before the users (UserManagementAuthzTest pattern).
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, coordinatorUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, practitionerUser)
     }
 
     private fun assignRole(
@@ -120,7 +103,6 @@ class StaffRoleReachabilityAuthzTest : BasePostgresTest() {
                 it[UserRoleTable.roleId] = roleId
             }
         }
-        trackOwned(UserRoleTable, UserRoleTable.userId, userId)
     }
 
     private fun insertAssignment(
@@ -136,7 +118,6 @@ class StaffRoleReachabilityAuthzTest : BasePostgresTest() {
                 assignedBy = userId,
                 ended = ended,
             )
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, id)
     }
 
     companion object {

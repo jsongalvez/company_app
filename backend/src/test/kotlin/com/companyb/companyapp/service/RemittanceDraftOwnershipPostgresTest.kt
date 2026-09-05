@@ -3,13 +3,7 @@ import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ConflictException
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
-import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
-import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.service.finance.remittance.Remittance
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
@@ -42,13 +36,9 @@ class RemittanceDraftOwnershipPostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "remittance-owner")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
         listOf(firstBranchId to "First", secondBranchId to "Second").forEach { (id, name) ->
             DatabaseTestHelper.insertTestBranch(id, "Remittance $name Branch ${TestFixtures.uuid()}")
-            trackOwned(BranchTable, BranchTable.id, id)
-            trackOwned(BranchDayTable, BranchDayTable.branchId, id)
         }
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
@@ -78,11 +68,6 @@ class RemittanceDraftOwnershipPostgresTest : BasePostgresTest() {
                 dateRangeEnd = rangeEnd,
             )
         }
-
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
         val auditCount =
             transaction {
@@ -151,10 +136,6 @@ class RemittanceDraftOwnershipPostgresTest : BasePostgresTest() {
                     }.count()
             },
         )
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
     }
 
     @Test
@@ -189,8 +170,6 @@ class RemittanceDraftOwnershipPostgresTest : BasePostgresTest() {
                 RemittanceTable.selectAll().where { RemittanceTable.branchId eq firstBranchId }.count()
             },
         )
-        trackOwned(RemittanceTable, RemittanceTable.id, firstId)
-        trackOwned(RemittanceTable, RemittanceTable.id, secondId)
     }
 
     @Test
@@ -213,7 +192,6 @@ class RemittanceDraftOwnershipPostgresTest : BasePostgresTest() {
         }
 
         transaction { insertRemittance(firstId) }
-        trackOwned(RemittanceTable, RemittanceTable.id, firstId)
         assertFailsWith<org.jetbrains.exposed.v1.exceptions.ExposedSQLException> {
             transaction { insertRemittance(secondId) }
         }

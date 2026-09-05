@@ -14,12 +14,8 @@ import com.companyb.companyapp.dto.AuditLogTableResponse
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.RoleTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -79,23 +75,18 @@ class AuditLogAuthzTest : BasePostgresTest() {
             noneUser to "no-caps",
         ).forEach { (id, prefix) ->
             DatabaseTestHelper.insertTestUser(id, prefix)
-            trackOwned(AppUserTable, AppUserTable.id, id)
         }
 
-        trackOwned(BranchTable, BranchTable.id, branchA)
         DatabaseTestHelper.insertTestBranch(branchA, "Audit Branch A $branchA")
-        trackOwned(BranchTable, BranchTable.id, branchB)
         DatabaseTestHelper.insertTestBranch(branchB, "Audit Branch B $branchB")
 
         assignRole(ownerUser, "OWNER")
-        val ownerAssignment =
-            DatabaseTestHelper.insertTestAssignment(
-                userId = ownerUser,
-                branchId = branchA,
-                slot = 1,
-                assignedBy = ownerUser,
-            )
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, ownerAssignment)
+        DatabaseTestHelper.insertTestAssignment(
+            userId = ownerUser,
+            branchId = branchA,
+            slot = 1,
+            assignedBy = ownerUser,
+        )
 
         DatabaseTestHelper.grantCapability(
             userId = editorA,
@@ -133,7 +124,6 @@ class AuditLogAuthzTest : BasePostgresTest() {
             sourceId = sourceId,
         )
         listOf(editorA, editorB, manageUsersUser, manageProductsUser, globalViewUser).forEach {
-            trackOwned(UserCapabilityTable, UserCapabilityTable.userId, it)
         }
 
         // Direct inserts with explicit changedAt for deterministic cursor tests.
@@ -163,7 +153,6 @@ class AuditLogAuthzTest : BasePostgresTest() {
                             it[AuditLogTable.acknowledgedAt] = acknowledgedAt
                         }
                     } get AuditLogTable.id
-                trackOwned(AuditLogTable, AuditLogTable.id, id)
                 return id
             }
 
@@ -229,7 +218,6 @@ class AuditLogAuthzTest : BasePostgresTest() {
                 it[UserRoleTable.roleId] = roleId
             }
         }
-        trackOwned(UserRoleTable, UserRoleTable.userId, userId)
     }
 
     private fun at(hourOffset: Int): OffsetDateTime =

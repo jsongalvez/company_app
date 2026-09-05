@@ -9,14 +9,11 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ClientCreateParams
 import com.companyb.companyapp.repository.ClientRepository
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ConcernTable
-import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionConcernTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.service.session.SessionConcernService
@@ -51,9 +48,6 @@ class CrudCommandAtomicityPostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "crud-atomic-caller")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-        trackOwned(BranchTable, BranchTable.id, branchId)
     }
 
     @Test
@@ -68,7 +62,6 @@ class CrudCommandAtomicityPostgresTest : BasePostgresTest() {
 
         assertTrue(result.created)
         // #418 — branch creation seeds five default base rates as a side effect.
-        trackChildRowsOfParent(SessionBaseRateTable, SessionBaseRateTable.branchId, branchId)
         val (branchRows, insertAudits) =
             transaction {
                 val branches = BranchTable.selectAll().where { BranchTable.id eq branchId }.count()
@@ -89,7 +82,6 @@ class CrudCommandAtomicityPostgresTest : BasePostgresTest() {
     @Test
     fun `audit failure inside the command rolls the mutation back`() {
         val clientId = TestFixtures.uuid()
-        trackOwned(ClientTable, ClientTable.id, clientId)
 
         // Exercises the exact composition ClientService.create runs. A failing audit statement
         // must abort the whole transaction: no client row, no partial audit.
@@ -179,13 +171,10 @@ class CrudCommandAtomicityPostgresTest : BasePostgresTest() {
     fun `version-mismatched compensation update writes no audit row`() {
         val targetUserId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(targetUserId, "crud-atomic-target")
-        trackOwned(AppUserTable, AppUserTable.id, targetUserId)
         // initTestData only tracks the branch id; this test needs a real branch_day under it.
         DatabaseTestHelper.insertTestBranch(branchId)
         val workDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
         val payingDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
-        trackOwned(CompensationTable, CompensationTable.userId, targetUserId)
 
         val created =
             CompensationService.create(
@@ -228,11 +217,9 @@ class CrudCommandAtomicityPostgresTest : BasePostgresTest() {
         // with the mutations in the command's single transaction.
         DatabaseTestHelper.insertTestBranch(branchId)
         val dayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
         val clientId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestClient(clientId)
-        trackOwned(ClientTable, ClientTable.id, clientId)
 
         val sessionId = TestFixtures.uuid()
         transaction {
@@ -247,11 +234,8 @@ class CrudCommandAtomicityPostgresTest : BasePostgresTest() {
                 it[SessionTable.otherConcerns] = "stale concerns"
             }
         }
-        trackOwned(SessionTable, SessionTable.id, sessionId)
-        trackOwned(SessionConcernTable, SessionConcernTable.sessionId, sessionId)
 
         val concernId = TestFixtures.uuid()
-        trackOwned(ConcernTable, ConcernTable.id, concernId)
 
         val promoted = SessionConcernService.promoteConcern(callerId, sessionId, concernId, "Promoted", "reason")
 

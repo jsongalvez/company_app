@@ -7,12 +7,6 @@ import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.service.NotificationService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -56,13 +50,6 @@ class SessionDetailAuthzTest : BasePostgresTest() {
             branchDayId = branchDayId,
             sessionStatus = SessionStatus.COMPLETED,
         )
-
-        trackOwned(AppUserTable, AppUserTable.id, bearerUser)
-        trackOwned(AppUserTable, AppUserTable.id, otherUser)
-        trackOwned(BranchTable, BranchTable.id, branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
-        trackOwned(ClientTable, ClientTable.id, clientId)
-        trackOwned(SessionTable, SessionTable.id, sessionId)
     }
 
     companion object {
@@ -159,7 +146,6 @@ class SessionDetailAuthzTest : BasePostgresTest() {
                 userId = userId,
                 branchId = branchId,
             )
-        trackOwned(NotificationTable, NotificationTable.id, notification.id)
         return notification
     }
 }

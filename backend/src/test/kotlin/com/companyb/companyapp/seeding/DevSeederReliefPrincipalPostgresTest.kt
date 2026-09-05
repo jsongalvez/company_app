@@ -44,7 +44,6 @@ class DevSeederReliefPrincipalPostgresTest : BasePostgresTest() {
                 it[name] = "K6 Fixture Branch"
                 it[branchType] = BranchType.CLINIC
             }
-            trackOwned(BranchTable, BranchTable.id, DEV_FIXTURE_BRANCH_ID)
         }
     }
 
@@ -61,7 +60,6 @@ class DevSeederReliefPrincipalPostgresTest : BasePostgresTest() {
                     .where { AppUserTable.username eq reliefUsername }
                     .single()
             val userId = user[AppUserTable.id]
-            trackOwned(AppUserTable, AppUserTable.id, userId)
 
             assertNoRole(userId)
             assertBranchCapabilityShape(userId)
@@ -84,7 +82,6 @@ class DevSeederReliefPrincipalPostgresTest : BasePostgresTest() {
                 .selectAll()
                 .where { UserCapabilityTable.userId eq userId }
                 .toList()
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, userId)
 
         val codeById =
             CapabilityTable

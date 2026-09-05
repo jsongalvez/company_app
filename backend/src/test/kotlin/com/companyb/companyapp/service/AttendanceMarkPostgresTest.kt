@@ -9,8 +9,6 @@ import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
 import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.commission.CommissionService
@@ -50,24 +48,8 @@ class AttendanceMarkPostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestUser(markerId, "marker")
         DatabaseTestHelper.insertTestUser(targetId, "target")
         DatabaseTestHelper.insertTestUser(outsiderId, "outsider")
-        trackOwned(AppUserTable, AppUserTable.id, markerId)
-        trackOwned(AppUserTable, AppUserTable.id, targetId)
-        trackOwned(AppUserTable, AppUserTable.id, outsiderId)
         DatabaseTestHelper.insertTestBranch(branchId, "Mark Branch")
         DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Branch")
-        trackOwned(BranchTable, BranchTable.id, branchId)
-        trackOwned(BranchTable, BranchTable.id, otherBranchId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, markerId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, targetId)
-        trackOwned(AttendanceTable, AttendanceTable.userId, markerId)
-        trackOwned(AttendanceTable, AttendanceTable.userId, targetId)
-        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.userId, markerId)
-        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.userId, targetId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, markerId)
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, targetId)
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, outsiderId)
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.assignedBy, markerId)
 
         // Marker and target are home members at branchId; the outsider holds no assignment.
         DatabaseTestHelper.insertTestAssignment(userId = markerId, branchId = branchId, slot = 1, assignedBy = markerId)
@@ -384,8 +366,6 @@ class AttendanceMarkPostgresTest : BasePostgresTest() {
     @Test
     fun `roster lists members by slot with live presence flags`() {
         DatabaseTestHelper.insertTestUser(thirdMemberId, "aaa-third-slot")
-        trackOwned(AppUserTable, AppUserTable.id, thirdMemberId)
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, thirdMemberId)
         DatabaseTestHelper.insertTestAssignment(
             userId = thirdMemberId,
             branchId = branchId,

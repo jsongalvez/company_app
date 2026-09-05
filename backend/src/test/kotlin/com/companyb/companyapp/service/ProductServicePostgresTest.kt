@@ -1,11 +1,8 @@
 package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -31,15 +28,12 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "caller")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestCategory(categoryId)
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, categoryId)
     }
 
     @Test
     fun `create persists product and writes audit row`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         val result =
             ProductService.create(
@@ -60,14 +54,11 @@ class ProductServicePostgresTest : BasePostgresTest() {
         val insertStates = auditActiveStateChanges(productId, AuditAction.INSERT)
         assertEquals(1, insertStates.size)
         assertEquals("true", insertStates.single().second)
-        trackOwned(ProductTable, ProductTable.id, productId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
     fun `duplicate client generated id returns existing product without extra audit`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val first =
             ProductService.create(
                 callerId = callerId,
@@ -93,14 +84,11 @@ class ProductServicePostgresTest : BasePostgresTest() {
         assertEquals("Test Product", duplicate.product.name)
         assertEquals(BigDecimal("250.00"), duplicate.product.unitPrice)
         assertEquals(1L, auditEntryCount(productId))
-        trackOwned(ProductTable, ProductTable.id, productId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
     fun `list returns active products`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         ProductService.create(
             callerId = callerId,
             id = productId,
@@ -123,15 +111,11 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
         assertTrue(productId in allIds)
         assertTrue(productId2 in allIds)
-        trackOwned(ProductTable, ProductTable.id, productId)
-        trackOwned(ProductTable, ProductTable.id, productId2)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
     fun `findAll includes deactivated row while findAllActive omits it`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         ProductService.create(
             callerId = callerId,
             id = productId,
@@ -165,15 +149,11 @@ class ProductServicePostgresTest : BasePostgresTest() {
         val allIds = ProductService.findAll().map { it.id }.toSet()
         assertTrue(productId in allIds)
         assertTrue(productId2 in allIds)
-        trackOwned(ProductTable, ProductTable.id, productId)
-        trackOwned(ProductTable, ProductTable.id, productId2)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
     fun `find by id returns persisted product`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         ProductService.create(
             callerId = callerId,
             id = productId,
@@ -185,14 +165,11 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
         val found = ProductService.findById(productId)
         assertEquals("Test Product", found.name)
-        trackOwned(ProductTable, ProductTable.id, productId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
     fun `update persists changes and writes audit row`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         ProductService.create(
             callerId = callerId,
             id = productId,
@@ -237,8 +214,6 @@ class ProductServicePostgresTest : BasePostgresTest() {
         assertEquals(2, allUpdateStates.size)
         assertTrue(allUpdateStates.contains("true" to "false"))
         assertTrue(allUpdateStates.contains("false" to "true"))
-        trackOwned(ProductTable, ProductTable.id, productId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
@@ -256,8 +231,6 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
         assertTrue(result.created)
         assertEquals("New Product", result.product.name)
-        trackOwned(ProductTable, ProductTable.id, newProductId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
@@ -269,7 +242,6 @@ class ProductServicePostgresTest : BasePostgresTest() {
     fun `findById without MANAGE_PRODUCTS is allowed at service layer`() {
         val newProductId = TestFixtures.uuid()
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         ProductService.create(
             callerId = callerId,
             id = newProductId,
@@ -281,18 +253,14 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
         val otherCaller = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherCaller, "other")
-        trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
         val found = ProductService.findById(newProductId)
         assertEquals("Find Product", found.name)
-        trackOwned(ProductTable, ProductTable.id, newProductId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
     fun `create with non-existent category returns bad request`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         assertFailsWith<ValidationException> {
             ProductService.create(

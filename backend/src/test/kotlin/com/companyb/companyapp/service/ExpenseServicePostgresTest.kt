@@ -11,13 +11,9 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ExpenseRepository
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ExpenseCreateParams
 import com.companyb.companyapp.repository.model.ExpenseTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -48,16 +44,9 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "expense-caller")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestBranch(branchId, "Test Expense Branch")
-        trackOwned(BranchTable, BranchTable.id, branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
         branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        trackOwned(BranchDayTable, BranchDayTable.id, branchDayId)
         grantEditBranchData(callerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-        trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
     }
 
     @Test
@@ -135,9 +124,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val otherBranchId = TestFixtures.uuid()
         val otherSourceId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Expense Branch")
-        trackOwned(BranchTable, BranchTable.id, otherBranchId)
         val otherBranchDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.id, otherBranchDayId)
         DatabaseTestHelper.grantCapability(
             userId = callerId,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
@@ -145,7 +132,6 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             contextId = otherBranchId,
             sourceId = otherSourceId,
         )
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val expenseId = TestFixtures.uuid()
 
         ExpenseService.create(
@@ -173,9 +159,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     fun `create rejects same UUID for another creator`() {
         val otherCallerId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherCallerId, "expense-other-caller")
-        trackOwned(AppUserTable, AppUserTable.id, otherCallerId)
         grantEditBranchData(otherCallerId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, otherCallerId)
         val expenseId = TestFixtures.uuid()
 
         ExpenseService.create(
@@ -740,10 +724,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
-        trackOwned(ExpenseTable, ExpenseTable.branchDayId, remittedDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
@@ -775,10 +756,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
-        trackOwned(ExpenseTable, ExpenseTable.branchDayId, remittedDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
@@ -855,9 +833,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val auditsBefore = callerAuditCount()
 
         assertFailsWith<ValidationException> {
@@ -880,9 +856,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val expenseId = TestFixtures.uuid()
 
         val expense =
@@ -897,7 +871,6 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             )
 
         assertNotNull(expense)
-        trackOwned(ExpenseTable, ExpenseTable.id, expenseId)
         val audit =
             transaction {
                 AuditLogTable

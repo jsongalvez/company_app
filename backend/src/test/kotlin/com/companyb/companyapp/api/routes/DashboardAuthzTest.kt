@@ -6,12 +6,6 @@ import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -40,23 +34,6 @@ class DashboardAuthzTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestUser(notClockedInUser, "not-clocked")
         DatabaseTestHelper.insertTestBranch(branchId, "Branch A")
         DatabaseTestHelper.insertTestBranch(otherBranchId, "Branch B")
-
-        trackOwned(AppUserTable, AppUserTable.id, clockedInUser)
-        trackOwned(AppUserTable, AppUserTable.id, otherBranchUser)
-        trackOwned(AppUserTable, AppUserTable.id, notClockedInUser)
-        trackOwned(BranchTable, BranchTable.id, branchId)
-        trackOwned(BranchTable, BranchTable.id, otherBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, otherBranchId)
-        trackOwned(AttendanceTable, AttendanceTable.userId, clockedInUser)
-        trackOwned(AttendanceTable, AttendanceTable.userId, otherBranchUser)
-        trackOwned(AttendanceTable, AttendanceTable.userId, notClockedInUser)
-        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.userId, clockedInUser)
-        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.userId, otherBranchUser)
-        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.userId, notClockedInUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, clockedInUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherBranchUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, notClockedInUser)
 
         AttendanceService.clockIn(TestFixtures.uuid(), branchId, clockedInUser)
         AttendanceService.clockIn(TestFixtures.uuid(), otherBranchId, otherBranchUser)

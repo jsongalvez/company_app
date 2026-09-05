@@ -3,21 +3,8 @@ import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertParams
-import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.repository.model.ProductCategoryTable
-import com.companyb.companyapp.repository.model.ProductSaleTable
-import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.SessionPractitionerTable
-import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.service.NotificationService
 import com.companyb.companyapp.service.attendance.AttendanceService
@@ -59,29 +46,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestCategory(categoryId)
         DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
 
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
-        trackOwned(AppUserTable, AppUserTable.id, otherUserId)
-        trackOwned(AppUserTable, AppUserTable.id, practitionerId)
-        trackOwned(BranchTable, BranchTable.id, branchId)
-        trackOwned(BranchTable, BranchTable.id, otherBranchId)
-        trackOwned(ClientTable, ClientTable.id, clientId)
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, categoryId)
-        trackOwned(ProductTable, ProductTable.id, productId)
-
         branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, otherBranchId)
-        trackOwned(SessionTable, SessionTable.branchDayId, branchDayId)
-        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
-        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
-        trackOwned(AttendanceTable, AttendanceTable.userId, callerId)
-        trackOwned(AttendanceTable, AttendanceTable.userId, otherUserId)
-        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.userId, callerId)
-        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.userId, otherUserId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherUserId)
-        trackOwned(ProductSaleTable, ProductSaleTable.branchDayId, branchDayId)
-        trackOwned(CommissionManualInclusionTable, CommissionManualInclusionTable.productSaleId, saleId)
     }
 
     @Test
@@ -294,7 +259,6 @@ class DashboardServicePostgresTest : BasePostgresTest() {
                 userId = userId,
                 branchId = branchId,
             )
-        trackOwned(NotificationTable, NotificationTable.id, notification.id)
         return notification
     }
 

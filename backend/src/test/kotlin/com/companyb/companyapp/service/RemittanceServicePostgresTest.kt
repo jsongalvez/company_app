@@ -11,22 +11,13 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
-import com.companyb.companyapp.repository.model.ProductCategoryTable
-import com.companyb.companyapp.repository.model.ProductSaleTable
-import com.companyb.companyapp.repository.model.ProductTable
-import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
-import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittancePolicy
 import com.companyb.companyapp.service.finance.remittance.RemittanceRepository
@@ -70,16 +61,10 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "remittance-caller")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
 
         DatabaseTestHelper.insertTestBranch(branchId, "Test Remittance Branch ${TestFixtures.uuid()}")
-        trackOwned(BranchTable, BranchTable.id, branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
         DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, branchId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
@@ -109,11 +94,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         assertEquals(dateRangeEnd, remittance.dateRangeEnd)
         assertEquals(callerId, remittance.submittedBy)
         assertEquals(1, remittance.version)
-
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
     }
 
     @Test
@@ -134,11 +114,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
             )
 
         assertEquals(RemittanceType.PRODUCT, remittance.type)
-
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
     }
 
     @Test
@@ -171,11 +146,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
         assertEquals(first.id, second.id)
         assertEquals(first.version, second.version)
-
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
     }
 
     @Test
@@ -194,10 +164,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
             )
 
         assertNotNull(remittance)
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittance.id)
     }
 
     @Test
@@ -242,11 +208,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
                     }.count()
             }
         assertTrue(auditCount > 0)
-
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
     }
 
     @Test
@@ -259,13 +220,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val branchDayId = resolveBranchDay()
         addDayBreakdown(remittanceId, breakdownId, branchDayId)
         addSessionLine(remittanceId, lineId, BigDecimal("500.00"))
-
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
-        trackOwned(SessionTable, SessionTable.id, sessionId!!)
-        trackOwned(ClientTable, ClientTable.id, clientId)
 
         val actualVersion = RemittanceService.getRemittance(remittanceId).remittance.version
 
@@ -308,13 +262,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         addDayBreakdown(remittanceId, breakdownId, branchDayId)
         addProductLine(remittanceId, lineId, BigDecimal("200.00"))
 
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
-        trackOwned(ProductSaleTable, ProductSaleTable.id, productSaleId!!)
-        trackOwned(ClientTable, ClientTable.id, clientId)
-
         val actualVersion = RemittanceService.getRemittance(remittanceId).remittance.version
 
         val result = RemittanceService.submit(callerId, remittanceId, actualVersion)
@@ -347,15 +294,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         addCompensation(compId, branchDayId, BigDecimal("200.00"))
         addExpense(branchDayId, BigDecimal("150.00"))
 
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
-        trackOwned(SessionTable, SessionTable.id, sessionId!!)
-        trackOwned(ClientTable, ClientTable.id, clientId)
-        trackOwned(CompensationTable, CompensationTable.assignedBy, callerId)
-        trackOwned(ExpenseTable, ExpenseTable.createdBy, callerId)
-
         val actualVersion = RemittanceService.getRemittance(remittanceId).remittance.version
 
         val result = RemittanceService.submit(callerId, remittanceId, actualVersion)
@@ -372,11 +310,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val remittanceId = TestFixtures.uuid()
         createDraftRemittance(remittanceId)
 
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
-
         val auditsBefore = callerAuditCount()
 
         assertFailsWith<ConflictException> {
@@ -390,11 +323,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val remittanceId = TestFixtures.uuid()
         createDraftRemittance(remittanceId)
         DatabaseTestHelper.revokeAllCapabilities(callerId)
-
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
         val result = RemittanceService.submit(callerId, remittanceId, 1)
 
@@ -420,13 +348,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         addDayBreakdown(remittanceId, breakdownId, branchDayId)
         addSessionLine(remittanceId, lineId, BigDecimal("100.00"))
 
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
-        trackOwned(SessionTable, SessionTable.id, sessionId!!)
-        trackOwned(ClientTable, ClientTable.id, clientId)
-
         val v1 = RemittanceService.getRemittance(remittanceId).remittance.version
         RemittanceService.submit(callerId, remittanceId, v1)
         val auditsBefore = callerAuditCount()
@@ -447,13 +368,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val branchDayId = resolveBranchDay()
         addDayBreakdown(remittanceId, breakdownId, branchDayId)
         addSessionLine(remittanceId, lineId, BigDecimal("300.00"))
-
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
-        trackOwned(SessionTable, SessionTable.id, sessionId!!)
-        trackOwned(ClientTable, ClientTable.id, clientId)
 
         val version = RemittanceService.getRemittance(remittanceId).remittance.version
         RemittanceService.submit(callerId, remittanceId, version)
@@ -482,11 +396,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         createDraftRemittance(remittanceId)
         val branchDayId = resolveBranchDay()
         addDayBreakdown(remittanceId, breakdownId, branchDayId)
-
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
 
         val version = RemittanceService.getRemittance(remittanceId).remittance.version
         RemittanceService.submit(callerId, remittanceId, version)
@@ -518,10 +427,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val branchDayId = resolveCurrentBranchDay()
         addDayBreakdown(remittanceId, breakdownId, branchDayId)
 
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
-
         val version = RemittanceService.getRemittance(remittanceId).remittance.version
         RemittanceService.submit(callerId, remittanceId, version)
 
@@ -548,11 +453,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val remittanceId = TestFixtures.uuid()
         createDraftRemittance(remittanceId)
 
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
-
         val result = RemittanceService.submit(callerId, remittanceId, 1)
 
         assertNotNull(result)
@@ -570,10 +470,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         createDraftRemittance(remittanceId)
         val branchDayId = resolveBranchDay()
         addDayBreakdown(remittanceId, TestFixtures.uuid(), branchDayId)
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
         // Exercises the exact composition the migrated submit command runs — store writes and
         // Branch Day transitions on the command transaction, then the audit insert into that
@@ -627,10 +523,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         createDraftRemittance(remittanceId)
         val branchDayId = resolveBranchDay()
         addDayBreakdown(remittanceId, TestFixtures.uuid(), branchDayId)
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
         assertFailsWith<VersionMismatchException> {
             RemittanceService.submit(callerId, remittanceId, 999)
@@ -661,10 +553,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         createDraftRemittance(remittanceId)
         val branchDayId = resolveBranchDay()
         addDayBreakdown(remittanceId, TestFixtures.uuid(), branchDayId)
-        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
-        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
         val threads = 2
         val executor = Executors.newFixedThreadPool(threads)
@@ -841,8 +729,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
             productId = prodId,
             handledBy = callerId,
         )
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, catId)
-        trackOwned(ProductTable, ProductTable.id, prodId)
         productSaleId = psId
         productSaleCreated = true
         return psId

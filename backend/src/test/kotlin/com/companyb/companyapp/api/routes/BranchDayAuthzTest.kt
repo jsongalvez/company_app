@@ -10,10 +10,7 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
@@ -40,19 +37,12 @@ class BranchDayAuthzTest : BasePostgresTest() {
     private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
-        trackOwned(AppUserTable, AppUserTable.id, editOnlyUser)
         DatabaseTestHelper.insertTestUser(editOnlyUser, "edit-only")
-        trackOwned(AppUserTable, AppUserTable.id, manageOnlyUser)
         DatabaseTestHelper.insertTestUser(manageOnlyUser, "manage-only")
-        trackOwned(AppUserTable, AppUserTable.id, noneUser)
         DatabaseTestHelper.insertTestUser(noneUser, "no-caps")
 
-        trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestBranch(branchId, "Authz Branch $branchId")
-        trackOwned(BranchTable, BranchTable.id, otherBranchId)
         DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Branch $otherBranchId")
-
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
         DatabaseTestHelper.grantCapability(
             userId = editOnlyUser,
@@ -68,8 +58,6 @@ class BranchDayAuthzTest : BasePostgresTest() {
             contextId = branchId,
             sourceId = sourceId,
         )
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, editOnlyUser)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, manageOnlyUser)
     }
 
     companion object {

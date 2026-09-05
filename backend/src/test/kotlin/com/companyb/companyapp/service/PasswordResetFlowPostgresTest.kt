@@ -41,10 +41,6 @@ class PasswordResetFlowPostgresTest : BasePostgresTest() {
     private fun newUser(prefix: String): UUID {
         val id = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(id, prefix)
-        trackOwned(AppUserTable, AppUserTable.id, id)
-        // Value-based tracking (#350 lesson): tokens and self-authored audits match at cleanup.
-        trackOwned(CredentialTokenTable, CredentialTokenTable.userId, id)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, id)
         return id
     }
 

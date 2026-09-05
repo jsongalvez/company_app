@@ -11,12 +11,7 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.CredentialTokenTable
 import com.companyb.companyapp.repository.model.RoleTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.UserService
 import com.companyb.companyapp.test.BasePostgresTest
@@ -62,12 +57,9 @@ class UserManagementAuthzTest : BasePostgresTest() {
     override fun initTestData() {
         listOf(managerUser, noGrantUser, targetUser).forEach { id ->
             DatabaseTestHelper.insertTestUser(id, id.toString().take(6))
-            trackOwned(AppUserTable, AppUserTable.id, id)
         }
         DatabaseTestHelper.grantManageUsers(managerUser, managerUser)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, managerUser)
         DatabaseTestHelper.insertTestBranch(branchId, "Authz Branch")
-        trackOwned(BranchTable, BranchTable.id, branchId)
         val targetUserId = this@UserManagementAuthzTest.targetUser
         val assignmentId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestAssignment(
@@ -77,8 +69,6 @@ class UserManagementAuthzTest : BasePostgresTest() {
             slot = 1,
             assignedBy = managerUser,
         )
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, assignmentId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, managerUser)
     }
 
     companion object {
@@ -215,11 +205,6 @@ class UserManagementAuthzTest : BasePostgresTest() {
             assertEquals(201, response.code)
             val minted = json.decodeFromString<InviteMintResponse>(response.body.string())
             assertTrue(minted.inviteCode.isNotBlank(), "minted payload must carry the raw invite code")
-            val createdUserId = UUID.fromString(minted.userId)
-            trackOwned(AppUserTable, AppUserTable.id, createdUserId)
-            // The mint wrote a credential_token for the new account; without this row the
-            // teardown's user delete violates credential_token_created_by/user_id FKs.
-            trackOwned(CredentialTokenTable, CredentialTokenTable.userId, createdUserId)
         }
     }
 
@@ -233,7 +218,6 @@ class UserManagementAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PUT roles replaces for MANAGE_USERS holder and is forbidden without it`() {
-        trackOwned(UserRoleTable, UserRoleTable.userId, targetUser)
         transaction {
             UserRoleTable.insert {
                 it[UserRoleTable.userId] = targetUser

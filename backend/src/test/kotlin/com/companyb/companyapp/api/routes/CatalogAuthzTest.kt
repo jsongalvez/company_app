@@ -7,13 +7,7 @@ import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.ProductCategoryTable
-import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.RoleTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.service.ProductService
@@ -60,20 +54,14 @@ class CatalogAuthzTest : BasePostgresTest() {
     private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
-        trackOwned(AppUserTable, AppUserTable.id, catalogUser)
         DatabaseTestHelper.insertTestUser(catalogUser, "catalog")
-        trackOwned(AppUserTable, AppUserTable.id, branchProductsUser)
         DatabaseTestHelper.insertTestUser(branchProductsUser, "branch-products")
-        trackOwned(AppUserTable, AppUserTable.id, noneUser)
         DatabaseTestHelper.insertTestUser(noneUser, "no-caps")
-        trackOwned(AppUserTable, AppUserTable.id, ownerUser)
         DatabaseTestHelper.insertTestUser(ownerUser, "catalog-owner")
-        trackOwned(AppUserTable, AppUserTable.id, coordinatorUser)
         DatabaseTestHelper.insertTestUser(coordinatorUser, "catalog-coordinator")
         assignRole(ownerUser, "OWNER")
         assignRole(coordinatorUser, "COORDINATOR")
 
-        trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestBranch(branchId, "Catalog Branch $branchId")
 
         DatabaseTestHelper.grantCapability(
@@ -90,12 +78,8 @@ class CatalogAuthzTest : BasePostgresTest() {
             contextId = branchId,
             sourceId = sourceId,
         )
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, catalogUser)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, branchProductsUser)
 
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, categoryId)
         DatabaseTestHelper.insertTestCategory(categoryId)
-        trackOwned(ProductTable, ProductTable.id, productId)
         DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
     }
 
@@ -135,7 +119,6 @@ class CatalogAuthzTest : BasePostgresTest() {
         userId: UUID,
         roleName: String,
     ) {
-        trackOwned(UserRoleTable, UserRoleTable.userId, userId)
         transaction {
             UserRoleTable.insert {
                 it[UserRoleTable.userId] = userId
@@ -154,7 +137,6 @@ class CatalogAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET products defaults to active-only omitting deactivated row`() {
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, catalogUser)
         ProductService.update(
             callerId = catalogUser,
             productId = productId,
@@ -175,7 +157,6 @@ class CatalogAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET products includeInactive returns deactivated row for catalog holder`() {
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, catalogUser)
         ProductService.update(
             callerId = catalogUser,
             productId = productId,
@@ -232,8 +213,6 @@ class CatalogAuthzTest : BasePostgresTest() {
     @Test
     fun `POST products allowed for MANAGE_CATALOG holder`() {
         val newId = TestFixtures.uuid()
-        trackOwned(ProductTable, ProductTable.id, newId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, catalogUser)
         val body =
             mapOf(
                 "id" to newId.toString(),
@@ -260,7 +239,6 @@ class CatalogAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PATCH product allowed for MANAGE_CATALOG holder`() {
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, catalogUser)
         val body = mapOf("name" to "Renamed Product")
         assertEquals(200, testServer.client.patch("/api/products/$productId", body, asUser(catalogUser)).code)
     }
@@ -294,8 +272,6 @@ class CatalogAuthzTest : BasePostgresTest() {
     @Test
     fun `POST product-categories allowed for MANAGE_CATALOG holder`() {
         val newId = TestFixtures.uuid()
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, newId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, catalogUser)
         val body = mapOf("id" to newId.toString(), "name" to "Catalog Test Category")
         assertEquals(201, testServer.client.post("/api/product-categories", body, asUser(catalogUser)).code)
     }
@@ -368,8 +344,6 @@ class CatalogAuthzTest : BasePostgresTest() {
     @Test
     fun `POST products allowed for role-derived OWNER`() {
         val newId = TestFixtures.uuid()
-        trackOwned(ProductTable, ProductTable.id, newId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, ownerUser)
         val body =
             mapOf(
                 "id" to newId.toString(),

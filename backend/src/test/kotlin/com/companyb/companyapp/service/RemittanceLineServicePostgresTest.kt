@@ -11,23 +11,15 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.ProductRepository
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchInventoryTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.InventoryMovementTable
-import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductCreateParams
 import com.companyb.companyapp.repository.model.ProductSaleTable
-import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittanceDayBreakdown
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
@@ -81,40 +73,26 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "rl")
-        trackOwned(AppUserTable, AppUserTable.id, callerId)
 
         DatabaseTestHelper.insertTestBranch(branchId)
-        trackOwned(BranchTable, BranchTable.id, branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
         DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, branchId)
         DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         DatabaseTestHelper.insertTestClient(clientId)
-        trackOwned(ClientTable, ClientTable.id, clientId)
 
         insertSessionBaseRate()
         insertSessionBaseRate(secondSessionRateId, SessionType.SECOND_SESSION)
         insertSessionBaseRate(subsequentRateId, SessionType.SUBSEQUENT)
-        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
-        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, secondSessionRateId)
-        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, subsequentRateId)
 
         ensureBranchDay()
-
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
     fun `add SESSION line succeeds and increments version`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
 
         val line =
             RemittanceService.addLine(
@@ -139,11 +117,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add PRODUCT_SALE line succeeds`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         createProductSale()
 
         val line =
@@ -166,19 +140,14 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Suppress("LongMethod")
     fun `add line rejects session and product sale from another branch`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
 
         val foreignBranchId = TestFixtures.uuid()
         val foreignClientId = TestFixtures.uuid()
         val foreignBranchDayId = TestFixtures.uuid()
         val foreignSessionId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(foreignBranchId, "Foreign Remittance Source")
-        trackOwned(BranchTable, BranchTable.id, foreignBranchId)
         DatabaseTestHelper.insertTestClient(foreignClientId)
-        trackOwned(ClientTable, ClientTable.id, foreignClientId)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         createProductSale()
         transaction {
             BranchDayTable.insert {
@@ -200,8 +169,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 it[ProductSaleTable.branchDayId] = foreignBranchDayId
             }
         }
-        trackOwned(BranchDayTable, BranchDayTable.id, foreignBranchDayId)
-        trackOwned(SessionTable, SessionTable.id, foreignSessionId)
 
         assertFailsWith<NotFoundException> {
             RemittanceService.addLine(
@@ -234,17 +201,13 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add SESSION line rejects source outside remittance range`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
         val outOfRangeDay = BranchDayService.resolveOrCreate(branchId, LocalDate.of(2026, 6, 1))
-        trackOwned(BranchDayTable, BranchDayTable.id, outOfRangeDay.id)
         val outOfRangeSessionId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestSession(
             id = outOfRangeSessionId,
             clientId = clientId,
             branchDayId = outOfRangeDay.id,
         )
-        trackOwned(SessionTable, SessionTable.id, outOfRangeSessionId)
 
         val error =
             assertFailsWith<ValidationException> {
@@ -268,14 +231,9 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add PRODUCT_SALE line rejects source outside remittance range`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
         val outOfRangeDay = BranchDayService.resolveOrCreate(branchId, LocalDate.of(2026, 6, 1))
-        trackOwned(BranchDayTable, BranchDayTable.id, outOfRangeDay.id)
         insertProductCategory()
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, productCategoryId)
         insertProduct()
-        trackOwned(ProductTable, ProductTable.id, productId)
         val outOfRangeSaleId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestProductSale(
             id = outOfRangeSaleId,
@@ -283,7 +241,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             productId = productId,
             handledBy = callerId,
         )
-        trackOwned(ProductSaleTable, ProductSaleTable.id, outOfRangeSaleId)
 
         val error =
             assertFailsWith<ValidationException> {
@@ -307,11 +264,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add line idempotent duplicate returns existing`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         val lineId = TestFixtures.uuid()
 
         val first =
@@ -347,15 +300,10 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add line rejects altered UUID retry payload`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         val secondSessionId = TestFixtures.uuid()
         completeSession(sessionId)
         createSession(secondSessionId)
-        trackOwned(SessionTable, SessionTable.id, secondSessionId)
         val lineId = TestFixtures.uuid()
 
         RemittanceService.addLine(
@@ -400,15 +348,10 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add line rejects altered UUID retry source and creator`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         val secondSessionId = TestFixtures.uuid()
         completeSession(sessionId)
         createSession(secondSessionId)
-        trackOwned(SessionTable, SessionTable.id, secondSessionId)
         val lineId = TestFixtures.uuid()
 
         RemittanceService.addLine(
@@ -424,7 +367,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         val auditCountBefore = remittanceLineAuditCount()
         val otherUser = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherUser, "rl")
-        trackOwned(AppUserTable, AppUserTable.id, otherUser)
 
         assertFailsWith<ConflictException> {
             RemittanceService.addLine(
@@ -457,11 +399,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add line concurrent same UUID returns one line and audit`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         val lineId = TestFixtures.uuid()
         val executor = Executors.newFixedThreadPool(CONCURRENT_LINES)
         val ready = CountDownLatch(CONCURRENT_LINES)
@@ -502,18 +440,10 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     fun `add line rejects client ID already used by another remittance`() {
         val firstRemittance = createDraftRemittance()
         val secondRemittance = createDraftRemittance(RemittanceType.PRODUCT)
-        trackOwned(RemittanceTable, RemittanceTable.id, firstRemittance.id)
-        trackOwned(RemittanceTable, RemittanceTable.id, secondRemittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, firstRemittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, secondRemittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, firstRemittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, secondRemittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         completeSession(sessionId)
         val secondSessionId = TestFixtures.uuid()
         createSession(secondSessionId)
-        trackOwned(SessionTable, SessionTable.id, secondSessionId)
         val lineId = TestFixtures.uuid()
 
         RemittanceService.addLine(
@@ -551,14 +481,8 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     fun `add line without SUBMIT_REMITTANCE is allowed at service layer`() {
         val otherUser = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherUser, "rl")
-        trackOwned(AppUserTable, AppUserTable.id, otherUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherUser)
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
 
         val line =
             RemittanceService.addLine(
@@ -578,15 +502,8 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add SESSION line already in another draft returns conflict`() {
         val firstDraft = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, firstDraft.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, firstDraft.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, firstDraft.id)
         val secondDraft = createDraftRemittance(RemittanceType.PRODUCT)
-        trackOwned(RemittanceTable, RemittanceTable.id, secondDraft.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, secondDraft.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, secondDraft.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
 
         RemittanceService.addLine(
             callerId = callerId,
@@ -616,11 +533,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add SESSION line duplicate in same draft with different line id returns conflict`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
 
         RemittanceService.addLine(
             callerId = callerId,
@@ -680,11 +593,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add PRODUCT_SALE line duplicate returns conflict`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         createProductSale()
 
         RemittanceService.addLine(
@@ -715,11 +624,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add SESSION line after soft-delete of previous line succeeds`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
 
         val firstLineId = TestFixtures.uuid()
         RemittanceService.addLine(
@@ -766,11 +671,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add line to non-DRAFT remittance returns bad request`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         markRemittanceSubmitted(remittance.id)
 
         assertFailsWith<ValidationException> {
@@ -789,11 +690,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `delete line succeeds and increments version`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         val lineId = TestFixtures.uuid()
 
         RemittanceService.addLine(
@@ -819,9 +716,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `delete non-existent line returns not found`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
 
         assertFailsWith<NotFoundException> {
             RemittanceService.removeLine(callerId, remittance.id, TestFixtures.uuid())
@@ -831,11 +725,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `delete line from non-DRAFT remittance returns bad request`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         val lineId = TestFixtures.uuid()
 
         RemittanceService.addLine(
@@ -859,14 +749,8 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     fun `delete line without SUBMIT_REMITTANCE is allowed at service layer`() {
         val otherUser = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherUser, "rl")
-        trackOwned(AppUserTable, AppUserTable.id, otherUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherUser)
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         val lineId = TestFixtures.uuid()
 
         RemittanceService.addLine(
@@ -887,9 +771,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add day breakdown succeeds`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
 
         val breakdown =
             RemittanceService.addDayBreakdown(
@@ -907,9 +788,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add day breakdown duplicate returns existing`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         val breakdownId = TestFixtures.uuid()
 
         val first =
@@ -934,9 +812,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add day breakdown concurrent distinct IDs return existing`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         val executor = Executors.newFixedThreadPool(CONCURRENT_BREAKDOWNS)
         val ready = CountDownLatch(CONCURRENT_BREAKDOWNS)
         val start = CountDownLatch(1)
@@ -969,12 +844,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     fun `add day breakdown rejects client ID already used by another remittance`() {
         val firstRemittance = createDraftRemittance()
         val secondRemittance = createDraftRemittance(RemittanceType.PRODUCT)
-        trackOwned(RemittanceTable, RemittanceTable.id, firstRemittance.id)
-        trackOwned(RemittanceTable, RemittanceTable.id, secondRemittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, firstRemittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, secondRemittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, firstRemittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, secondRemittance.id)
         val breakdownId = TestFixtures.uuid()
 
         RemittanceService.addDayBreakdown(callerId, firstRemittance.id, breakdownId, branchDayId)
@@ -989,11 +858,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add day breakdown rejects same ID for another Branch Day`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         val otherDayId = BranchDayService.resolveOrCreate(branchId, TestFixtures.today.minusDays(1)).id
-        trackOwned(BranchDayTable, BranchDayTable.id, otherDayId)
         val breakdownId = TestFixtures.uuid()
 
         RemittanceService.addDayBreakdown(callerId, remittance.id, breakdownId, branchDayId)
@@ -1009,13 +874,8 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     fun `add day breakdown rejects foreign branch day`() {
         val foreignBranchId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(foreignBranchId)
-        trackOwned(BranchTable, BranchTable.id, foreignBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, foreignBranchId)
         val foreignDay = BranchDayService.resolveOrCreate(foreignBranchId, TestFixtures.today)
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         assertFailsWith<NotFoundException> {
             RemittanceService.addDayBreakdown(callerId, remittance.id, TestFixtures.uuid(), foreignDay.id)
         }
@@ -1026,11 +886,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add day breakdown rejects day outside remittance range`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         val outOfRangeDay = BranchDayService.resolveOrCreate(branchId, LocalDate.of(2026, 6, 1))
-        trackOwned(BranchDayTable, BranchDayTable.id, outOfRangeDay.id)
 
         val error =
             assertFailsWith<ValidationException> {
@@ -1049,11 +905,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `update header rejects range excluding existing line and day`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
@@ -1092,12 +944,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     fun `add day breakdown without capability is allowed at service layer`() {
         val otherUser = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherUser, "rl")
-        trackOwned(AppUserTable, AppUserTable.id, otherUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherUser)
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
 
         val breakdown =
             RemittanceService.addDayBreakdown(
@@ -1126,9 +973,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add day breakdown to non-DRAFT remittance returns bad request`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         markRemittanceSubmitted(remittance.id)
 
         assertFailsWith<ValidationException> {
@@ -1144,11 +988,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `get remittance detail returns lines and day breakdowns`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         createProductSale()
 
         val lineId = TestFixtures.uuid()
@@ -1179,15 +1019,10 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `get remittance with multiple lines calculates total correctly`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         completeSession(sessionId)
         val sessionId2 = TestFixtures.uuid()
         createSession(sessionId2)
-        trackOwned(SessionTable, SessionTable.id, sessionId2)
         val lineId1 = TestFixtures.uuid()
         val lineId2 = TestFixtures.uuid()
 
@@ -1218,11 +1053,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `deleted line is excluded from totals`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         val lineId = TestFixtures.uuid()
 
         RemittanceService.addLine(
@@ -1246,11 +1077,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     fun `get remittance without capability is allowed at service layer`() {
         val otherUser = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherUser, "rl")
-        trackOwned(AppUserTable, AppUserTable.id, otherUser)
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
 
         val detail = RemittanceService.getRemittance(remittance.id)
 
@@ -1268,11 +1095,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add line writes audit log entry`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         val lineId = TestFixtures.uuid()
 
         RemittanceService.addLine(
@@ -1300,11 +1123,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `delete line writes audit log entry`() {
         val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         createSession()
-        trackOwned(SessionTable, SessionTable.id, sessionId)
         val lineId = TestFixtures.uuid()
 
         RemittanceService.addLine(
@@ -1362,9 +1181,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
 
     private fun createProductSale() {
         insertProductCategory()
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, productCategoryId)
         insertProduct()
-        trackOwned(ProductTable, ProductTable.id, productId)
         ensureBranchInventory()
         ProductSaleService.sell(
             callerId = callerId,
@@ -1377,7 +1194,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             quantity = 1,
             expectedVersion = 2,
         )
-        trackOwned(ProductSaleTable, ProductSaleTable.id, productSaleId)
     }
 
     private fun ensureBranchInventory() {
@@ -1391,8 +1207,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 it[BranchInventoryTable.version] = card.version + 1
             }
         }
-        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
-        trackOwned(InventoryMovementTable, InventoryMovementTable.branchId, branchId)
     }
 
     private fun insertSessionBaseRate(

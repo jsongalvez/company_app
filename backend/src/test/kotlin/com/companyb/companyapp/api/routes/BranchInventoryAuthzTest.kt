@@ -8,15 +8,6 @@ import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
-import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchInventoryTable
-import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.InventoryMovementTable
-import com.companyb.companyapp.repository.model.ProductCategoryTable
-import com.companyb.companyapp.repository.model.ProductTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -45,16 +36,11 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
     private var branchDayId: UUID = TestFixtures.uuid()
 
     override fun initTestData() {
-        trackOwned(AppUserTable, AppUserTable.id, editOnlyUser)
         DatabaseTestHelper.insertTestUser(editOnlyUser, "edit-only")
-        trackOwned(AppUserTable, AppUserTable.id, manageOnlyUser)
         DatabaseTestHelper.insertTestUser(manageOnlyUser, "manage-only")
-        trackOwned(AppUserTable, AppUserTable.id, noneUser)
         DatabaseTestHelper.insertTestUser(noneUser, "no-caps")
 
-        trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestBranch(branchId, "Authz Branch $branchId")
-        trackOwned(BranchTable, BranchTable.id, otherBranchId)
         DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Branch $otherBranchId")
 
         DatabaseTestHelper.grantCapability(
@@ -71,15 +57,10 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
             contextId = branchId,
             sourceId = sourceId,
         )
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, editOnlyUser)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, manageOnlyUser)
 
         branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, categoryId)
         DatabaseTestHelper.insertTestCategory(categoryId)
-        trackOwned(ProductTable, ProductTable.id, productId)
         DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
     }
 
@@ -206,9 +187,6 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST restock allowed for MANAGE_PRODUCTS user`() {
-        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
-        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, manageOnlyUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
         testServer.client.let { client ->
             val body =
                 mapOf(
@@ -275,11 +253,6 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST movement TESTER allowed for EDIT_BRANCH_DATA user`() {
-        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
-        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, manageOnlyUser)
-        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, editOnlyUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, editOnlyUser)
         testServer.client.let { client ->
             val restockBody =
                 mapOf(
@@ -338,9 +311,6 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST movement ADJUSTMENT allowed for MANAGE_PRODUCTS user`() {
-        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
-        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, manageOnlyUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
         testServer.client.let { client ->
             val response =
                 client.post(
@@ -373,9 +343,6 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET movements allowed for EDIT_BRANCH_DATA user`() {
-        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
-        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, manageOnlyUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
         testServer.client.let { client ->
             val restockBody =
                 mapOf(
@@ -401,9 +368,6 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET movements returns movement payload for EDIT_BRANCH_DATA user`() {
-        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
-        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, manageOnlyUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
         testServer.client.let { client ->
             val restockBody =
                 mapOf(
@@ -463,9 +427,6 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET movements with valid date returns 200`() {
-        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
-        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, manageOnlyUser)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
         testServer.client.let { client ->
             val restockBody =
                 mapOf(
@@ -519,8 +480,6 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST ensureCard allowed for MANAGE_PRODUCTS user`() {
-        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
         testServer.client.let { client ->
             val response =
                 client.post(
