@@ -1,9 +1,11 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -36,7 +38,16 @@ object SessionVoidRepository {
             .singleOrNull()
             ?.toSessionVoid()
 
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /**
+     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction.
+     *
+     * Ownership-validated replay with re-arm (#514): the insert spans two unique keys (PK
+     * `id`, UNIQUE `session_id`), so a swallowed insert is disambiguated — a row owned by
+     * another session fails closed (the #511/#512 `validateReplayOwnership` precedent), a
+     * historical unvoided row for this session is re-armed in place (the single
+     * per-session row invariant), and an active row for this session is an idempotent ack.
+     */
+    @Suppress("ReturnCount")
     fun voidInTransaction(
         id: UUID,
         sessionId: UUID,
@@ -51,13 +62,43 @@ object SessionVoidRepository {
                     it[SessionVoidTable.voidReason] = voidReason
                     it[SessionVoidTable.voidedBy] = voidedBy
                 }.insertedCount
-        val created = insertedCount > 0
+        if (insertedCount > 0) {
+            return VoidResult(
+                findByIdInTransaction(id) ?: error("session_void row not found after idempotent insert for $id"),
+                created = true,
+            )
+        }
 
-        val sessionVoid =
-            findByIdInTransaction(id) ?: findBySessionIdInTransaction(sessionId)
+        val byId = findByIdInTransaction(id)
+        if (byId != null && byId.sessionId != sessionId) {
+            throw ConflictException("Void id already belongs to another void request")
+        }
+        val existing =
+            findBySessionIdInTransaction(sessionId)
+                ?: byId
                 ?: error("session_void row not found after idempotent insert for $id")
+        if (existing.unvoidedAt == null) {
+            return VoidResult(existing, created = false)
+        }
 
-        return VoidResult(sessionVoid, created)
+        // Re-void after unvoid: re-arm the single per-session row (fresh caller id is
+        // discarded — the row id is stable). The conditional update joins the losers of a
+        // concurrent re-void race into an idempotent ack instead of a second audit row.
+        val rearmed =
+            SessionVoidTable.update({
+                (SessionVoidTable.id eq existing.id) and (SessionVoidTable.unvoidedAt.isNotNull())
+            }) {
+                it[SessionVoidTable.voidedAt] = CurrentTimestampWithTimeZone
+                it[SessionVoidTable.voidedBy] = voidedBy
+                it[SessionVoidTable.voidReason] = voidReason
+                it[SessionVoidTable.unvoidedAt] = null
+                it[SessionVoidTable.unvoidedBy] = null
+                it[SessionVoidTable.unvoidedReason] = null
+            }
+        val row =
+            findBySessionIdInTransaction(sessionId)
+                ?: error("session_void row not found after re-void for $sessionId")
+        return VoidResult(row, created = rearmed > 0)
     }
 
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
