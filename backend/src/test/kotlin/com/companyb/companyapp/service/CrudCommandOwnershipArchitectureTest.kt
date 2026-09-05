@@ -39,7 +39,9 @@ class CrudCommandOwnershipArchitectureTest {
                 "repository/ConcernRepository.kt" to 3,
                 "repository/SessionBaseRateRepository.kt" to 1,
                 // Batch 4 — user/access cluster.
-                "repository/UserRepository.kt" to 7,
+                // Six read wrappers after #492 (removed findJwtRevocationBoundaries startup
+                // scan; authorize stays one query, advanceRevocationBoundary is InTransaction).
+                "repository/UserRepository.kt" to 6,
                 "repository/UserBranchAssignmentRepository.kt" to 3,
                 // 7 = five request/read blocks + hasActiveClockIn + isActiveUser read wrappers
                 "repository/ReliefAccessRepository.kt" to 7,
