@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
 import com.companyb.companyapp.dto.ClockOutRequest
 import com.companyb.companyapp.navigation.LocalNavHostController
 import com.companyb.companyapp.navigation.Route
@@ -86,9 +87,6 @@ fun DrawerContent(
     val attendanceId = snapshot.clock?.attendanceId
     val drawerViewModel: DrawerViewModel = viewModel { DrawerViewModel() }
     val drawerUiState by drawerViewModel.uiState.collectAsState()
-    val unreadCount: Int? by NotificationState.unreadCount.collectAsState()
-    val inviteCount: Int? by NotificationState.inviteCount.collectAsState()
-    val selectedRoute = navController.currentRoute()
 
     Column(modifier = modifier) {
         DrawerHeader(
@@ -99,38 +97,12 @@ fun DrawerContent(
         // not boxed in a card (drawer is surface-1, card-in-a-card is the noise ADR-0020 avoids).
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         Spacer(Modifier.height(Spacing.sm))
-        drawerUiState.drawerItems
-            .filter { it.visible }
-            .forEach { item ->
-                val isSelected = item.route == selectedRoute
-                val count = NotificationState.badgeSum(unreadCount, inviteCount)
-                val notificationBadge: (@Composable () -> Unit)? =
-                    if (item.route is Route.Notifications && count != null && count > 0) {
-                        { NotificationBadge(count = count) }
-                    } else {
-                        null
-                    }
-                DrawerRow(
-                    item = item,
-                    isSelected = isSelected,
-                    enabled = navigationEnabled,
-                    onItemClicked = { route ->
-                        // #389 — section-switch semantics: collapse to the Dashboard root
-                        // before pushing, so back from a section returns straight home and
-                        // repeated taps never stack duplicates. The Dashboard item itself
-                        // pops its existing instance (a relief deep-link panel included)
-                        // and pushes a fresh home — popUpTo matches the destination pattern,
-                        // not the entry args (SessionCreate landing precedent).
-                        if (navigationEnabled) {
-                            navController.navigate(route) {
-                                popUpTo(Route.Dashboard()) { inclusive = route is Route.Dashboard }
-                            }
-                            onItemNavigated()
-                        }
-                    },
-                    badge = notificationBadge,
-                )
-            }
+        DrawerNavItems(
+            items = drawerUiState.drawerItems,
+            navigationEnabled = navigationEnabled,
+            navController = navController,
+            onItemNavigated = onItemNavigated,
+        )
         ClockOutSection(
             apiClient = apiClient,
             attendanceId = attendanceId,
@@ -146,6 +118,50 @@ fun DrawerContent(
             },
         )
     }
+}
+
+@Composable
+private fun DrawerNavItems(
+    items: List<DrawerItem>,
+    navigationEnabled: Boolean,
+    navController: NavHostController,
+    onItemNavigated: () -> Unit,
+) {
+    val selectedRoute = navController.currentRoute()
+    val unreadCount: Int? by NotificationState.unreadCount.collectAsState()
+    val inviteCount: Int? by NotificationState.inviteCount.collectAsState()
+    val badgeCount = NotificationState.badgeSum(unreadCount, inviteCount)
+    items
+        .filter { it.visible }
+        .forEach { item ->
+            val isSelected = item.route == selectedRoute
+            val notificationBadge: (@Composable () -> Unit)? =
+                if (item.route is Route.Notifications && badgeCount != null && badgeCount > 0) {
+                    { NotificationBadge(count = badgeCount) }
+                } else {
+                    null
+                }
+            DrawerRow(
+                item = item,
+                isSelected = isSelected,
+                enabled = navigationEnabled,
+                onItemClicked = { route ->
+                    // #389 — section-switch semantics: collapse to the Dashboard root
+                    // before pushing, so back from a section returns straight home and
+                    // repeated taps never stack duplicates. The Dashboard item itself
+                    // pops its existing instance (a relief deep-link panel included)
+                    // and pushes a fresh home — popUpTo matches the destination pattern,
+                    // not the entry args (SessionCreate landing precedent).
+                    if (navigationEnabled) {
+                        navController.navigate(route) {
+                            popUpTo(Route.Dashboard()) { inclusive = route is Route.Dashboard }
+                        }
+                        onItemNavigated()
+                    }
+                },
+                badge = notificationBadge,
+            )
+        }
 }
 
 @Composable
