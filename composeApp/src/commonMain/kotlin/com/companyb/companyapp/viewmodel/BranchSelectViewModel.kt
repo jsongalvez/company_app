@@ -25,7 +25,7 @@ import kotlin.uuid.Uuid
  *
  * Clock-in chains the ADR-0021 second trigger: POST /api/attendance/clock-in (via
  * success → SessionState.
- * setSelectedBranch (branch-scoped capability resolution becomes meaningful — #156:
+ * setClockedIn (branch + clock context publish together — #498:
  * the full row list is stored; the clock-in refetch keeps it fresh) → GET
  * /api/me/capabilities refresh. The screen holds on BranchSelect while EITHER is in flight
  * and navigates to Dashboard only when the refresh succeeds (#94 Q2 principle: never
@@ -88,16 +88,10 @@ class BranchSelectViewModel(
                 clockInJob.join()
                 val clockInState = _clockInState.value
                 if (clockInState is UiState.Success) {
-                    SessionState.setSelectedBranch(branch.branchId, branch.branchName)
-                    // #147 — persist the clock-state slots (attendance id + branchDayId) at
-                    // clock-in: the drawer's clock-out request sources the attendance id here.
-                    // #351 — isRelief rides the same write (requester-surface gate).
-                    SessionState.setClockState(
-                        clockInState.data.id,
-                        clockInState.data.branchDayId,
-                        clockInState.data.isRelief,
-                    )
-                    refreshCapabilities().join()
+                    // #498 — one atomic clock publication (branch + attendance + day + relief),
+                    // preserving user + pre-refresh capabilities; refresh lands separately.
+                    SessionState.setClockedIn(branch.branchId, branch.branchName, clockInState.data)
+                    refreshCapabilities(clockInState.data.id).join()
                 }
             } finally {
                 clockInFlowActive = false
@@ -105,11 +99,17 @@ class BranchSelectViewModel(
         }
     }
 
-    fun refreshCapabilities(): Job {
+    fun refreshCapabilities(expectedAttendanceId: String? = null): Job {
         if (_refreshState.value is UiState.Loading) return Job().apply { complete() }
         // Synchronous pre-set: the guard must hold from the caller's frame (a double-tap
         // before any dispatch would otherwise launch two refreshes).
         _refreshState.value = UiState.Loading
+        // #498 — the clock context this refresh belongs to (clock-in id just published,
+        // or the current clock on manual retry). A late landing after clock-out/logout
+        // must not repopulate capabilities onto a cleared or replaced session.
+        val expected =
+            expectedAttendanceId ?: SessionState.snapshot.value.clock
+                ?.attendanceId
         return handler.launch(
             state = _refreshState,
             operation = "refreshCapabilities",
@@ -118,7 +118,11 @@ class BranchSelectViewModel(
             transform = {
                 // #156 — the full row list is stored (the client-side branch slice filter
                 // is gone; resolution happens at consumption sites).
-                SessionState.setCapabilities(it.body())
+                if (SessionState.snapshot.value.clock
+                        ?.attendanceId == expected
+                ) {
+                    SessionState.setCapabilities(it.body())
+                }
                 Unit
             },
         )

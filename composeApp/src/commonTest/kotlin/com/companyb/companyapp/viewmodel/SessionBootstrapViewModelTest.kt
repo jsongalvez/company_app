@@ -108,11 +108,11 @@ class SessionBootstrapViewModelTest {
             advanceUntilIdle()
 
             assertIs<UiState.Success<Unit>>(vm.validationState.value)
-            val user = assertIs<MeResponse>(SessionState.currentUser.value)
+            val user = assertIs<MeResponse>(SessionState.snapshot.value.user)
             assertEquals("u1", user.id)
             // #156 — the full row list is stored (contexts preserved); the clock-in refetch
             // (ADR-0021 timing) refreshes it wholesale.
-            val caps = SessionState.capabilities.value
+            val caps = SessionState.snapshot.value.capabilities
             assertEquals(3, caps.size)
             assertEquals("MANAGE_USERS", caps[0].capabilityCode)
             assertEquals("GLOBAL", caps[0].contextType.name)
@@ -137,8 +137,8 @@ class SessionBootstrapViewModelTest {
             // transitions the splash → Login. Idle (not a lying stuck-Loading) so a
             // re-composed LoginScreen's form isn't left disabled.
             assertEquals(UiState.Idle, vm.validationState.value)
-            assertNull(SessionState.currentUser.value)
-            assertEquals(emptyList<UserCapabilityResponse>(), SessionState.capabilities.value)
+            assertNull(SessionState.snapshot.value.user)
+            assertEquals(emptyList<UserCapabilityResponse>(), SessionState.snapshot.value.capabilities)
         }
 
     @Test
@@ -157,7 +157,7 @@ class SessionBootstrapViewModelTest {
             advanceUntilIdle()
 
             assertIs<UiState.Error>(vm.validationState.value)
-            assertNull(SessionState.currentUser.value)
+            assertNull(SessionState.snapshot.value.user)
         }
 
     @Test
@@ -170,7 +170,7 @@ class SessionBootstrapViewModelTest {
                     ),
                 )
 
-            SessionState.setUser(
+            SessionState.setBootstrapState(
                 MeResponse(
                     id = "stale",
                     username = "stale",
@@ -178,6 +178,7 @@ class SessionBootstrapViewModelTest {
                     status = com.companyb.companyapp.domain.UserStatus.ACTIVE,
                     createdAt = "2026-08-10T00:00:00+08:00",
                 ),
+                emptyList(),
             )
 
             vm.validateSession()
@@ -189,7 +190,7 @@ class SessionBootstrapViewModelTest {
             // connection problem (and never renders the network copy on the Login screen).
             assertFalse(vm.validationState.value is UiState.Error)
             assertEquals(UiState.Idle, vm.validationState.value)
-            assertNull(SessionState.currentUser.value)
+            assertNull(SessionState.snapshot.value.user)
         }
 
     @Test
@@ -206,7 +207,7 @@ class SessionBootstrapViewModelTest {
             advanceUntilIdle()
 
             assertIs<UiState.Error>(vm.validationState.value)
-            assertNull(SessionState.currentUser.value)
+            assertNull(SessionState.snapshot.value.user)
         }
 
     @Test
@@ -268,7 +269,7 @@ class SessionBootstrapViewModelTest {
             advanceUntilIdle()
 
             assertFalse(job.isActive)
-            assertNull(SessionState.currentUser.value)
-            assertEquals(emptyList<UserCapabilityResponse>(), SessionState.capabilities.value)
+            assertNull(SessionState.snapshot.value.user)
+            assertEquals(emptyList<UserCapabilityResponse>(), SessionState.snapshot.value.capabilities)
         }
 }

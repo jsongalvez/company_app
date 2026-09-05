@@ -69,7 +69,7 @@ import com.companyb.companyapp.viewmodel.slotInputError
  *   mobile). Duplicates tolerated (BR:67) — no renumber cascade.
  * - D5 — single route pushed on both platforms (wired in both NavHosts, code-only MANAGE_USERS
  *   route gate per #99 D7; backend 403 stays authoritative). The drawer item stays hidden until
- *   the #94-grad capability wiring populates SessionState.capabilities — documented state, not
+ *   the #94-grad capability wiring populates SessionState.snapshot — documented state, not
  *   hacked around (ticket note).
  *
  * Mutations never optimistically mutate: a 2xx applies the in-place list update, any failure

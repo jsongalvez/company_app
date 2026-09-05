@@ -53,7 +53,7 @@ import com.companyb.companyapp.viewmodel.UiState
  * `PermanentNavigationDrawer(drawerContent = { DrawerContent() })`. Owns its internal Column
  * so the composable is previewable / testable without faking a ColumnScope receiver.
  *
- * Reads state directly per #96 Q1: `SessionState.currentUser` + `selectedBranchName` +
+ * Reads state directly per #96 Q1: `SessionState.snapshot` (user + clock branch name) +
  * `DrawerViewModel.uiState`, plus `LocalNavHostController.current` for currentRoute + on-click
  * navigation. `NotificationState.unreadCount` (live count — #96 Q6 wiring) drives the
  * Notification row badge iff `!= null && > 0` (closure of #96 Q3a gating).
@@ -80,9 +80,10 @@ fun DrawerContent(
     onItemNavigated: () -> Unit = {},
 ) {
     val navController = LocalNavHostController.current
-    val currentUser by SessionState.currentUser.collectAsState()
-    val selectedBranchName by SessionState.selectedBranchName.collectAsState()
-    val attendanceId by SessionState.attendanceId.collectAsState()
+    val snapshot by SessionState.snapshot.collectAsState()
+    val currentUser = snapshot.user
+    val selectedBranchName = snapshot.clock?.branchName
+    val attendanceId = snapshot.clock?.attendanceId
     val drawerViewModel: DrawerViewModel = viewModel { DrawerViewModel() }
     val drawerUiState by drawerViewModel.uiState.collectAsState()
     val unreadCount: Int? by NotificationState.unreadCount.collectAsState()

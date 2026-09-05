@@ -18,7 +18,6 @@ import com.companyb.companyapp.util.logWarn
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 // #479 — the dashboard capability + day-status seam (#403 era), extracted from
@@ -39,27 +38,24 @@ internal fun SessionDashboardViewModel.observeCapabilities() {
     if (capabilityJob?.isActive == true) return
     capabilityJob =
         viewModelScope.launch {
-            combine(
-                SessionState.capabilities,
-                SessionState.selectedBranchId,
-                SessionState.branchDayId,
-            ) { capabilities, branchId, dayId ->
-                capabilities to
-                    Triple(
-                        capabilities.hasBranchOrDayCapability(
-                            code = CapabilityCodes.EDIT_BRANCH_DATA,
-                            branchId = branchId,
-                            dayId = dayId,
-                        ),
-                        capabilities.hasCapability(
-                            CapabilityCodes.EDIT_PAST_DAY,
-                            CapabilityContextType.BRANCH,
-                            branchId,
-                        ),
-                        branchId to dayId,
+            // #498 — one coherent snapshot per emission (no multi-flow combine/reconstruction).
+            SessionState.snapshot.collect { snap ->
+                val capabilities = snap.capabilities
+                val branchId = snap.clock?.branchId
+                val dayId = snap.clock?.branchDayId
+                val baseCanEdit =
+                    capabilities.hasBranchOrDayCapability(
+                        code = CapabilityCodes.EDIT_BRANCH_DATA,
+                        branchId = branchId,
+                        dayId = dayId,
                     )
-            }.collect { (capabilities, state) ->
-                val (baseCanEdit, baseCanCorrectStatus, context) = state
+                val baseCanCorrectStatus =
+                    capabilities.hasCapability(
+                        CapabilityCodes.EDIT_PAST_DAY,
+                        CapabilityContextType.BRANCH,
+                        branchId,
+                    )
+                val context = branchId to dayId
                 val update =
                     updateCapabilities(
                         capabilities = capabilities,
@@ -145,7 +141,9 @@ internal fun SessionDashboardViewModel.isCorrectionEdit(): Boolean {
  * state lands.
  */
 internal fun SessionDashboardViewModel.loadDayStatus() {
-    val branchId = SessionState.selectedBranchId.value ?: return
+    val branchId =
+        SessionState.snapshot.value.clock
+            ?.branchId ?: return
     if (!canEditState.value) return
     dayStatusState.value = null
     if (dayStatusBranchId != branchId) {

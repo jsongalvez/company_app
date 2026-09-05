@@ -26,8 +26,9 @@ internal fun NavGraphBuilder.teamGraph(
     // #135 — D5: code-only MANAGE_USERS route gate, now the #156 any-context
     // check (backend GLOBAL gate + 403 paths stay authoritative).
     composable<Route.UserManagement> {
-        val capabilities by SessionState.capabilities.collectAsState()
-        val currentUser by SessionState.currentUser.collectAsState()
+        val snapshot by SessionState.snapshot.collectAsState()
+        val capabilities = snapshot.capabilities
+        val currentUser = snapshot.user
         if (capabilities.hasCapabilityAnyContext(CapabilityCodes.MANAGE_USERS)) {
             val userViewModel: UserViewModel =
                 viewModel { UserViewModel(apiClient) }

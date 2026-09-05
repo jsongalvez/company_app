@@ -24,7 +24,8 @@ internal fun FinanceReportsViewModel.selectDay(day: DailySalesSummaryResponse?) 
 
 internal fun FinanceReportsViewModel.loadReliefDay(date: String) {
     val branchId =
-        SessionState.selectedBranchId.value
+        SessionState.snapshot.value.clock
+            ?.branchId
             ?: run {
                 reliefDayState.value = UiState.Error("No clocked-in branch")
                 return
@@ -88,7 +89,7 @@ internal fun FinanceReportsViewModel.clearReliefState() {
  * section loads and the backend 403s all agree. A null viewed branch fails closed.
  */
 internal fun FinanceReportsViewModel.hasAssignCapability(): Boolean =
-    SessionState.capabilities.value.hasCapability(
+    SessionState.snapshot.value.capabilities.hasCapability(
         CapabilityCodes.ASSIGN_COMPENSATION,
         CapabilityContextType.BRANCH,
         selectedBranchIdState.value,
@@ -102,14 +103,14 @@ internal fun FinanceReportsViewModel.hasAssignCapability(): Boolean =
  * day leg closed.
  */
 internal fun FinanceReportsViewModel.hasEditBranchDataCapability(): Boolean =
-    SessionState.capabilities.value.hasBranchOrDayCapability(
+    SessionState.snapshot.value.capabilities.hasBranchOrDayCapability(
         CapabilityCodes.EDIT_BRANCH_DATA,
         selectedBranchIdState.value,
         selectedDayState.value?.branchDayId,
     )
 
 internal fun FinanceReportsViewModel.hasEditCapabilities(): Boolean {
-    val caps = SessionState.capabilities.value
+    val caps = SessionState.snapshot.value.capabilities
     val branchId = selectedBranchIdState.value
     // #158 — the EDIT_BRANCH_DATA leg includes the day-scoped relief grant; the
     // ASSIGN_COMPENSATION + EDIT_PAST_DAY legs stay BRANCH-only (not relief-eligible,

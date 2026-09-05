@@ -107,11 +107,13 @@ class SessionDashboardViewModel(
     // sets it false (Q4: silent exit + affordance vanishes).
     internal val canEditState =
         MutableStateFlow(
-            SessionState.capabilities.value.hasBranchOrDayCapability(
-                code = CapabilityCodes.EDIT_BRANCH_DATA,
-                branchId = SessionState.selectedBranchId.value,
-                dayId = SessionState.branchDayId.value,
-            ),
+            SessionState.snapshot.value.let { snap ->
+                snap.capabilities.hasBranchOrDayCapability(
+                    code = CapabilityCodes.EDIT_BRANCH_DATA,
+                    branchId = snap.clock?.branchId,
+                    dayId = snap.clock?.branchDayId,
+                )
+            },
         )
     val canEdit: StateFlow<Boolean> = canEditState.asStateFlow()
 
@@ -119,11 +121,13 @@ class SessionDashboardViewModel(
     // missing branch context fails closed through hasCapability's null-context behavior.
     internal val canCorrectStatusState =
         MutableStateFlow(
-            SessionState.capabilities.value.hasCapability(
-                CapabilityCodes.EDIT_PAST_DAY,
-                CapabilityContextType.BRANCH,
-                SessionState.selectedBranchId.value,
-            ),
+            SessionState.snapshot.value.let { snap ->
+                snap.capabilities.hasCapability(
+                    CapabilityCodes.EDIT_PAST_DAY,
+                    CapabilityContextType.BRANCH,
+                    snap.clock?.branchId,
+                )
+            },
         )
     val canCorrectStatus: StateFlow<Boolean> = canCorrectStatusState.asStateFlow()
 
@@ -139,9 +143,11 @@ class SessionDashboardViewModel(
     // #403 — only the newest day read commits (a superseded OPEN landing must never
     // overwrite a fresh REMITTED one).
     internal var dayGeneration = 0L
-    internal var dayStatusBranchId: String? = SessionState.selectedBranchId.value
-    internal var capabilityContext = SessionState.selectedBranchId.value to SessionState.branchDayId.value
-    internal var capabilitySnapshot = SessionState.capabilities.value
+    internal var dayStatusBranchId: String? =
+        SessionState.snapshot.value.clock
+            ?.branchId
+    internal var capabilityContext = SessionState.snapshot.value.let { it.clock?.branchId to it.clock?.branchDayId }
+    internal var capabilitySnapshot = SessionState.snapshot.value.capabilities
     internal var locallyRevokedEditContext: Pair<String?, String?>? = null
     internal var locallyRevokedCorrectionBranch: String? = null
 
@@ -199,7 +205,9 @@ class SessionDashboardViewModel(
     }
 
     fun refresh(): Job {
-        val branchId = SessionState.selectedBranchId.value
+        val branchId =
+            SessionState.snapshot.value.clock
+                ?.branchId
         if (branchId == null) {
             // Unreachable post-clock-in (the dashboard is only composed with a selected
             // branch); fail closed rather than fetch a malformed path. A CANCELLED job is
@@ -227,7 +235,9 @@ class SessionDashboardViewModel(
      * surface; a dead session must not be re-fetched by the queue).
      */
     fun refreshAfterMutation(): Job {
-        val branchId = SessionState.selectedBranchId.value ?: return Job().also { it.cancel() }
+        val branchId =
+            SessionState.snapshot.value.clock
+                ?.branchId ?: return Job().also { it.cancel() }
         if (_dashboardState.value is UiState.Loading) {
             pendingRefresh = true
             return Job().also { it.cancel() }

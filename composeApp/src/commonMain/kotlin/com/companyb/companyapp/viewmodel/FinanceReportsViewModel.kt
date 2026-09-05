@@ -98,7 +98,11 @@ class FinanceReportsViewModel(
                     // Default: the clocked-in branch when the user can see it, else the first
                     // accessible branch (Accountant: GLOBAL view, no selected branch — D3).
                     val default =
-                        list.firstOrNull { b -> b.id == SessionState.selectedBranchId.value }
+                        list.firstOrNull { b ->
+                            b.id ==
+                                SessionState.snapshot.value.clock
+                                    ?.branchId
+                        }
                             ?: list.firstOrNull()
                     if (default != null) {
                         selectedBranchIdState.value = default.id

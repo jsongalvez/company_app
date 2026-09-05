@@ -56,7 +56,7 @@ import com.companyb.companyapp.viewmodel.SessionDetailViewModel
 // #456 — shared start destination (#94-grad: derives from the VALIDATED session,
 // not raw token presence).
 internal fun startDestination(): Route =
-    if (SessionState.currentUser.value != null) {
+    if (SessionState.snapshot.value.user != null) {
         Route.BranchSelect
     } else {
         Route.Login
@@ -185,7 +185,8 @@ private fun NavGraphBuilder.clientGraph(
     composable<Route.Clients> {
         // #113 D7 — code-only route gate, now the #156 any-context check
         // (#92 Q3 "some branch"; backend GLOBAL gate + 403 paths stay authoritative).
-        val capabilities by SessionState.capabilities.collectAsState()
+        val snapshot by SessionState.snapshot.collectAsState()
+        val capabilities = snapshot.capabilities
         if (capabilities.hasCapabilityAnyContext(CapabilityCodes.EDIT_BRANCH_DATA)) {
             val clientsViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
             ClientsScreen(
@@ -212,8 +213,9 @@ private fun NavGraphBuilder.inventoryGraph(apiClient: ApiClient) {
         // #391 — read-only branch inventory; gate mirrors the drawer item
         // (#156 any-context EDIT_BRANCH_DATA; backend branch-scoped gate
         // authoritative). Branch scope = the clocked-in branch.
-        val capabilities by SessionState.capabilities.collectAsState()
-        val selectedBranchId by SessionState.selectedBranchId.collectAsState()
+        val snapshot by SessionState.snapshot.collectAsState()
+        val capabilities = snapshot.capabilities
+        val selectedBranchId = snapshot.clock?.branchId
         if (capabilities.hasCapabilityAnyContext(CapabilityCodes.EDIT_BRANCH_DATA)) {
             val inventoryViewModel: InventoryViewModel =
                 viewModel { InventoryViewModel(apiClient) }
@@ -238,8 +240,9 @@ private fun NavGraphBuilder.inventoryGraph(apiClient: ApiClient) {
         // #418 — coordinator base-rate admin; gate mirrors
         // `SessionBaseRateRoutes` exactly (MANAGE_PRODUCTS at BRANCH context for
         // the clocked-in branch — no GLOBAL leg, no day leg, #131 strictness).
-        val capabilities by SessionState.capabilities.collectAsState()
-        val selectedBranchId by SessionState.selectedBranchId.collectAsState()
+        val snapshot by SessionState.snapshot.collectAsState()
+        val capabilities = snapshot.capabilities
+        val selectedBranchId = snapshot.clock?.branchId
         if (capabilities.hasCapability(
                 CapabilityCodes.MANAGE_PRODUCTS,
                 CapabilityContextType.BRANCH,
@@ -264,7 +267,8 @@ private fun NavGraphBuilder.financeGraph(
     onDeskQueueNavigate: ((currentId: String, id: String) -> Unit)?,
 ) {
     composable<Route.Finance> {
-        val capabilities by SessionState.capabilities.collectAsState()
+        val snapshot by SessionState.snapshot.collectAsState()
+        val capabilities = snapshot.capabilities
         // #105 D1 — the merged Finance & Reports screen, gate = widest read
         // capability (VIEW_BRANCH_DATA any-context, #92 Q3; backend gates
         // authoritative). #158 — a BRANCH_DAY grant holder (relief delegate)
@@ -282,8 +286,9 @@ private fun NavGraphBuilder.financeGraph(
     // #120 — D1: code-only route gate, now the #156 any-context check
     // (#92 Q3; backend 403 paths stay authoritative — D8).
     composable<Route.RemittanceList> {
-        val capabilities by SessionState.capabilities.collectAsState()
-        val selectedBranchId by SessionState.selectedBranchId.collectAsState()
+        val snapshot by SessionState.snapshot.collectAsState()
+        val capabilities = snapshot.capabilities
+        val selectedBranchId = snapshot.clock?.branchId
         if (capabilities.hasCapabilityAnyContext(CapabilityCodes.SUBMIT_REMITTANCE)) {
             val remittanceViewModel: RemittanceViewModel =
                 viewModel { RemittanceViewModel(apiClient) }
@@ -299,7 +304,8 @@ private fun NavGraphBuilder.financeGraph(
         }
     }
     composable<Route.RemittanceDetail> { entry ->
-        val selectedBranchId by SessionState.selectedBranchId.collectAsState()
+        val snapshot by SessionState.snapshot.collectAsState()
+        val selectedBranchId = snapshot.clock?.branchId
         val remittanceViewModel: RemittanceViewModel =
             viewModel { RemittanceViewModel(apiClient) }
         val detailRoute = entry.toRoute<Route.RemittanceDetail>()
@@ -328,8 +334,9 @@ private fun NavGraphBuilder.auditGraph(
     // #123 — D9: no route gate (always-visible per #108; backend-authoritative
     // read scoping). hasAnyCapability = zero-grant "No branch access" state.
     composable<Route.AuditLog> {
-        val capabilities by SessionState.capabilities.collectAsState()
-        val currentUser by SessionState.currentUser.collectAsState()
+        val snapshot by SessionState.snapshot.collectAsState()
+        val capabilities = snapshot.capabilities
+        val currentUser = snapshot.user
         val auditLogViewModel: AuditLogViewModel =
             viewModel { AuditLogViewModel(apiClient) }
         // #390 — client-table rows jump to Route.ClientDetail; gated to the
@@ -360,7 +367,8 @@ private fun NavGraphBuilder.auditGraph(
     // self-cleans, #112 pattern).
     composable<Route.AuditLogHistory> { entry ->
         val route = entry.toRoute<Route.AuditLogHistory>()
-        val currentUser by SessionState.currentUser.collectAsState()
+        val snapshot by SessionState.snapshot.collectAsState()
+        val currentUser = snapshot.user
         val auditLogViewModel: AuditLogViewModel = viewModel { AuditLogViewModel(apiClient) }
         AuditLogHistoryScreen(
             viewModel = auditLogViewModel,

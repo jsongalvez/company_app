@@ -32,9 +32,10 @@ internal fun SessionCreateContent(
     onSubmissionLockChanged: (Boolean) -> Unit,
     onClientProfileClick: ((String) -> Unit)?,
 ) {
-    val capabilities by SessionState.capabilities.collectAsState()
-    val selectedBranchId by SessionState.selectedBranchId.collectAsState()
-    val selectedBranchName by SessionState.selectedBranchName.collectAsState()
+    val snapshot by SessionState.snapshot.collectAsState()
+    val capabilities = snapshot.capabilities
+    val selectedBranchId = snapshot.clock?.branchId
+    val selectedBranchName = snapshot.clock?.branchName
     val clockedBranchId = selectedBranchId
     if (capabilities.hasCapabilityAnyContext(CapabilityCodes.EDIT_BRANCH_DATA) &&
         clockedBranchId != null

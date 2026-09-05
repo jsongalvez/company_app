@@ -143,7 +143,8 @@ internal fun MovementWriteDialog(
     branchDayId: String?,
     onDone: () -> Unit,
 ) {
-    val capabilities by SessionState.capabilities.collectAsState()
+    val snapshot by SessionState.snapshot.collectAsState()
+    val capabilities = snapshot.capabilities
     MovementDialog(
         card = card,
         allowedReasons = allowedMovementReasons(capabilities, context.branchId),

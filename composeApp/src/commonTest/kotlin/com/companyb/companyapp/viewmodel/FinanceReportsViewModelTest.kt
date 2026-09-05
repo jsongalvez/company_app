@@ -1,5 +1,6 @@
 package com.companyb.companyapp.viewmodel
 
+import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.dto.ExpenseResponse
 import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
@@ -72,7 +73,20 @@ class FinanceReportsViewModelTest {
         testScheduler = TestCoroutineScheduler()
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         SessionState.clear()
-        SessionState.setSelectedBranch(BRANCH_A, "Branch A")
+        // #498 — finance tests run clocked-in at BRANCH_A; caps preserve the clock.
+        SessionState.setClockedIn(
+            BRANCH_A,
+            "Branch A",
+            ClockInResponse(
+                id = "a1",
+                branchDayId = "d1",
+                userId = "u1",
+                markedBy = "u1",
+                clockIn = "2026-08-10T08:00:00+08:00",
+                clockOut = null,
+                isRelief = false,
+            ),
+        )
         // The pass-3/4 per-element gates skip section loads without the capability. #156 —
         // branch-scoped rows for the selected branch (the strict-BRANCH backend gate shape).
         SessionState.setCapabilities(
@@ -1811,7 +1825,19 @@ class FinanceReportsViewModelTest {
             // #156 — the toggle resolves the VIEWED branch (what the backend gates on via the
             // day row), not the clocked-in SessionState branch. Grants at the viewed branch
             // enable the toggle even when clocked in elsewhere…
-            SessionState.setSelectedBranch("branch-b", "Branch B")
+            SessionState.setClockedIn(
+                "branch-b",
+                "Branch B",
+                ClockInResponse(
+                    id = "a1",
+                    branchDayId = "d1",
+                    userId = "u1",
+                    markedBy = "u1",
+                    clockIn = "2026-08-10T08:00:00+08:00",
+                    clockOut = null,
+                    isRelief = false,
+                ),
+            )
             SessionState.setCapabilities(
                 listOf(
                     branchRow("VIEW_BRANCH_DATA"),

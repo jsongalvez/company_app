@@ -190,11 +190,13 @@ private fun DesktopDashboardLive(
     // #404 — entry-scoped member-attendance roster (same self-cleaning shape).
     val attendanceViewModel: AttendanceRosterViewModel =
         viewModel { AttendanceRosterViewModel(apiClient) }
-    val selectedBranchName by SessionState.selectedBranchName.collectAsState()
-    val selectedBranchId by SessionState.selectedBranchId.collectAsState()
-    val branchDayId by SessionState.branchDayId.collectAsState()
-    val currentUserId by SessionState.currentUser.collectAsState()
-    val isRelief by SessionState.isRelief.collectAsState()
+    val snapshot by SessionState.snapshot.collectAsState()
+    val selectedBranchName = snapshot.clock?.branchName
+    val selectedBranchId = snapshot.clock?.branchId
+    val branchDayId = snapshot.clock?.branchDayId
+    val currentUser = snapshot.user
+    val currentUserId = currentUser
+    val isRelief = snapshot.clock?.isRelief == true
     val lastData by dashboardViewModel.lastData.collectAsState()
     var selectedSessionId by remember { mutableStateOf<String?>(null) }
     Row(modifier = Modifier.fillMaxSize()) {

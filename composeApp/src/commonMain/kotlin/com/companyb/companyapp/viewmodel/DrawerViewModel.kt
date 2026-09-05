@@ -87,7 +87,9 @@ class DrawerViewModel : ViewModel() {
 
     init {
         viewModelScope.launch {
-            SessionState.capabilities.collect { caps ->
+            // #498 — single snapshot source; visibility derives from its capability rows.
+            SessionState.snapshot.collect { snap ->
+                val caps = snap.capabilities
                 _uiState.value =
                     DrawerUiState(
                         drawerItems = allItems.map { item -> item.copy(visible = item.isVisible(caps)) },

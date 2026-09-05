@@ -2,6 +2,7 @@ package com.companyb.companyapp.viewmodel
 
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.DashboardResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
@@ -112,7 +113,21 @@ class SessionDashboardViewModelTest {
         testScheduler = TestCoroutineScheduler()
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         SessionState.clear()
-        SessionState.setSelectedBranch("b1", "Branch A")
+        // #498 — dashboard tests run clocked-in (branch b1); day d1 is inert for the
+        // branch-leg gates under test.
+        SessionState.setClockedIn(
+            "b1",
+            "Branch A",
+            ClockInResponse(
+                id = "a1",
+                branchDayId = "d1",
+                userId = "u1",
+                markedBy = "u1",
+                clockIn = "2026-08-10T08:00:00+08:00",
+                clockOut = null,
+                isRelief = false,
+            ),
+        )
     }
 
     @AfterTest

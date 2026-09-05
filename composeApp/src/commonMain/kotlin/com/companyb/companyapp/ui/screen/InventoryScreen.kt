@@ -149,8 +149,9 @@ fun InventoryScreen(
     val movementResult by viewModel.movementResult.collectAsState()
     val cardResult by viewModel.cardResult.collectAsState()
     val saleResult by productSaleViewModel.saleResult.collectAsState()
-    val capabilities by SessionState.capabilities.collectAsState()
-    val branchDayId by SessionState.branchDayId.collectAsState()
+    val snapshot by SessionState.snapshot.collectAsState()
+    val capabilities = snapshot.capabilities
+    val branchDayId = snapshot.clock?.branchDayId
     var overlay by remember { mutableStateOf<InventoryOverlay?>(null) }
     val context =
         InventorySectionContext(viewModel, productViewModel, productSaleViewModel, clientViewModel, branchId)
@@ -212,7 +213,8 @@ private fun InventoryHeader(
     cardResult: UiState<*>,
     onOverlay: (InventoryOverlay) -> Unit,
 ) {
-    val capabilities by SessionState.capabilities.collectAsState()
+    val snapshot by SessionState.snapshot.collectAsState()
+    val capabilities = snapshot.capabilities
     val branchId = context.branchId
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -428,7 +430,8 @@ private fun InventoryWriteDialogs(
     context: InventorySectionContext,
     onDone: () -> Unit,
 ) {
-    val branchDayId by SessionState.branchDayId.collectAsState()
+    val snapshot by SessionState.snapshot.collectAsState()
+    val branchDayId = snapshot.clock?.branchDayId
     when (target) {
         is InventoryWriteTarget.Restock -> {
             RestockWriteDialog(target.card, context, branchDayId, onDone)

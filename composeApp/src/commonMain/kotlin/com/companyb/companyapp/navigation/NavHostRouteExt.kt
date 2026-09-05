@@ -60,7 +60,8 @@ fun NavHostController.previousRoute(): Route? {
 @Composable
 internal fun rememberSessionCreateNavigationLock(): MutableState<Boolean> {
     val locked = remember { mutableStateOf(false) }
-    val authenticatedUser by SessionState.currentUser.collectAsState()
+    val snapshot by SessionState.snapshot.collectAsState()
+    val authenticatedUser = snapshot.user
     LaunchedEffect(authenticatedUser) {
         if (authenticatedUser == null) locked.value = false
     }
@@ -76,7 +77,8 @@ internal fun shellNavigationEnabled(
 
 @Composable
 internal fun MedicalMissionDelegatesDestination(apiClient: ApiClient) {
-    val capabilities by SessionState.capabilities.collectAsState()
+    val snapshot by SessionState.snapshot.collectAsState()
+    val capabilities = snapshot.capabilities
     if (capabilities.hasCapability(
             CapabilityCodes.ASSIGN_DELEGATE,
             CapabilityContextType.GLOBAL,
@@ -98,7 +100,8 @@ internal fun MedicalMissionDelegatesDestination(apiClient: ApiClient) {
 // (GLOBAL MANAGE_CATALOG, #436 — no BRANCH leg, #131 strictness). Backend authoritative.
 @Composable
 internal fun ProductCatalogDestination(apiClient: ApiClient) {
-    val capabilities by SessionState.capabilities.collectAsState()
+    val snapshot by SessionState.snapshot.collectAsState()
+    val capabilities = snapshot.capabilities
     if (capabilities.hasCapability(
             CapabilityCodes.MANAGE_CATALOG,
             CapabilityContextType.GLOBAL,

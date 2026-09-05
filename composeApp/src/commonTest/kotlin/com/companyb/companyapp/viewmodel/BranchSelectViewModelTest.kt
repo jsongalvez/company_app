@@ -31,7 +31,7 @@ import kotlin.test.assertTrue
 
 /**
  * #94-grad — the BranchSelect surface VM: GET /api/me/branches (the #98 data source) and the
- * Phase-3 clock-in chain (POST clock-in → SessionState.setSelectedBranch → ADR-0021 capability
+ * Phase-3 clock-in chain (POST clock-in → SessionState.setClockedIn → ADR-0021 capability
  * refresh → Success on refreshState, which is what the screen navigates on). The refresh
  * stores the FULL row list (#156; the client-side branch slice filter is gone). A failed
  * clock-in must NOT write the selected branch or fire the refresh; a failed
@@ -121,15 +121,31 @@ class BranchSelectViewModelTest {
             advanceUntilIdle()
 
             assertIs<UiState.Success<Unit>>(vm.clockInState.value)
-            assertEquals("b1", SessionState.selectedBranchId.value)
-            assertEquals("Main Branch", SessionState.selectedBranchName.value)
+            assertEquals(
+                "b1",
+                SessionState.snapshot.value.clock
+                    ?.branchId,
+            )
+            assertEquals(
+                "Main Branch",
+                SessionState.snapshot.value.clock
+                    ?.branchName,
+            )
             // #147 — the clock-state slots persist for the drawer's clock-out request.
-            assertEquals("a1", SessionState.attendanceId.value)
-            assertEquals("d1", SessionState.branchDayId.value)
+            assertEquals(
+                "a1",
+                SessionState.snapshot.value.clock
+                    ?.attendanceId,
+            )
+            assertEquals(
+                "d1",
+                SessionState.snapshot.value.clock
+                    ?.branchDayId,
+            )
             // ADR-0021 second trigger — the full row list is stored (#156), including rows
             // outside the selected branch (b2) and other contexts.
             assertIs<UiState.Success<Unit>>(vm.refreshState.value)
-            val caps = SessionState.capabilities.value
+            val caps = SessionState.snapshot.value.capabilities
             assertEquals(3, caps.size)
             assertEquals(
                 listOf("MANAGE_USERS", "SUBMIT_REMITTANCE", "EDIT_BRANCH_DATA"),
@@ -156,8 +172,12 @@ class BranchSelectViewModelTest {
             advanceUntilIdle()
 
             assertIs<UiState.Error>(vm.clockInState.value)
-            assertEquals(null, SessionState.selectedBranchId.value)
-            assertEquals(emptyList<UserCapabilityResponse>(), SessionState.capabilities.value)
+            assertEquals(
+                null,
+                SessionState.snapshot.value.clock
+                    ?.branchId,
+            )
+            assertEquals(emptyList<UserCapabilityResponse>(), SessionState.snapshot.value.capabilities)
             assertEquals(0, capsCalls)
         }
 
@@ -177,9 +197,13 @@ class BranchSelectViewModelTest {
             // The clock-in itself succeeded (branch written) but the refresh failed —
             // retry semantics: refresh only, capabilities from the previous fetch stay.
             assertIs<UiState.Success<Unit>>(vm.clockInState.value)
-            assertEquals("b1", SessionState.selectedBranchId.value)
+            assertEquals(
+                "b1",
+                SessionState.snapshot.value.clock
+                    ?.branchId,
+            )
             assertIs<UiState.Error>(vm.refreshState.value)
-            assertEquals(emptyList<UserCapabilityResponse>(), SessionState.capabilities.value)
+            assertEquals(emptyList<UserCapabilityResponse>(), SessionState.snapshot.value.capabilities)
         }
 
     @Test
@@ -199,7 +223,11 @@ class BranchSelectViewModelTest {
             advanceUntilIdle()
 
             assertEquals(1, clockInCalls)
-            assertEquals("b1", SessionState.selectedBranchId.value)
+            assertEquals(
+                "b1",
+                SessionState.snapshot.value.clock
+                    ?.branchId,
+            )
         }
 
     private fun branchSelectHandler(

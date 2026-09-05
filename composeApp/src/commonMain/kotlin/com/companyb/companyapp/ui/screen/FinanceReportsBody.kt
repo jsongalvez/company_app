@@ -376,7 +376,8 @@ private fun ReliefDayInputRow(
                     !ui.capabilities.hasCapability(
                         CapabilityCodes.EDIT_PAST_DAY,
                         CapabilityContextType.BRANCH,
-                        SessionState.selectedBranchId.value,
+                        SessionState.snapshot.value.clock
+                            ?.branchId,
                     )
             TextButton(
                 onClick = ui.onEditToggle,
@@ -425,8 +426,12 @@ private fun ReliefDayResultContent(
                     day = day,
                     edit =
                         DayEditorUi(
-                            branchId = SessionState.selectedBranchId.value ?: "",
-                            branchName = SessionState.selectedBranchName.value ?: "",
+                            branchId =
+                                SessionState.snapshot.value.clock
+                                    ?.branchId ?: "",
+                            branchName =
+                                SessionState.snapshot.value.clock
+                                    ?.branchName ?: "",
                             today = ui.today,
                             capabilities = ui.capabilities,
                             onBackToFeed = ui.onEditToggle,

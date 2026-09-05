@@ -99,7 +99,8 @@ private fun rememberFinanceReportsCollected(viewModel: FinanceReportsViewModel):
     val editMode by viewModel.editMode.collectAsState()
     val downloads by viewModel.downloads.collectAsState()
     val exportErrors by viewModel.exportErrors.collectAsState()
-    val capabilities by SessionState.capabilities.collectAsState()
+    val snapshot by SessionState.snapshot.collectAsState()
+    val capabilities = snapshot.capabilities
     val today =
         Clock.System
             .now()

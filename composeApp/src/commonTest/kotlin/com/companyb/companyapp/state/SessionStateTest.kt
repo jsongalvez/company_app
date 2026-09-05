@@ -1,5 +1,6 @@
 package com.companyb.companyapp.state
 
+import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.MeResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import kotlin.test.Test
@@ -8,10 +9,10 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * #94-grad / #156 — SessionState writer integration: setUser / setCapabilities / setSelectedBranch /
- * setExpiredNotice populate the flows, clear() resets the session surface (but not the
- * expired notice — that's consumed by LoginScreen, not part of the session). Capabilities
- * are stored as the FULL row list (#156 — the ADR-0021 two-slice client filters are gone).
+ * #498 — atomic session snapshot: one StateFlow<SessionSnapshot> owns user + full
+ * capability rows + nullable clock context. Bootstrap publishes user+caps together;
+ * clock-in publishes the complete clock context at once; clock-out clears clock+caps
+ * together; clear() resets the session surface (but not the expired notice).
  */
 class SessionStateTest {
     private val user =
@@ -45,69 +46,74 @@ class SessionStateTest {
             ),
         )
 
-    @Test
-    fun setters_populate_all_surfaces() {
-        SessionState.clear()
-        SessionState.setUser(user)
-        SessionState.setCapabilities(rows)
-        SessionState.setSelectedBranch("b1", "Main Branch")
-        SessionState.setClockState("a1", "d1", isRelief = false)
+    private val clockIn =
+        ClockInResponse(
+            id = "a1",
+            branchDayId = "d1",
+            userId = "u1",
+            markedBy = "u1",
+            clockIn = "2026-08-10T08:00:00+08:00",
+            clockOut = null,
+            isRelief = false,
+        )
 
-        assertEquals(user, SessionState.currentUser.value)
-        assertEquals(rows, SessionState.capabilities.value)
-        assertEquals("b1", SessionState.selectedBranchId.value)
-        assertEquals("Main Branch", SessionState.selectedBranchName.value)
-        assertEquals("a1", SessionState.attendanceId.value)
-        assertEquals("d1", SessionState.branchDayId.value)
-        // #351 — the relief flag rides the same clock-state write; default false.
-        assertEquals(false, SessionState.isRelief.value)
+    @Test
+    fun clocked_in_snapshot_holds_complete_context() {
+        SessionState.clear()
+        SessionState.setBootstrapState(user, emptyList())
+        SessionState.setClockedIn("b1", "Main Branch", clockIn)
+        SessionState.setCapabilities(rows)
+
+        val snap = SessionState.snapshot.value
+        assertEquals(user, snap.user)
+        assertEquals(rows, snap.capabilities)
+        assertEquals("b1", snap.clock?.branchId)
+        assertEquals("Main Branch", snap.clock?.branchName)
+        assertEquals("a1", snap.clock?.attendanceId)
+        assertEquals("d1", snap.clock?.branchDayId)
+        // #351 — the relief flag rides the same clock write; default false.
+        assertEquals(false, snap.clock?.isRelief)
     }
 
     @Test
-    fun bootstrap_state_publishes_values_in_readiness_order() {
+    fun bootstrap_state_publishes_user_and_caps_together() {
         SessionState.clear()
 
         SessionState.setBootstrapState(user, rows)
 
-        assertEquals(user, SessionState.currentUser.value)
-        assertEquals(rows, SessionState.capabilities.value)
+        val snap = SessionState.snapshot.value
+        assertEquals(user, snap.user)
+        assertEquals(rows, snap.capabilities)
+        assertNull(snap.clock)
     }
 
-    // #147 (Q3) — clock-out transition: user stays logged in, branch + caps reset to empty,
-    // attendance slots cleared; clear() (logout/401) resets everything.
+    // #147 (Q3) — clock-out transition: user stays logged in, clock + caps clear together;
+    // clear() (logout/401) resets everything.
     @Test
-    fun clear_clock_state_keeps_user_but_resets_branch_caps_and_attendance() {
-        SessionState.setUser(user)
-        SessionState.setCapabilities(rows)
-        SessionState.setSelectedBranch("b1", "Main Branch")
-        SessionState.setClockState("a1", "d1", isRelief = false)
+    fun clear_clock_state_keeps_user_but_resets_clock_and_caps() {
+        SessionState.setBootstrapState(user, rows)
+        SessionState.setClockedIn("b1", "Main Branch", clockIn)
 
         SessionState.clearClockState()
 
-        assertEquals(user, SessionState.currentUser.value, "clock-out must NOT log the user out")
-        assertNull(SessionState.selectedBranchId.value)
-        assertNull(SessionState.selectedBranchName.value)
-        assertEquals(emptyList<UserCapabilityResponse>(), SessionState.capabilities.value)
-        assertNull(SessionState.attendanceId.value)
-        assertNull(SessionState.branchDayId.value)
+        val snap = SessionState.snapshot.value
+        assertEquals(user, snap.user, "clock-out must NOT log the user out")
+        assertNull(snap.clock)
+        assertEquals(emptyList<UserCapabilityResponse>(), snap.capabilities)
     }
 
     @Test
     fun clear_resets_session_but_not_expired_notice() {
-        SessionState.setUser(user)
-        SessionState.setCapabilities(rows)
-        SessionState.setSelectedBranch("b1", "Main Branch")
-        SessionState.setClockState("a1", "d1", isRelief = false)
+        SessionState.setBootstrapState(user, rows)
+        SessionState.setClockedIn("b1", "Main Branch", clockIn)
         SessionState.setExpiredNotice(true)
 
         SessionState.clear()
 
-        assertNull(SessionState.currentUser.value)
-        assertEquals(emptyList<UserCapabilityResponse>(), SessionState.capabilities.value)
-        assertNull(SessionState.selectedBranchId.value)
-        assertNull(SessionState.selectedBranchName.value)
-        assertNull(SessionState.attendanceId.value)
-        assertNull(SessionState.branchDayId.value)
+        val snap = SessionState.snapshot.value
+        assertNull(snap.user)
+        assertEquals(emptyList<UserCapabilityResponse>(), snap.capabilities)
+        assertNull(snap.clock)
         // The notice is consumed by LoginScreen, not the session surface.
         assertTrue(SessionState.expiredNotice.value)
         SessionState.setExpiredNotice(false)

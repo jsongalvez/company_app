@@ -1,97 +1,81 @@
 package com.companyb.companyapp.state
 
 import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.MeResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/** #498 — one clock-in context: branch + attendance + day + relief flag publish together. */
+data class ClockContext(
+    val branchId: String,
+    val branchName: String,
+    val attendanceId: String,
+    val branchDayId: String,
+    val isRelief: Boolean,
+)
+
+/** #498 — the single atomic session snapshot: user + full capability rows + nullable clock. */
+data class SessionSnapshot(
+    val user: MeResponse? = null,
+    val capabilities: List<UserCapabilityResponse> = emptyList(),
+    val clock: ClockContext? = null,
+)
+
 object SessionState {
-    private val _currentUser = MutableStateFlow<MeResponse?>(null)
-    val currentUser: StateFlow<MeResponse?> = _currentUser.asStateFlow()
-
-    // #156 — the #92 locked context model: full rows (contextType/contextId preserved;
-    // BRANCH_DAY/MEDICAL_MISSION/PROVINCIAL_TOUR rows are no longer dropped). Both ADR-0021
-    // fetches (login/launch + clock-in) store the full list; resolution happens at call
-    // sites via hasCapability / hasCapabilityAnyContext below.
-    private val _capabilities = MutableStateFlow<List<UserCapabilityResponse>>(emptyList())
-    val capabilities: StateFlow<List<UserCapabilityResponse>> = _capabilities.asStateFlow()
-
-    private val _selectedBranchId = MutableStateFlow<String?>(null)
-    val selectedBranchId: StateFlow<String?> = _selectedBranchId.asStateFlow()
-
-    private val _selectedBranchName = MutableStateFlow<String?>(null)
-    val selectedBranchName: StateFlow<String?> = _selectedBranchName.asStateFlow()
-
-    // #147 — clock-state slots written at clock-in (ClockInResponse.id + branchDayId):
-    // ClockOutRequest carries only the attendance id, so the drawer's clock-out action
-    // sources it here. Cleared by clearClockState (clock-out) and clear (logout/401).
-    private val _attendanceId = MutableStateFlow<String?>(null)
-    val attendanceId: StateFlow<String?> = _attendanceId.asStateFlow()
-
-    private val _branchDayId = MutableStateFlow<String?>(null)
-    val branchDayId: StateFlow<String?> = _branchDayId.asStateFlow()
-
-    // #351 — whether the current clock-in is a relief check-in (ClockInResponse.isRelief):
-    // gates the relief-access requester surface (request entry point + outcome view).
-    // Users clocked into home branches never see it.
-    private val _isRelief = MutableStateFlow(false)
-    val isRelief: StateFlow<Boolean> = _isRelief.asStateFlow()
+    private val _snapshot = MutableStateFlow(SessionSnapshot())
+    val snapshot: StateFlow<SessionSnapshot> = _snapshot.asStateFlow()
 
     // #94 Q3c(ii) — mid-session 401 surfaces "session expired" once on the Login screen
     // (launch-validation 401 stays silent). App.kt sets it; LoginScreen consumes + clears.
     private val _expiredNotice = MutableStateFlow(false)
     val expiredNotice: StateFlow<Boolean> = _expiredNotice.asStateFlow()
 
-    fun setUser(user: MeResponse) {
-        _currentUser.value = user
-    }
-
-    fun setCapabilities(caps: List<UserCapabilityResponse>) {
-        _capabilities.value = caps
-    }
-
-    /** Publishes bootstrap data in readiness order: capabilities first, user last as readiness marker. */
+    /** Publishes bootstrap user + initial capabilities as one value; clears any stale clock. */
     fun setBootstrapState(
         user: MeResponse,
         caps: List<UserCapabilityResponse>,
     ) {
-        _capabilities.value = caps
-        _currentUser.value = user
-    }
-
-    fun setSelectedBranch(
-        id: String,
-        name: String,
-    ) {
-        _selectedBranchId.value = id
-        _selectedBranchName.value = name
-    }
-
-    fun setClockState(
-        attendanceId: String,
-        branchDayId: String,
-        isRelief: Boolean,
-    ) {
-        _attendanceId.value = attendanceId
-        _branchDayId.value = branchDayId
-        _isRelief.value = isRelief
+        _snapshot.value = SessionSnapshot(user = user, capabilities = caps, clock = null)
     }
 
     /**
-     * #147 (Q3) — clock-out state transition: the user stays logged in, the branch selection
-     * is dropped, and capabilities reset to EMPTY (not re-fetched: no capability consumers
-     * exist pre-clock-in; the next clock-in refreshes wholesale via ADR-0021 — clear-to-empty
-     * is the fail-closed direction if a future surface wrongly renders caps-gated UI early).
+     * #498 — clock-in transition: publishes the complete clock context at once, preserving
+     * the authenticated user and the pre-refresh capabilities (the ADR-0021 refresh lands
+     * separately via [setCapabilities]; capabilities may legitimately await refresh).
+     */
+    fun setClockedIn(
+        branchId: String,
+        branchName: String,
+        clockIn: ClockInResponse,
+    ) {
+        val current = _snapshot.value
+        _snapshot.value =
+            current.copy(
+                clock =
+                    ClockContext(
+                        branchId = branchId,
+                        branchName = branchName,
+                        attendanceId = clockIn.id,
+                        branchDayId = clockIn.branchDayId,
+                        isRelief = clockIn.isRelief,
+                    ),
+            )
+    }
+
+    /** Capability refresh for the current context; preserves user + clock. */
+    fun setCapabilities(caps: List<UserCapabilityResponse>) {
+        _snapshot.value = _snapshot.value.copy(capabilities = caps)
+    }
+
+    /**
+     * #147 (Q3) — clock-out: user stays logged in, clock + capabilities clear together
+     * (fail-closed; next clock-in refreshes wholesale via ADR-0021).
      */
     fun clearClockState() {
-        _attendanceId.value = null
-        _branchDayId.value = null
-        _selectedBranchId.value = null
-        _selectedBranchName.value = null
-        _capabilities.value = emptyList()
-        _isRelief.value = false
+        _snapshot.value = _snapshot.value.copy(clock = null, capabilities = emptyList())
     }
 
     fun setExpiredNotice(value: Boolean) {
@@ -99,13 +83,7 @@ object SessionState {
     }
 
     fun clear() {
-        _currentUser.value = null
-        _capabilities.value = emptyList()
-        _selectedBranchId.value = null
-        _selectedBranchName.value = null
-        _attendanceId.value = null
-        _branchDayId.value = null
-        _isRelief.value = false
+        _snapshot.value = SessionSnapshot()
     }
 }
 
@@ -116,9 +94,7 @@ const val GLOBAL_CAPABILITY_CONTEXT_ID = "00000000-0000-0000-0000-000000000000"
 /**
  * #156 — the #92 locked per-element check: true iff [code] is held at exactly
  * [contextType]/[contextId]. The caller resolves the scope — BRANCH rows against
- * the selected branch (dashboard `canEdit` against [SessionState.selectedBranchId];
- * Finance per-element gates against the Finance surface's VIEWED branch, the branch
- * the backend gates via the day row), BRANCH_DAY rows against the day row's
+ * the clocked-in branch; BRANCH_DAY rows against the day row's
  * branchDayId (future day-gates). A null [contextId] never matches: fail-closed
  * pre-clock-in and pre-day-selection.
  */

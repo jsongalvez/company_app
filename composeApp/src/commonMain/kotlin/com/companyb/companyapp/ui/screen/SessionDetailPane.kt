@@ -105,7 +105,8 @@ internal fun SessionDetailPane(
         viewModel(key = "session-sale-${session.id}") { ProductSaleViewModel(apiClient) }
     val inventoryVm: InventoryViewModel =
         viewModel(key = "session-inventory-${session.id}") { InventoryViewModel(apiClient) }
-    val currentUser by SessionState.currentUser.collectAsState()
+    val snapshot by SessionState.snapshot.collectAsState()
+    val currentUser = snapshot.user
     val roster by sessionVm.practitioners.collectAsState()
     val practitionerResult by sessionVm.practitionerResult.collectAsState()
     val concernResult by sessionVm.concernResult.collectAsState()
@@ -233,8 +234,9 @@ private fun EditableSessionPane(
     modifier: Modifier,
 ) {
     val targets = remember(session.id) { PaneDialogTargets() }
-    val capabilities by SessionState.capabilities.collectAsState()
-    val branchDayId by SessionState.branchDayId.collectAsState()
+    val snapshot by SessionState.snapshot.collectAsState()
+    val capabilities = snapshot.capabilities
+    val branchDayId = snapshot.clock?.branchDayId
     val gates = paneGates(capabilities, session, branchDayId, state.allowVoid)
     val mutating =
         state.results.practitionerResult is UiState.Loading ||

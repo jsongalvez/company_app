@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * (App.kt splash, Phase 1) and fresh login (LoginScreen, Phase 2): GET /api/me →
  * GET /api/me/capabilities → publish both values to SessionState (the FULL row list — #156;
  * ADR-0021's fetch timing is unchanged: branch-scoped resolution just fails closed until
- * clock-in sets selectedBranchId via [BranchSelectViewModel]).
+ * clock-in publishes the clock context via [BranchSelectViewModel]).
  *
  * A 401 during validation is deliberately NOT surfaced as UiState.Error: ApiClient's global
  * onUnauthorized flow has already cleared the token (App.kt), which is what transitions the
