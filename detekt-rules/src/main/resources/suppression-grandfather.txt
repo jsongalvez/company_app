@@ -8,7 +8,7 @@ backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogRoutes.kt:LongMeth
 backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogRoutes.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/BranchInventoryRoutes.kt:LongMethod
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/BranchInventoryRoutes.kt:ThrowsCount
-backend/src/main/kotlin/com/companyb/companyapp/api/routes/ClientRoutes.kt:ThrowsCount
+backend/src/main/kotlin/com/companyb/companyapp/client/ClientRoutes.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/CommissionRoutes.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/CompensationRoutes.kt:LongMethod
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/CompensationRoutes.kt:ThrowsCount
@@ -50,7 +50,7 @@ backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogStore.kt:TooManyFu
 backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogStore.kt:UNCHECKED_CAST
 backend/src/main/kotlin/com/companyb/companyapp/repository/BranchInventoryRepository.kt:ComplexCondition
 backend/src/main/kotlin/com/companyb/companyapp/repository/BranchInventoryRepository.kt:TooManyFunctions
-backend/src/main/kotlin/com/companyb/companyapp/repository/ClientRepository.kt:UNCHECKED_CAST
+backend/src/main/kotlin/com/companyb/companyapp/client/ClientRepository.kt:UNCHECKED_CAST
 backend/src/main/kotlin/com/companyb/companyapp/repository/ExpenseRepository.kt:LongParameterList
 backend/src/main/kotlin/com/companyb/companyapp/repository/ProductSaleRepository.kt:ComplexCondition
 backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/ReliefAccessRepository.kt:TooManyFunctions
@@ -68,10 +68,10 @@ backend/src/main/kotlin/com/companyb/companyapp/service/AllowanceService.kt:Long
 backend/src/main/kotlin/com/companyb/companyapp/service/AllowanceService.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogService.kt:LongParameterList
 backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogService.kt:ThrowsCount
-backend/src/main/kotlin/com/companyb/companyapp/service/ClientService.kt:CyclomaticComplexMethod
-backend/src/main/kotlin/com/companyb/companyapp/service/ClientService.kt:LongParameterList
-backend/src/main/kotlin/com/companyb/companyapp/service/ClientService.kt:ReturnCount
-backend/src/main/kotlin/com/companyb/companyapp/service/ClientService.kt:ThrowsCount
+backend/src/main/kotlin/com/companyb/companyapp/client/ClientService.kt:CyclomaticComplexMethod
+backend/src/main/kotlin/com/companyb/companyapp/client/ClientService.kt:LongParameterList
+backend/src/main/kotlin/com/companyb/companyapp/client/ClientService.kt:ReturnCount
+backend/src/main/kotlin/com/companyb/companyapp/client/ClientService.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/service/CompensationService.kt:LongParameterList
 backend/src/main/kotlin/com/companyb/companyapp/service/CompensationService.kt:ReturnCount
 backend/src/main/kotlin/com/companyb/companyapp/service/CompensationService.kt:ThrowsCount
@@ -146,7 +146,7 @@ backend/src/test/kotlin/com/companyb/companyapp/api/routes/SessionConcernDeleteA
 backend/src/test/kotlin/com/companyb/companyapp/api/routes/SessionEditAuthzTest.kt:LargeClass
 backend/src/test/kotlin/com/companyb/companyapp/service/BranchInventoryServicePostgresTest.kt:LargeClass
 backend/src/test/kotlin/com/companyb/companyapp/service/BranchInventoryServicePostgresTest.kt:LongMethod
-backend/src/test/kotlin/com/companyb/companyapp/service/ClientServicePostgresTest.kt:LongParameterList
+backend/src/test/kotlin/com/companyb/companyapp/client/ClientServicePostgresTest.kt:LongParameterList
 backend/src/test/kotlin/com/companyb/companyapp/service/ConcernServicePostgresTest.kt:LongParameterList
 backend/src/test/kotlin/com/companyb/companyapp/service/ExpenseServicePostgresTest.kt:LargeClass
 backend/src/test/kotlin/com/companyb/companyapp/service/NextAppointmentSchedulerPostgresTest.kt:ThrowsCount

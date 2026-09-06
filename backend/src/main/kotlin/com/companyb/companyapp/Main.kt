@@ -4,7 +4,6 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.TraceIdFilter
 import com.companyb.companyapp.api.routes.AllowanceRoutes
 import com.companyb.companyapp.api.routes.BranchInventoryRoutes
-import com.companyb.companyapp.api.routes.ClientRoutes
 import com.companyb.companyapp.api.routes.CommissionRoutes
 import com.companyb.companyapp.api.routes.CompensationRoutes
 import com.companyb.companyapp.api.routes.DailySalesSummaryRoutes
@@ -26,6 +25,7 @@ import com.companyb.companyapp.api.routes.SessionRoutes
 import com.companyb.companyapp.audit.AuditLogRoutes
 import com.companyb.companyapp.branch.BranchRoutes
 import com.companyb.companyapp.branchday.BranchDayRoutes
+import com.companyb.companyapp.client.ClientRoutes
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.config.OpenApiCanonical

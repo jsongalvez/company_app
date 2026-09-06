@@ -78,7 +78,7 @@ intentionally shallow.
 **Owns:** session aggregate — type ladder (`computeSessionType`: REGULAR→SECOND→SUBSEQUENT, mission/provincial variants), base-rate snapshot at create, optimistic-versioned updates, void/unvoid records, practitioner management (slot snapshots + parent version bumps), concerns + promotion, base-rate rotation, create preview.
 **Anchors:** `service/session/SessionService.kt`, `api/routes/SessionRoutes.kt`, `repository/SessionRepository.kt`.
 **Public seam:** `SessionService` commands (`create` / `updateStatus` / `updateFinalPrice` / `voidSession` / `unvoidSession`) · `computeSessionType` (pure) · `previewSession` · practitioner ops via `SessionPractitionerService` · concern ops via `SessionConcernService` · rate ops via `SessionBaseRateService`.
-**Depends on:** Branch Day (gates + find-only gated-day handoff #157), Client (row lock + one-PENDING guard), Assignments (member check #366, slot lookup).
+**Depends on:** Branch Day (gates + find-only gated-day handoff #157), Client (row lock + existence reads via the `ClientReads` seam; one-PENDING guard stays session-owned), Assignments (member check #366, slot lookup).
 **Expansion triggers:** version-bump mechanics (`incrementSessionVersion` count-0 rule); walk-in status CHECK constraint; `idx_client_one_pending_session` backstop; `active_session_voids` view consumers (commission, remittance pickers, scheduler, dashboard).
 **Tests/authority:** `docs/engines.md`; backend `AGENTS.md` "Sessions".
 **Search:** `computeSessionType`, `findSessionByIdInTransaction` (sibling-service helper, not a boundary), `VersionMismatchException`, `session_void`.
@@ -153,8 +153,8 @@ intentionally shallow.
 ## Client
 
 **Owns:** client CRUD, trigram+ILIKE search, anonymize (soft-delete under row lock with a PENDING-session guard). Shallow module — direct service/repository/test path.
-**Anchors:** `service/ClientService.kt`, `repository/ClientRepository.kt`.
-**Public seam:** `create` / `search` / `findById` / `update` / `anonymize`.
+**Anchors:** `client/ClientService.kt` (+ internal `ClientRepository` in same package) · `client/Client.kt` (record + internal table) · `client/ClientRoutes.kt`.
+**Public seam:** `create` / `search` / `findById` / `update` / `anonymize` · `ClientReads.acquireLockInTransaction` / `findById` / `findByIdInTransaction` (session lock/read seam).
 **Depends on:** Sessions (pending-session guard via `acquireClientLock` + `hasActivePendingSessionInTransaction`).
 **Expansion triggers:** anonymization column nulling set; search ranking (`similarity()` threshold).
 **Search:** `anonymizeInTransaction`, `similarity(`.

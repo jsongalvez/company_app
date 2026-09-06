@@ -3,6 +3,7 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
+import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.ExpenseCategory
@@ -14,7 +15,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
-import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable

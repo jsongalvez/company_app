@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.client
 
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditLogRoutes
@@ -16,7 +16,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
-import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

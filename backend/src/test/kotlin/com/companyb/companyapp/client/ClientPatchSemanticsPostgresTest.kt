@@ -1,12 +1,10 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.client
 
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.dto.ClientPatchField
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.DEFAULT_CLIENT_ADDRESS
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures

@@ -28,7 +28,7 @@ class CrudCommandOwnershipArchitectureTest {
                 "repository/ProductCategoryRepository.kt" to 2,
                 "repository/ProductRepository.kt" to 4,
                 // Three read wrappers after the authoritative session-count query.
-                "repository/ClientRepository.kt" to 3,
+                "client/ClientRepository.kt" to 3,
                 "repository/AllowanceRepository.kt" to 1,
                 "repository/CompensationRepository.kt" to 3,
                 // Five read-only wrappers: #453 dropped the audit-read createdBy
@@ -75,7 +75,7 @@ class CrudCommandOwnershipArchitectureTest {
                 "branch/BranchService.kt" to listOf("create"),
                 "service/ProductCategoryService.kt" to listOf("create"),
                 "service/ProductService.kt" to listOf("create", "update"),
-                "service/ClientService.kt" to listOf("create", "update", "anonymize"),
+                "client/ClientService.kt" to listOf("create", "update", "anonymize"),
                 "service/AllowanceService.kt" to listOf("create"),
                 "service/CompensationService.kt" to listOf("create", "update"),
                 // Session cluster (batch 3): pass-through delegates in SessionService are not
@@ -128,7 +128,7 @@ class CrudCommandOwnershipArchitectureTest {
                 "branch/BranchService.kt" to "BranchAudit",
                 "service/ProductCategoryService.kt" to "ProductCategoryAudit",
                 "service/ProductService.kt" to "ProductAudit",
-                "service/ClientService.kt" to "ClientAudit",
+                "client/ClientService.kt" to "ClientAudit",
                 "service/AllowanceService.kt" to "AllowanceAudit",
                 "service/CompensationService.kt" to "CompensationAudit",
                 "service/session/SessionService.kt" to "SessionAudit",

@@ -1,13 +1,12 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.client
 
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.ClientRepository
 import com.companyb.companyapp.repository.ProductRepository
-import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.ProductTable
+import com.companyb.companyapp.service.ProductService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures

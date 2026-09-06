@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.client
 
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditValues
@@ -8,14 +8,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.ClientCreateParams
-import com.companyb.companyapp.repository.ClientCreateResult
-import com.companyb.companyapp.repository.ClientRepository
-import com.companyb.companyapp.repository.ClientUpdateParams
 import com.companyb.companyapp.repository.hasActivePendingSessionInTransaction
-import com.companyb.companyapp.repository.model.Client
-import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.DEFAULT_CLIENT_ADDRESS
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID

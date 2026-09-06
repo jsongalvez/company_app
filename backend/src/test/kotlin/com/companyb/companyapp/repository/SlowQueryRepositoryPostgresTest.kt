@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.client.ClientRepository
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures

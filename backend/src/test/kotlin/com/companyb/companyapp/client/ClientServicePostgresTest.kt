@@ -1,12 +1,10 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.client
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.ClientCreateResult
-import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
@@ -525,14 +523,14 @@ class ClientServicePostgresTest : BasePostgresTest() {
             medicalConditions = medicalConditions,
         )
 
-    private fun persistedClient(clientId: UUID): com.companyb.companyapp.repository.model.Client =
+    private fun persistedClient(clientId: UUID): com.companyb.companyapp.client.Client =
         transaction {
             ClientTable
                 .selectAll()
                 .where { ClientTable.id eq clientId }
                 .single()
                 .let { row ->
-                    com.companyb.companyapp.repository.model.Client(
+                    com.companyb.companyapp.client.Client(
                         id = row[ClientTable.id],
                         firstName = row[ClientTable.firstName],
                         lastName = row[ClientTable.lastName],

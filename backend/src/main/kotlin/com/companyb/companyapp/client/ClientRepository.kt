@@ -1,12 +1,9 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.client
 
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
-import com.companyb.companyapp.repository.model.Client
-import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.DEFAULT_CLIENT_ADDRESS
 import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.Column
@@ -85,9 +82,8 @@ data class ClientCreateResult(
     val created: Boolean,
 )
 
-object ClientRepository {
+internal object ClientRepository {
     private const val SEARCH_LIMIT = 20
-    private const val TRIGRAM_SIMILARITY_THRESHOLD = 0.2f
     private const val FULL_NAME_CONCAT_WIDTH = 510
     private const val SPACE_COLUMN_WIDTH = 1
 
@@ -275,36 +271,20 @@ object ClientRepository {
             medicalConditions = this[ClientTable.medicalConditions],
             deletedAt = this[ClientTable.deletedAt],
         )
+
+    private fun nameFieldMatch(
+        tokenParam: QueryParameter<String>,
+        namePattern: String,
+    ): Op<Boolean> =
+        trigramMatch(ClientTable.firstName, tokenParam) or
+            trigramMatch(ClientTable.lastName, tokenParam) or
+            trigramMatch(ClientTable.middleName, tokenParam) or
+            ilike(ClientTable.firstName, namePattern) or
+            ilike(ClientTable.lastName, namePattern) or
+            ilike(ClientTable.middleName, namePattern)
 }
 
 private const val TRIGRAM_SIMILARITY_THRESHOLD = 0.2f
-
-/**
- * One nullable column's three-state write (#523): clear writes null, a present value
- * sets, absent leaves the column untouched.
- */
-private fun <T> UpdateStatement.setOrClear(
-    column: Column<T?>,
-    value: T?,
-    clear: Boolean,
-) {
-    if (clear) {
-        this[column] = null
-    } else if (value != null) {
-        this[column] = value
-    }
-}
-
-private fun nameFieldMatch(
-    tokenParam: QueryParameter<String>,
-    namePattern: String,
-): Op<Boolean> =
-    trigramMatch(ClientTable.firstName, tokenParam) or
-        trigramMatch(ClientTable.lastName, tokenParam) or
-        trigramMatch(ClientTable.middleName, tokenParam) or
-        ilike(ClientTable.firstName, namePattern) or
-        ilike(ClientTable.lastName, namePattern) or
-        ilike(ClientTable.middleName, namePattern)
 
 private fun trigramMatch(
     col: Expression<*>,
@@ -334,3 +314,19 @@ private fun <T : String?> ilike(
         // SAFETY: ilike takes String-backed columns; columnType narrows here #467
         QueryParameter(pattern, col.columnType as org.jetbrains.exposed.v1.core.IColumnType<String>),
     )
+
+/**
+ * One nullable column's three-state write (#523): clear writes null, a present value
+ * sets, absent leaves the column untouched.
+ */
+private fun <T> UpdateStatement.setOrClear(
+    column: Column<T?>,
+    value: T?,
+    clear: Boolean,
+) {
+    if (clear) {
+        this[column] = null
+    } else if (value != null) {
+        this[column] = value
+    }
+}

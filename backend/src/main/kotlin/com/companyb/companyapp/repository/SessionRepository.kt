@@ -118,12 +118,14 @@ object SessionRepository {
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
     @Suppress("ThrowsCount")
     fun createInTransaction(params: SessionCreateParams): SessionCreateResult {
+        // Client-first lock order lives with the command (#541): SessionService.create locks
+        // the client row via the client seam before opening this store write, so the lock
+        // and the anonymized-client guard stay in the command transaction, not in persistence.
         val existingBeforeLock = findSessionByIdInTransaction(params.id)
         if (existingBeforeLock != null) {
             return idempotentResult(existingBeforeLock, params)
         }
 
-        val client = ClientRepository.acquireLockInTransaction(params.clientId)
         val existingAfterLock = findSessionByIdInTransaction(params.id)
         if (existingAfterLock != null) {
             return idempotentResult(existingAfterLock, params)
@@ -144,9 +146,6 @@ object SessionRepository {
         val hasActive = hasActivePendingSessionInTransaction(params.clientId)
         if (hasActive) {
             throw ConflictException("Client already has an active PENDING session")
-        }
-        if (client?.deletedAt != null) {
-            throw ConflictException("Cannot create a session for an anonymized client")
         }
 
         val insertedCount =

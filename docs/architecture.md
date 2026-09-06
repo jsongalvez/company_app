@@ -92,6 +92,7 @@ company-app/
 │       ├── authorization/    # Capability checks, grant storage, read scoping, route filter adapter (map #533)
 │       ├── audit/            # Audit append seam, scoped reads, registry (map #533)
 │       ├── workforce/        # Attendance, assignments, membership + duty-cutoff seam; relief/ subcluster for requests/invites/delegates (map #533 #539 #540)
+│       ├── client/           # Client records, patch policy, anonymization + session lock/read seam (map #533 #541)
 │       ├── config/           # Javalin config, serialization mapper
 │       ├── database/         # HikariCP + Flyway + Exposed setup
 │       ├── logging/          # Logback converters, logging extensions

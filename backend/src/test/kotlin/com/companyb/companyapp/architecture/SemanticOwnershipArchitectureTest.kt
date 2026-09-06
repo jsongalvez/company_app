@@ -94,10 +94,10 @@ class SemanticOwnershipArchitectureTest {
         assertEquals("http-adapter", BackendArchitectureOwners.roleOf("api/routes/SessionRoutes.kt"))
         assertEquals("http-adapter", BackendArchitectureOwners.roleOf("branch/BranchRoutes.kt"))
         assertEquals("http-adapter", BackendArchitectureOwners.roleOf("branchday/BranchDayRoutes.kt"))
-        assertEquals("store", BackendArchitectureOwners.roleOf("repository/ClientRepository.kt"))
+        assertEquals("store", BackendArchitectureOwners.roleOf("client/ClientRepository.kt"))
         assertEquals("store", BackendArchitectureOwners.roleOf("client/ClientRepository.kt"))
         assertEquals("store", BackendArchitectureOwners.roleOf("branchday/BranchDayRepository.kt"))
-        assertEquals("command", BackendArchitectureOwners.roleOf("service/ClientService.kt"))
+        assertEquals("command", BackendArchitectureOwners.roleOf("client/ClientService.kt"))
         assertEquals("command", BackendArchitectureOwners.roleOf("branch/BranchService.kt"))
     }
 

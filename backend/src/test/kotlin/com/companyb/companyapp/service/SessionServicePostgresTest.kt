@@ -2,6 +2,8 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.client.ClientService
+import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.DayStatus
@@ -16,7 +18,6 @@ import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.integration.LockBarrier
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
-import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionPractitionerTable
 import com.companyb.companyapp.repository.model.SessionTable

@@ -1,11 +1,11 @@
 package com.companyb.companyapp.audit
 
 import com.companyb.companyapp.branch.BranchTable
+import com.companyb.companyapp.client.ClientTable
+import com.companyb.companyapp.client.DEFAULT_CLIENT_ADDRESS
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.DEFAULT_CLIENT_ADDRESS
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull

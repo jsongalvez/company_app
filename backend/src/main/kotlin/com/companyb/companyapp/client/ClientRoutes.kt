@@ -1,7 +1,8 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.client
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.ClientPatchField
@@ -9,8 +10,7 @@ import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.CreateClientRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.UpdateClientRequest
-import com.companyb.companyapp.repository.model.Client
-import com.companyb.companyapp.service.ClientService
+import com.companyb.companyapp.exception.ValidationException
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
@@ -199,7 +199,13 @@ object ClientRoutes {
      */
     private fun validateClientPatch(request: UpdateClientRequest) {
         val clears = request.clearFields
-        checkClearShape(clears)
+        // Colocated clear-set policy (#541): the command owns the shape, the route only
+        // maps its error to the route's existing BadRequestResponse shape.
+        try {
+            checkClearShape(clears)
+        } catch (e: ValidationException) {
+            throw BadRequestResponse(e.message ?: "Invalid clear fields").apply { initCause(e) }
+        }
         checkRequiredName(request.firstName, "First name")
         checkRequiredName(request.lastName, "Last name")
         checkSettable(
@@ -258,17 +264,7 @@ object ClientRoutes {
         )
 }
 
-/** PATCH clear-set shape (#523): unknown names and required-field clears are rejected. */
-private fun checkClearShape(clears: Set<String>) {
-    val unknown = clears - ClientPatchField.clearable - ClientPatchField.required
-    if (unknown.isNotEmpty()) {
-        throw BadRequestResponse("Unknown clear field(s): ${unknown.sorted().joinToString()}")
-    }
-    val requiredClear = clears.intersect(ClientPatchField.required).sorted()
-    if (requiredClear.isNotEmpty()) {
-        throw BadRequestResponse("${requiredClear.joinToString()} cannot be cleared")
-    }
-}
+/** Route-level PATCH mirrors (#523): BadRequestResponse shapes over the colocated policy. */
 
 private fun checkRequiredName(
     value: String?,

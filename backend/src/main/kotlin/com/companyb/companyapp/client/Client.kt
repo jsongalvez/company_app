@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.client
 
 import com.companyb.companyapp.domain.Gender
 import org.jetbrains.exposed.v1.core.Table
@@ -28,7 +28,7 @@ private const val PHONE_COLUMN_WIDTH = 20
 /** Empty address representation (#523): clears reset here, matching create + column default. */
 const val DEFAULT_CLIENT_ADDRESS = "N/A"
 
-object ClientTable : Table("client") {
+internal object ClientTable : Table("client") {
     val id = javaUUID("id").autoGenerate()
     val firstName = text("first_name").nullable()
     val lastName = text("last_name").nullable()

@@ -3,6 +3,7 @@ package com.companyb.companyapp.service.session
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.client.ClientReads
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
@@ -11,7 +12,6 @@ import com.companyb.companyapp.domain.isStatusTransitionAllowed
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.ClientRepository
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SessionCreateParams
 import com.companyb.companyapp.repository.SessionCreateResult
@@ -114,7 +114,10 @@ object SessionService {
             // row is locked before the day row so concurrent session mutations serialize
             // instead of deadlocking. The day gate below locks the day row, serializing
             // this create with remittance submit/undo's REMITTED transition.
-            ClientRepository.acquireLockInTransaction(clientId)
+            val lockedClient = ClientReads.acquireLockInTransaction(clientId)
+            if (lockedClient?.deletedAt != null) {
+                throw ConflictException("Cannot create a session for an anonymized client")
+            }
             idempotentReplayOrNull(findSessionByIdInTransaction(id), clientId, branchDay.id, callerId)?.let {
                 return@transaction it
             }
@@ -244,7 +247,7 @@ object SessionService {
             val initial = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
             // Client-first lock order matches create, anonymize, void, and unvoid commands.
             val client =
-                ClientRepository.acquireLockInTransaction(initial.clientId)
+                ClientReads.acquireLockInTransaction(initial.clientId)
                     ?: throw NotFoundException("Client not found")
             val session =
                 SessionRepository.acquireLockInTransaction(sessionId)
@@ -307,7 +310,7 @@ object SessionService {
             // Transaction-local before-state (ADR-0019): read inside the command's transaction.
             val initial = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
             // Keep every session mutation's lock order client -> session -> branch day.
-            ClientRepository.acquireLockInTransaction(initial.clientId)
+            ClientReads.acquireLockInTransaction(initial.clientId)
                 ?: throw NotFoundException("Client not found")
             val session =
                 SessionRepository.acquireLockInTransaction(sessionId)
@@ -353,7 +356,7 @@ object SessionService {
         return transaction {
             val initial = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
             // Client-first lock order serializes a PENDING void with create and anonymize guards.
-            ClientRepository.acquireLockInTransaction(initial.clientId)
+            ClientReads.acquireLockInTransaction(initial.clientId)
                 ?: throw NotFoundException("Client not found")
             val session =
                 SessionRepository.acquireLockInTransaction(sessionId)
@@ -404,7 +407,7 @@ object SessionService {
         transaction {
             val initial = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
             // Client-first lock order matches create, anonymize, status, and void commands.
-            ClientRepository.acquireLockInTransaction(initial.clientId)
+            ClientReads.acquireLockInTransaction(initial.clientId)
                 ?: throw NotFoundException("Client not found")
             val session =
                 SessionRepository.acquireLockInTransaction(sessionId)
@@ -469,7 +472,7 @@ object SessionService {
         val branchType =
             SessionRepository.getBranchType(branchId)
                 ?: throw NotFoundException("Branch not found")
-        ClientRepository.findById(clientId) ?: throw NotFoundException("Client not found")
+        ClientReads.findById(clientId) ?: throw NotFoundException("Client not found")
         val priorCount = SessionRepository.countPriorNonMedicalMissionSessions(clientId)
         val sessionType = computeSessionType(branchType, priorCount)
         return SessionPreview(sessionType, resolveDefaultBasePrice(branchId, clientId, sessionType))

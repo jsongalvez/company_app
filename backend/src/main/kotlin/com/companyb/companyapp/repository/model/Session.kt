@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository.model
 import com.companyb.companyapp.branchday.BranchDayTable
+import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.identity.AppUserTable
