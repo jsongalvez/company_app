@@ -1,6 +1,6 @@
 package com.companyb.companyapp.testsupport.database
 
-import com.companyb.companyapp.config.AppConfig
+import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import kotlin.test.AfterTest

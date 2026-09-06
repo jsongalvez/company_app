@@ -1,6 +1,7 @@
-package com.companyb.companyapp.config
+package com.companyb.companyapp.app
 
 import com.companyb.companyapp.identity.SmtpConfig
+import com.companyb.companyapp.observability.GithubIssueConfig
 import io.github.cdimascio.dotenv.dotenv
 
 data class AppConfig(

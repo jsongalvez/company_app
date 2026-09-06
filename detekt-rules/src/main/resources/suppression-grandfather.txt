@@ -42,7 +42,7 @@ backend/src/main/kotlin/com/companyb/companyapp/identity/JwtService.kt:Unreachab
 backend/src/main/kotlin/com/companyb/companyapp/identity/Password.kt:ReturnCount
 backend/src/main/kotlin/com/companyb/companyapp/identity/Password.kt:UnreachableCode
 backend/src/main/kotlin/com/companyb/companyapp/identity/PasswordResetDelivery.kt:TooGenericExceptionCaught
-backend/src/main/kotlin/com/companyb/companyapp/config/KotlinxSerializationMapper.kt:UNCHECKED_CAST
+backend/src/main/kotlin/com/companyb/companyapp/http/KotlinxSerializationMapper.kt:UNCHECKED_CAST
 backend/src/main/kotlin/com/companyb/companyapp/identity/SmtpConfig.kt:ReturnCount
 backend/src/main/kotlin/com/companyb/companyapp/database/DatabaseConfig.kt:TooGenericExceptionCaught
 backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogStore.kt:LongParameterList
@@ -91,7 +91,7 @@ backend/src/main/kotlin/com/companyb/companyapp/commerce/ProductService.kt:Throw
 backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/ReliefAccessService.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/ReliefInviteService.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/ReliefInviteService.kt:TooManyFunctions
-backend/src/main/kotlin/com/companyb/companyapp/service/SchedulerLifecycle.kt:TooGenericExceptionCaught
+backend/src/main/kotlin/com/companyb/companyapp/app/SchedulerLifecycle.kt:TooGenericExceptionCaught
 backend/src/main/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentService.kt:LongParameterList
 backend/src/main/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentService.kt:ReturnCount
 backend/src/main/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentService.kt:ThrowsCount

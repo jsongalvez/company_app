@@ -1,6 +1,7 @@
 @file:Suppress("LargeClass")
 
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.client.ClientRoutes
@@ -8,8 +9,6 @@ import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.commerce.BranchInventoryRoutes
 import com.companyb.companyapp.commerce.ProductRoutes
 import com.companyb.companyapp.commerce.ProductSaleRoutes
-import com.companyb.companyapp.config.AppConfig
-import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.ExpenseCategory
@@ -29,6 +28,7 @@ import com.companyb.companyapp.finance.CompensationRoutes
 import com.companyb.companyapp.finance.CompensationTable
 import com.companyb.companyapp.finance.ExpenseRoutes
 import com.companyb.companyapp.finance.ExpenseTable
+import com.companyb.companyapp.http.KotlinxSerializationMapper
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.notification.NotificationRoutes

@@ -53,7 +53,7 @@ LIMIT 20;
 
 Same read from code (DSL over the view, no raw SQL):
 `SlowQueryRepository.topSlow()` in
-`backend/src/main/kotlin/com/companyb/companyapp/repository/SlowQueryRepository.kt`.
+`backend/src/main/kotlin/com/companyb/companyapp/observability/SlowQueryRepository.kt`.
 
 ## 4. EXPLAIN recipes
 

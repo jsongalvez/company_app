@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.observability
 
 import com.companyb.companyapp.client.ClientRepository
 import com.companyb.companyapp.test.TestFixtures

@@ -1,5 +1,8 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.app
 
+import com.companyb.companyapp.notification.NextAppointmentScheduler
+import com.companyb.companyapp.workforce.relief.ReliefInviteReminderJob
+import com.companyb.companyapp.workforce.relief.ReliefRequestExpiryJob
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.concurrent.ScheduledFuture
@@ -14,6 +17,25 @@ class SchedulerLifecycleTest {
     private val manilaZone = ZoneId.of("Asia/Manila")
     private val startTime = ZonedDateTime.of(2026, 8, 18, 6, 0, 0, 0, manilaZone)
 
+    private fun productionJobs(): List<ScheduledJob> =
+        listOf(
+            ScheduledJob(
+                name = "Notification",
+                initialDelayMs = NextAppointmentScheduler::nextRunDelayMs,
+                task = {},
+            ),
+            ScheduledJob(
+                name = "Relief-expiry",
+                initialDelayMs = ReliefRequestExpiryJob::nextRunDelayMs,
+                task = {},
+            ),
+            ScheduledJob(
+                name = "Relief-reminder",
+                initialDelayMs = ReliefInviteReminderJob::nextRunDelayMs,
+                task = {},
+            ),
+        )
+
     @Test
     fun `start is idempotent and stop shuts down executor`() {
         var createdExecutors = 0
@@ -25,7 +47,7 @@ class SchedulerLifecycleTest {
                     executor
                 },
                 now = { startTime },
-                task = {},
+                jobs = productionJobs(),
             )
 
         lifecycle.start()
@@ -38,7 +60,7 @@ class SchedulerLifecycleTest {
 
     @Test
     fun `stop is safe when scheduler was never started`() {
-        SchedulerLifecycle(now = { startTime }, task = {}).stop()
+        SchedulerLifecycle(now = { startTime }, jobs = productionJobs()).stop()
     }
 
     @Test
@@ -48,7 +70,7 @@ class SchedulerLifecycleTest {
             SchedulerLifecycle(
                 executorFactory = { executor },
                 now = { startTime },
-                task = {},
+                jobs = productionJobs(),
             )
 
         assertFailsWith<IllegalStateException> { lifecycle.start() }
@@ -62,7 +84,7 @@ class SchedulerLifecycleTest {
             SchedulerLifecycle(
                 executorFactory = { executor },
                 now = { startTime },
-                task = {},
+                jobs = productionJobs(),
             )
 
         lifecycle.start()
@@ -124,7 +146,7 @@ class SchedulerLifecycleTest {
             )
         for ((now, expectedAppointmentMs) in cases) {
             val executor = RecordingExecutor()
-            val lifecycle = SchedulerLifecycle(executorFactory = { executor }, now = { now }, task = {})
+            val lifecycle = SchedulerLifecycle(executorFactory = { executor }, now = { now }, jobs = productionJobs())
             lifecycle.start()
             try {
                 val delaysMs = executor.calls.map { it.unit.toMillis(it.initialDelay) }
@@ -152,7 +174,7 @@ class SchedulerLifecycleTest {
             )
         for ((now, expectedExpiryMs) in expiryCases) {
             val executor = RecordingExecutor()
-            val lifecycle = SchedulerLifecycle(executorFactory = { executor }, now = { now }, task = {})
+            val lifecycle = SchedulerLifecycle(executorFactory = { executor }, now = { now }, jobs = productionJobs())
             lifecycle.start()
             try {
                 val delaysMs = executor.calls.map { it.unit.toMillis(it.initialDelay) }

@@ -100,14 +100,15 @@ company-app/
 │       ├── remittance/       # Remittance aggregate, draft/submit/undo commands, internal stores + tables, route adapters; picker reads via Session/Commerce seams (map #533 #545)
 │       ├── reporting/        # Summary projections, cursors, report assembly + CSV/PDF rendering; internal stores + tables, route adapters (map #533 #547)
 │       ├── notification/     # Mailbox, occurrence idempotency, appointment reminders + session-access reads; internal stores + tables, route adapters; NotificationReads/NotificationAppender seams for relief/session-detail (map #533 #550)
-│       ├── config/           # Javalin config, serialization mapper
+│       ├── http/             # Transport + serialization + OpenAPI contract; openapi/ subcluster for canonical document/projector/export (map #533 #551)
+│       ├── app/              # Startup composition: AppConfig + SchedulerLifecycle executor with composition-supplied jobs (map #533 #551)
+│       ├── observability/    # Incident packets/delivery, metrics, feedback/metrics adapters, slow-query reads (map #533 #551)
 │       ├── database/         # HikariCP + Flyway + Exposed setup
-│       ├── logging/          # Logback converters, logging extensions
+│       ├── logging/          # Logback converters, logging extensions (tracing stays distinguishable from observability, #551)
 │       ├── repository/       # DB queries + Exposed Table objects
 │       │   └── model/        # Table definitions + data classes
-│       ├── service/          # Business logic, engines
 │       ├── exception/        # Domain exception hierarchy
-│       └── Main.kt
+│       └── Main.kt           # Explicit composition root (map #533 #551)
 ├── docs/
 │   ├── architecture.md       # This file
 │   ├── business-requirements.md

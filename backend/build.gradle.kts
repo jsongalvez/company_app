@@ -68,7 +68,7 @@ dependencies {
 tasks.register<JavaExec>("exportOpenApiSpec") {
     dependsOn("compileKotlin")
     classpath = sourceSets["main"].runtimeClasspath
-    mainClass = "com.companyb.companyapp.config.ExportOpenApiSpecKt"
+    mainClass = "com.companyb.companyapp.http.openapi.ExportOpenApiSpecKt"
     workingDir = rootProject.projectDir
     args = listOf(layout.buildDirectory.file("openapi/openapi-canonical.json").get().asFile.path)
 }

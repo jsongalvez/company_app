@@ -176,6 +176,7 @@ object BackendArchitectureOwners {
             "http/" to "http",
             "service/http/" to "http",
             "config/" to "http",
+            "app/" to "app",
             "auth/" to "identity",
             "database/" to "database",
             "exception/" to "mechanism",

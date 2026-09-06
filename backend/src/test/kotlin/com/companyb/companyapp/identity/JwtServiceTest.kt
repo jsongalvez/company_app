@@ -1,7 +1,7 @@
 package com.companyb.companyapp.identity
 
 import com.auth0.jwt.JWT
-import com.companyb.companyapp.config.AppConfig
+import com.companyb.companyapp.app.AppConfig
 import kotlin.concurrent.thread
 import kotlin.test.AfterTest
 import kotlin.test.Test

@@ -143,7 +143,7 @@ intentionally shallow.
 ## Dashboard & Notifications
 
 **Owns:** universal post-clock-in dashboard read (enrichment aggregation + live commission replication mirroring the engine), notification-as-authorization session detail (#152), the notification store (occurrence-keyed uniqueness via `(dedup_key, user_id)`), appointment reminder sweep, scheduler lifecycle.
-**Anchors:** `session/dashboard/DashboardService.kt` (+ internal `DashboardRepository`, records + `mapDashboardSession` in same package) · `session/dashboard/DashboardRoutes.kt` · `notification/NotificationService.kt` (+ internal `NotificationRepository`, record + internal `NotificationTable` in same package) · `notification/NextAppointmentScheduler.kt` (+ internal `NextAppointmentRepository`) · `notification/NotificationRoutes.kt` · `service/SchedulerLifecycle.kt`.
+**Anchors:** `session/dashboard/DashboardService.kt` (+ internal `DashboardRepository`, records + `mapDashboardSession` in same package) · `session/dashboard/DashboardRoutes.kt` · `notification/NotificationService.kt` (+ internal `NotificationRepository`, record + internal `NotificationTable` in same package) · `notification/NextAppointmentScheduler.kt` (+ internal `NextAppointmentRepository`) · `notification/NotificationRoutes.kt` · `app/SchedulerLifecycle.kt` (#551 composition-supplied jobs).
 **Public seam:** `DashboardService.getToday` / `getSessionDetail` · `NotificationService.listUnread` / `browseHistory` / `countUnread` / `markRead` / `markAllRead` · `NotificationReads.existsForSessionAndUser` / `findUsersBySource` + `NotificationAppender.append` (relief/session-detail reads + broadcasts; service-to-service, no allowlist).
 **Depends on:** Attendance (dashboard gate), Commission (live eligibility replication), Sessions (detail + reminders), Branch Day (scheduler operational dates).
 **Expansion triggers:** occurrence-identity dedup keys (appointment session+target date, relief event+source, revocation `:direct` audience split) under UNIQUE `(dedup_key, user_id)` (#508); ownership-in-WHERE read-state rule (#141).
@@ -177,10 +177,13 @@ intentionally shallow.
 ## Platform cross-cutting
 
 Not a semantic module — read only when the ticket touches it directly:
-`Main.kt` (Javalin wiring, `/api/*` JWT filter, exception→status mapping),
+`Main.kt` (explicit composition root: Javalin wiring, `/api/*` JWT filter, exception→status mapping, scheduler job wiring — #551),
 `exception/ServiceExceptions.kt`, `api/routes/RoutesUtil.kt` (parsing/keyset limits),
-`database/DatabaseConfig.kt` + `DatabaseHealth.kt`, `config/AppConfig.kt`,
-`logging/*` converters, `repository/model/*` Exposed tables/views (schema work only —
+`database/DatabaseConfig.kt` + `DatabaseHealth.kt`, `app/AppConfig.kt` (#551 startup composition),
+`http/KotlinxSerializationMapper.kt` + `http/openapi/*` (canonical contract, projector, export — #551),
+`observability/*` (incident packets/delivery, metrics, feedback/metrics adapters, slow-query reads — #551),
+`logging/*` converters (tracing stays distinguishable from observability — #551),
+`repository/model/*` Exposed tables/views (schema work only —
 `V1__full_schema.sql` (squashed baseline, #370/#461/#548) and `V2` seeds in
 `backend/src/main/resources/db/migration/` are the current-schema authority).
 

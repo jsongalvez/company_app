@@ -1,7 +1,7 @@
 package com.companyb.companyapp.observability
 
-import com.companyb.companyapp.config.GithubIssueConfig
 import com.companyb.companyapp.dto.FeedbackRequest
+import com.companyb.companyapp.observability.GithubIssueConfig
 import java.util.UUID
 import kotlin.test.BeforeTest
 import kotlin.test.Test

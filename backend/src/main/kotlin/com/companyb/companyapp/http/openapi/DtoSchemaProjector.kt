@@ -1,4 +1,4 @@
-package com.companyb.companyapp.config
+package com.companyb.companyapp.http.openapi
 
 import com.companyb.companyapp.dto.AcceptInviteRequest
 import com.companyb.companyapp.dto.AddDayBreakdownRequest

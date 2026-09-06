@@ -1,4 +1,4 @@
-package com.companyb.companyapp.config
+package com.companyb.companyapp.observability
 
 /**
  * #475 — optional GitHub issue delivery for incident packets. Absent until the

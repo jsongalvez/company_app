@@ -2,15 +2,15 @@
 
 package com.companyb.companyapp.session
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.branchday.BranchDayService
-import com.companyb.companyapp.config.AppConfig
-import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.http.KotlinxSerializationMapper
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.test.JavalinTestServerRule

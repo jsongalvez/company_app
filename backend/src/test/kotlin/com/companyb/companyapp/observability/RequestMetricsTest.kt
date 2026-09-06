@@ -90,7 +90,7 @@ class RequestMetricsTest {
                     Thread.sleep(SLOW_MS)
                     it.result("ok")
                 }
-                com.companyb.companyapp.api.routes.MetricsRoutes
+                com.companyb.companyapp.observability.MetricsRoutes
                     .register(cfg)
             }
         app.start(0)

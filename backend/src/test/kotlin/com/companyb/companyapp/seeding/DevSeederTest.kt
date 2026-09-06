@@ -1,6 +1,6 @@
 package com.companyb.companyapp.seeding
 
-import com.companyb.companyapp.config.AppConfig
+import com.companyb.companyapp.app.AppConfig
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

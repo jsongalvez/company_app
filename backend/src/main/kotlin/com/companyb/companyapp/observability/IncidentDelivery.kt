@@ -1,6 +1,5 @@
 package com.companyb.companyapp.observability
 
-import com.companyb.companyapp.config.GithubIssueConfig
 import com.companyb.companyapp.dto.IncidentPacket
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.encodeToString

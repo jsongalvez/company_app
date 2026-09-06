@@ -1,6 +1,6 @@
 package com.companyb.companyapp.database
 
-import com.companyb.companyapp.config.AppConfig
+import com.companyb.companyapp.app.AppConfig
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import io.github.oshai.kotlinlogging.KotlinLogging

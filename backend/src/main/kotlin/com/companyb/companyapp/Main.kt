@@ -2,21 +2,20 @@ package com.companyb.companyapp
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.TraceIdFilter
-import com.companyb.companyapp.api.routes.FeedbackRoutes
 import com.companyb.companyapp.api.routes.HealthRoutes
-import com.companyb.companyapp.api.routes.MetricsRoutes
+import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.app.ScheduledJob
+import com.companyb.companyapp.app.SchedulerLifecycle
 import com.companyb.companyapp.audit.AuditLogRoutes
 import com.companyb.companyapp.branch.BranchRoutes
 import com.companyb.companyapp.branchday.BranchDayRoutes
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.client.ClientRoutes
 import com.companyb.companyapp.commerce.BranchInventoryRoutes
 import com.companyb.companyapp.commerce.ProductCategoryRoutes
 import com.companyb.companyapp.commerce.ProductRoutes
 import com.companyb.companyapp.commerce.ProductSaleRoutes
 import com.companyb.companyapp.commission.CommissionRoutes
-import com.companyb.companyapp.config.AppConfig
-import com.companyb.companyapp.config.KotlinxSerializationMapper
-import com.companyb.companyapp.config.OpenApiCanonical
 import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
@@ -25,6 +24,8 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.finance.AllowanceRoutes
 import com.companyb.companyapp.finance.CompensationRoutes
 import com.companyb.companyapp.finance.ExpenseRoutes
+import com.companyb.companyapp.http.KotlinxSerializationMapper
+import com.companyb.companyapp.http.openapi.OpenApiCanonical
 import com.companyb.companyapp.identity.AuthRoutes
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.MeRoutes
@@ -34,10 +35,13 @@ import com.companyb.companyapp.identity.UserRoutes
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
 import com.companyb.companyapp.logging.RequestLog
+import com.companyb.companyapp.notification.NextAppointmentScheduler
 import com.companyb.companyapp.notification.NotificationRoutes
 import com.companyb.companyapp.observability.Auto5xxReport
+import com.companyb.companyapp.observability.FeedbackRoutes
 import com.companyb.companyapp.observability.IncidentDelivery
 import com.companyb.companyapp.observability.IncidentService
+import com.companyb.companyapp.observability.MetricsRoutes
 import com.companyb.companyapp.observability.RequestMetrics
 import com.companyb.companyapp.observability.RouteLabels
 import com.companyb.companyapp.remittance.RemittancePickerRoutes
@@ -45,7 +49,6 @@ import com.companyb.companyapp.remittance.RemittanceRoutes
 import com.companyb.companyapp.reporting.DailySalesSummaryRoutes
 import com.companyb.companyapp.reporting.ExportRoutes
 import com.companyb.companyapp.reporting.MonthlyRemittanceSummaryRoutes
-import com.companyb.companyapp.service.SchedulerLifecycle
 import com.companyb.companyapp.session.SessionBaseRateRoutes
 import com.companyb.companyapp.session.SessionRoutes
 import com.companyb.companyapp.session.dashboard.DashboardRoutes
@@ -53,7 +56,9 @@ import com.companyb.companyapp.workforce.AttendanceRoutes
 import com.companyb.companyapp.workforce.UserBranchAssignmentRoutes
 import com.companyb.companyapp.workforce.relief.MedicalMissionDelegateRoutes
 import com.companyb.companyapp.workforce.relief.ReliefAccessRoutes
+import com.companyb.companyapp.workforce.relief.ReliefInviteReminderJob
 import com.companyb.companyapp.workforce.relief.ReliefInviteRoutes
+import com.companyb.companyapp.workforce.relief.ReliefRequestExpiryJob
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
 import io.javalin.http.HttpStatus
@@ -245,7 +250,36 @@ private fun registerServerErrorHandler(config: io.javalin.config.JavalinConfig) 
     }
 }
 
-private val schedulerLifecycle = SchedulerLifecycle()
+/**
+ * #551 — application composition owns the concrete daily jobs; [SchedulerLifecycle]
+ * keeps only executor lifecycle. Same three sweeps, same 24h periods (#503):
+ * appointments + relief-reminder at 07:00 Manila, relief-expiry at 04:05 Manila.
+ */
+private val schedulerLifecycle =
+    SchedulerLifecycle(
+        now = { java.time.ZonedDateTime.now(BranchDayService.manilaZone) },
+        jobs =
+            listOf(
+                ScheduledJob(
+                    name = "Notification",
+                    initialDelayMs = NextAppointmentScheduler::nextRunDelayMs,
+                    task = { NextAppointmentScheduler.run(java.time.Clock.system(BranchDayService.manilaZone)) },
+                ),
+                // #358 — expired relief requests announce themselves just after the 04:00 Manila
+                // day boundary; same executor, own schedule.
+                ScheduledJob(
+                    name = "Relief-expiry",
+                    initialDelayMs = ReliefRequestExpiryJob::nextRunDelayMs,
+                    task = { ReliefRequestExpiryJob.run(java.time.Clock.system(BranchDayService.manilaZone)) },
+                ),
+                // #359 — accepted-invite reminders sweep at 07:00 Manila, same slot as appointments.
+                ScheduledJob(
+                    name = "Relief-reminder",
+                    initialDelayMs = ReliefInviteReminderJob::nextRunDelayMs,
+                    task = { ReliefInviteReminderJob.run(java.time.Clock.system(BranchDayService.manilaZone)) },
+                ),
+            ),
+    )
 
 /**
  * Single shutdown seam (#455): every Javalin lifecycle event and the init

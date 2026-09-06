@@ -1,4 +1,4 @@
-package com.companyb.companyapp.config
+package com.companyb.companyapp.http
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse

@@ -1,11 +1,10 @@
 package com.companyb.companyapp.client
 
+import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditLogRoutes
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.audit.AuditValues
-import com.companyb.companyapp.config.AppConfig
-import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
@@ -14,6 +13,7 @@ import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.http.KotlinxSerializationMapper
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.test.JavalinTestServerRule

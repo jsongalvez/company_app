@@ -1,6 +1,6 @@
 package com.companyb.companyapp.database
 
-import com.companyb.companyapp.config.AppConfig
+import com.companyb.companyapp.app.AppConfig
 import kotlin.test.Test
 import kotlin.test.assertNotSame
 import kotlin.test.assertTrue

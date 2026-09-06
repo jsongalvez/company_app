@@ -1,6 +1,6 @@
 package com.companyb.companyapp.seeding
 
-import com.companyb.companyapp.config.AppConfig
+import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password

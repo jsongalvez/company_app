@@ -703,7 +703,7 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/JwtService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/Password.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/PasswordResetDelivery.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/config/KotlinxSerializationMapper.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/http/KotlinxSerializationMapper.kt' #465 frozen #551 retarget
       - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/SmtpConfig.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/database/DatabaseConfig.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogStore.kt' #465 frozen
@@ -730,7 +730,7 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commerce/ProductService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/ReliefAccessService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/ReliefInviteService.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/service/SchedulerLifecycle.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/app/SchedulerLifecycle.kt' #465 frozen #551 retarget
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/AttendanceRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/AttendanceService.kt' #465 frozen

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.config
+package com.companyb.companyapp.http.openapi
 
 import java.nio.file.Files
 import java.nio.file.Paths

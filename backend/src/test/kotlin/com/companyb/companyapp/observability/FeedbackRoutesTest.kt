@@ -1,11 +1,10 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.observability
 
 import com.companyb.companyapp.api.middleware.TraceIdFilter
-import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.dto.FeedbackResponse
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.http.KotlinxSerializationMapper
 import com.companyb.companyapp.identity.RateLimiter
-import com.companyb.companyapp.observability.IncidentRegistry
 import com.companyb.companyapp.test.JavalinTestServerRule
 import io.javalin.Javalin
 import io.javalin.testtools.Request

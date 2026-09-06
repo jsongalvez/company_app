@@ -1,7 +1,6 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.observability
 
 import com.companyb.companyapp.api.ApiRoutes
-import com.companyb.companyapp.observability.RequestMetrics
 import io.javalin.config.JavalinConfig
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi

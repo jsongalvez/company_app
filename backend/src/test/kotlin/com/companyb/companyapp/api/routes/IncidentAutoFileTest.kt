@@ -2,8 +2,8 @@ package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.TraceIdFilter
-import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.IncidentSource
+import com.companyb.companyapp.http.KotlinxSerializationMapper
 import com.companyb.companyapp.logging.RequestElapsedConverter
 import com.companyb.companyapp.observability.Auto5xxReport
 import com.companyb.companyapp.observability.IncidentRegistry

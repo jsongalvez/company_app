@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.observability
 
 import org.jetbrains.exposed.v1.core.Table
 
