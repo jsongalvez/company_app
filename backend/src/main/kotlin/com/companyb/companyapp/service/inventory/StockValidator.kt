@@ -1,7 +1,7 @@
 package com.companyb.companyapp.service.inventory
 
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.service.branchday.BranchDayService
 import java.util.UUID
 
 internal object StockValidator {

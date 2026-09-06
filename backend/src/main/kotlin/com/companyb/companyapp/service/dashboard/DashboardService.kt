@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.dashboard
 
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.ClientNames
@@ -10,8 +11,6 @@ import com.companyb.companyapp.repository.SessionPractitionerWithName
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.service.attendance.AttendanceService
-import com.companyb.companyapp.service.branchday.BranchDayRepository
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import java.math.BigDecimal
 import java.util.UUID
@@ -148,7 +147,7 @@ object DashboardService {
                 } ?: emptyMap(),
             // #382 — the detail read has no route branch context; resolve it from the day.
             branchIdBySession =
-                BranchDayRepository.findById(session.branchDayId)?.let {
+                BranchDayService.findById(session.branchDayId)?.let {
                     mapOf(session.id to it.branchId)
                 } ?: emptyMap(),
         )

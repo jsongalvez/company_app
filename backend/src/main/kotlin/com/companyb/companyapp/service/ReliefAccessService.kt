@@ -1,5 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.branch.Branch
+import com.companyb.companyapp.branch.BranchService
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
@@ -7,16 +10,13 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.GrantWithCapabilityParams
 import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.ReliefRequestWithBranch
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
-import com.companyb.companyapp.repository.model.Branch
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
 import com.companyb.companyapp.service.attendance.ShiftGuard
-import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
@@ -76,7 +76,7 @@ object ReliefAccessService {
      * requester holds no capabilities by definition (the dashboard universal-read
      * precedent — a capability gate would 403 the primary flow).
      */
-    fun listBranchOptions(): List<Branch> = BranchRepository.findAll()
+    fun listBranchOptions(): List<Branch> = BranchService.findAll()
 
     @Suppress("ThrowsCount")
     fun grantAccess(
@@ -267,7 +267,7 @@ object ReliefAccessService {
         callerId: UUID,
         reason: String? = null,
     ): ReliefAccess {
-        val branch = BranchRepository.findById(branchId) ?: throw NotFoundException("Branch not found")
+        val branch = BranchService.findById(branchId)
         if (!ReliefAccessRepository.isActiveUser(callerId)) {
             throw ForbiddenException("Inactive users cannot request relief duty")
         }

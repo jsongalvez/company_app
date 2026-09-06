@@ -1,15 +1,10 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.branch
 
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.BranchCreateResult
-import com.companyb.companyapp.repository.BranchRepository
-import com.companyb.companyapp.repository.SessionBaseRateRepository
-import com.companyb.companyapp.repository.model.Branch
-import com.companyb.companyapp.repository.model.BranchCreateParams
-import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.service.session.SessionBaseRateService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -37,9 +32,8 @@ object BranchService {
                 BranchAudit.inserted(callerId, result.branch)
                 // #418 — provision the five BR-documented default base rates in the same
                 // command transaction so a fresh branch never fails session create with
-                // "No base rate configured". Mechanism write riding the audited branch-create
-                // event (#414 deflation precedent): no per-rate audit rows.
-                SessionBaseRateRepository.insertDefaultsInTransaction(result.branch.id, callerId)
+                // "No base rate configured" (#536: explicit session-rate hook, same tx).
+                SessionBaseRateService.provisionDefaultsInTransaction(result.branch.id, callerId)
             }
             result
         }.also {
@@ -50,6 +44,9 @@ object BranchService {
 
     fun findById(branchId: UUID): Branch =
         BranchRepository.findById(branchId) ?: throw NotFoundException("Branch not found")
+
+    /** Nullable directory read for callers that fall back (display names, optional links). */
+    fun findByIdOrNull(branchId: UUID): Branch? = BranchRepository.findById(branchId)
 }
 
 /**

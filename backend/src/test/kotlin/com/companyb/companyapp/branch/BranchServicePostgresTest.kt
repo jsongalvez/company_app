@@ -1,8 +1,7 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.branch
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures

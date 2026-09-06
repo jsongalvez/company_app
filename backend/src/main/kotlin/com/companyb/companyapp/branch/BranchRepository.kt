@@ -1,11 +1,8 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.branch
 
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.Branch
-import com.companyb.companyapp.repository.model.BranchCreateParams
-import com.companyb.companyapp.repository.model.BranchTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -22,7 +19,7 @@ data class BranchCreateResult(
     val created: Boolean,
 )
 
-object BranchRepository {
+internal object BranchRepository {
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: BranchCreateParams): BranchCreateResult {
         val insertedCount =

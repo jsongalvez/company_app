@@ -2,6 +2,7 @@ package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.dto.AuditLogBrowseResponse
 import com.companyb.companyapp.dto.AuditLogEntryResponse
@@ -9,7 +10,6 @@ import com.companyb.companyapp.dto.AuditLogTableResponse
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.repository.decodeCursor
 import com.companyb.companyapp.service.AuditLogService
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.toResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse

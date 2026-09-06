@@ -1,11 +1,11 @@
 package com.companyb.companyapp.service.export
 
+import com.companyb.companyapp.branch.Branch
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ExportRepository
-import com.companyb.companyapp.repository.model.Branch
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -154,9 +154,7 @@ object ExportService {
         return buildResult(title, headers, rows, format, fileBase)
     }
 
-    private fun findBranch(branchId: UUID): Branch =
-        BranchRepository.findById(branchId)
-            ?: throw NotFoundException("Branch not found")
+    private fun findBranch(branchId: UUID): Branch = BranchService.findById(branchId)
 
     private fun buildResult(
         title: String,

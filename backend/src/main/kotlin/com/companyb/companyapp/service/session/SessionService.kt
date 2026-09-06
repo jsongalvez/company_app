@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.session
 
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
@@ -24,7 +25,6 @@ import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.repository.model.SessionVoidTable
-import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal

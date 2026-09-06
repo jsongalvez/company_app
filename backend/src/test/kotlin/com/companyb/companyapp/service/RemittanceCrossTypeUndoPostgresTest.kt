@@ -1,13 +1,13 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.service.finance.remittance.RemittanceSubmissionResult
 import com.companyb.companyapp.test.BasePostgresTest

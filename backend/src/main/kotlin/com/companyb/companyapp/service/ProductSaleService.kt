@@ -1,10 +1,11 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.branch.BranchService
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchInventoryRepository
-import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.RetryProductSaleParams
@@ -15,7 +16,6 @@ import com.companyb.companyapp.repository.model.BranchInventory
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.ProductSale
 import com.companyb.companyapp.repository.model.ProductSaleTable
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -71,7 +71,7 @@ object ProductSaleService {
                 val (branchDay, isRemitted) =
                     BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason)
 
-                if (BranchRepository.findById(branchDay.branchId) == null) {
+                if (BranchService.findByIdOrNull(branchDay.branchId) == null) {
                     throw NotFoundException("Branch not found")
                 }
 

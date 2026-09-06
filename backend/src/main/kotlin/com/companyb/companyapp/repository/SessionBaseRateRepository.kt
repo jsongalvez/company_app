@@ -1,10 +1,10 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.SessionBaseRate
 import com.companyb.companyapp.repository.model.SessionBaseRateCreateParams
 import com.companyb.companyapp.repository.model.SessionBaseRateTable

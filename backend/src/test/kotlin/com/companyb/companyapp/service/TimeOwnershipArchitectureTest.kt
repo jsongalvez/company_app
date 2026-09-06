@@ -49,7 +49,7 @@ class TimeOwnershipArchitectureTest {
                 "backend/src/main/kotlin/com/companyb/companyapp/auth/JwtService.kt",
                 "backend/src/main/kotlin/com/companyb/companyapp/service/AuthService.kt",
                 "backend/src/main/kotlin/com/companyb/companyapp/service/UserService.kt",
-                "backend/src/main/kotlin/com/companyb/companyapp/service/branchday/BranchDayService.kt",
+                "backend/src/main/kotlin/com/companyb/companyapp/branchday/BranchDayService.kt",
                 "backend/src/main/kotlin/com/companyb/companyapp/observability/IncidentService.kt",
             )
         val offenders =

@@ -733,7 +733,7 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/UserBranchAssignmentService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/attendance/AttendanceRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/attendance/AttendanceService.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/service/branchday/BranchDayService.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/branchday/BranchDayService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/export/ExportService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/finance/commission/CommissionService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/finance/remittance/RemittanceDayBreakdownRepository.kt' #465 frozen
@@ -747,7 +747,7 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/session/SessionPractitionerService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/session/SessionService.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/AuditLogAuthzTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/BranchDayAuthzTest.kt' #465 frozen
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/branchday/BranchDayAuthzTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/BranchInventoryAuthzTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/FinanceReadBackAuthzTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/ReliefDayGateAuthzTest.kt' #465 frozen

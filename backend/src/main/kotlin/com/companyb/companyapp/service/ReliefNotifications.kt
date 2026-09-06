@@ -1,12 +1,12 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.branch.BranchService
+import com.companyb.companyapp.branchday.BranchDay
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.repository.BranchMemberRepository
-import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.findDisplayNamesByIds
-import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.NotificationCreateParams
-import com.companyb.companyapp.service.branchday.BranchDayService
 import java.time.LocalDate
 import java.util.UUID
 
@@ -20,7 +20,7 @@ data class ReliefEventContext(
         fun of(branchDay: BranchDay): ReliefEventContext =
             ReliefEventContext(
                 branchId = branchDay.branchId,
-                branchName = BranchRepository.findById(branchDay.branchId)?.name ?: "branch",
+                branchName = BranchService.findByIdOrNull(branchDay.branchId)?.name ?: "branch",
                 date = branchDay.date,
             )
     }

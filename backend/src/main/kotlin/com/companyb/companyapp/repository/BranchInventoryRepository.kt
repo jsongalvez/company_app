@@ -1,9 +1,9 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.VersionMismatchException
-import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchInventory
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct

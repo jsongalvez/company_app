@@ -1,6 +1,7 @@
 @file:Suppress("LargeClass")
 
 package com.companyb.companyapp.service
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.ExpenseCategory
@@ -18,7 +19,6 @@ import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper

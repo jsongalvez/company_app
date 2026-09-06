@@ -1,5 +1,7 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.branch.BranchTable
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
@@ -7,8 +9,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging

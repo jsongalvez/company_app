@@ -42,8 +42,13 @@ class BackendFeatureBoundaryArchitectureTest {
 
     @Test
     fun `api layer stays an http adapter`() {
+        val routes =
+            listOf(File(mainRoot, "branch"), File(mainRoot, "branchday"))
+                .flatMap { sources(it).toList() }
+                .filter { (file, _) -> file.endsWith("Routes.kt") }
+                .toMap()
         val offenders =
-            sources(File(mainRoot, "api")).flatMap { (file, source) ->
+            (sources(File(mainRoot, "api")) + routes).flatMap { (file, source) ->
                 apiLayerViolations(source).map { rule -> "$file: $rule" }
             }
         assertTrue(offenders.isEmpty(), "api layer must not touch persistence:\n${offenders.joinToString("\n")}")
@@ -51,8 +56,10 @@ class BackendFeatureBoundaryArchitectureTest {
 
     @Test
     fun `service layer hides persistence-table knowledge behind internal objects`() {
+        val roots =
+            listOf(File(mainRoot, "service"), File(mainRoot, "branch"), File(mainRoot, "branchday"))
         val offenders =
-            sources(File(mainRoot, "service")).flatMap { (file, source) ->
+            roots.flatMap { sources(it).toList() }.flatMap { (file, source) ->
                 tableLeaks(source).map { token -> "$file: $token" }
             }
         assertTrue(offenders.isEmpty(), "public surfaces must not touch tables:\n${offenders.joinToString("\n")}")
@@ -60,8 +67,10 @@ class BackendFeatureBoundaryArchitectureTest {
 
     @Test
     fun `feature-local stores are internal`() {
+        val roots =
+            listOf(File(mainRoot, "service"), File(mainRoot, "branch"), File(mainRoot, "branchday"))
         val offenders =
-            sources(File(mainRoot, "service")).flatMap { (file, source) ->
+            roots.flatMap { sources(it).toList() }.flatMap { (file, source) ->
                 nonInternalStoreDeclarations(source).map { decl -> "$file: $decl" }
             }
         assertTrue(offenders.isEmpty(), "stores must be internal:\n${offenders.joinToString("\n")}")

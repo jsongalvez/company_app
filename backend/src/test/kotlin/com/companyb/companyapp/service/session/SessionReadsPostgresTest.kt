@@ -1,4 +1,5 @@
 package com.companyb.companyapp.service.session
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.NotFoundException
@@ -7,7 +8,6 @@ import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures

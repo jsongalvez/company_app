@@ -1,4 +1,5 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
@@ -10,7 +11,6 @@ import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.ProductTable
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.inventory.InventoryService
 import com.companyb.companyapp.service.inventory.MovementType
 import com.companyb.companyapp.test.BasePostgresTest

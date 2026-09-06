@@ -1,4 +1,5 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException

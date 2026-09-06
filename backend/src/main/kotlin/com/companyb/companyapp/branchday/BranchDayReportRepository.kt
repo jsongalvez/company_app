@@ -1,8 +1,6 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.branchday
 
 import com.companyb.companyapp.domain.DayStatus
-import com.companyb.companyapp.repository.model.BranchDay
-import com.companyb.companyapp.repository.model.BranchDayTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greaterEq
@@ -13,7 +11,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.util.UUID
 
-object BranchDayReportRepository {
+internal object BranchDayReportRepository {
     fun findByBranchAndDateRange(
         branchId: UUID,
         fromDate: LocalDate,

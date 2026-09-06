@@ -1,7 +1,7 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.repository.ReliefAccessRepository
-import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.Clock
 import java.time.ZonedDateTime

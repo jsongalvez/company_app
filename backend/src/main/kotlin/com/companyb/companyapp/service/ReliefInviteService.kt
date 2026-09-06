@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.exception.ConflictException
@@ -16,8 +17,6 @@ import com.companyb.companyapp.repository.model.ReliefInvite
 import com.companyb.companyapp.repository.model.ReliefInviteTable
 import com.companyb.companyapp.repository.model.ReliefInviteView
 import com.companyb.companyapp.service.attendance.ShiftGuard
-import com.companyb.companyapp.service.branchday.BranchDayRepository
-import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
@@ -184,9 +183,7 @@ object ReliefInviteService {
                 // #515 — locked day read: serializes accept with remittance's REMITTED
                 // transition. The OPEN-only expiry rule itself is unchanged (still 400s
                 // when PAST/REMITTED — day-state remains the expiry, #159 Q6).
-                val branchDay =
-                    BranchDayRepository.acquireLockInTransaction(invite.branchDayId)
-                        ?: throw NotFoundException("Branch day not found")
+                val branchDay = BranchDayService.findLockedDayInTransaction(invite.branchDayId)
                 val effectiveStatus =
                     BranchDayService.evaluateStatus(
                         branchDay.status,

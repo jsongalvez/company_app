@@ -1,9 +1,7 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.branchday
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures

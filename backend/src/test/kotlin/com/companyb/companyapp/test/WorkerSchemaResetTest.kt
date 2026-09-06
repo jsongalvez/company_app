@@ -1,17 +1,17 @@
 package com.companyb.companyapp.test
 
+import com.companyb.companyapp.branch.BranchService
+import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
-import com.companyb.companyapp.service.BranchService
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll

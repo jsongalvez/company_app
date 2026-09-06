@@ -1,4 +1,6 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ConflictException
@@ -8,9 +10,7 @@ import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
-import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.service.attendance.AttendanceService
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper

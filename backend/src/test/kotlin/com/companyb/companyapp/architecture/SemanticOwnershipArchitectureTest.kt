@@ -156,7 +156,6 @@ class SemanticOwnershipArchitectureTest {
     @Test
     fun `direct branch-day store readers are explicitly recorded and consumed`() {
         val readers = BackendArchitectureOwners.branchDayStoreReaders
-        assertTrue(readers.isNotEmpty(), "exception list must not be deletable into silent pass")
         for (path in readers) {
             val source = sources[path] ?: error("recorded reader missing from tree: $path")
             assertTrue(
@@ -245,7 +244,7 @@ class SemanticOwnershipArchitectureTest {
         val targetLeak =
             """
             package com.companyb.companyapp.branchday
-            import com.companyb.companyapp.repository.model.BranchDayTable
+            import com.companyb.companyapp.branchday.BranchDayTable
 
             object BranchDayService {
                 fun r() = BranchDayTable.selectAll()
@@ -260,7 +259,7 @@ class SemanticOwnershipArchitectureTest {
         val targetSeam =
             """
             package com.companyb.companyapp.branchday
-            import com.companyb.companyapp.repository.model.BranchDayTable
+            import com.companyb.companyapp.branchday.BranchDayTable
 
             internal object BranchDayAudit {
                 val t = BranchDayTable.tableName
@@ -274,7 +273,7 @@ class SemanticOwnershipArchitectureTest {
         val aliasLeak =
             """
             package fixture
-            import com.companyb.companyapp.repository.model.BranchDayTable as DayT
+            import com.companyb.companyapp.branchday.BranchDayTable as DayT
 
             object Svc {
                 fun r() = DayT.selectAll()

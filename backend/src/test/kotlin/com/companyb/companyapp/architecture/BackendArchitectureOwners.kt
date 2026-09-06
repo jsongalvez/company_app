@@ -131,16 +131,8 @@ object BackendArchitectureOwners {
             "repository/" to "persistence",
         )
 
-    /** Files allowed to hold a direct BranchDay store import; tightened by #536. */
-    val branchDayStoreReaders: Set<String> =
-        setOf(
-            "service/ReliefInviteService.kt",
-            "service/attendance/AttendanceService.kt",
-            "service/attendance/ShiftGuard.kt",
-            "service/dashboard/DashboardService.kt",
-            "service/finance/commission/CommissionService.kt",
-            "service/finance/remittance/RemittanceService.kt",
-        )
+    /** Files allowed to hold a direct BranchDay store import; emptied by #536. */
+    val branchDayStoreReaders: Set<String> = emptySet()
 
     /** Recorded Instant.now owners (#322, retained): auth lifecycle, branch-day clock, incident filing. */
     val instantOwners: Set<String> =
@@ -149,7 +141,7 @@ object BackendArchitectureOwners {
             "observability/IncidentService.kt",
             "service/AuthService.kt",
             "service/UserService.kt",
-            "service/branchday/BranchDayService.kt",
+            "branchday/BranchDayService.kt",
         )
 
     /**
@@ -233,7 +225,7 @@ object BackendArchitectureOwners {
         return (i + 1).coerceAtMost(source.length)
     }
 
-    /** Local name to persistence table for repository.model imports, including `as` aliases. */
+    /** Local name to persistence table for record imports, including `as` aliases. */
     fun tableImports(source: String): Map<String, String> {
         val result = mutableMapOf<String, String>()
         for (match in IMPORT_LINE.findAll(source)) {
@@ -381,8 +373,10 @@ object BackendArchitectureOwners {
         Regex("\n\\s*(?:(?:private|internal|protected|public)\\s+)?(?:suspend\\s+)?fun\\s+(\\w+)")
     private val EXPOSED_IMPORT = Regex("import org\\.jetbrains\\.exposed")
     private val TRANSACTION_BLOCK = Regex("\\btransaction\\s*[({]")
-    private val TABLE_IMPORT = Regex("import com\\.companyb\\.companyapp\\.repository\\.model\\.\\w*Table")
-    private val PERSISTENCE_TABLE_IMPORT = Regex("com\\.companyb\\.companyapp\\.repository\\.model\\.(\\w*Table)")
+    private val TABLE_IMPORT =
+        Regex("import com\\.companyb\\.companyapp\\.(repository\\.model|branch|branchday)\\.\\w*Table")
+    private val PERSISTENCE_TABLE_IMPORT =
+        Regex("com\\.companyb\\.companyapp\\.(?:repository\\.model|branch|branchday)\\.(\\w*Table)")
     private val RAW_EXEC = Regex("\\bexec\\s*\\(")
     private val PUBLIC_STORE_DECLARATION = Regex("(?m)^(?:object|class) \\w*(?:Repository|Store)\\b")
     private val AUDIT_RECORD_CALL = Regex("\\bAuditLogRepository\\.record\\w*\\(")

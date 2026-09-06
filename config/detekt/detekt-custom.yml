@@ -41,8 +41,12 @@ CompanyApp:
     # #468 allowlist: api/ boundary owns route param parsing, the JSON mapper
     # owns collection narrowing, named *Parser.kt files own the rest; test
     # harnesses assert types ad hoc.
+    # #536: feature-owned HTTP adapters moved with their owners (branch/,
+    # branchday/) — same boundary, same narrowing.
     excludes:
       - '**/api/**' # #468
+      - '**/branch/BranchRoutes.kt' # #536
+      - '**/branchday/BranchDayRoutes.kt' # #536
       - '**/KotlinxSerializationMapper.kt' # #468
       - '**/*Parser.kt' # #468
       - '**/test/**' # #468

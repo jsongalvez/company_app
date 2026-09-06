@@ -6,9 +6,7 @@ import com.companyb.companyapp.api.routes.AllowanceRoutes
 import com.companyb.companyapp.api.routes.AttendanceRoutes
 import com.companyb.companyapp.api.routes.AuditLogRoutes
 import com.companyb.companyapp.api.routes.AuthRoutes
-import com.companyb.companyapp.api.routes.BranchDayRoutes
 import com.companyb.companyapp.api.routes.BranchInventoryRoutes
-import com.companyb.companyapp.api.routes.BranchRoutes
 import com.companyb.companyapp.api.routes.ClientRoutes
 import com.companyb.companyapp.api.routes.CommissionRoutes
 import com.companyb.companyapp.api.routes.CompensationRoutes
@@ -37,6 +35,8 @@ import com.companyb.companyapp.api.routes.UserRoutes
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.auth.PasswordResetDelivery
+import com.companyb.companyapp.branch.BranchRoutes
+import com.companyb.companyapp.branchday.BranchDayRoutes
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.config.OpenApiCanonical

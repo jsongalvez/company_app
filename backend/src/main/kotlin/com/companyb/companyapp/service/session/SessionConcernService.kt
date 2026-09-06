@@ -1,19 +1,19 @@
 package com.companyb.companyapp.service.session
 
+import com.companyb.companyapp.branchday.BranchDay
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ConcernRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.findSessionByIdInTransaction
-import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.ConcernTable
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionConcern
 import com.companyb.companyapp.repository.model.SessionConcernTable
 import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID

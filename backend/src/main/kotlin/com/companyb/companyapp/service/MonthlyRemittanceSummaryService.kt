@@ -1,7 +1,7 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.MonthlyRemittanceSummaryRepository
 import com.companyb.companyapp.repository.model.MonthlyRemittanceSummary
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -16,8 +16,7 @@ object MonthlyRemittanceSummaryService {
         year: Int,
         month: Int,
     ): MonthlyRemittanceSummary {
-        BranchRepository.findById(branchId)
-            ?: throw NotFoundException("Branch not found")
+        BranchService.findById(branchId)
 
         val summary =
             MonthlyRemittanceSummaryRepository.findByBranchYearMonth(branchId, year, month)

@@ -1,8 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.model.NotificationCreateParams
-import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.Clock
 import java.time.Duration

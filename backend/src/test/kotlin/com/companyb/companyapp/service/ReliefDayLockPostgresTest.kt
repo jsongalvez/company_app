@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.domain.ReliefInviteStatus
@@ -11,7 +12,6 @@ import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.ReliefInviteRepository
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper

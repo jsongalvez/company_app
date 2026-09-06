@@ -1,7 +1,7 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.MonthlyRemittanceSummary
 import com.companyb.companyapp.repository.model.MonthlyRemittanceSummaryView
 import org.jetbrains.exposed.v1.core.SortOrder

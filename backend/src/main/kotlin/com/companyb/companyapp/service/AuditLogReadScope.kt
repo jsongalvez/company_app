@@ -1,5 +1,5 @@
 package com.companyb.companyapp.service
-
+import com.companyb.companyapp.branch.BranchReadScope
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import java.util.UUID

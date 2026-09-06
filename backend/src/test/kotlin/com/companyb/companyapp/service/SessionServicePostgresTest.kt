@@ -1,4 +1,6 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.branch.BranchTable
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.DayStatus
@@ -14,14 +16,12 @@ import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionPractitionerTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.session.SessionPractitionerService
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest

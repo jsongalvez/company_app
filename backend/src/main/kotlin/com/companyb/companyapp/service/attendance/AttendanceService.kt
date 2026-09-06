@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.attendance
 
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -7,8 +8,6 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.service.branchday.BranchDayRepository
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -110,7 +109,7 @@ object AttendanceService {
         // #376 — same serialization as self clock-in: the retraction-cutoff commands
         // hold this lock while deciding, so a duty can never start behind a mark that
         // then lands; the idempotent readback re-runs under it.
-        BranchDayRepository.acquireLock(branchDay.id)
+        BranchDayService.lockDayInTransaction(branchDay.id)
         retryOutcomeOrNull(id, branchId, targetUserId, callerId)?.let {
             return AttendanceMarkResult(it.attendance, it.created, it.isRelief)
         }
@@ -277,7 +276,7 @@ object AttendanceService {
             // #376 — take the branch-day row lock BEFORE the guard so clock-in serializes
             // against the retraction cutoff commands (they hold it while deciding); the
             // commission recalculation below re-acquires it harmlessly in this transaction.
-            BranchDayRepository.acquireLock(branchDay.id)
+            BranchDayService.lockDayInTransaction(branchDay.id)
 
             // A concurrent same-id retry may have committed while this transaction waited
             // on the lock — the idempotent readback must run again under it (#376 review).

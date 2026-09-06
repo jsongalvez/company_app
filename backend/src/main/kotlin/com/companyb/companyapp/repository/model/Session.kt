@@ -1,5 +1,5 @@
 package com.companyb.companyapp.repository.model
-
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import org.jetbrains.exposed.v1.core.Table

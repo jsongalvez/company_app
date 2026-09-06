@@ -1,11 +1,11 @@
 package com.companyb.companyapp.seeding
 
+import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable

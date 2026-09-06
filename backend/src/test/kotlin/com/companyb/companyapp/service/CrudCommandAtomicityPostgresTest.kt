@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
-
+import com.companyb.companyapp.branch.BranchService
+import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.Gender
@@ -10,7 +11,6 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ClientCreateParams
 import com.companyb.companyapp.repository.ClientRepository
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ConcernTable

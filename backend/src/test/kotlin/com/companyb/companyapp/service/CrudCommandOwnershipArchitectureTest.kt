@@ -24,7 +24,7 @@ class CrudCommandOwnershipArchitectureTest {
         // (file, allowed read-wrapper transaction blocks)
         val files =
             mapOf(
-                "repository/BranchRepository.kt" to 3,
+                "branch/BranchRepository.kt" to 3,
                 "repository/ProductCategoryRepository.kt" to 2,
                 "repository/ProductRepository.kt" to 4,
                 // Three read wrappers after the authoritative session-count query.
@@ -70,7 +70,7 @@ class CrudCommandOwnershipArchitectureTest {
     fun `each crud mutation command owns exactly one transaction`() {
         val commands =
             mapOf(
-                "service/BranchService.kt" to listOf("create"),
+                "branch/BranchService.kt" to listOf("create"),
                 "service/ProductCategoryService.kt" to listOf("create"),
                 "service/ProductService.kt" to listOf("create", "update"),
                 "service/ClientService.kt" to listOf("create", "update", "anonymize"),
@@ -123,7 +123,7 @@ class CrudCommandOwnershipArchitectureTest {
         // between its declaration and the seam must not touch persistence tables.
         val seams =
             mapOf(
-                "service/BranchService.kt" to "BranchAudit",
+                "branch/BranchService.kt" to "BranchAudit",
                 "service/ProductCategoryService.kt" to "ProductCategoryAudit",
                 "service/ProductService.kt" to "ProductAudit",
                 "service/ClientService.kt" to "ClientAudit",

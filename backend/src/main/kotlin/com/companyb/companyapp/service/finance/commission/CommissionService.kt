@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.finance.commission
 
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditContext
@@ -14,8 +15,6 @@ import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertP
 import com.companyb.companyapp.repository.model.CommissionSplit
 import com.companyb.companyapp.repository.model.ProductSale
 import com.companyb.companyapp.service.attendance.AttendanceRepository
-import com.companyb.companyapp.service.branchday.BranchDayRepository
-import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -181,7 +180,7 @@ object CommissionService {
         branchDayId: UUID,
         force: Boolean = false,
     ) {
-        BranchDayRepository.acquireLock(branchDayId)
+        BranchDayService.lockDayInTransaction(branchDayId)
         logger.info { "[COMMISSION-SERVICE] Recalculating commission for branchDay=$branchDayId force=$force" }
 
         val effectiveStatus = BranchDayService.getEffectiveStatus(branchDayId)

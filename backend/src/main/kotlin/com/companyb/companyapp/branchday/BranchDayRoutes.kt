@@ -1,4 +1,4 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.branchday
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -8,7 +8,6 @@ import com.companyb.companyapp.dto.BranchDayTodayResponse
 import com.companyb.companyapp.dto.BranchDayUserResponse
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.service.attendance.AttendanceService
-import com.companyb.companyapp.service.branchday.BranchDayService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.Context
 import io.javalin.openapi.HttpMethod

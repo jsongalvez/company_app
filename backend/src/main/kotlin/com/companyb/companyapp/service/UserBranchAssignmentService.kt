@@ -1,5 +1,7 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.branch.BranchService
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
@@ -9,13 +11,11 @@ import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchMemberRepository
 import com.companyb.companyapp.repository.BranchMemberRow
-import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.UserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -68,7 +68,7 @@ object UserBranchAssignmentService {
         // Existence checks stay here for 404 precedence; ownership (same-ID replay vs
         // conflict, active-key guard) lives in the single transaction-local seam
         // (UserBranchAssignmentRepository.createInTransaction, #453).
-        val branchExists = BranchRepository.findById(branchId)
+        val branchExists = BranchService.findByIdOrNull(branchId)
         if (branchExists == null) {
             throw NotFoundException("Branch not found")
         }
@@ -109,7 +109,7 @@ object UserBranchAssignmentService {
     ) {
         requireManageUsers(callerId, "MANAGE_USERS capability required to remove assignments")
 
-        val branchExists = BranchRepository.findById(branchId)
+        val branchExists = BranchService.findByIdOrNull(branchId)
         if (branchExists == null) {
             throw NotFoundException("Branch not found")
         }

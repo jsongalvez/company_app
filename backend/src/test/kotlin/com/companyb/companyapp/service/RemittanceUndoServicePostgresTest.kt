@@ -1,4 +1,6 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.RemittanceMethod
@@ -8,10 +10,8 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittanceFinancialSnapshotRepository
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest

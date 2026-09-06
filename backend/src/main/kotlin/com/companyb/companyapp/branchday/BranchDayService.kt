@@ -1,13 +1,12 @@
-package com.companyb.companyapp.service.branchday
+package com.companyb.companyapp.branchday
 
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.BranchRepository
-import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.service.CapabilityService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.Instant
@@ -65,7 +64,7 @@ object BranchDayService {
      * @throws NotFoundException if the branch does not exist.
      */
     fun getToday(branchId: UUID): BranchDay {
-        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+        BranchService.findById(branchId)
         val today = currentOperationalDate()
         return resolveOrCreate(branchId, today)
     }
@@ -108,6 +107,35 @@ object BranchDayService {
         branchId: UUID,
         date: LocalDate,
     ): BranchDay? = BranchDayRepository.findByBranchAndDate(branchId, date)
+
+    /**
+     * Find-only branch-day lookup by id — never creates (#536 seam for reads that
+     * tolerate a missing day, e.g. notification-bearer detail mapping).
+     */
+    fun findById(branchDayId: UUID): BranchDay? = BranchDayRepository.findById(branchDayId)
+
+    /**
+     * In-transaction find-only read on the caller's open transaction (#536 seam for
+     * remittance date-range validation — no lock, no create).
+     */
+    fun findByIdInTransaction(branchDayId: UUID): BranchDay? = BranchDayRepository.findByIdInTransaction(branchDayId)
+
+    /**
+     * In-transaction row lock on the caller's open transaction (#536 seam for
+     * clock-in/mark/recalc serialization — replaces direct store locks).
+     */
+    fun lockDayInTransaction(branchDayId: UUID) {
+        BranchDayRepository.acquireLockInTransaction(branchDayId)
+            ?: throw NotFoundException("Branch day not found")
+    }
+
+    /**
+     * In-transaction locked read on the caller's open transaction (#536 seam for
+     * accept-style commands that decide on locked day state).
+     */
+    fun findLockedDayInTransaction(branchDayId: UUID): BranchDay =
+        BranchDayRepository.acquireLockInTransaction(branchDayId)
+            ?: throw NotFoundException("Branch day not found")
 
     /**
      * Today-scoped edit gate (#452: one gate for session create/preview, the branch-day

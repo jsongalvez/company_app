@@ -1,8 +1,8 @@
 package com.companyb.companyapp.service.finance.remittance
 
+import com.companyb.companyapp.branchday.BranchDay
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.model.BranchDay
-import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable

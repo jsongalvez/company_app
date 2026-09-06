@@ -1,7 +1,8 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.branch
 
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.service.CapabilityService
 import java.util.UUID
 
 /**

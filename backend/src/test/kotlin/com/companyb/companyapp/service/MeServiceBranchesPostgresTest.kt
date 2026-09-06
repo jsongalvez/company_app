@@ -1,4 +1,5 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.BranchClockInStatus
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.UserStatus
@@ -7,7 +8,6 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.service.attendance.AttendanceRepository
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.attendance.ClockInParams
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures

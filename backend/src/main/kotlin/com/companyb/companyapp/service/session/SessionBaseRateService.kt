@@ -22,6 +22,16 @@ import java.util.UUID
 internal object SessionBaseRateService {
     private val logger = KotlinLogging.logger {}
 
+    /**
+     * Branch-creation hook (#536): provisions the five BR-documented default rates
+     * on the branch-create command transaction. Mechanism write riding the audited
+     * branch-create event (#414 deflation precedent): no per-rate audit rows.
+     */
+    internal fun provisionDefaultsInTransaction(
+        branchId: UUID,
+        setBy: UUID,
+    ) = SessionBaseRateRepository.insertDefaultsInTransaction(branchId, setBy)
+
     fun setRate(
         callerId: UUID,
         id: UUID,

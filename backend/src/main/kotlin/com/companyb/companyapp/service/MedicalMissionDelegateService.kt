@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.exception.ConflictException
@@ -7,7 +8,6 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.MedicalMissionDelegateRepository
 import com.companyb.companyapp.repository.UserRepository
@@ -32,7 +32,7 @@ object MedicalMissionDelegateService {
         branchId: UUID,
         callerId: UUID,
     ): MedicalMissionDelegate {
-        val branch = BranchRepository.findById(branchId) ?: throw NotFoundException("Branch not found")
+        val branch = BranchService.findById(branchId)
         if (branch.branchType != BranchType.MEDICAL_MISSION) {
             throw ValidationException("Medical mission delegate requires a medical mission Branch")
         }
@@ -116,7 +116,7 @@ object MedicalMissionDelegateService {
     }
 
     fun listDelegates(branchId: UUID): List<MedicalMissionDelegate> {
-        val branch = BranchRepository.findById(branchId) ?: throw NotFoundException("Branch not found")
+        val branch = BranchService.findById(branchId)
         if (branch.branchType != BranchType.MEDICAL_MISSION) {
             throw ValidationException("Medical mission delegate requires a medical mission Branch")
         }

@@ -37,8 +37,8 @@ intentionally shallow.
 ## Branch Day
 
 **Owns:** operational-day identity and state (`OPEN`/`PAST`/`REMITTED`), the 04:00 Asia/Manila rollover, lazy status evaluation (an OPEN day before today is PAST), editability/readability gates, remittance-driven day transitions.
-**Anchors:** `service/branchday/BranchDayService.kt`, `service/branchday/BranchDayRepository.kt` (internal).
-**Public seam:** `currentOperationalDate` · `resolveOrCreate` / `getToday` / `findToday` / `findByBranchAndDate` (resolve-or-create vs find-only discipline matters) · `requireBranchDayExists` / `requireBranchDayForBranch` · `checkBranchDayEditable` / `checkBranchDayEditableInTransaction` / `checkBranchDayReadable` · `evaluateStatus` · `markDaysRemittedInTransaction` / `releaseDaysFromRemittanceInTransaction` · `expirationUtc` · `manilaZone`.
+**Anchors:** `branchday/BranchDayService.kt`, `branchday/BranchDayRepository.kt` (internal).
+**Public seam:** `currentOperationalDate` · `resolveOrCreate` / `getToday` / `findToday` / `findByBranchAndDate` (resolve-or-create vs find-only discipline matters) · `findById` / `findByIdInTransaction` (find-only reads) · `lockDayInTransaction` / `findLockedDayInTransaction` (in-transaction lock seam, #536) · `requireBranchDayExists` / `requireBranchDayForBranch` · `checkBranchDayEditable` / `checkBranchDayEditableInTransaction` / `checkBranchDayReadable` · `evaluateStatus` · `markDaysRemittedInTransaction` / `releaseDaysFromRemittanceInTransaction` · `expirationUtc` · `manilaZone`.
 **Depends on:** Capability (`EDIT_PAST_DAY`). Consumed by Session, Attendance, Inventory, Product Sales, Finance, Relief, Remittance, summaries.
 **Expansion triggers:** changing rollover time/timezone or day-state semantics; touching `branch_day` schema/locking; a seam change here justifies enumerating consumers at expansion time via `rg 'checkBranchDayEditable|resolveOrCreate|findToday'` — not preloading them.
 **Tests/authority:** pure functions (`evaluateStatus`, `assertEditableState`) are DB-free unit-tested; backend `AGENTS.md` "HTTP errors & day state"; `docs/architecture.md`.

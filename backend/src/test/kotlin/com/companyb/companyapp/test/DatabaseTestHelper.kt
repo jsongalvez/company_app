@@ -1,6 +1,9 @@
 @file:Suppress("ForbiddenClassName")
 
 package com.companyb.companyapp.test
+import com.companyb.companyapp.branch.BranchTable
+import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -15,8 +18,6 @@ import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
@@ -29,7 +30,6 @@ import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.CapabilityService
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.TestFixtures
 import com.zaxxer.hikari.HikariDataSource
 import kotlinx.serialization.json.Json

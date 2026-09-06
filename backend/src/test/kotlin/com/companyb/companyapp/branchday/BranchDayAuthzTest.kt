@@ -1,6 +1,6 @@
 @file:Suppress("LargeClass")
 
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.branchday
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
@@ -10,7 +10,6 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule

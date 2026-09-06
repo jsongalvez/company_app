@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
@@ -9,7 +10,6 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.model.Allowance
 import com.companyb.companyapp.repository.model.AllowanceCreateParams
 import com.companyb.companyapp.repository.model.AllowanceTable
-import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal

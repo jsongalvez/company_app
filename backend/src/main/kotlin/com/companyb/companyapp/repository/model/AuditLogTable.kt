@@ -1,5 +1,5 @@
 package com.companyb.companyapp.repository.model
-
+import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.domain.AuditAction
 import org.jetbrains.exposed.v1.core.ColumnType
 import org.jetbrains.exposed.v1.core.Table

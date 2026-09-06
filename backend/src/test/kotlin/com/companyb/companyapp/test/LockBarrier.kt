@@ -1,7 +1,7 @@
 package com.companyb.companyapp.test
 
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.repository.SessionRepository
-import com.companyb.companyapp.service.branchday.BranchDayService
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 import java.util.concurrent.Callable

@@ -98,7 +98,7 @@ backend/src/main/kotlin/com/companyb/companyapp/service/UserBranchAssignmentServ
 backend/src/main/kotlin/com/companyb/companyapp/service/attendance/AttendanceRepository.kt:TooManyFunctions
 backend/src/main/kotlin/com/companyb/companyapp/service/attendance/AttendanceRepository.kt:UnreachableCode
 backend/src/main/kotlin/com/companyb/companyapp/service/attendance/AttendanceService.kt:ThrowsCount
-backend/src/main/kotlin/com/companyb/companyapp/service/branchday/BranchDayService.kt:TooManyFunctions
+backend/src/main/kotlin/com/companyb/companyapp/branchday/BranchDayService.kt:TooManyFunctions
 backend/src/main/kotlin/com/companyb/companyapp/service/export/ExportService.kt:TooManyFunctions
 backend/src/main/kotlin/com/companyb/companyapp/service/finance/commission/CommissionService.kt:LongParameterList
 backend/src/main/kotlin/com/companyb/companyapp/service/finance/commission/CommissionService.kt:ReturnCount
@@ -132,7 +132,7 @@ backend/src/main/kotlin/com/companyb/companyapp/service/session/SessionService.k
 backend/src/main/kotlin/com/companyb/companyapp/service/session/SessionService.kt:TooManyFunctions
 backend/src/test/kotlin/com/companyb/companyapp/api/routes/AuditLogAuthzTest.kt:LargeClass
 backend/src/test/kotlin/com/companyb/companyapp/api/routes/AuditLogAuthzTest.kt:LongMethod
-backend/src/test/kotlin/com/companyb/companyapp/api/routes/BranchDayAuthzTest.kt:LargeClass
+backend/src/test/kotlin/com/companyb/companyapp/branchday/BranchDayAuthzTest.kt:LargeClass
 backend/src/test/kotlin/com/companyb/companyapp/api/routes/BranchInventoryAuthzTest.kt:LargeClass
 backend/src/test/kotlin/com/companyb/companyapp/api/routes/FinanceReadBackAuthzTest.kt:LargeClass
 backend/src/test/kotlin/com/companyb/companyapp/api/routes/FinanceReadBackAuthzTest.kt:LongMethod

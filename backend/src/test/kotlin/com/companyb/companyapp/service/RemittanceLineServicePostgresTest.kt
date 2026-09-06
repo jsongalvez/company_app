@@ -1,4 +1,6 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.RemittanceLineType
 import com.companyb.companyapp.domain.RemittanceMethod
@@ -12,7 +14,6 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.ProductCreateParams
 import com.companyb.companyapp.repository.model.ProductSaleTable
@@ -20,7 +21,6 @@ import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittanceDayBreakdown
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.service.inventory.InventoryService

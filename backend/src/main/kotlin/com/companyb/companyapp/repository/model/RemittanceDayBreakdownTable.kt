@@ -1,5 +1,5 @@
 package com.companyb.companyapp.repository.model
-
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.service.finance.remittance.RemittanceDayBreakdown
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID

@@ -1,9 +1,9 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.dto.DailySalesSummaryBrowseResponse
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.DailySalesSummaryRepository
 import com.companyb.companyapp.repository.DailySummaryBrowseCursor
 import com.companyb.companyapp.repository.encodeDailySummaryCursor
@@ -20,8 +20,7 @@ object DailySalesSummaryService {
         branchId: UUID,
         date: LocalDate,
     ): DailySalesSummary {
-        BranchRepository.findById(branchId)
-            ?: throw NotFoundException("Branch not found")
+        BranchService.findById(branchId)
 
         val summary =
             DailySalesSummaryRepository.findByBranchAndDate(branchId, date)
@@ -43,8 +42,7 @@ object DailySalesSummaryService {
         from: LocalDate? = null,
         to: LocalDate? = null,
     ): DailySalesSummaryBrowseResponse {
-        BranchRepository.findById(branchId)
-            ?: throw NotFoundException("Branch not found")
+        BranchService.findById(branchId)
 
         val fetched = DailySalesSummaryRepository.findPagedByBranch(branchId, cursor, limit + 1, from, to)
         val hasMore = fetched.size > limit

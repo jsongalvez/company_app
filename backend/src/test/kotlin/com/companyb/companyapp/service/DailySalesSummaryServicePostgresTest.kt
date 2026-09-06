@@ -1,10 +1,10 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.CommissionSplitTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductSaleTable

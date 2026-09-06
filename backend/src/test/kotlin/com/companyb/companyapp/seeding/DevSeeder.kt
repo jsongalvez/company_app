@@ -1,6 +1,7 @@
 package com.companyb.companyapp.seeding
 
 import com.companyb.companyapp.auth.Password
+import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityContextType
@@ -9,7 +10,6 @@ import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.UserCreateParams
 import com.companyb.companyapp.repository.UserRepository
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable

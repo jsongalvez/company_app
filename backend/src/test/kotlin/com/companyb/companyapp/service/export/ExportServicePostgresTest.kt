@@ -1,4 +1,5 @@
 package com.companyb.companyapp.service.export
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
@@ -10,7 +11,6 @@ import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CommissionSplitTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable

@@ -1,5 +1,7 @@
 package com.companyb.companyapp.service.finance.remittance
 
+import com.companyb.companyapp.branch.BranchService
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.RemittanceLineType
 import com.companyb.companyapp.domain.RemittanceMethod
@@ -8,12 +10,9 @@ import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.findSessionByIdInTransaction
-import com.companyb.companyapp.service.branchday.BranchDayRepository
-import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -128,8 +127,7 @@ object RemittanceService {
         dateRangeStart: LocalDate,
         dateRangeEnd: LocalDate,
     ): Remittance {
-        BranchRepository.findById(branchId)
-            ?: throw NotFoundException("Branch not found")
+        BranchService.findById(branchId)
 
         val today = BranchDayService.currentOperationalDate()
         val result =
@@ -519,13 +517,13 @@ object RemittanceService {
                     }
                 }
             val date =
-                BranchDayRepository.findByIdInTransaction(sourceBranchDayId)?.date
+                BranchDayService.findByIdInTransaction(sourceBranchDayId)?.date
                     ?: throw NotFoundException("Branch day not found")
             RemittancePolicy.assertDateInRange(date, rangeStart, rangeEnd, "Source")
         }
         RemittanceDayBreakdownRepository.findByRemittanceIdInTransaction(remittanceId).forEach { breakdown ->
             val date =
-                BranchDayRepository.findByIdInTransaction(breakdown.branchDayId)?.date
+                BranchDayService.findByIdInTransaction(breakdown.branchDayId)?.date
                     ?: throw NotFoundException("Branch day not found")
             RemittancePolicy.assertDateInRange(date, rangeStart, rangeEnd, "Branch day")
         }
@@ -563,8 +561,7 @@ object RemittanceService {
         branchId: UUID,
         status: RemittanceStatus?,
     ): List<RemittanceWithNet> {
-        BranchRepository.findById(branchId)
-            ?: throw NotFoundException("Branch not found")
+        BranchService.findById(branchId)
         return RemittanceRepository.findByBranchId(branchId, status)
     }
 
@@ -574,8 +571,7 @@ object RemittanceService {
         from: LocalDate,
         to: LocalDate,
     ): List<RemittanceSessionPickerEntry> {
-        BranchRepository.findById(branchId)
-            ?: throw NotFoundException("Branch not found")
+        BranchService.findById(branchId)
         return RemittanceRepository.findSessionsInRange(branchId, from, to)
     }
 
@@ -585,8 +581,7 @@ object RemittanceService {
         from: LocalDate,
         to: LocalDate,
     ): List<RemittanceProductSalePickerEntry> {
-        BranchRepository.findById(branchId)
-            ?: throw NotFoundException("Branch not found")
+        BranchService.findById(branchId)
         return RemittanceRepository.findProductSalesInRange(branchId, from, to)
     }
 
@@ -596,8 +591,7 @@ object RemittanceService {
         from: LocalDate,
         to: LocalDate,
     ): List<RemittanceDayPickerEntry> {
-        BranchRepository.findById(branchId)
-            ?: throw NotFoundException("Branch not found")
+        BranchService.findById(branchId)
         val today = BranchDayService.currentOperationalDate()
         return RemittanceRepository
             .findBranchDaysInRange(branchId, from, to)

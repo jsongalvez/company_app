@@ -3,6 +3,7 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
+import com.companyb.companyapp.branchday.BranchDayRoutes
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.CapabilityCodes

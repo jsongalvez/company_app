@@ -1,6 +1,6 @@
 package com.companyb.companyapp.test
 
-import com.companyb.companyapp.service.branchday.BranchDayService
+import com.companyb.companyapp.branchday.BranchDayService
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.YearMonth

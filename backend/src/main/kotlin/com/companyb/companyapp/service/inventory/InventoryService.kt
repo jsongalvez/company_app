@@ -1,12 +1,13 @@
 package com.companyb.companyapp.service.inventory
 
+import com.companyb.companyapp.branch.BranchService
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchInventoryRepository
-import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.RecordMovementParams
 import com.companyb.companyapp.repository.RecordMovementResult
@@ -16,7 +17,6 @@ import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
 import com.companyb.companyapp.repository.model.InventoryMovement
 import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.Product
-import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
@@ -75,7 +75,7 @@ object InventoryService {
                     return@transaction RecordMovementResult(existingMovement, created = false)
                 }
 
-                if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+                if (BranchService.findByIdOrNull(branchId) == null) throw NotFoundException("Branch not found")
                 BranchDayService.requireBranchDayForBranch(branchDayId, branchId)
 
                 // #518 — day → product → card lock order (shared with ProductSaleService.sell):
@@ -227,7 +227,7 @@ object InventoryService {
         productId: UUID,
     ): BranchInventory =
         transaction {
-            if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+            if (BranchService.findByIdOrNull(branchId) == null) throw NotFoundException("Branch not found")
             requireActiveProductInTransaction(productId)
 
             val result = BranchInventoryRepository.ensureCardInTransaction(branchId, productId)
@@ -256,7 +256,7 @@ object InventoryService {
  */
 internal object InventoryReadSupport {
     fun requireBranchExists(branchId: UUID) {
-        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+        if (BranchService.findByIdOrNull(branchId) == null) throw NotFoundException("Branch not found")
     }
 
     fun breakdownsFromLedger(branchId: UUID): Map<UUID, InventoryBreakdown> =

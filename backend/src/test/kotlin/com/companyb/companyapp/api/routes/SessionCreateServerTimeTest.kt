@@ -3,6 +3,7 @@ package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
+import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -14,7 +15,6 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.service.session.SessionBaseRateService
 import com.companyb.companyapp.service.session.SessionService

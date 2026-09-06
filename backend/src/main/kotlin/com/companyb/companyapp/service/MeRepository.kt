@@ -1,11 +1,11 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.branch.BranchTable
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
