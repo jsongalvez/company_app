@@ -4,10 +4,10 @@ import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.notification.NotificationReads
 import com.companyb.companyapp.repository.ClientNames
 import com.companyb.companyapp.repository.ConcernWithSessionId
 import com.companyb.companyapp.repository.DashboardRepository
-import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.SessionPractitionerWithName
 import com.companyb.companyapp.session.Session
 import com.companyb.companyapp.session.SessionReads
@@ -122,7 +122,7 @@ object DashboardService {
         callerId: UUID,
         sessionId: UUID,
     ): SessionDetailData {
-        if (!NotificationRepository.existsForSessionAndUser(sessionId, callerId)) {
+        if (!NotificationReads.existsForSessionAndUser(sessionId, callerId)) {
             throw NotFoundException("Session not found")
         }
 

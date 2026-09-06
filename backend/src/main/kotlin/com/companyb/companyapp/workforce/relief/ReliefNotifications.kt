@@ -4,8 +4,9 @@ import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.identity.AccountReads
-import com.companyb.companyapp.repository.NotificationRepository
-import com.companyb.companyapp.repository.model.NotificationCreateParams
+import com.companyb.companyapp.notification.NotificationAppender
+import com.companyb.companyapp.notification.NotificationCreateParams
+import com.companyb.companyapp.notification.NotificationReads
 import com.companyb.companyapp.workforce.BranchMemberRepository
 import java.time.LocalDate
 import java.util.UUID
@@ -189,7 +190,7 @@ internal object ReliefNotifications {
         requesterId: UUID,
         context: ReliefEventContext,
     ): Int {
-        val originalPingList = NotificationRepository.findUsersBySource(REQUESTED, requestId)
+        val originalPingList = NotificationReads.findUsersBySource(REQUESTED, requestId)
         if (originalPingList.isEmpty()) return 0
         val requesterName =
             AccountReads.findDisplayNamesByIds(listOf(requesterId))[requesterId] ?: "A user"
@@ -228,7 +229,7 @@ internal object ReliefNotifications {
     )
 
     private fun broadcast(broadcast: ReliefBroadcast): Int =
-        NotificationRepository.insertBatch(
+        NotificationAppender.append(
             broadcast.recipients.distinct().map { recipient ->
                 NotificationCreateParams(
                     sessionId = null,

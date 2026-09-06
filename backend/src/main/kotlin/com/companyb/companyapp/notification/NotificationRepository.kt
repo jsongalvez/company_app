@@ -1,9 +1,9 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.notification
 
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.Notification
-import com.companyb.companyapp.repository.model.NotificationCreateParams
-import com.companyb.companyapp.repository.model.NotificationTable
+import com.companyb.companyapp.notification.NotificationMapper.toNotification
+import com.companyb.companyapp.repository.decodeOpaqueCursor
+import com.companyb.companyapp.repository.encodeOpaqueCursor
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -42,7 +42,7 @@ fun decodeNotificationCursor(raw: String): NotificationHistoryCursor {
     )
 }
 
-object NotificationRepository {
+internal object NotificationRepository {
     // #508 — the write path no longer pre-reads: every occurrence carries a stable key and
     // UNIQUE (dedup_key, user_id) is the dedup guarantee, so concurrent batches and job
     // re-runs collapse to one delivery per recipient atomically (insertIgnore = ON CONFLICT
@@ -254,18 +254,3 @@ object NotificationRepository {
     private const val APPOINTMENT_KEY_PREFIX = "APPT:"
     private const val LEGACY_KEY_PREFIX = "MISC:"
 }
-
-private fun org.jetbrains.exposed.v1.core.ResultRow.toNotification(): Notification =
-    Notification(
-        id = this[NotificationTable.id],
-        sessionId = this[NotificationTable.sessionId],
-        userId = this[NotificationTable.userId],
-        branchId = this[NotificationTable.branchId],
-        message = this[NotificationTable.message],
-        isRead = this[NotificationTable.isRead],
-        readAt = this[NotificationTable.readAt],
-        createdAt = this[NotificationTable.createdAt],
-        eventType = this[NotificationTable.eventType],
-        sourceId = this[NotificationTable.sourceId],
-        targetDate = this[NotificationTable.targetDate],
-    )

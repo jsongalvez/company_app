@@ -13,7 +13,7 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUserTable
-import com.companyb.companyapp.repository.model.NotificationTable
+import com.companyb.companyapp.notification.NotificationTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
@@ -700,13 +700,13 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     }
 
     /** Unread-or-read notification rows owned by [userId] (#358 broadcast assertions). */
-    private fun notificationsFor(userId: UUID): List<com.companyb.companyapp.repository.model.Notification> =
+    private fun notificationsFor(userId: UUID): List<com.companyb.companyapp.notification.Notification> =
         transaction {
             NotificationTable
                 .selectAll()
                 .where { NotificationTable.userId eq userId }
                 .map { row ->
-                    com.companyb.companyapp.repository.model.Notification(
+                    com.companyb.companyapp.notification.Notification(
                         id = row[NotificationTable.id],
                         sessionId = row[NotificationTable.sessionId],
                         userId = row[NotificationTable.userId],

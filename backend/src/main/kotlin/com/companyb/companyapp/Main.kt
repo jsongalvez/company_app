@@ -6,7 +6,6 @@ import com.companyb.companyapp.api.routes.DashboardRoutes
 import com.companyb.companyapp.api.routes.FeedbackRoutes
 import com.companyb.companyapp.api.routes.HealthRoutes
 import com.companyb.companyapp.api.routes.MetricsRoutes
-import com.companyb.companyapp.api.routes.NotificationRoutes
 import com.companyb.companyapp.audit.AuditLogRoutes
 import com.companyb.companyapp.branch.BranchRoutes
 import com.companyb.companyapp.branchday.BranchDayRoutes
@@ -36,6 +35,7 @@ import com.companyb.companyapp.identity.UserRoutes
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
 import com.companyb.companyapp.logging.RequestLog
+import com.companyb.companyapp.notification.NotificationRoutes
 import com.companyb.companyapp.observability.Auto5xxReport
 import com.companyb.companyapp.observability.IncidentDelivery
 import com.companyb.companyapp.observability.IncidentService

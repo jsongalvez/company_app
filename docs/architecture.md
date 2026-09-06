@@ -99,6 +99,7 @@ company-app/
 │       ├── commission/       # Commission engine, split materialization, manual inclusions + local fact-read projection (map #533 #544)
 │       ├── remittance/       # Remittance aggregate, draft/submit/undo commands, internal stores + tables, route adapters; picker reads via Session/Commerce seams (map #533 #545)
 │       ├── reporting/        # Summary projections, cursors, report assembly + CSV/PDF rendering; internal stores + tables, route adapters (map #533 #547)
+│       ├── notification/     # Mailbox, occurrence idempotency, appointment reminders + session-access reads; internal stores + tables, route adapters; NotificationReads/NotificationAppender seams for relief/session-detail (map #533 #550)
 │       ├── config/           # Javalin config, serialization mapper
 │       ├── database/         # HikariCP + Flyway + Exposed setup
 │       ├── logging/          # Logback converters, logging extensions

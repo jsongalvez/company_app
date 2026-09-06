@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.notification
 
 import com.companyb.companyapp.authorization.ActiveUserCapabilitiesView
 import com.companyb.companyapp.authorization.CapabilityTable

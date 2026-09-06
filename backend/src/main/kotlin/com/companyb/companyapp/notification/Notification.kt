@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.notification
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.session.SessionTable
@@ -56,7 +56,7 @@ data class NotificationCreateParams(
     val dedupKey: String? = null,
 )
 
-object NotificationTable : Table("notification") {
+internal object NotificationTable : Table("notification") {
     val id = javaUUID("id").autoGenerate()
     val sessionId = javaUUID("session_id").references(SessionTable.id).nullable()
     val userId = javaUUID("user_id").references(AppUserTable.id)
@@ -74,4 +74,26 @@ object NotificationTable : Table("notification") {
 
     private const val EVENT_TYPE_LENGTH = 50
     private const val DEDUP_KEY_LENGTH = 120
+}
+
+/**
+ * Row mapping lives in its own internal seam (map #533 #550) so the mailbox store stays
+ * within the raw function-count budget without an artificial split (#535 lane): table
+ * knowledge appears only inside `internal` bodies and public surfaces stay table-free.
+ */
+internal object NotificationMapper {
+    fun org.jetbrains.exposed.v1.core.ResultRow.toNotification(): Notification =
+        Notification(
+            id = this[NotificationTable.id],
+            sessionId = this[NotificationTable.sessionId],
+            userId = this[NotificationTable.userId],
+            branchId = this[NotificationTable.branchId],
+            message = this[NotificationTable.message],
+            isRead = this[NotificationTable.isRead],
+            readAt = this[NotificationTable.readAt],
+            createdAt = this[NotificationTable.createdAt],
+            eventType = this[NotificationTable.eventType],
+            sourceId = this[NotificationTable.sourceId],
+            targetDate = this[NotificationTable.targetDate],
+        )
 }

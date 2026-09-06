@@ -5,8 +5,8 @@ import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.NotificationRepository
-import com.companyb.companyapp.repository.model.NotificationTable
+import com.companyb.companyapp.notification.NotificationRepository
+import com.companyb.companyapp.notification.NotificationTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

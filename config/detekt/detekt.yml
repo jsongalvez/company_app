@@ -762,7 +762,7 @@ style:
       - '**/backend/src/test/kotlin/com/companyb/companyapp/client/ClientServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/session/ConcernServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/finance/ExpenseServicePostgresTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/service/NextAppointmentSchedulerPostgresTest.kt' #465 frozen
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/notification/NextAppointmentSchedulerPostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/commerce/ProductSaleServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/workforce/relief/ReliefAccessServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceLineServicePostgresTest.kt' #465 frozen

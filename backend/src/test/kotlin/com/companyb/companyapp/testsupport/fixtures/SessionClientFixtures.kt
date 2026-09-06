@@ -4,7 +4,7 @@ import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
-import com.companyb.companyapp.repository.model.NotificationTable
+import com.companyb.companyapp.notification.NotificationTable
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.eq
@@ -77,7 +77,7 @@ object SessionClientFixtures {
         userId: UUID,
         branchId: UUID,
         dedupKey: String? = null,
-    ): com.companyb.companyapp.repository.model.Notification {
+    ): com.companyb.companyapp.notification.Notification {
         transaction {
             NotificationTable.insert {
                 it[NotificationTable.id] = id
@@ -96,7 +96,7 @@ object SessionClientFixtures {
                 .where { NotificationTable.id eq id }
                 .single()
                 .let { row ->
-                    com.companyb.companyapp.repository.model.Notification(
+                    com.companyb.companyapp.notification.Notification(
                         id = row[NotificationTable.id],
                         sessionId = row[NotificationTable.sessionId],
                         userId = row[NotificationTable.userId],

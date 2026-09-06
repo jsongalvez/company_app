@@ -69,7 +69,7 @@ class TimeOwnershipArchitectureTest {
     fun `scheduler reads the operational day through the Branch Day boundary`() {
         val scheduler =
             File(
-                "backend/src/main/kotlin/com/companyb/companyapp/service/NextAppointmentScheduler.kt",
+                "backend/src/main/kotlin/com/companyb/companyapp/notification/NextAppointmentScheduler.kt",
             ).readText()
         assertTrue(scheduler.contains("ZonedDateTime.now(clock)"), "scheduler reads only its injected clock")
         assertTrue(

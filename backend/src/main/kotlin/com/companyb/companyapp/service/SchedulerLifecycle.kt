@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.notification.NextAppointmentScheduler
 import com.companyb.companyapp.workforce.relief.ReliefInviteReminderJob
 import com.companyb.companyapp.workforce.relief.ReliefRequestExpiryJob
 import io.github.oshai.kotlinlogging.KotlinLogging

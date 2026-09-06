@@ -1,10 +1,11 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.notification
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.NotificationRepository
-import com.companyb.companyapp.repository.model.NotificationCreateParams
-import com.companyb.companyapp.repository.model.NotificationTable
+import com.companyb.companyapp.notification.NotificationCreateParams
+import com.companyb.companyapp.notification.NotificationRepository
+import com.companyb.companyapp.notification.NotificationService
+import com.companyb.companyapp.notification.NotificationTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
@@ -332,7 +333,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
     private fun insertNotificationForNewSession(
         userId: UUID,
         branchId: UUID,
-    ): com.companyb.companyapp.repository.model.Notification {
+    ): com.companyb.companyapp.notification.Notification {
         val newSessionId = TestFixtures.uuid()
         val newClientId = SessionClientFixtures.insertTestClient()
         val newBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
@@ -352,7 +353,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
         userId: UUID,
         branchId: UUID,
         message: String = "Test notification",
-    ): com.companyb.companyapp.repository.model.Notification {
+    ): com.companyb.companyapp.notification.Notification {
         val id = TestFixtures.uuid()
         transaction {
             NotificationTable.insert {
@@ -370,7 +371,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
                 .where { NotificationTable.id eq id }
                 .single()
                 .let { row ->
-                    com.companyb.companyapp.repository.model.Notification(
+                    com.companyb.companyapp.notification.Notification(
                         id = row[NotificationTable.id],
                         sessionId = row[NotificationTable.sessionId],
                         userId = row[NotificationTable.userId],

@@ -9,8 +9,8 @@ import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.notification.NotificationTable
 import com.companyb.companyapp.remittance.RemittanceService
-import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

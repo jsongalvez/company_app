@@ -1,11 +1,11 @@
-package com.companyb.companyapp.service
-
+package com.companyb.companyapp.notification
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
-import com.companyb.companyapp.repository.NotificationRepository
-import com.companyb.companyapp.repository.decodeNotificationCursor
-import com.companyb.companyapp.repository.model.NotificationCreateParams
-import com.companyb.companyapp.repository.model.NotificationTable
+import com.companyb.companyapp.notification.NotificationCreateParams
+import com.companyb.companyapp.notification.NotificationRepository
+import com.companyb.companyapp.notification.NotificationService
+import com.companyb.companyapp.notification.NotificationTable
+import com.companyb.companyapp.notification.decodeNotificationCursor
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

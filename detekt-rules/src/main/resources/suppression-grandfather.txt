@@ -149,7 +149,7 @@ backend/src/test/kotlin/com/companyb/companyapp/commerce/BranchInventoryServiceP
 backend/src/test/kotlin/com/companyb/companyapp/client/ClientServicePostgresTest.kt:LongParameterList
 backend/src/test/kotlin/com/companyb/companyapp/session/ConcernServicePostgresTest.kt:LongParameterList
 backend/src/test/kotlin/com/companyb/companyapp/finance/ExpenseServicePostgresTest.kt:LargeClass
-backend/src/test/kotlin/com/companyb/companyapp/service/NextAppointmentSchedulerPostgresTest.kt:ThrowsCount
+backend/src/test/kotlin/com/companyb/companyapp/notification/NextAppointmentSchedulerPostgresTest.kt:ThrowsCount
 backend/src/test/kotlin/com/companyb/companyapp/commerce/ProductSaleServicePostgresTest.kt:LargeClass
 backend/src/test/kotlin/com/companyb/companyapp/workforce/relief/ReliefAccessServicePostgresTest.kt:LargeClass
 backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceLineServicePostgresTest.kt:LargeClass

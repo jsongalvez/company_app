@@ -7,7 +7,7 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
-import com.companyb.companyapp.service.NotificationService
+import com.companyb.companyapp.notification.NotificationService
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
@@ -142,7 +142,7 @@ class SessionDetailAuthzTest : BasePostgresTest() {
         sessionId: UUID,
         userId: UUID,
         branchId: UUID,
-    ): com.companyb.companyapp.repository.model.Notification {
+    ): com.companyb.companyapp.notification.Notification {
         val notification =
             SessionClientFixtures.insertTestNotification(
                 sessionId = sessionId,

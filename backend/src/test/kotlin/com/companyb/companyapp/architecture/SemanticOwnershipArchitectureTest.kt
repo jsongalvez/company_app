@@ -273,7 +273,7 @@ class SemanticOwnershipArchitectureTest {
 
     @Test
     fun `scheduler reads the operational day through the branch-day boundary`() {
-        val scheduler = sources["service/NextAppointmentScheduler.kt"] ?: error("scheduler missing from tree")
+        val scheduler = sources["notification/NextAppointmentScheduler.kt"] ?: error("scheduler missing from tree")
         assertTrue(scheduler.contains("ZonedDateTime.now(clock)"), "scheduler reads only its injected clock")
         assertTrue(
             scheduler.contains("BranchDayService.currentOperationalDate("),

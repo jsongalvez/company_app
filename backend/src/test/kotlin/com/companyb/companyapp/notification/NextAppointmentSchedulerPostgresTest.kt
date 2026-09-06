@@ -1,13 +1,13 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.notification
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
-import com.companyb.companyapp.repository.NotificationRepository
-import com.companyb.companyapp.repository.model.NotificationCreateParams
-import com.companyb.companyapp.repository.model.NotificationTable
+import com.companyb.companyapp.notification.NotificationCreateParams
+import com.companyb.companyapp.notification.NotificationRepository
+import com.companyb.companyapp.notification.NotificationTable
 import com.companyb.companyapp.session.SessionBaseRateRepository
 import com.companyb.companyapp.session.SessionBaseRateService
 import com.companyb.companyapp.session.SessionService

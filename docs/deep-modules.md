@@ -143,8 +143,12 @@ intentionally shallow.
 ## Dashboard & Notifications
 
 **Owns:** universal post-clock-in dashboard read (enrichment aggregation + live commission replication mirroring the engine), notification-as-authorization session detail (#152), the notification store (occurrence-keyed uniqueness via `(dedup_key, user_id)`), appointment reminder sweep, scheduler lifecycle.
-**Anchors:** `service/dashboard/DashboardService.kt`, `repository/NotificationRepository.kt`, `service/SchedulerLifecycle.kt`.
-**Public seam:** `DashboardService.getToday` / `getSessionDetail` · `NotificationService.listUnread` / `browseHistory` / `countUnread` / `markRead` / `markAllRead` · `NotificationRepository.insertBatch` (the write commands use for broadcasts).
+**Anchors:** `service/dashboard/DashboardService.kt`, `notification/NotificationService.kt` (+ internal `NotificationRepository`, record + internal `NotificationTable` in same package) · `notification/NextAppointmentScheduler.kt` (+ internal `NextAppointmentRepository`) · `notification/NotificationRoutes.kt` · `service/SchedulerLifecycle.kt`.
+**Public seam:** `DashboardService.getToday` / `getSessionDetail` · `NotificationService.listUnread` / `browseHistory` / `countUnread` / `markRead` / `markAllRead` · `NotificationReads.existsForSessionAndUser` / `findUsersBySource` + `NotificationAppender.append` (relief/session-detail reads + broadcasts; service-to-service, no allowlist).
+**Depends on:** Attendance (dashboard gate), Commission (live eligibility replication), Sessions (detail + reminders), Branch Day (scheduler operational dates).
+**Expansion triggers:** occurrence-identity dedup keys (appointment session+target date, relief event+source, revocation `:direct` audience split) under UNIQUE `(dedup_key, user_id)` (#508); ownership-in-WHERE read-state rule (#141).
+**Tests/authority:** backend `AGENTS.md` "Sessions" (dashboard + detail gate exceptions).
+**Search:** `mapDashboardSession`, `existsForSessionAndUser`, `insertBatch`.
 **Depends on:** Attendance (dashboard gate), Commission (live eligibility replication), Sessions (detail + reminders), Branch Day (scheduler operational dates).
 **Expansion triggers:** occurrence-identity dedup keys (appointment session+target date, relief event+source, revocation `:direct` audience split) under UNIQUE `(dedup_key, user_id)` (#508); ownership-in-WHERE read-state rule (#141).
 **Tests/authority:** backend `AGENTS.md` "Sessions" (dashboard + detail gate exceptions).

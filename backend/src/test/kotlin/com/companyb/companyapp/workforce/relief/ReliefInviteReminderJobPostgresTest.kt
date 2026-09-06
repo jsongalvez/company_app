@@ -1,6 +1,6 @@
 package com.companyb.companyapp.workforce.relief
 
-import com.companyb.companyapp.repository.NotificationRepository
+import com.companyb.companyapp.notification.NotificationRepository
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
