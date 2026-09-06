@@ -94,9 +94,10 @@ object ClientService {
         medicalConditions: String?,
     ): Client =
         transaction {
-            // Transaction-local before-state (ADR-0019): read inside the command's transaction.
+            // Locked before-state (#522): SELECT FOR UPDATE serializes concurrent
+            // writers so the audit diff attributes only this actor's changes.
             val before =
-                ClientRepository.findByIdInTransaction(clientId)
+                ClientRepository.acquireLockInTransaction(clientId)
                     ?: throw NotFoundException("Client not found")
 
             val (updatedCount, after) =
