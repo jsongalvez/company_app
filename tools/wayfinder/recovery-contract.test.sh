@@ -36,7 +36,9 @@ for phrase in \
   "never ask the user or invoke the question tool" \
   "approaching the context limit or reaching a concrete blocker with no safe continuation" \
   "park unfinished changes with scripts/wayfinder-park.sh" \
-  "compact pointer packet" ; do
+  "compact pointer packet" \
+  "Wedge self-heal" \
+  "wayfinder-*-handoff.md" ; do
   contains "$tmp" "$phrase" "NUDGE: $phrase"
 done
 

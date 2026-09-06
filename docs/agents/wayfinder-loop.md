@@ -99,6 +99,14 @@ routes human decisions through tracker issues (`needs-info` /
   is work, never a stall.
 - Session-side duties on receiving a recovery prompt are specified in
   `docs/agents/wayfinder-lifecycle.md`.
+- **Wedge self-heal.** The prompt tells a repeatedly-nudged session with no
+  frontier progress to stop re-querying and diagnose the loop itself as the
+  bug (daemon log tail, recorded state, clean worktree, canonical
+  `wayfinder-*-handoff.md` packet name) — fixing the wedge IS the work when
+  the chain is wedged. Packet renames are the classic instance: any other
+  filename is invisible to the watcher and reads as `stopped without handoff`
+  forever, while each re-query counts as tool work and clears the
+  fruitless-attempt budget into an unbounded nudge cycle.
 
 ## Playbook
 
@@ -113,6 +121,7 @@ routes human decisions through tracker issues (`needs-info` /
 | `chain paused` | terminal assistant error (auth/quota-class) or config failure | fix cause, then restart (below) |
 | `transient provider error — sent recovery prompt` | truncated model stream (`provider.invalid-output`) | none — daemon nudges every new failed turn, never pauses |
 | session died without handoff | worker gone before writing its packet | none — daemon respawns fresh for the same packet, unbounded; repeated notifications on one packet = poison packet, inspect manually |
+| repeated `stopped without handoff` + `worked since last recovery` with no handoff detected | wedge: packet invisible (non-canonical filename), dirty tree, or poison packet — each re-query clears the fruitless budget | fix per the prompt's wedge self-heal (canonical `wayfinder-*-handoff.md` name, commit/park, reconcile map vs native state), verify, write the successor packet, stop |
 | nothing new + empty active set | daemon dead | restart (below) |
 
 **Duplicate sessions on one packet** — quiesce the daemon first
