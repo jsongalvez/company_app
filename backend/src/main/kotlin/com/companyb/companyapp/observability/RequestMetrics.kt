@@ -15,12 +15,22 @@ import java.util.concurrent.atomic.AtomicLong
  * `histogram_quantile` — no Micrometer/Prometheus client dependency.
  * Recording is O(buckets) atomic increments, no allocation on the hot path
  * beyond the map lookup; `/metrics` itself is excluded so scrapes never move
- * the traffic leg. Routes are normalized (UUID/numeric segments → `{id}`) to
- * bound label cardinality; the query string never reaches here (`path()`
- * excludes it, so search terms stay out of metrics).
+ * the traffic leg.
+ *
+ * Label cardinality (#521): request labels derive from the finite registered
+ * route templates (`Context.endpoints().matchedHttpEndpoint()`), never from
+ * raw paths — regex replacement of UUID/numeric segments cannot bound
+ * alphabetic 404 probes. Unmatched requests share one [UNMATCHED_ROUTE]
+ * bucket; methods are allowlisted by `RouteLabels.normalizeMethod`.
+ * `normalizeRoute` remains only for incident-packet normalization (user
+ * reports carry client-observed strings with no server-side template); it is
+ * not a metric cardinality bound.
  */
 object RequestMetrics {
     const val OBSERVED_ATTRIBUTE = "requestMetricsObserved"
+
+    /** Fixed bucket for requests that matched no registered route (#521). */
+    const val UNMATCHED_ROUTE = "UNMATCHED"
     private const val STATUS_UNKNOWN = 0
     private const val SERVER_ERROR_THRESHOLD = 500
     private const val MILLIS_PER_SECOND = 1000.0
@@ -74,6 +84,11 @@ object RequestMetrics {
         return numericSegment.replace(noUuid, "/{id}")
     }
 
+    /**
+     * Storage primitive: `route` must already be a bounded label (a
+     * `RouteLabels.routeLabel` template or [UNMATCHED_ROUTE]), never a raw
+     * request path — arbitrary strings here become permanent series.
+     */
     fun observe(
         method: String,
         route: String,
@@ -81,7 +96,7 @@ object RequestMetrics {
         elapsedMs: Long,
     ) {
         if (route == SELF_SCRAPE_PATH || route == ApiRoutes.METRICS) return
-        val key = RouteKey(method, normalizeRoute(route))
+        val key = RouteKey(RouteLabels.normalizeMethod(method), normalizeRoute(route))
         val entry = stats.computeIfAbsent(key) { RouteStats() }
         entry.count.incrementAndGet()
         if (status >= SERVER_ERROR_THRESHOLD) entry.errors.incrementAndGet()
@@ -100,8 +115,11 @@ object RequestMetrics {
     fun observe(context: Context) {
         if (context.attribute<Boolean>(OBSERVED_ATTRIBUTE) == true) return
         context.attribute(OBSERVED_ATTRIBUTE, true)
+        val route = RouteLabels.routeLabel(context)
+        if (route == SELF_SCRAPE_PATH || route == ApiRoutes.METRICS) return
         val status = runCatching { context.statusCode() }.getOrDefault(STATUS_UNKNOWN)
-        observe(context.method().name, context.path(), status, RequestElapsedConverter.currentElapsedMs())
+        val method = RouteLabels.normalizeMethod(context.method().name)
+        observe(method, route, status, RequestElapsedConverter.currentElapsedMs())
     }
 
     fun reset() = stats.clear()
@@ -188,4 +206,31 @@ object RequestMetrics {
         )
         out.append("hikaricp_connections_total ${pool.total}\n")
     }
+}
+
+/**
+ * Bounded metric-label derivation (#521, extracted from `RequestMetrics` to
+ * stay under `TooManyFunctions` — mirrors the #499 `IncidentFields` split).
+ */
+internal object RouteLabels {
+    private const val UNKNOWN_METHOD = "UNKNOWN"
+
+    private val knownMethods = setOf("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")
+
+    fun normalizeMethod(method: String): String {
+        val candidate = method.uppercase()
+        return candidate.takeIf { it in knownMethods } ?: UNKNOWN_METHOD
+    }
+
+    /**
+     * Finite label for one request: the matched route template while a route
+     * matched, else [RequestMetrics.UNMATCHED_ROUTE]. Reads the last matched
+     * HTTP endpoint — `endpoint()` itself is useless here (the wildcard
+     * after-filter), per the same warning in `RequestLog`.
+     */
+    fun routeLabel(context: Context): String =
+        runCatching { context.endpoints().matchedHttpEndpoint()?.path }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: RequestMetrics.UNMATCHED_ROUTE
 }

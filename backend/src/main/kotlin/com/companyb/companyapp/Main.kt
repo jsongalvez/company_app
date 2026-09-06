@@ -52,6 +52,7 @@ import com.companyb.companyapp.observability.Auto5xxReport
 import com.companyb.companyapp.observability.IncidentDelivery
 import com.companyb.companyapp.observability.IncidentService
 import com.companyb.companyapp.observability.RequestMetrics
+import com.companyb.companyapp.observability.RouteLabels
 import com.companyb.companyapp.service.SchedulerLifecycle
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
@@ -231,8 +232,8 @@ private fun registerServerErrorHandler(config: io.javalin.config.JavalinConfig) 
         IncidentService.fileAuto5xx(
             Auto5xxReport(
                 traceId = ctx.attribute<String>(TraceIdFilter.ATTRIBUTE) ?: TRACE_UNKNOWN,
-                method = ctx.method().name,
-                route = ctx.path(),
+                method = RouteLabels.normalizeMethod(ctx.method().name),
+                route = RouteLabels.routeLabel(ctx),
                 status = runCatching { ctx.statusCode() }.getOrDefault(HTTP_INTERNAL_ERROR),
                 elapsedMs = RequestElapsedConverter.currentElapsedMs(),
                 reporterRaw = ctx.attribute<String>("userId"),

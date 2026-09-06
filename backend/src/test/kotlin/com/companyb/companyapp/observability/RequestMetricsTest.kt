@@ -7,11 +7,14 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.RequestElapsedConverter
 import com.companyb.companyapp.logging.RequestLog
 import io.javalin.Javalin
+import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
+import io.javalin.http.UnauthorizedResponse
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.util.UUID
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -169,12 +172,143 @@ class RequestMetricsTest {
     }
 
     @Test
+    fun `unknown methods collapse to one bucket`() {
+        RequestMetrics.observe("BREW", "/api/branches", 200, 1)
+        RequestMetrics.observe("get", "/api/branches", 200, 1)
+        val body = RequestMetrics.render(DatabaseConfig.PoolStats.empty())
+        assertContains(body, "http_requests_total{method=\"UNKNOWN\",route=\"/api/branches\"} 1")
+        assertContains(body, "http_requests_total{method=\"GET\",route=\"/api/branches\"} 1")
+    }
+
+    @Test
+    fun `thousands of distinct unmatched alphabetic paths collapse to one bucket`() {
+        val app =
+            Javalin.create { cfg ->
+                cfg.routes.before { RequestElapsedConverter.startRequest() }
+                cfg.routes.after {
+                    TraceIdFilter.echo(it)
+                    RequestMetrics.observe(it)
+                    RequestLog.complete(it)
+                }
+                cfg.routes.get("/api/widgets/{id}") { it.result("ok") }
+            }
+        app.start(0)
+        try {
+            val client = HttpClient.newHttpClient()
+            repeat(UNMATCHED_PROBE_COUNT) { i ->
+                assertEquals(HTTP_NOT_FOUND, client.get(app.port(), "/missing/${alphaSuffix(i)}").statusCode())
+            }
+            val counts = RequestMetrics.snapshot()
+            assertEquals(1, counts.size, "distinct 404 paths must not grow series: $counts")
+            assertEquals(UNMATCHED_PROBE_COUNT.toLong(), counts["GET" to RequestMetrics.UNMATCHED_ROUTE])
+            val body = RequestMetrics.render(DatabaseConfig.PoolStats.empty())
+            assertTrue(body.lines().count { it.startsWith("http_requests_total{") } == 1, "one counter series")
+        } finally {
+            app.stop()
+        }
+    }
+
+    @Test
+    fun `route stack keeps template labels for parameterized and fixed routes`() {
+        val app =
+            Javalin.create { cfg ->
+                cfg.routes.before { RequestElapsedConverter.startRequest() }
+                cfg.routes.before("/api/gated/*") { throw UnauthorizedResponse() }
+                cfg.routes.after {
+                    TraceIdFilter.echo(it)
+                    RequestMetrics.observe(it)
+                    RequestLog.complete(it)
+                }
+                cfg.routes.get("/api/widgets/search") { it.result("ok") }
+                cfg.routes.get("/api/widgets/{id}") { it.result("ok") }
+                cfg.routes.get("/api/malformed/{id}") { ctx ->
+                    runCatching { UUID.fromString(ctx.pathParam("id")) }
+                        .getOrElse { throw BadRequestResponse("Invalid id") }
+                    ctx.result("ok")
+                }
+            }
+        app.start(0)
+        try {
+            val client = HttpClient.newHttpClient()
+            val uuid = "123e4567-e89b-12d3-a456-426614174000"
+            assertEquals(HTTP_OK, client.get(app.port(), "/api/widgets/$uuid").statusCode())
+            assertEquals(HTTP_OK, client.get(app.port(), "/api/widgets/42").statusCode())
+            assertEquals(HTTP_OK, client.get(app.port(), "/api/widgets/search").statusCode())
+            assertEquals(HTTP_BAD_REQUEST, client.get(app.port(), "/api/malformed/not-a-uuid").statusCode())
+            assertEquals(HTTP_OK, client.get(app.port(), "/api/malformed/$uuid").statusCode())
+            assertEquals(HTTP_UNAUTHORIZED, client.get(app.port(), "/api/gated/door").statusCode())
+            val counts = RequestMetrics.snapshot()
+            assertEquals(2, counts["GET" to "/api/widgets/{id}"])
+            assertEquals(1, counts["GET" to "/api/widgets/search"])
+            assertEquals(2, counts["GET" to "/api/malformed/{id}"])
+            assertEquals(1, counts["GET" to RequestMetrics.UNMATCHED_ROUTE])
+            assertEquals(4, counts.size, "templates plus one unmatched bucket: $counts")
+        } finally {
+            app.stop()
+        }
+    }
+
+    @Test
+    fun `route stack counts errors once in bounded buckets`() {
+        val app =
+            Javalin.create { cfg ->
+                cfg.routes.before { RequestElapsedConverter.startRequest() }
+                cfg.routes.after {
+                    TraceIdFilter.echo(it)
+                    RequestMetrics.observe(it)
+                    RequestLog.complete(it)
+                }
+                cfg.routes.exception(ValidationException::class.java) { e, ctx ->
+                    TraceIdFilter.echo(ctx)
+                    ctx.status(HTTP_BAD_REQUEST).json(mapOf("error" to (e.message ?: "Bad Request")))
+                    RequestMetrics.observe(ctx)
+                    RequestLog.complete(ctx)
+                }
+                cfg.routes.error(HttpStatus.INTERNAL_SERVER_ERROR) { ctx ->
+                    TraceIdFilter.echo(ctx)
+                    ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(mapOf("error" to "Internal Server Error"))
+                    RequestMetrics.observe(ctx)
+                    RequestLog.complete(ctx)
+                }
+                cfg.routes.get("/api/boom-400") { throw ValidationException("bad") }
+                cfg.routes.get("/api/boom-500") { error("boom") }
+            }
+        app.start(0)
+        try {
+            val client = HttpClient.newHttpClient()
+            assertEquals(HTTP_BAD_REQUEST, client.get(app.port(), "/api/boom-400").statusCode())
+            assertEquals(HTTP_INTERNAL_ERROR, client.get(app.port(), "/api/boom-500").statusCode())
+            assertEquals(HTTP_NOT_FOUND, client.get(app.port(), "/missing/alpha").statusCode())
+            assertEquals(HTTP_NOT_FOUND, client.get(app.port(), "/missing/beta").statusCode())
+            val counts = RequestMetrics.snapshot()
+            assertEquals(1, counts["GET" to "/api/boom-400"])
+            assertEquals(1, counts["GET" to "/api/boom-500"])
+            assertEquals(2, counts["GET" to RequestMetrics.UNMATCHED_ROUTE])
+            assertEquals(3, counts.size, "templates plus one unmatched bucket: $counts")
+            val body = RequestMetrics.render(DatabaseConfig.PoolStats.empty())
+            assertContains(body, "http_request_errors_total{method=\"GET\",route=\"/api/boom-500\"} 1")
+        } finally {
+            app.stop()
+        }
+    }
+
+    @Test
     fun `recording overhead stays negligible on hot paths`() {
         val (_, duration) =
             measureTimedValue {
                 repeat(RECORDING_ITERATIONS) { RequestMetrics.observe("GET", "/api/branches", 200, 1) }
             }
         assertTrue(duration.inWholeMilliseconds < RECORDING_BUDGET_MS, "5k records took $duration")
+    }
+
+    private fun alphaSuffix(index: Int): String {
+        var rest = index
+        val out = StringBuilder()
+        do {
+            out.append('a' + rest % ALPHA_BASE)
+            rest /= ALPHA_BASE
+        } while (rest > 0)
+        return out.toString()
     }
 
     private fun HttpClient.get(
@@ -204,6 +338,10 @@ class RequestMetricsTest {
         const val RECORDING_BUDGET_MS = 2000L
         const val HTTP_OK = 200
         const val HTTP_BAD_REQUEST = 400
+        const val HTTP_UNAUTHORIZED = 401
+        const val HTTP_NOT_FOUND = 404
         const val HTTP_INTERNAL_ERROR = 500
+        const val UNMATCHED_PROBE_COUNT = 2000
+        const val ALPHA_BASE = 26
     }
 }
