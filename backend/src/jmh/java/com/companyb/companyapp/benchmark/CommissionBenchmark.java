@@ -1,6 +1,6 @@
 package com.companyb.companyapp.benchmark;
 
-import com.companyb.companyapp.service.finance.commission.CommissionService;
+import com.companyb.companyapp.commission.CommissionService;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;

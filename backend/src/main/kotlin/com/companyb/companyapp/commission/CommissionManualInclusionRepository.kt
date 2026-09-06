@@ -1,9 +1,5 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.commission
 
-import com.companyb.companyapp.repository.model.CommissionManualInclusion
-import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
-import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertParams
-import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertResult
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -14,7 +10,7 @@ import org.jetbrains.exposed.v1.jdbc.update
 import java.time.OffsetDateTime
 import java.util.UUID
 
-object CommissionManualInclusionRepository {
+internal object CommissionManualInclusionRepository {
     /**
      * In-transaction store operation (#323, ADR-0024) — upserts the manual inclusion on the
      * caller's command transaction and reports whether a row pre-existed so the command can

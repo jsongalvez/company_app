@@ -6,11 +6,11 @@ import com.companyb.companyapp.commerce.InventoryMovementTable
 import com.companyb.companyapp.commerce.ProductSaleRepository
 import com.companyb.companyapp.commerce.ProductSaleTable
 import com.companyb.companyapp.commerce.ProductTable
+import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.service.finance.commission.CommissionService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

@@ -9,7 +9,7 @@ backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogRoutes.kt:ThrowsCo
 backend/src/main/kotlin/com/companyb/companyapp/commerce/BranchInventoryRoutes.kt:LongMethod
 backend/src/main/kotlin/com/companyb/companyapp/commerce/BranchInventoryRoutes.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/client/ClientRoutes.kt:ThrowsCount
-backend/src/main/kotlin/com/companyb/companyapp/api/routes/CommissionRoutes.kt:ThrowsCount
+backend/src/main/kotlin/com/companyb/companyapp/commission/CommissionRoutes.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/CompensationRoutes.kt:LongMethod
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/CompensationRoutes.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/DailySalesSummaryRoutes.kt:ThrowsCount
@@ -100,9 +100,9 @@ backend/src/main/kotlin/com/companyb/companyapp/workforce/AttendanceRepository.k
 backend/src/main/kotlin/com/companyb/companyapp/workforce/AttendanceService.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/branchday/BranchDayService.kt:TooManyFunctions
 backend/src/main/kotlin/com/companyb/companyapp/service/export/ExportService.kt:TooManyFunctions
-backend/src/main/kotlin/com/companyb/companyapp/service/finance/commission/CommissionService.kt:LongParameterList
-backend/src/main/kotlin/com/companyb/companyapp/service/finance/commission/CommissionService.kt:ReturnCount
-backend/src/main/kotlin/com/companyb/companyapp/service/finance/commission/CommissionService.kt:ThrowsCount
+backend/src/main/kotlin/com/companyb/companyapp/commission/CommissionService.kt:LongParameterList
+backend/src/main/kotlin/com/companyb/companyapp/commission/CommissionService.kt:ReturnCount
+backend/src/main/kotlin/com/companyb/companyapp/commission/CommissionService.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/service/finance/remittance/RemittanceDayBreakdownRepository.kt:UnreachableCode
 backend/src/main/kotlin/com/companyb/companyapp/service/finance/remittance/RemittanceFinancialSnapshotRepository.kt:UnreachableCode
 backend/src/main/kotlin/com/companyb/companyapp/service/finance/remittance/RemittanceLineRepository.kt:TooManyFunctions

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.commission
 
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
@@ -12,7 +12,7 @@ data class CommissionSplit(
     val amount: BigDecimal,
 )
 
-object CommissionSplitTable : Table("commission_split") {
+internal object CommissionSplitTable : Table("commission_split") {
     private const val AMOUNT_PRECISION = 15
     private const val AMOUNT_SCALE = 4
 

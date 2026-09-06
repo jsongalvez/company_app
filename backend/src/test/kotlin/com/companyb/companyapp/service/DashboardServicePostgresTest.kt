@@ -1,9 +1,9 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.commission.CommissionManualInclusionRepository
+import com.companyb.companyapp.commission.CommissionManualInclusionUpsertParams
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.CommissionManualInclusionRepository
-import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertParams
 import com.companyb.companyapp.service.NotificationService
 import com.companyb.companyapp.service.dashboard.DashboardService
 import com.companyb.companyapp.session.SessionPractitionerTable

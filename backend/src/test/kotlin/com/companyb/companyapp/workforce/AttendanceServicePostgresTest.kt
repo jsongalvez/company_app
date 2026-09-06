@@ -2,11 +2,11 @@ package com.companyb.companyapp.workforce
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.service.finance.commission.CommissionService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

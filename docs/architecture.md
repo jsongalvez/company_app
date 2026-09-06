@@ -95,6 +95,7 @@ company-app/
 │       ├── client/           # Client records, patch policy, anonymization + session lock/read seam (map #533 #541)
 │       ├── session/          # Session aggregate, practitioners, concerns/promotion, void state, rates + preview; SessionReads seam for commerce/remittance/dashboard/authz/client (map #533 #542)
 │       ├── commerce/         # Catalog, stock ledger, product-sale cluster + CommerceReads seam for commission/remittance (map #533 #543)
+│       ├── commission/       # Commission engine, split materialization, manual inclusions + local fact-read projection (map #533 #544)
 │       ├── config/           # Javalin config, serialization mapper
 │       ├── database/         # HikariCP + Flyway + Exposed setup
 │       ├── logging/          # Logback converters, logging extensions

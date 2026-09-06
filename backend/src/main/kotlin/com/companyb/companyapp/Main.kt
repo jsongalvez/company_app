@@ -3,7 +3,6 @@ package com.companyb.companyapp
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.TraceIdFilter
 import com.companyb.companyapp.api.routes.AllowanceRoutes
-import com.companyb.companyapp.api.routes.CommissionRoutes
 import com.companyb.companyapp.api.routes.CompensationRoutes
 import com.companyb.companyapp.api.routes.DailySalesSummaryRoutes
 import com.companyb.companyapp.api.routes.DashboardRoutes
@@ -24,6 +23,7 @@ import com.companyb.companyapp.commerce.BranchInventoryRoutes
 import com.companyb.companyapp.commerce.ProductCategoryRoutes
 import com.companyb.companyapp.commerce.ProductRoutes
 import com.companyb.companyapp.commerce.ProductSaleRoutes
+import com.companyb.companyapp.commission.CommissionRoutes
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.config.OpenApiCanonical

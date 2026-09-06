@@ -1,13 +1,9 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.commission
 
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.commerce.ProductSaleTable
 import com.companyb.companyapp.domain.DayStatus
-import com.companyb.companyapp.repository.CommissionManualInclusionRepository
-import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertParams
 import com.companyb.companyapp.service.dashboard.DashboardService
-import com.companyb.companyapp.service.finance.commission.CommissionService
-import com.companyb.companyapp.service.finance.commission.CommissionShare
 import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

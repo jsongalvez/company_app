@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service.finance.commission
+package com.companyb.companyapp.commission
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
@@ -7,12 +7,6 @@ import com.companyb.companyapp.commerce.CommerceReads
 import com.companyb.companyapp.commerce.ProductSale
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.CommissionManualInclusionRepository
-import com.companyb.companyapp.repository.CommissionSplitRepository
-import com.companyb.companyapp.repository.model.CommissionManualInclusion
-import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
-import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertParams
-import com.companyb.companyapp.repository.model.CommissionSplit
 import com.companyb.companyapp.workforce.Attendance
 import com.companyb.companyapp.workforce.AttendanceRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -218,16 +212,14 @@ object CommissionService {
 
     /**
      * Single batched aggregation (#497) serving both the persisted recalculation and the live
-     * card: one read each of the day's non-voided sales, attendance windows and manual
-     * inclusions, grouped once by sale. Runs on the caller's transaction so enclosing commands
-     * observe their own uncommitted writes.
+     * card: the local read projection loads the day's facts once, then [aggregateShares] groups
+     * them by sale. Runs on the caller's transaction so enclosing commands observe their own
+     * uncommitted writes.
      */
     internal fun computeTotalsInTransaction(branchDayId: UUID): Map<UUID, CommissionShare> {
-        val sales = CommerceReads.findNonVoidedSalesByBranchDayInTransaction(branchDayId)
-        if (sales.isEmpty()) return emptyMap()
-        val attendance = AttendanceRepository.findByBranchDayIdInTransaction(branchDayId)
-        val inclusions = CommissionManualInclusionRepository.findBySaleIdsInTransaction(sales.map { it.id })
-        return aggregateShares(sales, attendance, inclusions)
+        val facts = CommissionFactReads.loadDayFactsInTransaction(branchDayId)
+        if (facts.sales.isEmpty()) return emptyMap()
+        return aggregateShares(facts.sales, facts.attendance, facts.inclusions)
     }
 
     fun manualRecalculate(branchDayId: UUID) {
@@ -239,6 +231,29 @@ object CommissionService {
         if (failAfterReplacementForTests) {
             error("injected commission trigger failure")
         }
+    }
+}
+
+/**
+ * Local batched read projection (map #533 #544): the day's commission facts in one pass —
+ * non-voided sales through the commerce seam, attendance windows through the recorded
+ * workforce read grant, manual inclusions from the internal store. Read-only on the caller's
+ * transaction; it never calls attendance/commerce commands and never mutates their stores.
+ * Batching is unchanged: one query per fact family, inclusions skipped when no sales exist.
+ */
+internal data class CommissionDayFacts(
+    val sales: List<ProductSale>,
+    val attendance: List<Attendance>,
+    val inclusions: List<CommissionManualInclusion>,
+)
+
+internal object CommissionFactReads {
+    fun loadDayFactsInTransaction(branchDayId: UUID): CommissionDayFacts {
+        val sales = CommerceReads.findNonVoidedSalesByBranchDayInTransaction(branchDayId)
+        if (sales.isEmpty()) return CommissionDayFacts(emptyList(), emptyList(), emptyList())
+        val attendance = AttendanceRepository.findByBranchDayIdInTransaction(branchDayId)
+        val inclusions = CommissionManualInclusionRepository.findBySaleIdsInTransaction(sales.map { it.id })
+        return CommissionDayFacts(sales, attendance, inclusions)
     }
 }
 

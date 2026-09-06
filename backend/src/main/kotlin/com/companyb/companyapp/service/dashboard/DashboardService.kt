@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service.dashboard
 
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.ClientNames
@@ -8,7 +9,6 @@ import com.companyb.companyapp.repository.ConcernWithSessionId
 import com.companyb.companyapp.repository.DashboardRepository
 import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.SessionPractitionerWithName
-import com.companyb.companyapp.service.finance.commission.CommissionService
 import com.companyb.companyapp.session.Session
 import com.companyb.companyapp.session.SessionReads
 import com.companyb.companyapp.workforce.AttendanceService

@@ -506,7 +506,7 @@ style:
       - '**/api/routes/CompensationRoutes.kt'
       - '**/commerce/BranchInventoryRoutes.kt'
       - '**/api/routes/RemittanceRoutes.kt'
-      - '**/api/routes/CommissionRoutes.kt'
+      - '**/commission/CommissionRoutes.kt'
 
   UnusedPrivateProperty:
     active: true

@@ -1,7 +1,5 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.commission
 
-import com.companyb.companyapp.repository.model.CommissionSplit
-import com.companyb.companyapp.repository.model.CommissionSplitTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -15,7 +13,7 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
-object CommissionSplitRepository {
+internal object CommissionSplitRepository {
     fun findByBranchDayId(branchDayId: UUID): List<CommissionSplit> =
         transaction {
             CommissionSplitTable

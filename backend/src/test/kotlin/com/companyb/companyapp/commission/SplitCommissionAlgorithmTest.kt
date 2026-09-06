@@ -1,6 +1,5 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.commission
 
-import com.companyb.companyapp.service.finance.commission.CommissionService
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals

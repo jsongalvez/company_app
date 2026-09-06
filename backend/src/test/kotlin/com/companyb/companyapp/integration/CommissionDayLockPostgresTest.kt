@@ -2,13 +2,13 @@ package com.companyb.companyapp.integration
 
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.commission.CommissionManualInclusionRepository
+import com.companyb.companyapp.commission.CommissionManualInclusionTable
+import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ForbiddenException
-import com.companyb.companyapp.repository.CommissionManualInclusionRepository
-import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
-import com.companyb.companyapp.service.finance.commission.CommissionService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

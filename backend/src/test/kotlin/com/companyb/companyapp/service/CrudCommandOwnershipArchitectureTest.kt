@@ -55,8 +55,8 @@ class CrudCommandOwnershipArchitectureTest {
                 "commerce/ProductSaleRepository.kt" to 2,
                 "commerce/BranchInventoryRepository.kt" to 4,
                 // Batch 6 — commission cluster.
-                "repository/CommissionSplitRepository.kt" to 1,
-                "repository/CommissionManualInclusionRepository.kt" to 3,
+                "commission/CommissionSplitRepository.kt" to 1,
+                "commission/CommissionManualInclusionRepository.kt" to 3,
             )
         files.forEach { (file, expectedBlocks) ->
             val source = mainSource(file)
@@ -102,7 +102,7 @@ class CrudCommandOwnershipArchitectureTest {
                 // Batch 6 — commission cluster. recalculate remains the standalone entry point
                 // (manualRecalculate); sell/clock-in/clock-out call recalculateInTransaction
                 // inside their own commands instead of nesting this module's write block.
-                "service/finance/commission/CommissionService.kt" to
+                "commission/CommissionService.kt" to
                     listOf("createManualInclusion", "recalculate"),
             )
         commands.forEach { (file, names) ->
@@ -145,7 +145,7 @@ class CrudCommandOwnershipArchitectureTest {
                 "commerce/ProductSaleService.kt" to "ProductSaleAudit",
                 "commerce/InventoryService.kt" to "BranchInventoryAudit",
                 // Batch 6 — commission cluster.
-                "service/finance/commission/CommissionService.kt" to "CommissionAudit",
+                "commission/CommissionService.kt" to "CommissionAudit",
             )
         seams.forEach { (file, seam) ->
             val source = mainSource(file)

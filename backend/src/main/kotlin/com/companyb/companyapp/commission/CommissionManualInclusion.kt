@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.commission
 
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
@@ -32,7 +32,7 @@ data class CommissionManualInclusionUpsertResult(
     val inclusion: CommissionManualInclusion,
 )
 
-object CommissionManualInclusionTable : Table("commission_manual_inclusion") {
+internal object CommissionManualInclusionTable : Table("commission_manual_inclusion") {
     val id = javaUUID("id").autoGenerate()
     val productSaleId = javaUUID("product_sale_id")
     val userId = javaUUID("user_id")
