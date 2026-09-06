@@ -142,7 +142,7 @@ intentionally shallow.
 
 ## Dashboard & Notifications
 
-**Owns:** universal post-clock-in dashboard read (enrichment aggregation + live commission replication mirroring the engine), notification-as-authorization session detail (#152), the notification store (event identity without schema uniqueness), appointment reminder sweep, scheduler lifecycle.
+**Owns:** universal post-clock-in dashboard read (enrichment aggregation + live commission replication mirroring the engine), notification-as-authorization session detail (#152), the notification store (occurrence-keyed uniqueness via `(dedup_key, user_id)`), appointment reminder sweep, scheduler lifecycle.
 **Anchors:** `service/dashboard/DashboardService.kt`, `repository/NotificationRepository.kt`, `service/SchedulerLifecycle.kt`.
 **Public seam:** `DashboardService.getToday` / `getSessionDetail` · `NotificationService.listUnread` / `browseHistory` / `countUnread` / `markRead` / `markAllRead` · `NotificationRepository.insertBatch` (the write commands use for broadcasts).
 **Depends on:** Attendance (dashboard gate), Commission (live eligibility replication), Sessions (detail + reminders), Branch Day (scheduler operational dates).
@@ -177,9 +177,8 @@ Not a semantic module — read only when the ticket touches it directly:
 `exception/ServiceExceptions.kt`, `api/routes/RoutesUtil.kt` (parsing/keyset limits),
 `database/DatabaseConfig.kt` + `DatabaseHealth.kt`, `config/AppConfig.kt`,
 `logging/*` converters, `repository/model/*` Exposed tables/views (schema work only —
-`V1__full_schema.sql` (squashed baseline, #370), seed migrations, and live
-post-baseline migrations in `backend/src/main/resources/db/migration/` are the
-current-schema authority).
+`V1__full_schema.sql` (squashed baseline, #370/#461/#548) and `V2` seeds in
+`backend/src/main/resources/db/migration/` are the current-schema authority).
 
 ## Adding a module
 

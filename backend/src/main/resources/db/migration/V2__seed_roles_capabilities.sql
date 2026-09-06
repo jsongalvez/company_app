@@ -3,8 +3,9 @@
 -- Seed: roles, capability codes, and role_capability assignments. Holds ALL
 -- seeds (squashed #461): base V2 bundle + V5 scheduler capability +
 -- V22 session-base-rate backfill data + V26 catalog capability.
--- Fresh databases migrate from V1+V2 alone; the folded files (V5, V20–V27)
--- are deleted and must not be resurrected.
+-- Fresh databases migrate from V1+V2 alone (#548: V1 now also folds the retired
+-- V3–V5 structure; V6 was a data-only backfill with no surviving structure); the
+-- folded files (V5, V20–V27, V3–V6) are deleted and must not be resurrected.
 --
 -- RULES (from architecture_implementation_plan.md A1, A2):
 --   - Role names are constants. Never add a role at runtime.

@@ -16,13 +16,16 @@ Before coding, read the relevant doc(s):
 
 ## Schema
 
-`V1__full_schema.sql` (structural baseline: #370 squash, #461 refold of V20/V21/V23/V24/V25/V26/V27
-structure + V22 `effective_from` default) and `V2__seed_roles_capabilities.sql` (all seeds: base
+`V1__full_schema.sql` (structural baseline: #370 squash, #461 refold, #548 refold
+absorbing retired V3 pg_stat_statements / V4 credential_version / V5 notification
+dedup-index structure; V6 data-only backfill retired with no surviving structure)
+and `V2__seed_roles_capabilities.sql` (all seeds: base
 bundle + V5 scheduler capability + V22 base-rate backfill data + V26 catalog capability) in
-`backend/src/main/resources/db/migration/` are the authoritative current schema — the V1+V2
-baseline plus live add-ons on top (V3 pg_stat_statements, #474). Inspect V1+V2 when reasoning about schema; evolve by adding new versioned migrations on top.
+`backend/src/main/resources/db/migration/` are the authoritative current schema — V1+V2 alone.
+Inspect V1+V2 when reasoning about schema; evolve by adding new versioned migrations on top.
 Existing dev/test databases are rebuilt from V1+V2 (no production database exists); never resurrect
-the folded files.
+the folded files. Databases carrying retired V3–V6 history fail Flyway validation —
+reset them via docs/architecture.md §10, never Flyway-repair the history to match.
 
 Package root: `com.companyb.companyapp`. Layers: `api/routes`, `api/middleware`, `service`, `repository`
 (+ `repository/model` for Exposed `Table` objects), `auth`, `database`, `logging`.

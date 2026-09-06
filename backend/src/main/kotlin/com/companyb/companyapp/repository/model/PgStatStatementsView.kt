@@ -3,7 +3,7 @@ package com.companyb.companyapp.repository.model
 import org.jetbrains.exposed.v1.core.Table
 
 /**
- * Read-only view over the pg_stat_statements extension (#474, V3 migration).
+ * Read-only view over the pg_stat_statements extension (#474, folded into the V1 baseline #548).
  * Never insert/update/delete against it. The `query` column holds normalized
  * statement text (literals replaced with $n placeholders), so bound values
  * never appear here.

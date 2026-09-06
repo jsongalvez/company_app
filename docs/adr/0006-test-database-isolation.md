@@ -49,7 +49,7 @@ already-existing worker schema (random collision fails loudly instead of sharing
 Extensions (`btree_gist`, `pg_trgm`, `pg_stat_statements`) are initialized once in the
 stable `public` schema under a `pg_advisory_xact_lock` before the worker migration, and
 placement is verified (`pg_extension` must report `public`) rather than silently
-relocated — so `V1`/`V3` `CREATE EXTENSION IF NOT EXISTS` stays a no-op inside the
+relocated — so `V1`'s `CREATE EXTENSION IF NOT EXISTS` stays a no-op inside the
 worker migration and dropping a worker schema cannot remove objects another worker
 needs. Parallel first-use initialization serializes on the advisory lock.
 

@@ -1,5 +1,5 @@
 -- =============================================================================
--- V1__full_schema.sql — canonical structural baseline (squashed #370, refolded #461)
+-- V1__full_schema.sql — canonical structural baseline (squashed #370, refolded #461, refolded #548)
 --
 -- Single source of truth for the effective current schema. The former incremental
 -- chain (V4, V6–V13, V15–V27) is folded into this file at its final shape; all
@@ -10,16 +10,26 @@
 -- active_user_capabilities view (V26 final shape), V22 session_base_rate
 -- effective_from DEFAULT now(), V23 session.is_voided + pending-index predicate,
 -- V24 idx_session_client_id, V27 session.created_by.
+-- #548 refold: V3 pg_stat_statements extension, V4 app_user.credential_version,
+-- V5 notification.dedup_key + mailbox indexes. V6 was a data-only backfill with
+-- no surviving structure (fresh databases hold no legacy rows); its live rule
+-- stays in AuditLogRepository.redactClientNamesInTransaction, not in schema.
 --
 -- This squash deliberately supersedes the "never edit a committed migration"
 -- rule (docs/architecture.md §10): no production database exists and every
 -- dev/test database is rebuilt from this baseline (#370 safety gate, #461
--- two-file squash). Do not resurrect the folded files; evolve the schema by
--- adding new migrations on top again.
+-- two-file squash, #548 refold). Do not resurrect the folded files; evolve the schema by
+-- adding new migrations on top again. Databases migrated with the retired
+-- V3–V6 chain are incompatible with this baseline — reset them through the
+-- documented workflow; never Flyway-repair the history to match.
 -- =============================================================================
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
+-- V3 fold (#474/#548): extension presence only. Accumulation starts solely via
+-- server preload (shared_preload_libraries, postmaster restart) — see
+-- docker/docker-compose.yml, .github/workflows/quality.yml, docs/slow-query-runbook.md.
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 
 -- ----------------------------
 -- ENUMS
@@ -62,7 +72,11 @@ CREATE TABLE app_user (
     deactivated_at TIMESTAMPTZ,
     -- JWT revocation independent from reversible deactivation (#132/#350 era):
     -- persisted boundary so server-restart cache repopulation survives Reactivate.
-    jwt_revoked_at TIMESTAMPTZ
+    jwt_revoked_at TIMESTAMPTZ,
+    -- V4 fold (#505/#548): credential generation binding token issuance to password
+    -- verification; incremented on every password-hash replacement, embedded as the
+    -- `cred_ver` JWT claim and checked in UserRepository.authorize.
+    credential_version BIGINT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE role (
@@ -634,6 +648,9 @@ CREATE INDEX idx_audit_branch  ON audit_log (branch_id) WHERE branch_id IS NOT N
 -- the branch day a non-session notification points at (client deep-links to the
 -- dashboard scoped to branch_id+target_date). Session appointment reminders keep
 -- session_id routing and leave all three columns NULL.
+-- V5 fold (#508/#548): every row carries the stable occurrence key (dedup_key);
+-- UNIQUE (dedup_key, user_id) is the durable idempotency guarantee. The V5
+-- legacy-row backfill is retired — fresh databases hold no legacy rows.
 -- ----------------------------
 
 CREATE TABLE notification (
@@ -649,11 +666,29 @@ CREATE TABLE notification (
     message    TEXT        NOT NULL,
     event_type VARCHAR(50),
     source_id  UUID,
-    target_date DATE
+    target_date DATE,
+    dedup_key  VARCHAR(120) NOT NULL
 );
 
 CREATE INDEX idx_notification_unread
     ON notification (user_id) WHERE is_read = false;
+
+-- V5 fold: durable idempotency + mailbox lookup paths.
+CREATE UNIQUE INDEX uq_notification_dedup_user
+    ON notification (dedup_key, user_id);
+
+-- Recipient/time lookup path: permanent-history keyset pagination over
+-- (created_at DESC, id DESC) per recipient.
+CREATE INDEX idx_notification_history
+    ON notification (user_id, created_at DESC, id DESC);
+
+-- Event lookup path: scheduler/job marker reads and ping-list resolution.
+CREATE INDEX idx_notification_event_source
+    ON notification (event_type, source_id) WHERE event_type IS NOT NULL;
+
+-- Bearer lookup path: notification-as-authorization session-detail read (#152).
+CREATE INDEX idx_notification_session_user
+    ON notification (session_id, user_id) WHERE session_id IS NOT NULL;
 
 -- ----------------------------
 -- VIEWS

@@ -32,7 +32,6 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import org.junit.ClassRule
-import java.io.File
 import java.time.OffsetDateTime
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
@@ -200,22 +199,54 @@ class ClientAnonymizationRedactionPostgresTest : BasePostgresTest() {
         assertEquals(AuditValues.NULL, DatabaseTestHelper.extractJsonField(legacyNew, "lastName"))
     }
 
+    /**
+     * #548 — the V6 backfill file is retired (fresh databases hold no legacy
+     * rows), so this pins the same contract against the live redaction path
+     * instead of a migration filename: only client-table name keys become the
+     * shared [AuditValues.REDACTED] marker, same-record rows of other tables
+     * survive untouched, and no row is ever added or removed.
+     */
     @Test
-    fun `migration redacts only anonymized clients name keys`() {
-        val migration =
-            File("backend/src/main/resources/db/migration/V6__anonymized_client_audit_redaction.sql").readText()
+    fun `live redaction scopes to client name keys and never deletes`() {
+        createClient(firstName = LEGACY_FIRST, lastName = LEGACY_LAST)
+        transaction {
+            AuditLogTable.insert {
+                it[AuditLogTable.auditTableName] = "branch"
+                it[AuditLogTable.recordId] = clientId
+                it[AuditLogTable.action] = AuditAction.UPDATE
+                it[AuditLogTable.changedBy] = callerId
+                it[AuditLogTable.oldValue] =
+                    "{\"id\":\"$clientId\",\"firstName\":\"$LEGACY_FIRST\",\"lastName\":\"$LEGACY_LAST\"}"
+                it[AuditLogTable.newValue] =
+                    "{\"id\":\"$clientId\",\"firstName\":\"$LEGACY_FIRST\",\"lastName\":\"$LEGACY_LAST\"}"
+            }
+        }
+        val idsBefore = auditRowIds()
+        val rowsBefore = idsBefore.size
 
-        assertTrue(migration.contains("\"${AuditValues.REDACTED}\""), "migration marker must match AuditValues")
-        assertTrue(migration.contains("deleted_at IS NOT NULL"), "migration scopes to anonymized clients")
-        assertTrue(migration.contains("table_name = 'client'"), "migration scopes to the client table")
-        assertTrue(migration.contains("firstName") && migration.contains("lastName"), "migration covers name keys")
-        assertFalse(migration.contains("DELETE FROM"), "redaction never deletes audit rows")
-        val updatedTables =
-            migration.lines().map { it.trim() }.filter { it.startsWith("UPDATE ") }
-        assertEquals(
-            listOf("UPDATE audit_log", "UPDATE audit_log"),
-            updatedTables,
-            "only audit_log rows are rewritten — snapshots and domain tables untouched",
+        transaction {
+            AuditLogRepository.redactClientNamesInTransaction(clientId)
+        }
+
+        assertEquals(idsBefore, auditRowIds(), "redaction rewrites rows in place — same rows, no adds or deletes")
+        assertEquals(rowsBefore, auditRowCount(), "redaction never adds or removes events")
+        val clientPayloads = auditEntries().joinToString("") { it.oldValue.orEmpty() + it.newValue.orEmpty() }
+        assertFalse(clientPayloads.contains(LEGACY_FIRST), "client first name survived: $clientPayloads")
+        assertFalse(clientPayloads.contains(LEGACY_LAST), "client last name survived: $clientPayloads")
+        assertTrue(clientPayloads.contains(AuditValues.REDACTED), "redaction marker must match AuditValues")
+        val outsiderPayloads =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq "branch") and
+                            (AuditLogTable.recordId eq clientId)
+                    }.map { (it[AuditLogTable.oldValue].orEmpty() + it[AuditLogTable.newValue].orEmpty()) }
+                    .joinToString("")
+            }
+        assertTrue(
+            outsiderPayloads.contains(LEGACY_FIRST) && outsiderPayloads.contains(LEGACY_LAST),
+            "same-record rows of other tables must survive redaction untouched",
         )
     }
 
@@ -327,6 +358,16 @@ class ClientAnonymizationRedactionPostgresTest : BasePostgresTest() {
         val gender: Gender,
         val age: Int,
     )
+
+    private fun auditRowCount(): Int =
+        transaction {
+            AuditLogTable.selectAll().count().toInt()
+        }
+
+    private fun auditRowIds(): Set<UUID> =
+        transaction {
+            AuditLogTable.selectAll().map { it[AuditLogTable.id] }.toSet()
+        }
 
     private fun persistedClient(): PersistedClient =
         transaction {

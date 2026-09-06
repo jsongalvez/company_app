@@ -96,7 +96,7 @@ constraint, unexpected runtime behavior.
 | Material | Open when | How |
 |---|---|---|
 | Tests | they define/validate the behavior being changed | search test names for the symbol under change; open the hit, not the directory |
-| Schema/migrations (`backend/src/main/resources/db/migration/`) | change affects persisted shape, constraints, locking, transactions, defaults, views, DB behavior | `V1__full_schema.sql` is the squashed canonical structural baseline (#370), followed by seed migrations and live post-baseline add-ons (`V20` onward). Read V1 directly, then the add-ons that touch the behavior. |
+| Schema/migrations (`backend/src/main/resources/db/migration/`) | change affects persisted shape, constraints, locking, transactions, defaults, views, DB behavior | `V1__full_schema.sql` is the squashed canonical structural baseline (#370, refolded #461/#548) and `V2` is the seed migration. Read V1+V2 directly. |
 | ADRs (`docs/adr/`) | the touched seam/decision has architectural authority | scan ADR titles/status fields; read only decisions in the area |
 | Business rules/specs | behavior or domain semantics at issue | `docs/business-requirements.md`, `docs/specs/`; search terms, don't read whole files |
 

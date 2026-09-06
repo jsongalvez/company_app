@@ -135,9 +135,17 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
 
     private fun assertMigrationCount(conn: java.sql.Connection) {
         conn.createStatement().use { stmt ->
-            val rs = stmt.executeQuery("SELECT count(*) FROM flyway_schema_history")
-            rs.next()
-            assertTrue(rs.getInt(1) >= 3, "worker schema must hold V1+V2+V3 migrations")
+            val rs = stmt.executeQuery("SELECT version FROM flyway_schema_history WHERE version IS NOT NULL")
+            val versions = mutableSetOf<String>()
+            while (rs.next()) {
+                versions.add(rs.getString(1))
+            }
+            assertTrue(versions.contains("1"), "worker schema must hold baseline V1, found $versions")
+            assertTrue(versions.contains("2"), "worker schema must hold seed V2, found $versions")
+            assertTrue(
+                versions.none { it in setOf("3", "4", "5", "6") },
+                "retired V3–V6 must stay folded into V1, found $versions",
+            )
         }
     }
 

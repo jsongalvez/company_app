@@ -15,7 +15,7 @@ data class SlowStatement(
 
 /**
  * Slow-query visibility reads (#474). Exposed DSL over the pg_stat_statements
- * view (V3 migration) — the view is read-only, so this repository has no
+ * view (V1 baseline) — the view is read-only, so this repository has no
  * mutators, no capability gate, and no audit rows. Rows accumulate only while
  * the server preloads pg_stat_statements (see docs/slow-query-runbook.md);
  * with tracking off the view is simply empty.

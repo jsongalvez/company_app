@@ -205,9 +205,9 @@ Called at the top of every mutating service method — not in routes, not in rep
 ### 9.3 Capability Codes
 
 Capability codes are fixed contract values, not runtime-created values. V2 seeds the initial
-capability catalog in `backend/src/main/resources/db/migration/V2__seed_roles_capabilities.sql`.
-Later feature migrations may add codes: V5 adds
-`RECEIVE_NEXT_APPOINTMENT_ALERTS`, V21 widens the view's branch-derived leg so every
+capability catalog in `backend/src/main/resources/db/migration/V2__seed_roles_capabilities.sql`
+(folded #461: base bundle plus `RECEIVE_NEXT_APPOINTMENT_ALERTS` and `MANAGE_CATALOG`).
+Later feature migrations may add codes: V21 widens the view's branch-derived leg so every
 assigned role's non-management bundle derives BRANCH-scoped from ACTIVE assignments, and
 V25 adds OWNER to the GLOBAL `VIEW_BRANCH_DATA` leg. V26 introduces
 `MANAGE_CATALOG` as the GLOBAL-scoped shared-catalog authority (map #422
@@ -234,7 +234,8 @@ keeps its database-owned string literals.
 
 **Rule:** Owner does NOT hold `EDIT_PAST_DAY`. The branch state machine enforces Coordinator-only editing on PAST/REMITTED days.
 
-`RECEIVE_NEXT_APPOINTMENT_ALERTS` is inserted and initially role-linked by V5, not V2. V21
+`RECEIVE_NEXT_APPOINTMENT_ALERTS` is inserted and initially role-linked by V2 (folded
+from V5, #461), not by a later migration. V21
 derives its branch-scoped capability from active Coordinator roles and active branch assignments;
 it is not a GLOBAL role-derived capability because role membership alone cannot identify a branch.
 
@@ -287,21 +288,50 @@ The `active_user_capabilities` view's time-window filter (`now() <= valid_to`) h
 Flyway SQL files live at `backend/src/main/resources/db/migration/`. Flyway runs automatically on startup via `DatabaseConfig.runMigrations()`.
 
 **Migration rules:**
-- The non-seed chain is squashed: `V1__full_schema.sql` is the canonical structural
-  baseline; `V2`/`V5` are the seed migrations, followed by live post-baseline feature
-  migrations (`V20` onward). Inspect V1 plus those add-ons when reasoning about schema.
+- The chain is squashed: `V1__full_schema.sql` is the canonical structural
+  baseline (squashed #370, refolded #461, refolded #548 to absorb the retired
+  V3 pg_stat_statements, V4 credential_version, and V5 notification dedup/index
+  structure; the V6 data-only backfill has no surviving structure — fresh
+  databases hold no legacy rows and the live rule stays in
+  `AuditLogRepository.redactClientNamesInTransaction`); `V2` is the seed
+  migration. Inspect V1+V2 when reasoning about schema.
 - Evolve the schema by adding new versioned migrations on top of the baseline. Never
-  edit committed migration files — the one sanctioned exception was the #370 squash
+  edit committed migration files — the sanctioned exceptions were the #370 squash
   itself, executed under a verified-empty-database recreate (ticket #370 records the
-  safety gate); treat it as precedent for a future squash, not license for casual edits.
+  safety gate), and its #461/#548 refolds under the same zero-migration-cost
+  authorization; treat them as precedent for a future squash, not license for casual edits.
 - Destructive changes (DROP, RENAME) get their own migration with a comment explaining why
 - Application startup runs `migrate()` only. Operators must stop the application and run
   `flyway -url=<jdbc-url> -user=<user> -password=<password> repair` explicitly after reviewing
-  migration history; repair is never an automatic startup action.
+  migration history; repair is never an automatic startup action. Never repair a
+  database whose actual schema differs from its history — reset it instead.
 
 The migration directory is authoritative. Reason about current schema from
-`V1__full_schema.sql`, seed migrations, and live post-baseline migrations in
+`V1__full_schema.sql` and `V2__seed_roles_capabilities.sql` in
 `backend/src/main/resources/db/migration/`.
+
+**Development reset (deterministic recreate from the V1+V2 baseline):**
+- Stop the backend. Drop and recreate only the identified database — the
+  development database (`$POSTGRES_DB` from the root `.env`) or, for the k6/test
+  path, the test database (`$TEST_DB_NAME`, default `company_app_test`); never an
+  external database — then start the backend, whose `DatabaseConfig.initialize`
+  runs `flyway.migrate()` from V1+V2:
+  ```bash
+  set -a; . ./.env; set +a
+  : "${POSTGRES_DB:?root .env must define POSTGRES_DB}"
+  dropdb -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" "$POSTGRES_DB" &&
+  createdb -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -O "$POSTGRES_USER" "$POSTGRES_DB" &&
+  ./gradlew :backend:run
+  ```
+  (`PGPASSWORD` carries the password non-interactively; quoting keeps unusual
+  host/user values intact. Substitute `$TEST_DB_NAME` for `$POSTGRES_DB` to reset
+  the test database instead.)
+- Test worker schemas need no manual step: each backend-test JVM provisions its
+  own owned schema from the same baseline and drops it on shutdown; per-test
+  isolation is `DatabaseTestHelper.resetWorkerSchema`.
+- Databases still carrying the retired V3–V6 history fail Flyway validation
+  (checksum/missing-version) instead of silently repairing — that red state is
+  the signal to run the reset above.
 
 ---
 
