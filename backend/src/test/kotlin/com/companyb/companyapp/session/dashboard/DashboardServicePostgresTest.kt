@@ -1,11 +1,10 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.session.dashboard
 import com.companyb.companyapp.commission.CommissionManualInclusionRepository
 import com.companyb.companyapp.commission.CommissionManualInclusionUpsertParams
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.notification.NotificationService
-import com.companyb.companyapp.service.dashboard.DashboardService
 import com.companyb.companyapp.session.SessionPractitionerTable
 import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures

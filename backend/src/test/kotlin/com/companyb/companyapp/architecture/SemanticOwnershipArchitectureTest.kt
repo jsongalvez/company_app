@@ -84,6 +84,7 @@ class SemanticOwnershipArchitectureTest {
         assertEquals("finance", owner("finance/ExpenseService.kt"))
         assertEquals("session", owner("service/session/SessionService.kt"))
         assertEquals("session", owner("session/SessionService.kt"))
+        assertEquals("session", owner("session/dashboard/DashboardService.kt"))
         assertEquals("reporting", owner("service/dashboard/DashboardService.kt"))
         assertEquals("reporting", owner("dashboard/DashboardService.kt"))
         assertEquals("reporting", owner("service/export/ExportService.kt"))

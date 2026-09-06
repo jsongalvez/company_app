@@ -39,6 +39,7 @@ import com.companyb.companyapp.reporting.DailySalesSummaryRoutes
 import com.companyb.companyapp.reporting.ExportRoutes
 import com.companyb.companyapp.reporting.MonthlyRemittanceSummaryRoutes
 import com.companyb.companyapp.session.SessionRoutes
+import com.companyb.companyapp.session.dashboard.DashboardRoutes
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

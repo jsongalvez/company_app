@@ -2,12 +2,9 @@ package com.companyb.companyapp.session
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
-import com.companyb.companyapp.api.routes.DashboardSessionEnrichment
 import com.companyb.companyapp.api.routes.bodyIfPresent
-import com.companyb.companyapp.api.routes.mapDashboardSession
 import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
-import com.companyb.companyapp.api.routes.toResponse
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
@@ -31,7 +28,10 @@ import com.companyb.companyapp.dto.UpdateSessionFinalPriceRequest
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
 import com.companyb.companyapp.dto.VoidSessionRequest
 import com.companyb.companyapp.exception.ForbiddenException
-import com.companyb.companyapp.service.dashboard.DashboardService
+import com.companyb.companyapp.session.dashboard.DashboardService
+import com.companyb.companyapp.session.dashboard.DashboardSessionEnrichment
+import com.companyb.companyapp.session.dashboard.mapDashboardSession
+import com.companyb.companyapp.session.dashboard.toResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context

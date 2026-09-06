@@ -1,4 +1,4 @@
-package com.companyb.companyapp.session
+package com.companyb.companyapp.session.dashboard
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
@@ -8,6 +8,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.notification.NotificationService
+import com.companyb.companyapp.session.SessionRoutes
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

@@ -93,7 +93,7 @@ company-app/
 │       ├── audit/            # Audit append seam, scoped reads, registry (map #533)
 │       ├── workforce/        # Attendance, assignments, membership + duty-cutoff seam; relief/ subcluster for requests/invites/delegates (map #533 #539 #540)
 │       ├── client/           # Client records, patch policy, anonymization + session lock/read seam (map #533 #541)
-│       ├── session/          # Session aggregate, practitioners, concerns/promotion, void state, rates + preview; SessionReads seam for commerce/remittance/dashboard/authz/client (map #533 #542)
+│       ├── session/          # Session aggregate, practitioners, concerns/promotion, void state, rates + preview; dashboard/ subcluster for today + bearer detail reads; SessionReads seam for commerce/remittance/dashboard/authz/client (map #533 #542 #553)
 │       ├── commerce/         # Catalog, stock ledger, product-sale cluster + CommerceReads seam for commission/remittance (map #533 #543)
 │       ├── finance/          # Day-entry mutation policy: expenses, compensations, allowances + FinanceReads seam for authz/compensation gates (map #533 #546)
 │       ├── commission/       # Commission engine, split materialization, manual inclusions + local fact-read projection (map #533 #544)

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.session.dashboard
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -8,11 +8,6 @@ import com.companyb.companyapp.dto.DashboardPractitionerResponse
 import com.companyb.companyapp.dto.DashboardResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.repository.ClientNames
-import com.companyb.companyapp.repository.ConcernWithSessionId
-import com.companyb.companyapp.repository.SessionPractitionerWithName
-import com.companyb.companyapp.service.dashboard.DashboardData
-import com.companyb.companyapp.service.dashboard.DashboardService
 import com.companyb.companyapp.session.Concern
 import com.companyb.companyapp.session.Session
 import io.javalin.config.JavalinConfig

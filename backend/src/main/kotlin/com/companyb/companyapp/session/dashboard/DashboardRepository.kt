@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.session.dashboard
 
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.identity.AppUserTable
@@ -37,7 +37,7 @@ data class ConcernWithSessionId(
     val concern: Concern,
 )
 
-object DashboardRepository {
+internal object DashboardRepository {
     fun findSessionsByBranchDay(branchDayId: UUID): List<Session> =
         transaction {
             SessionTable

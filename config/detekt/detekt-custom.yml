@@ -54,6 +54,7 @@ CompanyApp:
       - '**/client/ClientRoutes.kt' # #541
       - '**/session/SessionRoutes.kt' # #542
       - '**/session/SessionBaseRateRoutes.kt' # #542
+      - '**/session/dashboard/DashboardRoutes.kt' # #553
       - '**/commerce/ProductRoutes.kt' # #543
       - '**/commerce/ProductCategoryRoutes.kt' # #543
       - '**/commerce/ProductSaleRoutes.kt' # #543

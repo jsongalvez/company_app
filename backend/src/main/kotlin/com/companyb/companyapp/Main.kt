@@ -2,7 +2,6 @@ package com.companyb.companyapp
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.TraceIdFilter
-import com.companyb.companyapp.api.routes.DashboardRoutes
 import com.companyb.companyapp.api.routes.FeedbackRoutes
 import com.companyb.companyapp.api.routes.HealthRoutes
 import com.companyb.companyapp.api.routes.MetricsRoutes
@@ -49,6 +48,7 @@ import com.companyb.companyapp.reporting.MonthlyRemittanceSummaryRoutes
 import com.companyb.companyapp.service.SchedulerLifecycle
 import com.companyb.companyapp.session.SessionBaseRateRoutes
 import com.companyb.companyapp.session.SessionRoutes
+import com.companyb.companyapp.session.dashboard.DashboardRoutes
 import com.companyb.companyapp.workforce.AttendanceRoutes
 import com.companyb.companyapp.workforce.UserBranchAssignmentRoutes
 import com.companyb.companyapp.workforce.relief.MedicalMissionDelegateRoutes

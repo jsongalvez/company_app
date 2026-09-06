@@ -3,8 +3,8 @@ package com.companyb.companyapp.commission
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.commerce.ProductSaleTable
 import com.companyb.companyapp.domain.DayStatus
-import com.companyb.companyapp.service.dashboard.DashboardService
 import com.companyb.companyapp.session.SessionVoidTable
+import com.companyb.companyapp.session.dashboard.DashboardService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
