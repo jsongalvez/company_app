@@ -1,11 +1,10 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.remittance
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.service.finance.remittance.RemittanceDayBreakdown
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import java.util.UUID
 
-object RemittanceDayBreakdownTable : Table("remittance_day_breakdown") {
+internal object RemittanceDayBreakdownTable : Table("remittance_day_breakdown") {
     val id = javaUUID("id")
     val remittanceId = javaUUID("remittance_id").references(RemittanceTable.id)
     val branchDayId = javaUUID("branch_day_id").references(BranchDayTable.id)

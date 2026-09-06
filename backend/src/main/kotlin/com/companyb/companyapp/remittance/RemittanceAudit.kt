@@ -1,12 +1,8 @@
-package com.companyb.companyapp.service.finance.remittance
+package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
-import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
-import com.companyb.companyapp.repository.model.RemittanceLineTable
-import com.companyb.companyapp.repository.model.RemittanceTable
 import java.util.UUID
 
 /**

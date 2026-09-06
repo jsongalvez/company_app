@@ -13,8 +13,6 @@ import com.companyb.companyapp.api.routes.HealthRoutes
 import com.companyb.companyapp.api.routes.MetricsRoutes
 import com.companyb.companyapp.api.routes.MonthlyRemittanceSummaryRoutes
 import com.companyb.companyapp.api.routes.NotificationRoutes
-import com.companyb.companyapp.api.routes.RemittancePickerRoutes
-import com.companyb.companyapp.api.routes.RemittanceRoutes
 import com.companyb.companyapp.audit.AuditLogRoutes
 import com.companyb.companyapp.branch.BranchRoutes
 import com.companyb.companyapp.branchday.BranchDayRoutes
@@ -46,6 +44,8 @@ import com.companyb.companyapp.observability.IncidentDelivery
 import com.companyb.companyapp.observability.IncidentService
 import com.companyb.companyapp.observability.RequestMetrics
 import com.companyb.companyapp.observability.RouteLabels
+import com.companyb.companyapp.remittance.RemittancePickerRoutes
+import com.companyb.companyapp.remittance.RemittanceRoutes
 import com.companyb.companyapp.service.SchedulerLifecycle
 import com.companyb.companyapp.session.SessionBaseRateRoutes
 import com.companyb.companyapp.session.SessionRoutes

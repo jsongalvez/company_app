@@ -1,9 +1,8 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.commerce.ProductSaleTable
 import com.companyb.companyapp.domain.RemittanceLineType
 import com.companyb.companyapp.identity.AppUserTable
-import com.companyb.companyapp.service.finance.remittance.RemittanceLine
 import com.companyb.companyapp.session.SessionTable
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
@@ -15,7 +14,7 @@ import java.util.UUID
 private const val PRECISION = 10
 private const val SCALE = 2
 
-object RemittanceLineTable : Table("remittance_line") {
+internal object RemittanceLineTable : Table("remittance_line") {
     val id = javaUUID("id")
     val remittanceId = javaUUID("remittance_id").references(RemittanceTable.id)
     val type =

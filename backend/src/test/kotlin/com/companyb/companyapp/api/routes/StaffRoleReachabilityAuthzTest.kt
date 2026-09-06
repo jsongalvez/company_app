@@ -11,6 +11,7 @@ import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
+import com.companyb.companyapp.remittance.RemittanceRoutes
 import com.companyb.companyapp.session.SessionBaseRateRoutes
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures

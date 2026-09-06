@@ -5,12 +5,12 @@ import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.remittance.RemittanceFinancialSnapshot
+import com.companyb.companyapp.remittance.RemittanceFinancialSnapshotRepository
+import com.companyb.companyapp.remittance.RemittanceRepository
+import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.service.CompensationService
 import com.companyb.companyapp.service.ExpenseService
-import com.companyb.companyapp.service.finance.remittance.RemittanceFinancialSnapshot
-import com.companyb.companyapp.service.finance.remittance.RemittanceFinancialSnapshotRepository
-import com.companyb.companyapp.service.finance.remittance.RemittanceRepository
-import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

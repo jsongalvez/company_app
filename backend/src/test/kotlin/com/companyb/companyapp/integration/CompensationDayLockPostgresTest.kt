@@ -9,10 +9,10 @@ import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.repository.CompensationRepository
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.service.CompensationService
-import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

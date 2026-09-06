@@ -6,7 +6,7 @@ import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ForbiddenException
-import com.companyb.companyapp.service.finance.remittance.RemittanceService
+import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.session.ConcernRepository
 import com.companyb.companyapp.session.ConcernTable
 import com.companyb.companyapp.session.SessionConcernService

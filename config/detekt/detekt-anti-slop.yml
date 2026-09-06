@@ -505,7 +505,7 @@ style:
     excludes:
       - '**/api/routes/CompensationRoutes.kt'
       - '**/commerce/BranchInventoryRoutes.kt'
-      - '**/api/routes/RemittanceRoutes.kt'
+      - '**/remittance/RemittanceRoutes.kt'
       - '**/commission/CommissionRoutes.kt'
 
   UnusedPrivateProperty:

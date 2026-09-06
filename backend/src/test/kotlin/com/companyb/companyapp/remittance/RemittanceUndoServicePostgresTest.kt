@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.remittance
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
@@ -10,10 +10,10 @@ import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
-import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
-import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.service.finance.remittance.RemittanceFinancialSnapshotRepository
-import com.companyb.companyapp.service.finance.remittance.RemittanceService
+import com.companyb.companyapp.remittance.RemittanceFinancialSnapshotRepository
+import com.companyb.companyapp.remittance.RemittanceFinancialSnapshotTable
+import com.companyb.companyapp.remittance.RemittanceService
+import com.companyb.companyapp.remittance.RemittanceTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

@@ -1,6 +1,5 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.remittance
 
-import com.companyb.companyapp.service.finance.remittance.RemittanceFinancialSnapshot
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -9,7 +8,7 @@ import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 private const val SNAPSHOT_PRECISION = 10
 private const val SNAPSHOT_SCALE = 2
 
-object RemittanceFinancialSnapshotTable : Table("remittance_financial_snapshot") {
+internal object RemittanceFinancialSnapshotTable : Table("remittance_financial_snapshot") {
     val remittanceId = javaUUID("remittance_id").references(RemittanceTable.id)
     val grossIncome = decimal("gross_income", SNAPSHOT_PRECISION, SNAPSHOT_SCALE)
     val totalCompensation = decimal("total_compensation", SNAPSHOT_PRECISION, SNAPSHOT_SCALE)

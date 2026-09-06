@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service.finance.remittance
+package com.companyb.companyapp.remittance
 
 import java.io.File
 import kotlin.test.Test
@@ -21,10 +21,10 @@ class RemittanceCommandOwnershipArchitectureTest {
     fun `remittance stores have no nested write transactions or audit callbacks`() {
         // (file, allowed read-wrapper transaction blocks)
         listOf(
-            "service/finance/remittance/RemittanceRepository.kt" to 7,
-            "service/finance/remittance/RemittanceLineRepository.kt" to 2,
-            "service/finance/remittance/RemittanceDayBreakdownRepository.kt" to 1,
-            "service/finance/remittance/RemittanceFinancialSnapshotRepository.kt" to 1,
+            "remittance/RemittanceRepository.kt" to 7,
+            "remittance/RemittanceLineRepository.kt" to 2,
+            "remittance/RemittanceDayBreakdownRepository.kt" to 1,
+            "remittance/RemittanceFinancialSnapshotRepository.kt" to 1,
         ).forEach { (file, expectedBlocks) ->
             val source = mainSource(file)
 
@@ -37,7 +37,7 @@ class RemittanceCommandOwnershipArchitectureTest {
 
     @Test
     fun `each remittance mutation command owns exactly one transaction`() {
-        val source = mainSource("service/finance/remittance/RemittanceService.kt")
+        val source = mainSource("remittance/RemittanceService.kt")
 
         assertFalse(source.contains("auditFn"), "commands call RemittanceAudit/AuditLog directly")
         assertFalse(
@@ -65,7 +65,7 @@ class RemittanceCommandOwnershipArchitectureTest {
     @Test
     fun `remittance reaches branch day only through the feature boundary`() {
         val remittanceSources =
-            File("backend/src/main/kotlin/com/companyb/companyapp/service/finance/remittance")
+            File("backend/src/main/kotlin/com/companyb/companyapp/remittance")
                 .walkTopDown()
                 .filter { it.extension == "kt" && !it.name.contains("Audit") }
                 .map { it.readText() }

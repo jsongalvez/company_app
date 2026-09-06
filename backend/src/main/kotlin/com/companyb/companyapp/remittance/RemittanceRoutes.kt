@@ -1,7 +1,10 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.remittance
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.routes.parsePositiveBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.api.routes.uuidFromQuery
+import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.RemittanceLineType
@@ -22,15 +25,6 @@ import com.companyb.companyapp.dto.RemittanceSubmitResponse
 import com.companyb.companyapp.dto.SubmitRemittanceRequest
 import com.companyb.companyapp.dto.UndoRemittanceRequest
 import com.companyb.companyapp.dto.UpdateRemittanceHeaderRequest
-import com.companyb.companyapp.service.finance.remittance.Remittance
-import com.companyb.companyapp.service.finance.remittance.RemittanceDayBreakdown
-import com.companyb.companyapp.service.finance.remittance.RemittanceDetail
-import com.companyb.companyapp.service.finance.remittance.RemittanceDrift
-import com.companyb.companyapp.service.finance.remittance.RemittanceFinancialSnapshot
-import com.companyb.companyapp.service.finance.remittance.RemittanceLine
-import com.companyb.companyapp.service.finance.remittance.RemittanceService
-import com.companyb.companyapp.service.finance.remittance.RemittanceSubmissionResult
-import com.companyb.companyapp.service.finance.remittance.RemittanceWithNet
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context

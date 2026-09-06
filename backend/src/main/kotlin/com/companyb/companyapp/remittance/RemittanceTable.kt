@@ -1,9 +1,8 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
-import com.companyb.companyapp.service.finance.remittance.Remittance
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -12,7 +11,7 @@ import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
 import java.util.UUID
 
-object RemittanceTable : Table("remittance") {
+internal object RemittanceTable : Table("remittance") {
     val id = javaUUID("id").autoGenerate()
     val type =
         customEnumeration<RemittanceType>(

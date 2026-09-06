@@ -1,6 +1,5 @@
-package com.companyb.companyapp.service.finance.remittance
+package com.companyb.companyapp.remittance
 
-import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert

@@ -1,8 +1,7 @@
-package com.companyb.companyapp.service.finance.remittance
+package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and

@@ -59,6 +59,8 @@ CompanyApp:
       - '**/commerce/ProductSaleRoutes.kt' # #543
       - '**/commerce/BranchInventoryRoutes.kt' # #543
       - '**/commission/CommissionRoutes.kt' # #544
+      - '**/remittance/RemittanceRoutes.kt' # #545
+      - '**/remittance/RemittancePickerRoutes.kt' # #545
       - '**/workforce/AttendanceRoutes.kt' # #539
       - '**/workforce/UserBranchAssignmentRoutes.kt' # #539
       - '**/workforce/relief/ReliefAccessRoutes.kt' # #540

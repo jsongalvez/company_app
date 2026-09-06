@@ -1,4 +1,4 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -8,10 +8,6 @@ import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.RemittanceDayPickerEntryResponse
 import com.companyb.companyapp.dto.RemittanceProductSalePickerEntryResponse
 import com.companyb.companyapp.dto.RemittanceSessionPickerEntryResponse
-import com.companyb.companyapp.service.finance.remittance.RemittanceDayPickerEntry
-import com.companyb.companyapp.service.finance.remittance.RemittanceProductSalePickerEntry
-import com.companyb.companyapp.service.finance.remittance.RemittanceService
-import com.companyb.companyapp.service.finance.remittance.RemittanceSessionPickerEntry
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context

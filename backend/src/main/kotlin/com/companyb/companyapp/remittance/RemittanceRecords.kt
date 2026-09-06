@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service.finance.remittance
+package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.domain.RemittanceLineType
 import com.companyb.companyapp.domain.RemittanceMethod

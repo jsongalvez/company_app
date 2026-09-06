@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.remittance
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
@@ -19,11 +19,11 @@ import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
-import com.companyb.companyapp.repository.model.RemittanceLineTable
-import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.service.finance.remittance.RemittanceDayBreakdown
-import com.companyb.companyapp.service.finance.remittance.RemittanceService
+import com.companyb.companyapp.remittance.RemittanceDayBreakdown
+import com.companyb.companyapp.remittance.RemittanceDayBreakdownTable
+import com.companyb.companyapp.remittance.RemittanceLineTable
+import com.companyb.companyapp.remittance.RemittanceService
+import com.companyb.companyapp.remittance.RemittanceTable
 import com.companyb.companyapp.session.SessionBaseRateService
 import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.session.SessionTable

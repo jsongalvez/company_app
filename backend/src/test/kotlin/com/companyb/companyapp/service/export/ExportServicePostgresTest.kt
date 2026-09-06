@@ -14,10 +14,10 @@ import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
-import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
-import com.companyb.companyapp.repository.model.RemittanceLineTable
-import com.companyb.companyapp.repository.model.RemittanceTable
+import com.companyb.companyapp.remittance.RemittanceDayBreakdownTable
+import com.companyb.companyapp.remittance.RemittanceFinancialSnapshotTable
+import com.companyb.companyapp.remittance.RemittanceLineTable
+import com.companyb.companyapp.remittance.RemittanceTable
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
