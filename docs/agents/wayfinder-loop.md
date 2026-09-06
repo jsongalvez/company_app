@@ -7,7 +7,11 @@ fresh zero-context opencode2 session to execute each one, supervises the
 session (questions, permissions, stalls), and chains to the next packet.
 
 Runtime files (gitignored): `.wayfinder-loop.state` (last doc, session id,
-seen-doc fingerprints, retries), `.wayfinder-loop.log`, `.wayfinder-loop.lock`.
+seen-doc fingerprints, retries, local-CI queue/verdict/repair mappings),
+`.wayfinder-loop.log`, `.wayfinder-loop.lock`, and `logs/local-ci/` (`run.log`,
+`status.txt`, `result.txt`, `pid`, `head.sha`, `run.id`). `head.sha` and `run.id`
+are the immutable run-to-HEAD pin: they describe the detached run whose result
+is in `result.txt`, not whatever HEAD happens to be when the gates finish.
 
 ## Rules
 
@@ -28,6 +32,44 @@ seen-doc fingerprints, retries), `.wayfinder-loop.log`, `.wayfinder-loop.lock`.
   chain after 2 fruitless continuations.
 - The daemon never stages, commits, or stashes — worktree hygiene belongs to
   the sessions.
+
+## Detached local-CI watchdog (#577)
+
+The daemon owns the local verification watch. It polls `logs/local-ci/` on its
+normal session/doc ticks; active workers never run `--status`, poll a detached
+process, or poll hosted CI. `scripts/local-ci.sh` captures the current commit
+before starting any gate, writes `head.sha`/`run.id`, clears the previous
+verdict, and passes that pin into the detached runner. A push during a run
+therefore cannot make the old result claim the new tree.
+
+Each poll applies this table:
+
+| State | Daemon action | Frontier effect |
+|---|---|---|
+| active run covers current HEAD | keep supervising | none |
+| active run covers an older HEAD | remember the newest HEAD as pending | none; never relabel the active run |
+| completed `result.txt` has current `head.sha` | consume `PASS` or `FAIL` once per SHA | PASS is silent; FAIL enters the repair gate |
+| missing, incomplete, or stale run | launch `scripts/local-ci.sh` for current HEAD | never blocks on missing evidence |
+
+On a red result, the daemon first verifies `gh auth status` in its own
+environment. With valid auth it finds or creates exactly one marker-bearing
+`wayfinder:task` repair issue for that SHA, attaches it to this map as a native
+child, and adds the repair issue's database ID as a native `blocked_by`
+dependency of every currently claimable ordered child. Blocking every current
+frontier row matters: blocking only the first row would let the next row bypass
+repair-first. The SHA-to-issue mapping is persisted in daemon state, and the
+GitHub marker is the restart-safe dedupe key. A failed auth/API write remains
+unblocked and is retried by the daemon; it is never converted into a false
+green verdict. A green result creates no tracker issue and does not close an
+older red repair ticket. When there is no claimable child, the repair issue is
+left as an unblocked map child for the next frontier query.
+
+This watchdog is host-local like `local-ci.sh`; it adds no hosted workflow,
+schedule, hook gate, or cross-machine claim. The existing `flock` remains the
+single-daemon guard. If #570 relocates the implementation, move this watchdog
+with the canonical script and retain `scripts/wayfinder-loop.sh` as the stable
+launcher until the live daemon is safely restarted; do not restart the live
+loop as part of a relocation.
 
 ## Recovery semantics (#355)
 

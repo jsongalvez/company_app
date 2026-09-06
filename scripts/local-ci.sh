@@ -10,15 +10,22 @@
 #   bash scripts/local-ci.sh --status  # print per-gate status of the last/current run
 #   bash scripts/local-ci.sh --run     # internal: execute the gates in foreground
 #
-# State lives under logs/local-ci/ (gitignored): run.log, status.txt, result.txt.
+# State lives under logs/local-ci/ (gitignored): run.log, status.txt, result.txt,
+# head.sha (the commit covered by the run), run.id, and pid.
 
 set -u
 
-STATE_DIR="logs/local-ci"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STATE_DIR="${LOCAL_CI_STATE_DIR:-$REPO/logs/local-ci}"
 RUN_LOG="$STATE_DIR/run.log"
 STATUS_FILE="$STATE_DIR/status.txt"
 RESULT_FILE="$STATE_DIR/result.txt"
 PID_FILE="$STATE_DIR/pid"
+HEAD_FILE="$STATE_DIR/head.sha"
+RUN_ID_FILE="$STATE_DIR/run.id"
+LOCK_FILE="$STATE_DIR/lock"
+
+cd "$REPO" || exit 1
 
 QUALITY_TASKS=':backend:detekt :backend:ktlintCheck :backend:test
 :shared:detektMetadataCommonMain
@@ -41,6 +48,46 @@ record() { # record <gate> <PASS|FAIL|SKIP|RUNNING> [note]
     printf '%s=%s%s\n' "$gate" "$state" "${note:+ ($note)}" >>"$STATUS_FILE"
 }
 
+current_head() {
+    git -C "$REPO" rev-parse HEAD 2>/dev/null
+}
+
+valid_sha() {
+    [[ "$1" =~ ^[[:xdigit:]]{40,64}$ ]]
+}
+
+write_atomic() {
+    local file=$1 value=$2
+    local tmp="${file}.tmp.$$"
+    printf '%s\n' "$value" >"$tmp"
+    mv -f "$tmp" "$file"
+}
+
+begin_run() {
+    local sha="${LOCAL_CI_HEAD_SHA:-}" run_id="${LOCAL_CI_RUN_ID:-}"
+    mkdir -p "$STATE_DIR"
+
+    if [ -z "$sha" ]; then
+        sha="$(current_head)" || {
+            printf 'local-ci: cannot determine HEAD\n' >&2
+            return 1
+        }
+    fi
+    valid_sha "$sha" || {
+        printf 'local-ci: invalid HEAD sha: %s\n' "$sha" >&2
+        return 1
+    }
+    [ -n "$run_id" ] || run_id="$(date +%s)-$$"
+
+    # These pins are written before any expensive gate starts. A later push must
+    # never rewrite the mapping for this run; the loop will queue the new HEAD.
+    write_atomic "$HEAD_FILE" "$sha"
+    write_atomic "$RUN_ID_FILE" "$run_id"
+    : >"$STATUS_FILE"
+    : >"$RESULT_FILE"
+    : >"$RUN_LOG"
+}
+
 android_sdk_available() {
     [ -n "${ANDROID_HOME:-}" ] && [ -d "$ANDROID_HOME" ] && return 0
     [ -f local.properties ] && grep -q '^sdk.dir=' local.properties && return 0
@@ -60,8 +107,7 @@ postgres_up() {
 }
 
 run_gates() {
-    mkdir -p "$STATE_DIR"
-    : >"$STATUS_FILE"
+    begin_run || return 1
 
     if postgres_up; then
         record postgres PASS
@@ -106,9 +152,9 @@ run_gates() {
     fi
 
     if grep -q '=FAIL' "$STATUS_FILE"; then
-        echo FAIL >"$RESULT_FILE"
+        write_atomic "$RESULT_FILE" FAIL
     else
-        echo PASS >"$RESULT_FILE"
+        write_atomic "$RESULT_FILE" PASS
     fi
 }
 
@@ -118,6 +164,11 @@ show_status() {
         exit 1
     fi
     cat "$STATUS_FILE"
+    if [ -f "$HEAD_FILE" ]; then
+        echo "covered HEAD: $(cat "$HEAD_FILE") (run $(cat "$RUN_ID_FILE" 2>/dev/null || echo unknown))"
+    else
+        echo "covered HEAD: unknown (legacy run state)"
+    fi
     if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
         echo "overall: RUNNING (pid $(cat "$PID_FILE"), log: $RUN_LOG)"
     elif [ -f "$RESULT_FILE" ]; then
@@ -136,12 +187,36 @@ case "${1:-}" in
         ;;
     *)
         mkdir -p "$STATE_DIR"
+        # Serialize the launch/check/pin window. The daemon has its own flock,
+        # but an operator may also invoke this wrapper manually.
+        exec 8>"$LOCK_FILE"
+        flock -n 8 || {
+            echo "already launching (another local-ci invocation holds $LOCK_FILE)"
+            exit 1
+        }
         if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
             echo "already running (pid $(cat "$PID_FILE")) — bash scripts/local-ci.sh --status"
             exit 1
         fi
+        sha="$(current_head)" || {
+            echo "cannot launch: unable to determine HEAD" >&2
+            exit 1
+        }
+        valid_sha "$sha" || {
+            echo "cannot launch: invalid HEAD sha: $sha" >&2
+            exit 1
+        }
+        run_id="$(date +%s)-$$"
+        # Pin and invalidate the previous verdict before the child is detached.
+        # The child receives both values so a push between fork and exec cannot
+        # change what this run claims to verify.
+        write_atomic "$HEAD_FILE" "$sha"
+        write_atomic "$RUN_ID_FILE" "$run_id"
         : >"$RUN_LOG"
-        nohup bash "$0" --run </dev/null >>"$RUN_LOG" 2>&1 &
+        : >"$STATUS_FILE"
+        : >"$RESULT_FILE"
+        nohup env LOCAL_CI_HEAD_SHA="$sha" LOCAL_CI_RUN_ID="$run_id" \
+            LOCAL_CI_STATE_DIR="$STATE_DIR" bash "$0" --run </dev/null >>"$RUN_LOG" 2>&1 &
         echo $! >"$PID_FILE"
         disown
         echo "launched (pid $(cat "$PID_FILE")) — check with: bash scripts/local-ci.sh --status"

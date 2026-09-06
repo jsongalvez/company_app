@@ -20,6 +20,11 @@
 #   WAYFINDER_TICK_SECS    session poll interval — form/permission/completion checks (default 5)
 #   WAYFINDER_STALL_SECS   no-progress zombie threshold in seconds (default 540 = old WAIT_SECS×STALL_SLICES)
 #   WAYFINDER_DRY_RUN      non-empty = log transitions, never spawn
+#   WAYFINDER_LOCAL_CI_DIR  local-ci state directory (default logs/local-ci)
+#   WAYFINDER_LOCAL_CI_SCRIPT local-ci launcher (default scripts/local-ci.sh)
+#   WAYFINDER_GH_BIN       gh executable used for red-verdict tracker writes
+#   WAYFINDER_GH_REPO      repository for tracker writes (default from origin)
+#   WAYFINDER_MAP_ISSUE    map whose frontier the repair ticket blocks (default 533)
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -31,6 +36,17 @@ NTFY_TOPIC="${WAYFINDER_NTFY_TOPIC:-}"
 POLL_SECS="${WAYFINDER_POLL_SECS:-15}"
 TICK_SECS="${WAYFINDER_TICK_SECS:-5}"
 STALL_SECS="${WAYFINDER_STALL_SECS:-540}"
+LOCAL_CI_DIR="${WAYFINDER_LOCAL_CI_DIR:-$REPO/logs/local-ci}"
+LOCAL_CI_SCRIPT="${WAYFINDER_LOCAL_CI_SCRIPT:-$REPO/scripts/local-ci.sh}"
+GH_BIN="${WAYFINDER_GH_BIN:-$(command -v gh || true)}"
+MAP_ISSUE="${WAYFINDER_MAP_ISSUE:-533}"
+GH_REPO="${WAYFINDER_GH_REPO:-}"
+REPAIR_MARKER="wayfinder-local-ci-repair"
+[[ "$LOCAL_CI_DIR" = /* ]] || LOCAL_CI_DIR="$REPO/$LOCAL_CI_DIR"
+[[ "$LOCAL_CI_SCRIPT" = /* ]] || LOCAL_CI_SCRIPT="$REPO/$LOCAL_CI_SCRIPT"
+LOCAL_CI_PID_FILE="$LOCAL_CI_DIR/pid"
+LOCAL_CI_HEAD_FILE="$LOCAL_CI_DIR/head.sha"
+LOCAL_CI_RESULT_FILE="$LOCAL_CI_DIR/result.txt"
 # Free-disk floor in GiB — below it the chain pings instead of silently wedging
 # (the session-176 class: bun .so extractions filled /tmp, builds started dying
 # with no signal). The daily tmp-bun-so-clean.timer + manual build-dir cleanup
@@ -156,6 +172,7 @@ api() { "$OC_BIN" api "$@"; }
 
 load_state() {
   last_doc=""; session_id=""; pending_doc=""
+  local_ci_pending_sha=""; local_ci_verdicts=""; local_ci_repair_issues=""
   [ -f "$STATE_FILE" ] || return 0
   # shellcheck disable=SC1090
   source "$STATE_FILE"
@@ -168,7 +185,399 @@ save_state() {
     echo "pending_doc=${pending_doc:-}"
     echo "retries=${retries:-0}"
     echo "seen_docs=$seen_docs"
+    echo "local_ci_pending_sha=${local_ci_pending_sha:-}"
+    echo "local_ci_verdicts=${local_ci_verdicts:-}"
+    echo "local_ci_repair_issues=${local_ci_repair_issues:-}"
   } > "$STATE_FILE"
+}
+
+valid_sha() {
+  [[ "$1" =~ ^[[:xdigit:]]{40,64}$ ]]
+}
+
+read_first_line() {
+  local file="$1" line=""
+  [ -s "$file" ] || return 0
+  IFS= read -r line < "$file" || true
+  printf '%s' "${line%$'\r'}"
+}
+
+local_ci_current_head() {
+  git -C "$REPO" rev-parse HEAD 2>/dev/null || true
+}
+
+local_ci_run_sha() {
+  read_first_line "$LOCAL_CI_HEAD_FILE"
+}
+
+local_ci_run_result() {
+  local result
+  result="$(read_first_line "$LOCAL_CI_RESULT_FILE")"
+  case "$result" in
+    PASS|FAIL) printf '%s' "$result" ;;
+    *) return 1 ;;
+  esac
+}
+
+local_ci_run_pid() {
+  local pid
+  pid="$(read_first_line "$LOCAL_CI_PID_FILE")"
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  printf '%s' "$pid"
+}
+
+local_ci_run_active() {
+  local pid
+  pid="$(local_ci_run_pid || true)"
+  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
+
+local_ci_verdict_for() {
+  local sha="$1" entry
+  local -a entries=()
+  IFS=',' read -ra entries <<< "${local_ci_verdicts:-}"
+  for entry in "${entries[@]}"; do
+    [[ "$entry" == "$sha="* ]] && {
+      printf '%s' "${entry#*=}"
+      return 0
+    }
+  done
+  return 1
+}
+
+local_ci_record_verdict() {
+  local sha="$1" verdict="$2" entry updated=""
+  local -a entries=()
+  IFS=',' read -ra entries <<< "${local_ci_verdicts:-}"
+  for entry in "${entries[@]}"; do
+    [ -n "$entry" ] || continue
+    [[ "$entry" == "$sha="* ]] && continue
+    [ -n "$updated" ] && updated="$updated,$entry" || updated="$entry"
+  done
+  [ -n "$updated" ] && updated="$updated,$sha=$verdict" || updated="$sha=$verdict"
+  local_ci_verdicts="$updated"
+}
+
+local_ci_repair_for() {
+  local sha="$1" entry
+  local -a entries=()
+  IFS=',' read -ra entries <<< "${local_ci_repair_issues:-}"
+  for entry in "${entries[@]}"; do
+    [[ "$entry" == "$sha:"* ]] && {
+      printf '%s' "${entry#*:}"
+      return 0
+    }
+  done
+  return 1
+}
+
+local_ci_record_repair() {
+  local sha="$1" issue="$2" entry updated=""
+  local -a entries=()
+  IFS=',' read -ra entries <<< "${local_ci_repair_issues:-}"
+  for entry in "${entries[@]}"; do
+    [ -n "$entry" ] || continue
+    [[ "$entry" == "$sha:"* ]] && continue
+    [ -n "$updated" ] && updated="$updated,$entry" || updated="$entry"
+  done
+  [ -n "$updated" ] && updated="$updated,$sha:$issue" || updated="$sha:$issue"
+  local_ci_repair_issues="$updated"
+}
+
+tracker_repo() {
+  local remote path
+  if [ -n "$GH_REPO" ]; then
+    printf '%s' "$GH_REPO"
+    return 0
+  fi
+  remote="$(git -C "$REPO" remote get-url origin 2>/dev/null || true)"
+  case "$remote" in
+    *github.com:*) path="${remote#*github.com:}" ;;
+    *github.com/*) path="${remote#*github.com/}" ;;
+    *) path="" ;;
+  esac
+  path="${path%.git}"
+  [ -n "$path" ] && printf '%s' "$path" || printf '%s' 'jsongalvez/company_app'
+}
+
+local_ci_launch() {
+  local sha="$1"
+  if [ -n "$DRY_RUN" ]; then
+    log "DRY-RUN: would launch local-ci for HEAD $sha"
+    return 0
+  fi
+  if [ ! -f "$LOCAL_CI_SCRIPT" ]; then
+    log "local-ci launcher missing: $LOCAL_CI_SCRIPT"
+    return 1
+  fi
+  if (cd "$REPO" && LOCAL_CI_STATE_DIR="$LOCAL_CI_DIR" bash "$LOCAL_CI_SCRIPT") >>"$LOG_FILE" 2>&1; then
+    return 0
+  fi
+  log "local-ci launch failed for HEAD $sha — will retry without blocking"
+  return 1
+}
+
+# Return every currently claimable child in the map's ordered section. A red
+# verification must stop the normal frontier rather than merely blocking its
+# first row: otherwise the next unblocked row would bypass the repair ticket.
+# The ordered body remains authority for preference; live issue JSON supplies
+# state, assignee, labels, and native dependency counts.
+local_ci_frontier_issue() {
+  local repo candidate state assignees blocked labels
+  local map_file issue_file
+  local -a candidates=()
+
+  if [ -n "${WAYFINDER_FRONTIER_ISSUE:-}" ]; then
+    printf '%s' "$WAYFINDER_FRONTIER_ISSUE"
+    return 0
+  fi
+  [ -n "$GH_BIN" ] || return 1
+  repo="$(tracker_repo)"
+  map_file="$(mktemp)"
+  if ! "$GH_BIN" api "repos/$repo/issues/$MAP_ISSUE" >"$map_file" 2>/dev/null; then
+    rm -f "$map_file"
+    return 1
+  fi
+  mapfile -t candidates < <(
+    jq -r '.body // ""' "$map_file" 2>/dev/null |
+      sed -n '/^## Ordered implementation children/,/^## /p' |
+      sed -n 's/^- \[[ x]\] #\([0-9][0-9]*\).*/\1/p' || true
+  )
+  rm -f "$map_file"
+
+  # A map created by an older connector may not have the ordered heading. The
+  # native child list is a safe read-only fallback for that case.
+  if [ "${#candidates[@]}" -eq 0 ]; then
+    map_file="$(mktemp)"
+    if "$GH_BIN" api "repos/$repo/issues/$MAP_ISSUE/sub_issues?per_page=100" >"$map_file" 2>/dev/null; then
+      mapfile -t candidates < <(jq -r '.[].number // empty' "$map_file" 2>/dev/null || true)
+    fi
+    rm -f "$map_file"
+  fi
+
+  for candidate in "${candidates[@]}"; do
+    issue_file="$(mktemp)"
+    if ! "$GH_BIN" api "repos/$repo/issues/$candidate" >"$issue_file" 2>/dev/null; then
+      rm -f "$issue_file"
+      continue
+    fi
+    state="$(jq -r '.state // ""' "$issue_file" 2>/dev/null || true)"
+    assignees="$(jq -r '(.assignees // []) | length' "$issue_file" 2>/dev/null || true)"
+    blocked="$(jq -r '.issue_dependencies_summary.blocked_by // 0' "$issue_file" 2>/dev/null || true)"
+    labels="$(jq -r '[.labels[]?.name] | join(",")' "$issue_file" 2>/dev/null || true)"
+    rm -f "$issue_file"
+    [[ "$state" = open ]] || continue
+    [[ "$assignees" = 0 ]] || continue
+    [[ "$blocked" =~ ^[0-9]+$ ]] || blocked=1
+    [ "$blocked" -eq 0 ] || continue
+    case ",$labels," in
+      *,ready-for-human,*|*,needs-info,*) continue ;;
+    esac
+    printf '%s\n' "$candidate"
+  done
+  return 0
+}
+
+local_ci_ensure_map_child() {
+  local repo="$1" issue_number="$2" issue_id="$3" expected actual
+  expected="https://api.github.com/repos/$repo/issues/$MAP_ISSUE"
+  actual="$("$GH_BIN" api "repos/$repo/issues/$issue_number" --jq '.parent_issue_url // ""' 2>/dev/null || true)"
+  [ "$actual" = "$expected" ] && return 0
+  [ -z "$actual" ] || {
+    log "repair issue #$issue_number already belongs to another parent: $actual"
+    return 1
+  }
+  if ! "$GH_BIN" api --method POST "repos/$repo/issues/$MAP_ISSUE/sub_issues" \
+    -F "sub_issue_id=$issue_id" >/dev/null 2>&1; then
+    log "could not attach repair issue #$issue_number to map #$MAP_ISSUE"
+    return 1
+  fi
+  actual="$("$GH_BIN" api "repos/$repo/issues/$issue_number" --jq '.parent_issue_url // ""' 2>/dev/null || true)"
+  [ "$actual" = "$expected" ] || {
+    log "repair issue #$issue_number parent verification failed: ${actual:-empty}"
+    return 1
+  }
+}
+
+local_ci_ensure_frontier_block() {
+  local repo="$1" frontier="$2" repair_id="$3" deps_file
+  [ -n "$frontier" ] || {
+    log "local-ci red verdict has no claimable frontier; repair ticket remains unblocked"
+    return 0
+  }
+  [ "$frontier" != "$repair_id" ] || return 0
+  deps_file="$(mktemp)"
+  if ! "$GH_BIN" api "repos/$repo/issues/$frontier/dependencies/blocked_by" >"$deps_file" 2>/dev/null; then
+    rm -f "$deps_file"
+    log "could not read dependencies for frontier #$frontier"
+    return 1
+  fi
+  if jq -e --arg id "$repair_id" 'any(.[]?; ((.id // "") | tostring) == $id)' "$deps_file" >/dev/null 2>&1; then
+    rm -f "$deps_file"
+    return 0
+  fi
+  rm -f "$deps_file"
+  if ! "$GH_BIN" api --method POST "repos/$repo/issues/$frontier/dependencies/blocked_by" \
+    -F "issue_id=$repair_id" >/dev/null 2>&1; then
+    log "could not add repair issue #$repair_id as blocker of frontier #$frontier"
+    return 1
+  fi
+  log "repair issue #$repair_id now blocks frontier #$frontier"
+}
+
+local_ci_repair_ticket() {
+  local sha="$1" repo issue_number issue_id issue_state issue_url body title
+  local issue_file found frontiers frontier failed=0 cached=""
+
+  [ -n "$GH_BIN" ] || {
+    log "local-ci red verdict for $sha — gh is unavailable; no frontier block"
+    return 1
+  }
+  if ! "$GH_BIN" auth status >/dev/null 2>&1; then
+    log "local-ci red verdict for $sha — gh auth is unavailable in daemon environment; no frontier block"
+    return 1
+  fi
+  repo="$(tracker_repo)"
+  cached="$(local_ci_repair_for "$sha" || true)"
+  if [ -n "$cached" ]; then
+    issue_number="$cached"
+  else
+    issue_file="$(mktemp)"
+    if ! "$GH_BIN" api "repos/$repo/issues?state=all&per_page=100" >"$issue_file" 2>/dev/null; then
+      rm -f "$issue_file"
+      log "could not search repair issues for local-ci red HEAD $sha"
+      return 1
+    fi
+    found="$(jq -r --arg marker "$REPAIR_MARKER" --arg sha "$sha" '
+      [.[] | select(.pull_request == null)
+       | select(((.title // "") | contains($marker)) or ((.body // "") | contains($marker)))
+       | select((.body // "") | contains($sha))]
+      | first
+      | if . == null then "" else ((.number | tostring) + "\t" + (.id | tostring) + "\t" + (.state // "")) end
+    ' "$issue_file" 2>/dev/null || true)"
+    rm -f "$issue_file"
+    if [ -n "$found" ]; then
+      issue_number="${found%%$'\t'*}"
+    else
+      title="[local-ci] repair red detached verification for $sha"
+      body="Part of #$MAP_ISSUE.
+Blocked by: none.
+
+<!-- $REPAIR_MARKER -->
+Covered HEAD: \`$sha\`
+Verdict: FAIL
+
+This repair ticket was created by the Wayfinder daemon after the detached local-CI
+run for the pinned HEAD returned FAIL. Repair the failing local gate before normal
+frontier work proceeds. The daemon does not poll hosted CI."
+      # Use --body, not --body-file: a tracker body is never sourced from an
+      # unchecked/possibly empty temporary file.
+      issue_url="$("$GH_BIN" issue create --repo "$repo" --title "$title" --body "$body" \
+        --label wayfinder:task --label ready-for-agent 2>/dev/null || true)"
+      issue_number="$(printf '%s\n' "$issue_url" | sed -n 's#.*issues/\([0-9][0-9]*\).*#\1#p' | tail -1)"
+      [ -n "$issue_number" ] || {
+        log "could not create repair issue for local-ci red HEAD $sha"
+        return 1
+      }
+    fi
+  fi
+
+  issue_file="$(mktemp)"
+  if ! "$GH_BIN" api "repos/$repo/issues/$issue_number" >"$issue_file" 2>/dev/null; then
+    rm -f "$issue_file"
+    log "repair issue #$issue_number disappeared before it could block the frontier"
+    return 1
+  fi
+  issue_id="$(jq -r '.id // ""' "$issue_file" 2>/dev/null || true)"
+  issue_state="$(jq -r '.state // ""' "$issue_file" 2>/dev/null || true)"
+  rm -f "$issue_file"
+  [[ "$issue_id" =~ ^[0-9]+$ ]] || {
+    log "repair issue #$issue_number has no numeric database id"
+    return 1
+  }
+  if [ "$issue_state" = closed ]; then
+    if ! "$GH_BIN" issue reopen "$issue_number" --repo "$repo" >/dev/null 2>&1; then
+      log "could not reopen closed repair issue #$issue_number for red HEAD $sha"
+      return 1
+    fi
+  fi
+  if ! local_ci_ensure_map_child "$repo" "$issue_number" "$issue_id"; then
+    return 1
+  fi
+  local_ci_record_repair "$sha" "$issue_number"
+  if ! frontiers="$(local_ci_frontier_issue)"; then
+    log "could not reconcile the map frontier for local-ci red HEAD $sha"
+    return 1
+  fi
+  while IFS= read -r frontier; do
+    [ -n "$frontier" ] || continue
+    if ! local_ci_ensure_frontier_block "$repo" "$frontier" "$issue_id"; then
+      failed=1
+    fi
+  done <<< "$frontiers"
+  [ "$failed" -eq 0 ]
+}
+
+local_ci_process_verdict() {
+  local sha="$1" verdict="$2" seen
+  seen="$(local_ci_verdict_for "$sha" || true)"
+  if [ "$verdict" = PASS ]; then
+    if [ "$seen" != PASS ]; then
+      log "local-ci verdict PASS for HEAD $sha"
+      local_ci_record_verdict "$sha" PASS
+      save_state
+    fi
+    return 0
+  fi
+  [ "$verdict" = FAIL ] || return 1
+  [ "$seen" != FAIL ] || return 0
+  if [ -n "$DRY_RUN" ]; then
+    log "DRY-RUN: local-ci verdict FAIL for HEAD $sha — would create/update one repair ticket"
+    local_ci_record_verdict "$sha" FAIL
+    save_state
+    return 0
+  fi
+  if local_ci_repair_ticket "$sha"; then
+    local_ci_record_verdict "$sha" FAIL
+    save_state
+    return 0
+  fi
+  return 1
+}
+
+ensure_local_ci_run() {
+  local head covered result
+  head="$(local_ci_current_head)"
+  valid_sha "$head" || {
+    [ -n "$head" ] && log "local-ci watcher could not use non-SHA HEAD: $head"
+    return 0
+  }
+  covered="$(local_ci_run_sha)"
+  if local_ci_run_active; then
+    if [ "$covered" != "$head" ] && [ "${local_ci_pending_sha:-}" != "$head" ]; then
+      local_ci_pending_sha="$head"
+      save_state
+      log "HEAD moved to $head while local-ci run covers ${covered:-unknown}; queued a fresh run"
+    fi
+    return 0
+  fi
+  if [ "$covered" = "$head" ]; then
+    result="$(local_ci_run_result || true)"
+    if [ "$result" = PASS ] || [ "$result" = FAIL ]; then
+      local_ci_pending_sha=""
+      local_ci_process_verdict "$head" "$result" || true
+      return 0
+    fi
+  fi
+  if [ -n "$DRY_RUN" ] && [ "${local_ci_pending_sha:-}" = "$head" ]; then
+    log "DRY-RUN: local-ci launch for HEAD $head already planned"
+    return 0
+  fi
+  log "local-ci has no completed run for HEAD $head (covered=${covered:-none}) — launching"
+  if local_ci_launch "$head"; then
+    local_ci_pending_sha="$head"
+    save_state
+  fi
 }
 
 wait_for_session_exit() {
@@ -456,6 +865,10 @@ supervise_session() {
   local work_msg_id=""
   while :; do
     sleep "$TICK_SECS"
+    # Detached verification belongs to the daemon, not the supervised worker.
+    # Poll before handoff/session handling so a pushed HEAD is queued even while
+    # the worker is still doing implementation work.
+    ensure_local_ci_run
     # completion first: a finished session signals via handoff activity — either
     # a new packet file or an in-place revision of its own packet
     d="$(newest_unprocessed || true)"
@@ -719,6 +1132,7 @@ session_dead() {
 wait_for_doc() {
   local d
   while :; do
+    ensure_local_ci_run
     d="$(newest_unprocessed || true)"
     if [ -n "$d" ]; then
       # settle: the file may still be mid-write
@@ -742,6 +1156,17 @@ command -v jq >/dev/null 2>&1 || die "jq not found"
 
 load_state
 normalize_seen_docs
+
+# One-shot fixture probe used by the script-level watcher tests. It exercises
+# the same poll path without creating a session or asking an active agent to
+# inspect CI state.
+if [ "${1:-}" = "--local-ci-once" ]; then
+  ensure_local_ci_run
+  save_state
+  exit 0
+fi
+
+ensure_local_ci_run
 
 if [ "${1:-}" = "--bootstrap" ]; then
   [ $# -ge 2 ] || die "--bootstrap requires <doc> (a .wayfinder/handoffs/ packet filename)"
