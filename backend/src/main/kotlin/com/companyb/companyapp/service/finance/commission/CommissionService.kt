@@ -129,7 +129,10 @@ object CommissionService {
             ProductSaleRepository.findById(productSaleId)
                 ?: throw NotFoundException("Product sale not found")
 
-        val branchId = BranchDayService.requireBranchDayExists(sale.branchDayId).branchId
+        // #516 — locked day read: serializes this inclusion with remittance's
+        // REMITTED transition inside the same command transaction.
+        val (branchDay, isRemitted) =
+            BranchDayService.checkBranchDayEditableInTransaction(callerId, sale.branchDayId, reason)
 
         val mutation =
             CommissionManualInclusionRepository.upsertInTransaction(
@@ -143,7 +146,7 @@ object CommissionService {
                 ),
             )
 
-        val context = AuditContext(callerId, branchId)
+        val context = AuditContext(callerId, branchDay.branchId, isRemitted, reason)
         if (mutation.existing == null) {
             CommissionAudit.inserted(context, mutation.inclusion)
         } else {
