@@ -58,6 +58,7 @@ javalin-openapi-processor = { module = "io.javalin.community.openapi:openapi-ann
 javalin-openapi-plugin = { module = "io.javalin.community.openapi:javalin-openapi-plugin", version.ref = "javalinOpenapi" }
 javalin-swagger-plugin = { module = "io.javalin.community.openapi:javalin-swagger-plugin", version.ref = "javalinOpenapi" }
 detekt-api = { module = "io.gitlab.arturbosch.detekt:detekt-api", version.ref = "detekt" }
+detekt-parser = { module = "io.gitlab.arturbosch.detekt:detekt-parser", version.ref = "detekt" }
 detekt-test = { module = "io.gitlab.arturbosch.detekt:detekt-test", version.ref = "detekt" }
 jakarta-mail = { module = "com.sun.mail:jakarta.mail", version.ref = "jakartaMail" }
 jwt = { module = "com.auth0:java-jwt", version.ref = "jwt" }

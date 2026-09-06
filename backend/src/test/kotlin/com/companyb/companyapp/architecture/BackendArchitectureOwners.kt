@@ -1,9 +1,23 @@
 package com.companyb.companyapp.architecture
 
+import io.github.detekt.parser.KtCompiler
+import org.jetbrains.kotlin.com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.lexer.KtTokens
+import org.jetbrains.kotlin.psi.KtCallExpression
+import org.jetbrains.kotlin.psi.KtClassOrObject
+import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
+import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtImportDirective
+import org.jetbrains.kotlin.psi.KtNamedDeclaration
+import org.jetbrains.kotlin.psi.KtNamedFunction
+import org.jetbrains.kotlin.psi.KtObjectDeclaration
+import org.jetbrains.kotlin.psi.KtSimpleNameExpression
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.Path
 
 /**
- * Semantic owner/seam policy for map #533 (#534).
+ * Semantic owner/seam policy for map #533 (#534, repaired #572).
  *
  * Single architecture-test owner: whole-source discovery plus small explicit
  * owner mapping that supports legacy locations and #533 target packages side
@@ -11,11 +25,29 @@ import java.io.File
  * this file moves no production sources.
  *
  * Owner vocabulary follows #533: identity, authorization, branch, branchday,
- * workforce, client, session, commerce, commission, remittance, reporting,
- * audit, notification; mechanisms http, database, observability, logging;
- * legacy buckets persistence (global repository layer) and mechanism/app.
+ * workforce, client, session, commerce, finance, commission, remittance,
+ * reporting, audit, notification; mechanisms http, database, observability,
+ * logging; legacy buckets persistence (global repository layer) and
+ * mechanism/app.
+ *
+ * #572: semantic owner (which feature) is separate from architectural role
+ * (what shape: HTTP adapter, command, store). Moving a route beside its
+ * feature changes owner, not role — role derives from file shape, so checks
+ * follow colocated files instead of going vacuously green. All
+ * declaration/import analysis uses Kotlin PSI via Detekt's parser (#572);
+ * the previous hand-written comment/string lexer, brace matcher and
+ * fun-declaration regexes are gone.
  */
 object BackendArchitectureOwners {
+    const val BASE_PACKAGE = "com.companyb.companyapp"
+    const val HTTP_ADAPTER = "http-adapter"
+    const val STORE = "store"
+    const val COMMAND = "command"
+    const val OTHER = "other"
+
+    /** Legacy shared bucket: stores/tables here stay importable until their feature move. */
+    const val LEGACY_SHARED = "persistence"
+
     val mainRoot: File = File("backend/src/main/kotlin/com/companyb/companyapp")
 
     /** Whole-source discovery; fail-closed on empty or missing roots. */
@@ -38,6 +70,23 @@ object BackendArchitectureOwners {
         val path = relativePath.trimStart('/')
         val prefixed = OWNER_PREFIXES.firstOrNull { (prefix, _) -> path.startsWith(prefix) }?.second
         return prefixed ?: serviceRootFileOwner(path)
+    }
+
+    /**
+     * Architectural role for a path relative to [mainRoot]. Unlike [ownerOf],
+     * the role follows file shape, so a colocated `branch/BranchRoutes.kt`
+     * stays an HTTP adapter and a relocated `client/ClientRepository.kt`
+     * stays a store (#572).
+     */
+    fun roleOf(relativePath: String): String {
+        val path = relativePath.trimStart('/')
+        val name = path.substringAfterLast('/')
+        return when {
+            name.endsWith("Routes.kt") || path.startsWith("api/") -> HTTP_ADAPTER
+            name.endsWith("Repository.kt") || name.endsWith("Store.kt") -> STORE
+            name.endsWith("Service.kt") -> COMMAND
+            else -> OTHER
+        }
     }
 
     private fun serviceRootFileOwner(path: String): String? =
@@ -96,14 +145,19 @@ object BackendArchitectureOwners {
             "service/inventory/" to "commerce",
             "service/commerce/" to "commerce",
             "commerce/" to "commerce",
+            "inventory/" to "commerce",
             "service/finance/commission/" to "commission",
             "service/commission/" to "commission",
             "commission/" to "commission",
             "service/finance/remittance/" to "remittance",
             "service/remittance/" to "remittance",
             "remittance/" to "remittance",
+            "service/finance/" to "finance",
+            "finance/" to "finance",
             "service/dashboard/" to "reporting",
+            "dashboard/" to "reporting",
             "service/export/" to "reporting",
+            "export/" to "reporting",
             "service/reporting/" to "reporting",
             "reporting/" to "reporting",
             "service/audit/" to "audit",
@@ -131,9 +185,6 @@ object BackendArchitectureOwners {
             "repository/" to "persistence",
         )
 
-    /** Files allowed to hold a direct BranchDay store import; emptied by #536. */
-    val branchDayStoreReaders: Set<String> = emptySet()
-
     /** Recorded Instant.now owners (#322, retained): auth lifecycle, branch-day clock, incident filing. */
     val instantOwners: Set<String> =
         setOf(
@@ -145,244 +196,363 @@ object BackendArchitectureOwners {
         )
 
     /**
-     * Strips line/block comments and string/char literals so doc prose can no
-     * longer satisfy or dodge code predicates (#412 shape, shared here).
+     * Deliberate cross-owner store reads (read projections with an explicit
+     * grant). Record projection grants here — distinctly from command
+     * coordination, which flows service-to-service and needs no entry —
+     * never as an all-to-all graph. An empty set stays legal and requires no
+     * dummy entry (#572).
      */
-    fun codeOnly(source: String): String {
-        val out = StringBuilder(source.length)
-        var i = 0
-        while (i < source.length) {
-            when {
-                source.startsWith("//", i) -> {
-                    out.append('\n')
-                    i = source.indexOf('\n', i).takeIf { it >= 0 } ?: source.length
-                }
+    val allowedStoreReads: Set<StoreSeam> =
+        setOf(
+            // Map #533: commission reads attendance facts without calling the attendance commands.
+            StoreSeam("commission", "$BASE_PACKAGE.service.attendance.AttendanceRepository"),
+        )
 
-                source.startsWith("/*", i) -> {
-                    i = skipBlockComment(source, i, out)
-                }
+    /** One granted cross-owner store read: [importerOwner] may read [store] (fully qualified). */
+    data class StoreSeam(
+        val importerOwner: String,
+        val store: String,
+    )
 
-                source.startsWith("\"\"\"", i) -> {
-                    val end = source.indexOf("\"\"\"", i + 3).takeIf { it >= 0 }?.plus(3) ?: source.length
-                    out.append('\n'.toString().repeat(source.substring(i, end).count { it == '\n' }))
-                    out.append(' ')
-                    i = end
-                }
+    // ---- PSI parsing (Detekt's public parser; replaces the hand-written lexer) ----
 
-                source[i] == '"' || source[i] == '\'' -> {
-                    i = skipQuoted(source, i, out)
-                }
+    private val ktCompiler: KtCompiler by lazy { KtCompiler() }
 
-                else -> {
-                    out.append(source[i])
-                    i++
-                }
-            }
-        }
-        return out.toString()
-    }
+    private val snippetDir: Path by lazy { Files.createTempDirectory("arch-snippet") }
 
-    private fun skipBlockComment(
+    /**
+     * Parses Kotlin source to a [KtFile]; comments/strings stay inert PSI,
+     * never code shapes. Whole-tree callers pass the repo-relative path so
+     * the real file backs the parse; snippets fall back to a shared scratch
+     * file — content always comes from [source], the path is only an
+     * existence anchor for the parser.
+     */
+    fun parseKt(
         source: String,
-        start: Int,
-        out: StringBuilder,
-    ): Int {
-        var depth = 1
-        var i = start + 2
-        while (i < source.length && depth > 0) {
-            when {
-                source.startsWith("*/", i) -> {
-                    depth--
-                    i += 2
-                }
-
-                source.startsWith("/*", i) -> {
-                    depth++
-                    i += 2
-                }
-
-                else -> {
-                    if (source[i] == '\n') out.append('\n')
-                    i++
-                }
-            }
-        }
-        out.append(' ')
-        return i
+        relativePath: String = "Snippet.kt",
+    ): KtFile {
+        val disk = mainRoot.resolve(relativePath.trimStart('/'))
+        val path = if (disk.isFile) disk.toPath() else writeSnippet(relativePath, source)
+        return ktCompiler.createKtFile(source, snippetDir, path)
     }
 
-    private fun skipQuoted(
+    private fun writeSnippet(
+        relativePath: String,
         source: String,
-        start: Int,
-        out: StringBuilder,
-    ): Int {
-        var i = start + 1
-        while (i < source.length && source[i] != source[start]) {
-            if (source[i] == '\\') i++
-            i++
-        }
-        out.append(' ')
-        return (i + 1).coerceAtMost(source.length)
+    ): Path {
+        val name = relativePath.substringAfterLast('/').takeIf { it.endsWith(".kt") } ?: "Snippet.kt"
+        val file = snippetDir.resolve(name)
+        Files.writeString(file, source)
+        return file
     }
 
-    /** Local name to persistence table for record imports, including `as` aliases. */
-    fun tableImports(source: String): Map<String, String> {
+    /** Local name to fully qualified path for every import directive (aliases resolved). */
+    fun importMap(file: KtFile): Map<String, String> {
         val result = mutableMapOf<String, String>()
-        for (match in IMPORT_LINE.findAll(source)) {
-            val path = match.groupValues[1]
-            val alias = match.groupValues[2].ifEmpty { null }
-            val table = PERSISTENCE_TABLE_IMPORT.find(path)?.groupValues?.get(1) ?: continue
-            result[alias ?: table] = table
+        for (directive in file.importDirectives) {
+            val path = directive.importPath?.pathStr ?: continue
+            val alias = directive.alias?.name
+            result[alias ?: path.substringAfterLast('.')] = path
         }
         return result
     }
 
+    private fun <T : PsiElement> descendants(
+        root: PsiElement,
+        type: Class<T>,
+    ): List<T> {
+        val out = mutableListOf<T>()
+
+        fun walk(element: PsiElement) {
+            if (type.isInstance(element)) out.add(type.cast(element))
+            element.children.forEach(::walk)
+        }
+        walk(root)
+        return out
+    }
+
+    private inline fun <reified T : PsiElement> KtFile.collect(): List<T> = descendants(this, T::class.java)
+
+    private fun isInsideImport(element: PsiElement): Boolean =
+        generateSequence(element.parent) { it.parent }.any { it is KtImportDirective }
+
+    private fun nearestInternalType(element: PsiElement): KtClassOrObject? =
+        generateSequence(element.parent) { it.parent }
+            .filterIsInstance<KtClassOrObject>()
+            .firstOrNull { it.hasModifier(KtTokens.INTERNAL_KEYWORD) }
+
+    private fun calleeName(call: KtCallExpression): String? =
+        (call.calleeExpression as? KtSimpleNameExpression)?.getReferencedName()
+
+    private fun isCallTo(
+        call: KtCallExpression,
+        method: String,
+    ): Boolean = calleeName(call) == method
+
+    private fun receiverText(call: KtCallExpression): String? =
+        (call.parent as? KtDotQualifiedExpression)?.receiverExpression?.text
+
+    /** Call sites of `Receiver.method(...)`; string/comment lookalikes never match (#572). */
+    fun callSites(
+        file: KtFile,
+        receiver: String,
+        method: String,
+    ): Int = file.collect<KtCallExpression>().count { isCallTo(it, method) && receiverText(it) == receiver }
+
+    // ---- Table knowledge (generic: any feature package, aliases, qualified) ----
+
+    private fun isOurTablePath(path: String): Boolean {
+        if (!path.startsWith("$BASE_PACKAGE.")) return false
+        val simple = path.substringAfterLast('.')
+        return simple.endsWith("Table") && simple != "Table"
+    }
+
+    /** Local name to table simple name for our-table imports, including `as` aliases. */
+    fun ourTableImports(file: KtFile): Map<String, String> {
+        val result = mutableMapOf<String, String>()
+        for ((local, path) in importMap(file)) {
+            if (path.endsWith(".*") || !isOurTablePath(path)) continue
+            result[local] = path.substringAfterLast('.')
+        }
+        return result
+    }
+
+    /** Table simple names declared in this file (same-package tables need no import). */
+    fun declaredTableNames(file: KtFile): Set<String> =
+        file.collect<KtClassOrObject>().mapNotNullTo(mutableSetOf()) {
+            it.name?.takeIf { name -> name.endsWith("Table") }
+        }
+
+    private fun resolveTable(
+        name: String,
+        imports: Map<String, String>,
+        visibleTables: Set<String>,
+        qualifiedRoot: String?,
+    ): String? =
+        imports[name] ?: visibleTables.takeIf { name in it }?.let { name }
+            ?: name.takeIf { it.endsWith("Table") && qualifiedRoot?.startsWith("$BASE_PACKAGE.") == true }
+
+    private fun outermostQualifiedText(element: PsiElement): String? {
+        var current: PsiElement = element
+        while (current.parent is KtDotQualifiedExpression) current = current.parent
+        return (current as? KtDotQualifiedExpression)?.text
+    }
+
     /**
-     * Declaration-aware table-leak check: a persistence-table reference is
-     * allowed only inside an `internal` type body. Replaces the
-     * end-of-first-object heuristic, which missed leaks after a preceding
-     * seam, and honors import aliases.
+     * Our-table references used outside an `internal` type body.
+     * [visibleTables] is the tables the file may name without an import:
+     * whole-tree callers pass the tree-wide table names, fixtures pass the
+     * snippet's own declarations. Order-independent: a seam may precede or
+     * follow the use (#572 — no declaration-order rule).
      */
-    fun tableLeaks(source: String): List<String> {
-        val imports = tableImports(source)
-        if (imports.isEmpty()) return emptyList()
-        val code = codeOnly(withoutImportsAndPackage(source))
-        val seams = internalRanges(code)
-        val byTable = mutableMapOf<String, MutableSet<String>>()
-        for ((local, table) in imports) byTable.getOrPut(table) { mutableSetOf() }.add(local)
-        val leaked = mutableListOf<String>()
-        for ((table, locals) in byTable) {
-            val refs = Regex("\\b(${locals.joinToString("|") { Regex.escape(it) }})\\b").findAll(code)
-            if (refs.any { hit -> seams.none { hit.range.first in it } }) leaked.add(table)
-        }
-        return leaked
+    fun tableLeaks(
+        file: KtFile,
+        visibleTables: Set<String>,
+    ): List<String> {
+        val imports = ourTableImports(file)
+        return file
+            .collect<KtSimpleNameExpression>()
+            .filter { !isInsideImport(it) && nearestInternalType(it) == null }
+            .mapNotNull { resolveTable(it.getReferencedName(), imports, visibleTables, outermostQualifiedText(it)) }
+            .distinct()
     }
 
-    private fun withoutImportsAndPackage(source: String): String =
-        source
-            .replace(IMPORT_LINE, "")
-            .replace(PACKAGE_LINE, "")
+    private val TABLE_WRITE_OPS = setOf("insert", "insertIgnore", "update", "deleteWhere", "upsert")
 
-    /** Brace ranges of `internal` type bodies in comment/string-stripped code. */
-    fun internalRanges(code: String): List<IntRange> =
-        TYPE_DECLARATION
-            .findAll(code)
-            .mapNotNull { header ->
-                if ("internal" !in header.groupValues[1].split(Regex("\\s+"))) return@mapNotNull null
-                val bodyStart = nextScopeBrace(code, header.range.last + 1) ?: return@mapNotNull null
-                val bodyEnd = matchBrace(code, bodyStart) ?: return@mapNotNull null
-                bodyStart..bodyEnd
-            }.toList()
-
-    private fun nextScopeBrace(
-        code: String,
-        from: Int,
-    ): Int? {
-        val brace = code.indexOf('{', from)
-        val window = if (brace < 0) "" else code.substring(from, brace)
-        val cleanWindow = !TYPE_DECLARATION.containsMatchIn(window) && !FUN_DECLARATION.containsMatchIn(window)
-        return if (brace >= 0 && cleanWindow) brace else null
+    /**
+     * `Table.writeOp(...)` sites as `Table.op`. Receiver resolves through
+     * aliases, same-package declarations and qualified paths, like [tableLeaks].
+     */
+    fun tableWriteOps(
+        file: KtFile,
+        visibleTables: Set<String>,
+    ): List<String> {
+        val imports = ourTableImports(file)
+        return file
+            .collect<KtCallExpression>()
+            .filter { isCallTo(it, TABLE_WRITE_OPS) }
+            .mapNotNull { call ->
+                val receiver = (call.parent as? KtDotQualifiedExpression)?.receiverExpression ?: return@mapNotNull null
+                val base =
+                    when (receiver) {
+                        is KtSimpleNameExpression -> receiver.getReferencedName()
+                        is KtDotQualifiedExpression -> receiver.text.substringAfterLast('.').substringBefore('<')
+                        else -> return@mapNotNull null
+                    }
+                val table = resolveTable(base, imports, visibleTables, outermostQualifiedText(receiver))
+                table?.let { "$it.${calleeName(call)}" }
+            }.distinct()
     }
 
-    private fun matchBrace(
-        code: String,
-        open: Int,
-    ): Int? {
-        var depth = 0
-        for (i in open until code.length) {
-            when (code[i]) {
-                '{' -> {
-                    depth++
-                }
+    private fun isCallTo(
+        call: KtCallExpression,
+        methods: Set<String>,
+    ): Boolean = calleeName(call) in methods
 
-                '}' -> {
-                    depth--
-                    if (depth == 0) return i
-                }
-            }
-        }
-        return null
-    }
+    // ---- HTTP adapter (role-based: every *Routes.kt plus api/) ----
 
-    /** HTTP-adapter rule: no Exposed, transaction, persistence-table, or raw-exec shapes. */
-    fun apiLayerViolations(source: String): List<String> =
+    /** HTTP-adapter rule: no Exposed, transaction, our-table, or raw-exec shapes. */
+    fun apiLayerViolations(file: KtFile): List<String> =
         buildList {
-            if (EXPOSED_IMPORT.containsMatchIn(source)) add("exposed-import")
-            if (TRANSACTION_BLOCK.containsMatchIn(codeOnly(source))) add("transaction-block")
-            if (TABLE_IMPORT.containsMatchIn(source)) add("persistence-table-import")
-            if (RAW_EXEC.containsMatchIn(codeOnly(source))) add("raw-sql-exec")
+            if (file.importDirectives.any { it.importPath?.pathStr?.startsWith("org.jetbrains.exposed") == true }) {
+                add("exposed-import")
+            }
+            val calls = file.collect<KtCallExpression>()
+            if (calls.any { isCallTo(it, "transaction") }) add("transaction-block")
+            if (ourTableImports(file).isNotEmpty()) add("persistence-table-import")
+            if (calls.any { isCallTo(it, "exec") }) add("raw-sql-exec")
         }
 
-    /** Top-level store declarations missing the `internal` marker (service scope). */
-    fun nonInternalStoreDeclarations(source: String): List<String> =
-        PUBLIC_STORE_DECLARATION.findAll(codeOnly(source)).map { it.value }.toList()
+    // ---- Store visibility ----
 
-    fun containsAuditRecordCall(source: String): Boolean = AUDIT_RECORD_CALL.containsMatchIn(codeOnly(source))
+    /** Top-level store declarations missing `internal`/`private` (service scope). */
+    fun nonInternalStoreDeclarations(file: KtFile): List<String> =
+        file.declarations
+            .filterIsInstance<KtClassOrObject>()
+            .filter { (it.name?.endsWith("Repository") == true || it.name?.endsWith("Store") == true) }
+            .filter { !it.hasModifier(KtTokens.INTERNAL_KEYWORD) && !it.hasModifier(KtTokens.PRIVATE_KEYWORD) }
+            .map { "${if (it is KtObjectDeclaration) "object" else "class"} ${it.name}" }
 
-    fun containsAuditFn(source: String): Boolean = "auditFn" in codeOnly(source)
+    // ---- Audit ownership (role-based: every store, wherever it lives) ----
 
-    /** Highest transaction-block count inside any single function body; commands own at most one. */
-    fun maxTransactionsPerFunction(source: String): Int {
-        val code = "\n" + codeOnly(source)
-        val starts = FUN_DECLARATION.findAll(code).map { it.range.first }.toList() + code.length
-        return starts
-            .zipWithNext { start, next -> code.substring(start, next) }
-            .map { body -> TRANSACTION_BLOCK.findAll(body).count() }
-            .maxOrNull() ?: 0
+    fun containsAuditRecordCall(file: KtFile): Boolean =
+        file.collect<KtCallExpression>().any {
+            calleeName(it)?.startsWith("record") == true && receiverText(it) == "AuditLogRepository"
+        }
+
+    fun containsAuditFn(file: KtFile): Boolean =
+        file.collect<KtSimpleNameExpression>().any { !isInsideImport(it) && it.getReferencedName() == "auditFn" } ||
+            file.collect<KtNamedDeclaration>().any { it.name == "auditFn" }
+
+    // ---- Command transactions (PSI: generics, extensions, nested, expression bodies) ----
+
+    private fun ownTransactionCalls(function: KtNamedFunction): Int {
+        var count = 0
+
+        fun walk(element: PsiElement) {
+            if (element !== function && element is KtNamedFunction) return
+            if (element is KtCallExpression && isCallTo(element, "transaction")) count++
+            element.children.forEach(::walk)
+        }
+        function.children.forEach(::walk)
+        return count
     }
+
+    /**
+     * Highest transaction-block count inside any single function body; commands
+     * own at most one. Each function — generic, extension, nested, annotated,
+     * expression-bodied — is judged on its own body; nested functions never
+     * leak their blocks into the outer count nor escape analysis (#572).
+     */
+    fun maxTransactionsPerFunction(file: KtFile): Int =
+        file.collect<KtNamedFunction>().maxOfOrNull(::ownTransactionCalls) ?: 0
 
     /** In-transaction stores must open no transaction of their own (ADR-0024). */
-    fun inTransactionFunctionsWithNestedTransaction(source: String): List<String> {
-        val code = "\n" + codeOnly(source)
-        val starts = FUN_DECLARATION.findAll(code).toList()
-        return starts
-            .mapIndexed { index, match ->
-                val end = starts.getOrNull(index + 1)?.range?.first ?: code.length
-                match.groupValues[1] to code.substring(match.range.first, end)
-            }.filter { (name, _) -> IN_TRANSACTION_FUN in name }
-            .filter { (_, body) -> TRANSACTION_BLOCK.containsMatchIn(body) }
-            .map { (name, _) -> name }
-            .toList()
+    fun inTransactionFunctionsWithNestedTransaction(file: KtFile): List<String> =
+        file
+            .collect<KtNamedFunction>()
+            .filter { "InTransaction" in (it.name ?: "") && ownTransactionCalls(it) > 0 }
+            .mapNotNull { it.name }
+
+    // ---- Cross-feature stores (generic; replaces the BranchDay-only check) ----
+
+    /** Top-level `*Repository`/`*Store` declarations in this file. */
+    fun declaredStoreNames(file: KtFile): Set<String> =
+        file.collect<KtClassOrObject>().mapNotNullTo(mutableSetOf()) {
+            it.name?.takeIf { name -> name.endsWith("Repository") || name.endsWith("Store") }
+        }
+
+    private fun isSharedStoreOwner(owner: String): Boolean = owner == LEGACY_SHARED
+
+    private fun isForeignStore(
+        store: String,
+        importerOwner: String,
+        storeOwners: Map<String, Set<String>>,
+    ): Boolean = storeOwners[store]?.any { it != importerOwner && !isSharedStoreOwner(it) } == true
+
+    private fun importedStoreOffenders(
+        importerOwner: String,
+        file: KtFile,
+        storeOwners: Map<String, Set<String>>,
+        allowed: Set<StoreSeam>,
+    ): List<String> =
+        importMap(file)
+            .values
+            .filter { it.startsWith("$BASE_PACKAGE.") && !it.endsWith(".*") }
+            .map { it.substringAfterLast('.') to it }
+            .filter { (simple, _) -> simple.endsWith("Repository") || simple.endsWith("Store") }
+            .filter { (simple, path) ->
+                isForeignStore(simple, importerOwner, storeOwners) && StoreSeam(importerOwner, path) !in allowed
+            }.map { (_, path) -> "import $path" }
+
+    private fun usedStoreOffenders(
+        importerOwner: String,
+        file: KtFile,
+        storeOwners: Map<String, Set<String>>,
+        allowed: Set<StoreSeam>,
+    ): List<String> {
+        val imports = importMap(file)
+        val declared = declaredStoreNames(file) + file.collect<KtNamedFunction>().mapNotNull { it.name }
+        return file
+            .collect<KtSimpleNameExpression>()
+            .filter { !isInsideImport(it) }
+            .map { it.getReferencedName() to outermostQualifiedText(it) }
+            .filter { (name, _) -> name !in imports && name !in declared }
+            .filter { (name, _) ->
+                (name.endsWith("Repository") || name.endsWith("Store")) &&
+                    isForeignStore(name, importerOwner, storeOwners)
+            }.mapNotNull { (name, qualified) ->
+                val fq = qualified?.substringBefore('(')?.substringBefore('<') ?: name
+                fq
+                    .takeIf { it.startsWith("$BASE_PACKAGE.") || it == name }
+                    ?.takeIf {
+                        StoreSeam(importerOwner, it) !in allowed &&
+                            imports.values.none { path -> path.endsWith(".$name") }
+                    }?.let { "use $it" }
+            }.distinct()
     }
 
-    /** BranchDay write operations; allowed only in the branchday owner. */
-    fun branchDayTableWrites(source: String): List<String> =
-        BRANCH_DAY_WRITE
-            .findAll(codeOnly(source))
-            .map { it.groupValues[1] }
-            .distinct()
-            .toList()
+    /**
+     * Foreign-feature store uses: imports, same-package uses and qualified
+     * references resolving to a store owned by another feature. Both sides
+     * being `internal` grants nothing — Kotlin `internal` is module-wide
+     * (#572). [storeOwners] maps store name to owning owners (tree-wide
+     * derivation); [store] imports from [LEGACY_SHARED] stay allowed until
+     * their move. [allowed] carries explicit read-projection grants.
+     */
+    fun foreignStoreRefs(
+        importerOwner: String,
+        file: KtFile,
+        storeOwners: Map<String, Set<String>>,
+        allowed: Set<StoreSeam> = allowedStoreReads,
+    ): List<String> {
+        if (storeOwners.isEmpty()) return emptyList()
+        return importedStoreOffenders(importerOwner, file, storeOwners, allowed) +
+            usedStoreOffenders(importerOwner, file, storeOwners, allowed)
+    }
 
-    fun importsBranchDayStore(source: String): Boolean = BRANCH_DAY_STORE_IMPORT.containsMatchIn(source)
+    // ---- Tree-wide declaration indexes (symbols from declarations, #572) ----
 
-    fun containsManilaZone(source: String): Boolean = MANILA_ZONE in codeOnly(source)
+    /** Store name to owning owners, derived from top-level declarations tree-wide. */
+    fun treeStoreOwners(files: Map<String, KtFile>): Map<String, Set<String>> {
+        val result = mutableMapOf<String, MutableSet<String>>()
+        for ((path, file) in files) {
+            val owner = ownerOf(path) ?: continue
+            for (store in declaredStoreNames(file)) result.getOrPut(store) { mutableSetOf() }.add(owner)
+        }
+        return result
+    }
 
-    fun containsIndependentToday(source: String): Boolean =
-        codeOnly(source).let { it.contains("LocalDate.now") || it.contains("OffsetDateTime.now") }
+    /** Every table name declared tree-wide (import aliases resolve against these). */
+    fun treeTableNames(files: Map<String, KtFile>): Set<String> =
+        files.values.flatMapTo(mutableSetOf()) { declaredTableNames(it) }
 
-    fun containsInstantNow(source: String): Boolean = "Instant.now()" in codeOnly(source)
+    // ---- Clock ownership (PSI call shapes; prose never matches) ----
 
-    private val IMPORT_LINE = Regex("(?m)^\\s*import\\s+(\\S+?)(?:\\s+as\\s+(\\w+))?\\s*$")
-    private val PACKAGE_LINE = Regex("(?m)^\\s*package\\s+.*$")
-    private val TYPE_DECLARATION =
-        Regex(
-            "(?m)^\\s*((?:(?:private|internal|protected|public|open|data|enum|sealed|abstract)\\s+)*)" +
-                "(object|class|interface)\\s+\\w+",
-        )
-    private val FUN_DECLARATION =
-        Regex("\n\\s*(?:(?:private|internal|protected|public)\\s+)?(?:suspend\\s+)?fun\\s+(\\w+)")
-    private val EXPOSED_IMPORT = Regex("import org\\.jetbrains\\.exposed")
-    private val TRANSACTION_BLOCK = Regex("\\btransaction\\s*[({]")
-    private val TABLE_IMPORT =
-        Regex("import com\\.companyb\\.companyapp\\.(repository\\.model|branch|branchday)\\.\\w*Table")
-    private val PERSISTENCE_TABLE_IMPORT =
-        Regex("com\\.companyb\\.companyapp\\.(?:repository\\.model|branch|branchday)\\.(\\w*Table)")
-    private val RAW_EXEC = Regex("\\bexec\\s*\\(")
-    private val PUBLIC_STORE_DECLARATION = Regex("(?m)^(?:object|class) \\w*(?:Repository|Store)\\b")
-    private val AUDIT_RECORD_CALL = Regex("\\bAuditLogRepository\\.record\\w*\\(")
-    private val BRANCH_DAY_WRITE = Regex("BranchDayTable\\.(update|insert|insertIgnore|deleteWhere|upsert)")
-    private val BRANCH_DAY_STORE_IMPORT =
-        Regex("import com\\.companyb\\.companyapp\\.(service\\.branchday|branchday)\\.BranchDayRepository")
-    private const val MANILA_ZONE = "ZoneId.of("
-    private const val IN_TRANSACTION_FUN = "InTransaction"
+    fun containsManilaZone(file: KtFile): Boolean = callSites(file, "ZoneId", "of") > 0
+
+    fun containsIndependentToday(file: KtFile): Boolean =
+        callSites(file, "LocalDate", "now") + callSites(file, "OffsetDateTime", "now") > 0
+
+    fun containsInstantNow(file: KtFile): Boolean = callSites(file, "Instant", "now") > 0
 }

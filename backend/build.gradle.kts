@@ -53,6 +53,8 @@ dependencies {
     testImplementation(libs.kotlin.testJunit)
     testImplementation(libs.junit)
     testImplementation(libs.javalin.testtools)
+    // #572 — Detekt's PSI parser for declaration-aware architecture checks (test scope only).
+    testImplementation(libs.detekt.parser)
 
     // JMH
     jmh(libs.jmh.core)

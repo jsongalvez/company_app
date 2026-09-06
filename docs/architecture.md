@@ -150,7 +150,7 @@ iosApp ──────imports────> shared (as KMP framework)
 
 ### Enforced boundaries (#324)
 
-These dependency rules are executable, not prose: `BackendFeatureBoundaryArchitectureTest`
+These dependency rules are executable, not prose: `SemanticOwnershipArchitectureTest`
 (backend test source set) fails CI on violations and pins allowed/forbidden shapes.
 
 - `api/**` stays an HTTP adapter — no Exposed imports, transaction blocks, persistence-table
@@ -336,7 +336,7 @@ Edits to REMITTED records require a `reason` in the request body. The service la
   `findByIdInTransaction` inside its own transaction
 - The `AuditLogRepository` convenience methods (`recordInsert`, `recordUpdate`, `recordDelete`) accept `Map<String, String?>` field maps (null encodes as JSON null, #525); entity-based overloads take `(before, after)` with the Table companion's `auditFields(entity)` function (see ADR 0014 / 0018)
 - Each Table companion defines an `auditFields(entity)` function (see ADR 0014)
-- These shapes are enforced executably by `BackendFeatureBoundaryArchitectureTest` (§7) — that test,
+- These shapes are enforced executably by `SemanticOwnershipArchitectureTest` (§7) — that test,
   not this prose, is authoritative
 
 **Covered tables:** every table receiving an `AuditLogRepository.record*` call site, enumerated authoritatively by `AuditLogTableRegistry` (the same registry `GET /api/audit-log/tables` serves — a missing entry makes live audit rows invisible to the UI's table filter). Mechanism/derived writes stay unaudited at their own tables when the domain event is audited where it happens (`commission_split` recalculation output, relief/delegate `user_capability` grant rows, lazy `branch_day` bootstrap, attendance-created `branch_day_assignment`, sale-generated movements); notification writes carry an explicit ADR-0024 exception.

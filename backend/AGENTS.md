@@ -230,7 +230,7 @@ This ensures the audit insert commits atomically with the mutation it describes.
 
 All mutating modules are command-owned ([ADR-0024](../docs/adr/0024-command-owned-mutation-transactions.md);
 the ADR-0013 `auditFn` callback was retired program-wide by map #317 / #323 and is pinned out by
-`BackendFeatureBoundaryArchitectureTest` plus per-feature ownership tests): the service command opens
+`SemanticOwnershipArchitectureTest` plus per-feature ownership tests): the service command opens
 exactly one transaction, repository mutators are `*InTransaction` store operations that open no
 transaction, and the command calls `AuditLogRepository.record*` directly inside that same transaction.
 Before-state capture stays transaction-local: read the entity through the store inside the command's
