@@ -6,10 +6,15 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import androidx.savedstate.SavedState
+import androidx.savedstate.read
+import androidx.savedstate.write
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.state.GLOBAL_CAPABILITY_CONTEXT_ID
@@ -49,6 +54,8 @@ import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
 import com.companyb.companyapp.viewmodel.SessionDetailViewModel
+import kotlinx.serialization.json.Json
+import kotlin.reflect.typeOf
 
 // #456 — the shared route-registration seam lives here; the cross-shell hook type owns
 // its own file so this registration file holds only graph functions (#460 governance).
@@ -380,6 +387,51 @@ private fun NavGraphBuilder.auditGraph(
     }
 }
 
+// #574 — NavType for Route.SessionDetail.row. Codec is JSON over lowercase hex: the [0-9a-f]
+// alphabet never collides with route delimiters (? & = # %) and survives the framework's
+// percent-decode leg as identity, so no dependency on internal NavUriUtils. Null follows the
+// StringType "null" convention on both legs (the arg has a default, so absent encodes as null).
+internal val SessionDetailRowNavType =
+    object : NavType<DashboardSessionResponse?>(isNullableAllowed = true) {
+        private val json = Json { ignoreUnknownKeys = true }
+
+        override val name: String = "dashboard_session_row"
+
+        override fun put(
+            bundle: SavedState,
+            key: String,
+            value: DashboardSessionResponse?,
+        ) {
+            bundle.write {
+                if (value != null) putString(key, json.encodeToString(value)) else putNull(key)
+            }
+        }
+
+        override fun get(
+            bundle: SavedState,
+            key: String,
+        ): DashboardSessionResponse? =
+            bundle.read {
+                if (contains(key) && !isNull(key)) {
+                    json.decodeFromString<DashboardSessionResponse>(getString(key))
+                } else {
+                    null
+                }
+            }
+
+        override fun parseValue(value: String): DashboardSessionResponse? =
+            if (value == "null") null else json.decodeFromString<DashboardSessionResponse>(value.fromNavHex())
+
+        override fun serializeAsValue(value: DashboardSessionResponse?): String =
+            if (value == null) "null" else json.encodeToString(value).toNavHex()
+
+        private fun String.toNavHex(): String =
+            encodeToByteArray().joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
+
+        private fun String.fromNavHex(): String =
+            chunked(2).map { it.toInt(16).toByte() }.toByteArray().toString(Charsets.UTF_8)
+    }
+
 private fun NavGraphBuilder.sessionGraph(
     apiClient: ApiClient,
     navController: NavHostController,
@@ -394,7 +446,13 @@ private fun NavGraphBuilder.sessionGraph(
             onClientProfileClick = onClientProfileClick,
         )
     }
-    composable<Route.SessionDetail> { entry ->
+    // #574 — Route.SessionDetail.row is a custom @Serializable DTO; type-safe routes resolve
+    // custom args only via typeMap (without it graph-build throws "could not find any NavType").
+    // One registration covers all three legs: navigate-encode and toRoute-decode both read the
+    // destination's argument types.
+    composable<Route.SessionDetail>(
+        typeMap = mapOf(typeOf<DashboardSessionResponse?>() to SessionDetailRowNavType),
+    ) { entry ->
         val route = entry.toRoute<Route.SessionDetail>()
         // Entry-scoped (#112): fresh VM per detail entry — the one-shot fetch
         // state self-cleans on pop. The dashboard path seeds Success with the
