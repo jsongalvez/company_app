@@ -7,6 +7,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.ClientCreateParams
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.ClientRepository
@@ -172,7 +173,11 @@ object ClientService {
                 val after =
                     ClientRepository.findByIdInTransaction(clientId)
                         ?: error("client not found after anonymize")
-                ClientAudit.updated(callerId, before, after)
+                // Redact-then-record (#524): prior payloads are scrubbed before
+                // the anonymization event lands, so the removed names never sit
+                // in a new payload and the whole command stays atomic.
+                AuditLogRepository.redactClientNamesInTransaction(clientId)
+                ClientAudit.anonymized(callerId, before, after)
             } else {
                 throw NotFoundException("Client not found")
             }
@@ -376,4 +381,33 @@ internal object ClientAudit {
         // optional fields were cleared — never their values (#524 safe).
         reason = clearedFields.takeIf { it.isNotEmpty() }?.let { "cleared: ${it.sorted().joinToString()}" },
     )
+
+    /**
+     * Anonymization event (#524): the before-image carries the redaction
+     * marker instead of the removed names, so the event itself can never
+     * resurrect what anonymization just removed. The `anonymized` reason is
+     * the audit-side marker of the anonymization.
+     */
+    fun anonymized(
+        changedBy: UUID,
+        before: Client,
+        after: Client,
+    ) {
+        val scrubbed =
+            before.copy(
+                firstName = AuditValues.REDACTED,
+                lastName = AuditValues.REDACTED,
+            )
+        AuditLogRepository.recordUpdate(
+            tableName = ClientTable.tableName,
+            recordId = after.id,
+            before = scrubbed,
+            after = after,
+            changedBy = changedBy,
+            auditFields = ClientTable::auditFields,
+            reason = ANONYMIZED_REASON,
+        )
+    }
 }
+
+private const val ANONYMIZED_REASON = "anonymized"

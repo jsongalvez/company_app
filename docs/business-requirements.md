@@ -157,6 +157,7 @@ Relief duty applies when any user — Practitioner or Coordinator — checks int
 - Names, phone, address, conditions, and BP fields are nullified.
 - Gender and age are retained for aggregate reporting.
 - Anonymized records are marked with `deleted_at` and a canonical name marker.
+- Audit redaction on anonymization (#524 — the single exception to audit-payload immutability): retained client audit payloads keep event identity (actor, timestamp, action, record, changed-field keys) while identifying first/last-name values become `[redacted]`; uniform `null`s keep their shape. Financial snapshots and demographic aggregates are never rewritten.
 
 ---
 

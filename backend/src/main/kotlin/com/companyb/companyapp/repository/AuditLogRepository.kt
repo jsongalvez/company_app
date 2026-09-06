@@ -6,7 +6,10 @@ import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogEntry
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.ClientTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import org.jetbrains.exposed.v1.core.Column
@@ -204,6 +207,46 @@ object AuditLogRepository {
             reason = reason,
             isFlagged = isFlagged,
         )
+    }
+
+    /**
+     * Anonymization redaction (#524) — the single documented exception to
+     * audit-payload immutability. Rewrites the identifying values in every
+     * retained audit row for one anonymized client, in place, on the caller's
+     * command transaction (no new events; event identity — actor, timestamp,
+     * action, record, changed-field keys — is preserved).
+     *
+     * Field policy: only `firstName`/`lastName` values that still identify a
+     * person become [AuditValues.REDACTED]. Uniform `null` sentinels and
+     * existing markers are left alone so cleared-state history keeps its
+     * shape. #525 must extend [CLIENT_IDENTIFYING_KEYS] when it widens the
+     * client audit vocabulary — no new identifying value may land in a
+     * permanent payload without passing through this gate.
+     */
+    fun redactClientNamesInTransaction(recordId: UUID): Int {
+        val rows =
+            AuditLogTable
+                .selectAll()
+                .where {
+                    (AuditLogTable.auditTableName eq ClientTable.tableName) and
+                        (AuditLogTable.recordId eq recordId)
+                }.toList()
+        var redacted = 0
+        for (row in rows) {
+            val oldValue = row[AuditLogTable.oldValue]
+            val newValue = row[AuditLogTable.newValue]
+            val scrubbedOld = redactClientNames(oldValue)
+            val scrubbedNew = redactClientNames(newValue)
+            if (scrubbedOld != oldValue || scrubbedNew != newValue) {
+                val rowId = row[AuditLogTable.id]
+                AuditLogTable.update({ AuditLogTable.id eq rowId }) {
+                    it[AuditLogTable.oldValue] = scrubbedOld
+                    it[AuditLogTable.newValue] = scrubbedNew
+                }
+                redacted++
+            }
+        }
+        return redacted
     }
 
     /**
@@ -412,6 +455,37 @@ fun decodeCursor(raw: String): AuditBrowseCursor {
         changedAt = OffsetDateTime.parse(parts[0]),
         id = UUID.fromString(parts[1]),
     )
+}
+
+/** Client audit keys whose values identify a person (#524 redaction set; #525 extends). */
+private val CLIENT_IDENTIFYING_KEYS = setOf("firstName", "lastName")
+
+/**
+ * One audit payload's name redaction (#524): identifying values become the
+ * uniform [AuditValues.REDACTED] marker; uniform `null`s, existing markers,
+ * non-object shapes, and unparseable payloads pass through untouched.
+ */
+private fun redactClientNames(raw: String?): String? {
+    if (raw == null) return null
+    val element = runCatching { Json.parseToJsonElement(raw) }.getOrElse { return raw }
+    if (element !is JsonObject) return raw
+    var changed = false
+    val scrubbed =
+        buildJsonObject {
+            element.forEach { (key, value) ->
+                val keep =
+                    key !in CLIENT_IDENTIFYING_KEYS ||
+                        value == JsonPrimitive(AuditValues.NULL) ||
+                        value == JsonPrimitive(AuditValues.REDACTED)
+                if (keep) {
+                    put(key, value)
+                } else {
+                    put(key, JsonPrimitive(AuditValues.REDACTED))
+                    changed = true
+                }
+            }
+        }
+    return if (changed) scrubbed.toString() else raw
 }
 
 private class AuditILikeOp(
