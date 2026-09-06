@@ -59,6 +59,11 @@ object RemittanceService {
                     RemittancePolicy.assertSubmittable(before.status, before.version, expectedVersion, remittanceId)
 
                     val breakdownIds = RemittanceRepository.findBreakdownDayIdsInTransaction(remittanceId)
+                    // #517 — lock covered days before the aggregate reads so a concurrent
+                    // day-gated write cannot commit between the sums and the REMITTED
+                    // transition (same sorted order as #507 undo; the later
+                    // markDaysRemittedInTransaction re-lock is a no-op).
+                    BranchDayService.lockDaysInTransaction(breakdownIds)
                     val grossIncome = RemittanceRepository.sumGrossIncomeInTransaction(remittanceId)
                     val totalCompensation = RemittanceRepository.sumCompensationsInTransaction(breakdownIds)
                     val totalExpenses = RemittanceRepository.sumExpensesInTransaction(breakdownIds)
