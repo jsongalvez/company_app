@@ -88,7 +88,7 @@ company-app/
 │       ├── api/routes/       # HTTP endpoints
 │       ├── api/middleware/    # Capability enforcement filters
 │       ├── api/mapping/      # Domain results → HTTP responses
-│       ├── auth/             # JWT handling, rate limiting, password hashing
+│       ├── identity/         # Account lifecycle: auth, users, credentials, /me (map #533)
 │       ├── config/           # Javalin config, serialization mapper
 │       ├── database/         # HikariCP + Flyway + Exposed setup
 │       ├── logging/          # Logback converters, logging extensions
@@ -141,7 +141,7 @@ iosApp ──────imports────> shared (as KMP framework)
 - Mutating store functions are `*InTransaction`: they open no transaction and run on the owning
   command's transaction (ADR-0024)
 
-### Auth (`auth/`)
+### Identity (`identity/`, map #533 #537)
 - JWT issuance and verification, bcrypt password hashing, rate limiting, persisted revocation
 - Middleware reads JWT → resolves userId for subsequent capability checks
 

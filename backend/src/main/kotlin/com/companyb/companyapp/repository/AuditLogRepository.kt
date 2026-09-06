@@ -2,8 +2,8 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.domain.AuditAction
+import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogEntry
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.ClientTable

@@ -5,7 +5,6 @@ import com.companyb.companyapp.api.middleware.TraceIdFilter
 import com.companyb.companyapp.api.routes.AllowanceRoutes
 import com.companyb.companyapp.api.routes.AttendanceRoutes
 import com.companyb.companyapp.api.routes.AuditLogRoutes
-import com.companyb.companyapp.api.routes.AuthRoutes
 import com.companyb.companyapp.api.routes.BranchInventoryRoutes
 import com.companyb.companyapp.api.routes.ClientRoutes
 import com.companyb.companyapp.api.routes.CommissionRoutes
@@ -16,7 +15,6 @@ import com.companyb.companyapp.api.routes.ExpenseRoutes
 import com.companyb.companyapp.api.routes.ExportRoutes
 import com.companyb.companyapp.api.routes.FeedbackRoutes
 import com.companyb.companyapp.api.routes.HealthRoutes
-import com.companyb.companyapp.api.routes.MeRoutes
 import com.companyb.companyapp.api.routes.MedicalMissionDelegateRoutes
 import com.companyb.companyapp.api.routes.MetricsRoutes
 import com.companyb.companyapp.api.routes.MonthlyRemittanceSummaryRoutes
@@ -31,10 +29,6 @@ import com.companyb.companyapp.api.routes.RemittanceRoutes
 import com.companyb.companyapp.api.routes.SessionBaseRateRoutes
 import com.companyb.companyapp.api.routes.SessionRoutes
 import com.companyb.companyapp.api.routes.UserBranchAssignmentRoutes
-import com.companyb.companyapp.api.routes.UserRoutes
-import com.companyb.companyapp.auth.JwtService
-import com.companyb.companyapp.auth.Password
-import com.companyb.companyapp.auth.PasswordResetDelivery
 import com.companyb.companyapp.branch.BranchRoutes
 import com.companyb.companyapp.branchday.BranchDayRoutes
 import com.companyb.companyapp.config.AppConfig
@@ -45,6 +39,12 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.identity.AuthRoutes
+import com.companyb.companyapp.identity.JwtService
+import com.companyb.companyapp.identity.MeRoutes
+import com.companyb.companyapp.identity.Password
+import com.companyb.companyapp.identity.PasswordResetDelivery
+import com.companyb.companyapp.identity.UserRoutes
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
 import com.companyb.companyapp.logging.RequestLog

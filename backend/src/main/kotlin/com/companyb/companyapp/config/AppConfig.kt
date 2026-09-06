@@ -1,5 +1,6 @@
 package com.companyb.companyapp.config
 
+import com.companyb.companyapp.identity.SmtpConfig
 import io.github.cdimascio.dotenv.dotenv
 
 data class AppConfig(

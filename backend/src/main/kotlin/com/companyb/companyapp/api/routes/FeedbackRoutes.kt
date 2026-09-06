@@ -2,10 +2,10 @@ package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
-import com.companyb.companyapp.auth.RateLimiter
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.FeedbackRequest
 import com.companyb.companyapp.dto.FeedbackResponse
+import com.companyb.companyapp.identity.RateLimiter
 import com.companyb.companyapp.observability.IncidentService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus

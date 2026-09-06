@@ -6,11 +6,11 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.identity.AccountReads
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.MedicalMissionDelegateRepository
-import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.MedicalMissionDelegate
 import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -71,7 +71,7 @@ object MedicalMissionDelegateService {
             return existing
         }
 
-        val activeManager = UserRepository.isActiveManagerInTransaction(targetUserId)
+        val activeManager = AccountReads.isActiveManagerInTransaction(targetUserId)
         val existingAfterTargetLock = MedicalMissionDelegateRepository.findByIdInTransaction(delegateId)
         if (existingAfterTargetLock != null) {
             requireRequestOwnership(existingAfterTargetLock, targetUserId, branchId, callerId)

@@ -6,9 +6,9 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.domain.UserStatus
+import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.repository.model.AcceptedInviteWithBranch
 import com.companyb.companyapp.repository.model.ActiveUserCapabilitiesView
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.CapabilityTable
 import com.companyb.companyapp.repository.model.ReliefInvite
 import com.companyb.companyapp.repository.model.ReliefInviteTable

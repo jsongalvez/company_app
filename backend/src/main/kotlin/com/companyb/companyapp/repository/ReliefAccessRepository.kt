@@ -7,7 +7,7 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.domain.UserStatus
-import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable

@@ -8,8 +8,8 @@ import com.companyb.companyapp.dto.GrantReliefAccessRequest
 import com.companyb.companyapp.dto.ReliefAccessRequest
 import com.companyb.companyapp.dto.ReliefAccessResponse
 import com.companyb.companyapp.dto.ReliefBranchOptionResponse
+import com.companyb.companyapp.identity.AccountReads
 import com.companyb.companyapp.repository.ReliefRequestWithBranch
-import com.companyb.companyapp.repository.findDisplayNamesByIds
 import com.companyb.companyapp.repository.model.ReliefAccess
 import com.companyb.companyapp.service.ReliefAccessService
 import io.javalin.config.JavalinConfig
@@ -162,7 +162,7 @@ object ReliefAccessRoutes {
     // #358 — day-read rows carry requester display names (the deep-link panel labels rows
     // with them); one batched lookup per read.
     private fun List<ReliefAccess>.toNamedResponses(): List<ReliefAccessResponse> {
-        val names = findDisplayNamesByIds(map { it.requestedBy })
+        val names = AccountReads.findDisplayNamesByIds(map { it.requestedBy })
         return map { it.toResponse(requesterName = names[it.requestedBy]) }
     }
 

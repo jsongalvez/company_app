@@ -699,11 +699,11 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/RoutesUtil.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/SessionBaseRateRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/SessionRoutes.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/auth/JwtService.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/auth/Password.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/auth/PasswordResetDelivery.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/JwtService.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/Password.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/PasswordResetDelivery.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/config/KotlinxSerializationMapper.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/config/SmtpConfig.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/SmtpConfig.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/database/DatabaseConfig.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/repository/AuditLogRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/repository/BranchInventoryRepository.kt' #465 frozen
@@ -716,7 +716,7 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/repository/SessionRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/repository/SessionVoidRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/repository/UserBranchAssignmentRepository.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/repository/UserRepository.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/UserRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/AllowanceService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/AuditLogService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/ClientService.kt' #465 frozen

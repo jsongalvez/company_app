@@ -46,9 +46,9 @@ class TimeOwnershipArchitectureTest {
         // server-measured event timestamp (#475, #499 — not business time).
         val allowedFiles =
             setOf(
-                "backend/src/main/kotlin/com/companyb/companyapp/auth/JwtService.kt",
-                "backend/src/main/kotlin/com/companyb/companyapp/service/AuthService.kt",
-                "backend/src/main/kotlin/com/companyb/companyapp/service/UserService.kt",
+                "backend/src/main/kotlin/com/companyb/companyapp/identity/JwtService.kt",
+                "backend/src/main/kotlin/com/companyb/companyapp/identity/AuthService.kt",
+                "backend/src/main/kotlin/com/companyb/companyapp/identity/UserService.kt",
                 "backend/src/main/kotlin/com/companyb/companyapp/branchday/BranchDayService.kt",
                 "backend/src/main/kotlin/com/companyb/companyapp/observability/IncidentService.kt",
             )

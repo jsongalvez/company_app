@@ -2,8 +2,6 @@
 
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-import com.companyb.companyapp.auth.JwtService
-import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.config.AppConfig
@@ -16,8 +14,10 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.identity.JwtService
+import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.repository.CapabilityRepository
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.ReliefInviteTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper

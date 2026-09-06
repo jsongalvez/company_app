@@ -1,8 +1,8 @@
 package com.companyb.companyapp.test
 
-import com.companyb.companyapp.auth.JwtService
-import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
+import com.companyb.companyapp.identity.JwtService
+import com.companyb.companyapp.identity.Password
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 

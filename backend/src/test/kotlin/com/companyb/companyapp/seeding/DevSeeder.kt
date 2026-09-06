@@ -1,20 +1,20 @@
 package com.companyb.companyapp.seeding
 
-import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.identity.Password
+import com.companyb.companyapp.identity.RoleTable
+import com.companyb.companyapp.identity.UserCreateParams
+import com.companyb.companyapp.identity.UserRepository
+import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.repository.CapabilityRepository
-import com.companyb.companyapp.repository.UserCreateParams
-import com.companyb.companyapp.repository.UserRepository
-import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
-import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.CapabilityService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.eq

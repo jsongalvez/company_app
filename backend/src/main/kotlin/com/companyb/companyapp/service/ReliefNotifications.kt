@@ -3,9 +3,9 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.identity.AccountReads
 import com.companyb.companyapp.repository.BranchMemberRepository
 import com.companyb.companyapp.repository.NotificationRepository
-import com.companyb.companyapp.repository.findDisplayNamesByIds
 import com.companyb.companyapp.repository.model.NotificationCreateParams
 import java.time.LocalDate
 import java.util.UUID
@@ -57,7 +57,7 @@ internal object ReliefNotifications {
         requesterId: UUID,
         context: ReliefEventContext,
     ) {
-        val names = findDisplayNamesByIds(listOf(requesterId))
+        val names = AccountReads.findDisplayNamesByIds(listOf(requesterId))
         val requesterName = names[requesterId] ?: "A user"
         broadcast(
             ReliefBroadcast(
@@ -78,7 +78,7 @@ internal object ReliefNotifications {
         requesterId: UUID,
         context: ReliefEventContext,
     ) {
-        val names = findDisplayNamesByIds(listOf(actorId, requesterId))
+        val names = AccountReads.findDisplayNamesByIds(listOf(actorId, requesterId))
         val actorName = names[actorId] ?: "A member"
         val requesterName = names[requesterId] ?: "a user"
         val verb = if (eventType == GRANTED) "granted" else "denied"
@@ -102,7 +102,7 @@ internal object ReliefNotifications {
         inviteeId: UUID,
         context: ReliefEventContext,
     ) {
-        val inviteeName = findDisplayNamesByIds(listOf(inviteeId))[inviteeId] ?: "A user"
+        val inviteeName = AccountReads.findDisplayNamesByIds(listOf(inviteeId))[inviteeId] ?: "A user"
         val verb = if (eventType == INVITE_ACCEPTED) "accepted" else "declined"
         broadcast(
             ReliefBroadcast(
@@ -127,7 +127,7 @@ internal object ReliefNotifications {
         inviteId: UUID,
         context: ReliefEventContext,
     ) {
-        val names = findDisplayNamesByIds(listOf(actorId, inviteeId))
+        val names = AccountReads.findDisplayNamesByIds(listOf(actorId, inviteeId))
         val actorName = names[actorId] ?: "A member"
         val inviteeName = names[inviteeId] ?: "a user"
         broadcast(
@@ -192,7 +192,7 @@ internal object ReliefNotifications {
         val originalPingList = NotificationRepository.findUsersBySource(REQUESTED, requestId)
         if (originalPingList.isEmpty()) return 0
         val requesterName =
-            findDisplayNamesByIds(listOf(requesterId))[requesterId] ?: "A user"
+            AccountReads.findDisplayNamesByIds(listOf(requesterId))[requesterId] ?: "A user"
         return broadcast(
             ReliefBroadcast(
                 eventType = EXPIRED,

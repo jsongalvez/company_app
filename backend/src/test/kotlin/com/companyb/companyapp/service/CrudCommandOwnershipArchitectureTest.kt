@@ -40,8 +40,9 @@ class CrudCommandOwnershipArchitectureTest {
                 "repository/SessionBaseRateRepository.kt" to 1,
                 // Batch 4 — user/access cluster.
                 // Six read wrappers after #492 (removed findJwtRevocationBoundaries startup
-                // scan; authorize stays one query, advanceRevocationBoundary is InTransaction).
-                "repository/UserRepository.kt" to 6,
+                // scan; authorize stays one query, advanceRevocationBoundary is InTransaction)
+                // plus the #537 display-name read (merged from the retired UserDisplayNames helper).
+                "identity/UserRepository.kt" to 7,
                 "repository/UserBranchAssignmentRepository.kt" to 3,
                 // 7 = five request/read blocks + hasActiveClockIn + isActiveUser read wrappers
                 "repository/ReliefAccessRepository.kt" to 7,
@@ -86,7 +87,7 @@ class CrudCommandOwnershipArchitectureTest {
                     listOf("addToSession", "removeFromSession", "promoteConcern"),
                 "service/session/SessionBaseRateService.kt" to listOf("setRate"),
                 // Batch 4 — user/access cluster.
-                "service/UserService.kt" to listOf("deactivate", "reactivate"),
+                "identity/UserService.kt" to listOf("deactivate", "reactivate"),
                 "service/UserBranchAssignmentService.kt" to
                     listOf("create", "remove", "updateSlot", "swapSlots"),
                 "service/ReliefAccessService.kt" to
@@ -134,7 +135,7 @@ class CrudCommandOwnershipArchitectureTest {
                 "service/session/SessionConcernService.kt" to "SessionConcernAudit",
                 "service/session/SessionBaseRateService.kt" to "SessionBaseRateAudit",
                 // Batch 4 — user/access cluster.
-                "service/UserService.kt" to "UserAudit",
+                "identity/UserService.kt" to "UserAudit",
                 "service/UserBranchAssignmentService.kt" to "UserBranchAssignmentAudit",
                 "service/ReliefAccessService.kt" to "ReliefAccessAudit",
                 "service/ReliefInviteService.kt" to "ReliefInviteAudit",

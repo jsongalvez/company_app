@@ -1,7 +1,7 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.ConcernTable

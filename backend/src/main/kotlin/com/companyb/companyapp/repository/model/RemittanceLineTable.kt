@@ -1,6 +1,7 @@
 package com.companyb.companyapp.repository.model
 
 import com.companyb.companyapp.domain.RemittanceLineType
+import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.service.finance.remittance.RemittanceLine
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID

@@ -1,6 +1,7 @@
 package com.companyb.companyapp.repository.model
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone

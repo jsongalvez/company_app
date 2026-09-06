@@ -2,7 +2,7 @@ package com.companyb.companyapp.service.attendance
 
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ConflictException
-import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.repository.model.Attendance
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.BranchDayAssignmentTable

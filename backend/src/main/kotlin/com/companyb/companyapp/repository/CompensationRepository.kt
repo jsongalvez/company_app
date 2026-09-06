@@ -3,8 +3,8 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.VersionMismatchException
+import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.Compensation
 import com.companyb.companyapp.repository.model.CompensationTable
 import io.github.oshai.kotlinlogging.KotlinLogging

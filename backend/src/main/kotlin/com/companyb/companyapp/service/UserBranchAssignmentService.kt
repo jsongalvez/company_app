@@ -7,12 +7,12 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.identity.AccountReads
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchMemberRepository
 import com.companyb.companyapp.repository.BranchMemberRow
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
-import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.UserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
@@ -73,7 +73,7 @@ object UserBranchAssignmentService {
             throw NotFoundException("Branch not found")
         }
 
-        if (!UserRepository.existsById(userId)) {
+        if (!AccountReads.userExists(userId)) {
             throw NotFoundException("User not found")
         }
 
