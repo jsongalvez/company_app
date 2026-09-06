@@ -447,6 +447,102 @@ class RouteValidationTest : BasePostgresTest() {
     }
 
     @Test
+    fun `PATCH client clear phone persists null`() {
+        testServer.client.let { client ->
+            assertEquals(
+                200,
+                client.patch("/api/clients/$testClientId", mapOf("phoneNumber" to "09171234567")).code,
+            )
+            val response =
+                client.patch(
+                    "/api/clients/$testClientId",
+                    mapOf("clearFields" to listOf("phoneNumber")),
+                )
+            assertEquals(200, response.code)
+            val updated = json.decodeFromString<ClientResponse>(response.body.string())
+            assertNull(updated.phoneNumber)
+            assertEquals("Test", updated.firstName)
+        }
+    }
+
+    @Test
+    fun `PATCH client clear BP pair persists nulls`() {
+        testServer.client.let { client ->
+            val seeded =
+                client.patch(
+                    "/api/clients/$testClientId",
+                    mapOf("systolicBp" to 120, "diastolicBp" to 80),
+                )
+            assertEquals(200, seeded.code)
+            val response =
+                client.patch(
+                    "/api/clients/$testClientId",
+                    mapOf("clearFields" to listOf("systolicBp", "diastolicBp")),
+                )
+            assertEquals(200, response.code)
+            val updated = json.decodeFromString<ClientResponse>(response.body.string())
+            assertNull(updated.systolicBp)
+            assertNull(updated.diastolicBp)
+        }
+    }
+
+    @Test
+    fun `PATCH client unknown clear field returns 400`() {
+        testServer.client.let { client ->
+            assertEquals(
+                400,
+                client.patch("/api/clients/$testClientId", mapOf("clearFields" to listOf("nickname"))).code,
+            )
+        }
+    }
+
+    @Test
+    fun `PATCH client clear required field returns 400`() {
+        testServer.client.let { client ->
+            assertEquals(
+                400,
+                client.patch("/api/clients/$testClientId", mapOf("clearFields" to listOf("firstName"))).code,
+            )
+            assertEquals(
+                400,
+                client.patch("/api/clients/$testClientId", mapOf("clearFields" to listOf("age"))).code,
+            )
+        }
+    }
+
+    @Test
+    fun `PATCH client half BP clear returns 400`() {
+        testServer.client.let { client ->
+            assertEquals(
+                400,
+                client.patch("/api/clients/$testClientId", mapOf("clearFields" to listOf("systolicBp"))).code,
+            )
+        }
+    }
+
+    @Test
+    fun `PATCH client set and clear on the same field returns 400`() {
+        testServer.client.let { client ->
+            val response =
+                client.patch(
+                    "/api/clients/$testClientId",
+                    mapOf("phoneNumber" to "0917", "clearFields" to listOf("phoneNumber")),
+                )
+            assertEquals(400, response.code)
+        }
+    }
+
+    @Test
+    fun `PATCH client blank optional returns 400 without storing whitespace`() {
+        testServer.client.let { client ->
+            assertEquals(
+                400,
+                client.patch("/api/clients/$testClientId", mapOf("phoneNumber" to "   ")).code,
+            )
+        }
+    }
+
+    @Test
     fun `POST anonymize client with pending session returns 409 and keeps PII`() {
         testServer.client.let { client ->
             val response = client.post("/api/clients/$testClientId/anonymize")

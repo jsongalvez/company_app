@@ -32,7 +32,42 @@ data class UpdateClientRequest(
     val systolicBp: Short? = null,
     val diastolicBp: Short? = null,
     val medicalConditions: String? = null,
+    /**
+     * Explicit clear intent per field name (#523). A present value means set, an absent
+     * value means unchanged, a [ClientPatchField] entry here means clear (optional text
+     * to null, address to its N/A default, BP only as a pair). Required
+     * firstName/lastName/gender/age cannot be cleared. Explicit JSON nulls decode the
+     * same as absent — only this set clears.
+     */
+    val clearFields: Set<String> = emptySet(),
 )
+
+/**
+ * Field names accepted in [UpdateClientRequest.clearFields] (#523). Narrow to the
+ * existing client fields — not a repository-wide patch framework.
+ */
+object ClientPatchField {
+    const val MIDDLE_NAME = "middleName"
+    const val SUFFIX = "suffix"
+    const val PHONE_NUMBER = "phoneNumber"
+    const val ADDRESS = "address"
+    const val MEDICAL_CONDITIONS = "medicalConditions"
+    const val SYSTOLIC_BP = "systolicBp"
+    const val DIASTOLIC_BP = "diastolicBp"
+
+    val clearable: Set<String> =
+        setOf(
+            MIDDLE_NAME,
+            SUFFIX,
+            PHONE_NUMBER,
+            ADDRESS,
+            MEDICAL_CONDITIONS,
+            SYSTOLIC_BP,
+            DIASTOLIC_BP,
+        )
+
+    val required: Set<String> = setOf("firstName", "lastName", "gender", "age")
+}
 
 @Serializable
 data class ClientResponse(

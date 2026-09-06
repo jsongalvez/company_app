@@ -25,6 +25,9 @@ data class Client(
 
 private const val PHONE_COLUMN_WIDTH = 20
 
+/** Empty address representation (#523): clears reset here, matching create + column default. */
+const val DEFAULT_CLIENT_ADDRESS = "N/A"
+
 object ClientTable : Table("client") {
     val id = javaUUID("id").autoGenerate()
     val firstName = text("first_name").nullable()
@@ -32,7 +35,7 @@ object ClientTable : Table("client") {
     val middleName = text("middle_name").nullable()
     val suffix = text("suffix").nullable()
     val phoneNumber = varchar("phone_number", PHONE_COLUMN_WIDTH).nullable()
-    val address = text("address").nullable().default("N/A")
+    val address = text("address").nullable().default(DEFAULT_CLIENT_ADDRESS)
     val gender = varchar("gender", 1)
     val age = integer("age")
     val systolicBp = short("systolic_bp").nullable()

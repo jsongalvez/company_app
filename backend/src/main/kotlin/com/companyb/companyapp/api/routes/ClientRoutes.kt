@@ -4,6 +4,7 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.dto.ClientPatchField
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.CreateClientRequest
 import com.companyb.companyapp.dto.ErrorResponse
@@ -167,31 +168,14 @@ object ClientRoutes {
         val callerId = context.callerUuid()
         val clientId = context.pathParamAsUuid(CLIENT_ID_PARAM)
         val request = context.bodyAsClass<UpdateClientRequest>()
-
-        val firstName = request.firstName?.trim()
-        if (firstName != null && firstName.isBlank()) {
-            throw BadRequestResponse("First name cannot be blank")
-        }
-        val lastName = request.lastName?.trim()
-        if (lastName != null && lastName.isBlank()) {
-            throw BadRequestResponse("Last name cannot be blank")
-        }
-        val systolicBp = request.systolicBp
-        val diastolicBp = request.diastolicBp
-        val hasBothBp = systolicBp != null && diastolicBp != null
-        val hasNone = systolicBp == null && diastolicBp == null
-        if (!hasBothBp && !hasNone) {
-            throw BadRequestResponse(
-                "Both systolic and diastolic blood pressure must be provided together or not at all",
-            )
-        }
+        validateClientPatch(request)
 
         val updated =
             ClientService.update(
                 callerId = callerId,
                 clientId = clientId,
-                firstName = firstName,
-                lastName = lastName,
+                firstName = request.firstName?.trim(),
+                lastName = request.lastName?.trim(),
                 middleName = request.middleName,
                 suffix = request.suffix,
                 phoneNumber = request.phoneNumber,
@@ -201,10 +185,49 @@ object ClientRoutes {
                 systolicBp = request.systolicBp,
                 diastolicBp = request.diastolicBp,
                 medicalConditions = request.medicalConditions,
+                clearFields = request.clearFields,
             )
 
         context.status(HttpStatus.OK)
         context.json(updated.toResponse())
+    }
+
+    /**
+     * PATCH shape validation (#523) — mirrors [resolveClientPatch] with
+     * [BadRequestResponse] to preserve the route's existing error shape. The service
+     * re-validates defensively for direct callers.
+     */
+    private fun validateClientPatch(request: UpdateClientRequest) {
+        val clears = request.clearFields
+        checkClearShape(clears)
+        checkRequiredName(request.firstName, "First name")
+        checkRequiredName(request.lastName, "Last name")
+        checkSettable(
+            "Middle name",
+            request.middleName,
+            ClientPatchField.MIDDLE_NAME in clears,
+            "middleName",
+        )
+        checkSettable("Suffix", request.suffix, ClientPatchField.SUFFIX in clears, "suffix")
+        checkSettable(
+            "Phone number",
+            request.phoneNumber,
+            ClientPatchField.PHONE_NUMBER in clears,
+            "phoneNumber",
+        )
+        checkSettable("Address", request.address, ClientPatchField.ADDRESS in clears, "address")
+        checkSettable(
+            "Medical conditions",
+            request.medicalConditions,
+            ClientPatchField.MEDICAL_CONDITIONS in clears,
+            "medicalConditions",
+        )
+        checkBpPatch(
+            request.systolicBp,
+            request.diastolicBp,
+            ClientPatchField.SYSTOLIC_BP in clears,
+            ClientPatchField.DIASTOLIC_BP in clears,
+        )
     }
 
     private fun handleAnonymize(context: Context) {
@@ -233,4 +256,61 @@ object ClientRoutes {
             medicalConditions = medicalConditions,
             sessionCount = sessionCount,
         )
+}
+
+/** PATCH clear-set shape (#523): unknown names and required-field clears are rejected. */
+private fun checkClearShape(clears: Set<String>) {
+    val unknown = clears - ClientPatchField.clearable - ClientPatchField.required
+    if (unknown.isNotEmpty()) {
+        throw BadRequestResponse("Unknown clear field(s): ${unknown.sorted().joinToString()}")
+    }
+    val requiredClear = clears.intersect(ClientPatchField.required).sorted()
+    if (requiredClear.isNotEmpty()) {
+        throw BadRequestResponse("${requiredClear.joinToString()} cannot be cleared")
+    }
+}
+
+private fun checkRequiredName(
+    value: String?,
+    label: String,
+) {
+    if (value != null && value.trim().isEmpty()) {
+        throw BadRequestResponse("$label cannot be blank")
+    }
+}
+
+private fun checkBpPatch(
+    systolicBp: Short?,
+    diastolicBp: Short?,
+    clearSystolic: Boolean,
+    clearDiastolic: Boolean,
+) {
+    val hasValue = systolicBp != null || diastolicBp != null
+    val hasClear = clearSystolic || clearDiastolic
+    val setAndClear = hasValue && hasClear
+    val halfSet = (systolicBp != null) != (diastolicBp != null)
+    val halfClear = clearSystolic != clearDiastolic
+    val partial = setAndClear || halfSet || halfClear
+    if (setAndClear) {
+        throw BadRequestResponse("Blood pressure cannot be both set and cleared")
+    }
+    if (partial) {
+        throw BadRequestResponse(
+            "Both systolic and diastolic blood pressure must be provided together or not at all",
+        )
+    }
+}
+
+private fun checkSettable(
+    label: String,
+    value: String?,
+    clear: Boolean,
+    field: String,
+) {
+    if (clear && value != null) {
+        throw BadRequestResponse("$field cannot be both set and cleared")
+    }
+    if (!clear && value != null && value.trim().isEmpty()) {
+        throw BadRequestResponse("$label cannot be blank (use clearFields to clear)")
+    }
 }

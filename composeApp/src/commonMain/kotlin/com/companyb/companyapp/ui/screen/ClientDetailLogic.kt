@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.KeyboardType
 import com.companyb.companyapp.domain.Gender
+import com.companyb.companyapp.dto.ClientPatchField
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.UpdateClientRequest
 import com.companyb.companyapp.viewmodel.UiState
@@ -157,8 +158,9 @@ internal class ClientEditSession {
         field: ClientField,
         value: String,
         bpDiastolic: String = "",
+        cleared: Boolean = false,
     ) {
-        lastDispatched = DispatchedDraft(field = field, value = value, bpDiastolic = bpDiastolic)
+        lastDispatched = DispatchedDraft(field = field, value = value, bpDiastolic = bpDiastolic, cleared = cleared)
     }
 
     // Returns false when the draft is invalid — the caller (startEdit's supersede) then aborts
@@ -188,7 +190,7 @@ internal class ClientEditSession {
         }
         val patch = patchFor(field, trimmed) { fieldError = it }
         if (patch == null) return false
-        recordDispatchedDraft(field, trimmed)
+        recordDispatchedDraft(field, trimmed, cleared = patch.clearFields.isNotEmpty())
         pendingEditField = field
         deps.onPatch(patch)
         return true
@@ -213,15 +215,25 @@ internal class ClientEditSession {
         // otherwise misreport the untouched null-BP pair as "Both BP fields are required" and
         // abort a supersede, trapping the user in the editor (no Esc on mobile). Note the
         // string compare is stricter than a numeric one: a leading-zero alias of the seed
-        // ("0120" vs "120") counts as an edit and dispatches a redundant-but-idempotent PATCH,
-        // and clearing a seeded pair reports "Both BP fields are required" (not "valid
-        // number") — both acceptable; the abandon gate canonicalizes numerically downstream.
+        // ("0120" vs "120") counts as an edit and dispatches a redundant-but-idempotent PATCH;
+        // the abandon gate canonicalizes numerically downstream. A fully-blanked seeded pair
+        // dispatches the atomic clear (#523); only a half-blank pair reports inline below.
         val seedSystolic = client.systolicBp?.toString().orEmpty()
         val seedDiastolic = client.diastolicBp?.toString().orEmpty()
         val sysVal = sys.toShortOrNull()
         val diaVal = dia.toShortOrNull()
         if (sys == seedSystolic && dia == seedDiastolic) {
             exitEdit()
+        } else if (sys.isEmpty() && dia.isEmpty()) {
+            // Clearing a seeded pair (#523): both drafts blank against stored values
+            // dispatches the atomic pair clear (half-clears stay an inline error below).
+            recordDispatchedDraft(ClientField.BP_PAIR, "", "", cleared = true)
+            pendingEditField = ClientField.BP_PAIR
+            deps.onPatch(
+                UpdateClientRequest(
+                    clearFields = setOf(ClientPatchField.SYSTOLIC_BP, ClientPatchField.DIASTOLIC_BP),
+                ),
+            )
         } else {
             fieldError =
                 when {
@@ -321,19 +333,33 @@ internal fun shouldAbandonFailedDraft(
  * string drafts), so a cosmetic draft difference can't masquerade as a modification. INVARIANT:
  * [value] and [bpDiastolic] always hold validated, parseable payloads — both dispatch sites
  * record only after validation, which is what makes the parse-based comparison null-safe.
++ * A [cleared] record holds empty payloads by construction (#523): it matches only an empty
++ * draft (the cleared state), never a typed value.
  * Internal for the unit test (commonTest friend path).
  */
 internal data class DispatchedDraft(
     val field: ClientField,
     val value: String,
     val bpDiastolic: String = "",
+    val cleared: Boolean = false,
 ) {
     fun matches(
         draftValue: String,
         bpSystolic: String,
         bpDiastolic: String,
-    ): Boolean =
-        when (field) {
+    ): Boolean {
+        if (cleared) {
+            return when (field) {
+                ClientField.BP_PAIR -> {
+                    bpSystolic.trim().isEmpty() && bpDiastolic.trim().isEmpty()
+                }
+
+                else -> {
+                    draftValue.trim().isEmpty()
+                }
+            }
+        }
+        return when (field) {
             ClientField.BP_PAIR -> {
                 bpSystolic.trim().toShortOrNull() == value.toShortOrNull() &&
                     bpDiastolic.trim().toShortOrNull() == this.bpDiastolic.toShortOrNull()
@@ -347,6 +373,7 @@ internal data class DispatchedDraft(
                 draftValue.trim() == value
             }
         }
+    }
 }
 
 /**
@@ -360,8 +387,9 @@ internal data class DispatchedDraft(
  * commitPair would see "unchanged" and cancel the edit before the user typed anything; (b) with
  * only one side typed, tapping the other side would blur-commit the pair with the seeded value
  * for the side the user is on their way to edit — same premature-commit class. With both sides
- * typed, blur commits (or surfaces the inline pair-required error, matching the single-field
- * "Value required" on blank). Enter (Done) always commits explicitly, unchanged pair included
+ * typed, blur commits (or surfaces the inline pair-required error on a half-blank pair;
+ * a fully-blanked pair dispatches the atomic clear instead — #523). Enter (Done) always
+ * commits explicitly, unchanged pair included
  * (silent exit).
  */
 internal class BpDraftState {
@@ -400,14 +428,14 @@ internal fun currentFieldValue(
     }
 
 /**
- * D4 — build the partial PATCH for one committed field (only changed fields are sent; the request
- * is all-nullable). Validation errors are surfaced inline via [onError] and return null (no PATCH).
+ * D4 — build the partial PATCH for one committed field (only changed fields are sent).
+ * Validation errors are surfaced inline via [onError] and return null (no PATCH).
  *
- * Blank commits are rejected for every field: the backend's UpdateClientRequest treats null as
- * "don't update" (kotlinx serialization explicitNulls), so clearing a value is inexpressible —
- * "Value required" is the honest message rather than a silent no-op. Blank *names* additionally
- * 400 on the backend. BP commits as a pair via [BpPairEditor] (both-or-neither), so it has no
- * branch here.
+ * Blank commits on genuinely optional fields dispatch explicit clears (#523 —
+ * `clearFields`): phone, optional name parts, address and medical conditions clear to
+ * null (address resets to its N/A default server-side), so a stale value can actually be
+ * removed. Blank *names* still error (required) and 400 on the backend. BP commits as a
+ * pair via [BpPairEditor] (both-or-neither), so it has no branch here.
  */
 internal fun patchFor(
     field: ClientField,
@@ -424,23 +452,23 @@ internal fun patchFor(
         }
 
         ClientField.MIDDLE_NAME -> {
-            requireNonBlank(trimmed, onError) { UpdateClientRequest(middleName = it) }
+            clearOrSet(trimmed, ClientPatchField.MIDDLE_NAME) { UpdateClientRequest(middleName = it) }
         }
 
         ClientField.SUFFIX -> {
-            requireNonBlank(trimmed, onError) { UpdateClientRequest(suffix = it) }
+            clearOrSet(trimmed, ClientPatchField.SUFFIX) { UpdateClientRequest(suffix = it) }
         }
 
         ClientField.PHONE -> {
-            requireNonBlank(trimmed, onError) { UpdateClientRequest(phoneNumber = it) }
+            clearOrSet(trimmed, ClientPatchField.PHONE_NUMBER) { UpdateClientRequest(phoneNumber = it) }
         }
 
         ClientField.ADDRESS -> {
-            requireNonBlank(trimmed, onError) { UpdateClientRequest(address = it) }
+            clearOrSet(trimmed, ClientPatchField.ADDRESS) { UpdateClientRequest(address = it) }
         }
 
         ClientField.MEDICAL_CONDITIONS -> {
-            requireNonBlank(trimmed, onError) { UpdateClientRequest(medicalConditions = it) }
+            clearOrSet(trimmed, ClientPatchField.MEDICAL_CONDITIONS) { UpdateClientRequest(medicalConditions = it) }
         }
 
         ClientField.GENDER -> {
@@ -462,16 +490,16 @@ internal fun patchFor(
         }
     }
 
-private inline fun requireNonBlank(
-    value: String,
-    onError: (String) -> Unit,
+/** Blank means clear for genuinely optional fields (#523); non-blank means set. */
+private inline fun clearOrSet(
+    trimmed: String,
+    field: String,
     build: (String) -> UpdateClientRequest,
 ): UpdateClientRequest? =
-    if (value.isEmpty()) {
-        onError("Value required")
-        null
+    if (trimmed.isEmpty()) {
+        UpdateClientRequest(clearFields = setOf(field))
     } else {
-        build(value)
+        build(trimmed)
     }
 
 private inline fun requireNonBlank(

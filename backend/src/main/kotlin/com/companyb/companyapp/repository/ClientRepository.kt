@@ -6,6 +6,7 @@ import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
 import com.companyb.companyapp.repository.model.Client
 import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.DEFAULT_CLIENT_ADDRESS
 import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.Column
@@ -28,6 +29,7 @@ import org.jetbrains.exposed.v1.core.leftJoin
 import org.jetbrains.exposed.v1.core.like
 import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.or
+import org.jetbrains.exposed.v1.core.statements.UpdateStatement
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -68,6 +70,14 @@ data class ClientUpdateParams(
     val systolicBp: Short?,
     val diastolicBp: Short?,
     val medicalConditions: String?,
+    /** Explicit clears (#523) — each writes null, except address which resets to its N/A default. */
+    val clearMiddleName: Boolean = false,
+    val clearSuffix: Boolean = false,
+    val clearPhoneNumber: Boolean = false,
+    val clearAddress: Boolean = false,
+    val clearMedicalConditions: Boolean = false,
+    /** Clears the BP pair atomically; never half-applied (validated by the command). */
+    val clearBp: Boolean = false,
 )
 
 data class ClientCreateResult(
@@ -133,15 +143,28 @@ object ClientRepository {
             ClientTable.update({ (ClientTable.id eq params.clientId) and (ClientTable.deletedAt.isNull()) }) {
                 if (params.firstName != null) it[ClientTable.firstName] = params.firstName
                 if (params.lastName != null) it[ClientTable.lastName] = params.lastName
-                if (params.middleName != null) it[ClientTable.middleName] = params.middleName
-                if (params.suffix != null) it[ClientTable.suffix] = params.suffix
-                if (params.phoneNumber != null) it[ClientTable.phoneNumber] = params.phoneNumber
-                if (params.address != null) it[ClientTable.address] = params.address
+                it.setOrClear(ClientTable.middleName, params.middleName, params.clearMiddleName)
+                it.setOrClear(ClientTable.suffix, params.suffix, params.clearSuffix)
+                it.setOrClear(ClientTable.phoneNumber, params.phoneNumber, params.clearPhoneNumber)
+                if (params.clearAddress) {
+                    it[ClientTable.address] = DEFAULT_CLIENT_ADDRESS
+                } else if (params.address != null) {
+                    it[ClientTable.address] = params.address
+                }
                 if (params.gender != null) it[ClientTable.gender] = params.gender.name
                 if (params.age != null) it[ClientTable.age] = params.age
-                if (params.systolicBp != null) it[ClientTable.systolicBp] = params.systolicBp
-                if (params.diastolicBp != null) it[ClientTable.diastolicBp] = params.diastolicBp
-                if (params.medicalConditions != null) it[ClientTable.medicalConditions] = params.medicalConditions
+                if (params.clearBp) {
+                    it[ClientTable.systolicBp] = null
+                    it[ClientTable.diastolicBp] = null
+                } else {
+                    if (params.systolicBp != null) it[ClientTable.systolicBp] = params.systolicBp
+                    if (params.diastolicBp != null) it[ClientTable.diastolicBp] = params.diastolicBp
+                }
+                it.setOrClear(
+                    ClientTable.medicalConditions,
+                    params.medicalConditions,
+                    params.clearMedicalConditions,
+                )
             }
         val updated = findByIdInTransaction(params.clientId)
         if (updated?.deletedAt != null) return updatedCount to null
@@ -255,6 +278,22 @@ object ClientRepository {
 }
 
 private const val TRIGRAM_SIMILARITY_THRESHOLD = 0.2f
+
+/**
+ * One nullable column's three-state write (#523): clear writes null, a present value
+ * sets, absent leaves the column untouched.
+ */
+private fun <T> UpdateStatement.setOrClear(
+    column: Column<T?>,
+    value: T?,
+    clear: Boolean,
+) {
+    if (clear) {
+        this[column] = null
+    } else if (value != null) {
+        this[column] = value
+    }
+}
 
 private fun nameFieldMatch(
     tokenParam: QueryParameter<String>,

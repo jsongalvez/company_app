@@ -1,8 +1,10 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.Gender
+import com.companyb.companyapp.dto.ClientPatchField
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ClientCreateParams
@@ -12,6 +14,7 @@ import com.companyb.companyapp.repository.ClientUpdateParams
 import com.companyb.companyapp.repository.hasActivePendingSessionInTransaction
 import com.companyb.companyapp.repository.model.Client
 import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.DEFAULT_CLIENT_ADDRESS
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -53,7 +56,7 @@ object ClientService {
                         middleName = middleName?.trim()?.takeIf { it.isNotEmpty() },
                         suffix = suffix?.trim()?.takeIf { it.isNotEmpty() },
                         phoneNumber = phoneNumber?.trim()?.takeIf { it.isNotEmpty() },
-                        address = address?.trim()?.takeIf { it.isNotEmpty() } ?: "N/A",
+                        address = address?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_CLIENT_ADDRESS,
                         gender = gender,
                         age = age,
                         systolicBp = systolicBp,
@@ -92,6 +95,7 @@ object ClientService {
         systolicBp: Short?,
         diastolicBp: Short?,
         medicalConditions: String?,
+        clearFields: Set<String> = emptySet(),
     ): Client =
         transaction {
             // Locked before-state (#522): SELECT FOR UPDATE serializes concurrent
@@ -100,26 +104,46 @@ object ClientService {
                 ClientRepository.acquireLockInTransaction(clientId)
                     ?: throw NotFoundException("Client not found")
 
+            val patch =
+                resolveClientPatch(
+                    firstName = firstName,
+                    lastName = lastName,
+                    middleName = middleName,
+                    suffix = suffix,
+                    phoneNumber = phoneNumber,
+                    address = address,
+                    systolicBp = systolicBp,
+                    diastolicBp = diastolicBp,
+                    medicalConditions = medicalConditions,
+                    clearFields = clearFields,
+                )
+
             val (updatedCount, after) =
                 ClientRepository.updateInTransaction(
                     ClientUpdateParams(
                         clientId = clientId,
-                        firstName = firstName?.takeIf { it.isNotEmpty() },
-                        lastName = lastName?.takeIf { it.isNotEmpty() },
-                        middleName = middleName?.trim()?.takeIf { it.isNotEmpty() },
-                        suffix = suffix?.trim()?.takeIf { it.isNotEmpty() },
-                        phoneNumber = phoneNumber?.trim()?.takeIf { it.isNotEmpty() },
-                        address = address?.trim()?.takeIf { it.isNotEmpty() },
+                        firstName = patch.firstName,
+                        lastName = patch.lastName,
+                        middleName = patch.middleName,
+                        suffix = patch.suffix,
+                        phoneNumber = patch.phoneNumber,
+                        address = patch.address,
                         gender = gender,
                         age = age,
-                        systolicBp = systolicBp,
-                        diastolicBp = diastolicBp,
-                        medicalConditions = medicalConditions?.trim()?.takeIf { it.isNotEmpty() },
+                        systolicBp = patch.systolicBp,
+                        diastolicBp = patch.diastolicBp,
+                        medicalConditions = patch.medicalConditions,
+                        clearMiddleName = patch.clearMiddleName,
+                        clearSuffix = patch.clearSuffix,
+                        clearPhoneNumber = patch.clearPhoneNumber,
+                        clearAddress = patch.clearAddress,
+                        clearMedicalConditions = patch.clearMedicalConditions,
+                        clearBp = patch.clearBp,
                     ),
                 )
 
             if (updatedCount > 0 && after != null) {
-                ClientAudit.updated(callerId, before, after)
+                ClientAudit.updated(callerId, before, after, patch.clearedFields)
             }
             after ?: throw NotFoundException("Client not found")
         }
@@ -157,6 +181,169 @@ object ClientService {
 }
 
 /**
+ * Resolved three-state PATCH (#523): present values are trimmed sets, [clearFields]
+ * entries are explicit clears, absent values are unchanged. Throws [ValidationException]
+ * so HTTP callers get 400 through the centralized handler; the route mirrors the same
+ * rules with [BadRequestResponse] to preserve its existing error shape.
+ */
+internal data class ResolvedClientPatch(
+    val firstName: String?,
+    val lastName: String?,
+    val middleName: String?,
+    val suffix: String?,
+    val phoneNumber: String?,
+    val address: String?,
+    val systolicBp: Short?,
+    val diastolicBp: Short?,
+    val medicalConditions: String?,
+    val clearMiddleName: Boolean,
+    val clearSuffix: Boolean,
+    val clearPhoneNumber: Boolean,
+    val clearAddress: Boolean,
+    val clearMedicalConditions: Boolean,
+    val clearBp: Boolean,
+    /** Normalized cleared names for the audit reason — values never recorded (#524 safe). */
+    val clearedFields: Set<String>,
+)
+
+private const val BP_PAIR_MESSAGE =
+    "Both systolic and diastolic blood pressure must be provided together or not at all"
+
+/** BP pair's three-state resolution (#523): set together, cleared together, or unchanged. */
+internal data class BpPatch(
+    val systolicBp: Short?,
+    val diastolicBp: Short?,
+    val clear: Boolean,
+)
+
+internal fun resolveBpPatch(
+    systolicBp: Short?,
+    diastolicBp: Short?,
+    clearSystolic: Boolean,
+    clearDiastolic: Boolean,
+): BpPatch {
+    val hasValue = systolicBp != null || diastolicBp != null
+    val hasClear = clearSystolic || clearDiastolic
+    val setAndClear = hasValue && hasClear
+    val halfSet = (systolicBp != null) != (diastolicBp != null)
+    val halfClear = clearSystolic != clearDiastolic
+    val partial = setAndClear || halfSet || halfClear
+    if (setAndClear) {
+        throw ValidationException("Blood pressure cannot be both set and cleared")
+    }
+    if (partial) {
+        throw ValidationException(BP_PAIR_MESSAGE)
+    }
+    return BpPatch(systolicBp, diastolicBp, clearSystolic && clearDiastolic)
+}
+
+/** One optional text field's set-or-clear (#523): blank sets are rejected, never stored. */
+internal fun resolveClearableText(
+    label: String,
+    value: String?,
+    clear: Boolean,
+    field: String,
+): String? {
+    if (clear && value != null) {
+        throw ValidationException("$field cannot be both set and cleared")
+    }
+    if (!clear && value != null && value.trim().isEmpty()) {
+        throw ValidationException("$label cannot be blank (use clearFields to clear)")
+    }
+    return value?.trim()
+}
+
+/** Required names stay non-blankable (#523 preserves the existing rule). */
+internal fun resolveRequiredName(
+    value: String?,
+    label: String,
+): String? {
+    val trimmed = value?.trim()
+    if (trimmed != null && trimmed.isEmpty()) {
+        throw ValidationException("$label cannot be blank")
+    }
+    return trimmed?.takeIf { it.isNotEmpty() }
+}
+
+/** Clear-set shape: unknown names and required-field clears are rejected. */
+internal fun checkClearShape(clearFields: Set<String>) {
+    val unknown = clearFields - ClientPatchField.clearable - ClientPatchField.required
+    if (unknown.isNotEmpty()) {
+        throw ValidationException("Unknown clear field(s): ${unknown.sorted().joinToString()}")
+    }
+    val requiredClear = clearFields.intersect(ClientPatchField.required).sorted()
+    if (requiredClear.isNotEmpty()) {
+        throw ValidationException("${requiredClear.joinToString()} cannot be cleared")
+    }
+}
+
+@Suppress("LongParameterList")
+internal fun resolveClientPatch(
+    firstName: String?,
+    lastName: String?,
+    middleName: String?,
+    suffix: String?,
+    phoneNumber: String?,
+    address: String?,
+    systolicBp: Short?,
+    diastolicBp: Short?,
+    medicalConditions: String?,
+    clearFields: Set<String>,
+): ResolvedClientPatch {
+    checkClearShape(clearFields)
+    val bp =
+        resolveBpPatch(
+            systolicBp,
+            diastolicBp,
+            ClientPatchField.SYSTOLIC_BP in clearFields,
+            ClientPatchField.DIASTOLIC_BP in clearFields,
+        )
+    return ResolvedClientPatch(
+        firstName = resolveRequiredName(firstName, "First name"),
+        lastName = resolveRequiredName(lastName, "Last name"),
+        middleName =
+            resolveClearableText(
+                "Middle name",
+                middleName,
+                ClientPatchField.MIDDLE_NAME in clearFields,
+                "middleName",
+            ),
+        suffix =
+            resolveClearableText("Suffix", suffix, ClientPatchField.SUFFIX in clearFields, "suffix"),
+        phoneNumber =
+            resolveClearableText(
+                "Phone number",
+                phoneNumber,
+                ClientPatchField.PHONE_NUMBER in clearFields,
+                "phoneNumber",
+            ),
+        address =
+            resolveClearableText(
+                "Address",
+                address,
+                ClientPatchField.ADDRESS in clearFields,
+                "address",
+            ),
+        systolicBp = bp.systolicBp,
+        diastolicBp = bp.diastolicBp,
+        medicalConditions =
+            resolveClearableText(
+                "Medical conditions",
+                medicalConditions,
+                ClientPatchField.MEDICAL_CONDITIONS in clearFields,
+                "medicalConditions",
+            ),
+        clearMiddleName = ClientPatchField.MIDDLE_NAME in clearFields,
+        clearSuffix = ClientPatchField.SUFFIX in clearFields,
+        clearPhoneNumber = ClientPatchField.PHONE_NUMBER in clearFields,
+        clearAddress = ClientPatchField.ADDRESS in clearFields,
+        clearMedicalConditions = ClientPatchField.MEDICAL_CONDITIONS in clearFields,
+        clearBp = bp.clear,
+        clearedFields = (clearFields intersect ClientPatchField.clearable).toSortedSet(),
+    )
+}
+
+/**
  * Client audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
  * transaction so the audit row commits atomically with the mutation. Owns the persistence-table
  * imports so the public command surface does not.
@@ -176,6 +363,7 @@ internal object ClientAudit {
         changedBy: UUID,
         before: Client,
         after: Client,
+        clearedFields: Set<String> = emptySet(),
     ) = AuditLogRepository.recordUpdate(
         tableName = ClientTable.tableName,
         recordId = after.id,
@@ -183,5 +371,9 @@ internal object ClientAudit {
         after = after,
         changedBy = changedBy,
         auditFields = ClientTable::auditFields,
+        // Cleared-field identity without values (#523): the audit vocabulary only
+        // covers names today (#525 owns full coverage), so the reason names which
+        // optional fields were cleared — never their values (#524 safe).
+        reason = clearedFields.takeIf { it.isNotEmpty() }?.let { "cleared: ${it.sorted().joinToString()}" },
     )
 }
