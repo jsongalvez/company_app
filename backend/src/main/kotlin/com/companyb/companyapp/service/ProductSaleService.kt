@@ -1,10 +1,10 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.audit.AuditContext
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.AuditContext
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchInventoryRepository
 import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
@@ -167,7 +167,7 @@ internal object ProductSaleAudit {
     fun inserted(
         context: AuditContext,
         sale: ProductSale,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = ProductSaleTable.tableName,
         recordId = sale.id,
         changedBy = context.changedBy,
@@ -181,7 +181,7 @@ internal object ProductSaleAudit {
         context: AuditContext,
         before: BranchInventory,
         after: BranchInventory,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = BranchInventoryTable.tableName,
         recordId = before.id,
         before = before,

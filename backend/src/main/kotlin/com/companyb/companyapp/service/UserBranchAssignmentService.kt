@@ -1,5 +1,7 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.audit.AuditContext
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -8,8 +10,6 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AccountReads
-import com.companyb.companyapp.repository.AuditContext
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchMemberRepository
 import com.companyb.companyapp.repository.BranchMemberRow
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
@@ -236,7 +236,7 @@ internal object UserBranchAssignmentAudit {
     fun inserted(
         context: AuditContext,
         assignment: UserBranchAssignment,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = UserBranchAssignmentTable.tableName,
         recordId = assignment.id,
         changedBy = context.changedBy,
@@ -248,7 +248,7 @@ internal object UserBranchAssignmentAudit {
         context: AuditContext,
         before: UserBranchAssignment,
         after: UserBranchAssignment,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = UserBranchAssignmentTable.tableName,
         recordId = after.id,
         before = before,

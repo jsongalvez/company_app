@@ -1,10 +1,10 @@
 package com.companyb.companyapp.service.finance.commission
 
+import com.companyb.companyapp.audit.AuditContext
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.AuditContext
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.CommissionSplitRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
@@ -251,7 +251,7 @@ internal object CommissionAudit {
     fun inserted(
         context: AuditContext,
         inclusion: CommissionManualInclusion,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = CommissionManualInclusionTable.tableName,
         recordId = inclusion.id,
         changedBy = context.changedBy,
@@ -265,7 +265,7 @@ internal object CommissionAudit {
         context: AuditContext,
         before: CommissionManualInclusion,
         after: CommissionManualInclusion,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = CommissionManualInclusionTable.tableName,
         recordId = after.id,
         before = before,

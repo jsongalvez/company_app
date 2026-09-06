@@ -1,4 +1,5 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.AuditAction
@@ -15,7 +16,6 @@ import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionPractitionerTable

@@ -1,4 +1,5 @@
 package com.companyb.companyapp.identity
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.RegistrationConflictException
 import com.companyb.companyapp.identity.JwtService
@@ -6,7 +7,6 @@ import com.companyb.companyapp.identity.LoginResult
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.UserCreateParams
 import com.companyb.companyapp.identity.UserRepository
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures

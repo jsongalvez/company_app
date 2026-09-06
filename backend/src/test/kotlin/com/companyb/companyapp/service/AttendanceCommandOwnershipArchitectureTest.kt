@@ -36,7 +36,7 @@ class AttendanceCommandOwnershipArchitectureTest {
     fun `each attendance mutation command owns exactly one transaction`() {
         val source = mainSource("service/attendance/AttendanceService.kt")
 
-        assertFalse(source.contains("auditFn"), "commands call AuditLogRepository directly")
+        assertFalse(source.contains("auditFn"), "commands call AuditLog directly")
         listOf(
             "clockIn",
             "clockOut",

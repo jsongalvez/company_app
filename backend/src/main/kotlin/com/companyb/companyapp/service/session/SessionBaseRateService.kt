@@ -1,8 +1,8 @@
 package com.companyb.companyapp.service.session
 
+import com.companyb.companyapp.audit.AuditContext
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.domain.SessionType
-import com.companyb.companyapp.repository.AuditContext
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.FAR_FUTURE
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SetRateResult
@@ -89,7 +89,7 @@ internal object SessionBaseRateAudit {
     fun inserted(
         context: AuditContext,
         rateRecord: SessionBaseRate,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = SessionBaseRateTable.tableName,
         recordId = rateRecord.id,
         changedBy = context.changedBy,
@@ -101,7 +101,7 @@ internal object SessionBaseRateAudit {
         context: AuditContext,
         before: SessionBaseRate,
         after: SessionBaseRate,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = SessionBaseRateTable.tableName,
         recordId = before.id,
         before = before,

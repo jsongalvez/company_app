@@ -1,8 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.model.ProductCategory
 import com.companyb.companyapp.repository.model.ProductCategoryTable
@@ -44,7 +44,7 @@ internal object ProductCategoryAudit {
     fun inserted(
         changedBy: UUID,
         category: ProductCategory,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = ProductCategoryTable.tableName,
         recordId = category.id,
         changedBy = changedBy,

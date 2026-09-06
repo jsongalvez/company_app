@@ -1,6 +1,7 @@
 @file:Suppress("LargeClass")
 
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.audit
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.AuditAction
@@ -16,7 +17,6 @@ import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule

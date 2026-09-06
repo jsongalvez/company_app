@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.DayStatus
@@ -9,7 +10,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.CompensationRepository
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest

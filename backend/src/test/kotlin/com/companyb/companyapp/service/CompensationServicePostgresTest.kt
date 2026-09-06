@@ -1,10 +1,10 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper

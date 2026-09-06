@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.RemittanceMethod
@@ -7,7 +8,6 @@ import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.repository.ConcernRepository
 import com.companyb.companyapp.repository.SessionPractitionerRepository
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.ConcernTable
 import com.companyb.companyapp.repository.model.SessionConcernTable
 import com.companyb.companyapp.repository.model.SessionPractitionerTable

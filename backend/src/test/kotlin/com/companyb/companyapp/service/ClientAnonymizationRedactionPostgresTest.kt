@@ -1,6 +1,9 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.api.routes.AuditLogRoutes
+import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditLogRoutes
+import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.audit.AuditValues
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.AuditAction
@@ -13,9 +16,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
-import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.AuditValues
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -160,7 +160,7 @@ class ClientAnonymizationRedactionPostgresTest : BasePostgresTest() {
 
         val redacted =
             transaction {
-                AuditLogRepository.redactClientNamesInTransaction(clientId)
+                AuditLog.redactClientNamesInTransaction(clientId)
             }
 
         assertTrue(redacted >= 1, "legacy identifying payloads must be rewritten")
@@ -189,7 +189,7 @@ class ClientAnonymizationRedactionPostgresTest : BasePostgresTest() {
         }
 
         transaction {
-            AuditLogRepository.redactClientNamesInTransaction(clientId)
+            AuditLog.redactClientNamesInTransaction(clientId)
         }
 
         val anonymizeRow = auditEntries().single { it.reason == ANONYMIZED_REASON }
@@ -225,7 +225,7 @@ class ClientAnonymizationRedactionPostgresTest : BasePostgresTest() {
         val rowsBefore = idsBefore.size
 
         transaction {
-            AuditLogRepository.redactClientNamesInTransaction(clientId)
+            AuditLog.redactClientNamesInTransaction(clientId)
         }
 
         assertEquals(idsBefore, auditRowIds(), "redaction rewrites rows in place — same rows, no adds or deletes")

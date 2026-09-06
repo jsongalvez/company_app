@@ -1,10 +1,10 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.SessionRepository
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.ConcernTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionConcernTable

@@ -318,11 +318,11 @@ class SemanticOwnershipArchitectureTest {
         val store =
             """
             package com.companyb.companyapp.client
-            import com.companyb.companyapp.repository.AuditLogRepository
+            import com.companyb.companyapp.audit.AuditLog
 
             internal object ClientRepository {
                 fun createInTransaction() {
-                    AuditLogRepository.record("client", "1", "INSERT", "caller")
+                    AuditLog.recordInsert("client", "1", "caller", mapOf("id" to "1"))
                 }
             }
             """.trimIndent()

@@ -1,7 +1,5 @@
-package com.companyb.companyapp.repository.model
-import com.companyb.companyapp.branch.BranchTable
+package com.companyb.companyapp.audit
 import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.ColumnType
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
@@ -26,14 +24,17 @@ object AuditLogTable : Table("audit_log") {
                 obj
             },
         )
-    val changedBy = javaUUID("changed_by").references(AppUserTable.id)
-    val branchId = javaUUID("branch_id").references(BranchTable.id).nullable()
+
+    // No Exposed `.references()` FKs: Flyway SQL owns the schema and joins use
+    // explicit column pairs, matching the other feature tables (#549).
+    val changedBy = javaUUID("changed_by")
+    val branchId = javaUUID("branch_id").nullable()
     val changedAt = timestampWithTimeZone("changed_at").defaultExpression(CurrentTimestampWithTimeZone)
     val oldValue = registerColumn("old_value", JsonBColumnType()).nullable()
     val newValue = registerColumn("new_value", JsonBColumnType()).nullable()
     val isFlagged = bool("is_flagged").default(false)
     val reason = text("reason").nullable()
-    val acknowledgedBy = javaUUID("acknowledged_by").references(AppUserTable.id).nullable()
+    val acknowledgedBy = javaUUID("acknowledged_by").nullable()
     val acknowledgedAt = timestampWithTimeZone("acknowledged_at").nullable()
 
     override val primaryKey = PrimaryKey(id)

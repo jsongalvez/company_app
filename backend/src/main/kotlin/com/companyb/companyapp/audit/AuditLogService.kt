@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.audit
 
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.dto.AuditLogBrowseResponse
@@ -6,11 +6,6 @@ import com.companyb.companyapp.dto.AuditLogEntryResponse
 import com.companyb.companyapp.dto.AuditLogTableResponse
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.AuditBrowseCursor
-import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.AuditLogTableRegistry
-import com.companyb.companyapp.repository.encodeCursor
-import com.companyb.companyapp.repository.model.AuditLogEntry
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -35,7 +30,7 @@ object AuditLogService {
         recordId: UUID,
     ): List<AuditLogEntry> {
         logger.info { "[AUDIT-LIST] $callerId fetching audit entries for $tableName/$recordId" }
-        return AuditLogRepository.findByTableAndRecord(
+        return AuditLogStore.findByTableAndRecord(
             tableName = tableName,
             recordId = recordId,
             windowBranchIds = window(callerId),
@@ -46,7 +41,7 @@ object AuditLogService {
 
     fun findFlagged(callerId: UUID): List<AuditLogEntry> {
         logger.info { "[AUDIT-FLAGGED] $callerId fetching unacknowledged flagged entries" }
-        return AuditLogRepository.findFlagged(
+        return AuditLogStore.findFlagged(
             windowBranchIds = window(callerId),
             branchlessTables = branchlessTables(callerId),
             canReadNullRows = canReadNullRows(callerId),
@@ -63,7 +58,7 @@ object AuditLogService {
         entryId: UUID,
     ): AuditLogEntry {
         val entry =
-            AuditLogRepository.findById(entryId)
+            AuditLogStore.findById(entryId)
                 ?: throw NotFoundException("Audit entry not found")
         if (!AuditLogReadScope.canReadEntry(callerId, entry.tableName, entry.branchId)) {
             throw NotFoundException("Audit entry not found")
@@ -73,10 +68,10 @@ object AuditLogService {
             throw ConflictException("Editor cannot acknowledge their own flagged entry")
         }
 
-        val updated = AuditLogRepository.acknowledge(entryId, callerId)
+        val updated = AuditLogStore.acknowledge(entryId, callerId)
         if (!updated) throw NotFoundException("Audit entry not found or already acknowledged")
 
-        return AuditLogRepository.findById(entryId)
+        return AuditLogStore.findById(entryId)
             ?: throw NotFoundException("Audit entry not found")
     }
 
@@ -97,7 +92,7 @@ object AuditLogService {
     ): AuditLogBrowseResponse {
         logger.info { "[AUDIT-BROWSE] $callerId browsing audit log" }
         val fetched =
-            AuditLogRepository.browse(
+            AuditLogStore.browse(
                 windowBranchIds = window(callerId),
                 branchlessTables = branchlessTables(callerId),
                 canReadNullRows = canReadNullRows(callerId),

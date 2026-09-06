@@ -1,13 +1,13 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditValues
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.dto.ClientPatchField
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.ClientCreateParams
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.ClientRepository
@@ -176,7 +176,7 @@ object ClientService {
                 // Redact-then-record (#524): prior payloads are scrubbed before
                 // the anonymization event lands, so the removed names never sit
                 // in a new payload and the whole command stays atomic.
-                AuditLogRepository.redactClientNamesInTransaction(clientId)
+                AuditLog.redactClientNamesInTransaction(clientId)
                 ClientAudit.anonymized(callerId, before, after)
             } else {
                 throw NotFoundException("Client not found")
@@ -357,7 +357,7 @@ internal object ClientAudit {
     fun inserted(
         changedBy: UUID,
         client: Client,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = ClientTable.tableName,
         recordId = client.id,
         changedBy = changedBy,
@@ -369,7 +369,7 @@ internal object ClientAudit {
         before: Client,
         after: Client,
         clearedFields: Set<String> = emptySet(),
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = ClientTable.tableName,
         recordId = after.id,
         before = before,
@@ -403,7 +403,7 @@ internal object ClientAudit {
                 address = before.address?.let { if (it == DEFAULT_CLIENT_ADDRESS) it else AuditValues.REDACTED },
                 medicalConditions = before.medicalConditions?.let { AuditValues.REDACTED },
             )
-        AuditLogRepository.recordUpdate(
+        AuditLog.recordUpdate(
             tableName = ClientTable.tableName,
             recordId = after.id,
             before = scrubbed,

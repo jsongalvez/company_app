@@ -1,12 +1,12 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.audit.AuditContext
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.AuditContext
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ExpenseRepository
 import com.companyb.companyapp.repository.model.Expense
 import com.companyb.companyapp.repository.model.ExpenseCreateParams
@@ -186,7 +186,7 @@ internal object ExpenseAudit {
     fun inserted(
         context: AuditContext,
         expense: Expense,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = ExpenseTable.tableName,
         recordId = expense.id,
         changedBy = context.changedBy,
@@ -200,7 +200,7 @@ internal object ExpenseAudit {
         context: AuditContext,
         before: Expense,
         after: Expense,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = ExpenseTable.tableName,
         recordId = after.id,
         before = before,
@@ -215,7 +215,7 @@ internal object ExpenseAudit {
     fun deleted(
         context: AuditContext,
         before: Expense,
-    ) = AuditLogRepository.recordDelete(
+    ) = AuditLog.recordDelete(
         tableName = ExpenseTable.tableName,
         recordId = before.id,
         before = before,

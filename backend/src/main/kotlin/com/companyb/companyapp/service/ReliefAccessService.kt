@@ -1,5 +1,7 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.audit.AuditContext
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branch.Branch
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
@@ -8,8 +10,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.AuditContext
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.GrantWithCapabilityParams
 import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.ReliefRequestWithBranch
@@ -372,7 +372,7 @@ internal object ReliefAccessAudit {
     fun inserted(
         context: AuditContext,
         reliefAccess: ReliefAccess,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = GrantReliefAccessTable.tableName,
         recordId = reliefAccess.id,
         changedBy = context.changedBy,
@@ -386,7 +386,7 @@ internal object ReliefAccessAudit {
         context: AuditContext,
         before: ReliefAccess,
         after: ReliefAccess,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = GrantReliefAccessTable.tableName,
         recordId = after.id,
         before = before,

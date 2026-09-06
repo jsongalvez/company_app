@@ -1,5 +1,7 @@
 package com.companyb.companyapp.service.session
 
+import com.companyb.companyapp.audit.AuditContext
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionStatus
@@ -9,8 +11,6 @@ import com.companyb.companyapp.domain.isStatusTransitionAllowed
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.AuditContext
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchMemberRepository
 import com.companyb.companyapp.repository.ClientRepository
 import com.companyb.companyapp.repository.SessionBaseRateRepository
@@ -495,7 +495,7 @@ internal object SessionAudit {
     fun inserted(
         context: AuditContext,
         session: Session,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = SessionTable.tableName,
         recordId = session.id,
         changedBy = context.changedBy,
@@ -509,7 +509,7 @@ internal object SessionAudit {
         context: AuditContext,
         before: Session,
         after: Session,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = SessionTable.tableName,
         recordId = after.id,
         before = before,
@@ -524,7 +524,7 @@ internal object SessionAudit {
     fun voidInserted(
         context: AuditContext,
         voidRecord: SessionVoid,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = SessionVoidTable.tableName,
         recordId = voidRecord.id,
         changedBy = context.changedBy,
@@ -538,7 +538,7 @@ internal object SessionAudit {
         context: AuditContext,
         before: SessionVoid,
         after: SessionVoid,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = SessionVoidTable.tableName,
         recordId = after.id,
         before = before,

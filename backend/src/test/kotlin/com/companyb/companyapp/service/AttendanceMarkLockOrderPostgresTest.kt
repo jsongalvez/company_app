@@ -1,9 +1,9 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.service.attendance.AttendanceRepository
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.test.BasePostgresTest

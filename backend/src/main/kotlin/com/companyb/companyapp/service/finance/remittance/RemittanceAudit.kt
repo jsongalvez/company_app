@@ -1,8 +1,8 @@
 package com.companyb.companyapp.service.finance.remittance
 
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
@@ -19,7 +19,7 @@ internal object RemittanceAudit {
     fun draftInserted(
         changedBy: UUID,
         remittance: Remittance,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = RemittanceTable.tableName,
         recordId = remittance.id,
         changedBy = changedBy,
@@ -32,7 +32,7 @@ internal object RemittanceAudit {
         before: Remittance,
         after: Remittance,
         reason: String? = null,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = RemittanceTable.tableName,
         recordId = after.id,
         before = before,
@@ -48,7 +48,7 @@ internal object RemittanceAudit {
         before: BranchDay,
         after: BranchDay,
         reason: String? = null,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = BranchDayTable.tableName,
         recordId = after.id,
         before = before,
@@ -63,7 +63,7 @@ internal object RemittanceAudit {
         changedBy: UUID,
         branchId: UUID,
         line: RemittanceLine,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = RemittanceLineTable.tableName,
         recordId = line.id,
         changedBy = changedBy,
@@ -76,7 +76,7 @@ internal object RemittanceAudit {
         branchId: UUID,
         before: RemittanceLine,
         after: RemittanceLine,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = RemittanceLineTable.tableName,
         recordId = after.id,
         before = before,
@@ -90,7 +90,7 @@ internal object RemittanceAudit {
         changedBy: UUID,
         branchId: UUID,
         breakdown: RemittanceDayBreakdown,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = RemittanceDayBreakdownTable.tableName,
         recordId = breakdown.id,
         changedBy = changedBy,
@@ -102,7 +102,7 @@ internal object RemittanceAudit {
         changedBy: UUID,
         branchId: UUID,
         before: RemittanceDayBreakdown,
-    ) = AuditLogRepository.recordDelete(
+    ) = AuditLog.recordDelete(
         tableName = RemittanceDayBreakdownTable.tableName,
         recordId = before.id,
         before = before,
@@ -116,7 +116,7 @@ internal object RemittanceAudit {
         branchId: UUID,
         before: RemittanceFinancialSnapshot,
         reason: String? = null,
-    ) = AuditLogRepository.recordDelete(
+    ) = AuditLog.recordDelete(
         tableName = RemittanceFinancialSnapshotTable.tableName,
         recordId = before.remittanceId,
         before = before,

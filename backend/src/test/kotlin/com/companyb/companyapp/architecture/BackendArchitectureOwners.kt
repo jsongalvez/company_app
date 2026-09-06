@@ -415,9 +415,16 @@ object BackendArchitectureOwners {
 
     // ---- Audit ownership (role-based: every store, wherever it lives) ----
 
+    /**
+     * Audit append-seam receivers (#549): the current [AuditLog] seam plus the
+     * retired `AuditLogRepository` name, so a relocated store writing an audit
+     * row fails under either spelling.
+     */
+    private val AUDIT_SEAM_RECEIVERS = setOf("AuditLog", "AuditLogRepository")
+
     fun containsAuditRecordCall(file: KtFile): Boolean =
         file.collect<KtCallExpression>().any {
-            calleeName(it)?.startsWith("record") == true && receiverText(it) == "AuditLogRepository"
+            calleeName(it)?.startsWith("record") == true && receiverText(it) in AUDIT_SEAM_RECEIVERS
         }
 
     fun containsAuditFn(file: KtFile): Boolean =

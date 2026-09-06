@@ -1,13 +1,13 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.audit.AuditContext
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.AuditContext
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CompensationCreateParams
 import com.companyb.companyapp.repository.CompensationRepository
 import com.companyb.companyapp.repository.CompensationWithUser
@@ -159,7 +159,7 @@ internal object CompensationAudit {
     fun inserted(
         context: AuditContext,
         compensation: Compensation,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = CompensationTable.tableName,
         recordId = compensation.id,
         changedBy = context.changedBy,
@@ -173,7 +173,7 @@ internal object CompensationAudit {
         context: AuditContext,
         before: Compensation,
         after: Compensation,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = CompensationTable.tableName,
         recordId = after.id,
         before = before,

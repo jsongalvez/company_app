@@ -1,9 +1,9 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayRepository
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.repository.ProductRepository
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.ProductSaleTable

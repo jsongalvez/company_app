@@ -1,5 +1,7 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.audit.AuditContext
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -7,8 +9,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AccountReads
-import com.companyb.companyapp.repository.AuditContext
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.MedicalMissionDelegateRepository
 import com.companyb.companyapp.repository.model.MedicalMissionDelegate
@@ -150,7 +150,7 @@ internal object MedicalMissionDelegateAudit {
     fun inserted(
         context: AuditContext,
         delegate: MedicalMissionDelegate,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = MedicalMissionDelegateTable.tableName,
         recordId = delegate.id,
         changedBy = context.changedBy,
@@ -162,7 +162,7 @@ internal object MedicalMissionDelegateAudit {
         context: AuditContext,
         before: MedicalMissionDelegate,
         after: MedicalMissionDelegate,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = MedicalMissionDelegateTable.tableName,
         recordId = after.id,
         before = before,

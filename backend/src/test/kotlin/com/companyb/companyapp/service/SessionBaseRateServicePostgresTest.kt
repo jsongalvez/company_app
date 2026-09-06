@@ -1,11 +1,11 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.SessionBaseRateRepository
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.service.session.SessionBaseRateService
 import com.companyb.companyapp.service.session.SessionService

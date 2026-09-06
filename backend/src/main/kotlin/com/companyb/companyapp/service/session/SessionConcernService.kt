@@ -1,10 +1,10 @@
 package com.companyb.companyapp.service.session
 
+import com.companyb.companyapp.audit.AuditContext
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.AuditContext
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ConcernRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.findSessionByIdInTransaction
@@ -153,7 +153,7 @@ internal object SessionConcernAudit {
         context: AuditContext,
         sessionId: UUID,
         concernId: UUID,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = SessionConcernTable.tableName,
         recordId = sessionId,
         changedBy = context.changedBy,
@@ -167,7 +167,7 @@ internal object SessionConcernAudit {
         context: AuditContext,
         sessionId: UUID,
         concernId: UUID,
-    ) = AuditLogRepository.recordDelete(
+    ) = AuditLog.recordDelete(
         tableName = SessionConcernTable.tableName,
         recordId = sessionId,
         before = SessionConcern(sessionId, concernId),
@@ -181,7 +181,7 @@ internal object SessionConcernAudit {
     fun concernInserted(
         context: AuditContext,
         concern: Concern,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = ConcernTable.tableName,
         recordId = concern.id,
         changedBy = context.changedBy,
@@ -194,7 +194,7 @@ internal object SessionConcernAudit {
         context: AuditContext,
         before: Session,
         after: Session,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = SessionTable.tableName,
         recordId = after.id,
         before = before,

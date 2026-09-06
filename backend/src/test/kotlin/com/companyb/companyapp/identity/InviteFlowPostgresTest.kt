@@ -1,5 +1,6 @@
 package com.companyb.companyapp.identity
 
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.CredentialTokenPurpose
 import com.companyb.companyapp.dto.InviteMintRequest
@@ -10,7 +11,6 @@ import com.companyb.companyapp.identity.CredentialTokenTable
 import com.companyb.companyapp.identity.LoginResult
 import com.companyb.companyapp.identity.RoleRepository
 import com.companyb.companyapp.identity.UserRepository
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures

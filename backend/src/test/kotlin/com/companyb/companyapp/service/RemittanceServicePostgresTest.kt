@@ -1,4 +1,6 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.AuditAction
@@ -12,8 +14,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
-import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
@@ -487,7 +487,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
                         LocalDate.of(2026, 7, 10),
                     )
                     BranchDayService.markDaysRemittedInTransaction(listOf(branchDayId))
-                    AuditLogRepository.record(
+                    AuditLog.record(
                         tableName = RemittanceTable.tableName,
                         recordId = remittanceId,
                         action = AuditAction.UPDATE,

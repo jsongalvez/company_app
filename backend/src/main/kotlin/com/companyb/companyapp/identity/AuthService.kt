@@ -1,5 +1,6 @@
 package com.companyb.companyapp.identity
 
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.domain.CredentialTokenPurpose
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUser
@@ -15,7 +16,6 @@ import com.companyb.companyapp.identity.PasswordResetSender
 import com.companyb.companyapp.identity.RateLimiter
 import com.companyb.companyapp.identity.UserRepository
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.validation.PasswordPolicy
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -160,7 +160,7 @@ object AuthService {
                     oldLabel = "(pending invite)",
                     newLabel = "(set by invitee)",
                 )
-                AuditLogRepository.recordUpdate(
+                AuditLog.recordUpdate(
                     tableName = TOKEN_TABLE_NAME,
                     recordId = row.id,
                     changedBy = userId,
@@ -232,7 +232,7 @@ object AuthService {
                 .findUnconsumedIdsInTransaction(existing.id, CredentialTokenPurpose.PASSWORD_RESET)
                 .forEach { tokenId ->
                     CredentialTokenRepository.invalidateInTransaction(tokenId)
-                    AuditLogRepository.recordUpdate(
+                    AuditLog.recordUpdate(
                         tableName = TOKEN_TABLE_NAME,
                         recordId = tokenId,
                         changedBy = existing.id,
@@ -254,7 +254,7 @@ object AuthService {
                         ),
                     createdBy = null,
                 )
-            AuditLogRepository.recordInsert(
+            AuditLog.recordInsert(
                 tableName = TOKEN_TABLE_NAME,
                 recordId = tokenId,
                 changedBy = existing.id,
@@ -324,7 +324,7 @@ object AuthService {
                     oldLabel = "(previous)",
                     newLabel = "(set via password reset)",
                 )
-                AuditLogRepository.recordUpdate(
+                AuditLog.recordUpdate(
                     tableName = TOKEN_TABLE_NAME,
                     recordId = row.id,
                     changedBy = userId,
@@ -343,7 +343,7 @@ internal object AuthAudit {
         recordId: UUID,
         oldLabel: String,
         newLabel: String,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = AppUserTable.tableName,
         recordId = recordId,
         changedBy = recordId,

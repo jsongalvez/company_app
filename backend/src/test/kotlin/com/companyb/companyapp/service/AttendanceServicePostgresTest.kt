@@ -1,12 +1,12 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
 import com.companyb.companyapp.service.attendance.AttendanceRepository
 import com.companyb.companyapp.service.attendance.AttendanceService
@@ -229,7 +229,7 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
                             branchId = branchId,
                         ),
                     )
-                    AuditLogRepository.record(
+                    AuditLog.record(
                         tableName = AttendanceTable.tableName,
                         recordId = attendanceId,
                         action = AuditAction.INSERT,
@@ -256,7 +256,7 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
                 transaction {
                     checkNotNull(AttendanceRepository.findByIdInTransaction(attendanceId))
                     AttendanceRepository.clockOutInTransaction(attendanceId)
-                    AuditLogRepository.record(
+                    AuditLog.record(
                         tableName = AttendanceTable.tableName,
                         recordId = attendanceId,
                         action = AuditAction.UPDATE,

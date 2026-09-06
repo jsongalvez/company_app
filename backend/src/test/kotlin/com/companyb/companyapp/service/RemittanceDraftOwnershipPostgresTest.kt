@@ -1,9 +1,9 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ConflictException
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.service.finance.remittance.Remittance
 import com.companyb.companyapp.service.finance.remittance.RemittanceService

@@ -1,9 +1,9 @@
 package com.companyb.companyapp.branch
 
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.service.session.SessionBaseRateService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -58,7 +58,7 @@ internal object BranchAudit {
     fun inserted(
         changedBy: UUID,
         branch: Branch,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = BranchTable.tableName,
         recordId = branch.id,
         changedBy = changedBy,

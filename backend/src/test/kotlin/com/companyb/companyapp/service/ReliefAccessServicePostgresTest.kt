@@ -1,4 +1,5 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -13,7 +14,6 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.test.BasePostgresTest

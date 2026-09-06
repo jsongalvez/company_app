@@ -1,11 +1,11 @@
 package com.companyb.companyapp.service.session
 
+import com.companyb.companyapp.audit.AuditContext
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AddPractitionerResult
-import com.companyb.companyapp.repository.AuditContext
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
@@ -177,7 +177,7 @@ internal object SessionPractitionerAudit {
     fun inserted(
         context: AuditContext,
         practitioner: SessionPractitioner,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = SessionPractitionerTable.tableName,
         recordId = practitioner.id,
         changedBy = context.changedBy,
@@ -191,7 +191,7 @@ internal object SessionPractitionerAudit {
         context: AuditContext,
         before: SessionPractitioner,
         after: SessionPractitioner,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = SessionPractitionerTable.tableName,
         recordId = after.id,
         before = before,
@@ -206,7 +206,7 @@ internal object SessionPractitionerAudit {
     fun deleted(
         context: AuditContext,
         practitioner: SessionPractitioner,
-    ) = AuditLogRepository.recordDelete(
+    ) = AuditLog.recordDelete(
         tableName = SessionPractitionerTable.tableName,
         recordId = practitioner.id,
         before = practitioner,

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.audit
 
 import com.companyb.companyapp.domain.AuditAction
 import java.time.OffsetDateTime

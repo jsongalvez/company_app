@@ -1,5 +1,7 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.audit.AuditContext
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.ReliefInviteStatus
@@ -7,8 +9,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.AuditContext
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.ReliefCandidate
 import com.companyb.companyapp.repository.ReliefInviteRepository
@@ -403,7 +403,7 @@ internal object ReliefInviteAudit {
     fun inserted(
         context: AuditContext,
         invite: ReliefInvite,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = ReliefInviteTable.tableName,
         recordId = invite.id,
         changedBy = context.changedBy,
@@ -416,7 +416,7 @@ internal object ReliefInviteAudit {
         context: AuditContext,
         before: ReliefInvite,
         after: ReliefInvite,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = ReliefInviteTable.tableName,
         recordId = after.id,
         before = before,

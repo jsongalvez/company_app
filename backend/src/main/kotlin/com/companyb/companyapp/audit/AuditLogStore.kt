@@ -1,11 +1,9 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.audit
 
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.AuditLogEntry
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.DEFAULT_CLIENT_ADDRESS
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -41,26 +39,12 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
-/** Keyset cursor for audit browse: strictly-before position on `(changed_at, id) DESC`. */
-data class AuditBrowseCursor(
-    val changedAt: OffsetDateTime,
-    val id: UUID,
-)
-
 /**
- * Command context stamped onto audit rows (#323): who acted, on which branch, and the
- * REMITTED-day flag vocabulary. Audit seams take this as their first parameter so their
- * domain-row parameters stay separate from the who/where/why of the audit event.
+ * Audit persistence (#549): table/query internals behind the [AuditLog] append seam and
+ * the [AuditLogService] scoped reads. Same-owner only — other owners cross [AuditLog].
  */
-data class AuditContext(
-    val changedBy: UUID,
-    val branchId: UUID? = null,
-    val isFlagged: Boolean = false,
-    val reason: String? = null,
-)
-
 @Suppress("TooManyFunctions")
-object AuditLogRepository {
+internal object AuditLogStore {
     @Suppress("LongParameterList")
     fun record(
         tableName: String,
@@ -103,7 +87,7 @@ object AuditLogRepository {
             action = AuditAction.INSERT,
             changedBy = changedBy,
             branchId = branchId,
-            newValue = jsonFields(fields),
+            newValue = AuditLog.jsonFields(fields),
             reason = reason,
             isFlagged = isFlagged,
         )
@@ -126,8 +110,8 @@ object AuditLogRepository {
             action = AuditAction.UPDATE,
             changedBy = changedBy,
             branchId = branchId,
-            oldValue = jsonFields(oldFields),
-            newValue = jsonFields(newFields),
+            oldValue = AuditLog.jsonFields(oldFields),
+            newValue = AuditLog.jsonFields(newFields),
             reason = reason,
             isFlagged = isFlagged,
         )
@@ -207,8 +191,8 @@ object AuditLogRepository {
             action = AuditAction.DELETE,
             changedBy = changedBy,
             branchId = branchId,
-            oldValue = jsonFields(oldFields),
-            newValue = jsonFields(newFields),
+            oldValue = AuditLog.jsonFields(oldFields),
+            newValue = AuditLog.jsonFields(newFields),
             reason = reason,
             isFlagged = isFlagged,
         )
@@ -340,7 +324,7 @@ object AuditLogRepository {
     /**
      * Keyset browse over `(changed_at DESC, id DESC)`. [cursor] is the
      * strictly-before position (exclusive). [limit] rows are returned; the
-     * caller decides pagination via [encodeCursor] on the last row.
+     * caller decides pagination via [AuditLogService.browse] encoding the last row.
      */
     @Suppress("LongParameterList")
     fun browse(
@@ -408,28 +392,6 @@ object AuditLogRepository {
             } > 0
         }.also { acknowledged -> logger.info { "[ACKNOWLEDGE] Entry $entryId acknowledged=$acknowledged" } }
 
-    fun jsonField(
-        key: String,
-        value: String?,
-    ): String = jsonFields(key to value)
-
-    fun jsonFields(vararg fields: Pair<String, String?>): String = buildJson(fields.toList())
-
-    fun jsonFields(fields: Map<String, String?>): String = buildJson(fields.toList())
-
-    /**
-     * #525 — nulls encode as JSON null via the existing kotlinx-serialization
-     * library; every non-null value stays a JSON string for historical
-     * compatibility. Historical `{"k":"null"}` payloads therefore keep parsing;
-     * new `{"k":null}` rows are distinguishable from literal `"null"` text.
-     */
-    private fun buildJson(fields: List<Pair<String, String?>>): String =
-        buildJsonObject {
-            fields.forEach { (key, value) ->
-                if (value == null) put(key, JsonNull) else put(key, JsonPrimitive(value))
-            }
-        }.toString()
-
     private fun ResultRow.toAuditLogEntry(): AuditLogEntry =
         AuditLogEntry(
             id = this[AuditLogTable.id],
@@ -448,24 +410,6 @@ object AuditLogRepository {
             acknowledgedBy = this[AuditLogTable.acknowledgedBy],
             acknowledgedAt = this[AuditLogTable.acknowledgedAt],
         )
-}
-
-/**
- * Opaque URL-safe cursor encoding for audit browse: `changedAt|id`, base64url.
- * Format is internal — decode with [decodeCursor]; never parse client-side.
- */
-fun encodeCursor(cursor: AuditBrowseCursor): String =
-    encodeOpaqueCursor(cursor.changedAt.toString(), cursor.id.toString())
-
-fun decodeCursor(raw: String): AuditBrowseCursor {
-    val parts =
-        runCatching { decodeOpaqueCursor(raw) }
-            .getOrElse { throw IllegalArgumentException("Invalid audit cursor") }
-    require(parts.size == 2) { "Invalid audit cursor" }
-    return AuditBrowseCursor(
-        changedAt = OffsetDateTime.parse(parts[0]),
-        id = UUID.fromString(parts[1]),
-    )
 }
 
 /**

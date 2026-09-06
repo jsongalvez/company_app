@@ -1,8 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.repository.SessionVoidRepository
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.service.session.SessionService

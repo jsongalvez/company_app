@@ -1,4 +1,5 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.BranchType
@@ -11,7 +12,6 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.MedicalMissionDelegate
 import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable

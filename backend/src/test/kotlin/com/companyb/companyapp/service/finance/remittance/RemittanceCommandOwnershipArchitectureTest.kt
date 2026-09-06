@@ -39,7 +39,7 @@ class RemittanceCommandOwnershipArchitectureTest {
     fun `each remittance mutation command owns exactly one transaction`() {
         val source = mainSource("service/finance/remittance/RemittanceService.kt")
 
-        assertFalse(source.contains("auditFn"), "commands call RemittanceAudit/AuditLogRepository directly")
+        assertFalse(source.contains("auditFn"), "commands call RemittanceAudit/AuditLog directly")
         assertFalse(
             Regex("""import .*repository\.model\.\w+Table""").containsMatchIn(source),
             "public command surface must not import persistence Table objects (#320)",

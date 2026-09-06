@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.audit
 
 object AuditValues {
     /**

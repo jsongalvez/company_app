@@ -1,12 +1,12 @@
 package com.companyb.companyapp.service.inventory
 
+import com.companyb.companyapp.audit.AuditContext
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.AuditContext
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchInventoryRepository
 import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.RecordMovementParams
@@ -303,7 +303,7 @@ internal object BranchInventoryAudit {
         context: AuditContext,
         before: BranchInventory,
         after: BranchInventory,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = BranchInventoryTable.tableName,
         recordId = after.id,
         before = before,
@@ -318,7 +318,7 @@ internal object BranchInventoryAudit {
     fun inserted(
         context: AuditContext,
         movement: InventoryMovement,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = InventoryMovementTable.tableName,
         recordId = movement.id,
         changedBy = context.changedBy,
@@ -332,7 +332,7 @@ internal object BranchInventoryAudit {
     fun inserted(
         context: AuditContext,
         card: BranchInventory,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = BranchInventoryTable.tableName,
         recordId = card.id,
         changedBy = context.changedBy,

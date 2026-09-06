@@ -226,7 +226,7 @@ capability, the corresponding read endpoint (GET) should check the same capabili
 
 ## Audit logging
 
-Every mutating service must write an audit row via `AuditLogRepository.record(tableName, recordId,
+Every mutating service must write an audit row via `AuditLog.record(tableName, recordId,
 action, changedBy, oldValue?, newValue?, reason?)`. `record` does **not** open its own `transaction {}`
 — it runs the insert on the current connection and must be called inside an existing `transaction {}`.
 This ensures the audit insert commits atomically with the mutation it describes.
@@ -235,11 +235,11 @@ All mutating modules are command-owned ([ADR-0024](../docs/adr/0024-command-owne
 the ADR-0013 `auditFn` callback was retired program-wide by map #317 / #323 and is pinned out by
 `SemanticOwnershipArchitectureTest` plus per-feature ownership tests): the service command opens
 exactly one transaction, repository mutators are `*InTransaction` store operations that open no
-transaction, and the command calls `AuditLogRepository.record*` directly inside that same transaction.
+transaction, and the command calls `AuditLog.record*` directly inside that same transaction.
 Before-state capture stays transaction-local: read the entity through the store inside the command's
 transaction (`findByIdInTransaction`) before writing (ADR-0019's invariant, command-owned).
 
-Build JSON values with `AuditLogRepository.jsonField(key, value)` (safely escaped) or use the
+Build JSON values with `AuditLog.jsonField(key, value)` (safely escaped) or use the
 convenience methods `recordInsert`, `recordUpdate`, `recordDelete` which accept
 and `Map<String, String>` field maps.
 
@@ -382,7 +382,7 @@ The `computeSessionType` pure function is extracted from the service so it can b
 
 For concurrency, the partial unique index `idx_client_one_pending_session` is the database-level backstop against duplicate PENDING sessions for the same client — the service pre-check (`hasActivePendingSession`) is the first line of defense, followed by the unique index. Row locks via Exposed `Query.forUpdate()` ARE available and execute only with a terminal op (`.singleOrNull()`) — `SessionRepository.acquireClientLock` / `ProductSaleRepository.acquireInventoryLock` / the RemittanceRepository lock helpers materialize them this way; a `forUpdate()` without a terminal op silently no-ops (the #136 lazy-lock bug class).
 
-Session status update (`PATCH /api/sessions/{sessionId}/status`) uses Exposed DSL `SessionTable.update({ (id eq sessionId) and (version eq expectedVersion) })` for atomic optimistic locking — if the version doesn't match, no rows are updated and the service throws 409 Conflict. The version is incremented by setting `it[SessionTable.version] = expectedVersion + 1`. Call `AuditLogRepository.record` inside the same `transaction {}` block. The DB has `CONSTRAINT walk_in_status CHECK (NOT (is_walk_in = true AND session_status IN ('NO_SHOW', 'CANCELLED')))` — always validate this at the service layer for a cleaner 400 error before hitting the DB constraint.
+Session status update (`PATCH /api/sessions/{sessionId}/status`) uses Exposed DSL `SessionTable.update({ (id eq sessionId) and (version eq expectedVersion) })` for atomic optimistic locking — if the version doesn't match, no rows are updated and the service throws 409 Conflict. The version is incremented by setting `it[SessionTable.version] = expectedVersion + 1`. Call `AuditLog.record` inside the same `transaction {}` block. The DB has `CONSTRAINT walk_in_status CHECK (NOT (is_walk_in = true AND session_status IN ('NO_SHOW', 'CANCELLED')))` — always validate this at the service layer for a cleaner 400 error before hitting the DB constraint.
 
 Session practitioner management (`POST/PATCH/DELETE /api/sessions/{sessionId}/practitioners`) uses the `session_practitioner` table (UNIQUE on session_id + practitioner_id) with `insertIgnore` for idempotent adds. When adding a practitioner, `slot_at_time` is snapshotted from the user's active `user_branch_assignment` at the session's branch (defaults to 999 if no assignment exists). Each practitioner mutation (add, update remarks, remove) atomically increments `session.version` using a read-then-write pattern (`select version then update to version + 1`). All mutations gate on `EDIT_BRANCH_DATA` capability and call `BranchDayService.assertEditable`.
 

@@ -4,8 +4,8 @@ backend/src/main/kotlin/com/companyb/companyapp/Main.kt:LongMethod
 backend/src/main/kotlin/com/companyb/companyapp/api/middleware/CapabilityFilter.kt:TooManyFunctions
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/AllowanceRoutes.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/AttendanceRoutes.kt:ThrowsCount
-backend/src/main/kotlin/com/companyb/companyapp/api/routes/AuditLogRoutes.kt:LongMethod
-backend/src/main/kotlin/com/companyb/companyapp/api/routes/AuditLogRoutes.kt:ThrowsCount
+backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogRoutes.kt:LongMethod
+backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogRoutes.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/BranchInventoryRoutes.kt:LongMethod
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/BranchInventoryRoutes.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/ClientRoutes.kt:ThrowsCount
@@ -45,9 +45,9 @@ backend/src/main/kotlin/com/companyb/companyapp/identity/PasswordResetDelivery.k
 backend/src/main/kotlin/com/companyb/companyapp/config/KotlinxSerializationMapper.kt:UNCHECKED_CAST
 backend/src/main/kotlin/com/companyb/companyapp/identity/SmtpConfig.kt:ReturnCount
 backend/src/main/kotlin/com/companyb/companyapp/database/DatabaseConfig.kt:TooGenericExceptionCaught
-backend/src/main/kotlin/com/companyb/companyapp/repository/AuditLogRepository.kt:LongParameterList
-backend/src/main/kotlin/com/companyb/companyapp/repository/AuditLogRepository.kt:TooManyFunctions
-backend/src/main/kotlin/com/companyb/companyapp/repository/AuditLogRepository.kt:UNCHECKED_CAST
+backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogStore.kt:LongParameterList
+backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogStore.kt:TooManyFunctions
+backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogStore.kt:UNCHECKED_CAST
 backend/src/main/kotlin/com/companyb/companyapp/repository/BranchInventoryRepository.kt:ComplexCondition
 backend/src/main/kotlin/com/companyb/companyapp/repository/BranchInventoryRepository.kt:TooManyFunctions
 backend/src/main/kotlin/com/companyb/companyapp/repository/ClientRepository.kt:UNCHECKED_CAST
@@ -66,8 +66,8 @@ backend/src/main/kotlin/com/companyb/companyapp/identity/UserRepository.kt:TooMa
 backend/src/main/kotlin/com/companyb/companyapp/identity/UserRepository.kt:UnreachableCode
 backend/src/main/kotlin/com/companyb/companyapp/service/AllowanceService.kt:LongParameterList
 backend/src/main/kotlin/com/companyb/companyapp/service/AllowanceService.kt:ThrowsCount
-backend/src/main/kotlin/com/companyb/companyapp/service/AuditLogService.kt:LongParameterList
-backend/src/main/kotlin/com/companyb/companyapp/service/AuditLogService.kt:ThrowsCount
+backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogService.kt:LongParameterList
+backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogService.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/service/ClientService.kt:CyclomaticComplexMethod
 backend/src/main/kotlin/com/companyb/companyapp/service/ClientService.kt:LongParameterList
 backend/src/main/kotlin/com/companyb/companyapp/service/ClientService.kt:ReturnCount
@@ -130,8 +130,8 @@ backend/src/main/kotlin/com/companyb/companyapp/service/session/SessionService.k
 backend/src/main/kotlin/com/companyb/companyapp/service/session/SessionService.kt:ReturnCount
 backend/src/main/kotlin/com/companyb/companyapp/service/session/SessionService.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/service/session/SessionService.kt:TooManyFunctions
-backend/src/test/kotlin/com/companyb/companyapp/api/routes/AuditLogAuthzTest.kt:LargeClass
-backend/src/test/kotlin/com/companyb/companyapp/api/routes/AuditLogAuthzTest.kt:LongMethod
+backend/src/test/kotlin/com/companyb/companyapp/audit/AuditLogAuthzTest.kt:LargeClass
+backend/src/test/kotlin/com/companyb/companyapp/audit/AuditLogAuthzTest.kt:LongMethod
 backend/src/test/kotlin/com/companyb/companyapp/branchday/BranchDayAuthzTest.kt:LargeClass
 backend/src/test/kotlin/com/companyb/companyapp/api/routes/BranchInventoryAuthzTest.kt:LargeClass
 backend/src/test/kotlin/com/companyb/companyapp/api/routes/FinanceReadBackAuthzTest.kt:LargeClass

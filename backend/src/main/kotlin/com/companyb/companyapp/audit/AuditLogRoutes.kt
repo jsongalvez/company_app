@@ -1,16 +1,16 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.audit
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.routes.parseBrowseLimit
+import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.dto.AuditLogBrowseResponse
 import com.companyb.companyapp.dto.AuditLogEntryResponse
 import com.companyb.companyapp.dto.AuditLogTableResponse
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.repository.decodeCursor
-import com.companyb.companyapp.service.AuditLogService
-import com.companyb.companyapp.service.toResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
@@ -183,7 +183,7 @@ object AuditLogRoutes {
             val callerId = context.callerUuid()
             val entryId = context.pathParamAsUuid("entryId")
 
-            val entry: com.companyb.companyapp.repository.model.AuditLogEntry =
+            val entry: com.companyb.companyapp.audit.AuditLogEntry =
                 AuditLogService.acknowledge(callerId, entryId)
 
             context.status(HttpStatus.OK)
@@ -215,7 +215,7 @@ object AuditLogRoutes {
         runCatching { LocalDate.parse(raw) }
             .getOrElse { throw BadRequestResponse("Invalid date: $raw") }
 
-    private fun parseCursor(raw: String?): com.companyb.companyapp.repository.AuditBrowseCursor? {
+    private fun parseCursor(raw: String?): com.companyb.companyapp.audit.AuditBrowseCursor? {
         if (raw == null) return null
         return runCatching { decodeCursor(raw) }
             .getOrElse { throw BadRequestResponse("Invalid cursor") }

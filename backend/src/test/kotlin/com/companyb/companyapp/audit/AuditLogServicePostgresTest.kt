@@ -1,11 +1,12 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.audit
+import com.companyb.companyapp.audit.AuditLogStore
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.model.AuditLogTable
+import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -257,6 +258,6 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
     }
 
     private fun acknowledgeEntryDirectly(entryId: UUID) {
-        AuditLogRepository.acknowledge(entryId, acknowledgerId)
+        AuditLogStore.acknowledge(entryId, acknowledgerId)
     }
 }

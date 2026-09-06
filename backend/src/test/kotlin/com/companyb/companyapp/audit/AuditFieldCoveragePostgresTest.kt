@@ -1,20 +1,22 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.audit
 
+import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.audit.AuditValues
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.dto.ClientPatchField
-import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
+import com.companyb.companyapp.service.ClientService
+import com.companyb.companyapp.service.ExpenseService
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -235,8 +237,8 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
 
     @Test
     fun `literal null text stays distinct from real null`() {
-        assertEquals("""{"notes":"null"}""", AuditLogRepository.jsonFields(mapOf("notes" to "null")))
-        assertEquals("""{"notes":null}""", AuditLogRepository.jsonFields(mapOf("notes" to null)))
+        assertEquals("""{"notes":"null"}""", AuditLog.jsonFields(mapOf("notes" to "null")))
+        assertEquals("""{"notes":null}""", AuditLog.jsonFields(mapOf("notes" to null)))
 
         val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
         val expenseId = TestFixtures.uuid()
@@ -351,7 +353,7 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
 
         val redacted =
             transaction {
-                AuditLogRepository.redactClientNamesInTransaction(clientId)
+                AuditLog.redactClientNamesInTransaction(clientId)
             }
         assertEquals(0, redacted)
     }

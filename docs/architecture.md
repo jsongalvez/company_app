@@ -89,6 +89,7 @@ company-app/
 │       ├── api/middleware/    # Capability enforcement filters
 │       ├── api/mapping/      # Domain results → HTTP responses
 │       ├── identity/         # Account lifecycle: auth, users, credentials, /me (map #533)
+│       ├── audit/            # Audit append seam, scoped reads, registry (map #533)
 │       ├── config/           # Javalin config, serialization mapper
 │       ├── database/         # HikariCP + Flyway + Exposed setup
 │       ├── logging/          # Logback converters, logging extensions
@@ -293,7 +294,7 @@ Flyway SQL files live at `backend/src/main/resources/db/migration/`. Flyway runs
   V3 pg_stat_statements, V4 credential_version, and V5 notification dedup/index
   structure; the V6 data-only backfill has no surviving structure — fresh
   databases hold no legacy rows and the live rule stays in
-  `AuditLogRepository.redactClientNamesInTransaction`); `V2` is the seed
+  `AuditLog.redactClientNamesInTransaction`); `V2` is the seed
   migration. Inspect V1+V2 when reasoning about schema.
 - Evolve the schema by adding new versioned migrations on top of the baseline. Never
   edit committed migration files — the sanctioned exceptions were the #370 squash
@@ -356,7 +357,7 @@ Edits to REMITTED records require a `reason` in the request body. The service la
 ### 12.1 Rules
 
 - Audit entries are written by the owning feature **command**: the service command opens exactly one
-  DB transaction, performs the mutation, and calls `AuditLogRepository.record*` directly inside it —
+  DB transaction, performs the mutation, and calls `AuditLog.record*` directly inside it —
   never in routes, never opened from repositories (ADR-0024)
 - Every INSERT, UPDATE, and soft-DELETE to financial and operational tables gets an audit entry
 - Written inside the same DB transaction as the mutation. The retired ADR-0013 `auditFn` callback
@@ -364,12 +365,12 @@ Edits to REMITTED records require a `reason` in the request body. The service la
   #321, #323) replaced every callback path with command-owned transactions, keeping ADR-0019's
   transaction-local before-state invariant — the command reads the before entity via
   `findByIdInTransaction` inside its own transaction
-- The `AuditLogRepository` convenience methods (`recordInsert`, `recordUpdate`, `recordDelete`) accept `Map<String, String?>` field maps (null encodes as JSON null, #525); entity-based overloads take `(before, after)` with the Table companion's `auditFields(entity)` function (see ADR 0014 / 0018)
+- The `AuditLog` seam convenience methods (`recordInsert`, `recordUpdate`, `recordDelete`) accept `Map<String, String?>` field maps (null encodes as JSON null, #525); entity-based overloads take `(before, after)` with the Table companion's `auditFields(entity)` function (see ADR 0014 / 0018)
 - Each Table companion defines an `auditFields(entity)` function (see ADR 0014)
 - These shapes are enforced executably by `SemanticOwnershipArchitectureTest` (§7) — that test,
   not this prose, is authoritative
 
-**Covered tables:** every table receiving an `AuditLogRepository.record*` call site, enumerated authoritatively by `AuditLogTableRegistry` (the same registry `GET /api/audit-log/tables` serves — a missing entry makes live audit rows invisible to the UI's table filter). Mechanism/derived writes stay unaudited at their own tables when the domain event is audited where it happens (`commission_split` recalculation output, relief/delegate `user_capability` grant rows, lazy `branch_day` bootstrap, attendance-created `branch_day_assignment`, sale-generated movements); notification writes carry an explicit ADR-0024 exception.
+**Covered tables:** every table receiving an `AuditLog.record*` call site, enumerated authoritatively by `AuditLogTableRegistry` (the same registry `GET /api/audit-log/tables` serves — a missing entry makes live audit rows invisible to the UI's table filter). Mechanism/derived writes stay unaudited at their own tables when the domain event is audited where it happens (`commission_split` recalculation output, relief/delegate `user_capability` grant rows, lazy `branch_day` bootstrap, attendance-created `branch_day_assignment`, sale-generated movements); notification writes carry an explicit ADR-0024 exception.
 
 ### 12.2 Flagging Policy
 

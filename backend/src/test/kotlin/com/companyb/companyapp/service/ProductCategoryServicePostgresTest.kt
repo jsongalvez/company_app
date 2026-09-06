@@ -1,5 +1,5 @@
 package com.companyb.companyapp.service
-import com.companyb.companyapp.repository.model.AuditLogTable
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.repository.model.ProductCategory
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.test.BasePostgresTest

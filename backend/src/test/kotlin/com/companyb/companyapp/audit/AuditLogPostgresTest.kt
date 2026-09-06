@@ -1,6 +1,6 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.audit
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -16,7 +16,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
-class AuditLogRepositoryPostgresTest : BasePostgresTest() {
+class AuditLogPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val recordId = TestFixtures.uuid()
     private val tableName = "test_table"
@@ -44,7 +44,7 @@ class AuditLogRepositoryPostgresTest : BasePostgresTest() {
     @Test
     fun `record inside transaction writes row`() {
         transaction {
-            AuditLogRepository.record(
+            AuditLog.record(
                 tableName = tableName,
                 recordId = recordId,
                 action = AuditAction.INSERT,
@@ -62,7 +62,7 @@ class AuditLogRepositoryPostgresTest : BasePostgresTest() {
     @Test
     fun `record outside transaction throws`() {
         assertFailsWith<Exception> {
-            AuditLogRepository.record(
+            AuditLog.record(
                 tableName = tableName,
                 recordId = recordId,
                 action = AuditAction.INSERT,
@@ -74,7 +74,7 @@ class AuditLogRepositoryPostgresTest : BasePostgresTest() {
     @Test
     fun `recordInsert writes correct audit row`() {
         transaction {
-            AuditLogRepository.recordInsert(
+            AuditLog.recordInsert(
                 tableName = tableName,
                 recordId = recordId,
                 changedBy = callerId,
@@ -98,7 +98,7 @@ class AuditLogRepositoryPostgresTest : BasePostgresTest() {
     @Test
     fun `recordUpdate writes correct audit row`() {
         transaction {
-            AuditLogRepository.recordUpdate(
+            AuditLog.recordUpdate(
                 tableName = tableName,
                 recordId = recordId,
                 oldFields = mapOf("name" to "Alice"),
@@ -122,7 +122,7 @@ class AuditLogRepositoryPostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestBranch(branchId)
 
         transaction {
-            AuditLogRepository.record(
+            AuditLog.record(
                 tableName = tableName,
                 recordId = recordId,
                 action = AuditAction.INSERT,
@@ -140,7 +140,7 @@ class AuditLogRepositoryPostgresTest : BasePostgresTest() {
     @Test
     fun `record leaves branchId null when omitted`() {
         transaction {
-            AuditLogRepository.record(
+            AuditLog.record(
                 tableName = tableName,
                 recordId = recordId,
                 action = AuditAction.INSERT,
@@ -156,7 +156,7 @@ class AuditLogRepositoryPostgresTest : BasePostgresTest() {
     @Test
     fun `recordDelete writes correct audit row`() {
         transaction {
-            AuditLogRepository.recordDelete(
+            AuditLog.recordDelete(
                 tableName = tableName,
                 recordId = recordId,
                 oldFields = mapOf("name" to "Alice"),

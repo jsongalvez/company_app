@@ -39,7 +39,7 @@ class ExpenseCommandOwnershipArchitectureTest {
     fun `each expense mutation command owns exactly one transaction`() {
         val source = mainSource("service/ExpenseService.kt")
 
-        assertFalse(source.contains("auditFn"), "commands call AuditLogRepository directly")
+        assertFalse(source.contains("auditFn"), "commands call AuditLog directly")
         listOf("create", "update", "softDelete", "restore").forEach { command ->
             val body =
                 commandBody(source, command)

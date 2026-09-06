@@ -1,8 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.ProductCreateResult
 import com.companyb.companyapp.repository.ProductRepository
@@ -116,7 +116,7 @@ internal object ProductAudit {
     fun inserted(
         changedBy: UUID,
         product: Product,
-    ) = AuditLogRepository.recordInsert(
+    ) = AuditLog.recordInsert(
         tableName = ProductTable.tableName,
         recordId = product.id,
         changedBy = changedBy,
@@ -127,7 +127,7 @@ internal object ProductAudit {
         changedBy: UUID,
         before: Product,
         after: Product,
-    ) = AuditLogRepository.recordUpdate(
+    ) = AuditLog.recordUpdate(
         tableName = ProductTable.tableName,
         recordId = after.id,
         before = before,

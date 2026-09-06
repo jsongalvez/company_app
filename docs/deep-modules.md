@@ -133,8 +133,8 @@ intentionally shallow.
 ## Audit
 
 **Owns:** append-only `audit_log` rows (JSONB old/new diffing, flagged+reason vocabulary, acknowledgment excluding the editor), scoped reads (branch window + branchless-table policy + NULL-branch fallback), the audited-table registry.
-**Anchors:** `repository/AuditLogRepository.kt`, `service/AuditLogService.kt`, `service/AuditLogReadScope.kt`.
-**Public seam:** `recordInsert` / `recordUpdate` / `recordDelete` / `record` — must run inside the caller's command transaction · browse/find/acknowledge reads · `AuditLogTableRegistry.tables` (register every newly audited table there or it is invisible to the UI).
+**Anchors:** `audit/AuditLog.kt` (public append seam), `audit/AuditLogStore.kt` (internal table/query internals), `audit/AuditLogService.kt`, `audit/AuditLogReadScope.kt`.
+**Public seam:** `AuditLog.recordInsert` / `recordUpdate` / `recordDelete` / `record` + `redactClientNamesInTransaction` — must run inside the caller's command transaction · browse/find/acknowledge reads via `AuditLogService` · `AuditLogTableRegistry.tables` (register every newly audited table there or it is invisible to the UI).
 **Depends on:** Capability (read windows via `BranchReadScope`).
 **Expansion triggers:** read-scope policy changes (`BRANCHLESS_POLICY` map, global-view fallback); cursor format; flag acknowledgment rules.
 **Tests/authority:** ADR-0014 (audit field mapping), ADR-0019 (before-state capture); backend `AGENTS.md` "Audit logging".

@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.DayStatus
@@ -8,7 +9,6 @@ import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
