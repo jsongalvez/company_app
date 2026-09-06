@@ -1,6 +1,10 @@
 # Effect-TS Equivalent in Kotlin
 
-Research snapshot: 2026-09-04.
+> Research snapshot (2026-09-04), moved from `docs/specs/` to `docs/research/`
+> per map #533 #571: this is **research, not accepted product policy**. No
+> dependency, pattern, or recommendation here is adopted until a tracking issue
+> says so. Normative module rules live in the `AGENTS.md` routers,
+> `docs/architecture.md`, and `docs/adr/`.
 
 ## Executive recommendation
 

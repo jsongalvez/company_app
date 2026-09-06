@@ -149,10 +149,6 @@ intentionally shallow.
 **Expansion triggers:** occurrence-identity dedup keys (appointment session+target date, relief event+source, revocation `:direct` audience split) under UNIQUE `(dedup_key, user_id)` (#508); ownership-in-WHERE read-state rule (#141).
 **Tests/authority:** backend `AGENTS.md` "Sessions" (dashboard + detail gate exceptions).
 **Search:** `mapDashboardSession`, `existsForSessionAndUser`, `insertBatch`.
-**Depends on:** Attendance (dashboard gate), Commission (live eligibility replication), Sessions (detail + reminders), Branch Day (scheduler operational dates).
-**Expansion triggers:** occurrence-identity dedup keys (appointment session+target date, relief event+source, revocation `:direct` audience split) under UNIQUE `(dedup_key, user_id)` (#508); ownership-in-WHERE read-state rule (#141).
-**Tests/authority:** backend `AGENTS.md` "Sessions" (dashboard + detail gate exceptions).
-**Search:** `mapDashboardSession`, `existsForSessionAndUser`, `insertBatch`.
 
 ## Client
 

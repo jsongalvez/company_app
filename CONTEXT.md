@@ -37,7 +37,7 @@ A freshly registered user with zero capabilities. Functionally locked out even a
 _Avoid_: New user, unassigned, pending
 
 **Role**:
-A predefined bundle of capabilities (seeded in V2). GLOBAL-scoped management codes and all-branch `VIEW_BRANCH_DATA` for SUPERUSER, OWNER, and ACCOUNTANT derive from the role through the capability view; branch-scoped codes derive at each branch holding an ACTIVE assignment (V21), while V25 adds OWNER's global read. Relief and delegate remain direct grants.
+A predefined bundle of capabilities (seeded in V2). GLOBAL-scoped management codes and all-branch `VIEW_BRANCH_DATA` for SUPERUSER, OWNER, and ACCOUNTANT derive from the role through the capability view; branch-scoped codes derive at each branch holding an ACTIVE assignment (V21 leg, folded into the V1 baseline), while V25 adds OWNER's global read (also folded into V1). Relief and delegate remain direct grants.
 _Avoid_: Position, title
 
 **Deactivate**:

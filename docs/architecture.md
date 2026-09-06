@@ -41,7 +41,7 @@ Single language (Kotlin) across mobile, shared logic, and backend. All branches 
 |-------|-----------|
 | Mobile/Desktop UI | Kotlin Multiplatform + Compose Multiplatform |
 | Backend | Kotlin (JVM), Javalin 7.2.2, HikariCP, Exposed DSL, kotlin-logging |
-| Database | PostgreSQL 15+, Flyway |
+| Database | PostgreSQL 18, Flyway |
 | Infrastructure | Docker, Docker Compose, Oracle Cloud Free Tier (singapore west), Coolify |
 | Quality | Detekt, Ktlint |
 | Testing | JavalinTest, k6, JMH (manual diagnostics) |
@@ -52,26 +52,13 @@ Single language (Kotlin) across mobile, shared logic, and backend. All branches 
 
 ## 5. Hosting & Deployment
 
-### Cloud Provider: Oracle Cloud Free Tier (singapore west)
-- Always-free ARM VM (4 cores, 24GB RAM)
-- Account type: Free Tier only — never upgrade to Pay As You Go
-
-### Deployment Platform: Coolify
-- Self-hosted PaaS installed on the Oracle VM
-- Postgres runs as a Coolify-managed container on the same VM
-- Let's Encrypt handles TLS automatically
-
-### Server Hardening
-- SSH key authentication only — password login disabled
-- SSH on a non-standard port (e.g. 51920) — **superseded (session 65): the VPS-migration wizard hardens SSH to tailnet-only (no public SSH port)**
-- `PermitRootLogin no`
-- Oracle Security Groups + `ufw` as two independent firewall layers
-- Fail2ban on SSH — **superseded (session 65): not needed with tailnet-only SSH**
-- Unattended security upgrades enabled
-
-### Network
-- All branches use the internet (mobile hotspots per employee)
-- No VPN needed — backend is publicly reachable over HTTPS
+Single cloud backend + single database serving all branches over HTTPS. The
+operational authority is [`docs/vps-migration-runbook.md`](vps-migration-runbook.md),
+executed through `scripts/vps-migration-wizard.sh` — it owns provider sizing,
+SSH hardening, firewall layers, and deploy stages. Standing shape only:
+Oracle Cloud free tier, Coolify-managed Postgres on the same VM, TLS via
+Let's Encrypt, tailnet-only admin SSH. Branch clients use the public HTTPS
+endpoint; no VPN.
 
 ---
 
@@ -85,40 +72,45 @@ company-app/
 │   └── src/commonMain/       # Domain types, DTOs, validation, route constants
 ├── backend/
 │   └── src/main/kotlin/com/companyb/companyapp/
-│       ├── api/routes/       # HTTP endpoints
-│       ├── api/middleware/    # JWT middleware (capability filters live in authorization/)
-│       ├── api/mapping/      # Domain results → HTTP responses
-│       ├── identity/         # Account lifecycle: auth, users, credentials, /me (map #533)
-│       ├── authorization/    # Capability checks, grant storage, read scoping, route filter adapter (map #533)
-│       ├── audit/            # Audit append seam, scoped reads, registry (map #533)
-│       ├── workforce/        # Attendance, assignments, membership + duty-cutoff seam; relief/ subcluster for requests/invites/delegates (map #533 #539 #540)
-│       ├── client/           # Client records, patch policy, anonymization + session lock/read seam (map #533 #541)
-│       ├── session/          # Session aggregate, practitioners, concerns/promotion, void state, rates + preview; dashboard/ subcluster for today + bearer detail reads; SessionReads seam for commerce/remittance/dashboard/authz/client (map #533 #542 #553)
-│       ├── commerce/         # Catalog, stock ledger, product-sale cluster + CommerceReads seam for commission/remittance (map #533 #543)
-│       ├── finance/          # Day-entry mutation policy: expenses, compensations, allowances + FinanceReads seam for authz/compensation gates (map #533 #546)
-│       ├── commission/       # Commission engine, split materialization, manual inclusions + local fact-read projection (map #533 #544)
-│       ├── remittance/       # Remittance aggregate, draft/submit/undo commands, internal stores + tables, route adapters; picker reads via Session/Commerce seams (map #533 #545)
-│       ├── reporting/        # Summary projections, cursors, report assembly + CSV/PDF rendering; internal stores + tables, route adapters (map #533 #547)
-│       ├── notification/     # Mailbox, occurrence idempotency, appointment reminders + session-access reads; internal stores + tables, route adapters; NotificationReads/NotificationAppender seams for relief/session-detail (map #533 #550)
-│       ├── http/             # Transport + serialization + OpenAPI contract; openapi/ subcluster for canonical document/projector/export (map #533 #551)
-│       ├── app/              # Startup composition: AppConfig + SchedulerLifecycle executor with composition-supplied jobs (map #533 #551)
-│       ├── observability/    # Incident packets/delivery, metrics, feedback/metrics adapters, slow-query reads (map #533 #551)
+│       ├── identity/         # Account lifecycle: auth, users, credentials, /me (map #533 #537)
+│       ├── authorization/    # Capability checks, grant storage, read scoping, route filter adapter (#538)
+│       ├── audit/            # Audit append seam, scoped reads, registry (#549)
+│       ├── branch/           # Branch aggregate: records, storage, routes (#536)
+│       ├── branchday/        # Operational-day identity, state gates, locking seams (#536)
+│       ├── workforce/        # Attendance, assignments, membership + duty-cutoff seam; relief/ subcluster for requests/invites/delegates (#539 #540)
+│       ├── client/           # Client records, patch policy, anonymization + session lock/read seam (#541)
+│       ├── session/          # Session aggregate, practitioners, concerns/promotion, void state, rates + preview; dashboard/ subcluster for today + bearer detail reads; SessionReads seam (#542 #553)
+│       ├── commerce/         # Catalog, stock ledger, product-sale cluster + CommerceReads seam (#543)
+│       ├── finance/          # Day-entry mutation policy: expenses, compensations, allowances + FinanceReads seam (#546)
+│       ├── commission/       # Commission engine, split materialization, manual inclusions + local fact-read projection (#544)
+│       ├── remittance/       # Remittance aggregate, draft/submit/undo commands, internal stores + tables, route adapters (#545)
+│       ├── reporting/        # Summary projections, cursors, report assembly + CSV/PDF rendering; internal stores + tables, route adapters (#547)
+│       ├── notification/     # Mailbox, occurrence idempotency, appointment reminders + session-access reads; internal stores + tables, route adapters; NotificationReads/NotificationAppender seams (#550)
+│       ├── http/             # Transport + serialization + OpenAPI contract; openapi/ subcluster for canonical document/projector/export (#551)
+│       ├── app/              # Startup composition: AppConfig + SchedulerLifecycle executor with composition-supplied jobs (#551)
+│       ├── observability/    # Incident packets/delivery, metrics, feedback/metrics adapters, slow-query reads (#551)
 │       ├── database/         # HikariCP + Flyway + Exposed setup
-│       ├── logging/          # Logback converters, logging extensions (tracing stays distinguishable from observability, #551)
-│       ├── repository/       # DB queries + Exposed Table objects
-│       │   └── model/        # Table definitions + data classes
+│       ├── logging/          # Logback converters, logging extensions
+│       ├── api/              # Thin remaining adapters: health probe, context extensions, trace filter, route utils
 │       ├── exception/        # Domain exception hierarchy
-│       └── Main.kt           # Explicit composition root (map #533 #551)
+│       ├── repository/       # Shared CursorCodec seam only (stays shared, #549)
+│       ├── service/          # Empty remnant dirs of moved owners — do not add new code here
+│       └── Main.kt           # Explicit composition root (#551)
 ├── docs/
-│   ├── architecture.md       # This file
-│   ├── business-requirements.md
-│   ├── engines.md
+│   ├── architecture.md       # This file — system/ownership overview with pointers
+│   ├── business-requirements.md  # Intended behavior and domain rules
+│   ├── engines.md            # Commission/delegate/remittance pseudocode
+│   ├── research/             # Accepted research snapshots (not policy)
 │   ├── agents/               # Agent meta-docs (issue tracker, triage, domain)
 │   ├── adr/                  # Architecture decision records
 │   └── specs/                # Feature specs
 ├── tests/k6/                 # HTTP-level load testing
 └── docker/
 ```
+
+Transitional remnants (`service/` empty dirs, the shared `repository/CursorCodec.kt`
+seam, thin `api/` adapters) stay until their owning map children land; later
+children update this tree incrementally and never pre-document unimplemented paths.
 
 ### Module Dependencies
 
@@ -136,28 +128,27 @@ iosApp ──────imports────> shared (as KMP framework)
 
 ## 7. Backend Layering
 
-### Routes (`api/routes`)
-- Define endpoints, parse requests, invoke capability middleware, call services, return responses
-- No business logic, no SQL
+One mutation transaction per command ([ADR-0024](adr/0024-command-owned-mutation-transactions.md)):
+the owning feature command opens exactly one DB transaction, performs the
+mutation, and records its audit row inside it. Repository mutators are
+`*InTransaction` store operations that open no transaction; routes are thin
+adapters (parse → call one command; capability before-filters).
 
-### Services (`service/`)
-- Business rules, validation, transaction boundaries, audit logging
-- No HTTP concerns, no raw SQL
-- Source of truth for: commission engine, remittance submission, delegate hook, session type computation
+Feature packages under `com.companyb.companyapp` are the semantic modules;
+Kotlin `internal` does not stop sibling imports, so seams are protected
+executably, not by prose (see below). Cross-feature reads go through declared
+read seams (`SessionReads`, `CommerceReads`, `FinanceReads`,
+`NotificationReads`/`NotificationAppender`, `AuthorizationGrants`); direct
+store/table imports across owners stay banned. Read projections may perform
+intentional joins where the owner records them; command coordination stays in
+the owning command.
 
-### Repositories (`repository/`)
-- DB queries, row-to-domain-model mapping
-- Exposed DSL only — no raw SQL
-- No business logic, no HTTP
-- Mutating store functions are `*InTransaction`: they open no transaction and run on the owning
-  command's transaction (ADR-0024)
-
-### Identity (`identity/`, map #533 #537)
-- JWT issuance and verification, bcrypt password hashing, rate limiting, persisted revocation
-- Middleware reads JWT → resolves userId for subsequent capability checks
-
-### Database (`database/`)
-- HikariCP config, Flyway initialization, connection management
+The pre-#533 Routes/Services/Repositories layer prose is superseded by the
+above and by [`docs/deep-modules.md`](deep-modules.md) — the authoritative
+owner/seam map. New backend logic starts there. Auth mechanics (JWT issue/verify,
+bcrypt, rate limiting, persisted revocation) live in `identity/`; connection
+lifecycle (HikariCP, Flyway) lives in `database/` — both pointed at from
+[`docs/deep-modules.md`](deep-modules.md).
 
 ### Enforced boundaries (#324)
 
@@ -191,7 +182,7 @@ Moved to [`docs/deep-modules.md`](deep-modules.md) — the authoritative map of 
 
 **Rule:** Never check a role name in service logic. Always check a capability code.
 
-Roles are predefined bundles of capabilities — seeded in V2, then resolved at runtime exclusively through the view (GLOBAL management codes and all-branch `VIEW_BRANCH_DATA` for SUPERUSER/OWNER/ACCOUNTANT derive from the role; branch-scoped codes derive from ACTIVE assignments, V21/#417; V25/#431 adds OWNER's global read). The only query that matters is:
+Roles are predefined bundles of capabilities — seeded in V2, then resolved at runtime exclusively through the view (GLOBAL management codes and all-branch `VIEW_BRANCH_DATA` for SUPERUSER/OWNER/ACCOUNTANT derive from the role; branch-scoped codes derive from ACTIVE assignments, V21/#417; V25/#431 adds OWNER's global read — former migration numbers kept as provenance; all folded into the V1 baseline, §10). The only query that matters is:
 
 ```sql
 SELECT 1 FROM active_user_capabilities
@@ -218,7 +209,8 @@ Called at the top of every mutating service method — not in routes, not in rep
 Capability codes are fixed contract values, not runtime-created values. V2 seeds the initial
 capability catalog in `backend/src/main/resources/db/migration/V2__seed_roles_capabilities.sql`
 (folded #461: base bundle plus `RECEIVE_NEXT_APPOINTMENT_ALERTS` and `MANAGE_CATALOG`).
-Later feature migrations may add codes: V21 widens the view's branch-derived leg so every
+Folded view legs (all in the V1 baseline — former migration numbers kept as provenance):
+V21 widens the view's branch-derived leg so every
 assigned role's non-management bundle derives BRANCH-scoped from ACTIVE assignments, and
 V25 adds OWNER to the GLOBAL `VIEW_BRANCH_DATA` leg. V26 introduces
 `MANAGE_CATALOG` as the GLOBAL-scoped shared-catalog authority (map #422
@@ -364,192 +356,84 @@ Edits to REMITTED records require a `reason` in the request body. The service la
 
 ## 12. Audit Logging
 
-### 12.1 Rules
+Command-owned per ADR-0024 — binding rules live in `backend/AGENTS.md`
+("Audit logging"). Architecture-level facts kept here: every INSERT, UPDATE,
+and soft-DELETE to a registered table gets an audit entry inside the
+command's transaction; the audited-table registry (`AuditLogTableRegistry`,
+served live at `GET /api/audit-log/tables`) is authoritative — a missing
+entry makes rows invisible to the UI table filter. Writes to REMITTED-day
+records set `is_flagged = true` and require a `reason`; coordinators triage
+`WHERE is_flagged = true AND acknowledged_at IS NULL`. Shapes are enforced by
+`SemanticOwnershipArchitectureTest` (§7), not this prose.
 
-- Audit entries are written by the owning feature **command**: the service command opens exactly one
-  DB transaction, performs the mutation, and calls `AuditLog.record*` directly inside it —
-  never in routes, never opened from repositories (ADR-0024)
-- Every INSERT, UPDATE, and soft-DELETE to financial and operational tables gets an audit entry
-- Written inside the same DB transaction as the mutation. The retired ADR-0013 `auditFn` callback
-  pattern (with its ADR-0018/0019 entity-overload amendments) was transitional; map #317 (#320,
-  #321, #323) replaced every callback path with command-owned transactions, keeping ADR-0019's
-  transaction-local before-state invariant — the command reads the before entity via
-  `findByIdInTransaction` inside its own transaction
-- The `AuditLog` seam convenience methods (`recordInsert`, `recordUpdate`, `recordDelete`) accept `Map<String, String?>` field maps (null encodes as JSON null, #525); entity-based overloads take `(before, after)` with the Table companion's `auditFields(entity)` function (see ADR 0014 / 0018)
-- Each Table companion defines an `auditFields(entity)` function (see ADR 0014)
-- These shapes are enforced executably by `SemanticOwnershipArchitectureTest` (§7) — that test,
-  not this prose, is authoritative
-
-**Covered tables:** every table receiving an `AuditLog.record*` call site, enumerated authoritatively by `AuditLogTableRegistry` (the same registry `GET /api/audit-log/tables` serves — a missing entry makes live audit rows invisible to the UI's table filter). Mechanism/derived writes stay unaudited at their own tables when the domain event is audited where it happens (`commission_split` recalculation output, relief/delegate `user_capability` grant rows, lazy `branch_day` bootstrap, attendance-created `branch_day_assignment`, sale-generated movements); notification writes carry an explicit ADR-0024 exception.
-
-### 12.2 Flagging Policy
-
-Any write to a record that belongs to a REMITTED branch day:
-- Sets `is_flagged = true` on the audit entry
-- Requires a non-null `reason` field (enforced at the service layer)
-- Surfaces in the Coordinator alert dashboard: `WHERE is_flagged = true AND acknowledged_at IS NULL`
+Mechanism/derived writes stay unaudited at their own tables when the domain
+event is audited where it happens (`commission_split` recalculation output,
+relief/delegate `user_capability` grant rows, lazy `branch_day` bootstrap,
+attendance-created `branch_day_assignment`, sale-generated movements);
+notification writes carry an explicit ADR-0024 exception.
 
 ---
 
 ## 13. Attendance
 
-### 13.1 Clock-In / Clock-Out Model
-
-`attendance` supports multiple rows per `(user_id, branch_day_id)` for multiple shifts. The partial unique index `idx_one_active_clock_in WHERE clock_out IS NULL` enforces only one open window at a time.
-
-The service layer must create or verify a `branch_day_assignment` row before inserting the first `attendance` row. `is_relief` is computed by checking `user_branch_assignment WHERE user_id = ? AND branch_id = ? AND ended_at IS NULL`. If no active home assignment exists, `is_relief = true`.
-
-### 13.2 Commission Eligibility Window
-
-The commission engine determines eligibility per sale based on the `sold_at` timestamp intersecting any open attendance window for that user on that branch day. Multiple shifts are correctly handled: a user who clocked out for lunch and clocked back in is eligible for sales within either window.
-
-### 13.3 No attendance_history Table
-
-Historical reads use `attendance` directly. The audit log captures all edits. Monthly summary queries `attendance JOIN branch_day` for who-was-present reports.
+Behavioral rules live in [`docs/business-requirements.md`](business-requirements.md)
+(Attendance & Presence, Relief Duty); the owner is `workforce/`
+([router](deep-modules.md)). Architectural facts kept here: multiple rows per
+`(user_id, branch_day_id)` for multiple shifts; the partial unique index
+`idx_one_active_clock_in WHERE clock_out IS NULL` allows one open window;
+`is_relief` derives from the active home assignment at clock-in; commission
+eligibility intersects `sold_at` with open attendance windows (engine detail
+in [`docs/engines.md`](engines.md)).
 
 ---
 
 ## 14. Sessions
 
-### 14.1 Session Type Assignment
-
-Session type is computed at creation time by the service layer and stored. Never recomputed. Never manually changed.
-
-```
-fun computeSessionType(branchType, priorCount):
-  if branchType == MEDICAL_MISSION → MEDICAL_MISSION
-  if branchType == PROVINCIAL_TOUR && priorCount == 0 → PROVINCIAL_FIRST
-  if priorCount == 0  → REGULAR
-  if priorCount == 1  → SECOND_SESSION
-  else                → SUBSEQUENT
-```
-
-"Non-voided" means: session has no row in `active_session_voids` (the view, never raw `session_void`).
-
-**The void/unvoid edge case:** If a session is voided after later sessions were created, those later sessions retain their computed type. The type is a snapshot at creation time.
-
-### 14.2 Concurrent Session Guard
-
-Only one PENDING session per client globally. Enforced by a partial unique index on `session (client_id)` scoped to PENDING rows, with a row-level lock on the client before insert to serialize concurrent creation.
-
-### 14.3 Session Base Rate: No Gap/Overlap
-
-The `no_rate_overlap` EXCLUDE constraint on `branch_id, session_type, tstzrange(effective_from, effective_until)` prevents overlapping rate periods.
-
-Every branch is provisioned with the five documented default rates at creation (`BranchService.create` seeds them in the command transaction; V22 backfilled existing branches), so session create never fails for want of a rate row (#418). MEDICAL_MISSION is normalized to ₱0 on write — the invariant-not-constraint shape of #405.
-
-When a Coordinator updates a rate:
-1. Set `effective_until` on the current active rate to `now()` (Manila time → UTC)
-2. Insert a new rate row with `effective_from = now()`
-
-### 14.4 Concern Promotion Flow
-
-When a Coordinator promotes an "other_concerns" string to a structured concern:
-1. `INSERT INTO concern (label, created_by, created_at)`
-2. `INSERT INTO session_concern (session_id, concern_id)`
-3. `UPDATE session SET other_concerns = NULL`
-4. Audit log entry for the session UPDATE
-
-### 14.5 Next Appointment Alerts
-
-Server-side scheduled task runs once daily at 07:00 Asia/Manila. Finds sessions with `next_appointment_date = CURRENT_DATE + 2 days` and creates notification rows for the branch's Coordinators.
-
-### 14.6 Client Search
-
-- `pg_trgm` extension with `ILIKE` for fuzzy name matching — handles typos ("Jhn" → "John")
-- Typeahead: frontend debounces ~300ms before firing
-- Search supports both name (fuzzy) and phone number (exact prefix)
-- No external search engine needed at this scale
+Type ladder, pricing, concerns, and void policy live in
+[`docs/business-requirements.md`](business-requirements.md) (Sessions);
+concurrency and gate mechanics live in `backend/AGENTS.md` ("Sessions"); the
+owner is `session/` ([router](deep-modules.md)). Architectural facts kept
+here: type is a creation-time snapshot (later voids never rewrite earlier
+types); one PENDING session per client globally (service pre-check + partial
+unique index backstop + client row lock); the `no_rate_overlap` EXCLUDE
+constraint on rate periods; every branch is provisioned with five default
+rates at creation so session create never fails for want of a rate row.
 
 ---
 
 ## 15. Inventory
 
-### 15.1 Movement and branch_day_id
-
-Every `inventory_movement` row carries `branch_day_id`. The service creates the `branch_day` row before inserting the movement.
-
-Day-state enforcement:
-- `OPEN` → any authorised user can insert
-- `PAST` → Coordinator only (`EDIT_PAST_DAY`)
-- `REMITTED` → Coordinator only, flagged audit entry required
-
-### 15.2 Stock Integrity: Optimistic Lock on branch_inventory
-
-`branch_inventory` carries a `version INT NOT NULL DEFAULT 1`. Every stock-modifying operation checks the version. If 0 rows updated → version mismatch → 409 Conflict.
-
-For sale operations, the stock update and the product_sale + inventory_movement inserts happen in the same transaction. A guard check prevents stock going below zero.
-
-### 15.3 Sign and Notes Constraints (DB-enforced)
-
-- `RESTOCK` → `quantity_change > 0`
-- `SALE, TESTER, SAMPLE, MISSING` → `quantity_change < 0`
-- `ADJUSTMENT` → either sign
-- `MISSING` → `notes IS NOT NULL AND length(notes) > 0`
+Stock semantics live in [`docs/business-requirements.md`](business-requirements.md)
+(Products and Inventory); the owner is `commerce/` ([router](deep-modules.md)).
+Architectural facts kept here: every movement row carries `branch_day_id`
+(day-state gated); `branch_inventory.version` optimistic locking with 409 on
+mismatch; the sale path (stock update + sale + movement) is one transaction
+with a below-zero guard; sign/notes rules are DB-enforced per movement type.
 
 ---
 
 ## 16. Finance
 
-### 16.1 Commission Recalculation Engine
-
-Full algorithm in `docs/engines.md` (Engine 1). Triggered by product sale create, attendance clock-in/out, or manual inclusion changes. PAST/REMITTED days block automatic recalculation unless the user holds `EDIT_PAST_DAY` and initiates a manual re-run.
-
-**Precision:** All intermediate arithmetic in `BigDecimal`. Stored as `NUMERIC(15,4)`.
-
-### 16.2 Manual Commission Inclusion/Exclusion
-
-Per-sale overrides stored in `commission_manual_inclusion` can force-add or force-remove a user from the eligible set for a specific product sale, regardless of attendance windows.
-
-### 16.3 Compensation Uniqueness
-
-One compensation payout per user per paying branch per day. `UNIQUE INDEX idx_compensation_unique ON compensation (user_id, paying_branch_day_id)`.
-
-For relief duty, `work_branch_day_id ≠ paying_branch_day_id` is allowed and expected.
-
-### 16.4 Remittance Submission
-
-Full algorithm in `docs/engines.md` (Engine 3). `SERIALIZABLE` isolation prevents double-submission; optimistic locking on the `remittance` row detects concurrent draft edits. The snapshot, status update, and branch_day transitions are all written atomically in a single transaction.
-
-**Exclusion constraint scope:** The `no_remittance_overlap` constraint applies only to `status = 'SUBMITTED'` rows. Drafts are unconstrained.
-
-### 16.5 Remittance Financial Snapshot Immutability
-
-A database trigger blocks UPDATE/DELETE on `remittance_financial_snapshot`. The snapshot is only written during submission — never pre-inserted.
-
-For `PRODUCT` remittances: no snapshot row is written. Totals are derived at query time from `remittance_line.amount`.
+Engines live in [`docs/engines.md`](engines.md) (commission recalculation,
+remittance submission); owners are `finance/` + `commission/` + `remittance/`
+([router](deep-modules.md)). Architectural facts kept here: `BigDecimal`
+throughout, `NUMERIC(15,4)` splits; `SERIALIZABLE` submission with optimistic
+`remittance` versioning; snapshot immutability via trigger (SESSION flow —
+PRODUCT totals derive from `remittance_line`); `no_remittance_overlap` covers
+SUBMITTED rows only, drafts are unconstrained.
 
 ---
 
 ## 17. Connectivity & Reliability
 
-### 17.1 Strictly Online Model
-
-No offline queue, no local-first storage, no sync conflict resolution. The client shows optimistic UI, retries on connection failure, and reverts to error state only on definitive server rejection (4xx).
-
-### 17.2 Idempotency (Insert Path)
-
-Every mutating INSERT uses a client-generated UUID as the primary key. On duplicate PK (`UNIQUE VIOLATION`), the existing row is returned as if the insert succeeded.
-
-Covers: session, product_sale, inventory_movement, attendance clock-in, expense, compensation, allowance.
-
-### 17.3 Optimistic Locking (Update Path)
-
-| Table | Reason |
-|-------|--------|
-| `session` | Multiple practitioners adding themselves concurrently |
-| `branch_inventory` | Sales racing against restocks |
-| `remittance` | Two coordinators editing/submitting |
-
-All three carry `version INT NOT NULL DEFAULT 1`. On mismatch → 409 Conflict. Client re-fetches and retries.
-
-Other mutable tables (`expense`, `compensation`, `allowance`, etc.) are last-write-wins.
-
-### 17.4 Authoritative Server Time
-
-All timestamps are stamped server-side. The client never sends a "current time" — it sends intent. The server records `now()` (UTC, stored as `TIMESTAMPTZ`).
-
-**4 AM boundary:** The server computes `valid_to` for relief access and day-state transitions using `Asia/Manila` timezone. Day-state transitions (OPEN → PAST) are lazy — evaluated on each request, not via a cron job.
+The online model, optimistic UI, and retry posture live in
+[`docs/business-requirements.md`](business-requirements.md) (Connectivity and
+Reliability). Architectural facts kept here: client-generated UUID PKs make
+INSERTs idempotent (duplicate PK returns the existing row); `version`
+optimistic locking on `session`, `branch_inventory`, `remittance` (409 on
+mismatch; all else last-write-wins); all timestamps server-stamped (UTC
+`TIMESTAMPTZ`); the 04:00 Asia/Manila day boundary evaluates lazily per
+request, never by cron.
 
 ---
 
@@ -571,54 +455,31 @@ codes use the server-log relay and startup emits a warning.
 
 ## 19. Developer Setup
 
-```bash
-# Start Postgres locally
-docker compose -f docker/docker-compose.yml up -d
-
-# Stop and wipe volumes
-docker compose -f docker/docker-compose.yml down -v
-
-# Quality gate
-./gradlew :backend:detekt :backend:ktlintCheck :backend:test
-
-# Run backend
-./gradlew :backend:run
-```
+Task routers own commands: root `AGENTS.md` (setup, Docker, validation,
+formatting, run) and `backend/AGENTS.md` (targeted validation table). No
+duplicate command ledger is kept here.
 
 ---
 
 ## 20. Development Phases
 
-### Phase 1 — Backend Core ✅ Complete
-Javalin + HikariCP + Flyway wired up. JWT auth, login/register, rate limiting, bcrypt, UUID masking, request tracing.
-
-### Phase 2 — Business Features (scoped below)
-
-**2A — Foundation:** Seed roles + capabilities, `CapabilityService` + `active_user_capabilities` view, persisted JWT revocation boundaries, `BranchDayRepository.resolveOrCreate`.
-
-**2B — Attendance + Auth:** Clock-in/out, relief access grant flow, medical mission delegate assign/revoke.
-
-**2C — Sessions:** Client CRUD + search, session create (type computation, concurrent guard, rate snapshot), status updates, void/unvoid, practitioner management, concern promotion.
-
-**2D — Inventory:** Product + category CRUD, branch_inventory management + inventory_movement, product sale (in-session, known client walk-in, anonymous walk-in).
-
-**2E — Finance:** Compensation assign, commission recalculation engine, manual inclusion, expense CRUD, allowance assign.
-
-**2F — Remittance:** Draft creation + line management, submission (atomic, serializable, snapshot), branch day REMITTED transition.
-
-**2G — Reporting:** Daily/monthly/all-time summary views, export endpoints, next appointment alert scheduler.
-
-### Phase 3 — Client Applications
-### Phase 4 — Deployment
-### Phase 5 — Enhancements
+Retired as a live ledger (map #533 #571): phase/progress history now lives in
+issue history and the map's Decisions-so-far, not in a tracked document. The
+standing facts that were here remain true and are pointed at, not re-listed —
+backend core wired (Javalin + HikariCP + Flyway, JWT/bcrypt/tracing),
+business features under their owners above, client applications, deployment
+via the runbook (§5).
 
 ---
 
 ## 21. Resolved Decisions
 
+Historical record — new decisions land in `docs/adr/` and issue history, not
+in this table.
+
 | # | Item | Decision |
 |---|------|----------|
-| 1 | Notification delivery model | `notification` table: `(id, user_id, session_id, message, created_at, read_at)`. Scheduler writes one row per Coordinator. |
+| 1 | Notification delivery model | **Superseded (#571):** per-recipient rows remain, but the live shape adds `branch_id`, occurrence `dedup_key` (UNIQUE with `user_id`), and read-state columns — see `notification/` ([router](deep-modules.md)) and the V1 schema. Original text preserved: `notification` table: `(id, user_id, session_id, message, created_at, read_at)`. Scheduler writes one row per Coordinator. |
 | 2 | Concern promotion UX | Silent nullify with undo toast (~10s). Audit log preserves original text. |
 | 3 | Slot conflict resolution | Dedicated swap action: `POST /branches/{branchId}/slots/swap`. Both slot updates in one transaction. |
 | 4 | Export format | PDF and CSV. Generated on-demand, not stored. Format via `?format=pdf\|csv`. |
