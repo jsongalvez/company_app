@@ -1,8 +1,7 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.reporting
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.dto.DailySalesSummaryBrowseResponse
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.decodeDailySummaryCursor
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

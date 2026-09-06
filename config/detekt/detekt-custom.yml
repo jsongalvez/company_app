@@ -64,6 +64,9 @@ CompanyApp:
       - '**/finance/ExpenseRoutes.kt' # #546
       - '**/remittance/RemittanceRoutes.kt' # #545
       - '**/remittance/RemittancePickerRoutes.kt' # #545
+      - '**/reporting/DailySalesSummaryRoutes.kt' # #547
+      - '**/reporting/ExportRoutes.kt' # #547
+      - '**/reporting/MonthlyRemittanceSummaryRoutes.kt' # #547
       - '**/workforce/AttendanceRoutes.kt' # #539
       - '**/workforce/UserBranchAssignmentRoutes.kt' # #539
       - '**/workforce/relief/ReliefAccessRoutes.kt' # #540

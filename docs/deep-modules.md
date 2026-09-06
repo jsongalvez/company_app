@@ -112,7 +112,7 @@ intentionally shallow.
 
 ## Finance (Day entries · Commission · Remittance)
 
-**Owns:** day-entry mutation policy — expenses (soft-delete/restore + reason), compensations (paying/work branch authority + uniqueness), allowances (excluded from P&L) — each with idempotent commands, day locks and audit atomicity · the commission engine (eligible set = clocked-in-at-sale ∓ manual inclusions; split at scale 4; replace-per-day splits; `recalculateInTransaction` store-side entry for enclosing commands) · the remittance workflow (DRAFT→SUBMITTED under SERIALIZABLE isolation, immutable SESSION financial snapshot, 48h undo window on the DB clock, day transitions via the Branch Day boundary, overlap-exclusion mapping) · the summary read models (`daily_sales_summary`, `monthly_remittance_summary` views).
+**Owns:** day-entry mutation policy — expenses (soft-delete/restore + reason), compensations (paying/work branch authority + uniqueness), allowances (excluded from P&L) — each with idempotent commands, day locks and audit atomicity · the commission engine (eligible set = clocked-in-at-sale ∓ manual inclusions; split at scale 4; replace-per-day splits; `recalculateInTransaction` store-side entry for enclosing commands) · the remittance workflow (DRAFT→SUBMITTED under SERIALIZABLE isolation, immutable SESSION financial snapshot, 48h undo window on the DB clock, day transitions via the Branch Day boundary, overlap-exclusion mapping).
 **Anchors:** `finance/ExpenseService.kt` (+ internal `ExpenseRepository`, record + internal `ExpenseTable` in same package) · `finance/CompensationService.kt` (+ internal `CompensationRepository`) · `finance/AllowanceService.kt` (+ internal `AllowanceRepository`) · `finance/FinanceReads.kt` · `remittance/RemittanceService.kt` (pure rules in `remittance/RemittancePolicy.kt`).
 **Public seam:** finance `FinanceReads.findExpenseById(InTransaction)` / `findCompensationById(InTransaction)` (authz + compensation-gate reads; service-to-service, no allowlist) · remittance `submit` / `undoAt` / `createDraft` / `updateHeader` / `addLine` / `removeLine` / `addDayBreakdown` / `getDrift` / list+picker reads · commission `recalculate(InTransaction)` / `splitCommission` / `liveCommissions` / `createManualInclusion` / `getByBranchDayId`.
 **Depends on:** Branch Day (locks, mark/release days), Session + Product Sales (line-source validation, gross sums); finance day-entry rows feed remittance sums via direct table reads inside the remittance internal store (deliberate; #546 owns the finance move, no new seam), capability/compensation gates via the `FinanceReads` seam.
@@ -159,14 +159,14 @@ intentionally shallow.
 **Expansion triggers:** anonymization column nulling set; search ranking (`similarity()` threshold).
 **Search:** `anonymizeInTransaction`, `similarity(`.
 
-## Export
+## Reporting
 
-**Owns:** on-demand report rendering (CSV/PDF) over daily/range/monthly/all-time/branch-type summaries; results never stored. Shallow adapter around summary read models.
-**Anchors:** `service/export/ExportService.kt`, `service/export/CsvExporter.kt`, `service/export/PdfExporter.kt`.
-**Public seam:** `exportDaily` / `exportRange` / `exportMonthly` / `exportAllTime` / `exportByBranchType` → `ExportResult(bytes, contentType, fileName)`.
-**Depends on:** summary repositories, Branch existence.
-**Expansion triggers:** route-gate shape — the wildcard before-filter `/api/branches/{branchId}/export/*` is load-bearing (#114 lesson, fourth occurrence); new summary source.
-**Search:** `ExportFormat`, `sendFileResponse`.
+**Owns:** summary projections, cursors, report assembly and CSV/PDF rendering — daily/monthly/all-time/branch-type reads over `daily_sales_summary` / `monthly_remittance_summary` views; results never stored. Monthly row mapping is single-sourced (`toMonthlyRemittanceSummary`); branch-day range reads stay local.
+**Anchors:** `reporting/DailySalesSummaryService.kt` (+ internal `DailySalesSummaryRepository`, record + internal `DailySalesSummaryView` in same package) · `reporting/MonthlyRemittanceSummaryService.kt` (+ internal `MonthlyRemittanceSummaryRepository`, shared monthly mapper) · `reporting/ExportService.kt` (+ internal `ExportRepository`, `BranchTypeMonthlySummary`) · `reporting/CsvExporter.kt` · `reporting/PdfExporter.kt` · `reporting/ExportContract.kt` · `reporting/BranchDayReportRepository.kt` (internal) · `reporting/DailySalesSummaryRoutes.kt` · `reporting/MonthlyRemittanceSummaryRoutes.kt` · `reporting/ExportRoutes.kt`.
+**Public seam:** `getDailySummary` / `browseDailySummaries` · `getMonthlySummary` · `exportDaily` / `exportRange` / `exportMonthly` / `exportAllTime` / `exportByBranchType` → `ExportResult(bytes, contentType, fileName)`.
+**Depends on:** Branch Day (existence + day reads via `BranchService`/`BranchDayService`; `BranchDayReportRepository` reads `branchday` days locally), Branch existence, Capability read windows; export branch-type summaries join `branch` rows inside the internal store (deliberate remaining edge).
+**Expansion triggers:** route-gate shape — the wildcard before-filter `/api/branches/{branchId}/export/*` is load-bearing (#114 lesson, fourth occurrence); new summary source; cursor format (`date|branchDayId` opaque).
+**Search:** `ExportFormat`, `sendFileResponse`, `encodeDailySummaryCursor`.
 
 ---
 

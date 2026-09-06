@@ -1,11 +1,10 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.reporting
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.service.export.ExportService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Header
@@ -278,7 +277,7 @@ object ExportRoutes {
 
     private fun sendFileResponse(
         context: io.javalin.http.Context,
-        result: com.companyb.companyapp.service.export.ExportResult,
+        result: ExportResult,
     ) {
         context.status(HttpStatus.OK)
         context.header(Header.CONTENT_TYPE, result.contentType)
@@ -286,10 +285,10 @@ object ExportRoutes {
         context.result(result.bytes)
     }
 
-    private fun parseFormat(formatParam: String?): com.companyb.companyapp.service.export.ExportFormat =
+    private fun parseFormat(formatParam: String?): ExportFormat =
         when (formatParam?.lowercase()) {
-            "csv" -> com.companyb.companyapp.service.export.ExportFormat.CSV
-            "pdf" -> com.companyb.companyapp.service.export.ExportFormat.PDF
+            "csv" -> ExportFormat.CSV
+            "pdf" -> ExportFormat.PDF
             else -> throw BadRequestResponse("format query param is required (csv or pdf)")
         }
 

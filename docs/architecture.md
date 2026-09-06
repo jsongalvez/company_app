@@ -98,13 +98,13 @@ company-app/
 │       ├── finance/          # Day-entry mutation policy: expenses, compensations, allowances + FinanceReads seam for authz/compensation gates (map #533 #546)
 │       ├── commission/       # Commission engine, split materialization, manual inclusions + local fact-read projection (map #533 #544)
 │       ├── remittance/       # Remittance aggregate, draft/submit/undo commands, internal stores + tables, route adapters; picker reads via Session/Commerce seams (map #533 #545)
+│       ├── reporting/        # Summary projections, cursors, report assembly + CSV/PDF rendering; internal stores + tables, route adapters (map #533 #547)
 │       ├── config/           # Javalin config, serialization mapper
 │       ├── database/         # HikariCP + Flyway + Exposed setup
 │       ├── logging/          # Logback converters, logging extensions
 │       ├── repository/       # DB queries + Exposed Table objects
 │       │   └── model/        # Table definitions + data classes
 │       ├── service/          # Business logic, engines
-│       │   └── export/       # CSV + PDF export (deep module pattern)
 │       ├── exception/        # Domain exception hierarchy
 │       └── Main.kt
 ├── docs/

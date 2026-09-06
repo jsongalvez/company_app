@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service.export
+package com.companyb.companyapp.reporting
 
 /**
  * Cell representation for spreadsheet-safe CSV encoding (#520).

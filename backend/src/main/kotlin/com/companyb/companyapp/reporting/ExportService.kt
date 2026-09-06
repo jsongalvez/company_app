@@ -1,11 +1,10 @@
-package com.companyb.companyapp.service.export
+package com.companyb.companyapp.reporting
 
 import com.companyb.companyapp.branch.Branch
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.ExportRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -24,7 +23,7 @@ object ExportService {
         val branch = findBranch(branchId)
 
         val summary =
-            com.companyb.companyapp.repository.DailySalesSummaryRepository
+            DailySalesSummaryRepository
                 .findByBranchAndDate(branchId, date)
                 ?: throw NotFoundException("No data for this branch and date")
 
@@ -53,7 +52,7 @@ object ExportService {
         val branch = findBranch(branchId)
 
         val summaries =
-            com.companyb.companyapp.repository.DailySalesSummaryRepository
+            DailySalesSummaryRepository
                 .findRangeByBranch(branchId, from, to)
         if (summaries.isEmpty()) {
             throw NotFoundException("No data for this branch and date range")
@@ -90,7 +89,7 @@ object ExportService {
         val branch = findBranch(branchId)
 
         val summary =
-            com.companyb.companyapp.repository.MonthlyRemittanceSummaryRepository.findByBranchYearMonth(
+            MonthlyRemittanceSummaryRepository.findByBranchYearMonth(
                 branchId,
                 year,
                 month,
@@ -192,7 +191,7 @@ object ExportService {
         branchType: BranchType,
         year: Int?,
         month: Int?,
-    ): List<com.companyb.companyapp.repository.BranchTypeMonthlySummary> {
+    ): List<BranchTypeMonthlySummary> {
         val summaries =
             if (year != null && month != null) {
                 ExportRepository.findByBranchTypeAndMonth(branchType, year, month)
@@ -225,7 +224,7 @@ object ExportService {
             "Net Income",
         )
 
-    private fun allTimeRow(s: com.companyb.companyapp.repository.model.MonthlyRemittanceSummary): List<CsvCell> =
+    private fun allTimeRow(s: MonthlyRemittanceSummary): List<CsvCell> =
         listOf(
             CsvCell.Numeric(s.year.toString()),
             CsvCell.Text(Month.of(s.month).name),
@@ -241,7 +240,7 @@ object ExportService {
     private fun branchTypeHeaders(): List<String> =
         listOf("Branch", "Year", "Month", "Remittances", "Sessions", "Products", "Net Income")
 
-    private fun branchTypeRow(s: com.companyb.companyapp.repository.BranchTypeMonthlySummary): List<CsvCell> =
+    private fun branchTypeRow(s: BranchTypeMonthlySummary): List<CsvCell> =
         listOf(
             CsvCell.Text(s.branchName),
             CsvCell.Numeric(s.year.toString()),

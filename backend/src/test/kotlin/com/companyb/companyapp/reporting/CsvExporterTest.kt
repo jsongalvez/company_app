@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service.export
+package com.companyb.companyapp.reporting
 
 import kotlin.test.Test
 import kotlin.test.assertEquals

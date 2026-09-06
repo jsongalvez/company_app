@@ -1,13 +1,9 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.reporting
 
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.dto.DailySalesSummaryBrowseResponse
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.DailySalesSummaryRepository
-import com.companyb.companyapp.repository.DailySummaryBrowseCursor
-import com.companyb.companyapp.repository.encodeDailySummaryCursor
-import com.companyb.companyapp.repository.model.DailySalesSummary
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.LocalDate
 import java.util.UUID

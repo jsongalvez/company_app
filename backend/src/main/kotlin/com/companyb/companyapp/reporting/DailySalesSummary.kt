@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.reporting
 
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
@@ -24,7 +24,7 @@ private const val STANDARD_SCALE = 2
 private const val COMMISSION_PRECISION = 15
 private const val COMMISSION_SCALE = 4
 
-object DailySalesSummaryView : Table("daily_sales_summary") {
+internal object DailySalesSummaryView : Table("daily_sales_summary") {
     val branchDayId = javaUUID("branch_day_id")
     val branchId = javaUUID("branch_id")
     val date = date("date")

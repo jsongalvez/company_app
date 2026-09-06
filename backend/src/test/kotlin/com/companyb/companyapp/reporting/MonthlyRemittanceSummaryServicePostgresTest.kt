@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.reporting
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.authorization.UserCapabilityTable
 import com.companyb.companyapp.branchday.BranchDayService

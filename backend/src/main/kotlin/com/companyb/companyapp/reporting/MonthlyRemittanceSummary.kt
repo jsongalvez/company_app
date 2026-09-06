@@ -1,5 +1,6 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.reporting
 
+import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import java.math.BigDecimal
@@ -21,7 +22,7 @@ data class MonthlyRemittanceSummary(
 private const val FINANCIAL_PRECISION = 10
 private const val FINANCIAL_SCALE = 2
 
-object MonthlyRemittanceSummaryView : Table("monthly_remittance_summary") {
+internal object MonthlyRemittanceSummaryView : Table("monthly_remittance_summary") {
     val branchId = javaUUID("branch_id")
     val year = integer("year")
     val month = integer("month")
@@ -33,3 +34,19 @@ object MonthlyRemittanceSummaryView : Table("monthly_remittance_summary") {
     val totalExpenses = decimal("total_expenses", FINANCIAL_PRECISION, FINANCIAL_SCALE)
     val netIncome = decimal("net_income", FINANCIAL_PRECISION, FINANCIAL_SCALE)
 }
+
+// #547 — single monthly row mapping shared by the summary and export stores;
+// the view owns net_income (SUM of snapshot nets), so readers take the column.
+internal fun ResultRow.toMonthlyRemittanceSummary(): MonthlyRemittanceSummary =
+    MonthlyRemittanceSummary(
+        branchId = this[MonthlyRemittanceSummaryView.branchId],
+        year = this[MonthlyRemittanceSummaryView.year],
+        month = this[MonthlyRemittanceSummaryView.month],
+        totalRemittances = this[MonthlyRemittanceSummaryView.totalRemittances],
+        sessionCount = this[MonthlyRemittanceSummaryView.sessionCount],
+        productCount = this[MonthlyRemittanceSummaryView.productCount],
+        grossIncome = this[MonthlyRemittanceSummaryView.grossIncome],
+        totalCompensation = this[MonthlyRemittanceSummaryView.totalCompensation],
+        totalExpenses = this[MonthlyRemittanceSummaryView.totalExpenses],
+        netIncome = this[MonthlyRemittanceSummaryView.netIncome],
+    )

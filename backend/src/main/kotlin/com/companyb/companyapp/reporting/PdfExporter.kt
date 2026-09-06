@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service.export
+package com.companyb.companyapp.reporting
 
 import org.openpdf.text.Document
 import org.openpdf.text.Font

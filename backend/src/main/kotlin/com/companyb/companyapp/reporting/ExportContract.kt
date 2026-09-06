@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service.export
+package com.companyb.companyapp.reporting
 
 enum class ExportFormat(
     val contentType: String,
@@ -7,3 +7,9 @@ enum class ExportFormat(
     CSV("text/csv", "csv"),
     PDF("application/pdf", "pdf"),
 }
+
+data class ExportResult(
+    val bytes: ByteArray,
+    val contentType: String,
+    val fileName: String,
+)

@@ -1,7 +1,7 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.reporting
 
-import com.companyb.companyapp.repository.model.DailySalesSummary
-import com.companyb.companyapp.repository.model.DailySalesSummaryView
+import com.companyb.companyapp.repository.decodeOpaqueCursor
+import com.companyb.companyapp.repository.encodeOpaqueCursor
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -37,7 +37,7 @@ fun decodeDailySummaryCursor(raw: String): DailySummaryBrowseCursor {
     )
 }
 
-object DailySalesSummaryRepository {
+internal object DailySalesSummaryRepository {
     fun findByBranchAndDate(
         branchId: UUID,
         date: LocalDate,

@@ -1,9 +1,7 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.reporting
 
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.MonthlyRemittanceSummaryRepository
-import com.companyb.companyapp.repository.model.MonthlyRemittanceSummary
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
 

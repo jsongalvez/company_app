@@ -1,5 +1,7 @@
-package com.companyb.companyapp.branchday
+package com.companyb.companyapp.reporting
 
+import com.companyb.companyapp.branchday.BranchDay
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.DayStatus
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq

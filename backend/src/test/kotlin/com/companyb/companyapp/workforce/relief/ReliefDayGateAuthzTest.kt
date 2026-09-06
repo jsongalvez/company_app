@@ -2,7 +2,6 @@
 
 package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.api.ApiRoutes
-import com.companyb.companyapp.api.routes.DailySalesSummaryRoutes
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayRoutes
 import com.companyb.companyapp.branchday.BranchDayService
@@ -23,6 +22,7 @@ import com.companyb.companyapp.finance.ExpenseRoutes
 import com.companyb.companyapp.finance.ExpenseTable
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
+import com.companyb.companyapp.reporting.DailySalesSummaryRoutes
 import com.companyb.companyapp.session.SessionBaseRateService
 import com.companyb.companyapp.session.SessionRoutes
 import com.companyb.companyapp.session.SessionService

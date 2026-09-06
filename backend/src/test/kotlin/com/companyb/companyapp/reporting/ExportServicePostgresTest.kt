@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service.export
+package com.companyb.companyapp.reporting
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.client.ClientTable

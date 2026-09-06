@@ -33,6 +33,9 @@ import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.remittance.RemittanceRoutes
 import com.companyb.companyapp.remittance.RemittanceTable
+import com.companyb.companyapp.reporting.DailySalesSummaryRoutes
+import com.companyb.companyapp.reporting.ExportRoutes
+import com.companyb.companyapp.reporting.MonthlyRemittanceSummaryRoutes
 import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.session.SessionRoutes
 import com.companyb.companyapp.test.JavalinTestServerRule

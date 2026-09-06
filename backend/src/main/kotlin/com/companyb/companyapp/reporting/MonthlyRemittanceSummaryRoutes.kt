@@ -1,12 +1,10 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.reporting
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
-import com.companyb.companyapp.repository.model.MonthlyRemittanceSummary
-import com.companyb.companyapp.service.MonthlyRemittanceSummaryService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus

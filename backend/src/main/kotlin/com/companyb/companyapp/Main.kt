@@ -2,13 +2,10 @@ package com.companyb.companyapp
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.TraceIdFilter
-import com.companyb.companyapp.api.routes.DailySalesSummaryRoutes
 import com.companyb.companyapp.api.routes.DashboardRoutes
-import com.companyb.companyapp.api.routes.ExportRoutes
 import com.companyb.companyapp.api.routes.FeedbackRoutes
 import com.companyb.companyapp.api.routes.HealthRoutes
 import com.companyb.companyapp.api.routes.MetricsRoutes
-import com.companyb.companyapp.api.routes.MonthlyRemittanceSummaryRoutes
 import com.companyb.companyapp.api.routes.NotificationRoutes
 import com.companyb.companyapp.audit.AuditLogRoutes
 import com.companyb.companyapp.branch.BranchRoutes
@@ -46,6 +43,9 @@ import com.companyb.companyapp.observability.RequestMetrics
 import com.companyb.companyapp.observability.RouteLabels
 import com.companyb.companyapp.remittance.RemittancePickerRoutes
 import com.companyb.companyapp.remittance.RemittanceRoutes
+import com.companyb.companyapp.reporting.DailySalesSummaryRoutes
+import com.companyb.companyapp.reporting.ExportRoutes
+import com.companyb.companyapp.reporting.MonthlyRemittanceSummaryRoutes
 import com.companyb.companyapp.service.SchedulerLifecycle
 import com.companyb.companyapp.session.SessionBaseRateRoutes
 import com.companyb.companyapp.session.SessionRoutes
