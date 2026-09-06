@@ -84,16 +84,20 @@ object ReliefAccessService {
         callerId: UUID,
         reason: String? = null,
     ): ReliefAccess {
+        // Non-locking entry read (the #513 discipline — no lock widening): the day lock
+        // inside the command transaction is the serializer, not the relief row.
         val request =
             ReliefAccessRepository.findById(requestId)
                 ?: throw NotFoundException("Relief access request not found")
 
-        requireBranchMembership(callerId, request.branchDayId)
-
         val result =
             transaction {
+                // #515 — membership at commit + locked day gate inside the command
+                // transaction: a concurrent remittance submit flipping the day to REMITTED
+                // can no longer slip between the gate and the grant.
+                requireActiveMemberInTransaction(callerId, request.branchDayId)
                 val (branchDay, isRemitted) =
-                    BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
+                    BranchDayService.checkBranchDayEditableInTransaction(callerId, request.branchDayId, reason)
 
                 val mutation =
                     ReliefAccessRepository.grantInTransaction(
@@ -138,11 +142,11 @@ object ReliefAccessService {
         callerId: UUID,
         reason: String? = null,
     ): ReliefAccess {
+        // Non-locking entry read (the #513 discipline — no lock widening): the PENDING
+        // fast-paths below are advisory; the store's conditional update arbitrates races.
         val request =
             ReliefAccessRepository.findById(requestId)
                 ?: throw NotFoundException("Relief access request not found")
-
-        requireBranchMembership(callerId, request.branchDayId)
 
         if (request.requestStatus == ReliefAccessStatus.DENIED) {
             return request
@@ -154,8 +158,11 @@ object ReliefAccessService {
 
         val result =
             transaction {
+                // #515 — membership at commit + locked day gate in the same tx
+                // (same TOCTOU shape as grant).
+                requireActiveMemberInTransaction(callerId, request.branchDayId)
                 val (branchDay, isRemitted) =
-                    BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
+                    BranchDayService.checkBranchDayEditableInTransaction(callerId, request.branchDayId, reason)
 
                 val mutation = ReliefAccessRepository.denyInTransaction(requestId)
                 if (mutation.updated) {
@@ -275,17 +282,32 @@ object ReliefAccessService {
 
         val (reliefAccess, wasCreated) =
             transaction {
-                val (branchDay, isRemitted) =
-                    BranchDayService.checkBranchDayEditable(
-                        callerId,
-                        BranchDayService.resolveOrCreate(branchId, operationalDate).id,
-                        reason,
-                    )
+                // Resolve-or-create stays nested (existing precedent); the locked gate
+                // below serializes against the remittance transition.
+                val branchDay = BranchDayService.resolveOrCreate(branchId, operationalDate)
+
+                // #515 — in-tx replay classification before the day gate (the #510
+                // discipline): a same-id row already committed acks without re-gating so
+                // retries landing after a day transition still ack; ownership matches the
+                // insert below (the #510/#514 class).
+                ReliefAccessRepository.findByIdInTransaction(requestId)?.let { existing ->
+                    if (existing.branchDayId != branchDay.id) {
+                        throw NotFoundException("Relief request not found for this branch day")
+                    }
+                    if (existing.requestedBy != callerId) {
+                        throw ConflictException("Relief request id already belongs to another request")
+                    }
+                    return@transaction existing to false
+                }
+
+                // Locked day read: serializes this request with remittance's REMITTED transition.
+                val (lockedDay, isRemitted) =
+                    BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDay.id, reason)
 
                 val pair =
                     ReliefAccessRepository.insertRequestInTransaction(
                         id = requestId,
-                        branchDayId = branchDay.id,
+                        branchDayId = lockedDay.id,
                         requestedBy = callerId,
                     )
                 if (pair.first == null) {
@@ -296,7 +318,7 @@ object ReliefAccessService {
                 }
                 if (pair.second) {
                     ReliefAccessAudit.inserted(
-                        AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                        AuditContext(callerId, lockedDay.branchId, isRemitted, reason),
                         checkNotNull(pair.first),
                     )
                     // #358 — the branch-wide ping commits with the request it announces.
@@ -320,17 +342,6 @@ object ReliefAccessService {
         }
 
         return checkNotNull(reliefAccess) { "conflict path already threw" }
-    }
-
-    /** Grant/deny/cancel authority: an ACTIVE home assignment at the branch (invite precedent). */
-    private fun requireBranchMembership(
-        callerId: UUID,
-        branchDayId: UUID,
-    ) {
-        val branchId = BranchDayService.requireBranchDayExists(branchDayId).branchId
-        if (UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId) == null) {
-            throw ForbiddenException("An active assignment at this branch is required")
-        }
     }
 
     /**

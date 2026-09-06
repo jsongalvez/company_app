@@ -16,6 +16,7 @@ import com.companyb.companyapp.repository.model.ReliefInvite
 import com.companyb.companyapp.repository.model.ReliefInviteTable
 import com.companyb.companyapp.repository.model.ReliefInviteView
 import com.companyb.companyapp.service.attendance.ShiftGuard
+import com.companyb.companyapp.service.branchday.BranchDayRepository
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -62,6 +63,8 @@ object ReliefInviteService {
         inviteeUserId: UUID,
         date: LocalDate,
     ): ReliefInvite {
+        // Advisory pre-transaction fast-path (unchanged): the insertIgnore swallow below
+        // is the atomic per-person guard; these reads only fail fast.
         requireActiveAssignment(callerId, branchId)
 
         if (inviteeUserId == callerId) {
@@ -71,18 +74,23 @@ object ReliefInviteService {
             throw ValidationException("Invitee must be an active user")
         }
 
-        val branchDay = BranchDayService.resolveOrCreate(branchId, date)
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDay.id)
-
+        val advisoryDay = BranchDayService.resolveOrCreate(branchId, date)
         if (
-            ReliefInviteRepository.hasPendingOrAcceptedInvite(inviteeUserId, branchDay.id) ||
-            ReliefInviteRepository.hasActiveGrant(inviteeUserId, branchDay.id)
+            ReliefInviteRepository.hasPendingOrAcceptedInvite(inviteeUserId, advisoryDay.id) ||
+            ReliefInviteRepository.hasActiveGrant(inviteeUserId, advisoryDay.id)
         ) {
             throw ConflictException("This user already has a pending invite or active grant for the day")
         }
 
         val (invite, isNew) =
             transaction {
+                // #515 — membership at commit, day resolution, and the locked day gate all
+                // inside the command transaction: the pre-transaction gate above could no
+                // longer see a concurrent remittance submit flipping the day to REMITTED.
+                requireActiveMemberInTransaction(callerId, branchId)
+                val branchDay = BranchDayService.resolveOrCreate(branchId, date)
+                val (_, isRemitted) =
+                    BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDay.id)
                 val pair =
                     ReliefInviteRepository.insertInTransaction(
                         id = UUID.randomUUID(),
@@ -173,8 +181,18 @@ object ReliefInviteService {
 
         val result =
             transaction {
-                val branchDay = BranchDayService.requireBranchDayExists(invite.branchDayId)
-                val effectiveStatus = BranchDayService.getEffectiveStatus(invite.branchDayId)
+                // #515 — locked day read: serializes accept with remittance's REMITTED
+                // transition. The OPEN-only expiry rule itself is unchanged (still 400s
+                // when PAST/REMITTED — day-state remains the expiry, #159 Q6).
+                val branchDay =
+                    BranchDayRepository.acquireLockInTransaction(invite.branchDayId)
+                        ?: throw NotFoundException("Branch day not found")
+                val effectiveStatus =
+                    BranchDayService.evaluateStatus(
+                        branchDay.status,
+                        branchDay.date,
+                        BranchDayService.currentOperationalDate(),
+                    )
                 if (effectiveStatus != DayStatus.OPEN) {
                     throw ValidationException("This relief invite has expired — the day is no longer open")
                 }

@@ -124,12 +124,16 @@ object ReliefAccessRepository {
 
     fun findById(id: UUID): ReliefAccess? =
         transaction {
-            GrantReliefAccessTable
-                .selectAll()
-                .where { GrantReliefAccessTable.id eq id }
-                .singleOrNull()
-                ?.toReliefAccess()
+            findByIdInTransaction(id)
         }
+
+    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
+    fun findByIdInTransaction(id: UUID): ReliefAccess? =
+        GrantReliefAccessTable
+            .selectAll()
+            .where { GrantReliefAccessTable.id eq id }
+            .singleOrNull()
+            ?.toReliefAccess()
 
     /** Every request on one branch day — the member surface (#357 broadcast model). */
     fun findByBranchDayId(branchDayId: UUID): List<ReliefAccess> =
