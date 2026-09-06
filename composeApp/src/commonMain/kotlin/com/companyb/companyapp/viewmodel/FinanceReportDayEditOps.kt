@@ -109,7 +109,7 @@ internal inline fun <reified T> FinanceReportsViewModel.loadSection(
     params: List<Pair<String, String>>,
     errorKeyPrefixes: List<String> = emptyList(),
 ) {
-    handler.launchStateless(
+    handler.launchStatelessGuarded(
         operation = operation,
         endpoint = "GET $endpoint",
         block = {
@@ -117,17 +117,19 @@ internal inline fun <reified T> FinanceReportsViewModel.loadSection(
                 params.forEach { (k, v) -> parameter(k, v) }
             }
         },
-        transform = {
-            val list = it.body<List<T>>()
-            state.value = UiState.Success(list)
-            // #143 class — a fresh list supersedes the section's stale action
-            // errors (e.g. a 409-reload landing beside its own error line).
-            if (errorKeyPrefixes.isNotEmpty()) {
-                actionTracker.clearWhere { key -> errorKeyPrefixes.any { key.startsWith(it) } }
-            }
-        },
-        hooks =
-            StatelessHooks(
+        guarded =
+            GuardedStateless(
+                // #528 — decode/commit split: a day/branch switch mid-decode must not
+                // repopulate the cleared sections.
+                decode = { it.body<List<T>>() },
+                commit = { list ->
+                    state.value = UiState.Success(list)
+                    // #143 class — a fresh list supersedes the section's stale action
+                    // errors (e.g. a 409-reload landing beside its own error line).
+                    if (errorKeyPrefixes.isNotEmpty()) {
+                        actionTracker.clearWhere { key -> errorKeyPrefixes.any { key.startsWith(it) } }
+                    }
+                },
 // #173 — the generation guard folds into the stale gate (a superseded day/branch
                 // section load — clearEditData during flight — must not repopulate cleared state).
                 stale = { generation != editDataGeneration },
@@ -168,7 +170,7 @@ internal fun FinanceReportsViewModel.createCompensation(
     val key = "comp:create"
     if (!actionTracker.tryBegin(key)) return
     val generation = editDataGeneration
-    handler.launchStateless(
+    handler.launchStatelessGuarded(
         operation = "createCompensation",
         endpoint = "POST /api/compensation",
         block = {
@@ -186,18 +188,18 @@ internal fun FinanceReportsViewModel.createCompensation(
                 )
             }
         },
-        transform = {
-            val created = it.body<CompensationResponse>()
-            val current = editCompensationsState.value
-            if (current is UiState.Success) {
-                editCompensationsState.value = UiState.Success(current.data + created)
-            } else {
-                reloadSection(EditSection.COMPENSATIONS)
-            }
-            actionTracker.finish(key)
-        },
-        hooks =
-            StatelessHooks(
+        guarded =
+            GuardedStateless(
+                decode = { it.body<CompensationResponse>() },
+                commit = { created ->
+                    val current = editCompensationsState.value
+                    if (current is UiState.Success) {
+                        editCompensationsState.value = UiState.Success(current.data + created)
+                    } else {
+                        reloadSection(EditSection.COMPENSATIONS)
+                    }
+                    actionTracker.finish(key)
+                },
                 stale = { generation != editDataGeneration },
                 onNonSuccess = { response ->
                     // #101 D4 — 409 duplicate (one per user per paying day) → inline error on the
@@ -225,7 +227,7 @@ internal fun FinanceReportsViewModel.updateCompensation(
     val key = "comp:update:${compensation.id}"
     if (!actionTracker.tryBegin(key)) return
     val generation = editDataGeneration
-    handler.launchStateless(
+    handler.launchStatelessGuarded(
         operation = "updateCompensation",
         endpoint = "PATCH /api/compensation/${compensation.id}",
         block = {
@@ -240,19 +242,19 @@ internal fun FinanceReportsViewModel.updateCompensation(
                 )
             }
         },
-        transform = {
-            val updated = it.body<CompensationResponse>()
-            editCompensationsState.value =
-                UiState.Success(
-                    (editCompensationsState.value as? UiState.Success<List<CompensationResponse>>)
-                        ?.data
-                        .orEmpty()
-                        .map { row -> if (row.id == updated.id) updated else row },
-                )
-            actionTracker.finish(key)
-        },
-        hooks =
-            StatelessHooks(
+        guarded =
+            GuardedStateless(
+                decode = { it.body<CompensationResponse>() },
+                commit = { updated ->
+                    editCompensationsState.value =
+                        UiState.Success(
+                            (editCompensationsState.value as? UiState.Success<List<CompensationResponse>>)
+                                ?.data
+                                .orEmpty()
+                                .map { row -> if (row.id == updated.id) updated else row },
+                        )
+                    actionTracker.finish(key)
+                },
                 stale = { generation != editDataGeneration },
                 onNonSuccess = { response ->
                     failActionOrSilent403(
@@ -282,7 +284,7 @@ internal fun FinanceReportsViewModel.createAllowance(
     val key = "allow:create"
     if (!actionTracker.tryBegin(key)) return
     val generation = editDataGeneration
-    handler.launchStateless(
+    handler.launchStatelessGuarded(
         operation = "createAllowance",
         endpoint = "POST /api/allowances",
         block = {
@@ -298,18 +300,18 @@ internal fun FinanceReportsViewModel.createAllowance(
                 )
             }
         },
-        transform = {
-            val created = it.body<AllowanceResponse>()
-            val current = editAllowancesState.value
-            if (current is UiState.Success) {
-                editAllowancesState.value = UiState.Success(current.data + created)
-            } else {
-                reloadSection(EditSection.ALLOWANCES)
-            }
-            actionTracker.finish(key)
-        },
-        hooks =
-            StatelessHooks(
+        guarded =
+            GuardedStateless(
+                decode = { it.body<AllowanceResponse>() },
+                commit = { created ->
+                    val current = editAllowancesState.value
+                    if (current is UiState.Success) {
+                        editAllowancesState.value = UiState.Success(current.data + created)
+                    } else {
+                        reloadSection(EditSection.ALLOWANCES)
+                    }
+                    actionTracker.finish(key)
+                },
                 stale = { generation != editDataGeneration },
                 onNonSuccess = { response ->
                     failActionOrSilent403(key, "allow:create", response)

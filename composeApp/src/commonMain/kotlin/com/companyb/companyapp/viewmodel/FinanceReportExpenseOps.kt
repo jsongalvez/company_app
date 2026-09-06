@@ -29,7 +29,7 @@ internal fun FinanceReportsViewModel.createExpense(
     val key = "expense:create"
     if (!actionTracker.tryBegin(key)) return
     val generation = editDataGeneration
-    handler.launchStateless(
+    handler.launchStatelessGuarded(
         operation = "createExpense",
         endpoint = "POST /api/expenses",
         block = {
@@ -48,20 +48,20 @@ internal fun FinanceReportsViewModel.createExpense(
                 )
             }
         },
-        transform = {
-            val created = it.body<ExpenseResponse>()
-            val current = editExpensesState.value
-            if (current is UiState.Success) {
-                editExpensesState.value = UiState.Success(current.data + created)
-            } else {
-                // Pass-8 SOFT — appending onto an Error section would truncate the
-                // list to the new row; reload the section instead.
-                reloadSection(EditSection.EXPENSES)
-            }
-            actionTracker.finish(key)
-        },
-        hooks =
-            StatelessHooks(
+        guarded =
+            GuardedStateless(
+                decode = { it.body<ExpenseResponse>() },
+                commit = { created ->
+                    val current = editExpensesState.value
+                    if (current is UiState.Success) {
+                        editExpensesState.value = UiState.Success(current.data + created)
+                    } else {
+                        // Pass-8 SOFT — appending onto an Error section would truncate the
+                        // list to the new row; reload the section instead.
+                        reloadSection(EditSection.EXPENSES)
+                    }
+                    actionTracker.finish(key)
+                },
 // #173 — a superseded action (branch/day switched mid-flight) is inert: no row
                 // write onto the new day's sections, no tracker terminal (clearEditData cleared it).
                 stale = { generation != editDataGeneration },
@@ -87,7 +87,7 @@ internal fun FinanceReportsViewModel.updateExpense(
     val key = "expense:update:${expense.id}"
     if (!actionTracker.tryBegin(key)) return
     val generation = editDataGeneration
-    handler.launchStateless(
+    handler.launchStatelessGuarded(
         operation = "updateExpense",
         endpoint = "PATCH /api/expenses/${expense.id}",
         block = {
@@ -105,13 +105,13 @@ internal fun FinanceReportsViewModel.updateExpense(
                 )
             }
         },
-        transform = {
-            val updated = it.body<ExpenseResponse>()
-            replaceExpenseRow(updated)
-            actionTracker.finish(key)
-        },
-        hooks =
-            StatelessHooks(
+        guarded =
+            GuardedStateless(
+                decode = { it.body<ExpenseResponse>() },
+                commit = { updated ->
+                    replaceExpenseRow(updated)
+                    actionTracker.finish(key)
+                },
 // #173 — the superseded-PATCH gate folds into the stale flag (a branch/day switch
                 // mid-flight must leave the action + its tracker terminal inert).
                 stale = { generation != editDataGeneration },
@@ -139,7 +139,7 @@ internal fun FinanceReportsViewModel.deleteExpense(
     val key = "expense:delete:${expense.id}"
     if (!actionTracker.tryBegin(key)) return
     val generation = editDataGeneration
-    handler.launchStateless(
+    handler.launchStatelessGuarded(
         operation = "deleteExpense",
         endpoint = "DELETE /api/expenses/${expense.id}",
         block = {
@@ -147,13 +147,13 @@ internal fun FinanceReportsViewModel.deleteExpense(
                 setBody(DeleteExpenseRequest(reason = reason))
             }
         },
-        transform = {
-            val deleted = it.body<ExpenseResponse>()
-            replaceExpenseRow(deleted)
-            actionTracker.finish(key)
-        },
-        hooks =
-            StatelessHooks(
+        guarded =
+            GuardedStateless(
+                decode = { it.body<ExpenseResponse>() },
+                commit = { deleted ->
+                    replaceExpenseRow(deleted)
+                    actionTracker.finish(key)
+                },
                 stale = { generation != editDataGeneration },
                 onNonSuccess = { response ->
                     failActionOrSilent403(key, "expense:delete", response)
@@ -172,7 +172,7 @@ internal fun FinanceReportsViewModel.restoreExpense(
     val key = "expense:restore:${expense.id}"
     if (!actionTracker.tryBegin(key)) return
     val generation = editDataGeneration
-    handler.launchStateless(
+    handler.launchStatelessGuarded(
         operation = "restoreExpense",
         endpoint = "POST /api/expenses/${expense.id}/restore",
         block = {
@@ -180,13 +180,13 @@ internal fun FinanceReportsViewModel.restoreExpense(
                 setBody(RestoreExpenseRequest(reason = reason))
             }
         },
-        transform = {
-            val restored = it.body<ExpenseResponse>()
-            replaceExpenseRow(restored)
-            actionTracker.finish(key)
-        },
-        hooks =
-            StatelessHooks(
+        guarded =
+            GuardedStateless(
+                decode = { it.body<ExpenseResponse>() },
+                commit = { restored ->
+                    replaceExpenseRow(restored)
+                    actionTracker.finish(key)
+                },
                 stale = { generation != editDataGeneration },
                 onNonSuccess = { response ->
                     failActionOrSilent403(key, "expense:restore", response)

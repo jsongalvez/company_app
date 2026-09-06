@@ -90,15 +90,46 @@ data class LaunchHooks(
  * Tail-bundle for [ApiCallHandler.launchStateless] (#462 LPL burn: 9 params; data classes
  * are LPL-free). The plain launchStateless shape (operation/endpoint/block/transform) is
  * untouched — only sites that pass a hook below wrap those hooks in this class.
+ *
+ * Ungated only: no generation guard lives here. A surface that can move on
+ * (window/branch/mode/filter switch) must use [GuardedStateless] +
+ * [ApiCallHandler.launchStatelessGuarded] instead — a one-time stale check around a
+ * suspending decode cannot retract side effects (#528).
  */
 data class StatelessHooks(
     // Optional entry-log override; null resolves to "$operation called".
     val entryMessage: String? = null,
     val onNonSuccess: suspend (HttpResponse) -> Unit = {},
     val onError: (Throwable) -> Unit = {},
-    // #173 — when true at a landing, all three hooks are skipped (the stale-generation
-    // gate). Default false = every non-gated caller unchanged.
-    val stale: () -> Boolean = { false },
+    // Job-scoping override (the #113 debounced-search shape); null resolves to the handler's
+    // construction scope.
+    val scope: CoroutineScope? = null,
+)
+
+/**
+ * Decode/commit split for generation-guarded stateless surfaces (#528).
+ *
+ * [decode] is the suspend work (fetch already happened in `block`; this is body parsing —
+ * `body<T>()`, `bodyAsText()`, `readRawBytes()`). [commit] is the non-suspending guarded
+ * state commit — list/cursor/flags writes, action-tracker terminals, `finish()` — run
+ * immediately after the second [stale] read with no suspension gap, on the handler's scope
+ * (the state owner's dispatcher). [onNonSuccess]/[onError] are likewise non-suspending
+ * commits for the failure legs: they see only status/throwable, never a suspending body
+ * read, so the single pre-commit [stale] read closes them with no gap.
+ *
+ * The handler skips already-stale bodies before [decode] (no wasted parse) and drops bodies
+ * that go stale mid-decode before [commit]. A generic post-callback check around a combined
+ * decode+commit lambda cannot do this — the side effects inside the lambda are unretractable.
+ */
+data class GuardedStateless<D>(
+    val decode: suspend (HttpResponse) -> D,
+    val commit: (D) -> Unit,
+    // When true the landing is inert — the caller's captured generation vs the current field.
+    val stale: () -> Boolean,
+    val onNonSuccess: (HttpResponse) -> Unit = {},
+    val onError: (Throwable) -> Unit = {},
+    // Optional entry-log override; null resolves to "$operation called".
+    val entryMessage: String? = null,
     // Job-scoping override (the #113 debounced-search shape); null resolves to the handler's
     // construction scope.
     val scope: CoroutineScope? = null,
@@ -208,31 +239,17 @@ class ApiCallHandler(
     // State-less launch (the #162 P5 handler state-less launch graduate, #168): the same
     // logging / cancellation / onNonSuccess / onError discipline as [launch], but NO state
     // writes — no Loading, no Success, no Error. For callers whose observable effect is a
-    // side effect inside [transform] (the keyed-mirror commit of
-    // ReliefInviteViewModel.loadSent, the action-tracker terminal paths of
-    // UserViewModel.runMutation / AuditLogViewModel acknowledge, the list writes of
-    // AuditLogViewModel fetchPage / FinanceReportsViewModel page loads, the edit-machine
-    // transitions of SessionDashboardViewModel.updateSession), the state param was
+    // side effect inside [transform] (the action-tracker terminal paths of
+    // UserViewModel.runMutation / AuditLogViewModel acknowledge, the keyed export writes of
+    // FinanceReportsViewModel.exportMode, the branch-name write of
+    // ReliefDayViewModel.resolveBranchName), the state param was
     // a throwaway flow no consumer reads — this variant makes the adapter unnecessary.
     // [onNonSuccess] has no Boolean "handled" contract: there is no generic Error assignment
     // to skip, so the caller's hook runs and that is all.
     //
-    // Stale-suppression gate (the #173 stale-gate graduate — the #165 class, stateless leg):
-    // when the [StatelessHooks.stale] bundle field reads true at a landing, transform /
-    // onNonSuccess / onError are all SKIPPED — the landing is inert. This absorbs the
-    // hand-rolled `if (generation == XGeneration) { <surface>; finish }` guards at the
-    // page/rollup/section/action sites: a response that lands after the caller's surface
-    // moved on (window/branch/mode/filter switched while the request was in flight) must not
-    // write list/cursor/error/flags, nor run the local finish/action-tracker terminals (the
-    // generation bump's own reset/clear covers them — same as the in-hook guards did).
-    // [stale] is evaluated at LANDING (not launch) — the caller captures the launch-time
-    // generation in the lambda, exactly like the guard it replaces. Deliberate semantic
-    // consequence (the #165 precedent): the gate runs BEFORE the hook, so a stale body is
-    // never deserialized — observable behavior is identical (the guards already made stale
-    // landings fully inert), only the wasted parse is gone. The default `{ false }` keeps
-    // every caller without a stale-generation concern behavior-identical. The stateful
-    // [launch] keeps its #165 stamp/fallback SUBSTITUTION shape — this gate is the skip
-    // shape; a stateless surface has no UiState to substitute, no fallback value to commit.
+    // Ungated by design (#528): a surface that can move on while a request is in flight must
+    // use [launchStatelessGuarded] — a one-time stale check around a suspending decode cannot
+    // retract the decode's side effects.
     @Suppress("TooGenericExceptionCaught")
     fun launchStateless(
         operation: String,
@@ -248,14 +265,10 @@ class ApiCallHandler(
                 val response = block()
                 if (response.status.isSuccess()) {
                     logInfo(tag, "$operation success")
-                    if (!hooks.stale()) {
-                        transform(response)
-                    }
+                    transform(response)
                 } else {
                     logWarn(tag, "$operation failed: status=${response.status.value}")
-                    if (!hooks.stale()) {
-                        hooks.onNonSuccess(response)
-                    }
+                    hooks.onNonSuccess(response)
                 }
             } catch (e: CancellationException) {
                 // Re-throw: a cancelled launch (e.g. #113's debounce job cancelled by a newer
@@ -263,9 +276,45 @@ class ApiCallHandler(
                 throw e
             } catch (e: Exception) {
                 logError(tag, "$operation exception on $endpoint", e)
-                if (!hooks.stale()) {
-                    hooks.onError(e)
+                hooks.onError(e)
+            }
+        }
+    }
+
+    // Guarded stateless launch (#528): the decode/commit split. [GuardedStateless.decode]
+    // suspends (body parsing); [GuardedStateless.commit] is non-suspending and runs
+    // immediately after the second stale read with no suspension gap, on this scope. The
+    // first stale read skips already-stale bodies before the wasted parse; the failure legs
+    // are non-suspending commits closed by a single pre-commit stale read.
+    @Suppress("TooGenericExceptionCaught")
+    fun <D> launchStatelessGuarded(
+        operation: String,
+        endpoint: String,
+        block: suspend () -> HttpResponse,
+        guarded: GuardedStateless<D>,
+    ): Job {
+        logInfo(tag, guarded.entryMessage ?: "$operation called")
+        return (guarded.scope ?: scope).launch {
+            try {
+                logInfo(tag, endpoint)
+                val response = block()
+                if (response.status.isSuccess()) {
+                    logInfo(tag, "$operation success")
+                    if (guarded.stale()) return@launch
+                    val decoded = guarded.decode(response)
+                    if (guarded.stale()) return@launch
+                    guarded.commit(decoded)
+                } else {
+                    logWarn(tag, "$operation failed: status=${response.status.value}")
+                    if (guarded.stale()) return@launch
+                    guarded.onNonSuccess(response)
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logError(tag, "$operation exception on $endpoint", e)
+                if (guarded.stale()) return@launch
+                guarded.onError(e)
             }
         }
     }

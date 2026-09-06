@@ -55,29 +55,29 @@ class DelegateViewModel(
         val generation = ++delegateGeneration
         _delegates.value = UiState.Loading
         loadJob =
-            handler.launchStateless(
+            handler.launchStatelessGuarded(
                 operation = "loadDelegates",
                 endpoint = "GET /api/branches/$branchId/delegates",
                 block = { apiClient.httpClient.get(ApiRoutes.branchDelegates(branchId)) },
-                transform = { response ->
-                    val rows = response.body<List<DelegateResponse>>()
-                    if (generation == delegateGeneration) {
-                        _delegates.value = UiState.Success(rows)
-                    }
-                },
-                hooks =
-                    StatelessHooks(
+                guarded =
+                    GuardedStateless(
+                        // #528 — decode/commit split: a branch switch mid-decode drops the body.
+                        // The hand-rolled in-transform `if (generation == ...)` is deleted — the
+                        // handler owns the boundary now.
+                        decode = { response -> response.body<List<DelegateResponse>>() },
+                        commit = { rows ->
+                            _delegates.value = UiState.Success(rows)
+                        },
                         onNonSuccess = { response ->
-                            val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
-                            if (generation == delegateGeneration) {
-                                _delegates.value =
-                                    UiState.Error(detail ?: "loadDelegates failed: ${response.status.value}")
-                            }
+                            // #528 — status-only on purpose: the commit must stay non-suspending,
+                            // so the failure detail read (`bodyAsText`, suspend) cannot live here.
+                            // A branch switch mid-failure-decode must not write the old branch's
+                            // error onto the new surface.
+                            _delegates.value =
+                                UiState.Error("loadDelegates failed: ${response.status.value}")
                         },
                         onError = { error ->
-                            if (generation == delegateGeneration) {
-                                _delegates.value = UiState.Error(error.message ?: "Unknown error")
-                            }
+                            _delegates.value = UiState.Error(error.message ?: "Unknown error")
                         },
                         stale = { generation != delegateGeneration },
                     ),

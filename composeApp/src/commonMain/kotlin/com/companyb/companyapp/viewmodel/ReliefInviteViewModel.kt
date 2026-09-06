@@ -148,20 +148,20 @@ class ReliefInviteViewModel(
         // deserialized — state/UI behavior identical to the old in-hook guard; only the wasted
         // parse and the stale landing's spurious error log are gone).
         val stamp = ++sentStamp
-        return handler.launchStateless(
+        return handler.launchStatelessGuarded(
             operation = "loadSent",
             endpoint = "GET /api/branches/$branchId/relief-invites",
             block = { apiClient.httpClient.get(ApiRoutes.branchReliefInvites(branchId)) },
-            transform = { response ->
-                val body = response.body<List<ReliefInviteResponse>>()
-                // Keyed commit (the #162 KeepLastByKey shape, mirror-only half), newest-launch-
-                // wins: the mirror entry for this branch flips together with the committed body —
-                // the screen gate `sentByKey[panelBranch]` can then trust that a passing gate
-                // means the rendered list IS this panel's.
-                keptSent.commit(branchId, body)
-            },
-            hooks =
-                StatelessHooks(
+            guarded =
+                GuardedStateless(
+                    decode = { response -> response.body<List<ReliefInviteResponse>>() },
+                    commit = { body ->
+                        // Keyed commit (the #162 KeepLastByKey shape, mirror-only half), newest-launch-
+                        // wins: the mirror entry for this branch flips together with the committed body —
+                        // the screen gate `sentByKey[panelBranch]` can then trust that a passing gate
+                        // means the rendered list IS this panel's.
+                        keptSent.commit(branchId, body)
+                    },
                     stale = { stamp != sentStamp },
                 ),
         )
@@ -189,15 +189,14 @@ class ReliefInviteViewModel(
         // Mirror-only keyed commit (the loadSent shape): a newer load must always launch;
         // same-key ordering is closed by the stale gate — only the newest launch commits.
         val stamp = ++acceptedStamp
-        return handler.launchStateless(
+        return handler.launchStatelessGuarded(
             operation = "loadAccepted",
             endpoint = "GET /api/branches/$branchId/relief-invites/accepted",
             block = { apiClient.httpClient.get(ApiRoutes.branchReliefInvitesAccepted(branchId)) },
-            transform = { response ->
-                keptAccepted.commit(branchId, response.body<List<ReliefInviteResponse>>())
-            },
-            hooks =
-                StatelessHooks(
+            guarded =
+                GuardedStateless(
+                    decode = { response -> response.body<List<ReliefInviteResponse>>() },
+                    commit = { body -> keptAccepted.commit(branchId, body) },
                     stale = { stamp != acceptedStamp },
                 ),
         )

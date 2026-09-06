@@ -152,19 +152,21 @@ internal fun SessionDashboardViewModel.loadDayStatus() {
     }
     ++dayGeneration
     val generation = dayGeneration
-    handler.launchStateless(
+    handler.launchStatelessGuarded(
         operation = "loadDayStatus",
         endpoint = "GET /api/branches/$branchId/today",
         block = { apiClient.httpClient.get(ApiRoutes.branchToday(branchId)) },
-        transform = { response ->
-            val status = response.body<BranchDayTodayResponse>().status
-            dayStatusState.value = status
-            if (status != DayStatus.OPEN && !canCorrectStatusState.value) {
-                clearEdit()
-            }
-        },
-        hooks =
-            StatelessHooks(
+        guarded =
+            GuardedStateless(
+                // #528 — decode/commit split: a context switch mid-decode drops the body instead
+                // of writing the old branch's status onto the new surface.
+                decode = { response -> response.body<BranchDayTodayResponse>().status },
+                commit = { status ->
+                    dayStatusState.value = status
+                    if (status != DayStatus.OPEN && !canCorrectStatusState.value) {
+                        clearEdit()
+                    }
+                },
                 onNonSuccess = { response ->
                     // 401 is the global auth path (ApiClient.onUnauthorized); 403 = grant revoked.
                     if (response.status.value == 401 || response.status.value == 403) {

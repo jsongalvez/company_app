@@ -89,7 +89,7 @@ internal fun FinanceReportsViewModel.fetchPage(
     val generation = feedGeneration
     if (mode == FeedFetchMode.Refresh) isRefreshingState.value = true
     if (mode == FeedFetchMode.LoadMore) isLoadingMoreState.value = true
-    handler.launchStateless(
+    handler.launchStatelessGuarded(
         operation = mode.operationName,
         endpoint = "GET /api/branches/$branchId/daily-summaries",
         block = {
@@ -100,22 +100,24 @@ internal fun FinanceReportsViewModel.fetchPage(
                 currentWindow().to?.let { parameter("to", it) }
             }
         },
-        transform = {
-            val page = it.body<DailySalesSummaryBrowseResponse>()
-            val listAlreadyCommitted =
-                mode == FeedFetchMode.Cold && feedEntriesState.value is UiState.Success
-            if (listAlreadyCommitted) {
-                logWarn("FinanceVM", "cold feed success suppressed — feed superseded")
-            } else {
-                refreshErrorState.value = null
-                nextCursorState.value = page.nextCursor
-                applyPage(mode, page.entries)
-            }
-            finish(mode)
-        },
-        hooks =
-            StatelessHooks(
-// #173 — the hand-rolled generation guard folds into the state-less stale gate: a
+        guarded =
+            GuardedStateless(
+                // #528 — suspend decode owns the parse; the non-suspending commit below owns
+                // every list/cursor/flag write. A generation bump mid-decode drops the body.
+                decode = { it.body<DailySalesSummaryBrowseResponse>() },
+                commit = { page ->
+                    val listAlreadyCommitted =
+                        mode == FeedFetchMode.Cold && feedEntriesState.value is UiState.Success
+                    if (listAlreadyCommitted) {
+                        logWarn("FinanceVM", "cold feed success suppressed — feed superseded")
+                    } else {
+                        refreshErrorState.value = null
+                        nextCursorState.value = page.nextCursor
+                        applyPage(mode, page.entries)
+                    }
+                    finish(mode)
+                },
+// #173 — the hand-rolled generation guard folds into the guarded stale gate: a
                 // superseded landing (window/branch/mode switched while this page was in flight)
                 // is inert — no list/cursor/error/flags writes, no finish.
                 stale = { generation != feedGeneration },
@@ -190,7 +192,7 @@ internal fun FinanceReportsViewModel.loadMonthlyRollup() {
     rollupGeneration++
     val generation = rollupGeneration
     monthlyRollupState.value = UiState.Loading
-    handler.launchStateless(
+    handler.launchStatelessGuarded(
         operation = "loadMonthlyRollup",
         endpoint = "GET /api/branches/$branchId/monthly-summary",
         block = {
@@ -199,14 +201,16 @@ internal fun FinanceReportsViewModel.loadMonthlyRollup() {
                 parameter("month", month.month.ordinal + 1)
             }
         },
-        transform = {
-            // 404 (no remittance submitted that month — the #105 F5 shape) is NOT an
-            // error: the rollup card simply doesn't render. Transform only sees 2xx —
-            // the 404 branch lives in onNonSuccess below.
-            monthlyRollupState.value = UiState.Success(it.body<MonthlyRemittanceSummaryResponse>())
-        },
-        hooks =
-            StatelessHooks(
+        guarded =
+            GuardedStateless(
+                // #528 — decode/commit split: a branch/month switch mid-decode drops the body.
+                decode = { it.body<MonthlyRemittanceSummaryResponse>() },
+                commit = {
+                    // 404 (no remittance submitted that month — the #105 F5 shape) is NOT an
+                    // error: the rollup card simply doesn't render. Transform only sees 2xx —
+                    // the 404 branch lives in onNonSuccess below.
+                    monthlyRollupState.value = UiState.Success(it)
+                },
 // #173 — the generation guard folds into the stale gate (a superseded rollup —
                 // branch/month switched — must not write any state; a DAILY-mode switch doesn't
                 // bump the generation — the pre-existing #170 accepted SOFT, benign while DAILY).

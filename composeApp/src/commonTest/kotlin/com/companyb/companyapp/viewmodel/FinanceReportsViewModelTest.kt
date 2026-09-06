@@ -2104,4 +2104,74 @@ class FinanceReportsViewModelTest {
             assertNull(vm.selectedDay.value)
             assertEquals(UiState.Idle, vm.editExpenses.value)
         }
+
+    @Test
+    fun sectionLoad_landingAfterDaySwitch_staysInert() =
+        runTest(testScheduler) {
+            // #528 — an in-flight section GET whose body lands after a day switch must not
+            // repopulate the cleared sections. The MockEngine gate holds the response after
+            // HTTP dispatch but before body completion; exiting edit mode bumps the generation
+            // during that window; the released body must not commit list, error-clear, or flags.
+            val expenseGate = CompletableDeferred<Unit>()
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    request.url.encodedPath == "/api/expenses" -> {
+                        expenseGate.await()
+                        respondJson("[${expenseJson("e-old")}]")
+                    }
+
+                    request.url.encodedPath == "/api/compensations" -> {
+                        respondJson("[]")
+                    }
+
+                    request.url.encodedPath == "/api/allowances" -> {
+                        respondJson("[]")
+                    }
+
+                    request.url.encodedPath == "/api/branch-days/$DAY_ID/users" -> {
+                        respondJson("[]")
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+            val day = (vm.feedEntries.value as UiState.Success).data.single()
+            vm.selectDay(day)
+            vm.setEditMode(true)
+            runCurrent()
+
+            // The expenses load is suspended in the gate; the sibling sections landed.
+            // Exit edit mode during the window — this bumps editDataGeneration and clears.
+            vm.setEditMode(false)
+            assertEquals(UiState.Idle, vm.editExpenses.value)
+
+            expenseGate.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(
+                UiState.Idle,
+                vm.editExpenses.value,
+                "a section body that landed after the day switch must not repopulate the cleared list",
+            )
+            assertEquals(
+                UiState.Idle,
+                vm.editCompensations.value,
+                "the switch-cleared sibling sections stay cleared",
+            )
+            assertTrue(vm.inFlightActions.value.isEmpty(), "no tracker terminal may fire for the stale load")
+            assertTrue(vm.editErrors.value.isEmpty(), "no stale error surface may appear")
+        }
 }

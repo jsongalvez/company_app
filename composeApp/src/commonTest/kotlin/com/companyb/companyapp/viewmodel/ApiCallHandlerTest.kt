@@ -476,52 +476,119 @@ class ApiCallHandlerTest {
             assertEquals(0, onErrorCalls, "cancellation must not run onError")
         }
 
-    // ── #173 stateless stale-gate ─────────────────────────────────────────────────────
-    // The stale-suppression gate (the #165 class, stateless leg): a landing that reads
-    // stale() == true must run NO hook — transform / onNonSuccess / onError are all skipped.
-    // The gate is evaluated at LANDING (the caller's captured generation vs the current
-    // field — the hand-rolled `if (generation == XGeneration)` it replaces), so the flip
-    // happens AFTER dispatch in the tests below: an absent evaluation — or, for the two
-    // flip-based tests, an invocation-only one — would run the hook and fail the assert.
+    // ── #528 guarded decode/commit boundary ──────────────────────────────────────────
+    // The generation-guarded stateless surface splits suspend decode from the non-suspending
+    // commit: already-stale bodies skip the parse, bodies that go stale mid-decode never
+    // commit, and the failure legs are non-suspending commits closed by a pre-commit read.
+    // A generic post-callback check around a combined decode+commit lambda cannot retract the
+    // lambda's side effects — hence the split.
 
     @Test
-    fun stateless_stale_success_skips_transform() =
+    fun guarded_current_success_decodes_and_commits() =
         runTest(testScheduler) {
             val apiClient = mockApiClient { respond200() }
             val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
-            var transformCalls = 0
-            var onNonSuccessCalls = 0
+            var decodeCalls = 0
+            var commitCalls = 0
+
+            val job =
+                handler.launchStatelessGuarded(
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { apiClient.httpClient.get("/api/items") },
+                    guarded =
+                        GuardedStateless(
+                            decode = {
+                                decodeCalls++
+                                listOf(1)
+                            },
+                            commit = { commitCalls++ },
+                            stale = { false },
+                        ),
+                )
+            job.join()
+
+            assertEquals(1, decodeCalls, "a current landing must decode")
+            assertEquals(1, commitCalls, "a current landing must commit")
+        }
+
+    @Test
+    fun guarded_stale_before_decode_skips_parse() =
+        runTest(testScheduler) {
+            val apiClient = mockApiClient { respond200() }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            var decodeCalls = 0
+            var commitCalls = 0
             var stale = false
 
-            handler.launchStateless(
+            handler.launchStatelessGuarded(
                 operation = "load",
                 endpoint = "GET /api/items",
                 block = { apiClient.httpClient.get("/api/items") },
-                transform = { transformCalls++ },
-                hooks =
-                    StatelessHooks(
-                        onNonSuccess = { onNonSuccessCalls++ },
+                guarded =
+                    GuardedStateless(
+                        decode = {
+                            decodeCalls++
+                            listOf(1)
+                        },
+                        commit = { commitCalls++ },
                         stale = { stale },
                     ),
             )
 
-            // The launch is queued on the test scheduler (StandardTestDispatcher): the coroutine
-            // body runs only at runCurrent, so setting stale=true before runCurrent makes the
-            // body's read see true. A synchronous evaluation at the launchStateless invocation
-            // (pre-flip) would read false, run transform, and fail the assert — the test pins
-            // the gate is evaluated AFTER dispatch, not at invocation. Gate-existence itself
-            // (an always-skip variant) is co-pinned by the sibling default-`{ false }`
-            // stateless tests — stateless_success_runs_transform etc. fail if the gate always
-            // skipped.
+            // Queued on the test scheduler: flipping before runCurrent makes the pre-decode
+            // read see stale — the parse is skipped, not just the commit.
             stale = true
             runCurrent()
 
-            assertEquals(0, transformCalls, "a stale success landing must skip transform")
-            assertEquals(0, onNonSuccessCalls, "a stale success landing must not run onNonSuccess")
+            assertEquals(0, decodeCalls, "an already-stale body must never be deserialized")
+            assertEquals(0, commitCalls, "an already-stale body must never commit")
         }
 
     @Test
-    fun stateless_stale_non_success_skips_onNonSuccess() =
+    fun guarded_bump_mid_decode_drops_stale_body() =
+        runTest(testScheduler) {
+            // #528 core: the decoder suspends after HTTP success but before body completion;
+            // the generation bumps during that window. The old body must not commit.
+            val apiClient = mockApiClient { respond200() }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            val decodeEntered = CompletableDeferred<Unit>()
+            val releaseDecode = CompletableDeferred<Unit>()
+            var stale = false
+            var commitCalls = 0
+            var committed: List<Int>? = null
+
+            val job =
+                handler.launchStatelessGuarded(
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { apiClient.httpClient.get("/api/items") },
+                    guarded =
+                        GuardedStateless(
+                            decode = {
+                                decodeEntered.complete(Unit)
+                                releaseDecode.await()
+                                listOf(1, 2, 3)
+                            },
+                            commit = {
+                                commitCalls++
+                                committed = it
+                            },
+                            stale = { stale },
+                        ),
+                )
+            runCurrent()
+            assertEquals(true, decodeEntered.isCompleted, "decode must be suspended before the flip")
+            stale = true
+            releaseDecode.complete(Unit)
+            job.join()
+
+            assertEquals(0, commitCalls, "a body that went stale mid-decode must not commit")
+            assertEquals(null, committed, "no stale payload may reach the commit")
+        }
+
+    @Test
+    fun guarded_stale_non_success_skips_commit() =
         runTest(testScheduler) {
             val apiClient =
                 mockApiClient { _ ->
@@ -532,56 +599,149 @@ class ApiCallHandlerTest {
                     )
                 }
             val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
-            var transformCalls = 0
-            var onNonSuccessCalls = 0
+            var commitCalls = 0
+            var failureCalls = 0
 
             // Non-2xx completes off the test scheduler (the #93 class idiom) — join.
             val job =
-                handler.launchStateless(
+                handler.launchStatelessGuarded(
                     operation = "load",
                     endpoint = "GET /api/items",
                     block = { apiClient.httpClient.get("/api/items") },
-                    transform = { transformCalls++ },
-                    hooks =
-                        StatelessHooks(
-                            onNonSuccess = { onNonSuccessCalls++ },
-// Structurally stale before any landing — the gate must skip the hook.
+                    guarded =
+                        GuardedStateless(
+                            decode = {
+                                commitCalls++
+                                Unit
+                            },
+                            commit = {},
+                            // Structurally stale before any landing — the gate must skip the hook.
                             stale = { true },
+                            onNonSuccess = { failureCalls++ },
                         ),
                 )
             job.join()
 
-            assertEquals(0, onNonSuccessCalls, "a stale non-success landing must skip onNonSuccess")
-            assertEquals(0, transformCalls, "a stale non-success landing must not run transform")
+            assertEquals(0, failureCalls, "a stale non-success landing must skip onNonSuccess")
+            assertEquals(0, commitCalls, "a stale non-success landing must not decode")
         }
 
     @Test
-    fun stateless_stale_exception_skips_onError() =
+    fun guarded_stale_exception_skips_onError() =
         runTest(testScheduler) {
             val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
-            var transformCalls = 0
+            var decodeCalls = 0
             var onErrorCalls = 0
             var stale = false
 
-            handler.launchStateless(
+            handler.launchStatelessGuarded(
                 operation = "load",
                 endpoint = "GET /api/items",
                 block = { error("boom") },
-                transform = { transformCalls++ },
-                hooks =
-                    StatelessHooks(
-                        onError = { onErrorCalls++ },
+                guarded =
+                    GuardedStateless(
+                        decode = {
+                            decodeCalls++
+                            Unit
+                        },
+                        commit = {},
                         stale = { stale },
+                        onError = { onErrorCalls++ },
                     ),
             )
 
-            // The generation bumps while the request is queued — the failure lands stale (the
-            // exception is thrown and caught inside runCurrent, after the flip) and must not
-            // surface on the moved-on surface.
+            // The generation bumps while the request is queued — the failure lands stale and
+            // must not surface on the moved-on surface.
             stale = true
             runCurrent()
 
             assertEquals(0, onErrorCalls, "a stale exception must skip onError")
-            assertEquals(0, transformCalls, "a stale exception must not run transform")
+            assertEquals(0, decodeCalls, "a stale exception must not decode")
+        }
+
+    @Test
+    fun guarded_current_non_success_runs_commit() =
+        runTest(testScheduler) {
+            val apiClient =
+                mockApiClient { _ ->
+                    respond(
+                        content = ByteReadChannel(""),
+                        status = HttpStatusCode.InternalServerError,
+                        headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                    )
+                }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            var failureCalls = 0
+
+            val job =
+                handler.launchStatelessGuarded(
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { apiClient.httpClient.get("/api/items") },
+                    guarded =
+                        GuardedStateless(
+                            decode = { Unit },
+                            commit = {},
+                            stale = { false },
+                            onNonSuccess = { failureCalls++ },
+                        ),
+                )
+            job.join()
+
+            assertEquals(1, failureCalls, "a current non-success must run onNonSuccess")
+        }
+
+    @Test
+    fun guarded_current_exception_runs_onError() =
+        runTest(testScheduler) {
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            var onErrorCalls = 0
+
+            handler.launchStatelessGuarded(
+                operation = "load",
+                endpoint = "GET /api/items",
+                block = { error("boom") },
+                guarded =
+                    GuardedStateless(
+                        decode = { Unit },
+                        commit = {},
+                        stale = { false },
+                        onError = { onErrorCalls++ },
+                    ),
+            )
+            runCurrent()
+
+            assertEquals(1, onErrorCalls, "a current exception must run onError")
+        }
+
+    @Test
+    fun guarded_cancellation_rethrows_without_commit() =
+        runTest(testScheduler) {
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            var commitCalls = 0
+            var onErrorCalls = 0
+
+            val job =
+                handler.launchStatelessGuarded(
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = {
+                        kotlinx.coroutines.awaitCancellation()
+                    },
+                    guarded =
+                        GuardedStateless(
+                            decode = { Unit },
+                            commit = { commitCalls++ },
+                            stale = { false },
+                            onError = { onErrorCalls++ },
+                        ),
+                )
+
+            runCurrent()
+            job.cancel()
+            runCurrent()
+
+            assertEquals(0, commitCalls, "cancellation must not commit")
+            assertEquals(0, onErrorCalls, "cancellation must not run onError")
         }
 }

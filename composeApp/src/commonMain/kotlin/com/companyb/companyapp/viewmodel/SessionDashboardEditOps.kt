@@ -135,7 +135,7 @@ internal fun SessionDashboardViewModel.dispatchEdit(state: DashboardEditState) {
     val requestGeneration = editGeneration
     currentEditState.value = state.asInFlight()
     val request = editRequest(state)
-    handler.launchStateless(
+    handler.launchStatelessGuarded(
         operation = "updateSession",
         endpoint = "PATCH ${request.path}",
         block = {
@@ -143,15 +143,17 @@ internal fun SessionDashboardViewModel.dispatchEdit(state: DashboardEditState) {
                 setBody(request.body)
             }
         },
-        transform = {
-            // The updated row is committed to the machine ([editState] carries what the UI
-            // renders — the #168 state-less launch has no result flow to write).
-            val updated = it.body<SessionResponse>()
-            commitRow(updated)
-            clearEdit()
-        },
-        hooks =
-            StatelessHooks(
+        guarded =
+            GuardedStateless(
+                // #528 — decode/commit split: a discard/new-edit mid-decode must not commit the
+                // old row onto the new machine state.
+                decode = { it.body<SessionResponse>() },
+                commit = { updated ->
+                    // The updated row is committed to the machine ([editState] carries what the UI
+                    // renders — the #168 state-less launch has no result flow to write).
+                    commitRow(updated)
+                    clearEdit()
+                },
                 onNonSuccess = { response ->
                     when (response.status.value) {
                         // Q4: 403 — capability revoked mid-edit: silent exit + all status-edit

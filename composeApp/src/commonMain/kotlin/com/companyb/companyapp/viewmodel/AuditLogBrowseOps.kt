@@ -68,55 +68,57 @@ internal fun AuditLogViewModel.fetchPage(
     val generation = browseGeneration
     if (mode == FetchMode.Refresh) isRefreshingState.value = true
     if (mode == FetchMode.LoadMore) isLoadingMoreState.value = true
-    handler.launchStateless(
-// State-less (#168): the list state is mutated in transform, so a failed or
+    handler.launchStatelessGuarded(
+        // State-less (#168): the list state is mutated in commit, so a failed or
         // in-flight page fetch can never clobber the accumulated list (D10).
         operation = mode.operationName,
         endpoint = "GET /api/audit-log/entries",
         block = { browseRequest(filters, cursor) },
-        transform = {
-            val page = it.body<AuditLogBrowseResponse>()
-            // A cold response that lands after a concurrent same-generation fetch
-            // already wrote Success is the older snapshot (older rows + older
-            // cursor — accumulated load-more pages would truncate): skip the whole
-            // commit (pass-6 HARD, the success-side mirror of the pass-5 failure
-            // guard). Cold only launches from Loading/Error/Idle, so Success at
-            // landing ⟺ a concurrent refresh already committed.
-            val listAlreadyCommitted =
-                mode == FetchMode.Cold && browseEntriesState.value is UiState.Success
-            if (listAlreadyCommitted) {
-                logWarn("AuditLogVM", "cold browse success suppressed — list superseded")
-            } else {
-                if (browseRefreshErrorState.value != null) {
-                    // Any successful commit supersedes a failed refresh's error line:
-                    // the list below is fresh, so the line would be stale (pass-6
-                    // SOFT); log rather than vanish silently.
-                    logWarn(
-                        "AuditLogVM",
-                        "browse commit cleared stale refresh error: ${browseRefreshErrorState.value}",
-                    )
-                }
-                browseRefreshErrorState.value = null
-                nextCursorState.value = page.nextCursor
-                // A page snapshot taken before an ack commit may still carry the
-                // now-acked row's flag — clear it for locally-acknowledged ids (the
-                // flagged-transform mirror; the badge must not resurrect on browse).
-                applyPage(
-                    mode,
-                    page.entries.map { entry ->
-                        if (entry.id in acknowledgedIds) {
-                            entry.copy(isFlagged = false)
-                        } else {
-                            entry
+        guarded =
+            GuardedStateless(
+                // #528 — suspend decode owns the parse; every list/cursor/flag write below is
+                // the non-suspending commit. A filter switch mid-decode drops the body.
+                decode = { it.body<AuditLogBrowseResponse>() },
+                commit = { page ->
+                    // A cold response that lands after a concurrent same-generation fetch
+                    // already wrote Success is the older snapshot (older rows + older
+                    // cursor — accumulated load-more pages would truncate): skip the whole
+                    // commit (pass-6 HARD, the success-side mirror of the pass-5 failure
+                    // guard). Cold only launches from Loading/Error/Idle, so Success at
+                    // landing ⟺ a concurrent refresh already committed.
+                    val listAlreadyCommitted =
+                        mode == FetchMode.Cold && browseEntriesState.value is UiState.Success
+                    if (listAlreadyCommitted) {
+                        logWarn("AuditLogVM", "cold browse success suppressed — list superseded")
+                    } else {
+                        if (browseRefreshErrorState.value != null) {
+                            // Any successful commit supersedes a failed refresh's error line:
+                            // the list below is fresh, so the line would be stale (pass-6
+                            // SOFT); log rather than vanish silently.
+                            logWarn(
+                                "AuditLogVM",
+                                "browse commit cleared stale refresh error: ${browseRefreshErrorState.value}",
+                            )
                         }
-                    },
-                )
-            }
-            finish(mode)
-        },
-        hooks =
-            StatelessHooks(
-// #173 — the hand-rolled browseGeneration guard folds into the state-less stale
+                        browseRefreshErrorState.value = null
+                        nextCursorState.value = page.nextCursor
+                        // A page snapshot taken before an ack commit may still carry the
+                        // now-acked row's flag — clear it for locally-acknowledged ids (the
+                        // flagged-transform mirror; the badge must not resurrect on browse).
+                        applyPage(
+                            mode,
+                            page.entries.map { entry ->
+                                if (entry.id in acknowledgedIds) {
+                                    entry.copy(isFlagged = false)
+                                } else {
+                                    entry
+                                }
+                            },
+                        )
+                    }
+                    finish(mode)
+                },
+// #173 — the hand-rolled browseGeneration guard folds into the guarded stale
                 // gate: a stale response (applyFilters bumped the generation while this fetch was
                 // in flight) is inert — no list write, no cursor write, no error line, no flag
                 // cleanup (applyFilters already reset the flags).

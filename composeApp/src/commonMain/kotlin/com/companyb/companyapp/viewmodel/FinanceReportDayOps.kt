@@ -45,17 +45,18 @@ internal fun FinanceReportsViewModel.loadReliefDay(date: String) {
     selectedDayState.value = null
     clearEditData()
     reliefDayState.value = UiState.Loading
-    handler.launchStateless(
+    handler.launchStatelessGuarded(
         operation = "loadReliefDay",
         endpoint = "GET /api/branches/$branchId/daily-summary?date=$date",
         block = { apiClient.httpClient.get(ApiRoutes.branchDailySummaryWithDate(branchId, date)) },
-        transform = {
-            val day = it.body<DailySalesSummaryResponse>()
-            reliefDayState.value = UiState.Success(day)
-            selectDay(day)
-        },
-        hooks =
-            StatelessHooks(
+        guarded =
+            GuardedStateless(
+                // #528 — decode/commit split: a relief-date switch mid-decode drops the body.
+                decode = { it.body<DailySalesSummaryResponse>() },
+                commit = { day ->
+                    reliefDayState.value = UiState.Success(day)
+                    selectDay(day)
+                },
 // #173 — the generation guard folds into the stale gate (a superseded relief
                 // fetch — clearReliefState or a new date — must not write [reliefDay]/[selectedDay]).
                 stale = { generation != reliefGeneration },

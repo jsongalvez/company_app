@@ -135,33 +135,29 @@ internal class ClientSearcher(
     ) {
         _lastFiredQuery.value = query
         keptResults.stateFlow.value = UiState.Loading
-        handler.launchStateless(
+        handler.launchStatelessGuarded(
             operation = "search",
             endpoint = "GET /api/clients",
             block = {
                 apiClient.httpClient.get(ApiRoutes.CLIENTS) { parameter("q", query) }
             },
-            transform = { response ->
-                // The handler gate runs before this transform; decoding can suspend, so guard
-                // again before writing a response against a newer cache mutation or clear.
-                val clients = response.body<List<ClientResponse>>()
-                if (searchGeneration == generation) {
-                    keptResults.stateFlow.value = UiState.Success(clients)
-                }
-            },
-            hooks =
-                StatelessHooks(
+            guarded =
+                GuardedStateless(
+                    // #528 — the handler owns the boundary now: decode suspends, commit is inert
+                    // when a newer keystroke/mutation bumped the generation mid-decode. The
+                    // hand-rolled in-transform `if (searchGeneration == generation)` is deleted
+                    // with it — retaining both would promise a guarantee in two places.
+                    decode = { response -> response.body<List<ClientResponse>>() },
+                    commit = { clients ->
+                        keptResults.stateFlow.value = UiState.Success(clients)
+                    },
                     scope = requestScope,
                     entryMessage = entryMessage,
                     onNonSuccess = { response ->
-                        if (searchGeneration == generation) {
-                            keptResults.stateFlow.value = UiState.Error("search failed: ${response.status.value}")
-                        }
+                        keptResults.stateFlow.value = UiState.Error("search failed: ${response.status.value}")
                     },
                     onError = { error ->
-                        if (searchGeneration == generation) {
-                            keptResults.stateFlow.value = UiState.Error(error.message ?: "Unknown error")
-                        }
+                        keptResults.stateFlow.value = UiState.Error(error.message ?: "Unknown error")
                     },
                     stale = { searchGeneration != generation },
                 ),
