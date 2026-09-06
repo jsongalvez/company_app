@@ -40,7 +40,20 @@ timestamp, pool{active,idle,awaiting,total}, reporter, source
 `GITHUB_REPOSITORY=owner/repo` set → async needs-triage GitHub issue
 (`GithubIssueSender`, stdlib HTTP, bounded single-thread queue, failures
 logged, request path never breaks). Unset → server-log relay: the packet is
-one JSON log line, and the triage loop files the issue:
+one JSON log line, and the triage loop files the issue.
+
+Truthful delivery (#526): receipt, queueing, and delivery are distinct. The
+complete sanitized packet is written to the structured log **before** async
+dispatch, so a rejected queue, a send failure, or shutdown never loses it
+(shutdown only drops redelivery and logs the drop count). Failure logs name
+the trace id and the packet is already in the log — no false relay claims. A
+repeat trace stays `duplicate: true` (one issue per trace) **except** after a
+pre-send failure (delivery inactive or queue rejected — nothing reached the
+network): that receipt is evicted, so a retry honestly re-files instead of
+being misreported as a duplicate. Retries stay bounded by the per-user/IP
+feedback budgets. Post-send failures (e.g. `IOException`) keep the receipt:
+the packet may already be an issue, so a retry must not blindly file a
+second one. `FeedbackResponse` is unchanged (`packet`, `duplicate`).
 
 ```bash
 # find the packet for a cited trace id, correlate with the request logs

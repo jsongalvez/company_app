@@ -27,6 +27,8 @@ data class Auto5xxReport(
  * 5xx auto-files share this seam so the packet shape is identical (only
  * [IncidentSource] differs). Filing is deduped by trace id, delivered
  * asynchronously, and writes no app tables — there is nothing to audit.
+ * #526 — the dedup receipt survives every outcome except a pre-send failure
+ * (absent/rejected executor, which evicts so a retry honestly re-files).
  */
 object IncidentService {
     private const val TRACE_ID_MAX_LENGTH = 64
@@ -94,7 +96,11 @@ object IncidentService {
         senderOverride: IncidentSender?,
     ): FiledIncident {
         val (stored, duplicate) = IncidentRegistry.fileIfAbsent(packet.traceId, packet)
-        if (!duplicate) IncidentDelivery.deliver(stored, senderOverride)
+        if (!duplicate &&
+            IncidentDelivery.deliver(stored, senderOverride) == IncidentDeliveryOutcome.FAILED_PRE_SEND
+        ) {
+            IncidentRegistry.remove(stored.traceId)
+        }
         return FiledIncident(stored, duplicate)
     }
 }

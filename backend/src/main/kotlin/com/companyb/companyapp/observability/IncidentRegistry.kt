@@ -37,6 +37,16 @@ internal object IncidentRegistry {
 
     fun find(traceId: String): IncidentPacket? = synchronized(filed) { filed[traceId] }
 
+    /**
+     * #526 — evicts a receipt whose delivery never reached the network
+     * (absent/rejected executor), so a later report for the same trace retries
+     * instead of being misreported as a duplicate. Ambiguous post-send
+     * failures stay filed: the packet may already be an issue.
+     */
+    fun remove(traceId: String) {
+        synchronized(filed) { filed.remove(traceId) }
+    }
+
     /** Test-only: clears filed packets so dedup tests are order-independent. */
     internal fun resetForTest() {
         synchronized(filed) { filed.clear() }
