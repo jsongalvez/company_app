@@ -1,7 +1,6 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.ConflictException
-import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.SessionVoidRepository
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.SessionTable
@@ -9,6 +8,7 @@ import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.LockBarrier
 import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -16,9 +16,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -26,8 +23,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.seconds
-import kotlin.time.measureTimedValue
 
 /**
  * Session void replay is ownership-validated with re-arm (#514): a void id owned by
@@ -105,34 +100,17 @@ class SessionVoidReplayPostgresTest : BasePostgresTest() {
         SessionService.voidSession(callerId, sessionId, voidId, "Created in error")
         SessionService.unvoidSession(callerId, sessionId, "Resolved in error")
 
-        val sessionLocked = CountDownLatch(1)
-        val holder =
-            thread {
-                transaction {
-                    SessionRepository.acquireLockInTransaction(sessionId)
-                        ?: error("session not found for re-void barrier: $sessionId")
-                    sessionLocked.countDown()
-                    Thread.sleep(BARRIER_HOLD_MILLIS)
-                }
-            }
-        assertTrue(sessionLocked.await(BARRIER_WAIT_SECONDS, TimeUnit.SECONDS))
-
-        // The re-void must block on the session row lock (the same lock the command
-        // takes before the re-arm write) rather than slipping a second row past it.
-        // The elapsed lower bound is the load-bearing assertion: without the lock the
-        // re-void would finish in milliseconds.
-        val (result, blockedFor) =
-            measureTimedValue {
+        // Observable barrier (#527): the holder keeps the session row locked with the
+        // same locked primitive the re-void command takes while the re-void attempts
+        // its write. Release happens only after the contender is observed waiting on
+        // the holder's lock, so the re-void must block rather than slipping a second
+        // row past it.
+        val result =
+            LockBarrier.withSessionBarrier(sessionId) {
                 SessionService.voidSession(callerId, sessionId, TestFixtures.uuid(), "Rechecked — still in error")
             }
-        holder.join(BARRIER_JOIN_MILLIS)
 
         assertTrue(result.created)
-        assertTrue(
-            blockedFor.inWholeMilliseconds >= BARRIER_MIN_BLOCKED_MILLIS,
-            "re-void did not block on the session lock: finished in $blockedFor",
-        )
-        assertTrue(blockedFor < BARRIER_HOLD_MILLIS.seconds * 4, "re-void regressed: took $blockedFor")
         assertNull(SessionVoidRepository.findBySessionId(sessionId)?.unvoidedAt)
         assertEquals(1L, voidRowCount(sessionId), "exactly one void row per session")
         assertEquals(3L, voidAuditCount(voidId))
@@ -170,11 +148,4 @@ class SessionVoidReplayPostgresTest : BasePostgresTest() {
                 .where { SessionVoidTable.sessionId eq sessionId }
                 .count()
         }
-
-    companion object {
-        private const val BARRIER_HOLD_MILLIS = 5000L
-        private const val BARRIER_MIN_BLOCKED_MILLIS = 3000L
-        private const val BARRIER_WAIT_SECONDS = 10L
-        private const val BARRIER_JOIN_MILLIS = 30000L
-    }
 }

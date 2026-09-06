@@ -16,6 +16,7 @@ import com.companyb.companyapp.service.session.SessionConcernService
 import com.companyb.companyapp.service.session.SessionPractitionerService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.LockBarrier
 import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -24,14 +25,10 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
-import kotlin.time.measureTimedValue
 
 /**
  * Session practitioner and concern mutations serialize with the remittance REMITTED
@@ -154,26 +151,15 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
 
     @Test
     fun `concurrent remittance day transition serializes with practitioner add gate`() {
-        val dayLocked = CountDownLatch(1)
-
-        // Barrier (mirrors #509/#510/#511/#512): the submit side holds the day row lock
-        // (the same locked primitive remittance submit uses) while the add attempts its
-        // in-tx gate. The add must block on the lock until the transition commits, then
-        // read REMITTED and fail closed — never slipping a row onto the frozen day.
-        val submitter =
-            thread {
-                transaction {
-                    BranchDayService.lockDaysInTransaction(listOf(branchDayId))
-                    dayLocked.countDown()
-                    Thread.sleep(BARRIER_HOLD_MILLIS)
-                    BranchDayService.markDaysRemittedInTransaction(listOf(branchDayId))
-                }
-            }
-        assertTrue(dayLocked.await(BARRIER_WAIT_SECONDS, TimeUnit.SECONDS))
-
-        val (failure, blockedFor) =
-            measureTimedValue {
-                runCatching {
+        // Observable barrier (#527, mirrors #509/#510/#511/#512): the holder keeps the
+        // day row locked with the same locked primitive remittance submit uses while the
+        // add attempts its in-tx gate. Release happens only after the contender is
+        // observed waiting on the holder's lock, so the add must block until the
+        // transition commits, then read REMITTED and fail closed — never slipping a row
+        // onto the frozen day.
+        val failure =
+            runCatching {
+                LockBarrier.withDayRemitBarrier(branchDayId) {
                     SessionPractitionerService.addPractitioner(
                         callerId = callerId,
                         id = TestFixtures.uuid(),
@@ -181,15 +167,10 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
                         practitionerId = practitionerId,
                         remarks = null,
                     )
-                }.exceptionOrNull()
-            }
-        submitter.join(BARRIER_JOIN_MILLIS)
+                }
+            }.exceptionOrNull()
 
         assertTrue(failure is ForbiddenException)
-        assertTrue(
-            blockedFor.inWholeMilliseconds >= BARRIER_MIN_BLOCKED_MILLIS,
-            "add did not block on the day lock: finished in $blockedFor",
-        )
         assertTrue(
             SessionPractitionerRepository.findBySessionId(sessionId).isEmpty(),
             "blocked add writes no practitioner row",
@@ -199,32 +180,14 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
 
     @Test
     fun `concurrent remittance day transition serializes with concern add gate`() {
-        val dayLocked = CountDownLatch(1)
-
-        val submitter =
-            thread {
-                transaction {
-                    BranchDayService.lockDaysInTransaction(listOf(branchDayId))
-                    dayLocked.countDown()
-                    Thread.sleep(BARRIER_HOLD_MILLIS)
-                    BranchDayService.markDaysRemittedInTransaction(listOf(branchDayId))
-                }
-            }
-        assertTrue(dayLocked.await(BARRIER_WAIT_SECONDS, TimeUnit.SECONDS))
-
-        val (failure, blockedFor) =
-            measureTimedValue {
-                runCatching {
+        val failure =
+            runCatching {
+                LockBarrier.withDayRemitBarrier(branchDayId) {
                     SessionConcernService.addToSession(callerId, sessionId, systemConcernId)
-                }.exceptionOrNull()
-            }
-        submitter.join(BARRIER_JOIN_MILLIS)
+                }
+            }.exceptionOrNull()
 
         assertTrue(failure is ForbiddenException)
-        assertTrue(
-            blockedFor.inWholeMilliseconds >= BARRIER_MIN_BLOCKED_MILLIS,
-            "add did not block on the day lock: finished in $blockedFor",
-        )
         assertTrue(
             ConcernRepository.getConcernsForSession(sessionId).isEmpty(),
             "blocked add writes no concern link",
@@ -260,11 +223,4 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
                 .where { AuditLogTable.changedBy eq callerId }
                 .count()
         }
-
-    companion object {
-        private const val BARRIER_HOLD_MILLIS = 5000L
-        private const val BARRIER_MIN_BLOCKED_MILLIS = 3000L
-        private const val BARRIER_WAIT_SECONDS = 10L
-        private const val BARRIER_JOIN_MILLIS = 30000L
-    }
 }

@@ -14,6 +14,7 @@ import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.LockBarrier
 import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -22,15 +23,11 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.util.UUID
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import kotlin.time.measureTimedValue
 
 /**
  * Allowance create serializes with the remittance REMITTED transition.
@@ -201,26 +198,15 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `concurrent remittance day transition serializes with allowance create gate`() {
         val blockedId = TestFixtures.uuid()
-        val dayLocked = CountDownLatch(1)
 
-        // Barrier (mirrors #509/#510/#511): the submit side holds the day row lock (the same
-        // locked primitive remittance submit uses) while the create attempts its in-tx
-        // gate. The create must block on the lock until the transition commits, then
+        // Observable barrier (#527): the holder keeps the day row locked with the same
+        // locked primitive remittance submit uses while the create attempts its in-tx
+        // gate. Release happens only after the contender is observed waiting on the
+        // holder's lock, so the create must block until the transition commits, then
         // read REMITTED and fail closed — never slipping an insert onto the frozen day.
-        val submitter =
-            thread {
-                transaction {
-                    BranchDayService.lockDaysInTransaction(listOf(branchDayId))
-                    dayLocked.countDown()
-                    Thread.sleep(BARRIER_HOLD_MILLIS)
-                    BranchDayService.markDaysRemittedInTransaction(listOf(branchDayId))
-                }
-            }
-        assertTrue(dayLocked.await(BARRIER_WAIT_SECONDS, TimeUnit.SECONDS))
-
-        val (failure, blockedFor) =
-            measureTimedValue {
-                runCatching {
+        val failure =
+            runCatching {
+                LockBarrier.withDayRemitBarrier(branchDayId) {
                     AllowanceService.create(
                         callerId = callerId,
                         id = blockedId,
@@ -228,15 +214,10 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
                         userId = targetUserId,
                         amount = BigDecimal("500.00"),
                     )
-                }.exceptionOrNull()
-            }
-        submitter.join(BARRIER_JOIN_MILLIS)
+                }
+            }.exceptionOrNull()
 
         assertTrue(failure is ForbiddenException)
-        assertTrue(
-            blockedFor.inWholeMilliseconds >= BARRIER_MIN_BLOCKED_MILLIS,
-            "create did not block on the day lock: finished in $blockedFor",
-        )
         assertTrue(
             AllowanceRepository.findByBranchDayId(branchDayId).none { it.id == blockedId },
             "blocked create writes no allowance row",
@@ -294,11 +275,4 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
                 .where { AuditLogTable.changedBy eq callerId }
                 .count()
         }
-
-    companion object {
-        private const val BARRIER_HOLD_MILLIS = 5000L
-        private const val BARRIER_MIN_BLOCKED_MILLIS = 3000L
-        private const val BARRIER_WAIT_SECONDS = 10L
-        private const val BARRIER_JOIN_MILLIS = 30000L
-    }
 }

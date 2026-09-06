@@ -15,6 +15,7 @@ import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.LockBarrier
 import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -22,16 +23,12 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.measureTimedValue
 
 /**
  * Relief grant/request/invite mutations serialize with the remittance REMITTED
@@ -228,36 +225,21 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
     fun `concurrent remittance day transition serializes with grant gate`() {
         val requestId = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, requesterId)
-        val dayLocked = CountDownLatch(1)
 
-        // Barrier (mirrors #509/#510/#511/#512/#513): the submit side holds the day row
-        // lock (the same locked primitive remittance submit uses) while the grant attempts
-        // its in-tx gate. The grant must block on the lock until the transition commits,
-        // then read REMITTED and fail closed — never minting a capability on the frozen day.
-        val submitter =
-            thread {
-                transaction {
-                    BranchDayService.lockDaysInTransaction(listOf(branchDayId))
-                    dayLocked.countDown()
-                    Thread.sleep(BARRIER_HOLD_MILLIS)
-                    BranchDayService.markDaysRemittedInTransaction(listOf(branchDayId))
-                }
-            }
-        assertTrue(dayLocked.await(BARRIER_WAIT_SECONDS, TimeUnit.SECONDS))
-
-        val (failure, blockedFor) =
-            measureTimedValue {
-                runCatching {
+        // Observable barrier (#527, mirrors #509/#510/#511/#512/#513): the holder keeps
+        // the day row locked with the same locked primitive remittance submit uses while
+        // the grant attempts its in-tx gate. Release happens only after the contender is
+        // observed waiting on the holder's lock, so the grant must block until the
+        // transition commits, then read REMITTED and fail closed — never minting a
+        // capability on the frozen day.
+        val failure =
+            runCatching {
+                LockBarrier.withDayRemitBarrier(branchDayId) {
                     ReliefAccessService.grantAccess(requestId, memberId)
-                }.exceptionOrNull()
-            }
-        submitter.join(BARRIER_JOIN_MILLIS)
+                }
+            }.exceptionOrNull()
 
         assertTrue(failure is ForbiddenException)
-        assertTrue(
-            blockedFor.inWholeMilliseconds >= BARRIER_MIN_BLOCKED_MILLIS,
-            "grant did not block on the day lock: finished in $blockedFor",
-        )
         assertEquals(ReliefAccessStatus.PENDING, ReliefAccessRepository.findById(requestId)?.requestStatus)
         assertFalse(
             ReliefInviteRepository.hasActiveGrant(requesterId, branchDayId),
@@ -268,65 +250,29 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
 
     @Test
     fun `concurrent remittance day transition serializes with request gate`() {
-        val dayLocked = CountDownLatch(1)
-
-        val submitter =
-            thread {
-                transaction {
-                    BranchDayService.lockDaysInTransaction(listOf(branchDayId))
-                    dayLocked.countDown()
-                    Thread.sleep(BARRIER_HOLD_MILLIS)
-                    BranchDayService.markDaysRemittedInTransaction(listOf(branchDayId))
-                }
-            }
-        assertTrue(dayLocked.await(BARRIER_WAIT_SECONDS, TimeUnit.SECONDS))
-
         val requestId = TestFixtures.uuid()
-        val (failure, blockedFor) =
-            measureTimedValue {
-                runCatching {
+        val failure =
+            runCatching {
+                LockBarrier.withDayRemitBarrier(branchDayId) {
                     ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, requesterId)
-                }.exceptionOrNull()
-            }
-        submitter.join(BARRIER_JOIN_MILLIS)
+                }
+            }.exceptionOrNull()
 
         assertTrue(failure is ForbiddenException)
-        assertTrue(
-            blockedFor.inWholeMilliseconds >= BARRIER_MIN_BLOCKED_MILLIS,
-            "request did not block on the day lock: finished in $blockedFor",
-        )
         assertNull(ReliefAccessRepository.findById(requestId), "blocked request writes no row")
         assertEquals(DayStatus.REMITTED, BranchDayService.getEffectiveStatus(branchDayId))
     }
 
     @Test
     fun `concurrent remittance day transition serializes with createInvite gate`() {
-        val dayLocked = CountDownLatch(1)
-
-        val submitter =
-            thread {
-                transaction {
-                    BranchDayService.lockDaysInTransaction(listOf(branchDayId))
-                    dayLocked.countDown()
-                    Thread.sleep(BARRIER_HOLD_MILLIS)
-                    BranchDayService.markDaysRemittedInTransaction(listOf(branchDayId))
-                }
-            }
-        assertTrue(dayLocked.await(BARRIER_WAIT_SECONDS, TimeUnit.SECONDS))
-
-        val (failure, blockedFor) =
-            measureTimedValue {
-                runCatching {
+        val failure =
+            runCatching {
+                LockBarrier.withDayRemitBarrier(branchDayId) {
                     ReliefInviteService.createInvite(memberId, branchId, inviteeId, TestFixtures.today)
-                }.exceptionOrNull()
-            }
-        submitter.join(BARRIER_JOIN_MILLIS)
+                }
+            }.exceptionOrNull()
 
         assertTrue(failure is ForbiddenException)
-        assertTrue(
-            blockedFor.inWholeMilliseconds >= BARRIER_MIN_BLOCKED_MILLIS,
-            "createInvite did not block on the day lock: finished in $blockedFor",
-        )
         assertTrue(
             ReliefInviteRepository.findLiveInviteeIds(branchDayId).isEmpty(),
             "blocked invite writes no row",
@@ -337,32 +283,14 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `concurrent remittance day transition serializes with accept gate`() {
         val invite = ReliefInviteService.createInvite(memberId, branchId, inviteeId, TestFixtures.today)
-        val dayLocked = CountDownLatch(1)
-
-        val submitter =
-            thread {
-                transaction {
-                    BranchDayService.lockDaysInTransaction(listOf(branchDayId))
-                    dayLocked.countDown()
-                    Thread.sleep(BARRIER_HOLD_MILLIS)
-                    BranchDayService.markDaysRemittedInTransaction(listOf(branchDayId))
-                }
-            }
-        assertTrue(dayLocked.await(BARRIER_WAIT_SECONDS, TimeUnit.SECONDS))
-
-        val (failure, blockedFor) =
-            measureTimedValue {
-                runCatching {
+        val failure =
+            runCatching {
+                LockBarrier.withDayRemitBarrier(branchDayId) {
                     ReliefInviteService.acceptInvite(inviteeId, invite.id)
-                }.exceptionOrNull()
-            }
-        submitter.join(BARRIER_JOIN_MILLIS)
+                }
+            }.exceptionOrNull()
 
         assertTrue(failure is ValidationException)
-        assertTrue(
-            blockedFor.inWholeMilliseconds >= BARRIER_MIN_BLOCKED_MILLIS,
-            "accept did not block on the day lock: finished in $blockedFor",
-        )
         assertEquals(ReliefInviteStatus.PENDING, ReliefInviteRepository.findById(invite.id)?.status)
         assertFalse(
             ReliefInviteRepository.hasActiveGrant(inviteeId, branchDayId),
@@ -401,11 +329,4 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
         transaction {
             NotificationTable.selectAll().count()
         }
-
-    companion object {
-        private const val BARRIER_HOLD_MILLIS = 5000L
-        private const val BARRIER_MIN_BLOCKED_MILLIS = 3000L
-        private const val BARRIER_WAIT_SECONDS = 10L
-        private const val BARRIER_JOIN_MILLIS = 30000L
-    }
 }

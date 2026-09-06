@@ -12,6 +12,7 @@ import com.companyb.companyapp.service.finance.commission.CommissionService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.LockBarrier
 import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -19,16 +20,12 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.measureTimedValue
 
 /**
  * #516 — manual commission inclusions serialize with the remittance REMITTED
@@ -143,27 +140,16 @@ class CommissionDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `concurrent remittance day transition serializes with inclusion create gate`() {
         val blockedId = TestFixtures.uuid()
-        val dayLocked = CountDownLatch(1)
 
-        // #516 barrier (mirrors #509/#511): the submit side holds the day row lock
-        // (the same locked primitive remittance submit uses) while the create
-        // attempts its in-tx gate. The create must block on the lock until the
-        // transition commits, then read REMITTED and fail closed — never slipping
-        // an inclusion row onto the frozen day.
-        val submitter =
-            thread {
-                transaction {
-                    BranchDayService.lockDaysInTransaction(listOf(branchDayId))
-                    dayLocked.countDown()
-                    Thread.sleep(BARRIER_HOLD_MILLIS)
-                    BranchDayService.markDaysRemittedInTransaction(listOf(branchDayId))
-                }
-            }
-        assertTrue(dayLocked.await(BARRIER_WAIT_SECONDS, TimeUnit.SECONDS))
-
-        val (failure, blockedFor) =
-            measureTimedValue {
-                runCatching {
+        // Observable barrier (#527, mirrors #509/#511): the holder keeps the day row
+        // locked with the same locked primitive remittance submit uses while the create
+        // attempts its in-tx gate. Release happens only after the contender is observed
+        // waiting on the holder's lock, so the create must block until the transition
+        // commits, then read REMITTED and fail closed — never slipping an inclusion
+        // row onto the frozen day.
+        val failure =
+            runCatching {
+                LockBarrier.withDayRemitBarrier(branchDayId) {
                     CommissionService.createManualInclusion(
                         callerId = callerId,
                         id = blockedId,
@@ -172,15 +158,10 @@ class CommissionDayLockPostgresTest : BasePostgresTest() {
                         isIncluded = true,
                         reason = null,
                     )
-                }.exceptionOrNull()
-            }
-        submitter.join(BARRIER_JOIN_MILLIS)
+                }
+            }.exceptionOrNull()
 
         assertTrue(failure is ForbiddenException, "expected ForbiddenException but got $failure")
-        assertTrue(
-            blockedFor.inWholeMilliseconds >= BARRIER_MIN_BLOCKED_MILLIS,
-            "create did not block on the day lock: finished in $blockedFor",
-        )
         assertNull(
             CommissionManualInclusionRepository.findById(blockedId),
             "blocked create writes no inclusion row",
@@ -227,11 +208,4 @@ class CommissionDayLockPostgresTest : BasePostgresTest() {
                         (AuditLogTable.recordId eq inclusionId)
                 }.count()
         }
-
-    companion object {
-        private const val BARRIER_HOLD_MILLIS = 5000L
-        private const val BARRIER_MIN_BLOCKED_MILLIS = 3000L
-        private const val BARRIER_WAIT_SECONDS = 10L
-        private const val BARRIER_JOIN_MILLIS = 30000L
-    }
 }
