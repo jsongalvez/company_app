@@ -111,6 +111,11 @@ bodies, comments, map diaries, docs, or diffs into a packet. A successor
 rebuilds its working set from the ticket, the owning module card
 (`docs/deep-modules.md`), and code search — per
 `docs/agents/context-discovery.md`; never from inherited source context.
+Two optional machine-readable lines feed the daemon's advancement
+supervision (`docs/agents/wayfinder-loop.md`): `Progress-Map: <n>` declares
+the packet's map, and `Park-Signal: starved-on #a #b` lets a session that
+already proved starvation request an immediate verified park instead of
+spending the strike budget. There is no poison signal.
 
 Before any exit the worktree is clean: commit coherent slices normally
 (`ref #<n>`, direct to master); park genuinely unfinished work with
