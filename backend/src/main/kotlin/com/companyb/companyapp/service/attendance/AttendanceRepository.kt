@@ -184,6 +184,28 @@ internal object AttendanceRepository {
         }.toSet()
 
     /**
+     * #519 — lock the distinct participant set in stable user-ID order, then evaluate
+     * membership from those locked facts. Reciprocal marks (A marks B while B marks A)
+     * take the same order, so neither can hold one participant's rows while waiting on
+     * the other's. One locked read per participant — the reads are the evaluation, so
+     * no second membership query follows. A self-mark dedupes to a single lock.
+     * Single-participant writers (assignment remove, user deactivate) take only one
+     * row and hold no second lock, so they serialize without cycling against this order.
+     */
+    fun findActiveMembersInTransaction(
+        branchId: UUID,
+        userIds: Collection<UUID>,
+    ): Set<UUID> {
+        val active = mutableSetOf<UUID>()
+        for (userId in userIds.toSet().sorted()) {
+            if (hasActiveMembershipInTransaction(branchId, userId)) {
+                active.add(userId)
+            }
+        }
+        return active
+    }
+
+    /**
      * #404 — ACTIVE-user home membership at the branch, read under the assignment row lock so a
      * concurrent revocation serializes with the mark command instead of racing its gate.
      */

@@ -69,13 +69,18 @@ object AttendanceService {
         transaction {
             // Gate inside the command transaction, under the assignment row lock (#404
             // review): a concurrent revocation or deactivation serializes with the mark
-            // instead of racing a pre-transaction check.
-            requireActiveMember(callerId, branchId, "Home-branch membership required to mark attendance")
-            requireActiveMember(
-                targetUserId,
-                branchId,
-                "Only home-branch members can be marked present or absent at this branch",
-            )
+            // instead of racing a pre-transaction check. #519 — reciprocal marks took
+            // caller-first order, a wait-for cycle on the membership rows. Lock the
+            // distinct participant set in stable user-ID order, then evaluate both
+            // memberships from those locked facts (a self-mark locks once).
+            val activeMembers =
+                AttendanceRepository.findActiveMembersInTransaction(branchId, listOf(callerId, targetUserId))
+            if (callerId !in activeMembers) {
+                throw ForbiddenException("Home-branch membership required to mark attendance")
+            }
+            if (targetUserId !in activeMembers) {
+                throw ForbiddenException("Only home-branch members can be marked present or absent at this branch")
+            }
 
             if (present) {
                 markPresent(callerId, branchId, targetUserId, attendanceId)
