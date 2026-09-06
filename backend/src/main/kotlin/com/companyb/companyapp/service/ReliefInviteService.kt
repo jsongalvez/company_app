@@ -2,6 +2,8 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.authorization.AuthorizationGrants
+import com.companyb.companyapp.authorization.GrantReliefCapabilityParams
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.ReliefInviteStatus
@@ -9,7 +11,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.ReliefCandidate
 import com.companyb.companyapp.repository.ReliefInviteRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
@@ -27,7 +28,7 @@ import java.util.UUID
  * ACTIVE `user_branch_assignment` at the branch — the app's only membership record — and
  * the invitee is any ACTIVE user (capabilities ≠ assignments; a redundant grant is
  * harmless). One day per invite; accept writes the day-scoped grant immediately via the
- * shared relief-grant writer ([ReliefAccessRepository.grantReliefCapability]); day-state
+ * authorization seam ([AuthorizationGrants.grantReliefCapabilityInTransaction]); day-state
  * is the expiry (a past/REMITTED day accept 400s — no cron).
  *
  * Mutating commands own exactly one transaction (#323, ADR-0024): persistence runs via
@@ -196,8 +197,16 @@ object ReliefInviteService {
                 val validTo = BranchDayService.expirationUtc(branchDay.date)
 
                 val mutation =
-                    ReliefInviteRepository.acceptInTransaction(id = inviteId, invitee = callerId, validTo = validTo)
+                    ReliefInviteRepository.acceptInTransaction(id = inviteId)
                         ?: throw ConflictException("This invite was already responded to")
+                AuthorizationGrants.grantReliefCapabilityInTransaction(
+                    GrantReliefCapabilityParams(
+                        userId = callerId,
+                        branchDayId = branchDay.id,
+                        sourceId = inviteId,
+                        validTo = validTo,
+                    ),
+                )
                 ReliefInviteAudit.updated(AuditContext(callerId, branchDay.branchId), mutation.before, mutation.after)
                 // #358 — "everyone is notified when the person accepts or not".
                 ReliefNotifications.inviteResponded(
@@ -308,7 +317,7 @@ object ReliefInviteService {
                 val mutation =
                     ReliefInviteRepository.revokeInTransaction(inviteId)
                         ?: throw ConflictException("This invite was already responded to")
-                ReliefAccessRepository.deleteGrantBySourceIdInTransaction(
+                AuthorizationGrants.deleteReliefGrantBySourceIdInTransaction(
                     userId = mutation.after.invitee,
                     sourceId = inviteId,
                 )

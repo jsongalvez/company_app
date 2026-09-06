@@ -26,7 +26,7 @@ import java.util.UUID
  * (`/api/branches/{branchId}/relief-*`) + bearer-gated invitee surface
  * (`/api/relief-invites`). All gates are service-level — the inviter gate is the active
  * `user_branch_assignment` (a membership record, not a capability), so no
- * [com.companyb.companyapp.api.middleware.CapabilityFilter] before-filters apply (and the
+ * [com.companyb.companyapp.authorization.CapabilityFilter] before-filters apply (and the
  * 2-segment `/api/branches` MANAGE_USERS filter does not fire on these 4-segment paths —
  * Javalin 7 segment matching).
  */

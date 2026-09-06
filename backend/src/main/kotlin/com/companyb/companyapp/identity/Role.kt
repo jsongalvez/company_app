@@ -1,6 +1,6 @@
 package com.companyb.companyapp.identity
 
-import com.companyb.companyapp.repository.model.CapabilityTable
+import com.companyb.companyapp.authorization.CapabilityTable
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import java.util.UUID

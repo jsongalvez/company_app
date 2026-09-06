@@ -1,18 +1,14 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.authorization
 
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
-import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
-import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
 
-object UserCapabilityTable : Table("user_capability") {
-    val id = javaUUID("id").autoGenerate()
-    val userId = javaUUID("user_id").references(AppUserTable.id)
-    val capabilityId = javaUUID("capability_id").references(CapabilityTable.id)
+object ActiveUserCapabilitiesView : Table("active_user_capabilities") {
+    val userId = javaUUID("user_id")
+    val capabilityId = javaUUID("capability_id")
     val contextType =
         customEnumeration<CapabilityContextType>(
             name = "context_type",
@@ -27,8 +23,7 @@ object UserCapabilityTable : Table("user_capability") {
             },
         )
     val contextId = javaUUID("context_id")
-    val validFrom = timestampWithTimeZone("valid_from").defaultExpression(CurrentTimestampWithTimeZone)
-    val validTo = timestampWithTimeZone("valid_to").nullable()
+    val priority = short("priority")
     val sourceType =
         customEnumeration<CapabilitySourceType>(
             name = "source_type",
@@ -42,8 +37,4 @@ object UserCapabilityTable : Table("user_capability") {
                 obj
             },
         )
-    val sourceId = javaUUID("source_id")
-    val priority = short("priority").default(0)
-
-    override val primaryKey = PrimaryKey(id)
 }

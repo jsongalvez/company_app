@@ -215,9 +215,13 @@ strictness, unchanged). The
 multi-day browse (`/daily-summaries`) stays VIEW_BRANCH_DATA-only: a single-day grant cannot authorize an
 unbounded list.
 
-When inserting `user_capability` rows (e.g. for relief access grants or delegate assignments), use
-`CapabilityRepository.findIdByCode("EDIT_BRANCH_DATA")` to look up the capability ID, then use the
-Exposed DSL `UserCapabilityTable.insert {}` with `customEnumeration` columns (see below).
+Grant writes (`user_capability` rows for relief access or delegate assignments) go only
+through the authorization seam (`AuthorizationGrants.grantReliefCapabilityInTransaction`,
+`grantDelegateCapabilityInTransaction`, and friends) inside the owning command's transaction —
+never by touching `UserCapabilityTable` directly. Use
+`CapabilityService.findCapabilityIdByCode("EDIT_BRANCH_DATA")` when the caller must resolve
+the capability ID itself. The grant table and `GrantStore` stay `internal` to the
+authorization owner; test fixtures seed grants via `IdentityFixtures`.
 
 **Read endpoints must also gate on capabilities.** If a write endpoint (POST/PATCH/DELETE) checks a
 capability, the corresponding read endpoint (GET) should check the same capability. Example:

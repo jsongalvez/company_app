@@ -2,6 +2,7 @@
 
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branch.BranchRoutes
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
@@ -20,7 +21,6 @@ import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

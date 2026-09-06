@@ -108,21 +108,21 @@ class AuditLogAuthzTest : BasePostgresTest() {
             userId = manageUsersUser,
             capabilityCode = CapabilityCodes.MANAGE_USERS,
             contextType = CapabilityContextType.GLOBAL,
-            contextId = com.companyb.companyapp.service.CapabilityService.GLOBAL_CONTEXT_ID,
+            contextId = com.companyb.companyapp.authorization.CapabilityService.GLOBAL_CONTEXT_ID,
             sourceId = sourceId,
         )
         IdentityFixtures.grantCapability(
             userId = manageProductsUser,
             capabilityCode = CapabilityCodes.MANAGE_CATALOG,
             contextType = CapabilityContextType.GLOBAL,
-            contextId = com.companyb.companyapp.service.CapabilityService.GLOBAL_CONTEXT_ID,
+            contextId = com.companyb.companyapp.authorization.CapabilityService.GLOBAL_CONTEXT_ID,
             sourceId = sourceId,
         )
         IdentityFixtures.grantCapability(
             userId = globalViewUser,
             capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
             contextType = CapabilityContextType.GLOBAL,
-            contextId = com.companyb.companyapp.service.CapabilityService.GLOBAL_CONTEXT_ID,
+            contextId = com.companyb.companyapp.authorization.CapabilityService.GLOBAL_CONTEXT_ID,
             sourceId = sourceId,
         )
         listOf(editorA, editorB, manageUsersUser, manageProductsUser, globalViewUser).forEach {

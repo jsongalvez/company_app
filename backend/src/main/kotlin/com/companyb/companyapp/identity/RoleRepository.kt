@@ -1,9 +1,9 @@
 package com.companyb.companyapp.identity
 
+import com.companyb.companyapp.authorization.CapabilityTable
 import com.companyb.companyapp.identity.RoleCapabilityTable
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
-import com.companyb.companyapp.repository.model.CapabilityTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.eq

@@ -2,6 +2,8 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.authorization.AuthorizationGrants
+import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -9,7 +11,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AccountReads
-import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.MedicalMissionDelegateRepository
 import com.companyb.companyapp.repository.model.MedicalMissionDelegate
 import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
@@ -39,7 +40,7 @@ object MedicalMissionDelegateService {
 
         val capabilityId =
             checkNotNull(
-                CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA),
+                CapabilityService.findCapabilityIdByCode(CapabilityCodes.EDIT_BRANCH_DATA),
             ) { "EDIT_BRANCH_DATA capability not found" }
 
         val delegate =
@@ -90,12 +91,17 @@ object MedicalMissionDelegateService {
                 targetUserId = targetUserId,
                 assignedBy = callerId,
                 branchId = branchId,
-                capabilityId = capabilityId,
             )
         if (!result.inserted) {
             requireRequestOwnership(result.delegate, targetUserId, branchId, callerId)
         }
         if (result.inserted) {
+            AuthorizationGrants.grantDelegateCapabilityInTransaction(
+                targetUserId = targetUserId,
+                branchId = branchId,
+                delegateId = delegateId,
+                capabilityId = capabilityId,
+            )
             MedicalMissionDelegateAudit.inserted(AuditContext(callerId, branchId), result.delegate)
         }
         return result.delegate
@@ -135,6 +141,7 @@ object MedicalMissionDelegateService {
             val result = MedicalMissionDelegateRepository.revokeInTransaction(delegateId)
 
             if (result.changed) {
+                AuthorizationGrants.closeDelegateCapabilityInTransaction(delegateId)
                 MedicalMissionDelegateAudit.updated(AuditContext(callerId, before.branchId), before, result.delegate)
             }
             result.delegate

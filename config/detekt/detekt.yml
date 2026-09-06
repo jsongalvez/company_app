@@ -678,7 +678,7 @@ style:
       # #465 frozen grandfather: files holding pre-existing @Suppress sites.
       # Never grows; burndown removes lines. New excludes need a #<ticket>.
       - '**/backend/src/main/kotlin/com/companyb/companyapp/Main.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/api/middleware/CapabilityFilter.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/authorization/CapabilityFilter.kt' #465 frozen #538 retarget
       - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/AllowanceRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/AttendanceRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogRoutes.kt' #465 frozen

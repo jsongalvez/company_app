@@ -1,7 +1,7 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.DailySalesSummaryBrowseResponse

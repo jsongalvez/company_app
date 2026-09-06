@@ -1,5 +1,7 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.authorization.ActiveUserCapabilitiesView
+import com.companyb.companyapp.authorization.CapabilityTable
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -8,8 +10,6 @@ import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.repository.model.AcceptedInviteWithBranch
-import com.companyb.companyapp.repository.model.ActiveUserCapabilitiesView
-import com.companyb.companyapp.repository.model.CapabilityTable
 import com.companyb.companyapp.repository.model.ReliefInvite
 import com.companyb.companyapp.repository.model.ReliefInviteTable
 import com.companyb.companyapp.repository.model.ReliefInviteView
@@ -379,21 +379,16 @@ object ReliefInviteRepository {
     }
 
     /**
-     * Atomic accept: PENDING → ACCEPTED + the shared relief-grant capability write in
-     * one atomic store operation (the grant must not outlive a failed status flip, and
-     * the status flip must not commit without the grant). The grant is written via
-     * [ReliefAccessRepository.grantReliefCapability] (insertIgnore — a redundant grant
-     * stays harmless).
+     * Atomic accept: PENDING → ACCEPTED in one atomic store operation. The day-scoped
+     * relief grant is written by the command through the authorization seam (#538) in
+     * the same transaction (the grant must not outlive a failed status flip, and
+     * the status flip must not commit without the grant).
      *
      * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
      * transaction. Returns null when the invite is not PENDING (concurrent response won,
      * or a stale client).
      */
-    fun acceptInTransaction(
-        id: UUID,
-        invitee: UUID,
-        validTo: java.time.OffsetDateTime,
-    ): ReliefInviteMutation? {
+    fun acceptInTransaction(id: UUID): ReliefInviteMutation? {
         val before = findByIdInTransaction(id) ?: return null
         if (before.status != ReliefInviteStatus.PENDING) return null
         val updated =
@@ -404,14 +399,6 @@ object ReliefInviteRepository {
                 it[ReliefInviteTable.respondedAt] = CurrentTimestampWithTimeZone
             }
         if (updated == 0) return null
-        ReliefAccessRepository.grantReliefCapability(
-            GrantReliefCapabilityParams(
-                userId = invitee,
-                branchDayId = before.branchDayId,
-                sourceId = id,
-                validTo = validTo,
-            ),
-        )
         val after = findByIdInTransaction(id) ?: return null
         return ReliefInviteMutation(before, after)
     }
@@ -420,7 +407,7 @@ object ReliefInviteRepository {
      * Atomic revocation (#374): only an ACCEPTED row moves to REVOKED (the WHERE carries
      * the status, so a concurrent decision wins and this update hits 0 rows → null → the
      * service 409s; DECLINED/RETRACTED/REVOKED rows are already-decided). Grant removal
-     * itself lives in [ReliefAccessRepository.deleteGrantBySourceIdInTransaction] — the
+     * itself lives in the authorization seam — the
      * command pairs the two inside its one transaction.
      *
      * In-transaction store operation (#323, ADR-0024) — runs on the caller's command

@@ -2,17 +2,12 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -21,30 +16,16 @@ import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.less
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.LocalDate
-import java.time.OffsetDateTime
 import java.util.UUID
 
 data class GrantWithCapabilityParams(
     val requestId: UUID,
     val grantedBy: UUID,
-    val userId: UUID,
-    val branchDayId: UUID,
-    val sourceId: UUID,
-    val validTo: OffsetDateTime?,
-)
-
-/** The shared relief-grant write (#159 Q1): who gets the day, for which day, from which source. */
-data class GrantReliefCapabilityParams(
-    val userId: UUID,
-    val branchDayId: UUID,
-    val sourceId: UUID,
-    val validTo: OffsetDateTime?,
 )
 
 /** Mutation projection for grant/deny/cancel (#323): `updated=false` marks a preserved early-return path. */
@@ -64,64 +45,6 @@ data class ReliefRequestWithBranch(
 
 @Suppress("TooManyFunctions")
 object ReliefAccessRepository {
-    /**
-     * The shared relief-grant writer (#159 Q1): inserts the day-scoped capability
-     * (EDIT_BRANCH_DATA, BRANCH_DAY, [GrantReliefCapabilityParams.branchDayId], source
-     * RELIEF_ACCESS, priority [GrantPriorities.RELIEF_ACCESS], validFrom = now, validTo =
-     * [GrantReliefCapabilityParams.validTo]) — the capability write used by BOTH the
-     * request flow's grant ([grantInTransaction]) and the invite flow's accept.
-     * `insertIgnore` keeps a redundant grant harmless (the #159 Q3 decision: capabilities
-     * ≠ assignments).
-     *
-     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
-     * transaction.
-     */
-    fun grantReliefCapability(params: GrantReliefCapabilityParams): Unit =
-        insertReliefCapabilityInTransaction(params.userId, params.branchDayId, params.sourceId, params.validTo)
-
-    /**
-     * Grant removal keyed on the capability's sourceId (#374): deletes every
-     * RELIEF_ACCESS-sourced capability row minted from [sourceId] for [userId] (an
-     * invite id — accept writes exactly one row for the invitee; the user scope keeps a
-     * pathological id collision from ever deleting another holder's grant).
-     * In-transaction store operation (#323, ADR-0024) — runs inside the revoke command's
-     * transaction so the status flip and grant removal commit or roll back together.
-     */
-    fun deleteGrantBySourceIdInTransaction(
-        userId: UUID,
-        sourceId: UUID,
-    ) {
-        UserCapabilityTable.deleteWhere {
-            (UserCapabilityTable.userId eq userId) and
-                (UserCapabilityTable.sourceType eq CapabilitySourceType.RELIEF_ACCESS) and
-                (UserCapabilityTable.sourceId eq sourceId)
-        }
-    }
-
-    private fun insertReliefCapabilityInTransaction(
-        userId: UUID,
-        branchDayId: UUID,
-        sourceId: UUID,
-        validTo: OffsetDateTime?,
-    ) {
-        UserCapabilityTable.insertIgnore {
-            it[UserCapabilityTable.userId] = userId
-            it[UserCapabilityTable.capabilityId] = reliefCapabilityId()
-            it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH_DAY
-            it[UserCapabilityTable.contextId] = branchDayId
-            it[UserCapabilityTable.sourceType] = CapabilitySourceType.RELIEF_ACCESS
-            it[UserCapabilityTable.sourceId] = sourceId
-            it[UserCapabilityTable.validFrom] = CurrentTimestampWithTimeZone
-            it[UserCapabilityTable.validTo] = validTo
-            it[UserCapabilityTable.priority] = GrantPriorities.RELIEF_ACCESS
-        }
-    }
-
-    private fun reliefCapabilityId(): UUID =
-        checkNotNull(
-            CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA),
-        ) { "EDIT_BRANCH_DATA capability not found" }
-
     fun findById(id: UUID): ReliefAccess? =
         transaction {
             findByIdInTransaction(id)
@@ -191,11 +114,13 @@ object ReliefAccessRepository {
 
     /**
      * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
-     * transaction. The FOR UPDATE row lock + PENDING guard + conditional status update +
-     * capability write stay here so the grant check+write is atomic. #357: the #354
-     * cross-request winner sweep is retired (multiple relief workers per branch-day are
-     * allowed — there is nothing left to supersede); a redundant second grant is an
-     * idempotent replay via the non-PENDING early return.
+     * transaction. The FOR UPDATE row lock + PENDING guard + conditional status update
+     * stay here so the grant check+write is atomic; the day-scoped grant itself is
+     * written by the command through the authorization seam (#538) in the same
+     * transaction. #357: the #354 cross-request winner sweep is retired (multiple
+     * relief workers per branch-day are allowed — there is nothing left to
+     * supersede); a redundant second grant is an idempotent replay via the
+     * non-PENDING early return.
      */
     fun grantInTransaction(params: GrantWithCapabilityParams): ReliefAccessMutation? {
         val before =
@@ -222,13 +147,6 @@ object ReliefAccessRepository {
                 it[GrantReliefAccessTable.grantedBy] = params.grantedBy
                 it[GrantReliefAccessTable.grantedAt] = CurrentTimestampWithTimeZone
             }
-
-        insertReliefCapabilityInTransaction(
-            userId = params.userId,
-            branchDayId = params.branchDayId,
-            sourceId = params.sourceId,
-            validTo = params.validTo,
-        )
 
         val after =
             GrantReliefAccessTable

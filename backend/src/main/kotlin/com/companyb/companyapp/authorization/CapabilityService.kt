@@ -1,9 +1,8 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.authorization
 
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.exception.ForbiddenException
-import com.companyb.companyapp.repository.CapabilityRepository
 import java.util.UUID
 
 /**
@@ -74,4 +73,7 @@ object CapabilityService {
         userId: UUID,
         capabilityCode: String,
     ): Boolean = CapabilityRepository.hasCapabilityAnyContext(userId, capabilityCode)
+
+    /** Capability-id lookup for grant writers — runs on the caller's transaction when nested. */
+    fun findCapabilityIdByCode(code: String): UUID? = CapabilityRepository.findIdByCode(code)
 }

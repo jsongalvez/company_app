@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.authorization
 
 import java.util.UUID
 import kotlin.test.Test

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.api.middleware
+package com.companyb.companyapp.authorization
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.branchday.BranchDayService
@@ -9,7 +9,6 @@ import com.companyb.companyapp.domain.isStatusCorrection
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
 import com.companyb.companyapp.repository.ExpenseRepository
 import com.companyb.companyapp.repository.SessionRepository
-import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import io.javalin.http.Context
 import io.javalin.http.NotFoundResponse
@@ -21,7 +20,8 @@ import java.util.UUID
  *
  * Moves capability checks from the service layer to the HTTP layer so that
  * each route declares its authorization requirements upfront. The service
- * layer retains day-state assertions (e.g. [com.companyb.companyapp.service.BranchDayService.checkBranchDayEditable]);
+ * layer retains day-state assertions (e.g.
+ * [com.companyb.companyapp.branchday.BranchDayService.checkBranchDayEditable]);
  * on the UserBranchAssignment surface it also retains the capability gates
  * themselves (deviation below).
  *
@@ -40,7 +40,7 @@ import java.util.UUID
  * }
  * ```
  */
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions") // #538 authorization owner keeps the require* filter vocabulary on one adapter
 object CapabilityFilter {
     /**
      * Enforces [capabilityCode] on [CapabilityContextType.GLOBAL] with the nil UUID.

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.authorization
 
 object GrantPriorities {
     /**

@@ -1,18 +1,13 @@
 package com.companyb.companyapp.repository
 
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.exception.ConflictException
-import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.MedicalMissionDelegate
 import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -70,15 +65,15 @@ object MedicalMissionDelegateRepository {
 
     /**
      * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
-     * transaction. The capability insert stays inside so it cannot outlive a failed
-     * delegate insert.
+     * transaction. Owns the delegate row only; the branch-scoped capability grant is
+     * written by the command through the authorization seam (#538) in the same
+     * transaction, so neither commits without the other.
      */
     fun assignInTransaction(
         delegateId: UUID,
         targetUserId: UUID,
         assignedBy: UUID,
         branchId: UUID,
-        capabilityId: UUID,
     ): DelegateAssignResult {
         val inserted =
             MedicalMissionDelegateTable
@@ -89,18 +84,6 @@ object MedicalMissionDelegateRepository {
                     it[MedicalMissionDelegateTable.branchId] = branchId
                     it[MedicalMissionDelegateTable.assignedAt] = CurrentTimestampWithTimeZone
                 }.insertedCount > 0
-
-        if (inserted) {
-            UserCapabilityTable.insert {
-                it[UserCapabilityTable.userId] = targetUserId
-                it[UserCapabilityTable.capabilityId] = capabilityId
-                it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH
-                it[UserCapabilityTable.contextId] = branchId
-                it[UserCapabilityTable.sourceType] = CapabilitySourceType.MEDICAL_MISSION_DELEGATE
-                it[UserCapabilityTable.sourceId] = delegateId
-                it[UserCapabilityTable.priority] = GrantPriorities.MEDICAL_MISSION_DELEGATE
-            }
-        }
 
         if (!inserted) {
             val sameIdExists =
@@ -125,8 +108,8 @@ object MedicalMissionDelegateRepository {
 
     /**
      * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
-     * transaction. The endedAt update and the capability-window close stay inside so
-     * neither commits without the other.
+     * transaction. Owns the delegate row only; the capability-window close goes
+     * through the authorization seam (#538) in the same transaction.
      */
     fun revokeInTransaction(delegateId: UUID): DelegateRevokeResult {
         val changed =
@@ -137,17 +120,6 @@ object MedicalMissionDelegateRepository {
                 }) {
                     it[MedicalMissionDelegateTable.endedAt] = CurrentTimestampWithTimeZone
                 } > 0
-
-        if (changed) {
-            UserCapabilityTable
-                .update({
-                    (UserCapabilityTable.sourceType eq CapabilitySourceType.MEDICAL_MISSION_DELEGATE) and
-                        (UserCapabilityTable.sourceId eq delegateId) and
-                        (UserCapabilityTable.validTo.isNull())
-                }) {
-                    it[UserCapabilityTable.validTo] = CurrentTimestampWithTimeZone
-                }
-        }
 
         val delegate =
             MedicalMissionDelegateTable

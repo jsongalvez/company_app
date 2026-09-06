@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.CapabilityCodes

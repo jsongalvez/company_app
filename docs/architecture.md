@@ -86,9 +86,10 @@ company-app/
 ├── backend/
 │   └── src/main/kotlin/com/companyb/companyapp/
 │       ├── api/routes/       # HTTP endpoints
-│       ├── api/middleware/    # Capability enforcement filters
+│       ├── api/middleware/    # JWT middleware (capability filters live in authorization/)
 │       ├── api/mapping/      # Domain results → HTTP responses
 │       ├── identity/         # Account lifecycle: auth, users, credentials, /me (map #533)
+│       ├── authorization/    # Capability checks, grant storage, read scoping, route filter adapter (map #533)
 │       ├── audit/            # Audit append seam, scoped reads, registry (map #533)
 │       ├── config/           # Javalin config, serialization mapper
 │       ├── database/         # HikariCP + Flyway + Exposed setup

@@ -1,8 +1,8 @@
 package com.companyb.companyapp.audit
-import com.companyb.companyapp.branch.BranchReadScope
+import com.companyb.companyapp.authorization.BranchReadScope
+import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.service.CapabilityService
 import java.util.UUID
 
 /**

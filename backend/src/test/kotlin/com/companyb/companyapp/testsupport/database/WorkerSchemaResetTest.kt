@@ -1,5 +1,6 @@
 package com.companyb.companyapp.testsupport.database
 
+import com.companyb.companyapp.authorization.CapabilityTable
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.domain.BranchType
@@ -8,7 +9,6 @@ import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.identity.RoleTable
-import com.companyb.companyapp.repository.model.CapabilityTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable

@@ -2,6 +2,7 @@
 
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.authorization.CapabilityRepository
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.config.AppConfig
@@ -17,7 +18,6 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
-import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.model.ReliefInviteTable
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures

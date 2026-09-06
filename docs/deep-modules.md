@@ -47,8 +47,8 @@ intentionally shallow.
 ## Capability (Authorization)
 
 **Owns:** the grant model (GLOBAL/BRANCH/BRANCH_DAY contexts, validity windows, sources/priorities), the central check over `active_user_capabilities`, route-level enforcement helpers, branch read-window scoping.
-**Anchors:** `service/CapabilityService.kt`, `api/middleware/CapabilityFilter.kt`, `repository/CapabilityRepository.kt`.
-**Public seam:** `hasCapability` / `requireCapability` (+ `ForBranchDay` / `AnyContext` variants) · `GLOBAL_CONTEXT_ID` (nil UUID) · `CapabilityFilter.require*` family · `BranchReadScope.windowBranchIds`. GLOBAL grants never satisfy day-scoped gates (#131 strictness); inventory is not relief-eligible (#157).
+**Anchors:** `authorization/CapabilityService.kt`, `authorization/CapabilityFilter.kt`, `authorization/CapabilityRepository.kt` (internal).
+**Public seam:** `hasCapability` / `requireCapability` (+ `ForBranchDay` / `AnyContext` variants) · `GLOBAL_CONTEXT_ID` (nil UUID) · `findCapabilityIdByCode` (grant-writer id lookup) · `CapabilityFilter.require*` family · `BranchReadScope.windowBranchIds` · grant seams on `AuthorizationGrants` (`grantReliefCapabilityInTransaction` / `deleteReliefGrantBySourceIdInTransaction` / `grantDelegateCapabilityInTransaction` / `closeDelegateCapabilityInTransaction` — workforce commands write grants only through these; the table and `GrantStore` stay internal to the owner). GLOBAL grants never satisfy day-scoped gates (#131 strictness); inventory is not relief-eligible (#157).
 **Depends on:** nothing upstream semantically; consumed by nearly everything.
 **Expansion triggers:** new context type or source type (schema + view + filter changes); window/priority semantics (`GrantPriorities`; `active_user_capabilities` view — baseline in V1, branch-derived leg widened by V21, OWNER GLOBAL read added by V25); changing which gate a route uses.
 **Tests/authority:** ADR-0007 (route-level gates), ADR-0023; backend `AGENTS.md` "Authorization".
@@ -122,13 +122,13 @@ intentionally shallow.
 
 ## Relief
 
-**Owns:** two paths to day-scoped edit access — broadcast Relief Request (PENDING→GRANTED/DENIED/CANCELLED; one live request per requester/day via partial index) and branch-initiated Relief Invite (PENDING→ACCEPTED/DECLINED/RETRACTED; accept writes the grant immediately) — plus the shared relief-grant writer, outcome notifications, expiry job (04:05 Manila) and reminder job (07:00), medical-mission delegates.
-**Anchors:** `service/ReliefAccessService.kt`, `service/ReliefInviteService.kt`, `repository/ReliefAccessRepository.kt` (`grantReliefCapability` shared writer).
+**Owns:** two paths to day-scoped edit access — broadcast Relief Request (PENDING→GRANTED/DENIED/CANCELLED; one live request per requester/day via partial index) and branch-initiated Relief Invite (PENDING→ACCEPTED/DECLINED/RETRACTED; accept writes the grant immediately) — plus outcome notifications, expiry job (04:05 Manila) and reminder job (07:00), medical-mission delegates. Grant rows themselves are authorization-owned (`authorization/GrantStore` behind `AuthorizationGrants`); workforce commands pair status flips with the seam in one transaction.
+**Anchors:** `service/ReliefAccessService.kt`, `service/ReliefInviteService.kt`, `repository/ReliefAccessRepository.kt`.
 **Public seam:** `ReliefAccessService` commands (request/grant/deny/cancel/list) · `ReliefInviteService` commands (create/accept/decline/retract/search) · `MedicalMissionDelegateService.assignDelegate` / `revokeDelegate` · `ReliefNotifications.*` (command-transaction broadcasts).
 **Depends on:** Branch Day (day-open gate, `expirationUtc`), Assignments (membership gates), Capability view, Notifications.
 **Expansion triggers:** partial unique indexes `idx_one_live_relief_request` / `idx_one_pending_accepted_invite`; job re-run safety via UNIQUE `(dedup_key, user_id)` (#508); accepted-invite revocation follow-up (#363 pending).
 **Tests/authority:** relief-cluster rules live in code comments (#159/#352/#357/#358); backend `AGENTS.md` day-scoped gate section.
-**Search:** `grantReliefCapability`, `hasPendingOrAcceptedInvite`, `ReliefNotifications.`
+**Search:** `AuthorizationGrants`, `hasPendingOrAcceptedInvite`, `ReliefNotifications.`
 
 ## Audit
 

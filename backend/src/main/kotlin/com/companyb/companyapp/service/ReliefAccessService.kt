@@ -2,6 +2,8 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.authorization.AuthorizationGrants
+import com.companyb.companyapp.authorization.GrantReliefCapabilityParams
 import com.companyb.companyapp.branch.Branch
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
@@ -104,14 +106,18 @@ object ReliefAccessService {
                         GrantWithCapabilityParams(
                             requestId = requestId,
                             grantedBy = callerId,
+                        ),
+                    ) ?: error("Grant failed: relief access request not found in transaction")
+
+                if (mutation.updated) {
+                    AuthorizationGrants.grantReliefCapabilityInTransaction(
+                        GrantReliefCapabilityParams(
                             userId = request.requestedBy,
                             branchDayId = request.branchDayId,
                             sourceId = requestId,
                             validTo = BranchDayService.expirationUtc(branchDay.date),
                         ),
-                    ) ?: error("Grant failed: relief access request not found in transaction")
-
-                if (mutation.updated) {
+                    )
                     ReliefAccessAudit.updated(
                         AuditContext(callerId, branchDay.branchId, isRemitted, reason),
                         mutation.before,

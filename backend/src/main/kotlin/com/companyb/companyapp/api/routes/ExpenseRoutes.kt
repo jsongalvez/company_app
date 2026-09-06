@@ -1,7 +1,7 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
-import com.companyb.companyapp.api.middleware.CapabilityFilter
+import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.dto.CreateExpenseRequest
 import com.companyb.companyapp.dto.DeleteExpenseRequest

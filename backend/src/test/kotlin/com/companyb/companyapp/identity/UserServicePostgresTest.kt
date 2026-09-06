@@ -1,5 +1,7 @@
 package com.companyb.companyapp.identity
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.CapabilityRepository
+import com.companyb.companyapp.authorization.CapabilityService.GLOBAL_CONTEXT_ID
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.CapabilityContextType
@@ -10,8 +12,6 @@ import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.RoleRepository
 import com.companyb.companyapp.identity.UserRepository
-import com.companyb.companyapp.repository.CapabilityRepository
-import com.companyb.companyapp.service.CapabilityService.GLOBAL_CONTEXT_ID
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

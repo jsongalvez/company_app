@@ -1,14 +1,14 @@
 package com.companyb.companyapp.testsupport.fixtures
 
+import com.companyb.companyapp.authorization.CapabilityRepository
+import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.GrantPriorities
+import com.companyb.companyapp.authorization.UserCapabilityTable
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.identity.AppUserTable
-import com.companyb.companyapp.repository.CapabilityRepository
-import com.companyb.companyapp.repository.model.GrantPriorities
-import com.companyb.companyapp.repository.model.UserCapabilityTable
-import com.companyb.companyapp.service.CapabilityService
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
