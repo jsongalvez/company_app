@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # recovery-contract.test.sh — focused checks for the #355 wayfinder lifecycle contract.
-# Structural assertions on scripts/wayfinder-loop.sh (one canonical prompt, all three
+# Structural assertions on tools/wayfinder/wayfinder-loop.sh (one canonical prompt, all three
 # in-place paths use it, --retry refuses a live session) plus one behavioral run of the
 # --retry guard against a stubbed opencode binary. No Gradle/DB/network.
 set -uo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
-script="$here/../../scripts/wayfinder-loop.sh"
+script="$here/wayfinder-loop.sh"
+root="$(cd "$here/../.." && pwd)"
+wrapper="$root/scripts/wayfinder-loop.sh"
 fail=0
 
 ok()   { echo "  ok: $1"; }
@@ -63,11 +65,11 @@ STUB
 chmod +x "$stubdir/opencode2"
 
 worktree="$(mktemp -d)"
-mkdir -p "$worktree/.wayfinder/handoffs" "$worktree/scripts"
-cp "$script" "$worktree/scripts/wayfinder-loop.sh"
+mkdir -p "$worktree/.wayfinder/handoffs" "$worktree/tools/wayfinder"
+cp "$script" "$worktree/tools/wayfinder/wayfinder-loop.sh"
 printf 'last_doc=test-handoff.md\nsession_id=ses_livetest\npending_doc=\nretries=2\nseen_docs=test-handoff.md@deadbeef\n' > "$worktree/.wayfinder-loop.state"
 touch "$worktree/.wayfinder/handoffs/test-handoff.md"
-PATH="$stubdir:$PATH" OPENCODE_BIN="$stubdir/opencode2" bash "$worktree/scripts/wayfinder-loop.sh" --retry > "$worktree/retry.out" 2>&1
+PATH="$stubdir:$PATH" OPENCODE_BIN="$stubdir/opencode2" bash "$worktree/tools/wayfinder/wayfinder-loop.sh" --retry > "$worktree/retry.out" 2>&1
 rc=$?
 if [ $rc -ne 0 ] && grep -q "still exists" "$worktree/retry.out"; then
   ok "--retry refused while recorded session is alive (exit $rc)"
@@ -99,8 +101,8 @@ STUB
 chmod +x "$stubdir/opencode2"
 
 worktree="$(mktemp -d)"
-mkdir -p "$worktree/.wayfinder/handoffs" "$worktree/scripts"
-cp "$script" "$worktree/scripts/wayfinder-loop.sh"
+mkdir -p "$worktree/.wayfinder/handoffs" "$worktree/tools/wayfinder"
+cp "$script" "$worktree/tools/wayfinder/wayfinder-loop.sh"
 touch "$worktree/.wayfinder/handoffs/test-handoff.md"
 fp="$(sha256sum "$worktree/.wayfinder/handoffs/test-handoff.md" | awk '{print $1}')"
 printf 'last_doc=test-handoff.md\nsession_id=ses_errtest\npending_doc=\nretries=0\nseen_docs=test-handoff.md@%s\n' "$fp" \
@@ -109,7 +111,7 @@ printf '{"data":[{"id":"msg_e1","type":"assistant","time":{"completed":175586148
   > "$stubdir/errmsg.json"
 
 PATH="$stubdir:$PATH" OPENCODE_BIN="$stubdir/opencode2" WAYFINDER_TICK_SECS=1 WAYFINDER_STALL_SECS=9999 \
-  timeout -s TERM 5 bash "$worktree/scripts/wayfinder-loop.sh" > "$worktree/transient.out" 2>&1
+  timeout -s TERM 5 bash "$worktree/tools/wayfinder/wayfinder-loop.sh" > "$worktree/transient.out" 2>&1
 if [ -s "$prompts" ] && grep -q "transient provider error" "$worktree/transient.out" &&
    ! grep -q "chain paused" "$worktree/transient.out"; then
   ok "invalid-output sent recovery prompt and kept supervising (nudges: $(wc -l < "$prompts"))"
@@ -122,7 +124,7 @@ printf '{"data":[{"id":"msg_e2","type":"assistant","time":{"completed":175586148
   > "$stubdir/errmsg.json"
 rm -f "$prompts"
 PATH="$stubdir:$PATH" OPENCODE_BIN="$stubdir/opencode2" WAYFINDER_TICK_SECS=1 \
-  timeout -s TERM 10 bash "$worktree/scripts/wayfinder-loop.sh" > "$worktree/terminal.out" 2>&1
+  timeout -s TERM 10 bash "$worktree/tools/wayfinder/wayfinder-loop.sh" > "$worktree/terminal.out" 2>&1
 rc=$?
 if [ $rc -eq 0 ] && grep -qF "ended with assistant error — chain paused" "$worktree/terminal.out"; then
   ok "non-transient error paused the chain immediately (exit $rc)"
@@ -154,8 +156,8 @@ STUB
 chmod +x "$stubdir/opencode2"
 
 worktree="$(mktemp -d)"
-mkdir -p "$worktree/.wayfinder/handoffs" "$worktree/scripts"
-cp "$script" "$worktree/scripts/wayfinder-loop.sh"
+mkdir -p "$worktree/.wayfinder/handoffs" "$worktree/tools/wayfinder"
+cp "$script" "$worktree/tools/wayfinder/wayfinder-loop.sh"
 touch "$worktree/.wayfinder/handoffs/test-handoff.md"
 fp="$(sha256sum "$worktree/.wayfinder/handoffs/test-handoff.md" | awk '{print $1}')"
 printf 'last_doc=test-handoff.md\nsession_id=ses_worktest\npending_doc=\nretries=1\nseen_docs=test-handoff.md@%s\n' "$fp" \
@@ -167,7 +169,7 @@ printf '{"data":[{"id":"msg_a","type":"assistant","time":{"completed":1755861480
 ( sleep 3; cp "$stubdir/msg-work.json" "$stubdir/msg.json" ) &
 
 PATH="$stubdir:$PATH" OPENCODE_BIN="$stubdir/opencode2" WAYFINDER_TICK_SECS=1 WAYFINDER_STALL_SECS=9999 \
-  timeout -s TERM 7 bash "$worktree/scripts/wayfinder-loop.sh" > "$worktree/budget.out" 2>&1
+  timeout -s TERM 7 bash "$worktree/tools/wayfinder/wayfinder-loop.sh" > "$worktree/budget.out" 2>&1
 if grep -q "worked since last recovery prompt" "$worktree/budget.out"; then
   ok "tool-call work after nudge cleared the budget"
 else
@@ -185,6 +187,38 @@ else
 fi
 wait || true
 rm -rf "$stubdir" "$worktree"
+
+echo "8. compat wrapper delegates to the canonical implementation"
+if [ -f "$wrapper" ] && grep -q 'tools/wayfinder/wayfinder-loop.sh' "$wrapper" \
+  && grep -q 'exec.*"\$@"' "$wrapper"; then
+  ok "scripts/wayfinder-loop.sh delegates via exec with arg forwarding"
+else
+  bad "compat wrapper missing or not an exec delegate: $wrapper"
+fi
+# Behavioral: the wrapper reaches the same --retry guard without its own logic.
+wstub="$(mktemp -d)"
+cat > "$wstub/opencode2" <<STUB
+#!/usr/bin/env bash
+cmd="\$*"
+if [[ "\$cmd" == *"get /api/session/active"* ]]; then echo '{"data":{"ses_wraptest":{"type":"user"}}}'; exit 0; fi
+if [[ "\$cmd" == *"get /api/session/ses_wraptest"* ]]; then echo '{"data":{"id":"ses_wraptest"}}'; exit 0; fi
+exit 1
+STUB
+chmod +x "$wstub/opencode2"
+wwork="$(mktemp -d)"
+mkdir -p "$wwork/.wayfinder/handoffs" "$wwork/tools/wayfinder" "$wwork/scripts"
+cp "$script" "$wwork/tools/wayfinder/wayfinder-loop.sh"
+cp "$wrapper" "$wwork/scripts/wayfinder-loop.sh"
+printf 'last_doc=test-handoff.md\nsession_id=ses_wraptest\npending_doc=\nretries=2\nseen_docs=test-handoff.md@deadbeef\n' > "$wwork/.wayfinder-loop.state"
+touch "$wwork/.wayfinder/handoffs/test-handoff.md"
+if PATH="$wstub:$PATH" OPENCODE_BIN="$wstub/opencode2" bash "$wwork/scripts/wayfinder-loop.sh" --retry > "$wwork/wrap.out" 2>&1; then
+  bad "wrapper --retry did not refuse a live session: $(head -3 "$wwork/wrap.out")"
+elif grep -q "still exists" "$wwork/wrap.out"; then
+  ok "wrapper --retry refused a live session like the canonical path"
+else
+  bad "wrapper --retry failed differently: $(head -3 "$wwork/wrap.out")"
+fi
+rm -rf "$wstub" "$wwork"
 
 echo
 if [ $fail -eq 0 ]; then echo "ALL PASS"; else echo "FAILURES PRESENT"; exit 1; fi

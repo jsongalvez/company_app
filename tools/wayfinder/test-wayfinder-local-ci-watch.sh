@@ -2,7 +2,7 @@
 # Script-level contract test for the #577 local-CI pin/watch path.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WORK="$(mktemp -d /tmp/opencode/wayfinder-local-ci-test.XXXXXX)"
 OLD_PID=""
 trap 'if [ -n "$OLD_PID" ]; then kill "$OLD_PID" 2>/dev/null || true; fi; rm -rf "$WORK"' EXIT
@@ -60,7 +60,8 @@ assert_eq PASS "$(cat "$PIN_REPO/logs/local-ci/result.txt")" "pinned fixture did
 # The daemon queues a mid-run push, launches exactly once for the new SHA, and
 # consumes a completed result without relaunching it.
 WATCH_REPO="$WORK/watch-repo"
-mkdir -p "$WATCH_REPO/scripts" "$WATCH_REPO/.wayfinder/handoffs" "$WATCH_REPO/status"
+mkdir -p "$WATCH_REPO/tools/wayfinder" "$WATCH_REPO/scripts" "$WATCH_REPO/.wayfinder/handoffs" "$WATCH_REPO/status"
+cp "$ROOT/tools/wayfinder/wayfinder-loop.sh" "$WATCH_REPO/tools/wayfinder/"
 cp "$ROOT/scripts/wayfinder-loop.sh" "$WATCH_REPO/scripts/"
 cat >"$WATCH_REPO/scripts/fake-local-ci.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -86,7 +87,11 @@ chmod +x "$WATCH_REPO/scripts/fake-local-ci.sh" "$WORK/bin/opencode"
 )
 
 WATCH_STATE="$WATCH_REPO/status"
-WATCH_LOOP="$WATCH_REPO/scripts/wayfinder-loop.sh"
+WATCH_LOOP="$WATCH_REPO/tools/wayfinder/wayfinder-loop.sh"
+WRAPPER_LOOP="$WATCH_REPO/scripts/wayfinder-loop.sh"
+# Compat wrapper must delegate to the canonical implementation.
+grep -q 'tools/wayfinder/wayfinder-loop.sh' "$WRAPPER_LOOP" \
+  || die "compat wrapper does not delegate to the canonical implementation"
 watch_once() {
     local output=$1
     env \
@@ -129,7 +134,8 @@ grep -q "local_ci_verdicts=$SHA_B=PASS" "$WATCH_REPO/.wayfinder-loop.state" ||
     die "completed green SHA was not deduped in daemon state"
 
 # A dry run against a fixture status directory plans a missing run and performs
-# no launch or tracker write.
+# no launch or tracker write. Exercised via the compat wrapper so both
+# entrypoints prove the same pin/watch contract.
 git -C "$WATCH_REPO" commit --allow-empty -q -m dry-run-head
 SHA_DRY="$(git -C "$WATCH_REPO" rev-parse HEAD)"
 DRY_STATE="$WATCH_REPO/dry-status"
@@ -141,7 +147,7 @@ env \
     WAYFINDER_LOCAL_CI_SCRIPT="$WATCH_REPO/scripts/missing-local-ci.sh" \
     WAYFINDER_GH_BIN="$WORK/bin/gh" \
     GH_CALLS="$WORK/gh-calls" \
-    "$WATCH_LOOP" --local-ci-once >"$DRY_OUTPUT" 2>&1
+    "$WRAPPER_LOOP" --local-ci-once >"$DRY_OUTPUT" 2>&1
 grep -q "DRY-RUN: would launch local-ci for HEAD $SHA_DRY" "$DRY_OUTPUT" ||
     die "dry-run did not report the missing fixture run"
 [ ! -d "$DRY_STATE" ] || die "dry-run created local-CI state"

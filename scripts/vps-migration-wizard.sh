@@ -925,7 +925,7 @@ git -C "$REPO" log --oneline -3
 pause "Session N complete — handoff packet written, and the next session number is the one that handoff names?"
 
 stage "Kill the local daemon" 2
-warn "Rollback if anything fails below: tmux new -s wayfinder-loop && ./scripts/wayfinder-loop.sh"
+warn "Rollback if anything fails below: tmux new -s wayfinder-loop && ./tools/wayfinder/wayfinder-loop.sh"
 if confirm "Kill the local wayfinder-loop daemon NOW (this is the switch)?"; then
   tmux kill-session -t wayfinder-loop 2>/dev/null || true
   sleep 2
@@ -958,7 +958,7 @@ else
 fi
 
 stage "Start the VPS daemon" 5
-warn "Rollback: on the local box — tmux new -s wayfinder-loop && ./scripts/wayfinder-loop.sh (resumes its state file)"
+warn "Rollback: on the local box — tmux new -s wayfinder-loop && ./tools/wayfinder/wayfinder-loop.sh (resumes its state file)"
 # Re-derive the handoff AFTER the kill+push — the push just carried whatever the re-derive finds.
 latest_handoff "no handoff to bootstrap — aborting before the VPS daemon start"
 note "bootstrapping with: $HANDOFF"
@@ -972,7 +972,7 @@ if [[ "$HAS_RC" -eq 0 ]]; then
 else
   if [[ "$HAS_RC" -ne 1 ]]; then
     warn "could not check the VPS tmux state (ssh failed) — refusing to touch a possibly live daemon"
-    abort "rollback: tmux new -s wayfinder-loop && ./scripts/wayfinder-loop.sh"
+    abort "rollback: tmux new -s wayfinder-loop && ./tools/wayfinder/wayfinder-loop.sh"
   fi
   note "aligning the VPS checkout with origin (a local-only VPS commit from a partial run is discarded — origin is canonical)…"
   vps "cd ~/company_app && git fetch origin && (git switch -C '$DEPLOY_BRANCH' origin/'$DEPLOY_BRANCH' 2>/dev/null || git switch '$DEPLOY_BRANCH') && { git pull --ff-only || true; }" || abort "git alignment failed on the VPS — re-run resumes after the (dead) kill check"
@@ -985,7 +985,7 @@ else
   [[ -n "$VPS_SHA" ]] || abort "could not read the handoff checksum on the VPS (ssh failure?)"
   [[ "$LOCAL_SHA" == "$VPS_SHA" ]] || abort "handoff on the VPS differs from local — scp was stale"
   note "✓ handoff present and identical on the VPS"
-  vps "tmux new-session -d -s wayfinder-loop \"bash -lc 'cd ~/company_app && ./scripts/wayfinder-loop.sh --bootstrap $HANDOFF'\"" || abort "tmux start failed on the VPS"
+  vps "tmux new-session -d -s wayfinder-loop \"bash -lc 'cd ~/company_app && ./tools/wayfinder/wayfinder-loop.sh --bootstrap $HANDOFF'\"" || abort "tmux start failed on the VPS"
 fi
 sleep 15
 vps 'tail -n 20 ~/company_app/.wayfinder-loop.log' 2>/dev/null || true

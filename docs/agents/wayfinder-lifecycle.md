@@ -53,7 +53,7 @@ Interruption is not user pressure. The daemon's recovery prompt is automatic
 and semantically neutral: receiving it — or receiving it repeatedly — carries
 no information about time, context, or budget, and must not cause an early
 handoff, a phase change, or a frontier switch. The canonical prompt text
-lives once, in `scripts/wayfinder-loop.sh` (`NUDGE`); every in-place path
+lives once, in `tools/wayfinder/wayfinder-loop.sh` (`NUDGE`); every in-place path
 posts it:
 
 - immediate completed-stop nudge;
@@ -114,7 +114,7 @@ rebuilds its working set from the ticket, the owning module card
 
 Before any exit the worktree is clean: commit coherent slices normally
 (`ref #<n>`, direct to master); park genuinely unfinished work with
-`scripts/wayfinder-park.sh <note>` and record the exact stash ref. Successors
+`tools/wayfinder/wayfinder-park.sh <note>` and record the exact stash ref. Successors
 pop only the stash their packet names — no unrelated stash is touched.
 
 After the packet is recorded and the worktree is clean, launch

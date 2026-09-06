@@ -156,7 +156,7 @@ Verify: `git push --dry-run` reports master up to date; `gh issue list` shows th
    Then on the **VPS**:
    ```bash
    tmux new -s wayfinder-loop
-   ./scripts/wayfinder-loop.sh --bootstrap wayfinder-<N>-handoff.md
+   ./tools/wayfinder/wayfinder-loop.sh --bootstrap wayfinder-<N>-handoff.md
    ```
    Detach (`Ctrl-B D`). Watch the first spawn:
    ```bash
@@ -186,7 +186,7 @@ If the VPS setup fails mid-way: restart the local daemon from its state file —
 
 ```bash
 tmux new -s wayfinder-loop
-./scripts/wayfinder-loop.sh        # resumes from .wayfinder-loop.state
+./tools/wayfinder/wayfinder-loop.sh        # resumes from .wayfinder-loop.state
 ```
 
 The VPS daemon must NOT be started until the local one is dead (Phase 3 step 2 — the wizard kills first, then pushes in step 3). Master is the shared artifact — whichever box hosts the daemon, commits land on `master` and GitHub issues.

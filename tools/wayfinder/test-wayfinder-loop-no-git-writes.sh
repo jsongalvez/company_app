@@ -7,7 +7,7 @@
 # are banned forever).
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 die() { printf 'test-wayfinder-loop-no-git-writes: %s\n' "$*" >&2; exit 1; }
@@ -29,12 +29,20 @@ STUB
 chmod +x "$WORK/opencode2"
 export PATH="$WORK:$PATH"
 
-# Sandbox repo mirrors the layout: scripts/wayfinder-loop.sh + .wayfinder/handoffs/.
-mkdir -p "$WORK/repo/scripts" "$WORK/repo/.wayfinder/handoffs"
+# Sandbox repo mirrors the canonical layout: tools/wayfinder/wayfinder-loop.sh
+# + compat wrapper scripts/wayfinder-loop.sh + .wayfinder/handoffs/.
+mkdir -p "$WORK/repo/tools/wayfinder" "$WORK/repo/scripts" "$WORK/repo/.wayfinder/handoffs"
+cp "$ROOT/tools/wayfinder/wayfinder-loop.sh" "$WORK/repo/tools/wayfinder/"
 cp "$ROOT/scripts/wayfinder-loop.sh" "$WORK/repo/scripts/"
 cd "$WORK/repo"
 git init -q
 git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+
+# Both entrypoints must resolve to the same canonical implementation.
+[ -f tools/wayfinder/wayfinder-loop.sh ] || die "canonical daemon missing in sandbox"
+[ -f scripts/wayfinder-loop.sh ] || die "compat wrapper missing in sandbox"
+grep -q 'tools/wayfinder/wayfinder-loop.sh' scripts/wayfinder-loop.sh \
+  || die "compat wrapper does not delegate to the canonical implementation"
 
 assert_no_git_writes() {
   if grep -qE '(^| )(add|commit|stash|restore|checkout|reset|clean|merge|rebase)( |$)' "$GIT_CALLS" 2>/dev/null; then
@@ -43,16 +51,28 @@ assert_no_git_writes() {
 }
 
 # --- Case 1: clean tree, dry-run bootstrap — seeds state, spawns nothing -----
+# Direct canonical invocation.
 printf 'packet\n' > .wayfinder/handoffs/wayfinder-900-handoff.md
 : > "$GIT_CALLS"
-WAYFINDER_DRY_RUN=1 ./scripts/wayfinder-loop.sh --bootstrap wayfinder-900-handoff.md \
+WAYFINDER_DRY_RUN=1 ./tools/wayfinder/wayfinder-loop.sh --bootstrap wayfinder-900-handoff.md \
   >> "$WORK/case1.log" 2>&1 ||
   die "dry-run bootstrap failed: $(tail -5 "$WORK/case1.log")"
 grep -q "dry-run bootstrap complete" "$WORK/case1.log" || die "bootstrap did not reach dry-run completion"
 [ -f .wayfinder-loop.state ] || die "no runtime state written (crash recovery broken)"
 assert_no_git_writes
 
+# --- Case 1b: compat wrapper reaches the same dry-run endpoint -----
+rm -f .wayfinder-loop.state
+: > "$GIT_CALLS"
+WAYFINDER_DRY_RUN=1 ./scripts/wayfinder-loop.sh --bootstrap wayfinder-900-handoff.md \
+  >> "$WORK/case1b.log" 2>&1 ||
+  die "wrapper dry-run bootstrap failed: $(tail -5 "$WORK/case1b.log")"
+grep -q "dry-run bootstrap complete" "$WORK/case1b.log" || die "wrapper bootstrap did not reach dry-run completion"
+[ -f .wayfinder-loop.state ] || die "wrapper run wrote no runtime state"
+assert_no_git_writes
+
 # --- Case 2: dirty tree, live spawn path — must pause+notify, never commit ---
+# Exercised via the compat wrapper (the live daemon's stable launcher).
 printf 'leftover\n' > untracked-leftover.txt
 : > "$GIT_CALLS"
 # timeout kills the paused wait loop; exit code 124 is the expected shape.

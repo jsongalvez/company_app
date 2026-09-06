@@ -1,7 +1,7 @@
 # Wayfinding chain daemon
 
 Unattended driver for the wayfinder handoff chain: a tmux session
-(`wayfinder-loop`) running `scripts/wayfinder-loop.sh`. It watches
+(`wayfinder-loop`) running `tools/wayfinder/wayfinder-loop.sh`. It watches
 `.wayfinder/handoffs/` for new `wayfinder-*-handoff.md` packets, spawns a
 fresh zero-context opencode2 session to execute each one, supervises the
 session (questions, permissions, stalls), and chains to the next packet.
@@ -26,7 +26,7 @@ is in `result.txt`, not whatever HEAD happens to be when the gates finish.
   exits, so a mid-flight edit can never double-spawn.
 - **End every chain session with a clean worktree and a recorded endpoint.**
   Commit finished slices to master (`ref #<ticket>`); park unfinished work with
-  `scripts/wayfinder-park.sh <note>` and record the stash ref in the packet
+  `tools/wayfinder/wayfinder-park.sh <note>` and record the stash ref in the packet
   before exiting. Signal the exit by writing or revising your packet — a stop
   with no handoff activity reads as a crash and gets nudged, then pauses the
   chain after 2 fruitless continuations.
@@ -66,9 +66,10 @@ left as an unblocked map child for the next frontier query.
 
 This watchdog is host-local like `local-ci.sh`; it adds no hosted workflow,
 schedule, hook gate, or cross-machine claim. The existing `flock` remains the
-single-daemon guard. If #570 relocates the implementation, move this watchdog
-with the canonical script and retain `scripts/wayfinder-loop.sh` as the stable
-launcher until the live daemon is safely restarted; do not restart the live
+single-daemon guard. The implementation lives in the canonical
+`tools/wayfinder/wayfinder-loop.sh`; `scripts/wayfinder-loop.sh` stays as the
+stable compat launcher until the live daemon is safely restarted — subsequent
+restarts should use the canonical path; do not restart the live
 loop as part of a relocation.
 
 ## Recovery semantics (#355)
@@ -127,10 +128,10 @@ restart.
 # --bootstrap refuses while any live chain worker exists (kill-plus-bootstrap
 # orphans the old worker into a duplicate) — plain restart resumes instead.
 tmux new-session -d -s wayfinder-loop \
-  'bash scripts/wayfinder-loop.sh --bootstrap <packet-filename>'
+  'bash tools/wayfinder/wayfinder-loop.sh --bootstrap <packet-filename>'
 
 # resume supervision of the session recorded in .wayfinder-loop.state
-tmux new-session -d -s wayfinder-loop 'bash scripts/wayfinder-loop.sh'
+tmux new-session -d -s wayfinder-loop 'bash tools/wayfinder/wayfinder-loop.sh'
 ```
 
 Verify green: one `created ses_…` line in the log, no `handoff … detected`

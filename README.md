@@ -48,20 +48,20 @@ gate policy.
 
 ## Wayfinder Loop (Automated Wayfinder Chain)
 
-Automates the wayfinder session chain: watches `.wayfinder/handoffs/` (gitignored runtime packets — never committed) for new `wayfinder-*-handoff.md` files, waits for the producing session and its child sessions to exit, then spawns one fresh zero-context opencode2 session that reads the packet and drives the next session per its instructions. A lock prevents duplicate daemons. Sessions are one-ticket-per-session, claim-first, per the handoff docs.
+Automates the wayfinder session chain: watches `.wayfinder/handoffs/` (gitignored runtime packets — never committed) for new `wayfinder-*-handoff.md` files, waits for the producing session and its child sessions to exit, then spawns one fresh zero-context opencode2 session that reads the packet and drives the next session per its instructions. A lock prevents duplicate daemons. Sessions are one-ticket-per-session, claim-first, per the handoff docs. Canonical implementation: `tools/wayfinder/` (`scripts/wayfinder-*.sh` are compat wrappers).
 
 ```bash
 # First start (seed with the latest handoff packet and spawn immediately)
-./scripts/wayfinder-loop.sh --bootstrap <latest-handoff-packet>.md
+./tools/wayfinder/wayfinder-loop.sh --bootstrap <latest-handoff-packet>.md
 
 # Normal start / restart (resumes supervision of the running session)
-./scripts/wayfinder-loop.sh
+./tools/wayfinder/wayfinder-loop.sh
 ```
 
 Run it in tmux so it survives your SSH sessions:
 
 ```bash
-tmux new-session -d -s wayfinder-loop './scripts/wayfinder-loop.sh 2>&1 | tee -a .wayfinder-loop.tmux.log'
+tmux new-session -d -s wayfinder-loop './tools/wayfinder/wayfinder-loop.sh 2>&1 | tee -a .wayfinder-loop.tmux.log'
 ```
 
 ### Controls
@@ -71,10 +71,10 @@ tmux new-session -d -s wayfinder-loop './scripts/wayfinder-loop.sh 2>&1 | tee -a
 | Watch the daemon log live | `tmux attach -t wayfinder-loop` |
 | Session history | `cat .wayfinder-loop.log` |
 | Stop the chain (running agent session survives) | `tmux kill-session -t wayfinder-loop` |
-| First start (seed with the latest handoff, spawn immediately) | `./scripts/wayfinder-loop.sh --bootstrap <latest-handoff-packet>.md` |
-| Normal start / resume supervision after a stop or reboot | `tmux new-session -d -s wayfinder-loop './scripts/wayfinder-loop.sh'` |
-| Resume a paused chain (after a dead/stalled session exhausted retries) | `./scripts/wayfinder-loop.sh --retry` |
-| Resume the existing session in place (keeps its uncommitted work) | `./scripts/wayfinder-loop.sh --resume` |
+| First start (seed with the latest handoff, spawn immediately) | `./tools/wayfinder/wayfinder-loop.sh --bootstrap <latest-handoff-packet>.md` |
+| Normal start / resume supervision after a stop or reboot | `tmux new-session -d -s wayfinder-loop './tools/wayfinder/wayfinder-loop.sh'` |
+| Resume a paused chain (after a dead/stalled session exhausted retries) | `./tools/wayfinder/wayfinder-loop.sh --retry` |
+| Resume the existing session in place (keeps its uncommitted work) | `./tools/wayfinder/wayfinder-loop.sh --resume` |
 
 ### When the agent needs you
 
@@ -113,7 +113,7 @@ Env overrides: `WAYFINDER_NTFY_TOPIC` (phone push topic), `WAYFINDER_POLL_SECS` 
 ### Resilience
 
 - **Stalled session**: if a session stops producing messages for ~9 minutes, the daemon asks it to continue where it left off (same session, same context) — up to 2 attempts. No work is touched or reverted.
-- **Dead session**: if a session is deleted without writing a handoff, the daemon spawns a fresh session from the last handoff doc — up to 2 attempts, then pauses and notifies. Resume manually with `./scripts/wayfinder-loop.sh --retry`.
+- **Dead session**: if a session is deleted without writing a handoff, the daemon spawns a fresh session from the last handoff doc — up to 2 attempts, then pauses and notifies. Resume manually with `./tools/wayfinder/wayfinder-loop.sh --retry`.
 - **opencode2 API outage**: daemon keeps retrying and notifies once if the service is unreachable (`opencode2 service status` to check).
 - **Dirty worktree gate**: a fresh session never spawns into a dirty worktree (killed-session leftovers or uncommitted infra would get swept into its commits). The daemon **never stages or commits** — the owning agent cleans up its own work; a dirty tree pauses the chain with a notification until it's clean. In-place session resumes bypass this gate — they continue their own uncommitted work.
 - **One recovery contract**: every in-place resume (immediate-stop nudge, stall resume, manual `--resume`) posts the same canonical recovery prompt, and `--retry` fresh-spawns only after the prior session is confirmed gone. Session-side semantics live in `docs/agents/wayfinder-lifecycle.md`.
