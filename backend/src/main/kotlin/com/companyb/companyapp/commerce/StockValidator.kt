@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service.inventory
+package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.ValidationException

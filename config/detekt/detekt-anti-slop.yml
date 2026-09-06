@@ -504,7 +504,7 @@ style:
     allowedNames: '^$'
     excludes:
       - '**/api/routes/CompensationRoutes.kt'
-      - '**/api/routes/BranchInventoryRoutes.kt'
+      - '**/commerce/BranchInventoryRoutes.kt'
       - '**/api/routes/RemittanceRoutes.kt'
       - '**/api/routes/CommissionRoutes.kt'
 

@@ -1,7 +1,7 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.commerce
 
-import com.companyb.companyapp.service.inventory.InventoryService
-import com.companyb.companyapp.service.inventory.MovementType
+import com.companyb.companyapp.commerce.InventoryService
+import com.companyb.companyapp.commerce.MovementType
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

@@ -4,11 +4,13 @@ package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.DailySalesSummaryRoutes
 import com.companyb.companyapp.api.routes.ExpenseRoutes
-import com.companyb.companyapp.api.routes.ProductSaleRoutes
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayRoutes
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
+import com.companyb.companyapp.commerce.InventoryService
+import com.companyb.companyapp.commerce.MovementType
+import com.companyb.companyapp.commerce.ProductSaleRoutes
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -21,8 +23,6 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.repository.model.ExpenseTable
-import com.companyb.companyapp.service.inventory.InventoryService
-import com.companyb.companyapp.service.inventory.MovementType
 import com.companyb.companyapp.session.SessionBaseRateService
 import com.companyb.companyapp.session.SessionRoutes
 import com.companyb.companyapp.session.SessionService

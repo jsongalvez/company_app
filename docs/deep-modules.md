@@ -95,7 +95,7 @@ intentionally shallow.
 ## Inventory
 
 **Owns:** per-branch stock cards with optimistic versioning, movement ledger with sign/notes rules per movement type, low-stock alerts (per-product reorder points).
-**Anchors:** `service/inventory/InventoryService.kt`, `service/inventory/MovementType.kt`, `repository/BranchInventoryRepository.kt`.
+**Anchors:** `commerce/InventoryService.kt`, `commerce/MovementType.kt`, `commerce/BranchInventoryRepository.kt` (internal).
 **Public seam:** `recordMovement` / `ensureCard` / `getStock` / `getLowStockAlerts` / `getMovementHistory` · `MovementType` sealed class.
 **Depends on:** Branch Day gate (via `StockValidator`, inside the command tx), Products, Branch existence. Not relief-eligible — branch-scoped only (#157 scoping trap documented in routes).
 **Expansion triggers:** card version conflicts; movement reason enum/schema; FOR UPDATE materialization pattern (terminal-op rule).
@@ -104,8 +104,8 @@ intentionally shallow.
 ## Product Sales
 
 **Owns:** `sell()` — atomic sale insert + locked stock decrement + sale movement + audit + commission recalc in one transaction; price/commission frozen at sale time; non-voided-sale reads.
-**Anchors:** `service/ProductSaleService.kt`, `repository/ProductSaleRepository.kt`.
-**Public seam:** `sell()` · `findNonVoidedSalesByBranchDay(InTransaction)` (consumed by the commission aggregation).
+**Anchors:** `commerce/ProductSaleService.kt`, `commerce/ProductSaleRepository.kt` (internal).
+**Public seam:** `sell()` · `CommerceReads.findSaleById(InTransaction)` / `findNonVoidedSalesByBranchDayInTransaction` (commission/remittance reads).
 **Depends on:** Branch Day gate, Inventory card lock, Products, Session (same-day linkage validation), Commission.
 **Expansion triggers:** idempotent-retry ownership classification (day mismatch = 404 vs field mismatch = 409); stock guard ordering.
 **Search:** `insertSaleInTransaction`, `commissionAmountAtTime`.

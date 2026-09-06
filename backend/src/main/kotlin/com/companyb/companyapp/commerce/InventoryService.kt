@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service.inventory
+package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
@@ -7,16 +7,6 @@ import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.BranchInventoryRepository
-import com.companyb.companyapp.repository.ProductRepository
-import com.companyb.companyapp.repository.RecordMovementParams
-import com.companyb.companyapp.repository.RecordMovementResult
-import com.companyb.companyapp.repository.model.BranchInventory
-import com.companyb.companyapp.repository.model.BranchInventoryTable
-import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
-import com.companyb.companyapp.repository.model.InventoryMovement
-import com.companyb.companyapp.repository.model.InventoryMovementTable
-import com.companyb.companyapp.repository.model.Product
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate

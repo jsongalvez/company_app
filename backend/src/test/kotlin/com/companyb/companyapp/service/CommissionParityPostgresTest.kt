@@ -1,10 +1,10 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.branchday.BranchDayTable
+import com.companyb.companyapp.commerce.ProductSaleTable
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertParams
-import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.service.dashboard.DashboardService
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import com.companyb.companyapp.service.finance.commission.CommissionShare

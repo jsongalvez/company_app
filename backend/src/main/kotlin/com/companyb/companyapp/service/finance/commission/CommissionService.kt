@@ -3,16 +3,16 @@ package com.companyb.companyapp.service.finance.commission
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.commerce.CommerceReads
+import com.companyb.companyapp.commerce.ProductSale
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.CommissionSplitRepository
-import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertParams
 import com.companyb.companyapp.repository.model.CommissionSplit
-import com.companyb.companyapp.repository.model.ProductSale
 import com.companyb.companyapp.workforce.Attendance
 import com.companyb.companyapp.workforce.AttendanceRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -125,7 +125,7 @@ object CommissionService {
         reason: String?,
     ): CommissionManualInclusion {
         val sale =
-            ProductSaleRepository.findById(productSaleId)
+            CommerceReads.findSaleById(productSaleId)
                 ?: throw NotFoundException("Product sale not found")
 
         // #516 — locked day read: serializes this inclusion with remittance's
@@ -223,7 +223,7 @@ object CommissionService {
      * observe their own uncommitted writes.
      */
     internal fun computeTotalsInTransaction(branchDayId: UUID): Map<UUID, CommissionShare> {
-        val sales = ProductSaleRepository.findNonVoidedSalesByBranchDayInTransaction(branchDayId)
+        val sales = CommerceReads.findNonVoidedSalesByBranchDayInTransaction(branchDayId)
         if (sales.isEmpty()) return emptyMap()
         val attendance = AttendanceRepository.findByBranchDayIdInTransaction(branchDayId)
         val inclusions = CommissionManualInclusionRepository.findBySaleIdsInTransaction(sales.map { it.id })

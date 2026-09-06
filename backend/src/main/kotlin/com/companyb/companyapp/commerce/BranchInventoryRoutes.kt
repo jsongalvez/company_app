@@ -1,7 +1,8 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.commerce
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.InventoryMovementReason
@@ -11,11 +12,6 @@ import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.InventoryMovementRequest
 import com.companyb.companyapp.dto.InventoryMovementResponse
 import com.companyb.companyapp.dto.RestockRequest
-import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
-import com.companyb.companyapp.repository.model.InventoryMovement
-import com.companyb.companyapp.service.inventory.InventoryBreakdown
-import com.companyb.companyapp.service.inventory.InventoryService
-import com.companyb.companyapp.service.inventory.MovementType
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context

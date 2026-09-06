@@ -1,9 +1,6 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.Product
-import com.companyb.companyapp.repository.model.ProductCreateParams
-import com.companyb.companyapp.repository.model.ProductTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.eq
@@ -32,7 +29,7 @@ data class ProductUpdate(
     val isActive: Boolean? = null,
 )
 
-object ProductRepository {
+internal object ProductRepository {
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: ProductCreateParams): ProductCreateResult {
         val insertedCount =

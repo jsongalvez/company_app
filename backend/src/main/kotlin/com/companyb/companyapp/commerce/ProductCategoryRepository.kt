@@ -1,8 +1,6 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.ProductCategory
-import com.companyb.companyapp.repository.model.ProductCategoryTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.eq
@@ -13,7 +11,7 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
-object ProductCategoryRepository {
+internal object ProductCategoryRepository {
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(
         id: UUID,

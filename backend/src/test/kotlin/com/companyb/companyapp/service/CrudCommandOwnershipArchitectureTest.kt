@@ -25,8 +25,8 @@ class CrudCommandOwnershipArchitectureTest {
         val files =
             mapOf(
                 "branch/BranchRepository.kt" to 3,
-                "repository/ProductCategoryRepository.kt" to 2,
-                "repository/ProductRepository.kt" to 4,
+                "commerce/ProductCategoryRepository.kt" to 2,
+                "commerce/ProductRepository.kt" to 4,
                 // Three read wrappers after the authoritative session-count query.
                 "client/ClientRepository.kt" to 3,
                 "repository/AllowanceRepository.kt" to 1,
@@ -52,8 +52,8 @@ class CrudCommandOwnershipArchitectureTest {
                 // findById + branch list read wrappers; mutation stores remain in-transaction.
                 "workforce/relief/MedicalMissionDelegateRepository.kt" to 2,
                 // Batch 5 — inventory/product-sale cluster.
-                "repository/ProductSaleRepository.kt" to 2,
-                "repository/BranchInventoryRepository.kt" to 4,
+                "commerce/ProductSaleRepository.kt" to 2,
+                "commerce/BranchInventoryRepository.kt" to 4,
                 // Batch 6 — commission cluster.
                 "repository/CommissionSplitRepository.kt" to 1,
                 "repository/CommissionManualInclusionRepository.kt" to 3,
@@ -73,8 +73,8 @@ class CrudCommandOwnershipArchitectureTest {
         val commands =
             mapOf(
                 "branch/BranchService.kt" to listOf("create"),
-                "service/ProductCategoryService.kt" to listOf("create"),
-                "service/ProductService.kt" to listOf("create", "update"),
+                "commerce/ProductCategoryService.kt" to listOf("create"),
+                "commerce/ProductService.kt" to listOf("create", "update"),
                 "client/ClientService.kt" to listOf("create", "update", "anonymize"),
                 "service/AllowanceService.kt" to listOf("create"),
                 "service/CompensationService.kt" to listOf("create", "update"),
@@ -97,8 +97,8 @@ class CrudCommandOwnershipArchitectureTest {
                     listOf("createInvite", "acceptInvite", "declineInvite", "retractInvite", "revokeInvite"),
                 "workforce/relief/MedicalMissionDelegateService.kt" to listOf("assignDelegate", "revokeDelegate"),
                 // Batch 5 — inventory/product-sale cluster.
-                "service/ProductSaleService.kt" to listOf("sell"),
-                "service/inventory/InventoryService.kt" to listOf("recordMovement", "ensureCard"),
+                "commerce/ProductSaleService.kt" to listOf("sell"),
+                "commerce/InventoryService.kt" to listOf("recordMovement", "ensureCard"),
                 // Batch 6 — commission cluster. recalculate remains the standalone entry point
                 // (manualRecalculate); sell/clock-in/clock-out call recalculateInTransaction
                 // inside their own commands instead of nesting this module's write block.
@@ -126,8 +126,8 @@ class CrudCommandOwnershipArchitectureTest {
         val seams =
             mapOf(
                 "branch/BranchService.kt" to "BranchAudit",
-                "service/ProductCategoryService.kt" to "ProductCategoryAudit",
-                "service/ProductService.kt" to "ProductAudit",
+                "commerce/ProductCategoryService.kt" to "ProductCategoryAudit",
+                "commerce/ProductService.kt" to "ProductAudit",
                 "client/ClientService.kt" to "ClientAudit",
                 "service/AllowanceService.kt" to "AllowanceAudit",
                 "service/CompensationService.kt" to "CompensationAudit",
@@ -142,8 +142,8 @@ class CrudCommandOwnershipArchitectureTest {
                 "workforce/relief/ReliefInviteService.kt" to "ReliefInviteAudit",
                 "workforce/relief/MedicalMissionDelegateService.kt" to "MedicalMissionDelegateAudit",
                 // Batch 5 — inventory/product-sale cluster.
-                "service/ProductSaleService.kt" to "ProductSaleAudit",
-                "service/inventory/InventoryService.kt" to "BranchInventoryAudit",
+                "commerce/ProductSaleService.kt" to "ProductSaleAudit",
+                "commerce/InventoryService.kt" to "BranchInventoryAudit",
                 // Batch 6 — commission cluster.
                 "service/finance/commission/CommissionService.kt" to "CommissionAudit",
             )

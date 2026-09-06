@@ -2,6 +2,7 @@ package com.companyb.companyapp.service.finance.remittance
 
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.commerce.CommerceReads
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.RemittanceLineType
 import com.companyb.companyapp.domain.RemittanceMethod
@@ -10,7 +11,6 @@ import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.session.SessionReads
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
@@ -356,7 +356,7 @@ object RemittanceService {
                     val sourceId =
                         productSaleId
                             ?: throw ValidationException("productSaleId is required for PRODUCT_SALE line type")
-                    ProductSaleRepository.findById(sourceId)?.branchDayId
+                    CommerceReads.findSaleById(sourceId)?.branchDayId
                         ?: throw NotFoundException("Product sale not found")
                 }
             }
@@ -508,8 +508,8 @@ object RemittanceService {
                     }
 
                     RemittanceLineType.PRODUCT_SALE -> {
-                        ProductSaleRepository
-                            .findByIdInTransaction(
+                        CommerceReads
+                            .findSaleByIdInTransaction(
                                 line.productSaleId
                                     ?: throw ValidationException(
                                         "productSaleId is required for PRODUCT_SALE line type",

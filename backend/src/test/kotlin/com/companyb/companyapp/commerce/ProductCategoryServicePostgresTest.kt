@@ -1,7 +1,7 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.commerce
 import com.companyb.companyapp.audit.AuditLogTable
-import com.companyb.companyapp.repository.model.ProductCategory
-import com.companyb.companyapp.repository.model.ProductCategoryTable
+import com.companyb.companyapp.commerce.ProductCategory
+import com.companyb.companyapp.commerce.ProductCategoryTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.commerce
 
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
@@ -29,7 +29,7 @@ data class ProductCreateParams(
     val changedBy: UUID,
 )
 
-object ProductCategoryTable : Table("product_category") {
+internal object ProductCategoryTable : Table("product_category") {
     val id = javaUUID("id").autoGenerate()
     val name = text("name")
 
@@ -42,7 +42,7 @@ object ProductCategoryTable : Table("product_category") {
         )
 }
 
-object ProductTable : Table("product") {
+internal object ProductTable : Table("product") {
     private const val PRECISION = 10
     private const val SCALE = 2
 

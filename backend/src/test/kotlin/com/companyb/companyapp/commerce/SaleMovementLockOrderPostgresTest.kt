@@ -1,14 +1,14 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayRepository
+import com.companyb.companyapp.commerce.BranchInventoryTable
+import com.companyb.companyapp.commerce.InventoryMovementTable
+import com.companyb.companyapp.commerce.InventoryService
+import com.companyb.companyapp.commerce.MovementType
+import com.companyb.companyapp.commerce.ProductRepository
+import com.companyb.companyapp.commerce.ProductSaleTable
 import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.repository.ProductRepository
-import com.companyb.companyapp.repository.model.BranchInventoryTable
-import com.companyb.companyapp.repository.model.InventoryMovementTable
-import com.companyb.companyapp.repository.model.ProductSaleTable
-import com.companyb.companyapp.service.inventory.InventoryService
-import com.companyb.companyapp.service.inventory.MovementType
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

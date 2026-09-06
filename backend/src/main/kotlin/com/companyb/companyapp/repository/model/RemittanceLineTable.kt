@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository.model
 
+import com.companyb.companyapp.commerce.ProductSaleTable
 import com.companyb.companyapp.domain.RemittanceLineType
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.service.finance.remittance.RemittanceLine

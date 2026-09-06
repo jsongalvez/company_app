@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.domain.InventoryMovementReason
 import org.jetbrains.exposed.v1.core.Table
@@ -37,7 +37,7 @@ data class BranchInventoryWithProduct(
     val commissionAmount: BigDecimal,
 )
 
-object BranchInventoryTable : Table("branch_inventory") {
+internal object BranchInventoryTable : Table("branch_inventory") {
     val id = javaUUID("id").autoGenerate()
     val branchId = javaUUID("branch_id")
     val productId = javaUUID("product_id")
@@ -56,7 +56,7 @@ object BranchInventoryTable : Table("branch_inventory") {
         )
 }
 
-object InventoryMovementTable : Table("inventory_movement") {
+internal object InventoryMovementTable : Table("inventory_movement") {
     val id = javaUUID("id").autoGenerate()
     val productId = javaUUID("product_id")
     val productSaleId = javaUUID("product_sale_id").nullable()

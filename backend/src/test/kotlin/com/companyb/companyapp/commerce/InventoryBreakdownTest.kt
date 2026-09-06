@@ -1,7 +1,7 @@
-package com.companyb.companyapp.service.inventory
+package com.companyb.companyapp.commerce
 
+import com.companyb.companyapp.commerce.InventoryMovement
 import com.companyb.companyapp.domain.InventoryMovementReason
-import com.companyb.companyapp.repository.model.InventoryMovement
 import java.time.OffsetDateTime
 import java.util.UUID
 import kotlin.test.Test

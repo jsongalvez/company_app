@@ -3,6 +3,7 @@ package com.companyb.companyapp.service.finance.remittance
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.client.ClientTable
+import com.companyb.companyapp.commerce.ProductSaleTable
 import com.companyb.companyapp.domain.RemittanceLineType
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceStatus
@@ -12,7 +13,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
-import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable

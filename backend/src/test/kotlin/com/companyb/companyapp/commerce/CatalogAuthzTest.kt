@@ -1,6 +1,7 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.commerce
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.commerce.ProductService
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -10,7 +11,6 @@ import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
-import com.companyb.companyapp.service.ProductService
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

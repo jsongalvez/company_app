@@ -1,15 +1,9 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.VersionMismatchException
-import com.companyb.companyapp.repository.model.BranchInventory
-import com.companyb.companyapp.repository.model.BranchInventoryTable
-import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
-import com.companyb.companyapp.repository.model.InventoryMovement
-import com.companyb.companyapp.repository.model.InventoryMovementTable
-import com.companyb.companyapp.repository.model.ProductTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -50,7 +44,7 @@ data class EnsureCardResult(
 )
 
 @Suppress("TooManyFunctions")
-object BranchInventoryRepository {
+internal object BranchInventoryRepository {
     fun requireCardForUpdateInTransaction(
         oldCard: BranchInventory,
         expectedVersion: Int,

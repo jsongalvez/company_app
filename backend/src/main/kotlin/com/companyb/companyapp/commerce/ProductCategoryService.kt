@@ -1,11 +1,8 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.ProductCategoryRepository
-import com.companyb.companyapp.repository.model.ProductCategory
-import com.companyb.companyapp.repository.model.ProductCategoryTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID

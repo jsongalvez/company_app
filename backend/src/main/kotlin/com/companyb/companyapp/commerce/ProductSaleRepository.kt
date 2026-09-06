@@ -1,12 +1,8 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.InventoryMovementTable
-import com.companyb.companyapp.repository.model.Product
-import com.companyb.companyapp.repository.model.ProductSale
-import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.session.ActiveSessionVoidsView
 import com.companyb.companyapp.session.SessionTable
 import org.jetbrains.exposed.v1.core.JoinType
@@ -52,7 +48,7 @@ data class SellProductResult(
     val created: Boolean,
 )
 
-object ProductSaleRepository {
+internal object ProductSaleRepository {
     /**
      * In-transaction store operation (#323, ADR-0024) — idempotent fast-path for a same-day retry:
      * returns the existing sale after ownership validation, null when the id belongs to a sale of a

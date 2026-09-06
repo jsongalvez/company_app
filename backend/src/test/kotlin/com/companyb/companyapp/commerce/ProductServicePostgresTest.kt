@@ -1,8 +1,8 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.commerce
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.commerce.ProductTable
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures

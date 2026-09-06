@@ -54,6 +54,10 @@ CompanyApp:
       - '**/client/ClientRoutes.kt' # #541
       - '**/session/SessionRoutes.kt' # #542
       - '**/session/SessionBaseRateRoutes.kt' # #542
+      - '**/commerce/ProductRoutes.kt' # #543
+      - '**/commerce/ProductCategoryRoutes.kt' # #543
+      - '**/commerce/ProductSaleRoutes.kt' # #543
+      - '**/commerce/BranchInventoryRoutes.kt' # #543
       - '**/workforce/AttendanceRoutes.kt' # #539
       - '**/workforce/UserBranchAssignmentRoutes.kt' # #539
       - '**/workforce/relief/ReliefAccessRoutes.kt' # #540

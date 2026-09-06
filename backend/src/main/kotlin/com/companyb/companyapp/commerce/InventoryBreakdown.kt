@@ -1,7 +1,6 @@
-package com.companyb.companyapp.service.inventory
+package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.domain.InventoryMovementReason
-import com.companyb.companyapp.repository.model.InventoryMovement
 
 /**
  * #442 — the 5-value inventory sheet breakdown (owner decision 2026-09-03).

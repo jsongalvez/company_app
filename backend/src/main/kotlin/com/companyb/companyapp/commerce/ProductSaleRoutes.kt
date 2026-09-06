@@ -1,13 +1,12 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.commerce
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.CreateProductSaleRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.ProductSaleResponse
-import com.companyb.companyapp.repository.model.ProductSale
-import com.companyb.companyapp.service.ProductSaleService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus

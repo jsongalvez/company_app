@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.commerce
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.identity.AppUserTable
@@ -32,7 +32,7 @@ private const val PRICE_SCALE = 2
 private const val COMMISSION_PRECISION = 15
 private const val COMMISSION_SCALE = 4
 
-object ProductSaleTable : Table("product_sale") {
+internal object ProductSaleTable : Table("product_sale") {
     val id = javaUUID("id")
     val branchDayId = javaUUID("branch_day_id").references(BranchDayTable.id)
     val sessionId = javaUUID("session_id").references(SessionTable.id).nullable()

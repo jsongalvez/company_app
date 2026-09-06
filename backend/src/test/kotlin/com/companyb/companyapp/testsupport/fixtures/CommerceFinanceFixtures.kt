@@ -1,11 +1,11 @@
 package com.companyb.companyapp.testsupport.fixtures
 
+import com.companyb.companyapp.commerce.ProductCategoryTable
+import com.companyb.companyapp.commerce.ProductSaleTable
+import com.companyb.companyapp.commerce.ProductTable
 import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
-import com.companyb.companyapp.repository.model.ProductCategoryTable
-import com.companyb.companyapp.repository.model.ProductSaleTable
-import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insert

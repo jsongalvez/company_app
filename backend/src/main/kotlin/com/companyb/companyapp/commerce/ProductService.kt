@@ -1,15 +1,8 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.ProductCategoryRepository
-import com.companyb.companyapp.repository.ProductCreateResult
-import com.companyb.companyapp.repository.ProductRepository
-import com.companyb.companyapp.repository.ProductUpdate
-import com.companyb.companyapp.repository.model.Product
-import com.companyb.companyapp.repository.model.ProductCreateParams
-import com.companyb.companyapp.repository.model.ProductTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
