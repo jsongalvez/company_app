@@ -27,7 +27,7 @@ routes (thin: parse → call one service command; capability before-filters)
 functions; Finance hides the commission engine and the serializable remittance
 workflow; Capability is narrow by design; Audit looks trivial but hides JSONB diffing,
 flagging, and read scoping. The remaining top-level services (users, clients,
-products/categories, expenses/allowances/compensations) are shallow CRUD-style
+products/categories) are shallow CRUD-style
 commands whose interface matches their implementation — a direct
 service → repository → test path needs no deep-module ceremony. Repositories are
 intentionally shallow.
@@ -110,12 +110,12 @@ intentionally shallow.
 **Expansion triggers:** idempotent-retry ownership classification (day mismatch = 404 vs field mismatch = 409); stock guard ordering.
 **Search:** `insertSaleInTransaction`, `commissionAmountAtTime`.
 
-## Finance (Commission · Remittance)
+## Finance (Day entries · Commission · Remittance)
 
-**Owns:** the commission engine (eligible set = clocked-in-at-sale ∓ manual inclusions; split at scale 4; replace-per-day splits; `recalculateInTransaction` store-side entry for enclosing commands) · the remittance workflow (DRAFT→SUBMITTED under SERIALIZABLE isolation, immutable SESSION financial snapshot, 48h undo window on the DB clock, day transitions via the Branch Day boundary, overlap-exclusion mapping) · the summary read models (`daily_sales_summary`, `monthly_remittance_summary` views).
-**Anchors:** `remittance/RemittanceService.kt`, `remittance/RemittancePolicy.kt` (pure rules), `commission/CommissionService.kt` (+ internal `CommissionSplitRepository`, `CommissionManualInclusionRepository` in same package).
-**Public seam:** remittance `submit` / `undoAt` / `createDraft` / `updateHeader` / `addLine` / `removeLine` / `addDayBreakdown` / `getDrift` / list+picker reads · commission `recalculate(InTransaction)` / `splitCommission` / `liveCommissions` / `createManualInclusion` / `getByBranchDayId`.
-**Depends on:** Branch Day (locks, mark/release days), Session + Product Sales (line-source validation, gross sums), ledger services — Expense/Allowance/Compensation rows feed the sums but are shallow modules with their own cards-free path (`ExpenseService`, `AllowanceService`, `CompensationService`); an expense/allowance/compensation ticket does not enter this card.
+**Owns:** day-entry mutation policy — expenses (soft-delete/restore + reason), compensations (paying/work branch authority + uniqueness), allowances (excluded from P&L) — each with idempotent commands, day locks and audit atomicity · the commission engine (eligible set = clocked-in-at-sale ∓ manual inclusions; split at scale 4; replace-per-day splits; `recalculateInTransaction` store-side entry for enclosing commands) · the remittance workflow (DRAFT→SUBMITTED under SERIALIZABLE isolation, immutable SESSION financial snapshot, 48h undo window on the DB clock, day transitions via the Branch Day boundary, overlap-exclusion mapping) · the summary read models (`daily_sales_summary`, `monthly_remittance_summary` views).
+**Anchors:** `finance/ExpenseService.kt` (+ internal `ExpenseRepository`, record + internal `ExpenseTable` in same package) · `finance/CompensationService.kt` (+ internal `CompensationRepository`) · `finance/AllowanceService.kt` (+ internal `AllowanceRepository`) · `finance/FinanceReads.kt` · `remittance/RemittanceService.kt` (pure rules in `remittance/RemittancePolicy.kt`).
+**Public seam:** finance `FinanceReads.findExpenseById(InTransaction)` / `findCompensationById(InTransaction)` (authz + compensation-gate reads; service-to-service, no allowlist) · remittance `submit` / `undoAt` / `createDraft` / `updateHeader` / `addLine` / `removeLine` / `addDayBreakdown` / `getDrift` / list+picker reads · commission `recalculate(InTransaction)` / `splitCommission` / `liveCommissions` / `createManualInclusion` / `getByBranchDayId`.
+**Depends on:** Branch Day (locks, mark/release days), Session + Product Sales (line-source validation, gross sums); finance day-entry rows feed remittance sums via direct table reads inside the remittance internal store (deliberate; #546 owns the finance move, no new seam), capability/compensation gates via the `FinanceReads` seam.
 **Expansion triggers:** V13 trigger carve-out for snapshot deletion; `no_remittance_overlap` exclusion constraint; BigDecimal no-rounding rule (remittance sums) vs scale-4 splits; drift read semantics.
 **Tests/authority:** `docs/engines.md` (exact pseudocode); `RemittancePolicy` is DB-free unit-tested; k6 `remittance-race-test.js` covers the serializable race.
 **Search:** `recalculateInTransaction`, `assertWithinUndoWindow`, `remittance_financial_snapshot`.

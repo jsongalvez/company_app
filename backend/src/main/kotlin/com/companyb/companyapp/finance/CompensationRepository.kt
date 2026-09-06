@@ -1,12 +1,10 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.finance
 
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.Compensation
-import com.companyb.companyapp.repository.model.CompensationTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -41,7 +39,7 @@ data class CompensationWithUser(
     val userName: String,
 )
 
-object CompensationRepository {
+internal object CompensationRepository {
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: CompensationCreateParams): CompensationCreateResult {
         val insertedCount =

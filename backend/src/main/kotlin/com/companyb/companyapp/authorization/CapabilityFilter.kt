@@ -7,8 +7,8 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.isStatusCorrection
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
+import com.companyb.companyapp.finance.FinanceReads
 import com.companyb.companyapp.remittance.RemittanceService
-import com.companyb.companyapp.repository.ExpenseRepository
 import com.companyb.companyapp.session.SessionReads
 import io.javalin.http.Context
 import io.javalin.http.NotFoundResponse
@@ -255,7 +255,7 @@ object CapabilityFilter {
         capabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
     ) {
         val expense =
-            ExpenseRepository.findById(expenseId)
+            FinanceReads.findExpenseById(expenseId)
                 ?: throw NotFoundResponse("Expense not found")
         requireBranchOrBranchDayCapability(context, expense.branchDayId, capabilityCode)
     }

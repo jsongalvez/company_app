@@ -1,16 +1,16 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.finance
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.api.routes.uuidFromQuery
+import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.CompensationResponse
 import com.companyb.companyapp.dto.CreateCompensationRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.UpdateCompensationRequest
-import com.companyb.companyapp.repository.CompensationWithUser
-import com.companyb.companyapp.repository.model.Compensation
-import com.companyb.companyapp.service.CompensationService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HandlerType
@@ -97,8 +97,7 @@ object CompensationRoutes {
         config.routes.before(ApiRoutes.COMPENSATION_PATH) { context ->
             val compensationId = context.pathParamAsUuid("compensationId")
             val compensation =
-                com.companyb.companyapp.repository.CompensationRepository
-                    .findById(compensationId)
+                FinanceReads.findCompensationById(compensationId)
                     ?: throw io.javalin.http.NotFoundResponse("Compensation not found")
             CapabilityFilter.requireBranchCapability(
                 context,

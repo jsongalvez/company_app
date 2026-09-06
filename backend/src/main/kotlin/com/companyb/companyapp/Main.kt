@@ -2,11 +2,8 @@ package com.companyb.companyapp
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.TraceIdFilter
-import com.companyb.companyapp.api.routes.AllowanceRoutes
-import com.companyb.companyapp.api.routes.CompensationRoutes
 import com.companyb.companyapp.api.routes.DailySalesSummaryRoutes
 import com.companyb.companyapp.api.routes.DashboardRoutes
-import com.companyb.companyapp.api.routes.ExpenseRoutes
 import com.companyb.companyapp.api.routes.ExportRoutes
 import com.companyb.companyapp.api.routes.FeedbackRoutes
 import com.companyb.companyapp.api.routes.HealthRoutes
@@ -30,6 +27,9 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.finance.AllowanceRoutes
+import com.companyb.companyapp.finance.CompensationRoutes
+import com.companyb.companyapp.finance.ExpenseRoutes
 import com.companyb.companyapp.identity.AuthRoutes
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.MeRoutes

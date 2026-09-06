@@ -503,7 +503,7 @@ style:
     active: true
     allowedNames: '^$'
     excludes:
-      - '**/api/routes/CompensationRoutes.kt'
+      - '**/finance/CompensationRoutes.kt'
       - '**/commerce/BranchInventoryRoutes.kt'
       - '**/remittance/RemittanceRoutes.kt'
       - '**/commission/CommissionRoutes.kt'

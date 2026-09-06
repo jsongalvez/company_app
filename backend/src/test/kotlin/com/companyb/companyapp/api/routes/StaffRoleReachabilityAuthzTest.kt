@@ -7,6 +7,8 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.finance.CompensationRoutes
+import com.companyb.companyapp.finance.ExpenseRoutes
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.RoleTable

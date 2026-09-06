@@ -3,7 +3,6 @@
 package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.DailySalesSummaryRoutes
-import com.companyb.companyapp.api.routes.ExpenseRoutes
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayRoutes
 import com.companyb.companyapp.branchday.BranchDayService
@@ -20,9 +19,10 @@ import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.finance.ExpenseRoutes
+import com.companyb.companyapp.finance.ExpenseTable
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
-import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.session.SessionBaseRateService
 import com.companyb.companyapp.session.SessionRoutes
 import com.companyb.companyapp.session.SessionService

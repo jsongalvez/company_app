@@ -19,7 +19,7 @@ class ExpenseCommandOwnershipArchitectureTest {
 
     @Test
     fun `expense repository has no nested write transactions or audit callbacks`() {
-        val source = mainSource("repository/ExpenseRepository.kt")
+        val source = mainSource("finance/ExpenseRepository.kt")
 
         assertFalse(source.contains("auditFn"), "auditFn coordination must not return (#319 deletion test)")
         // Only the two read helpers (findById, findByBranchDayId) may keep convenience wrappers.
@@ -37,7 +37,7 @@ class ExpenseCommandOwnershipArchitectureTest {
 
     @Test
     fun `each expense mutation command owns exactly one transaction`() {
-        val source = mainSource("service/ExpenseService.kt")
+        val source = mainSource("finance/ExpenseService.kt")
 
         assertFalse(source.contains("auditFn"), "commands call AuditLog directly")
         listOf("create", "update", "softDelete", "restore").forEach { command ->

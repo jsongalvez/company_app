@@ -10,8 +10,8 @@ import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.dto.ClientPatchField
-import com.companyb.companyapp.repository.model.ExpenseTable
-import com.companyb.companyapp.service.ExpenseService
+import com.companyb.companyapp.finance.ExpenseService
+import com.companyb.companyapp.finance.ExpenseTable
 import com.companyb.companyapp.session.SessionBaseRateTable
 import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.session.SessionTable

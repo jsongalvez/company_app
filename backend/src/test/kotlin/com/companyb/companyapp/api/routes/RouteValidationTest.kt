@@ -24,12 +24,15 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.finance.AllowanceRoutes
+import com.companyb.companyapp.finance.CompensationRoutes
+import com.companyb.companyapp.finance.CompensationTable
+import com.companyb.companyapp.finance.ExpenseRoutes
+import com.companyb.companyapp.finance.ExpenseTable
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.remittance.RemittanceRoutes
 import com.companyb.companyapp.remittance.RemittanceTable
-import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.session.SessionRoutes
 import com.companyb.companyapp.test.JavalinTestServerRule

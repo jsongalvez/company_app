@@ -1,6 +1,10 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.finance
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.routes.parsePositiveBigDecimal
+import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.api.routes.uuidFromQuery
+import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.dto.CreateExpenseRequest
@@ -9,8 +13,6 @@ import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.ExpenseResponse
 import com.companyb.companyapp.dto.RestoreExpenseRequest
 import com.companyb.companyapp.dto.UpdateExpenseRequest
-import com.companyb.companyapp.repository.model.Expense
-import com.companyb.companyapp.service.ExpenseService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HandlerType

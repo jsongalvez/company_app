@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.finance
 
 import com.companyb.companyapp.domain.ExpenseCategory
 import org.jetbrains.exposed.v1.core.Table
@@ -33,7 +33,7 @@ data class ExpenseCreateParams(
     val notes: String?,
 )
 
-object ExpenseTable : Table("expense") {
+internal object ExpenseTable : Table("expense") {
     private const val AMOUNT_PRECISION = 10
     private const val AMOUNT_SCALE = 2
 

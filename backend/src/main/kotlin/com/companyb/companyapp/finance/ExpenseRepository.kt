@@ -1,13 +1,10 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.finance
 
 import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.Expense
-import com.companyb.companyapp.repository.model.ExpenseCreateParams
-import com.companyb.companyapp.repository.model.ExpenseTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -38,7 +35,7 @@ data class ExpenseCreateResult(
  * atomically. Calling them outside a transaction fails loudly (Exposed: no transaction in
  * context). Read helpers may still open their own convenient transaction wrappers.
  */
-object ExpenseRepository {
+internal object ExpenseRepository {
     fun createInTransaction(params: ExpenseCreateParams): ExpenseCreateResult {
         val insertedCount =
             ExpenseTable

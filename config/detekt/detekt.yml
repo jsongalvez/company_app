@@ -679,16 +679,16 @@ style:
       # Never grows; burndown removes lines. New excludes need a #<ticket>.
       - '**/backend/src/main/kotlin/com/companyb/companyapp/Main.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/authorization/CapabilityFilter.kt' #465 frozen #538 retarget
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/AllowanceRoutes.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/AllowanceRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/AttendanceRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLog.kt' #549 seam mirrors store signatures
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commerce/BranchInventoryRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/client/ClientRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commission/CommissionRoutes.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/CompensationRoutes.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/CompensationRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/DailySalesSummaryRoutes.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/ExpenseRoutes.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/ExpenseRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/ExportRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/MonthlyRemittanceSummaryRoutes.kt' #465 frozen
@@ -709,7 +709,7 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogStore.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commerce/BranchInventoryRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/client/ClientRepository.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/repository/ExpenseRepository.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/ExpenseRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commerce/ProductSaleRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/ReliefAccessRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/ReliefInviteRepository.kt' #465 frozen
@@ -718,12 +718,12 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/session/SessionVoidRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/UserRepository.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/service/AllowanceService.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/AllowanceService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/client/ClientService.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/service/CompensationService.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/CompensationService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/DailySalesSummaryService.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/service/ExpenseService.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/ExpenseService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/MonthlyRemittanceSummaryService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commerce/ProductSaleService.kt' #465 frozen
@@ -761,7 +761,7 @@ style:
       - '**/backend/src/test/kotlin/com/companyb/companyapp/commerce/BranchInventoryServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/client/ClientServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/session/ConcernServicePostgresTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/service/ExpenseServicePostgresTest.kt' #465 frozen
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/finance/ExpenseServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/service/NextAppointmentSchedulerPostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/commerce/ProductSaleServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/workforce/relief/ReliefAccessServicePostgresTest.kt' #465 frozen

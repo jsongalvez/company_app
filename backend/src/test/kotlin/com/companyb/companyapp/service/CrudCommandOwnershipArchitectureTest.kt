@@ -29,8 +29,8 @@ class CrudCommandOwnershipArchitectureTest {
                 "commerce/ProductRepository.kt" to 4,
                 // Three read wrappers after the authoritative session-count query.
                 "client/ClientRepository.kt" to 3,
-                "repository/AllowanceRepository.kt" to 1,
-                "repository/CompensationRepository.kt" to 3,
+                "finance/AllowanceRepository.kt" to 1,
+                "finance/CompensationRepository.kt" to 3,
                 // Five read-only wrappers: #453 dropped the audit-read createdBy
                 // wrapper (ownership is now transaction-local created_by).
                 "session/SessionRepository.kt" to 5,
@@ -76,8 +76,8 @@ class CrudCommandOwnershipArchitectureTest {
                 "commerce/ProductCategoryService.kt" to listOf("create"),
                 "commerce/ProductService.kt" to listOf("create", "update"),
                 "client/ClientService.kt" to listOf("create", "update", "anonymize"),
-                "service/AllowanceService.kt" to listOf("create"),
-                "service/CompensationService.kt" to listOf("create", "update"),
+                "finance/AllowanceService.kt" to listOf("create"),
+                "finance/CompensationService.kt" to listOf("create", "update"),
                 // Session cluster (batch 3): pass-through delegates in SessionService are not
                 // commands; the transaction-owning mutations live in these four files.
                 "session/SessionService.kt" to
@@ -129,8 +129,8 @@ class CrudCommandOwnershipArchitectureTest {
                 "commerce/ProductCategoryService.kt" to "ProductCategoryAudit",
                 "commerce/ProductService.kt" to "ProductAudit",
                 "client/ClientService.kt" to "ClientAudit",
-                "service/AllowanceService.kt" to "AllowanceAudit",
-                "service/CompensationService.kt" to "CompensationAudit",
+                "finance/AllowanceService.kt" to "AllowanceAudit",
+                "finance/CompensationService.kt" to "CompensationAudit",
                 "session/SessionService.kt" to "SessionAudit",
                 "session/SessionPractitionerService.kt" to "SessionPractitionerAudit",
                 "session/SessionConcernService.kt" to "SessionConcernAudit",

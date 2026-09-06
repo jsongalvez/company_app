@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.finance
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
@@ -7,10 +7,6 @@ import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.ExpenseRepository
-import com.companyb.companyapp.repository.model.Expense
-import com.companyb.companyapp.repository.model.ExpenseCreateParams
-import com.companyb.companyapp.repository.model.ExpenseTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal

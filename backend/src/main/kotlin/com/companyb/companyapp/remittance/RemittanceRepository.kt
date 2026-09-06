@@ -10,9 +10,9 @@ import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.finance.CompensationTable
+import com.companyb.companyapp.finance.ExpenseTable
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.session.ActiveSessionVoidsView
 import com.companyb.companyapp.session.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging

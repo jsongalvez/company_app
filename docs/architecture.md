@@ -95,6 +95,7 @@ company-app/
 │       ├── client/           # Client records, patch policy, anonymization + session lock/read seam (map #533 #541)
 │       ├── session/          # Session aggregate, practitioners, concerns/promotion, void state, rates + preview; SessionReads seam for commerce/remittance/dashboard/authz/client (map #533 #542)
 │       ├── commerce/         # Catalog, stock ledger, product-sale cluster + CommerceReads seam for commission/remittance (map #533 #543)
+│       ├── finance/          # Day-entry mutation policy: expenses, compensations, allowances + FinanceReads seam for authz/compensation gates (map #533 #546)
 │       ├── commission/       # Commission engine, split materialization, manual inclusions + local fact-read projection (map #533 #544)
 │       ├── remittance/       # Remittance aggregate, draft/submit/undo commands, internal stores + tables, route adapters; picker reads via Session/Commerce seams (map #533 #545)
 │       ├── config/           # Javalin config, serialization mapper

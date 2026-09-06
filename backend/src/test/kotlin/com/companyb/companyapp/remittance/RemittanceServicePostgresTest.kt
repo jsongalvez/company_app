@@ -15,14 +15,14 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
+import com.companyb.companyapp.finance.CompensationTable
+import com.companyb.companyapp.finance.ExpenseTable
 import com.companyb.companyapp.remittance.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.remittance.RemittancePolicy
 import com.companyb.companyapp.remittance.RemittanceRepository
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.remittance.RemittanceSubmissionResult
 import com.companyb.companyapp.remittance.RemittanceTable
-import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

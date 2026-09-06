@@ -13,7 +13,8 @@ import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.CompensationTable
+import com.companyb.companyapp.finance.CompensationService
+import com.companyb.companyapp.finance.CompensationTable
 import com.companyb.companyapp.session.ConcernTable
 import com.companyb.companyapp.session.SessionConcernService
 import com.companyb.companyapp.session.SessionConcernTable

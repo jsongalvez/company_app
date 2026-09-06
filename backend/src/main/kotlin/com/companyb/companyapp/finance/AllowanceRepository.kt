@@ -1,11 +1,8 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.finance
 
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.Allowance
-import com.companyb.companyapp.repository.model.AllowanceCreateParams
-import com.companyb.companyapp.repository.model.AllowanceTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -21,7 +18,7 @@ data class AllowanceCreateResult(
     val created: Boolean,
 )
 
-object AllowanceRepository {
+internal object AllowanceRepository {
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: AllowanceCreateParams): AllowanceCreateResult {
         val insertedCount =
