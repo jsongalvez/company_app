@@ -1,6 +1,5 @@
 package com.companyb.companyapp.seeding
 
-import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.authorization.CapabilityTable
 import com.companyb.companyapp.authorization.UserCapabilityTable
 import com.companyb.companyapp.branch.BranchTable
@@ -50,7 +49,7 @@ class DevSeederReliefPrincipalPostgresTest : BasePostgresTest() {
     @Test
     fun `seeded relief principal holds capability without an assignment`() {
         DevSeeder.seed(
-            config(reliefTestUsername = reliefUsername, reliefTestPassword = "relief-pass"),
+            config(reliefUsername = reliefUsername, reliefPassword = "relief-pass"),
         )
 
         transaction {
@@ -119,24 +118,14 @@ class DevSeederReliefPrincipalPostgresTest : BasePostgresTest() {
     }
 
     private fun config(
-        reliefTestUsername: String,
-        reliefTestPassword: String,
-    ) = AppConfig(
-        appPort = 8080,
-        dbHost = System.getenv("DB_HOST") ?: "localhost",
-        dbPort = System.getenv("DB_PORT") ?: "5432",
-        dbName = "test",
-        dbUser = "test",
-        dbPassword = "test",
-        jwtSecret = "test-secret-that-is-at-least-32-chars",
-        jwtIssuer = "test",
-        jwtAudience = "test",
-        authDummyPassword = "test-dummy-password-at-least-32-characters",
-        testUsername = null,
-        testPassword = null,
-        scopedTestUsername = null,
-        scopedTestPassword = null,
-        reliefTestUsername = reliefTestUsername,
-        reliefTestPassword = reliefTestPassword,
+        reliefUsername: String,
+        reliefPassword: String,
+    ) = DevFixtureConfig(
+        globalUsername = null,
+        globalPassword = null,
+        scopedUsername = null,
+        scopedPassword = null,
+        reliefUsername = reliefUsername,
+        reliefPassword = reliefPassword,
     )
 }

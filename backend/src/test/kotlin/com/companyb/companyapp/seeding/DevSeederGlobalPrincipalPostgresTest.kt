@@ -1,6 +1,5 @@
 package com.companyb.companyapp.seeding
 
-import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.identity.AppUserTable
@@ -39,7 +38,7 @@ class DevSeederGlobalPrincipalPostgresTest : BasePostgresTest() {
     @Test
     fun `seeded global principal keeps owner role with home assignment`() {
         DevSeeder.seed(
-            config(testUsername = ownerUsername, testPassword = "owner-pass"),
+            config(globalUsername = ownerUsername, globalPassword = "owner-pass"),
         )
 
         transaction {
@@ -70,24 +69,14 @@ class DevSeederGlobalPrincipalPostgresTest : BasePostgresTest() {
     }
 
     private fun config(
-        testUsername: String,
-        testPassword: String,
-    ) = AppConfig(
-        appPort = 8080,
-        dbHost = System.getenv("DB_HOST") ?: "localhost",
-        dbPort = System.getenv("DB_PORT") ?: "5432",
-        dbName = "test",
-        dbUser = "test",
-        dbPassword = "test",
-        jwtSecret = "test-secret-that-is-at-least-32-chars",
-        jwtIssuer = "test",
-        jwtAudience = "test",
-        authDummyPassword = "test-dummy-password-at-least-32-characters",
-        testUsername = testUsername,
-        testPassword = testPassword,
-        scopedTestUsername = null,
-        scopedTestPassword = null,
-        reliefTestUsername = null,
-        reliefTestPassword = null,
+        globalUsername: String,
+        globalPassword: String,
+    ) = DevFixtureConfig(
+        globalUsername = globalUsername,
+        globalPassword = globalPassword,
+        scopedUsername = null,
+        scopedPassword = null,
+        reliefUsername = null,
+        reliefPassword = null,
     )
 }

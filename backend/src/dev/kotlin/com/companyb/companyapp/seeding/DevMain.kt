@@ -8,11 +8,12 @@ import com.companyb.companyapp.main
 
 fun main() {
     val config = AppConfig.parse()
+    val fixtures = DevFixtureConfig.parse()
 
     JwtService.init(config)
     Password.init(config.authDummyPassword)
 
     DatabaseConfig.initialize(config)
-    DevSeeder.seed(config)
+    DevSeeder.seed(fixtures)
     main(config)
 }

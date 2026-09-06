@@ -15,12 +15,6 @@ data class AppConfig(
     val jwtIssuer: String,
     val jwtAudience: String,
     val authDummyPassword: String,
-    val testUsername: String?,
-    val testPassword: String?,
-    val scopedTestUsername: String?,
-    val scopedTestPassword: String?,
-    val reliefTestUsername: String?,
-    val reliefTestPassword: String?,
     val smtp: SmtpConfig? = null,
     val githubIssue: GithubIssueConfig? = null,
 ) {
@@ -45,12 +39,6 @@ data class AppConfig(
                 authDummyPassword =
                     env["AUTH_DUMMY_PASSWORD"]
                         ?: error("AUTH_DUMMY_PASSWORD must be set"),
-                testUsername = env["TEST_USERNAME"]?.takeIf { it.isNotBlank() },
-                testPassword = env["TEST_PASSWORD"]?.takeIf { it.isNotBlank() },
-                scopedTestUsername = env["SCOPED_USERNAME"]?.takeIf { it.isNotBlank() },
-                scopedTestPassword = env["SCOPED_PASSWORD"]?.takeIf { it.isNotBlank() },
-                reliefTestUsername = env["RELIEF_USERNAME"]?.takeIf { it.isNotBlank() },
-                reliefTestPassword = env["RELIEF_PASSWORD"]?.takeIf { it.isNotBlank() },
                 smtp =
                     SmtpConfig.fromEnvironment(
                         mapOf(

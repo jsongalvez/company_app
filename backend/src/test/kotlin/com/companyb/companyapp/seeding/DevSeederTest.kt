@@ -1,6 +1,5 @@
 package com.companyb.companyapp.seeding
 
-import com.companyb.companyapp.app.AppConfig
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -12,37 +11,27 @@ class DevSeederTest {
         global: Pair<String?, String?>? = null,
         scoped: Pair<String?, String?>? = null,
         relief: Pair<String?, String?>? = null,
-    ) = AppConfig(
-        appPort = 8080,
-        dbHost = "localhost",
-        dbPort = "5432",
-        dbName = "test",
-        dbUser = "test",
-        dbPassword = "test",
-        jwtSecret = "test-secret-that-is-at-least-32-chars",
-        jwtIssuer = "test",
-        jwtAudience = "test",
-        authDummyPassword = "test-dummy-password-at-least-32-characters",
-        testUsername = global?.first,
-        testPassword = global?.second,
-        scopedTestUsername = scoped?.first,
-        scopedTestPassword = scoped?.second,
-        reliefTestUsername = relief?.first,
-        reliefTestPassword = relief?.second,
+    ) = DevFixtureConfig(
+        globalUsername = global?.first,
+        globalPassword = global?.second,
+        scopedUsername = scoped?.first,
+        scopedPassword = scoped?.second,
+        reliefUsername = relief?.first,
+        reliefPassword = relief?.second,
     )
 
     @Test
-    fun `seed does nothing when testUsername is null`() {
+    fun `seed does nothing when globalUsername is null`() {
         DevSeeder.seed(config(global = null to "pass"))
     }
 
     @Test
-    fun `seed does nothing when testPassword is null`() {
+    fun `seed does nothing when globalPassword is null`() {
         DevSeeder.seed(config(global = "user" to null))
     }
 
     @Test
-    fun `seed does nothing when testUsername is blank`() {
+    fun `seed does nothing when globalUsername is blank`() {
         DevSeeder.seed(config(global = "  " to "pass"))
     }
 

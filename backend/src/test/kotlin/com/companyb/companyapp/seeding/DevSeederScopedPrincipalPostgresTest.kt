@@ -1,6 +1,5 @@
 package com.companyb.companyapp.seeding
 
-import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.authorization.CapabilityTable
 import com.companyb.companyapp.authorization.UserCapabilityTable
 import com.companyb.companyapp.branch.BranchTable
@@ -47,7 +46,7 @@ class DevSeederScopedPrincipalPostgresTest : BasePostgresTest() {
     @Test
     fun `seeded scoped principal is branch-bound without global capabilities`() {
         DevSeeder.seed(
-            config(scopedTestUsername = scopedUsername, scopedTestPassword = "scope-pass"),
+            config(scopedUsername = scopedUsername, scopedPassword = "scope-pass"),
         )
 
         transaction {
@@ -126,24 +125,14 @@ class DevSeederScopedPrincipalPostgresTest : BasePostgresTest() {
     }
 
     private fun config(
-        scopedTestUsername: String,
-        scopedTestPassword: String,
-    ) = AppConfig(
-        appPort = 8080,
-        dbHost = System.getenv("DB_HOST") ?: "localhost",
-        dbPort = System.getenv("DB_PORT") ?: "5432",
-        dbName = "test",
-        dbUser = "test",
-        dbPassword = "test",
-        jwtSecret = "test-secret-that-is-at-least-32-chars",
-        jwtIssuer = "test",
-        jwtAudience = "test",
-        authDummyPassword = "test-dummy-password-at-least-32-characters",
-        testUsername = null,
-        testPassword = null,
-        scopedTestUsername = scopedTestUsername,
-        scopedTestPassword = scopedTestPassword,
-        reliefTestUsername = null,
-        reliefTestPassword = null,
+        scopedUsername: String,
+        scopedPassword: String,
+    ) = DevFixtureConfig(
+        globalUsername = null,
+        globalPassword = null,
+        scopedUsername = scopedUsername,
+        scopedPassword = scopedPassword,
+        reliefUsername = null,
+        reliefPassword = null,
     )
 }

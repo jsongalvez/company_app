@@ -79,12 +79,6 @@ class JwtServiceTest {
                 jwtIssuer = "issuer-$index",
                 jwtAudience = "audience-$index",
                 authDummyPassword = "dummy",
-                testUsername = null,
-                testPassword = null,
-                scopedTestUsername = null,
-                scopedTestPassword = null,
-                reliefTestUsername = null,
-                reliefTestPassword = null,
             )
     }
 }

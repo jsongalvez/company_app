@@ -1,6 +1,5 @@
 package com.companyb.companyapp.seeding
 
-import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.authorization.CapabilityRepository
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.authorization.UserCapabilityTable
@@ -38,6 +37,9 @@ private const val SCOPED_USER_SLOT: Short = 1
 // capabilities alone render an empty list with no clock-in path), so the global seed carries
 // a senior home assignment there. Slot is per user per branch — no collision with the scoped seat.
 private const val DEV_USER_SLOT: Short = 1
+
+// #568 — MagicNumber scope: src/dev is analyzed under production rules.
+private const val SESSION_RATE_HORIZON_YEARS = 10L
 
 internal val DEV_FIXTURE_BRANCH_ID = UUID.fromString("00000000-0000-4000-8000-000000000001")
 
@@ -79,16 +81,16 @@ private data class Credentials(
 
 object DevSeeder {
     fun seed(
-        config: AppConfig,
+        config: DevFixtureConfig,
         runInTransaction: (() -> Unit) -> Unit = { block -> transaction { block() } },
     ) {
-        credentials(config.testUsername, config.testPassword)?.let { global ->
+        credentials(config.globalUsername, config.globalPassword)?.let { global ->
             runInTransaction { seedGlobalUser(global) }
         }
-        credentials(config.scopedTestUsername, config.scopedTestPassword)?.let { scoped ->
+        credentials(config.scopedUsername, config.scopedPassword)?.let { scoped ->
             runInTransaction { seedScopedUser(scoped) }
         }
-        credentials(config.reliefTestUsername, config.reliefTestPassword)?.let { relief ->
+        credentials(config.reliefUsername, config.reliefPassword)?.let { relief ->
             runInTransaction { seedReliefUser(relief) }
         }
     }
@@ -97,9 +99,9 @@ object DevSeeder {
         username: String?,
         password: String?,
     ): Credentials? {
-        val name = username?.takeIf { it.isNotBlank() } ?: return null
-        val pass = password?.takeIf { it.isNotBlank() } ?: return null
-        return Credentials(name, pass)
+        val name = username?.takeIf { it.isNotBlank() }
+        val pass = password?.takeIf { it.isNotBlank() }
+        return if (name != null && pass != null) Credentials(name, pass) else null
     }
 
     private fun seedGlobalUser(credentials: Credentials) {
@@ -225,7 +227,7 @@ object DevSeeder {
     private fun seedSessionBaseRates(userId: UUID) {
         val effectiveFrom: OffsetDateTime =
             RoleTable.select(CurrentTimestampWithTimeZone).first()[CurrentTimestampWithTimeZone]
-        val effectiveUntil = effectiveFrom.plusYears(10)
+        val effectiveUntil = effectiveFrom.plusYears(SESSION_RATE_HORIZON_YEARS)
         for ((sessionType, rate) in listOf(
             SessionType.REGULAR to "2500.00",
             SessionType.PROVINCIAL_FIRST to "3500.00",

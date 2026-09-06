@@ -61,6 +61,46 @@ dependencies {
     jmhAnnotationProcessor(libs.jmh.annprocess)
 }
 
+// #568 — dedicated development source set for DevMain/DevSeeder. `./gradlew
+// :backend:run` used the whole test runtimeClasspath; the dev server now rides
+// main+dev only, so starting it never compiles unrelated test sources and the
+// production artifact (installDist/Docker, main-only) holds no dev fixtures.
+sourceSets {
+    create("dev") {
+        java.srcDir("src/dev/kotlin")
+        compileClasspath += sourceSets["main"].output
+        runtimeClasspath += sourceSets["main"].output
+    }
+}
+
+configurations {
+    named("devImplementation") { extendsFrom(configurations["implementation"]) }
+    named("devRuntimeOnly") { extendsFrom(configurations["runtimeOnly"]) }
+}
+
+kotlin {
+    target {
+        compilations {
+            // Friend relationships, not widened visibility: dev reads main
+            // internals (internal stores the seeder writes through) while those
+            // stores stay internal to production; test reads dev internals
+            // (fixture IDs) through the same mechanism.
+            maybeCreate("dev").associateWith(getByName("main"))
+            getByName("test").associateWith(getByName("dev"))
+        }
+    }
+}
+
+dependencies {
+    // Explicit test wiring so seeder tests exercise dev seeding code.
+    testImplementation(sourceSets["dev"].output)
+}
+
+// Detekt analyzes main+test by default; cover the dev source set with the same rules.
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    source(files("src/dev/kotlin"))
+}
+
 // #495 — canonical contract export + verification. Reads the kapt-generated classpath
 // resource (the same document production serves) and applies OpenApiCanonical.
 // Deliberately NOT wired into compile/installDist: Docker builders have no Node,
@@ -86,7 +126,7 @@ application {
 
 tasks.named<JavaExec>("run") {
     workingDir = rootProject.projectDir
-    classpath = sourceSets["test"].runtimeClasspath
+    classpath = sourceSets["dev"].runtimeClasspath
     mainClass = "com.companyb.companyapp.seeding.DevMainKt"
 }
 
