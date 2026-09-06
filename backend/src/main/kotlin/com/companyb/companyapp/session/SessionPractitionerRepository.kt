@@ -1,10 +1,7 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.session
 
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.VersionMismatchException
-import com.companyb.companyapp.repository.model.SessionPractitioner
-import com.companyb.companyapp.repository.model.SessionPractitionerTable
-import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -23,7 +20,7 @@ data class AddPractitionerResult(
     val created: Boolean,
 )
 
-object SessionPractitionerRepository {
+internal object SessionPractitionerRepository {
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
     fun findBySessionAndPractitionerInTransaction(
         sessionId: UUID,

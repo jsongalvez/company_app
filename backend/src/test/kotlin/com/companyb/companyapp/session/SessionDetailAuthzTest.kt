@@ -1,4 +1,4 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.session
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper

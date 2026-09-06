@@ -10,7 +10,6 @@ import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
@@ -18,7 +17,8 @@ import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.session.ActiveSessionVoidsView
+import com.companyb.companyapp.session.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder

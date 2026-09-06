@@ -698,8 +698,8 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/ReliefInviteRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/RemittanceRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/RoutesUtil.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/SessionBaseRateRoutes.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/SessionRoutes.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/session/SessionBaseRateRoutes.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/session/SessionRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/JwtService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/Password.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/PasswordResetDelivery.kt' #465 frozen
@@ -713,9 +713,9 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/repository/ProductSaleRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/ReliefAccessRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/ReliefInviteRepository.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/repository/SessionBaseRateRepository.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/repository/SessionRepository.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/repository/SessionVoidRepository.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/session/SessionBaseRateRepository.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/session/SessionRepository.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/session/SessionVoidRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/UserRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/AllowanceService.kt' #465 frozen
@@ -744,9 +744,9 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/finance/remittance/RemittanceService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/inventory/InventoryService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/inventory/StockValidator.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/service/session/SessionConcernService.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/service/session/SessionPractitionerService.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/service/session/SessionService.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/session/SessionConcernService.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/session/SessionPractitionerService.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/session/SessionService.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/audit/AuditLogAuthzTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/branchday/BranchDayAuthzTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/BranchInventoryAuthzTest.kt' #465 frozen
@@ -756,11 +756,11 @@ style:
       - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/RemittanceAuthzTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/ReportsReadScopeAuthzTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/RouteValidationTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/SessionConcernDeleteAuthzTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/SessionEditAuthzTest.kt' #465 frozen
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/session/SessionConcernDeleteAuthzTest.kt' #465 frozen
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/session/SessionEditAuthzTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/service/BranchInventoryServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/client/ClientServicePostgresTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/service/ConcernServicePostgresTest.kt' #465 frozen
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/session/ConcernServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/service/ExpenseServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/service/NextAppointmentSchedulerPostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/service/ProductSaleServicePostgresTest.kt' #465 frozen
@@ -768,7 +768,7 @@ style:
       - '**/backend/src/test/kotlin/com/companyb/companyapp/service/RemittanceLineServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/service/RemittanceReadBackServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/service/RemittanceServicePostgresTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/service/SessionServicePostgresTest.kt' #465 frozen
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/session/SessionServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/database/BasePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/test/BasePostgresTestTeardownTest.kt' #465 frozen

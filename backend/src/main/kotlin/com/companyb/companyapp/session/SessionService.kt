@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service.session
+package com.companyb.companyapp.session
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
@@ -12,18 +12,6 @@ import com.companyb.companyapp.domain.isStatusTransitionAllowed
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.SessionBaseRateRepository
-import com.companyb.companyapp.repository.SessionCreateParams
-import com.companyb.companyapp.repository.SessionCreateResult
-import com.companyb.companyapp.repository.SessionRepository
-import com.companyb.companyapp.repository.SessionVoidRepository
-import com.companyb.companyapp.repository.VoidResult
-import com.companyb.companyapp.repository.findSessionByIdInTransaction
-import com.companyb.companyapp.repository.hasActivePendingSessionInTransaction
-import com.companyb.companyapp.repository.model.Session
-import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.repository.model.SessionVoid
-import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.workforce.BranchMemberRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -118,7 +106,7 @@ object SessionService {
             if (lockedClient?.deletedAt != null) {
                 throw ConflictException("Cannot create a session for an anonymized client")
             }
-            idempotentReplayOrNull(findSessionByIdInTransaction(id), clientId, branchDay.id, callerId)?.let {
+            idempotentReplayOrNull(SessionRepository.findByIdInTransaction(id), clientId, branchDay.id, callerId)?.let {
                 return@transaction it
             }
             val (lockedDay, isRemitted) =
@@ -244,7 +232,9 @@ object SessionService {
         reason: String? = null,
     ): Session =
         transaction {
-            val initial = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
+            val initial =
+                SessionRepository.findByIdInTransaction(sessionId)
+                    ?: throw NotFoundException("Session not found")
             // Client-first lock order matches create, anonymize, void, and unvoid commands.
             val client =
                 ClientReads.acquireLockInTransaction(initial.clientId)
@@ -277,7 +267,7 @@ object SessionService {
             }
 
             if (newStatus == SessionStatus.PENDING &&
-                hasActivePendingSessionInTransaction(session.clientId, sessionId)
+                SessionRepository.hasActivePendingSessionInTransaction(session.clientId, sessionId)
             ) {
                 throw ConflictException("Client already has an active PENDING session")
             }
@@ -308,7 +298,9 @@ object SessionService {
     ): Session =
         transaction {
             // Transaction-local before-state (ADR-0019): read inside the command's transaction.
-            val initial = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
+            val initial =
+                SessionRepository.findByIdInTransaction(sessionId)
+                    ?: throw NotFoundException("Session not found")
             // Keep every session mutation's lock order client -> session -> branch day.
             ClientReads.acquireLockInTransaction(initial.clientId)
                 ?: throw NotFoundException("Client not found")
@@ -354,7 +346,9 @@ object SessionService {
         voidReason: String,
     ): VoidResult {
         return transaction {
-            val initial = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
+            val initial =
+                SessionRepository.findByIdInTransaction(sessionId)
+                    ?: throw NotFoundException("Session not found")
             // Client-first lock order serializes a PENDING void with create and anonymize guards.
             ClientReads.acquireLockInTransaction(initial.clientId)
                 ?: throw NotFoundException("Client not found")
@@ -405,7 +399,9 @@ object SessionService {
         unvoidedReason: String,
     ): SessionVoid =
         transaction {
-            val initial = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
+            val initial =
+                SessionRepository.findByIdInTransaction(sessionId)
+                    ?: throw NotFoundException("Session not found")
             // Client-first lock order matches create, anonymize, status, and void commands.
             ClientReads.acquireLockInTransaction(initial.clientId)
                 ?: throw NotFoundException("Client not found")
@@ -431,7 +427,7 @@ object SessionService {
                 )
 
             if (session.sessionStatus == SessionStatus.PENDING &&
-                hasActivePendingSessionInTransaction(session.clientId, excludedSessionId = sessionId)
+                SessionRepository.hasActivePendingSessionInTransaction(session.clientId, excludedSessionId = sessionId)
             ) {
                 throw ConflictException("Client already has an active PENDING session")
             }

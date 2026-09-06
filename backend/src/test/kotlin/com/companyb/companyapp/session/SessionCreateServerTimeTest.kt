@@ -1,4 +1,4 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.session
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.audit.AuditLogTable
@@ -15,9 +15,9 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
-import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.service.session.SessionBaseRateService
-import com.companyb.companyapp.service.session.SessionService
+import com.companyb.companyapp.session.SessionBaseRateService
+import com.companyb.companyapp.session.SessionService
+import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

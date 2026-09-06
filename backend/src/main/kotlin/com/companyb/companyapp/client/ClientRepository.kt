@@ -3,8 +3,8 @@ package com.companyb.companyapp.client
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
-import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.session.ActiveSessionVoidsView
+import com.companyb.companyapp.session.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.ComparisonOp

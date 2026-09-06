@@ -11,11 +11,11 @@ import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.dto.ClientPatchField
 import com.companyb.companyapp.repository.model.ExpenseTable
-import com.companyb.companyapp.repository.model.SessionBaseRateTable
-import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.service.ExpenseService
-import com.companyb.companyapp.service.session.SessionService
+import com.companyb.companyapp.session.SessionBaseRateTable
+import com.companyb.companyapp.session.SessionService
+import com.companyb.companyapp.session.SessionTable
+import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

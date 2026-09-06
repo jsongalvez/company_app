@@ -76,12 +76,12 @@ intentionally shallow.
 ## Session
 
 **Owns:** session aggregate — type ladder (`computeSessionType`: REGULAR→SECOND→SUBSEQUENT, mission/provincial variants), base-rate snapshot at create, optimistic-versioned updates, void/unvoid records, practitioner management (slot snapshots + parent version bumps), concerns + promotion, base-rate rotation, create preview.
-**Anchors:** `service/session/SessionService.kt`, `api/routes/SessionRoutes.kt`, `repository/SessionRepository.kt`.
-**Public seam:** `SessionService` commands (`create` / `updateStatus` / `updateFinalPrice` / `voidSession` / `unvoidSession`) · `computeSessionType` (pure) · `previewSession` · practitioner ops via `SessionPractitionerService` · concern ops via `SessionConcernService` · rate ops via `SessionBaseRateService`.
+**Anchors:** `session/SessionService.kt` (+ internal `SessionRepository` in same package) · `session/SessionRoutes.kt` · `session/SessionBaseRateService.kt`.
+**Public seam:** `SessionService` commands (`create` / `updateStatus` / `updateFinalPrice` / `voidSession` / `unvoidSession`) · `computeSessionType` (pure) · `previewSession` · practitioner ops via `SessionPractitionerService` · concern ops via `SessionConcernService` (catalog `ConcernService.listAll` stays distinct) · rate ops via `SessionBaseRateService` · `SessionReads.findById` / `findByIdInTransaction` / `hasActivePendingSessionInTransaction` (commerce/remittance/dashboard/authz/client reads).
 **Depends on:** Branch Day (gates + find-only gated-day handoff #157), Client (row lock + existence reads via the `ClientReads` seam; one-PENDING guard stays session-owned), Assignments (member check #366, slot lookup).
 **Expansion triggers:** version-bump mechanics (`incrementSessionVersion` count-0 rule); walk-in status CHECK constraint; `idx_client_one_pending_session` backstop; `active_session_voids` view consumers (commission, remittance pickers, scheduler, dashboard).
 **Tests/authority:** `docs/engines.md`; backend `AGENTS.md` "Sessions".
-**Search:** `computeSessionType`, `findSessionByIdInTransaction` (sibling-service helper, not a boundary), `VersionMismatchException`, `session_void`.
+**Search:** `computeSessionType`, `SessionReads` (cross-owner boundary; `SessionRepository` direct imports from other owners stay banned), `VersionMismatchException`, `session_void`.
 
 ## Workforce (Attendance · Assignments)
 

@@ -3,12 +3,12 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
 import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.Product
 import com.companyb.companyapp.repository.model.ProductSale
 import com.companyb.companyapp.repository.model.ProductSaleTable
-import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.session.ActiveSessionVoidsView
+import com.companyb.companyapp.session.SessionTable
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and

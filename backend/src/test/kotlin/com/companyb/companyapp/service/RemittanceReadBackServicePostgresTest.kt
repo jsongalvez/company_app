@@ -18,8 +18,8 @@ import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
+import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

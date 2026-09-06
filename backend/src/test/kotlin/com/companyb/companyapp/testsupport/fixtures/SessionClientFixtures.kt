@@ -5,7 +5,7 @@ import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -25,7 +25,7 @@ object SessionClientFixtures {
 
     /**
      * Inserts a PENDING REGULAR session row directly against [branchDayId] (bypasses
-     * [com.companyb.companyapp.service.session.SessionService.create]).
+     * [com.companyb.companyapp.session.SessionService.create]).
      */
     @Suppress("LongParameterList") // #552 fixture parity with the retired helper signature
     fun insertTestSession(

@@ -1,4 +1,5 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.session
+
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.identity.AppUserTable
@@ -30,7 +31,7 @@ data class SessionBaseRateCreateParams(
     val effectiveUntil: OffsetDateTime,
 )
 
-object SessionBaseRateTable : Table("session_base_rate") {
+internal object SessionBaseRateTable : Table("session_base_rate") {
     private const val RATE_PRECISION = 10
     private const val RATE_SCALE = 2
 

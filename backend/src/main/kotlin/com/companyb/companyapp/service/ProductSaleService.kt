@@ -11,12 +11,12 @@ import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.RetryProductSaleParams
 import com.companyb.companyapp.repository.SellProductParams
 import com.companyb.companyapp.repository.SellProductResult
-import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.BranchInventory
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.ProductSale
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.service.finance.commission.CommissionService
+import com.companyb.companyapp.session.SessionReads
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -85,7 +85,7 @@ object ProductSaleService {
 
                 if (sessionId != null) {
                     val session =
-                        SessionRepository.findById(sessionId)
+                        SessionReads.findById(sessionId)
                             ?: throw NotFoundException("Session not found")
                     if (session.branchDayId != branchDayId) {
                         throw NotFoundException("Session not found for this branch day")

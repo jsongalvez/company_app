@@ -33,11 +33,11 @@ class CrudCommandOwnershipArchitectureTest {
                 "repository/CompensationRepository.kt" to 3,
                 // Five read-only wrappers: #453 dropped the audit-read createdBy
                 // wrapper (ownership is now transaction-local created_by).
-                "repository/SessionRepository.kt" to 5,
-                "repository/SessionVoidRepository.kt" to 2,
-                "repository/SessionPractitionerRepository.kt" to 2,
-                "repository/ConcernRepository.kt" to 3,
-                "repository/SessionBaseRateRepository.kt" to 1,
+                "session/SessionRepository.kt" to 5,
+                "session/SessionVoidRepository.kt" to 2,
+                "session/SessionPractitionerRepository.kt" to 2,
+                "session/ConcernRepository.kt" to 3,
+                "session/SessionBaseRateRepository.kt" to 1,
                 // Batch 4 — user/access cluster.
                 // Six read wrappers after #492 (removed findJwtRevocationBoundaries startup
                 // scan; authorize stays one query, advanceRevocationBoundary is InTransaction)
@@ -80,13 +80,13 @@ class CrudCommandOwnershipArchitectureTest {
                 "service/CompensationService.kt" to listOf("create", "update"),
                 // Session cluster (batch 3): pass-through delegates in SessionService are not
                 // commands; the transaction-owning mutations live in these four files.
-                "service/session/SessionService.kt" to
+                "session/SessionService.kt" to
                     listOf("create", "updateStatus", "updateFinalPrice", "voidSession", "unvoidSession"),
-                "service/session/SessionPractitionerService.kt" to
+                "session/SessionPractitionerService.kt" to
                     listOf("addPractitioner", "updatePractitionerRemarks", "removePractitioner"),
-                "service/session/SessionConcernService.kt" to
+                "session/SessionConcernService.kt" to
                     listOf("addToSession", "removeFromSession", "promoteConcern"),
-                "service/session/SessionBaseRateService.kt" to listOf("setRate"),
+                "session/SessionBaseRateService.kt" to listOf("setRate"),
                 // Batch 4 — user/access cluster.
                 "identity/UserService.kt" to listOf("deactivate", "reactivate"),
                 "workforce/UserBranchAssignmentService.kt" to
@@ -131,10 +131,10 @@ class CrudCommandOwnershipArchitectureTest {
                 "client/ClientService.kt" to "ClientAudit",
                 "service/AllowanceService.kt" to "AllowanceAudit",
                 "service/CompensationService.kt" to "CompensationAudit",
-                "service/session/SessionService.kt" to "SessionAudit",
-                "service/session/SessionPractitionerService.kt" to "SessionPractitionerAudit",
-                "service/session/SessionConcernService.kt" to "SessionConcernAudit",
-                "service/session/SessionBaseRateService.kt" to "SessionBaseRateAudit",
+                "session/SessionService.kt" to "SessionAudit",
+                "session/SessionPractitionerService.kt" to "SessionPractitionerAudit",
+                "session/SessionConcernService.kt" to "SessionConcernAudit",
+                "session/SessionBaseRateService.kt" to "SessionBaseRateAudit",
                 // Batch 4 — user/access cluster.
                 "identity/UserService.kt" to "UserAudit",
                 "workforce/UserBranchAssignmentService.kt" to "UserBranchAssignmentAudit",

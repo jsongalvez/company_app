@@ -20,12 +20,12 @@ import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.service.finance.remittance.RemittanceDayBreakdown
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.service.inventory.InventoryService
-import com.companyb.companyapp.service.session.SessionBaseRateService
-import com.companyb.companyapp.service.session.SessionService
+import com.companyb.companyapp.session.SessionBaseRateService
+import com.companyb.companyapp.session.SessionService
+import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

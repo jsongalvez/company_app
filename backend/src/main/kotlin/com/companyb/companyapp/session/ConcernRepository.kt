@@ -1,11 +1,6 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.session
 
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.Concern
-import com.companyb.companyapp.repository.model.ConcernTable
-import com.companyb.companyapp.repository.model.Session
-import com.companyb.companyapp.repository.model.SessionConcernTable
-import com.companyb.companyapp.repository.model.SessionTable
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -24,7 +19,7 @@ data class PromoteConcernResult(
     val sessionAfter: Session,
 )
 
-object ConcernRepository {
+internal object ConcernRepository {
     fun findAll(): List<Concern> =
         transaction {
             ConcernTable
@@ -92,7 +87,7 @@ object ConcernRepository {
         sessionId: UUID,
     ): PromoteConcernResult {
         val sessionBefore =
-            findSessionByIdInTransaction(sessionId)
+            SessionRepository.findByIdInTransaction(sessionId)
                 ?: throw NotFoundException("Session not found")
 
         val insertedCount =
@@ -119,7 +114,7 @@ object ConcernRepository {
         }
 
         val sessionAfter =
-            findSessionByIdInTransaction(sessionId)
+            SessionRepository.findByIdInTransaction(sessionId)
                 ?: throw NotFoundException("Session not found after concern promotion update")
 
         return PromoteConcernResult(

@@ -27,6 +27,7 @@ import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.RemittanceTable
+import com.companyb.companyapp.session.SessionRoutes
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

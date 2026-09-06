@@ -6,12 +6,12 @@ import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.repository.NotificationRepository
-import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.model.NotificationCreateParams
 import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.repository.model.SessionVoidTable
-import com.companyb.companyapp.service.session.SessionBaseRateService
-import com.companyb.companyapp.service.session.SessionService
+import com.companyb.companyapp.session.SessionBaseRateRepository
+import com.companyb.companyapp.session.SessionBaseRateService
+import com.companyb.companyapp.session.SessionService
+import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

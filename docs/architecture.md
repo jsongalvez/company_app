@@ -93,6 +93,7 @@ company-app/
 │       ├── audit/            # Audit append seam, scoped reads, registry (map #533)
 │       ├── workforce/        # Attendance, assignments, membership + duty-cutoff seam; relief/ subcluster for requests/invites/delegates (map #533 #539 #540)
 │       ├── client/           # Client records, patch policy, anonymization + session lock/read seam (map #533 #541)
+│       ├── session/          # Session aggregate, practitioners, concerns/promotion, void state, rates + preview; SessionReads seam for commerce/remittance/dashboard/authz/client (map #533 #542)
 │       ├── config/           # Javalin config, serialization mapper
 │       ├── database/         # HikariCP + Flyway + Exposed setup
 │       ├── logging/          # Logback converters, logging extensions

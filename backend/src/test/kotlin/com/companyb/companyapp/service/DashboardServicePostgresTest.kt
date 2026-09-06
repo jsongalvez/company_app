@@ -4,10 +4,10 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertParams
-import com.companyb.companyapp.repository.model.SessionPractitionerTable
-import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.service.NotificationService
 import com.companyb.companyapp.service.dashboard.DashboardService
+import com.companyb.companyapp.session.SessionPractitionerTable
+import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

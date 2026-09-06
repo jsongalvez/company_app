@@ -1,4 +1,5 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.session
+
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.domain.SessionStatus
@@ -37,7 +38,7 @@ data class Session(
 private const val PRECISION = 10
 private const val SCALE = 2
 
-object SessionTable : Table("session") {
+internal object SessionTable : Table("session") {
     val id = javaUUID("id").autoGenerate()
     val clientId = javaUUID("client_id").references(ClientTable.id)
     val branchDayId = javaUUID("branch_day_id").references(BranchDayTable.id)

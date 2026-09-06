@@ -5,7 +5,7 @@ import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.model.SessionVoidTable
+import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

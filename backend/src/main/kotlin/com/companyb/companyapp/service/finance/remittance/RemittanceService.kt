@@ -11,8 +11,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.ProductSaleRepository
-import com.companyb.companyapp.repository.SessionRepository
-import com.companyb.companyapp.repository.findSessionByIdInTransaction
+import com.companyb.companyapp.session.SessionReads
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -349,7 +348,7 @@ object RemittanceService {
             when (type) {
                 RemittanceLineType.SESSION -> {
                     val sourceId = sessionId ?: throw ValidationException("sessionId is required for SESSION line type")
-                    SessionRepository.findById(sourceId)?.branchDayId
+                    SessionReads.findById(sourceId)?.branchDayId
                         ?: throw NotFoundException("Session not found")
                 }
 
@@ -501,9 +500,11 @@ object RemittanceService {
             val sourceBranchDayId =
                 when (line.type) {
                     RemittanceLineType.SESSION -> {
-                        findSessionByIdInTransaction(
-                            line.sessionId ?: throw ValidationException("sessionId is required for SESSION line type"),
-                        )?.branchDayId ?: throw NotFoundException("Session not found")
+                        SessionReads
+                            .findByIdInTransaction(
+                                line.sessionId
+                                    ?: throw ValidationException("sessionId is required for SESSION line type"),
+                            )?.branchDayId ?: throw NotFoundException("Session not found")
                     }
 
                     RemittanceLineType.PRODUCT_SALE -> {

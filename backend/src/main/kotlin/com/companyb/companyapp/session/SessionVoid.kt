@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.session
 
 import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.Table
@@ -19,7 +19,7 @@ data class SessionVoid(
     val unvoidedReason: String?,
 )
 
-object SessionVoidTable : Table("session_void") {
+internal object SessionVoidTable : Table("session_void") {
     val id = javaUUID("id").autoGenerate()
     val sessionId = javaUUID("session_id").references(SessionTable.id)
     val voidedAt = timestampWithTimeZone("voided_at").defaultExpression(CurrentTimestampWithTimeZone)

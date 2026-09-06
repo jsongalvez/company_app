@@ -11,7 +11,7 @@ import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.SessionBaseRateTable
+import com.companyb.companyapp.session.SessionBaseRateTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.eq

@@ -1,13 +1,10 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.session
 
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.SessionBaseRate
-import com.companyb.companyapp.repository.model.SessionBaseRateCreateParams
-import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -72,7 +69,7 @@ data class SetRateResult(
 )
 
 @Suppress("UnreachableCode")
-object SessionBaseRateRepository {
+internal object SessionBaseRateRepository {
     /**
      * In-transaction store operation (#323, ADR-0024) — seeds the BR-documented default base
      * rates for a freshly created branch (#418). Runs on the caller's command transaction

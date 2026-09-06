@@ -8,8 +8,8 @@ import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.isStatusCorrection
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
 import com.companyb.companyapp.repository.ExpenseRepository
-import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
+import com.companyb.companyapp.session.SessionReads
 import io.javalin.http.Context
 import io.javalin.http.NotFoundResponse
 import io.javalin.http.bodyAsClass
@@ -189,7 +189,7 @@ object CapabilityFilter {
         capabilityCode: String,
     ) {
         val session =
-            SessionRepository.findById(sessionId)
+            SessionReads.findById(sessionId)
                 ?: throw NotFoundResponse("Session not found")
         requireBranchCapability(context, session.branchDayId, capabilityCode)
     }
@@ -323,7 +323,7 @@ object CapabilityFilter {
         capabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
     ) {
         val session =
-            SessionRepository.findById(sessionId)
+            SessionReads.findById(sessionId)
                 ?: throw NotFoundResponse("Session not found")
         requireBranchOrBranchDayCapability(context, session.branchDayId, capabilityCode)
     }
@@ -339,7 +339,7 @@ object CapabilityFilter {
         newStatus: SessionStatus,
     ) {
         val session =
-            SessionRepository.findById(sessionId)
+            SessionReads.findById(sessionId)
                 ?: throw NotFoundResponse("Session not found")
         if (isStatusCorrection(session.sessionStatus, newStatus)) {
             requireBranchCapabilityForSession(context, sessionId, CapabilityCodes.EDIT_PAST_DAY)

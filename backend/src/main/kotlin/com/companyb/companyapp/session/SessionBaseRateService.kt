@@ -1,14 +1,8 @@
-package com.companyb.companyapp.service.session
+package com.companyb.companyapp.session
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.domain.SessionType
-import com.companyb.companyapp.repository.FAR_FUTURE
-import com.companyb.companyapp.repository.SessionBaseRateRepository
-import com.companyb.companyapp.repository.SetRateResult
-import com.companyb.companyapp.repository.model.SessionBaseRate
-import com.companyb.companyapp.repository.model.SessionBaseRateCreateParams
-import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal

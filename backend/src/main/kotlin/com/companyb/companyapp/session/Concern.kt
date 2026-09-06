@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.session
 
 import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.Table
@@ -20,7 +20,7 @@ data class SessionConcern(
     val concernId: UUID,
 )
 
-object ConcernTable : Table("concern") {
+internal object ConcernTable : Table("concern") {
     val id = javaUUID("id").autoGenerate()
     val label = text("label")
     val createdBy = javaUUID("created_by").references(AppUserTable.id).nullable()
@@ -35,7 +35,7 @@ object ConcernTable : Table("concern") {
         )
 }
 
-object SessionConcernTable : Table("session_concern") {
+internal object SessionConcernTable : Table("session_concern") {
     val sessionId = javaUUID("session_id").references(SessionTable.id)
     val concernId = javaUUID("concern_id").references(ConcernTable.id)
 

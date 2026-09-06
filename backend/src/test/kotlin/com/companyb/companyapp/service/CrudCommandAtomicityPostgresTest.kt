@@ -14,11 +14,11 @@ import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.ConcernTable
-import com.companyb.companyapp.repository.model.SessionConcernTable
-import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.service.session.SessionConcernService
-import com.companyb.companyapp.service.session.SessionService
+import com.companyb.companyapp.session.ConcernTable
+import com.companyb.companyapp.session.SessionConcernService
+import com.companyb.companyapp.session.SessionConcernTable
+import com.companyb.companyapp.session.SessionService
+import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

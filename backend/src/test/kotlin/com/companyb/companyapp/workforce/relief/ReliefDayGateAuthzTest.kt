@@ -5,7 +5,6 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.DailySalesSummaryRoutes
 import com.companyb.companyapp.api.routes.ExpenseRoutes
 import com.companyb.companyapp.api.routes.ProductSaleRoutes
-import com.companyb.companyapp.api.routes.SessionRoutes
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayRoutes
 import com.companyb.companyapp.branchday.BranchDayService
@@ -24,8 +23,9 @@ import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.service.inventory.InventoryService
 import com.companyb.companyapp.service.inventory.MovementType
-import com.companyb.companyapp.service.session.SessionBaseRateService
-import com.companyb.companyapp.service.session.SessionService
+import com.companyb.companyapp.session.SessionBaseRateService
+import com.companyb.companyapp.session.SessionRoutes
+import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

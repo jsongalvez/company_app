@@ -61,13 +61,13 @@ class SuppressRequiresTicketTest {
 
     @Test
     fun `grandfathered pair is covered`() {
-        val path = "backend/src/main/kotlin/com/companyb/companyapp/repository/SessionRepository.kt"
+        val path = "backend/src/main/kotlin/com/companyb/companyapp/session/SessionRepository.kt"
         assertTrue(rule.uncoveredIds(path, listOf("ThrowsCount")).isEmpty())
     }
 
     @Test
     fun `same file new id is not covered`() {
-        val path = "backend/src/main/kotlin/com/companyb/companyapp/repository/SessionRepository.kt"
+        val path = "backend/src/main/kotlin/com/companyb/companyapp/session/SessionRepository.kt"
         assertEquals(listOf("MagicNumber"), rule.uncoveredIds(path, listOf("ThrowsCount", "MagicNumber")))
     }
 

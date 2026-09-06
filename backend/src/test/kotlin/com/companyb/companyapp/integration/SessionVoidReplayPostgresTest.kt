@@ -2,10 +2,10 @@ package com.companyb.companyapp.integration
 
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.exception.ConflictException
-import com.companyb.companyapp.repository.SessionVoidRepository
-import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.repository.model.SessionVoidTable
-import com.companyb.companyapp.service.session.SessionService
+import com.companyb.companyapp.session.SessionService
+import com.companyb.companyapp.session.SessionTable
+import com.companyb.companyapp.session.SessionVoidRepository
+import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

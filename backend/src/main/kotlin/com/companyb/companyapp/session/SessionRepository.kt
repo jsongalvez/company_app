@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.session
 
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayTable
@@ -8,9 +8,6 @@ import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
-import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
-import com.companyb.companyapp.repository.model.Session
-import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -53,7 +50,7 @@ data class SessionCreateResult(
 )
 
 @Suppress("TooManyFunctions")
-object SessionRepository {
+internal object SessionRepository {
     fun countPriorNonMedicalMissionSessions(clientId: UUID): Long =
         transaction {
             SessionTable
@@ -121,12 +118,12 @@ object SessionRepository {
         // Client-first lock order lives with the command (#541): SessionService.create locks
         // the client row via the client seam before opening this store write, so the lock
         // and the anonymized-client guard stay in the command transaction, not in persistence.
-        val existingBeforeLock = findSessionByIdInTransaction(params.id)
+        val existingBeforeLock = findByIdInTransaction(params.id)
         if (existingBeforeLock != null) {
             return idempotentResult(existingBeforeLock, params)
         }
 
-        val existingAfterLock = findSessionByIdInTransaction(params.id)
+        val existingAfterLock = findByIdInTransaction(params.id)
         if (existingAfterLock != null) {
             return idempotentResult(existingAfterLock, params)
         }
@@ -173,7 +170,7 @@ object SessionRepository {
                 }.insertedCount
         val created = insertedCount > 0
         val session =
-            findSessionByIdInTransaction(params.id)
+            findByIdInTransaction(params.id)
                 ?: error("session row not found after idempotent insert for ${params.id}")
 
         return SessionCreateResult(session, created)
@@ -216,7 +213,7 @@ object SessionRepository {
             throw VersionMismatchException(SessionTable.tableName, sessionId)
         }
 
-        return findSessionByIdInTransaction(sessionId)
+        return findByIdInTransaction(sessionId)
             ?: error("Session $sessionId not found after status update")
     }
 
@@ -241,14 +238,38 @@ object SessionRepository {
             throw VersionMismatchException(SessionTable.tableName, sessionId)
         }
 
-        return findSessionByIdInTransaction(sessionId)
+        return findByIdInTransaction(sessionId)
             ?: error("Session $sessionId not found after final price update")
     }
 
     fun findById(id: UUID): Session? =
         transaction {
-            findSessionByIdInTransaction(id)
+            findByIdInTransaction(id)
         }
+
+    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
+    fun findByIdInTransaction(id: UUID): Session? =
+        SessionTable
+            .selectAll()
+            .where { SessionTable.id eq id }
+            .singleOrNull()
+            ?.toSession()
+
+    fun hasActivePendingSessionInTransaction(
+        clientId: UUID,
+        excludedSessionId: UUID? = null,
+    ): Boolean {
+        val condition =
+            (SessionTable.clientId eq clientId) and
+                (SessionTable.sessionStatus eq SessionStatus.PENDING) and
+                (SessionTable.isVoided eq false)
+        val scopedCondition = excludedSessionId?.let { condition and (SessionTable.id neq it) } ?: condition
+        return SessionTable
+            .selectAll()
+            .where { scopedCondition }
+            .empty()
+            .not()
+    }
 
     /** Locks and reads session row on caller's open transaction. */
     fun acquireLockInTransaction(id: UUID): Session? =
@@ -267,48 +288,24 @@ object SessionRepository {
         SessionTable.update({ SessionTable.id eq sessionId }) {
             it[SessionTable.isVoided] = isVoided
         }
+
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toSession(): Session =
+        Session(
+            id = this[SessionTable.id],
+            clientId = this[SessionTable.clientId],
+            branchDayId = this[SessionTable.branchDayId],
+            requestedPractitionerId = this[SessionTable.requestedPractitionerId],
+            sessionType = this[SessionTable.sessionType],
+            isWalkIn = this[SessionTable.isWalkIn],
+            sessionStatus = this[SessionTable.sessionStatus],
+            basePrice = this[SessionTable.basePrice],
+            finalPrice = this[SessionTable.finalPrice],
+            remarks = this[SessionTable.remarks],
+            otherConcerns = this[SessionTable.otherConcerns],
+            bookedAt = this[SessionTable.bookedAt],
+            nextAppointmentDate = this[SessionTable.nextAppointmentDate],
+            createdBy = this[SessionTable.createdBy],
+            createdAt = this[SessionTable.createdAt],
+            version = this[SessionTable.version],
+        )
 }
-
-fun hasActivePendingSessionInTransaction(
-    clientId: UUID,
-    excludedSessionId: UUID? = null,
-): Boolean {
-    val condition =
-        (SessionTable.clientId eq clientId) and
-            (SessionTable.sessionStatus eq SessionStatus.PENDING) and
-            (SessionTable.isVoided eq false)
-    val scopedCondition = excludedSessionId?.let { condition and (SessionTable.id neq it) } ?: condition
-    return SessionTable
-        .selectAll()
-        .where { scopedCondition }
-        .empty()
-        .not()
-}
-
-/** In-transaction read for command-owned flows — runs on the caller's open transaction. */
-fun findSessionByIdInTransaction(id: UUID): Session? =
-    SessionTable
-        .selectAll()
-        .where { SessionTable.id eq id }
-        .singleOrNull()
-        ?.toSession()
-
-fun org.jetbrains.exposed.v1.core.ResultRow.toSession(): Session =
-    Session(
-        id = this[SessionTable.id],
-        clientId = this[SessionTable.clientId],
-        branchDayId = this[SessionTable.branchDayId],
-        requestedPractitionerId = this[SessionTable.requestedPractitionerId],
-        sessionType = this[SessionTable.sessionType],
-        isWalkIn = this[SessionTable.isWalkIn],
-        sessionStatus = this[SessionTable.sessionStatus],
-        basePrice = this[SessionTable.basePrice],
-        finalPrice = this[SessionTable.finalPrice],
-        remarks = this[SessionTable.remarks],
-        otherConcerns = this[SessionTable.otherConcerns],
-        bookedAt = this[SessionTable.bookedAt],
-        nextAppointmentDate = this[SessionTable.nextAppointmentDate],
-        createdBy = this[SessionTable.createdBy],
-        createdAt = this[SessionTable.createdAt],
-        version = this[SessionTable.version],
-    )

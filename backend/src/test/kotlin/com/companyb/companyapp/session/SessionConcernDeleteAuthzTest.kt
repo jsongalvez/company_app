@@ -1,6 +1,6 @@
 @file:Suppress("LargeClass")
 
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.session
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.config.AppConfig
@@ -12,8 +12,8 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
-import com.companyb.companyapp.repository.model.ConcernTable
-import com.companyb.companyapp.repository.model.SessionConcernTable
+import com.companyb.companyapp.session.ConcernTable
+import com.companyb.companyapp.session.SessionConcernTable
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

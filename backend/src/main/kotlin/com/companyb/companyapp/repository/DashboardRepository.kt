@@ -2,13 +2,13 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.identity.AppUserTable
-import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
-import com.companyb.companyapp.repository.model.Concern
-import com.companyb.companyapp.repository.model.ConcernTable
-import com.companyb.companyapp.repository.model.Session
-import com.companyb.companyapp.repository.model.SessionConcernTable
-import com.companyb.companyapp.repository.model.SessionPractitionerTable
-import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.session.ActiveSessionVoidsView
+import com.companyb.companyapp.session.Concern
+import com.companyb.companyapp.session.ConcernTable
+import com.companyb.companyapp.session.Session
+import com.companyb.companyapp.session.SessionConcernTable
+import com.companyb.companyapp.session.SessionPractitionerTable
+import com.companyb.companyapp.session.SessionTable
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -46,7 +46,7 @@ object DashboardRepository {
                 .orderBy(
                     SessionTable.bookedAt to SortOrder.ASC,
                     SessionTable.createdAt to SortOrder.ASC,
-                ).map { it.toSession() }
+                ).map { it.toDashboardSession() }
         }
 
     fun findClientNames(clientIds: List<UUID>): Map<UUID, ClientNames> =
@@ -147,4 +147,26 @@ object DashboardRepository {
                     }
             }
         }
+
+    // Read-projection row mapping for the dashboard list (#542): the session store's
+    // row mapper stays private to the session owner, so this projection owns its mapping.
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toDashboardSession(): Session =
+        Session(
+            id = this[SessionTable.id],
+            clientId = this[SessionTable.clientId],
+            branchDayId = this[SessionTable.branchDayId],
+            requestedPractitionerId = this[SessionTable.requestedPractitionerId],
+            sessionType = this[SessionTable.sessionType],
+            isWalkIn = this[SessionTable.isWalkIn],
+            sessionStatus = this[SessionTable.sessionStatus],
+            basePrice = this[SessionTable.basePrice],
+            finalPrice = this[SessionTable.finalPrice],
+            remarks = this[SessionTable.remarks],
+            otherConcerns = this[SessionTable.otherConcerns],
+            bookedAt = this[SessionTable.bookedAt],
+            nextAppointmentDate = this[SessionTable.nextAppointmentDate],
+            createdBy = this[SessionTable.createdBy],
+            createdAt = this[SessionTable.createdAt],
+            version = this[SessionTable.version],
+        )
 }

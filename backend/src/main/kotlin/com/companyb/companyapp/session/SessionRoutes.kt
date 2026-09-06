@@ -1,7 +1,15 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.session
+
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.routes.DashboardSessionEnrichment
+import com.companyb.companyapp.api.routes.bodyIfPresent
+import com.companyb.companyapp.api.routes.mapDashboardSession
+import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.api.routes.toResponse
+import com.companyb.companyapp.api.routes.uuidFromQuery
+import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.AddPractitionerRequest
@@ -23,14 +31,7 @@ import com.companyb.companyapp.dto.UpdateSessionFinalPriceRequest
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
 import com.companyb.companyapp.dto.VoidSessionRequest
 import com.companyb.companyapp.exception.ForbiddenException
-import com.companyb.companyapp.repository.model.Session
-import com.companyb.companyapp.repository.model.SessionPractitioner
-import com.companyb.companyapp.repository.model.SessionVoid
-import com.companyb.companyapp.service.ConcernService
 import com.companyb.companyapp.service.dashboard.DashboardService
-import com.companyb.companyapp.service.session.SessionConcernService
-import com.companyb.companyapp.service.session.SessionPractitionerService
-import com.companyb.companyapp.service.session.SessionService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
@@ -281,7 +282,7 @@ import java.util.UUID
 object SessionRoutes {
     /**
      * Request-scoped attribute: the branch day the create gate resolved (#157). The handler
-     * hands it to [com.companyb.companyapp.service.session.SessionService.create] so the gate
+     * hands it to [SessionService.create] so the gate
      * and the write share one day resolution (no Manila-midnight divergence). Absent when the
      * gate ran the plain branch check (no day row existed — no BRANCH_DAY grant possible).
      */

@@ -1,8 +1,6 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.session
 
 import com.companyb.companyapp.exception.ConflictException
-import com.companyb.companyapp.repository.model.SessionVoid
-import com.companyb.companyapp.repository.model.SessionVoidTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNotNull
@@ -19,7 +17,7 @@ data class VoidResult(
     val created: Boolean,
 )
 
-object SessionVoidRepository {
+internal object SessionVoidRepository {
     fun findById(id: UUID): SessionVoid? =
         transaction {
             findByIdInTransaction(id)

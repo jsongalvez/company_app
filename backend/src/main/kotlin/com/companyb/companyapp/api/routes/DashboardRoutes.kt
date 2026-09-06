@@ -11,10 +11,10 @@ import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.repository.ClientNames
 import com.companyb.companyapp.repository.ConcernWithSessionId
 import com.companyb.companyapp.repository.SessionPractitionerWithName
-import com.companyb.companyapp.repository.model.Concern
-import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.service.dashboard.DashboardData
 import com.companyb.companyapp.service.dashboard.DashboardService
+import com.companyb.companyapp.session.Concern
+import com.companyb.companyapp.session.Session
 import io.javalin.config.JavalinConfig
 import io.javalin.http.Context
 import io.javalin.openapi.HttpMethod

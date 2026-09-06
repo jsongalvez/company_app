@@ -4,7 +4,7 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.service.session.SessionBaseRateService
+import com.companyb.companyapp.session.SessionBaseRateService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID

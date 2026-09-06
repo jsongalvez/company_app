@@ -10,7 +10,7 @@ import com.companyb.companyapp.repository.model.CommissionSplitTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
-import com.companyb.companyapp.repository.model.SessionVoidTable
+import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

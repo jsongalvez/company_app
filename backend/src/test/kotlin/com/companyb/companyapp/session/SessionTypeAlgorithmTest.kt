@@ -1,8 +1,8 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.session
 
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
-import com.companyb.companyapp.service.session.SessionService
+import com.companyb.companyapp.session.SessionService
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

@@ -1,19 +1,10 @@
-package com.companyb.companyapp.service.session
+package com.companyb.companyapp.session
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.ConcernRepository
-import com.companyb.companyapp.repository.SessionRepository
-import com.companyb.companyapp.repository.findSessionByIdInTransaction
-import com.companyb.companyapp.repository.model.Concern
-import com.companyb.companyapp.repository.model.ConcernTable
-import com.companyb.companyapp.repository.model.Session
-import com.companyb.companyapp.repository.model.SessionConcern
-import com.companyb.companyapp.repository.model.SessionConcernTable
-import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -136,7 +127,7 @@ internal object SessionConcernService {
         callerId: UUID,
         reason: String?,
     ): Triple<Session, BranchDay, Boolean> {
-        val session = findSessionByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
+        val session = SessionRepository.findByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
         val (branchDay, isRemitted) =
             BranchDayService.checkBranchDayEditableInTransaction(callerId, session.branchDayId, reason)
         return Triple(session, branchDay, isRemitted)

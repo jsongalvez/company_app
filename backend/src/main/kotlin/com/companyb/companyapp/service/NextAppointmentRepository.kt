@@ -6,8 +6,8 @@ import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
-import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.session.ActiveSessionVoidsView
+import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.workforce.UserBranchAssignmentTable
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.and

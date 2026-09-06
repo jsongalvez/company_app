@@ -8,7 +8,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.hasActivePendingSessionInTransaction
+import com.companyb.companyapp.session.SessionReads
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -154,7 +154,7 @@ object ClientService {
 
             // Atomic check+write guards (CR-018 C2): lock the client row, then reject when an
             // active PENDING session exists — both inside this command transaction.
-            if (hasActivePendingSessionInTransaction(clientId)) {
+            if (SessionReads.hasActivePendingSessionInTransaction(clientId)) {
                 throw ConflictException(
                     "Client has an active PENDING session; complete or cancel it before anonymizing",
                 )
