@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.architecture.BackendArchitectureOwners
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -9,6 +10,10 @@ import kotlin.test.assertTrue
  * #324 executable backend feature boundaries — whole-backend scans that generalize the
  * per-batch pins of CrudCommandOwnershipArchitectureTest:
  *
+ * Predicates live in [BackendArchitectureOwners] (#534); this test keeps the
+ * boundary names and fixtures while the owner carries the declaration-aware,
+ * alias-aware, comment-blind scanners.
+ *
  * 1. The api layer stays an HTTP adapter: no Exposed imports, no transaction blocks,
  *    no persistence-table imports, no raw-SQL exec.
  * 2. Persistence-table knowledge in the service layer lives behind internal objects
@@ -17,43 +22,21 @@ import kotlin.test.assertTrue
  * 4. Persistence never owns audit writes (`AuditLogRepository.record*` calls stay in feature
  *    seams/commands) and the retired `auditFn` callback stays gone.
  *
- * Keep table names out of comments outside seams — these are source-text rules and count doc
- * text (same hazard class as Detekt's transaction-regex). Fixtures below pin allowed and
- * forbidden shapes for every rule.
+ * Fixtures below pin allowed and forbidden shapes for every rule.
  */
 class BackendFeatureBoundaryArchitectureTest {
     private val mainRoot = File("backend/src/main/kotlin/com/companyb/companyapp")
 
-    // ---- Rules (pure source-text predicates; fixture-tested below) ----
+    // ---- Rules (delegate to the semantic owner; fixtures below) ----
 
-    fun apiLayerViolations(source: String): List<String> =
-        buildList {
-            if (EXPOSED_IMPORT.containsMatchIn(source)) add("exposed-import")
-            if (TRANSACTION_BLOCK.containsMatchIn(source)) add("transaction-block")
-            if (TABLE_IMPORT.containsMatchIn(source)) add("persistence-table-import")
-            if (RAW_EXEC.containsMatchIn(source)) add("raw-sql-exec")
-        }
+    fun apiLayerViolations(source: String): List<String> = BackendArchitectureOwners.apiLayerViolations(source)
 
     /** Persistence-table identifiers (imported from repository.model) on the public surface of a service-layer file. */
-    fun tableLeaks(source: String): List<String> {
-        val importedTables =
-            PERSISTENCE_TABLE_IMPORT
-                .findAll(source)
-                .map { it.groupValues[1] }
-                .toSet()
-        val withoutImports = source.replace(IMPORT_LINE, "")
-        val publicSurfaceEnd = INTERNAL_OBJECT.find(withoutImports)?.range?.first ?: withoutImports.length
-        return TABLE_TOKEN
-            .findAll(withoutImports.substring(0, publicSurfaceEnd))
-            .map { it.value }
-            .filter { it in importedTables }
-            .distinct()
-            .toList()
-    }
+    fun tableLeaks(source: String): List<String> = BackendArchitectureOwners.tableLeaks(source)
 
     /** Top-level store declarations missing the `internal` visibility marker. */
     fun nonInternalStoreDeclarations(source: String): List<String> =
-        PUBLIC_STORE_DECLARATION.findAll(source).map { it.value }.toList()
+        BackendArchitectureOwners.nonInternalStoreDeclarations(source)
 
     // ---- Whole-backend scans ----
 
@@ -88,14 +71,15 @@ class BackendFeatureBoundaryArchitectureTest {
     fun `persistence never owns audit writes and auditFn stays retired`() {
         val recordCalls =
             sources(File(mainRoot, "repository"))
-                .filter { (_, source) -> AUDIT_RECORD_CALL.containsMatchIn(source) }
+                .filter { (_, source) -> BackendArchitectureOwners.containsAuditRecordCall(source) }
                 .keys
                 .toList()
         assertTrue(
             recordCalls.isEmpty(),
             "audit writes belong to feature seams/commands, not repositories:\n${recordCalls.joinToString("\n")}",
         )
-        val auditFnFiles = sources(mainRoot).filter { (_, source) -> "auditFn" in source }.keys.toList()
+        val auditFnFiles =
+            sources(mainRoot).filter { (_, source) -> BackendArchitectureOwners.containsAuditFn(source) }.keys.toList()
         assertTrue(auditFnFiles.isEmpty(), "auditFn callback must stay retired:\n${auditFnFiles.joinToString("\n")}")
     }
 
@@ -206,18 +190,4 @@ class BackendFeatureBoundaryArchitectureTest {
             .walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
             .associate { it.path to it.readText() }
-
-    private companion object {
-        val IMPORT_LINE = Regex("(?m)^import .*$")
-        val INTERNAL_OBJECT = Regex("""\binternal object \w+""")
-        val TABLE_TOKEN = Regex("""\b\w+Table\b""")
-        val EXPOSED_IMPORT = Regex("import org\\.jetbrains\\.exposed")
-        val TRANSACTION_BLOCK = Regex("""\btransaction\s*[(\{]""")
-        val TABLE_IMPORT = Regex("import com\\.companyb\\.companyapp\\.repository\\.model\\.\\w*Table")
-        val PERSISTENCE_TABLE_IMPORT =
-            Regex("import com\\.companyb\\.companyapp\\.repository\\.model\\.(\\w*Table)")
-        val RAW_EXEC = Regex("""\bexec\s*\(""")
-        val PUBLIC_STORE_DECLARATION = Regex("(?m)^(?:object|class) \\w*(?:Repository|Store)\\b")
-        val AUDIT_RECORD_CALL = Regex("""\bAuditLogRepository\.record\w*\(""")
-    }
 }
