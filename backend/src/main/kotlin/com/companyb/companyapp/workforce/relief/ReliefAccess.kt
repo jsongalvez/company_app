@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.identity.AppUserTable
@@ -18,7 +18,7 @@ data class ReliefAccess(
     val grantedAt: OffsetDateTime?,
 )
 
-object GrantReliefAccessTable : Table("grant_relief_access") {
+internal object GrantReliefAccessTable : Table("grant_relief_access") {
     val id = javaUUID("id").autoGenerate()
     val branchDayId = javaUUID("branch_day_id").references(BranchDayTable.id)
     val requestedBy = javaUUID("requested_by").references(AppUserTable.id)

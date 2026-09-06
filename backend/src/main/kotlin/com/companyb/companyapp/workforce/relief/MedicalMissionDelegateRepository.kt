@@ -1,8 +1,6 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.exception.ConflictException
-import com.companyb.companyapp.repository.model.MedicalMissionDelegate
-import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -25,7 +23,7 @@ data class DelegateRevokeResult(
     val changed: Boolean,
 )
 
-object MedicalMissionDelegateRepository {
+internal object MedicalMissionDelegateRepository {
     fun findById(id: UUID): MedicalMissionDelegate? =
         transaction {
             findByIdInTransaction(id)

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.identity.AppUserTable
@@ -46,7 +46,7 @@ data class AcceptedInviteWithBranch(
     val date: java.time.LocalDate,
 )
 
-object ReliefInviteTable : Table("relief_invite") {
+internal object ReliefInviteTable : Table("relief_invite") {
     val id = javaUUID("id").autoGenerate()
     val branchDayId = javaUUID("branch_day_id").references(BranchDayTable.id)
     val invitedBy = javaUUID("invited_by").references(AppUserTable.id)

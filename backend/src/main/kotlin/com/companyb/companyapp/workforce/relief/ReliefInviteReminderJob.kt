@@ -1,8 +1,6 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.branchday.BranchDayService
-import com.companyb.companyapp.repository.ReliefAccessRepository
-import com.companyb.companyapp.repository.ReliefInviteRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.Clock
 import java.time.Duration

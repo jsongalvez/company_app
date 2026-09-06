@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDay

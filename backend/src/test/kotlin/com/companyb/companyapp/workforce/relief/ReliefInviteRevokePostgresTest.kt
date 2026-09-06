@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.domain.ReliefInviteStatus
@@ -6,7 +6,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.NotificationRepository
-import com.companyb.companyapp.repository.ReliefInviteRepository
 import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

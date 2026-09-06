@@ -1,4 +1,4 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.config.AppConfig
@@ -11,7 +11,6 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
-import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.Table
@@ -17,7 +17,7 @@ data class MedicalMissionDelegate(
     val endedAt: OffsetDateTime?,
 )
 
-object MedicalMissionDelegateTable : Table("medical_mission_delegate") {
+internal object MedicalMissionDelegateTable : Table("medical_mission_delegate") {
     val id = javaUUID("id").autoGenerate()
     val targetUser = javaUUID("target_user").references(AppUserTable.id)
     val assignedAt = timestampWithTimeZone("assigned_at").defaultExpression(CurrentTimestampWithTimeZone)

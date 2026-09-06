@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.authorization.ActiveUserCapabilitiesView
 import com.companyb.companyapp.authorization.CapabilityTable
@@ -9,10 +9,6 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.identity.AppUserTable
-import com.companyb.companyapp.repository.model.AcceptedInviteWithBranch
-import com.companyb.companyapp.repository.model.ReliefInvite
-import com.companyb.companyapp.repository.model.ReliefInviteTable
-import com.companyb.companyapp.repository.model.ReliefInviteView
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -38,7 +34,7 @@ data class ReliefInviteMutation(
 )
 
 @Suppress("TooManyFunctions")
-object ReliefInviteRepository {
+internal object ReliefInviteRepository {
     /**
      * Inserts a PENDING invite. `insertIgnore` absorbs the partial-unique-index race
      * (`idx_one_pending_accepted_invite` — a concurrent create for the same

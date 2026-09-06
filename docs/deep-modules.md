@@ -123,7 +123,7 @@ intentionally shallow.
 ## Relief
 
 **Owns:** two paths to day-scoped edit access — broadcast Relief Request (PENDING→GRANTED/DENIED/CANCELLED; one live request per requester/day via partial index) and branch-initiated Relief Invite (PENDING→ACCEPTED/DECLINED/RETRACTED; accept writes the grant immediately) — plus outcome notifications, expiry job (04:05 Manila) and reminder job (07:00), medical-mission delegates. Grant rows themselves are authorization-owned (`authorization/GrantStore` behind `AuthorizationGrants`); workforce commands pair status flips with the seam in one transaction.
-**Anchors:** `service/ReliefAccessService.kt`, `service/ReliefInviteService.kt`, `repository/ReliefAccessRepository.kt`.
+**Anchors:** `workforce/relief/ReliefAccessService.kt`, `workforce/relief/ReliefInviteService.kt`, `workforce/relief/ReliefAccessRepository.kt` (internal).
 **Public seam:** `ReliefAccessService` commands (request/grant/deny/cancel/list) · `ReliefInviteService` commands (create/accept/decline/retract/search) · `MedicalMissionDelegateService.assignDelegate` / `revokeDelegate` · `ReliefNotifications.*` (command-transaction broadcasts).
 **Depends on:** Branch Day (day-open gate, `expirationUtc`), Workforce membership/cutoff (`BranchMemberRepository`, `UserBranchAssignmentRepository`, `ShiftGuard`), Capability view, Notifications.
 **Expansion triggers:** partial unique indexes `idx_one_live_relief_request` / `idx_one_pending_accepted_invite`; job re-run safety via UNIQUE `(dedup_key, user_id)` (#508); accepted-invite revocation follow-up (#363 pending).

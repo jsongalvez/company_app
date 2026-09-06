@@ -91,7 +91,7 @@ company-app/
 │       ├── identity/         # Account lifecycle: auth, users, credentials, /me (map #533)
 │       ├── authorization/    # Capability checks, grant storage, read scoping, route filter adapter (map #533)
 │       ├── audit/            # Audit append seam, scoped reads, registry (map #533)
-│       ├── workforce/        # Attendance, assignments, membership + duty-cutoff seam (map #533 #539)
+│       ├── workforce/        # Attendance, assignments, membership + duty-cutoff seam; relief/ subcluster for requests/invites/delegates (map #533 #539 #540)
 │       ├── config/           # Javalin config, serialization mapper
 │       ├── database/         # HikariCP + Flyway + Exposed setup
 │       ├── logging/          # Logback converters, logging extensions

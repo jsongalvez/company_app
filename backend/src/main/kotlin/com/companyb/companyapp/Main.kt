@@ -13,15 +13,12 @@ import com.companyb.companyapp.api.routes.ExpenseRoutes
 import com.companyb.companyapp.api.routes.ExportRoutes
 import com.companyb.companyapp.api.routes.FeedbackRoutes
 import com.companyb.companyapp.api.routes.HealthRoutes
-import com.companyb.companyapp.api.routes.MedicalMissionDelegateRoutes
 import com.companyb.companyapp.api.routes.MetricsRoutes
 import com.companyb.companyapp.api.routes.MonthlyRemittanceSummaryRoutes
 import com.companyb.companyapp.api.routes.NotificationRoutes
 import com.companyb.companyapp.api.routes.ProductCategoryRoutes
 import com.companyb.companyapp.api.routes.ProductRoutes
 import com.companyb.companyapp.api.routes.ProductSaleRoutes
-import com.companyb.companyapp.api.routes.ReliefAccessRoutes
-import com.companyb.companyapp.api.routes.ReliefInviteRoutes
 import com.companyb.companyapp.api.routes.RemittancePickerRoutes
 import com.companyb.companyapp.api.routes.RemittanceRoutes
 import com.companyb.companyapp.api.routes.SessionBaseRateRoutes
@@ -54,6 +51,9 @@ import com.companyb.companyapp.observability.RouteLabels
 import com.companyb.companyapp.service.SchedulerLifecycle
 import com.companyb.companyapp.workforce.AttendanceRoutes
 import com.companyb.companyapp.workforce.UserBranchAssignmentRoutes
+import com.companyb.companyapp.workforce.relief.MedicalMissionDelegateRoutes
+import com.companyb.companyapp.workforce.relief.ReliefAccessRoutes
+import com.companyb.companyapp.workforce.relief.ReliefInviteRoutes
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
 import io.javalin.http.HttpStatus

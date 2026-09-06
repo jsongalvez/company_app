@@ -53,6 +53,9 @@ CompanyApp:
       - '**/audit/AuditLogRoutes.kt' # #549
       - '**/workforce/AttendanceRoutes.kt' # #539
       - '**/workforce/UserBranchAssignmentRoutes.kt' # #539
+      - '**/workforce/relief/ReliefAccessRoutes.kt' # #540
+      - '**/workforce/relief/ReliefInviteRoutes.kt' # #540
+      - '**/workforce/relief/MedicalMissionDelegateRoutes.kt' # #540
       - '**/KotlinxSerializationMapper.kt' # #468
       - '**/*Parser.kt' # #468
       - '**/test/**' # #468

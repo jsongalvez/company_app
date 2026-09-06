@@ -43,13 +43,14 @@ class CrudCommandOwnershipArchitectureTest {
                 // scan; authorize stays one query, advanceRevocationBoundary is InTransaction)
                 // plus the #537 display-name read (merged from the retired UserDisplayNames helper).
                 "identity/UserRepository.kt" to 7,
-                "repository/UserBranchAssignmentRepository.kt" to 3,
+                "workforce/UserBranchAssignmentRepository.kt" to 3,
                 // 7 = five request/read blocks + hasActiveClockIn + isActiveUser read wrappers
-                "repository/ReliefAccessRepository.kt" to 7,
-                // 13 = twelve find/isActive read wrappers + the #374 accepted-duty scan + the #401 by-date read
-                "repository/ReliefInviteRepository.kt" to 13,
+                "workforce/relief/ReliefAccessRepository.kt" to 7,
+                // 14 regex hits = thirteen read wrappers + the #374 scan + the #401 by-date read
+                // plus one "transaction (" prose match in the accept comment (pin counts hits, not blocks).
+                "workforce/relief/ReliefInviteRepository.kt" to 14,
                 // findById + branch list read wrappers; mutation stores remain in-transaction.
-                "repository/MedicalMissionDelegateRepository.kt" to 2,
+                "workforce/relief/MedicalMissionDelegateRepository.kt" to 2,
                 // Batch 5 — inventory/product-sale cluster.
                 "repository/ProductSaleRepository.kt" to 2,
                 "repository/BranchInventoryRepository.kt" to 4,
@@ -88,13 +89,13 @@ class CrudCommandOwnershipArchitectureTest {
                 "service/session/SessionBaseRateService.kt" to listOf("setRate"),
                 // Batch 4 — user/access cluster.
                 "identity/UserService.kt" to listOf("deactivate", "reactivate"),
-                "service/UserBranchAssignmentService.kt" to
+                "workforce/UserBranchAssignmentService.kt" to
                     listOf("create", "remove", "updateSlot", "swapSlots"),
-                "service/ReliefAccessService.kt" to
+                "workforce/relief/ReliefAccessService.kt" to
                     listOf("grantAccess", "denyAccess", "requestReliefAccess", "cancelRequest"),
-                "service/ReliefInviteService.kt" to
+                "workforce/relief/ReliefInviteService.kt" to
                     listOf("createInvite", "acceptInvite", "declineInvite", "retractInvite", "revokeInvite"),
-                "service/MedicalMissionDelegateService.kt" to listOf("assignDelegate", "revokeDelegate"),
+                "workforce/relief/MedicalMissionDelegateService.kt" to listOf("assignDelegate", "revokeDelegate"),
                 // Batch 5 — inventory/product-sale cluster.
                 "service/ProductSaleService.kt" to listOf("sell"),
                 "service/inventory/InventoryService.kt" to listOf("recordMovement", "ensureCard"),
@@ -136,10 +137,10 @@ class CrudCommandOwnershipArchitectureTest {
                 "service/session/SessionBaseRateService.kt" to "SessionBaseRateAudit",
                 // Batch 4 — user/access cluster.
                 "identity/UserService.kt" to "UserAudit",
-                "service/UserBranchAssignmentService.kt" to "UserBranchAssignmentAudit",
-                "service/ReliefAccessService.kt" to "ReliefAccessAudit",
-                "service/ReliefInviteService.kt" to "ReliefInviteAudit",
-                "service/MedicalMissionDelegateService.kt" to "MedicalMissionDelegateAudit",
+                "workforce/UserBranchAssignmentService.kt" to "UserBranchAssignmentAudit",
+                "workforce/relief/ReliefAccessService.kt" to "ReliefAccessAudit",
+                "workforce/relief/ReliefInviteService.kt" to "ReliefInviteAudit",
+                "workforce/relief/MedicalMissionDelegateService.kt" to "MedicalMissionDelegateAudit",
                 // Batch 5 — inventory/product-sale cluster.
                 "service/ProductSaleService.kt" to "ProductSaleAudit",
                 "service/inventory/InventoryService.kt" to "BranchInventoryAudit",

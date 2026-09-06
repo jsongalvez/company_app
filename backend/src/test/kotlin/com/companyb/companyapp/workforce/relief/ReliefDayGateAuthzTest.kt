@@ -1,7 +1,11 @@
 @file:Suppress("LargeClass")
 
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.routes.DailySalesSummaryRoutes
+import com.companyb.companyapp.api.routes.ExpenseRoutes
+import com.companyb.companyapp.api.routes.ProductSaleRoutes
+import com.companyb.companyapp.api.routes.SessionRoutes
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayRoutes
 import com.companyb.companyapp.branchday.BranchDayService

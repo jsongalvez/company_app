@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.test.TestFixtures
