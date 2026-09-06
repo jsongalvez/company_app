@@ -76,9 +76,11 @@ object InventoryService {
                 }
 
                 if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
-                requireActiveProductInTransaction(productId)
                 BranchDayService.requireBranchDayForBranch(branchDayId, branchId)
 
+                // #518 — day → product → card lock order (shared with ProductSaleService.sell):
+                // the day gate locks the day row before the product row so a sale and a
+                // movement on the same day serialize instead of deadlocking.
                 val isRemitted =
                     StockValidator.validateMovement(
                         callerId,
@@ -88,6 +90,8 @@ object InventoryService {
                         notes,
                         reason,
                     )
+
+                requireActiveProductInTransaction(productId)
 
                 // The card read that supplies expectedVersion now happens in this same command
                 // transaction, fixing the former cross-boundary stale version read.
