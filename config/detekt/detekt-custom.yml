@@ -51,6 +51,8 @@ CompanyApp:
       - '**/identity/MeRoutes.kt' # #537
       - '**/identity/UserRoutes.kt' # #537
       - '**/audit/AuditLogRoutes.kt' # #549
+      - '**/workforce/AttendanceRoutes.kt' # #539
+      - '**/workforce/UserBranchAssignmentRoutes.kt' # #539
       - '**/KotlinxSerializationMapper.kt' # #468
       - '**/*Parser.kt' # #468
       - '**/test/**' # #468

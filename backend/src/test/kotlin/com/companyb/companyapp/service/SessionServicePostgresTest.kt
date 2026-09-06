@@ -16,13 +16,11 @@ import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.integration.LockBarrier
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
-import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionPractitionerTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.service.session.SessionPractitionerService
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.TestFixtures
@@ -30,6 +28,8 @@ import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
+import com.companyb.companyapp.workforce.UserBranchAssignmentCreateParams
+import com.companyb.companyapp.workforce.UserBranchAssignmentRepository
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq

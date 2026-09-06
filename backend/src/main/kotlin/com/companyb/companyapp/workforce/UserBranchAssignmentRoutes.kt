@@ -1,15 +1,14 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.workforce
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.BranchMemberResponse
 import com.companyb.companyapp.dto.CreateAssignmentRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.SwapSlotsRequest
 import com.companyb.companyapp.dto.UpdateSlotRequest
-import com.companyb.companyapp.repository.model.UserBranchAssignment
-import com.companyb.companyapp.service.UserBranchAssignmentService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context

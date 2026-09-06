@@ -1,12 +1,9 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.workforce
 
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.UserBranchAssignment
-import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -34,7 +31,7 @@ data class AssignmentMutation(
 )
 
 @Suppress("TooManyFunctions")
-object UserBranchAssignmentRepository {
+internal object UserBranchAssignmentRepository {
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: UserBranchAssignmentCreateParams): AssignmentCreateResult {
         // #453 — the single ownership seam: same-ID classification + active-key guard both

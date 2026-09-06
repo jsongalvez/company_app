@@ -7,11 +7,9 @@ import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.SessionBaseRateRepository
-import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.NotificationCreateParams
 import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.service.session.SessionBaseRateService
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.TestFixtures
@@ -19,6 +17,8 @@ import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
+import com.companyb.companyapp.workforce.UserBranchAssignmentCreateParams
+import com.companyb.companyapp.workforce.UserBranchAssignmentRepository
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insertIgnore

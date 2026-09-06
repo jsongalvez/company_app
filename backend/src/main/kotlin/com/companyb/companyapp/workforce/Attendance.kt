@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.workforce
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.Table
@@ -17,7 +17,7 @@ data class Attendance(
     val clockOut: OffsetDateTime?,
 )
 
-object AttendanceTable : Table("attendance") {
+internal object AttendanceTable : Table("attendance") {
     val id = javaUUID("id").autoGenerate()
     val branchDayId = javaUUID("branch_day_id").references(BranchDayTable.id)
     val userId = javaUUID("user_id").references(AppUserTable.id)
@@ -45,7 +45,7 @@ data class BranchDayAssignment(
     val isRelief: Boolean,
 )
 
-object BranchDayAssignmentTable : Table("branch_day_assignment") {
+internal object BranchDayAssignmentTable : Table("branch_day_assignment") {
     val id = javaUUID("id").autoGenerate()
     val branchDayId = javaUUID("branch_day_id").references(BranchDayTable.id)
     val userId = javaUUID("user_id").references(AppUserTable.id)

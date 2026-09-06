@@ -1,12 +1,12 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.ReliefInviteStatus
-import com.companyb.companyapp.repository.UserBranchAssignmentRepository
-import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.workforce.UserBranchAssignmentCreateParams
+import com.companyb.companyapp.workforce.UserBranchAssignmentRepository
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
 import java.util.UUID

@@ -1,12 +1,8 @@
-package com.companyb.companyapp.service.attendance
+package com.companyb.companyapp.workforce
 
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.identity.AppUserTable
-import com.companyb.companyapp.repository.model.Attendance
-import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.Slice
 import org.jetbrains.exposed.v1.core.SortOrder

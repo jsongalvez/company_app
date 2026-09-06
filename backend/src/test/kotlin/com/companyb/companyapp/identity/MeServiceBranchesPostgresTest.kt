@@ -5,13 +5,13 @@ import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.service.attendance.AttendanceRepository
-import com.companyb.companyapp.service.attendance.AttendanceService
-import com.companyb.companyapp.service.attendance.ClockInParams
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.workforce.AttendanceRepository
+import com.companyb.companyapp.workforce.AttendanceService
+import com.companyb.companyapp.workforce.ClockInParams
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
 import java.util.UUID

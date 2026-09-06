@@ -5,8 +5,8 @@ import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.identity.UserRoleTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.workforce.UserBranchAssignmentTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull

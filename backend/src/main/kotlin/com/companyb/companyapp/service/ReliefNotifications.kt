@@ -4,9 +4,9 @@ import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.identity.AccountReads
-import com.companyb.companyapp.repository.BranchMemberRepository
 import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.model.NotificationCreateParams
+import com.companyb.companyapp.workforce.BranchMemberRepository
 import java.time.LocalDate
 import java.util.UUID
 

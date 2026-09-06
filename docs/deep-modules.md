@@ -83,12 +83,12 @@ intentionally shallow.
 **Tests/authority:** `docs/engines.md`; backend `AGENTS.md` "Sessions".
 **Search:** `computeSessionType`, `findSessionByIdInTransaction` (sibling-service helper, not a boundary), `VersionMismatchException`, `session_void`.
 
-## Attendance
+## Workforce (Attendance · Assignments)
 
-**Owns:** clock-in/out, `branch_day_assignment` upsert, relief determination at clock-in, clocked-in-at reads feeding commission/dashboard eligibility.
-**Anchors:** `service/attendance/AttendanceService.kt` (+ internal `AttendanceRepository` in same package).
-**Public seam:** `clockIn` / `clockOut` · `findUsersClockedInAt` · `hasActiveClockIn` · `findUsersByBranchDayId`.
-**Depends on:** Branch Day (today resolution), Assignments (relief check), Commission (recalc joins the clock-in/out transaction).
+**Owns:** clock-in/out, `branch_day_assignment` upsert, relief determination at clock-in, clocked-in-at reads feeding commission/dashboard eligibility; branch assignments, active membership directory and the lock+check duty-cutoff seam.
+**Anchors:** `workforce/AttendanceService.kt` (+ internal `AttendanceRepository` in same package) · `workforce/UserBranchAssignmentService.kt` (+ internal `UserBranchAssignmentRepository`, `BranchMemberRepository`) · `workforce/ShiftGuard.kt` (duty-cutoff seam).
+**Public seam:** `clockIn` / `clockOut` · `mark` / `rosterToday` · `findUsersClockedInAt` · `hasActiveClockIn` · `findUsersByBranchDayId` · assignment `create` / `remove` / `updateSlot` / `swapSlots` / `listActiveMembers` · `ShiftGuard.ensureNoActiveClockIn` / `ensureRetractionAllowed` (relief cutoff).
+**Depends on:** Branch Day (today resolution), Commission (recalc joins the clock-in/out transaction).
 **Expansion triggers:** `idx_one_active_clock_in` uniqueness; relief-flag semantics consumed by commission eligibility and dashboards.
 **Search:** `isRelief`, `findUsersClockedInAt`, `clockOutInTransaction`.
 
@@ -125,7 +125,7 @@ intentionally shallow.
 **Owns:** two paths to day-scoped edit access — broadcast Relief Request (PENDING→GRANTED/DENIED/CANCELLED; one live request per requester/day via partial index) and branch-initiated Relief Invite (PENDING→ACCEPTED/DECLINED/RETRACTED; accept writes the grant immediately) — plus outcome notifications, expiry job (04:05 Manila) and reminder job (07:00), medical-mission delegates. Grant rows themselves are authorization-owned (`authorization/GrantStore` behind `AuthorizationGrants`); workforce commands pair status flips with the seam in one transaction.
 **Anchors:** `service/ReliefAccessService.kt`, `service/ReliefInviteService.kt`, `repository/ReliefAccessRepository.kt`.
 **Public seam:** `ReliefAccessService` commands (request/grant/deny/cancel/list) · `ReliefInviteService` commands (create/accept/decline/retract/search) · `MedicalMissionDelegateService.assignDelegate` / `revokeDelegate` · `ReliefNotifications.*` (command-transaction broadcasts).
-**Depends on:** Branch Day (day-open gate, `expirationUtc`), Assignments (membership gates), Capability view, Notifications.
+**Depends on:** Branch Day (day-open gate, `expirationUtc`), Workforce membership/cutoff (`BranchMemberRepository`, `UserBranchAssignmentRepository`, `ShiftGuard`), Capability view, Notifications.
 **Expansion triggers:** partial unique indexes `idx_one_live_relief_request` / `idx_one_pending_accepted_invite`; job re-run safety via UNIQUE `(dedup_key, user_id)` (#508); accepted-invite revocation follow-up (#363 pending).
 **Tests/authority:** relief-cluster rules live in code comments (#159/#352/#357/#358); backend `AGENTS.md` day-scoped gate section.
 **Search:** `AuthorizationGrants`, `hasPendingOrAcceptedInvite`, `ReliefNotifications.`

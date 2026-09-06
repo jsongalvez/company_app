@@ -5,8 +5,8 @@ import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.identity.AppUserTable
-import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
+import com.companyb.companyapp.workforce.AttendanceTable
+import com.companyb.companyapp.workforce.UserBranchAssignmentTable
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq

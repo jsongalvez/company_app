@@ -7,7 +7,7 @@ import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.dto.BranchDayTodayResponse
 import com.companyb.companyapp.dto.BranchDayUserResponse
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.service.attendance.AttendanceService
+import com.companyb.companyapp.workforce.AttendanceService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.Context
 import io.javalin.openapi.HttpMethod

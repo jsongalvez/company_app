@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository.model
+package com.companyb.companyapp.workforce
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.Table
@@ -26,7 +26,7 @@ data class UserBranchAssignmentCreateParams(
     val assignedBy: UUID,
 )
 
-object UserBranchAssignmentTable : Table("user_branch_assignment") {
+internal object UserBranchAssignmentTable : Table("user_branch_assignment") {
     val id = javaUUID("id").autoGenerate()
     val userId = javaUUID("user_id").references(AppUserTable.id)
     val branchId = javaUUID("branch_id").references(BranchTable.id)

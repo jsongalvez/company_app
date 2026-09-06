@@ -680,7 +680,7 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/Main.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/authorization/CapabilityFilter.kt' #465 frozen #538 retarget
       - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/AllowanceRoutes.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/AttendanceRoutes.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/AttendanceRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLog.kt' #549 seam mirrors store signatures
       - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/BranchInventoryRoutes.kt' #465 frozen
@@ -716,7 +716,7 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/repository/SessionBaseRateRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/repository/SessionRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/repository/SessionVoidRepository.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/repository/UserBranchAssignmentRepository.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/UserRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/AllowanceService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogService.kt' #465 frozen
@@ -731,9 +731,9 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/ReliefAccessService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/ReliefInviteService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/SchedulerLifecycle.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/service/UserBranchAssignmentService.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/service/attendance/AttendanceRepository.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/service/attendance/AttendanceService.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentService.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/AttendanceRepository.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/AttendanceService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/branchday/BranchDayService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/export/ExportService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/service/finance/commission/CommissionService.kt' #465 frozen
@@ -769,7 +769,7 @@ style:
       - '**/backend/src/test/kotlin/com/companyb/companyapp/service/RemittanceReadBackServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/service/RemittanceServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/service/SessionServicePostgresTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/service/UserBranchAssignmentServicePostgresTest.kt' #465 frozen
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/database/BasePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/test/BasePostgresTestTeardownTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/IdentityFixtures.kt' #552 split from the retired mixed helper

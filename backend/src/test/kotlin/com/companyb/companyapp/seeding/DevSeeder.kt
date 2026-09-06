@@ -15,7 +15,7 @@ import com.companyb.companyapp.identity.UserCreateParams
 import com.companyb.companyapp.identity.UserRepository
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
+import com.companyb.companyapp.workforce.UserBranchAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone

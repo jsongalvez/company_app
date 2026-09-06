@@ -3,7 +3,7 @@
 backend/src/main/kotlin/com/companyb/companyapp/Main.kt:LongMethod
 backend/src/main/kotlin/com/companyb/companyapp/api/middleware/CapabilityFilter.kt:TooManyFunctions
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/AllowanceRoutes.kt:ThrowsCount
-backend/src/main/kotlin/com/companyb/companyapp/api/routes/AttendanceRoutes.kt:ThrowsCount
+backend/src/main/kotlin/com/companyb/companyapp/workforce/AttendanceRoutes.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogRoutes.kt:LongMethod
 backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogRoutes.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/api/routes/BranchInventoryRoutes.kt:LongMethod
@@ -61,7 +61,7 @@ backend/src/main/kotlin/com/companyb/companyapp/repository/SessionBaseRateReposi
 backend/src/main/kotlin/com/companyb/companyapp/repository/SessionRepository.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/repository/SessionRepository.kt:TooManyFunctions
 backend/src/main/kotlin/com/companyb/companyapp/repository/SessionVoidRepository.kt:ReturnCount
-backend/src/main/kotlin/com/companyb/companyapp/repository/UserBranchAssignmentRepository.kt:TooManyFunctions
+backend/src/main/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentRepository.kt:TooManyFunctions
 backend/src/main/kotlin/com/companyb/companyapp/identity/UserRepository.kt:TooManyFunctions
 backend/src/main/kotlin/com/companyb/companyapp/identity/UserRepository.kt:UnreachableCode
 backend/src/main/kotlin/com/companyb/companyapp/service/AllowanceService.kt:LongParameterList
@@ -92,12 +92,12 @@ backend/src/main/kotlin/com/companyb/companyapp/service/ReliefAccessService.kt:T
 backend/src/main/kotlin/com/companyb/companyapp/service/ReliefInviteService.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/service/ReliefInviteService.kt:TooManyFunctions
 backend/src/main/kotlin/com/companyb/companyapp/service/SchedulerLifecycle.kt:TooGenericExceptionCaught
-backend/src/main/kotlin/com/companyb/companyapp/service/UserBranchAssignmentService.kt:LongParameterList
-backend/src/main/kotlin/com/companyb/companyapp/service/UserBranchAssignmentService.kt:ReturnCount
-backend/src/main/kotlin/com/companyb/companyapp/service/UserBranchAssignmentService.kt:ThrowsCount
-backend/src/main/kotlin/com/companyb/companyapp/service/attendance/AttendanceRepository.kt:TooManyFunctions
-backend/src/main/kotlin/com/companyb/companyapp/service/attendance/AttendanceRepository.kt:UnreachableCode
-backend/src/main/kotlin/com/companyb/companyapp/service/attendance/AttendanceService.kt:ThrowsCount
+backend/src/main/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentService.kt:LongParameterList
+backend/src/main/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentService.kt:ReturnCount
+backend/src/main/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentService.kt:ThrowsCount
+backend/src/main/kotlin/com/companyb/companyapp/workforce/AttendanceRepository.kt:TooManyFunctions
+backend/src/main/kotlin/com/companyb/companyapp/workforce/AttendanceRepository.kt:UnreachableCode
+backend/src/main/kotlin/com/companyb/companyapp/workforce/AttendanceService.kt:ThrowsCount
 backend/src/main/kotlin/com/companyb/companyapp/branchday/BranchDayService.kt:TooManyFunctions
 backend/src/main/kotlin/com/companyb/companyapp/service/export/ExportService.kt:TooManyFunctions
 backend/src/main/kotlin/com/companyb/companyapp/service/finance/commission/CommissionService.kt:LongParameterList
@@ -162,7 +162,7 @@ backend/src/test/kotlin/com/companyb/companyapp/service/RemittanceServicePostgre
 backend/src/test/kotlin/com/companyb/companyapp/service/RemittanceServicePostgresTest.kt:SameParameterValue
 backend/src/test/kotlin/com/companyb/companyapp/service/SessionServicePostgresTest.kt:LargeClass
 backend/src/test/kotlin/com/companyb/companyapp/service/SessionServicePostgresTest.kt:LongParameterList
-backend/src/test/kotlin/com/companyb/companyapp/service/UserBranchAssignmentServicePostgresTest.kt:LargeClass
+backend/src/test/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentServicePostgresTest.kt:LargeClass
 backend/src/test/kotlin/com/companyb/companyapp/test/BasePostgresTest.kt:UnreachableCode
 backend/src/test/kotlin/com/companyb/companyapp/test/BasePostgresTestTeardownTest.kt:LongMethod
 backend/src/test/kotlin/com/companyb/companyapp/test/DatabaseTestHelper.kt:ForbiddenClassName

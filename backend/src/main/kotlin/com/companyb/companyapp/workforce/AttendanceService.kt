@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service.attendance
+package com.companyb.companyapp.workforce
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
@@ -7,7 +7,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -187,7 +186,7 @@ object AttendanceService {
             CommissionService.recalculateInTransaction(today.id)
         }
 
-        return AttendanceMarkResult(after, created = false, AssignmentResolver.getIsRelief(today.id, targetUserId))
+        return AttendanceMarkResult(after, created = false, getIsRelief(today.id, targetUserId))
     }
 
     /**
@@ -235,7 +234,7 @@ object AttendanceService {
             }
 
             if (existing.clockOut != null) {
-                val isRelief = AssignmentResolver.getIsRelief(existing.branchDayId, existing.userId)
+                val isRelief = getIsRelief(existing.branchDayId, existing.userId)
                 return@transaction AttendanceServiceResult(existing, false, isRelief)
             }
 
@@ -257,7 +256,7 @@ object AttendanceService {
                 CommissionService.recalculateInTransaction(attendance.branchDayId)
             }
 
-            val isRelief = AssignmentResolver.getIsRelief(attendance.branchDayId, attendance.userId)
+            val isRelief = getIsRelief(attendance.branchDayId, attendance.userId)
             AttendanceServiceResult(attendance, false, isRelief)
         }
 
@@ -284,7 +283,7 @@ object AttendanceService {
 
             ShiftGuard.ensureNoActiveClockIn(callerId, branchDay.id)
 
-            val isRelief = AssignmentResolver.resolveIsRelief(branchId, callerId)
+            val isRelief = resolveIsRelief(branchId, callerId)
 
             val branchDayAssignmentId = UUID.randomUUID()
 
@@ -339,7 +338,7 @@ object AttendanceService {
         if (!sameMark || !sameBranch || !sameDay) {
             throw ConflictException("Attendance id already belongs to another clock-in request")
         }
-        val isRelief = AssignmentResolver.getIsRelief(existing.branchDayId, existing.userId)
+        val isRelief = getIsRelief(existing.branchDayId, existing.userId)
         return AttendanceServiceResult(existing, false, isRelief)
     }
 }
@@ -380,6 +379,21 @@ private fun requireActiveMember(
     }
 }
 
+/**
+ * Folded from AssignmentResolver (#539): two pass-through relief lookups with no
+ * independent responsibility. File-level helpers so AttendanceService stays inside
+ * its function-count pin.
+ */
+private fun resolveIsRelief(
+    branchId: UUID,
+    userId: UUID,
+): Boolean = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userId) == null
+
+private fun getIsRelief(
+    branchDayId: UUID,
+    userId: UUID,
+): Boolean = AttendanceRepository.branchDayAssignmentIsRelief(branchDayId, userId) ?: false
+
 data class AttendanceServiceResult(
     val attendance: Attendance,
     val created: Boolean,
@@ -392,8 +406,6 @@ data class AttendanceServiceResult(
     val clockIn: OffsetDateTime get() = attendance.clockIn
     val clockOut: OffsetDateTime? get() = attendance.clockOut
 }
-
-private typealias Attendance = com.companyb.companyapp.repository.model.Attendance
 
 internal object AttendanceAudit {
     fun inserted(

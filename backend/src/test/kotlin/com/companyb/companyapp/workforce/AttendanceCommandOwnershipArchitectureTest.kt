@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.workforce
 
 import java.io.File
 import kotlin.test.Test
@@ -21,7 +21,7 @@ class AttendanceCommandOwnershipArchitectureTest {
     @Test
     fun `attendance store has no nested write transactions or audit callbacks`() {
         // (file, allowed read-wrapper transaction blocks)
-        val file = "service/attendance/AttendanceRepository.kt"
+        val file = "workforce/AttendanceRepository.kt"
         val expectedBlocks = 7
         val source = mainSource(file)
 
@@ -34,7 +34,7 @@ class AttendanceCommandOwnershipArchitectureTest {
 
     @Test
     fun `each attendance mutation command owns exactly one transaction`() {
-        val source = mainSource("service/attendance/AttendanceService.kt")
+        val source = mainSource("workforce/AttendanceService.kt")
 
         assertFalse(source.contains("auditFn"), "commands call AuditLog directly")
         listOf(
@@ -52,7 +52,7 @@ class AttendanceCommandOwnershipArchitectureTest {
     @Test
     fun `attendance reaches branch day only through the feature boundary`() {
         val attendanceSources =
-            File("backend/src/main/kotlin/com/companyb/companyapp/service/attendance")
+            File("backend/src/main/kotlin/com/companyb/companyapp/workforce")
                 .walkTopDown()
                 .filter { it.extension == "kt" }
                 .map { it.readText() }
@@ -80,7 +80,7 @@ class AttendanceCommandOwnershipArchitectureTest {
     @Test
     fun `attendance derives no operational dates independently`() {
         val attendanceSources =
-            File("backend/src/main/kotlin/com/companyb/companyapp/service/attendance")
+            File("backend/src/main/kotlin/com/companyb/companyapp/workforce")
                 .walkTopDown()
                 .filter { it.extension == "kt" }
                 .map { it.readText() }

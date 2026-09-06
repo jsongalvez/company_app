@@ -3,7 +3,6 @@ package com.companyb.companyapp
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.TraceIdFilter
 import com.companyb.companyapp.api.routes.AllowanceRoutes
-import com.companyb.companyapp.api.routes.AttendanceRoutes
 import com.companyb.companyapp.api.routes.BranchInventoryRoutes
 import com.companyb.companyapp.api.routes.ClientRoutes
 import com.companyb.companyapp.api.routes.CommissionRoutes
@@ -27,7 +26,6 @@ import com.companyb.companyapp.api.routes.RemittancePickerRoutes
 import com.companyb.companyapp.api.routes.RemittanceRoutes
 import com.companyb.companyapp.api.routes.SessionBaseRateRoutes
 import com.companyb.companyapp.api.routes.SessionRoutes
-import com.companyb.companyapp.api.routes.UserBranchAssignmentRoutes
 import com.companyb.companyapp.audit.AuditLogRoutes
 import com.companyb.companyapp.branch.BranchRoutes
 import com.companyb.companyapp.branchday.BranchDayRoutes
@@ -54,6 +52,8 @@ import com.companyb.companyapp.observability.IncidentService
 import com.companyb.companyapp.observability.RequestMetrics
 import com.companyb.companyapp.observability.RouteLabels
 import com.companyb.companyapp.service.SchedulerLifecycle
+import com.companyb.companyapp.workforce.AttendanceRoutes
+import com.companyb.companyapp.workforce.UserBranchAssignmentRoutes
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
 import io.javalin.http.HttpStatus

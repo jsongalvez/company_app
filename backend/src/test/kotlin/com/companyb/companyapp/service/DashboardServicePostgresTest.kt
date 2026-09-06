@@ -7,7 +7,6 @@ import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertP
 import com.companyb.companyapp.repository.model.SessionPractitionerTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.service.NotificationService
-import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.dashboard.DashboardService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
@@ -15,6 +14,7 @@ import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
+import com.companyb.companyapp.workforce.AttendanceService
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal

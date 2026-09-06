@@ -15,10 +15,10 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.GrantWithCapabilityParams
 import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.ReliefRequestWithBranch
-import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
-import com.companyb.companyapp.service.attendance.ShiftGuard
+import com.companyb.companyapp.workforce.ShiftGuard
+import com.companyb.companyapp.workforce.UserBranchAssignmentRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate

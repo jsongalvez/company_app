@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service.attendance
+package com.companyb.companyapp.workforce
 
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.ConflictException

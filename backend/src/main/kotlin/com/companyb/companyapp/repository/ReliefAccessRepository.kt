@@ -5,9 +5,9 @@ import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.identity.AppUserTable
-import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
+import com.companyb.companyapp.workforce.AttendanceTable
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq

@@ -10,8 +10,8 @@ import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.SessionPractitionerWithName
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.Session
-import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.finance.commission.CommissionService
+import com.companyb.companyapp.workforce.AttendanceService
 import java.math.BigDecimal
 import java.util.UUID
 

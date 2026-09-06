@@ -1,8 +1,7 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.workforce
 
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.identity.AppUserTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -23,7 +22,7 @@ data class BranchMemberRow(
  * of one branch. Joins the user row and filters on status so deactivated users never
  * surface — the assignment query alone filters [UserBranchAssignmentTable.endedAt] only.
  */
-object BranchMemberRepository {
+internal object BranchMemberRepository {
     fun findActiveMemberNames(branchId: UUID): List<BranchMemberRow> =
         transaction {
             activeMembersQuery(branchId)

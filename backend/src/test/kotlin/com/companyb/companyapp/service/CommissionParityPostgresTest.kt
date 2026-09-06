@@ -3,7 +3,6 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
-import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertParams
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
@@ -16,6 +15,7 @@ import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
+import com.companyb.companyapp.workforce.AttendanceTable
 import org.jetbrains.exposed.v1.core.Transaction
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.statements.StatementContext

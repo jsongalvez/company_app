@@ -9,7 +9,7 @@ import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
+import com.companyb.companyapp.workforce.UserBranchAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.CustomFunction
 import org.jetbrains.exposed.v1.core.ResultRow

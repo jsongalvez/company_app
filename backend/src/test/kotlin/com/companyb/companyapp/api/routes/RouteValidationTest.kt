@@ -34,6 +34,7 @@ import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
+import com.companyb.companyapp.workforce.UserBranchAssignmentRoutes
 import io.javalin.Javalin
 import io.javalin.config.JavalinConfig
 import kotlinx.serialization.json.Json

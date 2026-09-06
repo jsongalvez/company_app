@@ -6,9 +6,9 @@ import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.DayStatus
-import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.workforce.AttendanceTable
+import com.companyb.companyapp.workforce.UserBranchAssignmentTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -43,7 +43,7 @@ object BranchWorkforceFixtures {
 
     /**
      * Inserts a [user_branch_assignment] row directly (bypasses
-     * [com.companyb.companyapp.repository.UserBranchAssignmentRepository]).
+     * [com.companyb.companyapp.workforce.UserBranchAssignmentRepository]).
      * NOTE: inside `insert {}` the lambda receiver is the TABLE, so unqualified
      * names that collide with table columns resolve to COLUMNS, not to enclosing
      * scope — function parameters and locals win, but object properties lose.

@@ -205,7 +205,11 @@ object BackendArchitectureOwners {
     val allowedStoreReads: Set<StoreSeam> =
         setOf(
             // Map #533: commission reads attendance facts without calling the attendance commands.
-            StoreSeam("commission", "$BASE_PACKAGE.service.attendance.AttendanceRepository"),
+            StoreSeam("commission", "$BASE_PACKAGE.workforce.AttendanceRepository"),
+            // #539: session reads workforce membership facts (member check, slot lookup) without
+            // calling the workforce commands; command coordination stays service-to-service.
+            StoreSeam("session", "$BASE_PACKAGE.workforce.UserBranchAssignmentRepository"),
+            StoreSeam("session", "$BASE_PACKAGE.workforce.BranchMemberRepository"),
         )
 
     /** One granted cross-owner store read: [importerOwner] may read [store] (fully qualified). */

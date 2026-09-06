@@ -1,15 +1,15 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.workforce
 
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.exception.ForbiddenException
-import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.service.attendance.AttendanceRepository
-import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.workforce.AttendanceRepository
+import com.companyb.companyapp.workforce.AttendanceService
+import com.companyb.companyapp.workforce.AttendanceTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll

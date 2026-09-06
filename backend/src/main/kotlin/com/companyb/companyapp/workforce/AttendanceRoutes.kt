@@ -1,6 +1,8 @@
-package com.companyb.companyapp.api.routes
+package com.companyb.companyapp.workforce
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.dto.AttendanceMarkResponse
 import com.companyb.companyapp.dto.ClockInRequest
 import com.companyb.companyapp.dto.ClockInResponse
@@ -9,8 +11,6 @@ import com.companyb.companyapp.dto.ClockOutResponse
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.MarkAttendanceRequest
 import com.companyb.companyapp.dto.MemberAttendanceResponse
-import com.companyb.companyapp.service.attendance.AttendanceMarkResult
-import com.companyb.companyapp.service.attendance.AttendanceService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus

@@ -8,13 +8,13 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.CommissionSplitRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
-import com.companyb.companyapp.repository.model.Attendance
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertParams
 import com.companyb.companyapp.repository.model.CommissionSplit
 import com.companyb.companyapp.repository.model.ProductSale
-import com.companyb.companyapp.service.attendance.AttendanceRepository
+import com.companyb.companyapp.workforce.Attendance
+import com.companyb.companyapp.workforce.AttendanceRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
