@@ -1,11 +1,14 @@
 package com.companyb.companyapp.ui.theme
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -123,6 +126,14 @@ fun LinearTheme(content: @Composable () -> Unit) {
         colorScheme = LinearDarkColors,
         typography = typography,
         shapes = LinearShapes,
-        content = content,
-    )
+    ) {
+        // #576 (gap from #449): paint the dark canvas at the root — without this the
+        // native window background (light) shows through bare Columns and white Ink
+        // text renders on light grey. One central Surface covers all platforms/screens.
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
+            content = content,
+        )
+    }
 }
