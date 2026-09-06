@@ -18,9 +18,11 @@ import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.service.ClientService
 import com.companyb.companyapp.service.ExpenseService
 import com.companyb.companyapp.service.session.SessionService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonObject
@@ -54,19 +56,19 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
     private val rateId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "audit-coverage-caller")
-        DatabaseTestHelper.insertTestUser(practitionerId, "audit-coverage-practitioner")
-        DatabaseTestHelper.insertTestBranch(branchId)
-        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
-        DatabaseTestHelper.grantVoidSession(callerId, TestFixtures.uuid())
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.insertTestUser(callerId, "audit-coverage-caller")
+        IdentityFixtures.insertTestUser(practitionerId, "audit-coverage-practitioner")
+        BranchWorkforceFixtures.insertTestBranch(branchId)
+        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
+        IdentityFixtures.grantVoidSession(callerId, TestFixtures.uuid())
+        IdentityFixtures.grantCapability(
             userId = callerId,
             capabilityCode = com.companyb.companyapp.domain.CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
             contextId = branchId,
             sourceId = TestFixtures.uuid(),
         )
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = callerId,
             capabilityCode = com.companyb.companyapp.domain.CapabilityCodes.VOID_SESSION,
             contextType = com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
@@ -240,7 +242,7 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
         assertEquals("""{"notes":"null"}""", AuditLog.jsonFields(mapOf("notes" to "null")))
         assertEquals("""{"notes":null}""", AuditLog.jsonFields(mapOf("notes" to null)))
 
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
@@ -269,7 +271,7 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
 
     @Test
     fun `session creation audit carries practitioner booking and appointment context`() {
-        DatabaseTestHelper.insertTestClient(clientId)
+        SessionClientFixtures.insertTestClient(clientId)
         val nextDate = TestFixtures.today.plusDays(5)
         val result =
             SessionService.create(
@@ -306,7 +308,7 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
 
     @Test
     fun `void and unvoid audits carry the full lifecycle`() {
-        DatabaseTestHelper.insertTestClient(clientId)
+        SessionClientFixtures.insertTestClient(clientId)
         SessionService.create(
             callerId = callerId,
             id = sessionId,

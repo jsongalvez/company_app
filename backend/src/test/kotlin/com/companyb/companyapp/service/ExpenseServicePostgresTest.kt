@@ -19,9 +19,10 @@ import com.companyb.companyapp.repository.ExpenseRepository
 import com.companyb.companyapp.repository.model.ExpenseCreateParams
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -47,9 +48,9 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     private lateinit var branchDayId: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "expense-caller")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Expense Branch")
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        IdentityFixtures.insertTestUser(callerId, "expense-caller")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Expense Branch")
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         grantEditBranchData(callerId)
     }
 
@@ -127,9 +128,9 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     fun `create rejects same UUID for another branch day`() {
         val otherBranchId = TestFixtures.uuid()
         val otherSourceId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Expense Branch")
-        val otherBranchDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
-        DatabaseTestHelper.grantCapability(
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Expense Branch")
+        val otherBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(otherBranchId)
+        IdentityFixtures.grantCapability(
             userId = callerId,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
@@ -162,7 +163,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create rejects same UUID for another creator`() {
         val otherCallerId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCallerId, "expense-other-caller")
+        IdentityFixtures.insertTestUser(otherCallerId, "expense-other-caller")
         grantEditBranchData(otherCallerId)
         val expenseId = TestFixtures.uuid()
 
@@ -238,7 +239,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create without EDIT_BRANCH_DATA is allowed at service layer`() {
-        DatabaseTestHelper.revokeAllCapabilities(callerId)
+        IdentityFixtures.revokeAllCapabilities(callerId)
 
         val expense =
             ExpenseService.create(
@@ -541,7 +542,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             notes = "Test",
         )
 
-        DatabaseTestHelper.revokeAllCapabilities(callerId)
+        IdentityFixtures.revokeAllCapabilities(callerId)
 
         val deleted =
             ExpenseService.softDelete(
@@ -724,11 +725,11 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     @Test
     fun `restore on REMITTED day without reason is rejected`() {
         val remittedDayId =
-            DatabaseTestHelper.createRemittedBranchDay(
+            BranchWorkforceFixtures.createRemittedBranchDay(
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
@@ -756,11 +757,11 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     @Test
     fun `restore on REMITTED day with reason succeeds`() {
         val remittedDayId =
-            DatabaseTestHelper.createRemittedBranchDay(
+            BranchWorkforceFixtures.createRemittedBranchDay(
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
@@ -833,11 +834,11 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create expense on REMITTED day without reason is rejected`() {
         val remittedDayId =
-            DatabaseTestHelper.createRemittedBranchDay(
+            BranchWorkforceFixtures.createRemittedBranchDay(
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val auditsBefore = callerAuditCount()
 
         assertFailsWith<ValidationException> {
@@ -856,11 +857,11 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create expense on REMITTED day with reason succeeds and flags audit entry`() {
         val remittedDayId =
-            DatabaseTestHelper.createRemittedBranchDay(
+            BranchWorkforceFixtures.createRemittedBranchDay(
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val expenseId = TestFixtures.uuid()
 
         val expense =
@@ -1132,7 +1133,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         }
 
     private fun grantEditBranchData(userId: UUID) {
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = userId,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,

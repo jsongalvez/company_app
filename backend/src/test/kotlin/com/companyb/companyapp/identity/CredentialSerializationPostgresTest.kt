@@ -14,9 +14,9 @@ import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.LoginResult
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.UserRepository
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
@@ -55,7 +55,7 @@ class CredentialSerializationPostgresTest : BasePostgresTest() {
         status: UserStatus = UserStatus.ACTIVE,
     ): UUID {
         val id = TestFixtures.uuid()
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertUser(
             id = id,
             username = "$prefix-${id.toString().take(8)}",
             passwordHash = Password.create(password),
@@ -217,7 +217,7 @@ class CredentialSerializationPostgresTest : BasePostgresTest() {
     @Test
     fun `re-invite supersedes then accept wins only on the live code`() {
         val callerId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(callerId, "cred-inviter")
+        IdentityFixtures.insertTestUser(callerId, "cred-inviter")
         val first =
             UserService.mintInvite(
                 callerId,
@@ -257,7 +257,7 @@ class CredentialSerializationPostgresTest : BasePostgresTest() {
     @Test
     fun `concurrent accept and re-invite admit exactly one winner`() {
         val callerId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(callerId, "cred-racer")
+        IdentityFixtures.insertTestUser(callerId, "cred-racer")
         val first =
             UserService.mintInvite(
                 callerId,

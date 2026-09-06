@@ -15,7 +15,7 @@ class DatabaseConfigTest {
     @Test
     fun `recreates datasource after close`() {
         val parsed = AppConfig.parse()
-        // Resolve the test database exactly like DatabaseTestHelper.ensureDatabase():
+        // Resolve the test database exactly like TestDatabaseLifecycle.ensureDatabase():
         // CI names it via TEST_DB_NAME, local runs fall back to "<db>_test".
         val config = parsed.copy(dbName = System.getenv("TEST_DB_NAME") ?: "${parsed.dbName}_test")
         DatabaseConfig.prepareForTest(config)

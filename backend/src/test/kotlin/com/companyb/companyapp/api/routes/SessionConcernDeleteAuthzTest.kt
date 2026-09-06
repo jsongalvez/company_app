@@ -14,10 +14,13 @@ import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.repository.model.ConcernTable
 import com.companyb.companyapp.repository.model.SessionConcernTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -57,17 +60,17 @@ class SessionConcernDeleteAuthzTest : BasePostgresTest() {
     private lateinit var branchDayId: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(editorUser, "concern-editor")
-        DatabaseTestHelper.insertTestUser(reliefUser, "concern-relief")
-        DatabaseTestHelper.insertTestUser(noGrantUser, "concern-no-grant")
-        DatabaseTestHelper.insertTestUser(wrongBranchUser, "concern-wrong-branch")
-        DatabaseTestHelper.insertTestBranch(branchId, "Concern Branch A")
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Concern Branch B")
-        DatabaseTestHelper.insertTestClient(clientId)
+        IdentityFixtures.insertTestUser(editorUser, "concern-editor")
+        IdentityFixtures.insertTestUser(reliefUser, "concern-relief")
+        IdentityFixtures.insertTestUser(noGrantUser, "concern-no-grant")
+        IdentityFixtures.insertTestUser(wrongBranchUser, "concern-wrong-branch")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Concern Branch A")
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Concern Branch B")
+        SessionClientFixtures.insertTestClient(clientId)
 
         // OPEN day dated today (evaluateStatus keeps it OPEN).
         branchDayId = BranchDayService.resolveOrCreate(branchId, TestFixtures.today).id
-        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         transaction {
             ConcernTable.insert {
                 it[ConcernTable.id] = concernId
@@ -77,7 +80,7 @@ class SessionConcernDeleteAuthzTest : BasePostgresTest() {
         insertSessionConcern(sessionId, concernId)
 
         // editorUser: BRANCH grant at the session's branch.
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = editorUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
@@ -85,7 +88,7 @@ class SessionConcernDeleteAuthzTest : BasePostgresTest() {
             sourceId = sourceId,
         )
         // reliefUser: BRANCH_DAY grant for the session's exact day (the #157 relief form).
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = reliefUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH_DAY,
@@ -93,7 +96,7 @@ class SessionConcernDeleteAuthzTest : BasePostgresTest() {
             sourceId = sourceId,
         )
         // wrongBranchUser: BRANCH grant at a different branch.
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = wrongBranchUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
@@ -189,7 +192,7 @@ class SessionConcernDeleteAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->

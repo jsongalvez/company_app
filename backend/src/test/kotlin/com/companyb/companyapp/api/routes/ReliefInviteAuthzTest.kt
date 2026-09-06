@@ -19,10 +19,12 @@ import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.model.ReliefInviteTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -77,24 +79,24 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
         tomorrow = today.plusDays(1)
         yesterday = today.minusDays(1)
 
-        DatabaseTestHelper.insertTestUser(inviter, "inviter")
-        DatabaseTestHelper.insertTestUser(otherInviter, "other-inviter")
-        DatabaseTestHelper.insertTestUser(nonAssigned, "non-assigned")
-        DatabaseTestHelper.insertTestUser(invitee, "invitee")
-        DatabaseTestHelper.insertTestUser(otherInvitee, "other-invitee")
-        DatabaseTestHelper.insertTestUser(inactiveUser, "inactive")
-        DatabaseTestHelper.insertTestUser(aliceUser, "alice")
-        DatabaseTestHelper.insertTestUser(bobUser, "bob")
-        DatabaseTestHelper.insertTestBranch(branchA, "Branch A")
-        DatabaseTestHelper.insertTestBranch(branchB, "Branch B")
+        IdentityFixtures.insertTestUser(inviter, "inviter")
+        IdentityFixtures.insertTestUser(otherInviter, "other-inviter")
+        IdentityFixtures.insertTestUser(nonAssigned, "non-assigned")
+        IdentityFixtures.insertTestUser(invitee, "invitee")
+        IdentityFixtures.insertTestUser(otherInvitee, "other-invitee")
+        IdentityFixtures.insertTestUser(inactiveUser, "inactive")
+        IdentityFixtures.insertTestUser(aliceUser, "alice")
+        IdentityFixtures.insertTestUser(bobUser, "bob")
+        BranchWorkforceFixtures.insertTestBranch(branchA, "Branch A")
+        BranchWorkforceFixtures.insertTestBranch(branchB, "Branch B")
 
-        DatabaseTestHelper.insertTestAssignment(
+        BranchWorkforceFixtures.insertTestAssignment(
             userId = inviter,
             branchId = branchA,
             slot = 1,
             assignedBy = inviter,
         )
-        DatabaseTestHelper.insertTestAssignment(
+        BranchWorkforceFixtures.insertTestAssignment(
             userId = otherInviter,
             branchId = branchA,
             slot = 2,
@@ -128,7 +130,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
@@ -280,7 +282,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `invitee with an active grant for the day conflicts`() {
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = invitee,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH_DAY,
@@ -328,7 +330,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     asUser(inviter),
                 )
             assertEquals(201, created.code)
-            val inviteId = DatabaseTestHelper.extractJsonField(created.body.string(), "id")
+            val inviteId = TestFixtures.extractJsonField(created.body.string(), "id")
             val declined =
                 client.post(
                     "/api/relief-invites/$inviteId/decline",
@@ -402,7 +404,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow.plusDays(3)),
                     asUser(inviter),
                 )
-            val firstId = DatabaseTestHelper.extractJsonField(first.body.string(), "id")
+            val firstId = TestFixtures.extractJsonField(first.body.string(), "id")
             client.post("/api/relief-invites/$firstId/decline", emptyMap<String, String>(), asUser(invitee))
             client.post("/api/branches/$branchA/relief-invites", createBody(invitee, tomorrow), asUser(inviter))
 
@@ -427,7 +429,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     asUser(inviter),
                 )
             assertEquals(201, created.code)
-            inviteId = DatabaseTestHelper.extractJsonField(created.body.string(), "id")
+            inviteId = TestFixtures.extractJsonField(created.body.string(), "id")
 
             val accepted =
                 client.post(
@@ -458,7 +460,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow),
                     asUser(inviter),
                 )
-            val inviteId = DatabaseTestHelper.extractJsonField(created.body.string(), "id")
+            val inviteId = TestFixtures.extractJsonField(created.body.string(), "id")
             val response =
                 client.post(
                     "/api/relief-invites/$inviteId/accept",
@@ -506,7 +508,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow),
                     asUser(inviter),
                 )
-            val inviteId = DatabaseTestHelper.extractJsonField(created.body.string(), "id")
+            val inviteId = TestFixtures.extractJsonField(created.body.string(), "id")
             val first = client.post("/api/relief-invites/$inviteId/accept", emptyMap<String, String>(), asUser(invitee))
             assertEquals(200, first.code)
             val second =
@@ -530,7 +532,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow),
                     asUser(inviter),
                 )
-            val inviteId = DatabaseTestHelper.extractJsonField(created.body.string(), "id")
+            val inviteId = TestFixtures.extractJsonField(created.body.string(), "id")
             val declined =
                 client.post(
                     "/api/relief-invites/$inviteId/decline",
@@ -558,7 +560,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow),
                     asUser(inviter),
                 )
-            val inviteId = DatabaseTestHelper.extractJsonField(created.body.string(), "id")
+            val inviteId = TestFixtures.extractJsonField(created.body.string(), "id")
             val retracted =
                 client.post(
                     "/api/relief-invites/$inviteId/retract",
@@ -579,7 +581,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow),
                     asUser(inviter),
                 )
-            val inviteId = DatabaseTestHelper.extractJsonField(created.body.string(), "id")
+            val inviteId = TestFixtures.extractJsonField(created.body.string(), "id")
             val response =
                 client.post(
                     "/api/relief-invites/$inviteId/retract",
@@ -599,7 +601,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow),
                     asUser(inviter),
                 )
-            val inviteId = DatabaseTestHelper.extractJsonField(created.body.string(), "id")
+            val inviteId = TestFixtures.extractJsonField(created.body.string(), "id")
             client.post("/api/relief-invites/$inviteId/accept", emptyMap<String, String>(), asUser(invitee))
             val response =
                 client.post(
@@ -615,7 +617,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `candidates exclude self, live invitees and granted users`() {
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = otherInvitee,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH_DAY,

@@ -2,9 +2,11 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.service.inventory.InventoryService
 import com.companyb.companyapp.service.inventory.MovementType
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -18,16 +20,16 @@ class BranchInventoryBreakdownPostgresTest : BasePostgresTest() {
     private val productId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "breakdown-caller")
-        DatabaseTestHelper.insertTestBranch(branchId, "Breakdown Branch ${branchId.toString().take(8)}")
-        DatabaseTestHelper.insertTestCategory(categoryId)
-        DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
+        IdentityFixtures.insertTestUser(callerId, "breakdown-caller")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Breakdown Branch ${branchId.toString().take(8)}")
+        CommerceFinanceFixtures.insertTestCategory(categoryId)
+        CommerceFinanceFixtures.insertTestProduct(productId, categoryId = categoryId)
     }
 
     @Test
     fun `breakdown aggregates five values and reconciles available`() {
         InventoryService.ensureCard(callerId, branchId, productId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         InventoryService.recordMovement(
             callerId = callerId,

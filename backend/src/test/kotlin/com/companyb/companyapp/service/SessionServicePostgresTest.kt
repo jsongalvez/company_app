@@ -13,6 +13,7 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
+import com.companyb.companyapp.integration.LockBarrier
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
@@ -24,10 +25,11 @@ import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.service.session.SessionPractitionerService
 import com.companyb.companyapp.service.session.SessionService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
-import com.companyb.companyapp.test.LockBarrier
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -67,15 +69,15 @@ class SessionServicePostgresTest : BasePostgresTest() {
     private val practitionerSessionId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "session-caller")
-        DatabaseTestHelper.insertTestUser(practitionerId, "session-practitioner")
+        IdentityFixtures.insertTestUser(callerId, "session-caller")
+        IdentityFixtures.insertTestUser(practitionerId, "session-practitioner")
 
-        DatabaseTestHelper.insertTestBranch(branchId)
+        BranchWorkforceFixtures.insertTestBranch(branchId)
 
-        DatabaseTestHelper.insertTestClient(clientId)
+        SessionClientFixtures.insertTestClient(clientId)
 
-        DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
-        DatabaseTestHelper.grantVoidSession(callerId, sourceId)
+        IdentityFixtures.grantEditBranchData(callerId, sourceId)
+        IdentityFixtures.grantVoidSession(callerId, sourceId)
 
         insertSessionBaseRate()
         insertSessionBaseRate(id = secondSessionRateId, sessionType = SessionType.SECOND_SESSION)
@@ -122,7 +124,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create session rejects deactivated requested practitioner`() {
         val inactiveId = TestFixtures.uuid()
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertUser(
             id = inactiveId,
             username = "inactive-${inactiveId.toString().take(8)}",
             passwordHash = "test-password-hash",
@@ -153,7 +155,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create session rejects duplicate id from another branch`() {
         val otherBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(otherBranchId)
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId)
 
         createSession(callerId, sessionId)
 
@@ -229,7 +231,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create session without EDIT_BRANCH_DATA is allowed at service layer`() {
         val otherCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCaller, "session-other")
+        IdentityFixtures.insertTestUser(otherCaller, "session-other")
 
         val result = createSession(otherCaller, sessionId)
 
@@ -240,7 +242,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create on REMITTED today without EDIT_PAST_DAY is rejected with no row written`() {
-        DatabaseTestHelper.createRemittedBranchDay(branchId, TestFixtures.today)
+        BranchWorkforceFixtures.createRemittedBranchDay(branchId, TestFixtures.today)
         val blockedId = TestFixtures.uuid()
 
         assertFailsWith<ForbiddenException> {
@@ -252,8 +254,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `coordinator create on REMITTED today without reason is rejected with no row written`() {
-        DatabaseTestHelper.createRemittedBranchDay(branchId, TestFixtures.today)
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.createRemittedBranchDay(branchId, TestFixtures.today)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val blockedId = TestFixtures.uuid()
 
         assertFailsWith<ValidationException> {
@@ -265,8 +267,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `coordinator create on REMITTED today with reason succeeds and flags audit`() {
-        DatabaseTestHelper.createRemittedBranchDay(branchId, TestFixtures.today)
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.createRemittedBranchDay(branchId, TestFixtures.today)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
 
         val result = createSession(callerId, sessionId, reason = "Late walk-in after remittance")
 
@@ -279,7 +281,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create on PAST day requires coordinator and needs no reason`() {
         val pastDayId =
-            DatabaseTestHelper.createBranchDayForDate(
+            BranchWorkforceFixtures.createBranchDayForDate(
                 branchId,
                 TestFixtures.today.minusDays(1),
             )
@@ -290,7 +292,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         }
         assertNull(SessionRepository.findById(blockedId))
 
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val result = createSession(callerId, blockedId, gatedBranchDayId = pastDayId)
 
         assertTrue(result.created)
@@ -302,7 +304,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `idempotent replay on REMITTED day bypasses the gate`() {
         createSession(callerId, sessionId)
-        DatabaseTestHelper.createRemittedBranchDay(branchId, TestFixtures.today)
+        BranchWorkforceFixtures.createRemittedBranchDay(branchId, TestFixtures.today)
 
         val replay = createSession(callerId, sessionId)
 
@@ -313,7 +315,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `concurrent remittance day transition serializes with session create gate`() {
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, TestFixtures.today)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, TestFixtures.today)
         val blockedId = TestFixtures.uuid()
 
         // Observable barrier (#527): the holder keeps the day row locked with the same
@@ -359,8 +361,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
     fun `medical mission branch always creates MEDICAL_MISSION session type`() {
         val mmBranchId = TestFixtures.uuid()
         val mmClientId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(mmBranchId, branchType = BranchType.MEDICAL_MISSION)
-        DatabaseTestHelper.insertTestClient(mmClientId)
+        BranchWorkforceFixtures.insertTestBranch(mmBranchId, branchType = BranchType.MEDICAL_MISSION)
+        SessionClientFixtures.insertTestClient(mmClientId)
         val mmSessionId = TestFixtures.uuid()
         val mmRateId = TestFixtures.uuid()
         insertSessionBaseRate(mmRateId, mmBranchId, SessionType.MEDICAL_MISSION)
@@ -385,7 +387,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `medical mission branch type not counted toward prior sessions`() {
         val mmBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(mmBranchId, branchType = BranchType.MEDICAL_MISSION)
+        BranchWorkforceFixtures.insertTestBranch(mmBranchId, branchType = BranchType.MEDICAL_MISSION)
         val mmRateId = TestFixtures.uuid()
         insertSessionBaseRate(mmRateId, mmBranchId, SessionType.MEDICAL_MISSION)
         val mmSessionId = TestFixtures.uuid()
@@ -423,8 +425,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
     fun `medical mission create normalizes non-zero price to zero`() {
         val mmBranchId = TestFixtures.uuid()
         val mmClientId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(mmBranchId, branchType = BranchType.MEDICAL_MISSION)
-        DatabaseTestHelper.insertTestClient(mmClientId)
+        BranchWorkforceFixtures.insertTestBranch(mmBranchId, branchType = BranchType.MEDICAL_MISSION)
+        SessionClientFixtures.insertTestClient(mmClientId)
         val mmRateId = TestFixtures.uuid()
         insertSessionBaseRate(mmRateId, mmBranchId, SessionType.MEDICAL_MISSION)
         val mmSessionId = TestFixtures.uuid()
@@ -448,8 +450,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
     fun `medical mission update final price normalizes non-zero price to zero`() {
         val mmBranchId = TestFixtures.uuid()
         val mmClientId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(mmBranchId, branchType = BranchType.MEDICAL_MISSION)
-        DatabaseTestHelper.insertTestClient(mmClientId)
+        BranchWorkforceFixtures.insertTestBranch(mmBranchId, branchType = BranchType.MEDICAL_MISSION)
+        SessionClientFixtures.insertTestClient(mmClientId)
         val mmRateId = TestFixtures.uuid()
         insertSessionBaseRate(mmRateId, mmBranchId, SessionType.MEDICAL_MISSION)
         val mmSessionId = TestFixtures.uuid()
@@ -495,7 +497,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     fun `update status without EDIT_BRANCH_DATA is allowed at service layer`() {
         createSession(callerId, sessionId)
         val otherCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCaller, "session-other")
+        IdentityFixtures.insertTestUser(otherCaller, "session-other")
 
         val updated = SessionService.updateStatus(otherCaller, sessionId, SessionStatus.COMPLETED, 1)
 
@@ -589,7 +591,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `Coordinator can apply every booked correction edge and audit status before and after`() {
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
 
         val edges =
             listOf(
@@ -610,11 +612,11 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 val audit = auditEntry(SessionTable.tableName, correctionSessionId)
                 assertEquals(
                     from.name,
-                    DatabaseTestHelper.extractJsonField(audit[AuditLogTable.oldValue].orEmpty(), "sessionStatus"),
+                    TestFixtures.extractJsonField(audit[AuditLogTable.oldValue].orEmpty(), "sessionStatus"),
                 )
                 assertEquals(
                     to.name,
-                    DatabaseTestHelper.extractJsonField(audit[AuditLogTable.newValue].orEmpty(), "sessionStatus"),
+                    TestFixtures.extractJsonField(audit[AuditLogTable.newValue].orEmpty(), "sessionStatus"),
                 )
             }
         }
@@ -622,13 +624,13 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `reopening session conflicts when client already has a pending session`() {
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val day = BranchDayService.resolveOrCreate(branchId, TestFixtures.today)
-        val sharedClientId = DatabaseTestHelper.insertTestClient()
+        val sharedClientId = SessionClientFixtures.insertTestClient()
         val pendingSessionId = TestFixtures.uuid()
         val noShowSessionId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestSession(pendingSessionId, sharedClientId, day.id)
-        DatabaseTestHelper.insertTestSession(
+        SessionClientFixtures.insertTestSession(pendingSessionId, sharedClientId, day.id)
+        SessionClientFixtures.insertTestSession(
             noShowSessionId,
             sharedClientId,
             day.id,
@@ -642,7 +644,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `completed status cannot be corrected through status endpoint`() {
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val completedSessionId = insertSessionWithStatus(SessionStatus.COMPLETED)
 
         assertFailsWith<ValidationException> {
@@ -655,7 +657,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         createSession(callerId, sessionId)
         SessionService.updateStatus(callerId, sessionId, SessionStatus.NO_SHOW, 1)
         ClientService.anonymize(callerId, clientId)
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
 
         assertFailsWith<ConflictException> {
             SessionService.updateStatus(callerId, sessionId, SessionStatus.PENDING, 2)
@@ -745,7 +747,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `past-day correction remains Coordinator-only`() {
         val pastDayId =
-            DatabaseTestHelper.createBranchDayForDate(
+            BranchWorkforceFixtures.createBranchDayForDate(
                 branchId,
                 TestFixtures.today.minusDays(1),
             )
@@ -756,7 +758,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
             SessionService.updateStatus(callerId, pastSessionId, SessionStatus.PENDING, 1)
         }
 
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val updated = SessionService.updateStatus(callerId, pastSessionId, SessionStatus.PENDING, 1)
 
         assertEquals(SessionStatus.PENDING, updated.sessionStatus)
@@ -772,7 +774,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
             SessionService.updateStatus(callerId, remittedSessionId, SessionStatus.PENDING, 1)
         }
 
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
 
         assertFailsWith<ValidationException> {
             SessionService.updateStatus(callerId, remittedSessionId, SessionStatus.PENDING, 1)
@@ -793,11 +795,11 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertEquals("Corrected attendance mark", audit[AuditLogTable.reason])
         assertEquals(
             "NO_SHOW",
-            DatabaseTestHelper.extractJsonField(audit[AuditLogTable.oldValue].orEmpty(), "sessionStatus"),
+            TestFixtures.extractJsonField(audit[AuditLogTable.oldValue].orEmpty(), "sessionStatus"),
         )
         assertEquals(
             "PENDING",
-            DatabaseTestHelper.extractJsonField(audit[AuditLogTable.newValue].orEmpty(), "sessionStatus"),
+            TestFixtures.extractJsonField(audit[AuditLogTable.newValue].orEmpty(), "sessionStatus"),
         )
     }
 
@@ -895,7 +897,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     fun `void session without VOID_SESSION is allowed at service layer`() {
         createSession(callerId, sessionId)
         val otherCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCaller, "session-other")
+        IdentityFixtures.insertTestUser(otherCaller, "session-other")
 
         val result = SessionService.voidSession(otherCaller, sessionId, TestFixtures.uuid(), "Customer request")
 
@@ -949,7 +951,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         createSession(callerId, sessionId)
         SessionService.voidSession(callerId, sessionId, TestFixtures.uuid(), "Customer request")
         val otherCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCaller, "session-other")
+        IdentityFixtures.insertTestUser(otherCaller, "session-other")
 
         val result = SessionService.unvoidSession(otherCaller, sessionId, "Resolved in error")
 
@@ -977,7 +979,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val remittedDayId = insertRemittedDay()
         val remittedSessionId = TestFixtures.uuid()
         insertSessionOnDay(remittedSessionId, remittedDayId)
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
 
         assertFailsWith<ValidationException> {
             SessionService.updateStatus(callerId, remittedSessionId, SessionStatus.COMPLETED, 1)
@@ -989,7 +991,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val remittedDayId = insertRemittedDay()
         val remittedSessionId = TestFixtures.uuid()
         insertSessionOnDay(remittedSessionId, remittedDayId)
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
 
         val updated =
             SessionService.updateStatus(
@@ -1011,7 +1013,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val remittedDayId = insertRemittedDay()
         val remittedSessionId = TestFixtures.uuid()
         insertSessionOnDay(remittedSessionId, remittedDayId)
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
 
         val voidId = TestFixtures.uuid()
         val result = SessionService.voidSession(callerId, remittedSessionId, voidId, "Customer request")
@@ -1074,7 +1076,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     fun `add practitioner without EDIT_BRANCH_DATA is allowed at service layer`() {
         createSession(callerId, practitionerSessionId)
         val otherCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCaller, "session-other")
+        IdentityFixtures.insertTestUser(otherCaller, "session-other")
         insertAssignment(otherCaller)
 
         val result =
@@ -1281,7 +1283,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     private fun insertRemittedDay(): UUID {
         val dayId =
-            DatabaseTestHelper.createRemittedBranchDay(
+            BranchWorkforceFixtures.createRemittedBranchDay(
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
@@ -1290,7 +1292,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     private fun correctionDays(): List<Pair<DayStatus, UUID>> {
         val pastDayId =
-            DatabaseTestHelper.createBranchDayForDate(
+            BranchWorkforceFixtures.createBranchDayForDate(
                 branchId,
                 TestFixtures.today.minusDays(1),
             )
@@ -1306,15 +1308,15 @@ class SessionServicePostgresTest : BasePostgresTest() {
         dayId: UUID,
         sessionStatus: SessionStatus = SessionStatus.PENDING,
     ) {
-        val sessionClientId = DatabaseTestHelper.insertTestClient()
-        DatabaseTestHelper.insertTestSession(id, sessionClientId, dayId, sessionStatus = sessionStatus)
+        val sessionClientId = SessionClientFixtures.insertTestClient()
+        SessionClientFixtures.insertTestSession(id, sessionClientId, dayId, sessionStatus = sessionStatus)
     }
 
     private fun insertSessionWithStatus(status: SessionStatus): UUID {
         val day = BranchDayService.resolveOrCreate(branchId, TestFixtures.today)
         val id = TestFixtures.uuid()
-        val sessionClientId = DatabaseTestHelper.insertTestClient()
-        DatabaseTestHelper.insertTestSession(id, sessionClientId, day.id, sessionStatus = status)
+        val sessionClientId = SessionClientFixtures.insertTestClient()
+        SessionClientFixtures.insertTestSession(id, sessionClientId, day.id, sessionStatus = status)
         return id
     }
 

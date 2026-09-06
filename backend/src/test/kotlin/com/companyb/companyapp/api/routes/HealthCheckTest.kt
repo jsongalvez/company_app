@@ -1,13 +1,13 @@
 package com.companyb.companyapp.api.routes
 
-import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
 class HealthCheckTest {
     @Test
     fun `health check query succeeds against Postgres`() {
-        DatabaseTestHelper.ensureDatabase()
+        TestDatabaseLifecycle.ensureDatabase()
         assertTrue(HealthRoutes.isDatabaseReachable())
     }
 }

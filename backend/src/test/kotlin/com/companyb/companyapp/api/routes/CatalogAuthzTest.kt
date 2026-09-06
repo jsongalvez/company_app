@@ -11,10 +11,13 @@ import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.service.ProductService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -54,24 +57,24 @@ class CatalogAuthzTest : BasePostgresTest() {
     private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(catalogUser, "catalog")
-        DatabaseTestHelper.insertTestUser(branchProductsUser, "branch-products")
-        DatabaseTestHelper.insertTestUser(noneUser, "no-caps")
-        DatabaseTestHelper.insertTestUser(ownerUser, "catalog-owner")
-        DatabaseTestHelper.insertTestUser(coordinatorUser, "catalog-coordinator")
+        IdentityFixtures.insertTestUser(catalogUser, "catalog")
+        IdentityFixtures.insertTestUser(branchProductsUser, "branch-products")
+        IdentityFixtures.insertTestUser(noneUser, "no-caps")
+        IdentityFixtures.insertTestUser(ownerUser, "catalog-owner")
+        IdentityFixtures.insertTestUser(coordinatorUser, "catalog-coordinator")
         assignRole(ownerUser, "OWNER")
         assignRole(coordinatorUser, "COORDINATOR")
 
-        DatabaseTestHelper.insertTestBranch(branchId, "Catalog Branch $branchId")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Catalog Branch $branchId")
 
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = catalogUser,
             capabilityCode = CapabilityCodes.MANAGE_CATALOG,
             contextType = CapabilityContextType.GLOBAL,
             contextId = CapabilityService.GLOBAL_CONTEXT_ID,
             sourceId = sourceId,
         )
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = branchProductsUser,
             capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
             contextType = CapabilityContextType.BRANCH,
@@ -79,8 +82,8 @@ class CatalogAuthzTest : BasePostgresTest() {
             sourceId = sourceId,
         )
 
-        DatabaseTestHelper.insertTestCategory(categoryId)
-        DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
+        CommerceFinanceFixtures.insertTestCategory(categoryId)
+        CommerceFinanceFixtures.insertTestProduct(productId, categoryId = categoryId)
     }
 
     companion object {
@@ -97,7 +100,7 @@ class CatalogAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->

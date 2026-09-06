@@ -6,9 +6,10 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.service.attendance.AttendanceRepository
 import com.companyb.companyapp.service.attendance.AttendanceService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -56,25 +57,25 @@ class AttendanceMarkLockOrderPostgresTest : BasePostgresTest() {
     private lateinit var assignmentB: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(userA, "mark-lock-a")
-        DatabaseTestHelper.insertTestUser(userB, "mark-lock-b")
-        DatabaseTestHelper.insertTestUser(managerId, "mark-lock-manager")
-        DatabaseTestHelper.insertTestBranch(branchId, "Mark Lock Branch")
+        IdentityFixtures.insertTestUser(userA, "mark-lock-a")
+        IdentityFixtures.insertTestUser(userB, "mark-lock-b")
+        IdentityFixtures.insertTestUser(managerId, "mark-lock-manager")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Mark Lock Branch")
         assignmentA =
-            DatabaseTestHelper.insertTestAssignment(
+            BranchWorkforceFixtures.insertTestAssignment(
                 userId = userA,
                 branchId = branchId,
                 slot = 1,
                 assignedBy = managerId,
             )
         assignmentB =
-            DatabaseTestHelper.insertTestAssignment(
+            BranchWorkforceFixtures.insertTestAssignment(
                 userId = userB,
                 branchId = branchId,
                 slot = 2,
                 assignedBy = managerId,
             )
-        DatabaseTestHelper.grantManageUsers(managerId, managerId)
+        IdentityFixtures.grantManageUsers(managerId, managerId)
     }
 
     @Test

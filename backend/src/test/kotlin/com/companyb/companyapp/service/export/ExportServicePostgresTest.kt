@@ -19,9 +19,12 @@ import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.service.CapabilityService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -47,14 +50,18 @@ class ExportServicePostgresTest : BasePostgresTest() {
     private val today = TestFixtures.today
 
     override fun initTestData() {
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertUser(
             id = callerId,
             username = "export-user-${callerId.toString().take(8)}",
             passwordHash = "hash",
             email = "${callerId.toString().take(8)}@test.com",
             displayName = "Export User",
         )
-        DatabaseTestHelper.insertTestBranch(branchId, "Export Test Branch ${TestFixtures.uuid()}", BranchType.CLINIC)
+        BranchWorkforceFixtures.insertTestBranch(
+            branchId,
+            "Export Test Branch ${TestFixtures.uuid()}",
+            BranchType.CLINIC,
+        )
         insertBranchDay(branchDayId, branchId, today)
         grantViewBranchData(callerId)
     }
@@ -81,9 +88,9 @@ class ExportServicePostgresTest : BasePostgresTest() {
     @Test
     fun `daily export with session data includes correct totals`() {
         val testClientId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestClient(testClientId)
+        SessionClientFixtures.insertTestClient(testClientId)
         val sessionId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestSession(
+        SessionClientFixtures.insertTestSession(
             id = sessionId,
             clientId = testClientId,
             branchDayId = branchDayId,
@@ -108,7 +115,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
     @Test
     fun `daily export returns CSV without capability`() {
         val otherUserId = TestFixtures.uuid()
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertUser(
             id = otherUserId,
             username = "no-cap-${otherUserId.toString().take(8)}",
             passwordHash = "hash",
@@ -287,7 +294,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
     @Test
     fun `provincial export CSV returns branch data`() {
         val provBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(
+        BranchWorkforceFixtures.insertTestBranch(
             provBranchId,
             "Prov Branch ${TestFixtures.uuid()}",
             BranchType.PROVINCIAL_TOUR,
@@ -317,7 +324,11 @@ class ExportServicePostgresTest : BasePostgresTest() {
     @Test
     fun `medical mission export CSV returns branch data`() {
         val mmBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(mmBranchId, "MM Branch ${TestFixtures.uuid()}", BranchType.MEDICAL_MISSION)
+        BranchWorkforceFixtures.insertTestBranch(
+            mmBranchId,
+            "MM Branch ${TestFixtures.uuid()}",
+            BranchType.MEDICAL_MISSION,
+        )
         val mmDayId = TestFixtures.uuid()
         insertBranchDay(mmDayId, mmBranchId, today)
         val remittanceId =
@@ -350,7 +361,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
     @Test
     fun `provincial export with month filter returns filtered data`() {
         val provBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(
+        BranchWorkforceFixtures.insertTestBranch(
             provBranchId,
             "Prov Month Branch ${TestFixtures.uuid()}",
             BranchType.PROVINCIAL_TOUR,
@@ -415,7 +426,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     private fun seedFormulaBranch(name: String) {
         val id = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(id, name, BranchType.PROVINCIAL_TOUR)
+        BranchWorkforceFixtures.insertTestBranch(id, name, BranchType.PROVINCIAL_TOUR)
         insertBranchDay(TestFixtures.uuid(), id, today)
         if (name == "lone\rcr") {
             createSubmittedRemittanceForBranch(id, BigDecimal("1000.00"), BigDecimal("800.00"), BigDecimal("500.00"))
@@ -425,7 +436,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
     }
 
     private fun grantViewBranchData(userId: UUID) {
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = userId,
             capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
             contextType = CapabilityContextType.GLOBAL,
@@ -450,11 +461,11 @@ class ExportServicePostgresTest : BasePostgresTest() {
         val userId = TestFixtures.uuid()
         val categoryId = TestFixtures.uuid()
         val productId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestClient(clientId)
-        DatabaseTestHelper.insertTestUser(userId, "range-user")
-        DatabaseTestHelper.insertTestCategory(categoryId)
-        DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
-        DatabaseTestHelper.insertTestSession(
+        SessionClientFixtures.insertTestClient(clientId)
+        IdentityFixtures.insertTestUser(userId, "range-user")
+        CommerceFinanceFixtures.insertTestCategory(categoryId)
+        CommerceFinanceFixtures.insertTestProduct(productId, categoryId = categoryId)
+        SessionClientFixtures.insertTestSession(
             id = TestFixtures.uuid(),
             clientId = clientId,
             branchDayId = dayId,
@@ -463,9 +474,9 @@ class ExportServicePostgresTest : BasePostgresTest() {
             basePrice = financials.gross,
             finalPrice = financials.gross,
         )
-        DatabaseTestHelper.insertTestCompensation(dayId, userId, financials.comp, assignedBy = callerId)
-        DatabaseTestHelper.insertTestExpense(dayId, userId, financials.expense)
-        DatabaseTestHelper.insertTestProductSale(
+        CommerceFinanceFixtures.insertTestCompensation(dayId, userId, financials.comp, assignedBy = callerId)
+        CommerceFinanceFixtures.insertTestExpense(dayId, userId, financials.expense)
+        CommerceFinanceFixtures.insertTestProductSale(
             id = TestFixtures.uuid(),
             branchDayId = dayId,
             productId = productId,
@@ -516,7 +527,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
         val lineClientId = TestFixtures.uuid()
 
         transaction {
-            DatabaseTestHelper.insertUser(
+            IdentityFixtures.insertUser(
                 id = compensationUserId,
                 username = "comp-user-${compensationUserId.toString().take(8)}",
                 passwordHash = "hash",
@@ -543,13 +554,13 @@ class ExportServicePostgresTest : BasePostgresTest() {
             insertRemittance(remittanceId, targetBranchId)
             insertRemittanceLine(remittanceId, grossIncome, sessionId)
             insertRemittanceBreakdown(remittanceId, targetDayId)
-            DatabaseTestHelper.insertTestCompensation(
+            CommerceFinanceFixtures.insertTestCompensation(
                 targetDayId,
                 compensationUserId,
                 compensation,
                 assignedBy = callerId,
             )
-            DatabaseTestHelper.insertTestExpense(targetDayId, callerId, expenses)
+            CommerceFinanceFixtures.insertTestExpense(targetDayId, callerId, expenses)
             insertFinancialSnapshot(remittanceId, grossIncome, compensation, expenses)
         }
         return remittanceId

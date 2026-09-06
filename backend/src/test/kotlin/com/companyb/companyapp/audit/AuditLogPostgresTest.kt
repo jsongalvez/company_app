@@ -1,9 +1,10 @@
 package com.companyb.companyapp.audit
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -22,7 +23,7 @@ class AuditLogPostgresTest : BasePostgresTest() {
     private val tableName = "test_table"
 
     override fun initTestData() {
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertUser(
             id = callerId,
             username = "audit-repo-caller-$callerId",
             passwordHash = "test-password-hash",
@@ -119,7 +120,7 @@ class AuditLogPostgresTest : BasePostgresTest() {
     @Test
     fun `record writes branchId when provided`() {
         val branchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(branchId)
+        BranchWorkforceFixtures.insertTestBranch(branchId)
 
         transaction {
             AuditLog.record(

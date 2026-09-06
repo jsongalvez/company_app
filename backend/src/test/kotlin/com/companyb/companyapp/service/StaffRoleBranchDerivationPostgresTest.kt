@@ -6,9 +6,10 @@ import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -54,7 +55,7 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
         insertBranches()
         assignRolesAndAssignments()
 
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = directGrantCoordinator,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
@@ -77,9 +78,9 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
             directGrantCoordinator to "direct-coord",
             multiBranchCoordinator to "multi-coord",
         ).forEach { (id, prefix) ->
-            DatabaseTestHelper.insertTestUser(id, prefix)
+            IdentityFixtures.insertTestUser(id, prefix)
         }
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertUser(
             id = inactiveCoordinator,
             username = "inactive-${inactiveCoordinator.toString().take(8)}",
             passwordHash = "test-password-hash",
@@ -95,7 +96,7 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
             branchB to "Derivation Branch B",
             unrelatedBranch to "Unrelated Branch",
         ).forEach { (id, name) ->
-            DatabaseTestHelper.insertTestBranch(id, name)
+            BranchWorkforceFixtures.insertTestBranch(id, name)
         }
     }
 
@@ -152,7 +153,7 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
         slot: Short = 1,
     ) {
         val id =
-            DatabaseTestHelper.insertTestAssignment(
+            BranchWorkforceFixtures.insertTestAssignment(
                 userId = userId,
                 branchId = branchId,
                 slot = slot,

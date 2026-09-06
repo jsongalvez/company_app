@@ -13,9 +13,10 @@ import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.service.finance.remittance.RemittanceSubmissionResult
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -50,15 +51,15 @@ class RemittanceAggregateLockingPostgresTest : BasePostgresTest() {
     private val dayDateB = LocalDate.of(2026, 7, 11)
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "remittance-agg-lock")
-        DatabaseTestHelper.insertTestBranch(branchId, "Agg Lock Branch ${TestFixtures.uuid()}")
-        DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, branchId)
+        IdentityFixtures.insertTestUser(callerId, "remittance-agg-lock")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Agg Lock Branch ${TestFixtures.uuid()}")
+        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
     }
 
     @Test
     fun `add breakdown bumps version and idempotent retry does not`() {
         val remittanceId = createDraft()
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateA)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateA)
         val before = RemittanceService.getRemittance(remittanceId).remittance
         val auditsBefore = callerAuditCount()
 
@@ -76,7 +77,7 @@ class RemittanceAggregateLockingPostgresTest : BasePostgresTest() {
     @Test
     fun `remove breakdown bumps version`() {
         val remittanceId = createDraft()
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateA)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateA)
         val breakdownId = TestFixtures.uuid()
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, dayId)
         val afterAdd = RemittanceService.getRemittance(remittanceId).remittance
@@ -90,7 +91,7 @@ class RemittanceAggregateLockingPostgresTest : BasePostgresTest() {
     @Test
     fun `stale submit after breakdown bump fails without partial writes`() {
         val remittanceId = createDraft()
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateA)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateA)
         RemittanceService.addDayBreakdown(callerId, remittanceId, TestFixtures.uuid(), dayId)
         val current = RemittanceService.getRemittance(remittanceId)
         val auditsBefore = callerAuditCount()
@@ -111,8 +112,8 @@ class RemittanceAggregateLockingPostgresTest : BasePostgresTest() {
     @Test
     fun `concurrent add breakdown versus submit leaves exactly one winner with consistent state`() {
         val remittanceId = createDraft()
-        val dayIdA = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateA)
-        val dayIdB = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateB)
+        val dayIdA = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateA)
+        val dayIdB = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateB)
         RemittanceService.addDayBreakdown(callerId, remittanceId, TestFixtures.uuid(), dayIdA)
         val draftVersion = RemittanceService.getRemittance(remittanceId).remittance.version
 
@@ -161,8 +162,8 @@ class RemittanceAggregateLockingPostgresTest : BasePostgresTest() {
     @Test
     fun `concurrent remove breakdown versus submit leaves exactly one winner`() {
         val remittanceId = createDraft()
-        val dayIdA = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateA)
-        val dayIdB = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateB)
+        val dayIdA = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateA)
+        val dayIdB = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateB)
         val breakdownA = TestFixtures.uuid()
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownA, dayIdA)
         RemittanceService.addDayBreakdown(callerId, remittanceId, TestFixtures.uuid(), dayIdB)
@@ -210,7 +211,7 @@ class RemittanceAggregateLockingPostgresTest : BasePostgresTest() {
     @Test
     fun `concurrent header shrink versus breakdown insert never orphans out-of-range content`() {
         val remittanceId = createDraft()
-        val dayIdB = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateB)
+        val dayIdB = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateB)
         val draftVersion = RemittanceService.getRemittance(remittanceId).remittance.version
 
         val executor = Executors.newFixedThreadPool(THREADS)
@@ -266,7 +267,7 @@ class RemittanceAggregateLockingPostgresTest : BasePostgresTest() {
     @Test
     fun `concurrent headers with the same version let exactly one win without partial writes`() {
         val remittanceId = createDraft()
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateA)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateA)
         RemittanceService.addDayBreakdown(callerId, remittanceId, TestFixtures.uuid(), dayId)
         val draftVersion = RemittanceService.getRemittance(remittanceId).remittance.version
         val auditsBefore = callerAuditCount()
@@ -310,8 +311,8 @@ class RemittanceAggregateLockingPostgresTest : BasePostgresTest() {
     @Test
     fun `submit then undo releases exactly the original covered day set`() {
         val remittanceId = createDraft()
-        val dayIdA = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateA)
-        val dayIdB = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateB)
+        val dayIdA = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateA)
+        val dayIdB = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateB)
         RemittanceService.addDayBreakdown(callerId, remittanceId, TestFixtures.uuid(), dayIdA)
         RemittanceService.addDayBreakdown(callerId, remittanceId, TestFixtures.uuid(), dayIdB)
         val detailBefore = RemittanceService.getRemittance(remittanceId)

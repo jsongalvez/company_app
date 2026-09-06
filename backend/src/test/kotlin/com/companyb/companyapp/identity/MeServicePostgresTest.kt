@@ -3,9 +3,9 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -18,14 +18,14 @@ class MeServicePostgresTest : BasePostgresTest() {
     private val inactiveUserId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertUser(
             id = userId,
             username = "me-caller-$userId",
             passwordHash = "test-password-hash",
             email = "${userId.toString().take(8)}@t.st",
             displayName = "Me Caller",
         )
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertUser(
             id = inactiveUserId,
             username = "inactive-$inactiveUserId",
             passwordHash = "test-password-hash",
@@ -64,8 +64,8 @@ class MeServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getCapabilities returns capabilities for user with grants`() {
-        DatabaseTestHelper.grantEditBranchData(userId, sourceId)
-        DatabaseTestHelper.grantManageProducts(userId, sourceId)
+        IdentityFixtures.grantEditBranchData(userId, sourceId)
+        IdentityFixtures.grantManageProducts(userId, sourceId)
 
         val capabilities = MeService.getCapabilities(userId)
 
@@ -83,7 +83,7 @@ class MeServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getCapabilities excludes inactive users`() {
-        DatabaseTestHelper.grantEditBranchData(inactiveUserId, sourceId)
+        IdentityFixtures.grantEditBranchData(inactiveUserId, sourceId)
 
         val capabilities = MeService.getCapabilities(inactiveUserId)
         assertTrue(capabilities.isEmpty())

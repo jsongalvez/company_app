@@ -9,9 +9,11 @@ import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.service.inventory.InventoryService
 import com.companyb.companyapp.service.inventory.MovementType
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -57,8 +59,8 @@ class SaleMovementLockOrderPostgresTest : BasePostgresTest() {
     private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "sale-movement-lock-caller")
-        DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
+        IdentityFixtures.insertTestUser(callerId, "sale-movement-lock-caller")
+        IdentityFixtures.grantEditBranchData(callerId, sourceId)
     }
 
     @Test
@@ -66,10 +68,10 @@ class SaleMovementLockOrderPostgresTest : BasePostgresTest() {
         val branchId = TestFixtures.uuid()
         val categoryId = TestFixtures.uuid()
         val productId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(branchId, "Lock Order Branch ${TestFixtures.uuid()}")
-        DatabaseTestHelper.insertTestCategory(categoryId)
-        DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
-        val dayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Lock Order Branch ${TestFixtures.uuid()}")
+        CommerceFinanceFixtures.insertTestCategory(categoryId)
+        CommerceFinanceFixtures.insertTestProduct(productId, categoryId = categoryId)
+        val dayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         seedCard(branchId, productId)
         val cardId = cardId(branchId, productId)
         val movementId = TestFixtures.uuid()

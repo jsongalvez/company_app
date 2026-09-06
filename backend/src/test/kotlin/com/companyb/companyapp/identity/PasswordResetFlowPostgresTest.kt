@@ -10,9 +10,9 @@ import com.companyb.companyapp.identity.CredentialTokenTable
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.LoginResult
 import com.companyb.companyapp.identity.PasswordResetSender
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -40,7 +40,7 @@ class PasswordResetFlowPostgresTest : BasePostgresTest() {
 
     private fun newUser(prefix: String): UUID {
         val id = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(id, prefix)
+        IdentityFixtures.insertTestUser(id, prefix)
         return id
     }
 

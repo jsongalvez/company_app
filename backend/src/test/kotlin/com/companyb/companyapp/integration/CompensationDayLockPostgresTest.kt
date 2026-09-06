@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.integration
 
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
@@ -11,11 +11,12 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.CompensationRepository
 import com.companyb.companyapp.repository.model.CompensationTable
+import com.companyb.companyapp.service.CompensationService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
-import com.companyb.companyapp.test.LockBarrier
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -45,12 +46,12 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
     private lateinit var payingBranchDayId: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "comp-lock-caller")
-        DatabaseTestHelper.insertTestUser(targetUserId, "comp-lock-target")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Compensation Lock Branch")
-        workBranchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        payingBranchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
+        IdentityFixtures.insertTestUser(callerId, "comp-lock-caller")
+        IdentityFixtures.insertTestUser(targetUserId, "comp-lock-target")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Compensation Lock Branch")
+        workBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        payingBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        IdentityFixtures.grantAssignCompensation(callerId, sourceId)
     }
 
     @Test
@@ -78,7 +79,7 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `create on submit-REMITTED day with reason and EDIT_PAST_DAY succeeds flagged`() {
         submitRemittanceCoveringDay(payingBranchDayId)
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
 
         val compId = TestFixtures.uuid()
         val comp =
@@ -169,7 +170,7 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
 
     @Test
     fun `create on lazily-PAST day without EDIT_PAST_DAY is rejected`() {
-        val pastDayId = DatabaseTestHelper.createBranchDayForDate(branchId, TestFixtures.today.minusDays(1))
+        val pastDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, TestFixtures.today.minusDays(1))
 
         assertFailsWith<ForbiddenException> {
             CompensationService.create(
@@ -198,8 +199,8 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
         )
 
         val otherCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCaller, "comp-lock-other")
-        DatabaseTestHelper.grantAssignCompensation(otherCaller, sourceId)
+        IdentityFixtures.insertTestUser(otherCaller, "comp-lock-other")
+        IdentityFixtures.grantAssignCompensation(otherCaller, sourceId)
 
         assertFailsWith<ConflictException> {
             CompensationService.create(
@@ -227,7 +228,7 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
             note = null,
         )
 
-        val otherDayId = DatabaseTestHelper.createBranchDayForDate(branchId, TestFixtures.today.minusDays(2))
+        val otherDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, TestFixtures.today.minusDays(2))
 
         assertFailsWith<NotFoundException> {
             CompensationService.create(

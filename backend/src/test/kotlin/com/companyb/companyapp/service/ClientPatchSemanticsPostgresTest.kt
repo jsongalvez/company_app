@@ -7,9 +7,9 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.DEFAULT_CLIENT_ADDRESS
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -31,7 +31,7 @@ class ClientPatchSemanticsPostgresTest : BasePostgresTest() {
     private val clientId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "patch-caller")
+        IdentityFixtures.insertTestUser(callerId, "patch-caller")
     }
 
     @Test

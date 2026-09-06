@@ -7,9 +7,10 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.ReliefInviteRepository
 import com.companyb.companyapp.service.attendance.AttendanceService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
@@ -40,13 +41,13 @@ class ShiftGuardCutoffConcurrencyPostgresTest : BasePostgresTest() {
     private val branchId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(reliefUserId, "cutoff-relief")
-        DatabaseTestHelper.insertTestUser(memberId, "cutoff-member")
-        DatabaseTestHelper.insertTestUser(inviteeId, "cutoff-invitee")
-        DatabaseTestHelper.insertTestBranch(branchId, "Cutoff Branch ${branchId.toString().take(8)}")
+        IdentityFixtures.insertTestUser(reliefUserId, "cutoff-relief")
+        IdentityFixtures.insertTestUser(memberId, "cutoff-member")
+        IdentityFixtures.insertTestUser(inviteeId, "cutoff-invitee")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Cutoff Branch ${branchId.toString().take(8)}")
         // Day rows are resolved-or-created by the commands under test.
         // The member's home assignment — cancel/revoke authority (#357/#374).
-        DatabaseTestHelper.insertTestAssignment(
+        BranchWorkforceFixtures.insertTestAssignment(
             userId = memberId,
             branchId = branchId,
             slot = 1,

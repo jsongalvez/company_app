@@ -14,10 +14,12 @@ import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.identity.UserService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
@@ -39,7 +41,7 @@ import kotlin.test.assertTrue
  * sub-path must never be trusted to cover siblings), and the self-deactivate
  * guard surfaces as HTTP 400 through the stack.
  *
- * Grants are direct via DatabaseTestHelper (the #132 dead-grant warning: role
+ * Grants are direct via IdentityFixtures (the #132 dead-grant warning: role
  * derivation exists but has no production seed — direct grants are the
  * realistic path today).
  */
@@ -56,13 +58,13 @@ class UserManagementAuthzTest : BasePostgresTest() {
 
     override fun initTestData() {
         listOf(managerUser, noGrantUser, targetUser).forEach { id ->
-            DatabaseTestHelper.insertTestUser(id, id.toString().take(6))
+            IdentityFixtures.insertTestUser(id, id.toString().take(6))
         }
-        DatabaseTestHelper.grantManageUsers(managerUser, managerUser)
-        DatabaseTestHelper.insertTestBranch(branchId, "Authz Branch")
+        IdentityFixtures.grantManageUsers(managerUser, managerUser)
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Authz Branch")
         val targetUserId = this@UserManagementAuthzTest.targetUser
         val assignmentId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestAssignment(
+        BranchWorkforceFixtures.insertTestAssignment(
             id = assignmentId,
             userId = targetUserId,
             branchId = branchId,
@@ -85,7 +87,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.exception(ValidationException::class.java) { e, ctx ->

@@ -5,10 +5,11 @@ import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -32,7 +33,7 @@ class PasswordResetRoutesTest : BasePostgresTest() {
     @Test
     fun `known and unknown identifiers answer identically until the rate budget bites`() {
         val userId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(userId, "http-resetee")
+        IdentityFixtures.insertTestUser(userId, "http-resetee")
 
         val known =
             testServer.client.post(
@@ -97,7 +98,7 @@ class PasswordResetRoutesTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.exception(ValidationException::class.java) { e, ctx ->

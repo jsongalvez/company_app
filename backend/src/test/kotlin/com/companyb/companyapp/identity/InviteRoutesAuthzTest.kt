@@ -8,10 +8,11 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
@@ -34,7 +35,7 @@ class InviteRoutesAuthzTest : BasePostgresTest() {
     @Test
     fun `minting an invite without MANAGE_USERS is forbidden`() {
         val caller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(caller, "no-capability-caller")
+        IdentityFixtures.insertTestUser(caller, "no-capability-caller")
 
         val response =
             testServer.client.post(
@@ -53,8 +54,8 @@ class InviteRoutesAuthzTest : BasePostgresTest() {
     @Test
     fun `manager mints over http, the invitee accepts unauthenticated, then logs in`() {
         val caller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(caller, "http-manager")
-        DatabaseTestHelper.grantManageUsers(caller, TestFixtures.uuid())
+        IdentityFixtures.insertTestUser(caller, "http-manager")
+        IdentityFixtures.grantManageUsers(caller, TestFixtures.uuid())
         // The server-side mint authors its audit rows as the caller — they FK app_user.
 
         val mintResponse =
@@ -119,7 +120,7 @@ class InviteRoutesAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.exception(ValidationException::class.java) { e, ctx ->

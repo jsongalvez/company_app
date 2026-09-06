@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.integration
 
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
@@ -14,10 +14,11 @@ import com.companyb.companyapp.repository.model.SessionPractitionerTable
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.service.session.SessionConcernService
 import com.companyb.companyapp.service.session.SessionPractitionerService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
-import com.companyb.companyapp.test.LockBarrier
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -47,12 +48,12 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
     private lateinit var branchDayId: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "subentity-lock-caller")
-        DatabaseTestHelper.insertTestUser(practitionerId, "subentity-lock-practitioner")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Subentity Lock Branch")
-        DatabaseTestHelper.insertTestClient(clientId)
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
+        IdentityFixtures.insertTestUser(callerId, "subentity-lock-caller")
+        IdentityFixtures.insertTestUser(practitionerId, "subentity-lock-practitioner")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Subentity Lock Branch")
+        SessionClientFixtures.insertTestClient(clientId)
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         transaction {
             ConcernTable.insert {
                 it[ConcernTable.id] = systemConcernId
@@ -102,7 +103,7 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `practitioner add on submit-REMITTED day with reason and EDIT_PAST_DAY succeeds flagged`() {
         submitRemittanceCoveringDay(branchDayId)
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
 
         val result =
             SessionPractitionerService.addPractitioner(
@@ -131,7 +132,7 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `concern add on submit-REMITTED day with reason and EDIT_PAST_DAY succeeds flagged`() {
         submitRemittanceCoveringDay(branchDayId)
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
 
         SessionConcernService.addToSession(callerId, sessionId, systemConcernId, "Coordinator correction")
 

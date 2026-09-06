@@ -2,9 +2,9 @@ package com.companyb.companyapp.branch
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.exception.ConflictException
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -27,12 +27,12 @@ class BranchServicePostgresTest : BasePostgresTest() {
     private val branchIds = listOf(clinicId, provincialTourId, medicalMissionId)
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "caller")
+        IdentityFixtures.insertTestUser(callerId, "caller")
     }
 
     @Test
     fun `create persists all branch types and writes audit row`() {
-        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        IdentityFixtures.grantManageUsers(callerId, sourceId)
 
         val clinic = BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
         val tour = BranchService.create(callerId, provincialTourId, "Cebu Tour", BranchType.PROVINCIAL_TOUR)
@@ -55,7 +55,7 @@ class BranchServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `duplicate client generated id returns existing branch without extra audit`() {
-        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        IdentityFixtures.grantManageUsers(callerId, sourceId)
 
         val first = BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
         // #418 — branch creation seeds five default base rates as a side effect.
@@ -84,7 +84,7 @@ class BranchServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `find by id and list return persisted branches`() {
-        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        IdentityFixtures.grantManageUsers(callerId, sourceId)
 
         BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
         BranchService.create(callerId, medicalMissionId, "Free Mission", BranchType.MEDICAL_MISSION)
@@ -120,12 +120,12 @@ class BranchServicePostgresTest : BasePostgresTest() {
     @Test
     fun `findById without MANAGE_USERS is allowed at service layer`() {
         val newBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        IdentityFixtures.grantManageUsers(callerId, sourceId)
         BranchService.create(callerId, newBranchId, "Find Branch", BranchType.CLINIC)
         // #418 — branch creation seeds five default base rates as a side effect.
 
         val otherCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCaller, "other")
+        IdentityFixtures.insertTestUser(otherCaller, "other")
 
         val found = BranchService.findById(newBranchId)
         assertEquals("Find Branch", found.name)
@@ -165,6 +165,6 @@ class BranchServicePostgresTest : BasePostgresTest() {
                     .orderBy(AuditLogTable.changedAt to SortOrder.DESC)
                     .limit(1)
                     .single()
-            DatabaseTestHelper.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "name")
+            TestFixtures.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "name")
         }
 }

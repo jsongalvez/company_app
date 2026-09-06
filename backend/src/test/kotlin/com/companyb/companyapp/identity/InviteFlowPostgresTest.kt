@@ -11,9 +11,9 @@ import com.companyb.companyapp.identity.CredentialTokenTable
 import com.companyb.companyapp.identity.LoginResult
 import com.companyb.companyapp.identity.RoleRepository
 import com.companyb.companyapp.identity.UserRepository
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -40,7 +40,7 @@ class InviteFlowPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "inviter")
+        IdentityFixtures.insertTestUser(callerId, "inviter")
     }
 
     private fun mint(

@@ -1,6 +1,10 @@
-package com.companyb.companyapp.test
+package com.companyb.companyapp.testsupport.database
 
 import com.companyb.companyapp.config.AppConfig
+import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import com.zaxxer.hikari.HikariDataSource
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -16,9 +20,9 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
 
     @Test
     fun `worker schema leads search_path and current_schema matches`() {
-        DatabaseTestHelper.ensureDatabase()
-        val owned = DatabaseTestHelper.requireWorkerSchema()
-        DatabaseTestHelper.requireTestDataSource().connection.use { conn ->
+        TestDatabaseLifecycle.ensureDatabase()
+        val owned = TestDatabaseLifecycle.requireWorkerSchema()
+        TestDatabaseLifecycle.requireTestDataSource().connection.use { conn ->
             conn.createStatement().use { stmt ->
                 val rs = stmt.executeQuery("SHOW search_path")
                 rs.next()
@@ -40,8 +44,8 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
 
     @Test
     fun `extensions live in public and trigram helper works`() {
-        DatabaseTestHelper.ensureDatabase()
-        DatabaseTestHelper.requireTestDataSource().connection.use { conn ->
+        TestDatabaseLifecycle.ensureDatabase()
+        TestDatabaseLifecycle.requireTestDataSource().connection.use { conn ->
             assertExtensionsInPublic(conn)
             conn.createStatement().use { stmt ->
                 val rs = stmt.executeQuery("SELECT similarity('hello', 'hallo') > 0.0")
@@ -53,9 +57,9 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
 
     @Test
     fun `migrations views and snapshot trigger resolve in worker schema`() {
-        DatabaseTestHelper.ensureDatabase()
-        val owned = DatabaseTestHelper.requireWorkerSchema()
-        DatabaseTestHelper.requireTestDataSource().connection.use { conn ->
+        TestDatabaseLifecycle.ensureDatabase()
+        val owned = TestDatabaseLifecycle.requireWorkerSchema()
+        TestDatabaseLifecycle.requireTestDataSource().connection.use { conn ->
             assertMigrationCount(conn)
             assertViewsPresent(conn, owned)
             assertSnapshotTrigger(conn, owned)
@@ -69,7 +73,7 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
 
     @Test
     fun `second worker schema stays disjoint and disposal spares public sentinel`() {
-        DatabaseTestHelper.ensureDatabase()
+        TestDatabaseLifecycle.ensureDatabase()
         val config = AppConfig.parse()
         val dbName = TestWorkerSchema.resolveDbName(config)
         val second = TestWorkerSchema.generate()
@@ -98,20 +102,20 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
 
     @Test
     fun `guards reject app database and unowned schemas`() {
-        DatabaseTestHelper.requireTestDatabase("company_app_test", "company_app")
+        TestDatabaseLifecycle.requireTestDatabase("company_app_test", "company_app")
         assertFailsWith<IllegalStateException> {
-            DatabaseTestHelper.requireTestDatabase("company_app", "company_app")
+            TestDatabaseLifecycle.requireTestDatabase("company_app", "company_app")
         }
         assertFailsWith<IllegalStateException> {
-            DatabaseTestHelper.requireTestDatabase("", "company_app")
+            TestDatabaseLifecycle.requireTestDatabase("", "company_app")
         }
-        assertTrue(DatabaseTestHelper.isOwnedSchema(DatabaseTestHelper.generateWorkerSchema()))
-        assertTrue(!DatabaseTestHelper.isOwnedSchema("public"))
-        assertTrue(!DatabaseTestHelper.isOwnedSchema(""))
-        assertTrue(!DatabaseTestHelper.isOwnedSchema(null))
-        assertTrue(!DatabaseTestHelper.isOwnedSchema("public_branch"))
+        assertTrue(TestDatabaseLifecycle.isOwnedSchema(TestDatabaseLifecycle.generateWorkerSchema()))
+        assertTrue(!TestDatabaseLifecycle.isOwnedSchema("public"))
+        assertTrue(!TestDatabaseLifecycle.isOwnedSchema(""))
+        assertTrue(!TestDatabaseLifecycle.isOwnedSchema(null))
+        assertTrue(!TestDatabaseLifecycle.isOwnedSchema("public_branch"))
         assertFailsWith<IllegalStateException> {
-            DatabaseTestHelper.requireOwnedSchema("public")
+            TestDatabaseLifecycle.requireOwnedSchema("public")
         }
     }
 
@@ -186,17 +190,17 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
     private fun insertEnumProbe() {
         val userId = TestFixtures.uuid()
         val branchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(userId, "lifecycle")
-        DatabaseTestHelper.insertTestBranch(branchId)
-        val dayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        val clientId = DatabaseTestHelper.insertTestClient()
+        IdentityFixtures.insertTestUser(userId, "lifecycle")
+        BranchWorkforceFixtures.insertTestBranch(branchId)
+        val dayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        val clientId = SessionClientFixtures.insertTestClient()
         val sessionId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestSession(sessionId, clientId, dayId)
+        SessionClientFixtures.insertTestSession(sessionId, clientId, dayId)
     }
 
     private fun sentinelTable(): String {
         val suffix =
-            DatabaseTestHelper
+            TestDatabaseLifecycle
                 .requireWorkerSchema()
                 .removePrefix("test_w_")
         return "worker_lifecycle_sentinel_$suffix"
@@ -233,7 +237,7 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
     }
 
     private fun insertFirstBranch(firstBranch: UUID) {
-        DatabaseTestHelper.insertTestBranch(firstBranch)
+        BranchWorkforceFixtures.insertTestBranch(firstBranch)
     }
 
     private fun insertSecondBranch(
@@ -257,7 +261,7 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
         secondBranch: UUID,
         sentinel: String,
     ) {
-        DatabaseTestHelper.requireTestDataSource().connection.use { conn ->
+        TestDatabaseLifecycle.requireTestDataSource().connection.use { conn ->
             conn.createStatement().use { stmt ->
                 val rs = stmt.executeQuery("SELECT count(*) FROM public.\"$sentinel\"")
                 rs.next()
@@ -306,7 +310,7 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
     }
 
     private fun assertFirstRowSurvived(firstBranch: UUID) {
-        DatabaseTestHelper.requireTestDataSource().connection.use { conn ->
+        TestDatabaseLifecycle.requireTestDataSource().connection.use { conn ->
             conn.createStatement().use { stmt ->
                 val rs = stmt.executeQuery("SELECT count(*) FROM branch WHERE id = '$firstBranch'")
                 rs.next()
@@ -316,7 +320,7 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
     }
 
     private fun assertExtensionsSurvive() {
-        DatabaseTestHelper.requireTestDataSource().connection.use { conn ->
+        TestDatabaseLifecycle.requireTestDataSource().connection.use { conn ->
             conn.createStatement().use { stmt ->
                 val rs = stmt.executeQuery("SELECT similarity('abc', 'abd') > 0.0")
                 rs.next()

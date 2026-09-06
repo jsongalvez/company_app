@@ -8,9 +8,11 @@ import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -34,8 +36,8 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     private val secondSessionRateId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "session-reads-caller")
-        DatabaseTestHelper.insertTestBranch(branchId)
+        IdentityFixtures.insertTestUser(callerId, "session-reads-caller")
+        BranchWorkforceFixtures.insertTestBranch(branchId)
 
         insertRate(regularRateId, SessionType.REGULAR, "2500.00")
         insertRate(secondSessionRateId, SessionType.SECOND_SESSION, "2000.00")
@@ -46,7 +48,7 @@ class SessionReadsPostgresTest : BasePostgresTest() {
 
     @Test
     fun `preview returns REGULAR and base rate for a first-visit client`() {
-        val clientId = DatabaseTestHelper.insertTestClient()
+        val clientId = SessionClientFixtures.insertTestClient()
 
         val preview = SessionService.previewSession(branchId, clientId)
 
@@ -56,7 +58,7 @@ class SessionReadsPostgresTest : BasePostgresTest() {
 
     @Test
     fun `preview counts prior sessions into SECOND_SESSION with its own rate`() {
-        val clientId = DatabaseTestHelper.insertTestClient()
+        val clientId = SessionClientFixtures.insertTestClient()
         insertPriorSession(TestFixtures.uuid(), clientId, SessionType.REGULAR)
 
         val preview = SessionService.previewSession(branchId, clientId)
@@ -67,7 +69,7 @@ class SessionReadsPostgresTest : BasePostgresTest() {
 
     @Test
     fun `preview excludes voided and medical-mission sessions from history`() {
-        val clientId = DatabaseTestHelper.insertTestClient()
+        val clientId = SessionClientFixtures.insertTestClient()
         val voidedId = TestFixtures.uuid()
         insertPriorSession(voidedId, clientId, SessionType.REGULAR)
         transaction {
@@ -88,14 +90,14 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     fun `preview 404s on unknown branch or client`() {
         assertFailsWith<NotFoundException> { SessionService.previewSession(TestFixtures.uuid(), TestFixtures.uuid()) }
 
-        val clientId = DatabaseTestHelper.insertTestClient()
+        val clientId = SessionClientFixtures.insertTestClient()
         assertFailsWith<NotFoundException> { SessionService.previewSession(branchId, TestFixtures.uuid()) }
     }
 
     @Test
     fun `preview 400s when no base rate is configured for the predicted type`() {
         // SUBSEQUENT has no rate row at this branch; two priors make it the predicted type.
-        val clientId = DatabaseTestHelper.insertTestClient()
+        val clientId = SessionClientFixtures.insertTestClient()
         insertPriorSession(TestFixtures.uuid(), clientId, SessionType.REGULAR)
         insertPriorSession(TestFixtures.uuid(), clientId, SessionType.SECOND_SESSION)
 
@@ -108,7 +110,7 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     fun `free last session defaults preview price to SUBSEQUENT base rate`() {
         val subsequentRateId = TestFixtures.uuid()
         insertRate(subsequentRateId, SessionType.SUBSEQUENT, "1500.00")
-        val clientId = DatabaseTestHelper.insertTestClient()
+        val clientId = SessionClientFixtures.insertTestClient()
         insertPriorSession(
             TestFixtures.uuid(),
             clientId,
@@ -128,7 +130,7 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     fun `mission session as most recent visit never triggers the SUBSEQUENT default`() {
         val subsequentRateId = TestFixtures.uuid()
         insertRate(subsequentRateId, SessionType.SUBSEQUENT, "1500.00")
-        val clientId = DatabaseTestHelper.insertTestClient()
+        val clientId = SessionClientFixtures.insertTestClient()
         insertPriorSession(
             TestFixtures.uuid(),
             clientId,
@@ -153,7 +155,7 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     fun `voided free session does not trigger the SUBSEQUENT default`() {
         val subsequentRateId = TestFixtures.uuid()
         insertRate(subsequentRateId, SessionType.SUBSEQUENT, "1500.00")
-        val clientId = DatabaseTestHelper.insertTestClient()
+        val clientId = SessionClientFixtures.insertTestClient()
         insertPriorSession(
             TestFixtures.uuid(),
             clientId,
@@ -187,7 +189,7 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     fun `create after free session persists SUBSEQUENT base price while override wins`() {
         val subsequentRateId = TestFixtures.uuid()
         insertRate(subsequentRateId, SessionType.SUBSEQUENT, "1500.00")
-        val clientId = DatabaseTestHelper.insertTestClient()
+        val clientId = SessionClientFixtures.insertTestClient()
         insertPriorSession(
             TestFixtures.uuid(),
             clientId,
@@ -221,14 +223,14 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     fun `practitioners read returns rows ordered by slot`() {
         val sessionId = TestFixtures.uuid()
         val dayId = BranchDayService.resolveOrCreate(branchId, TestFixtures.today).id
-        val clientId = DatabaseTestHelper.insertTestClient()
-        DatabaseTestHelper.insertTestSession(sessionId, clientId, dayId)
+        val clientId = SessionClientFixtures.insertTestClient()
+        SessionClientFixtures.insertTestSession(sessionId, clientId, dayId)
         val late = TestFixtures.uuid()
         val early = TestFixtures.uuid()
         val latePractitioner = TestFixtures.uuid()
         val earlyPractitioner = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(latePractitioner, "session-reads-late")
-        DatabaseTestHelper.insertTestUser(earlyPractitioner, "session-reads-early")
+        IdentityFixtures.insertTestUser(latePractitioner, "session-reads-late")
+        IdentityFixtures.insertTestUser(earlyPractitioner, "session-reads-early")
         transaction {
             SessionPractitionerRepository.addInTransaction(
                 id = late,
@@ -291,7 +293,7 @@ class SessionReadsPostgresTest : BasePostgresTest() {
             transaction {
                 BranchDayService.resolveOrCreate(branchId, TestFixtures.today).id
             }
-        DatabaseTestHelper.insertTestSession(
+        SessionClientFixtures.insertTestSession(
             id,
             clientId,
             dayId,

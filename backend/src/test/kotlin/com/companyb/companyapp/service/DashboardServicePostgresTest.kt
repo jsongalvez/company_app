@@ -9,9 +9,12 @@ import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.service.NotificationService
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.dashboard.DashboardService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -37,22 +40,22 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     private lateinit var branchDayId: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "caller")
-        DatabaseTestHelper.insertTestUser(otherUserId, "other")
-        DatabaseTestHelper.insertTestUser(practitionerId, "practitioner")
-        DatabaseTestHelper.insertTestBranch(branchId, "Branch A")
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Branch B")
-        DatabaseTestHelper.insertTestClient(clientId)
-        DatabaseTestHelper.insertTestCategory(categoryId)
-        DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
+        IdentityFixtures.insertTestUser(callerId, "caller")
+        IdentityFixtures.insertTestUser(otherUserId, "other")
+        IdentityFixtures.insertTestUser(practitionerId, "practitioner")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Branch A")
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Branch B")
+        SessionClientFixtures.insertTestClient(clientId)
+        CommerceFinanceFixtures.insertTestCategory(categoryId)
+        CommerceFinanceFixtures.insertTestProduct(productId, categoryId = categoryId)
 
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
     }
 
     @Test
     fun `getToday returns enriched sessions with client name`() {
         AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
-        DatabaseTestHelper.insertTestSession(
+        SessionClientFixtures.insertTestSession(
             id = sessionId,
             clientId = clientId,
             branchDayId = branchDayId,
@@ -76,7 +79,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     @Test
     fun `getToday marks voided sessions and includes practitioner names`() {
         AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
-        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         seedVoid(sessionId)
         seedPractitioner(sessionId, practitionerId)
 
@@ -92,7 +95,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     @Test
     fun `getToday computes caller commission from sales sold while clocked in`() {
         AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
-        DatabaseTestHelper.insertTestProductSale(
+        CommerceFinanceFixtures.insertTestProductSale(
             id = saleId,
             branchDayId = branchDayId,
             productId = productId,
@@ -110,7 +113,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     @Test
     fun `getToday counts sales by attendance eligibility not by seller`() {
         AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
-        DatabaseTestHelper.insertTestProductSale(
+        CommerceFinanceFixtures.insertTestProductSale(
             id = saleId,
             branchDayId = branchDayId,
             productId = productId,
@@ -128,7 +131,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     @Test
     fun `getToday excludes sales the caller was removed from via manual inclusion`() {
         AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
-        DatabaseTestHelper.insertTestProductSale(
+        CommerceFinanceFixtures.insertTestProductSale(
             id = saleId,
             branchDayId = branchDayId,
             productId = productId,
@@ -191,7 +194,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getSessionDetail returns enriched session for notification bearer`() {
-        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         seedNotification(sessionId, callerId, branchId)
         seedPractitioner(sessionId, practitionerId)
 
@@ -209,7 +212,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getSessionDetail marks voided sessions`() {
-        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         seedNotification(sessionId, callerId, branchId)
         seedVoid(sessionId)
 
@@ -220,7 +223,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getSessionDetail accepts read notifications`() {
-        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         val notification = seedNotification(sessionId, callerId, branchId)
         NotificationService.markRead(callerId, notification.id)
 
@@ -231,7 +234,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getSessionDetail throws 404 when no notification exists for the session`() {
-        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
 
         assertFailsWith<NotFoundException> {
             DashboardService.getSessionDetail(callerId, sessionId)
@@ -240,7 +243,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getSessionDetail throws 404 when caller is not the notification bearer`() {
-        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         seedNotification(sessionId, otherUserId, branchId)
 
         assertFailsWith<NotFoundException> {
@@ -254,7 +257,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
         branchId: UUID,
     ): com.companyb.companyapp.repository.model.Notification {
         val notification =
-            DatabaseTestHelper.insertTestNotification(
+            SessionClientFixtures.insertTestNotification(
                 sessionId = sessionId,
                 userId = userId,
                 branchId = branchId,

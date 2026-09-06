@@ -13,9 +13,11 @@ import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.service.inventory.InventoryService
 import com.companyb.companyapp.service.inventory.MovementType
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -39,15 +41,15 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     private val productId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "inv-caller")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Inventory Branch ${branchId.toString().take(8)}")
-        DatabaseTestHelper.insertTestCategory(categoryId)
-        DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
+        IdentityFixtures.insertTestUser(callerId, "inv-caller")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Inventory Branch ${branchId.toString().take(8)}")
+        CommerceFinanceFixtures.insertTestCategory(categoryId)
+        CommerceFinanceFixtures.insertTestProduct(productId, categoryId = categoryId)
     }
 
     @Test
     fun `ensureCard creates inventory card with zero stock`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         InventoryService.ensureCard(callerId, branchId, productId)
 
@@ -78,7 +80,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `ensureCard on existing card writes update audit row without mutating the card`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
 
         val ensured = InventoryService.ensureCard(callerId, branchId, productId)
@@ -99,7 +101,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getStock includes product price and commission from the join`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
 
         val cards = InventoryService.getStock(branchId)
@@ -122,7 +124,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `ensureCard with non-existent branch returns not found`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         assertFailsWith<NotFoundException> {
             InventoryService.ensureCard(callerId, TestFixtures.uuid(), productId)
@@ -131,7 +133,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `ensureCard with non-existent product returns not found`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         assertFailsWith<NotFoundException> {
             InventoryService.ensureCard(callerId, branchId, TestFixtures.uuid())
@@ -142,14 +144,14 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `inactive product is hidden from inventory reads and preserves history`() {
         val activeProductId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestProduct(
+        CommerceFinanceFixtures.insertTestProduct(
             id = activeProductId,
             categoryId = categoryId,
             name = "Active Inventory Product",
         )
         InventoryService.ensureCard(callerId, branchId, productId)
         InventoryService.ensureCard(callerId, branchId, activeProductId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         val movementId = TestFixtures.uuid()
         val firstMovement =
             InventoryService.recordMovement(
@@ -241,7 +243,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
             InventoryService.ensureCard(callerId, branchId, productId)
         }
 
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         assertFailsWith<NotFoundException> {
             InventoryService.recordMovement(
                 callerId = callerId,
@@ -279,10 +281,10 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `restock increments stock and logs movement`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
 
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         val movementId = TestFixtures.uuid()
 
         val movement =
@@ -308,7 +310,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `restock without MANAGE_PRODUCTS is allowed at service layer`() {
         InventoryService.ensureCard(callerId, branchId, productId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         val movement =
             InventoryService.recordMovement(
@@ -327,8 +329,8 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `restock with non-existent branch returns not found`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         assertFailsWith<NotFoundException> {
             InventoryService.recordMovement(
@@ -347,8 +349,8 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `movement with branch day from another branch returns not found`() {
         val otherBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Inventory Branch $otherBranchId")
-        val foreignBranchDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Inventory Branch $otherBranchId")
+        val foreignBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(otherBranchId)
         InventoryService.ensureCard(callerId, branchId, productId)
         val movementId = TestFixtures.uuid()
 
@@ -389,7 +391,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `repeating movement ID does not apply stock change twice`() {
         InventoryService.ensureCard(callerId, branchId, productId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         val movementId = TestFixtures.uuid()
 
         val first =
@@ -432,8 +434,8 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `inventory movement UUID retry preserves original request`() {
         InventoryService.ensureCard(callerId, branchId, productId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val movementId = TestFixtures.uuid()
 
         val first =
@@ -470,8 +472,8 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `inventory movement UUID retry rejects altered request ownership`() {
         InventoryService.ensureCard(callerId, branchId, productId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val movementId = TestFixtures.uuid()
         InventoryService.recordMovement(
             callerId = callerId,
@@ -509,7 +511,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `movement ID from another branch does not create target inventory card`() {
         InventoryService.ensureCard(callerId, branchId, productId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         val movementId = TestFixtures.uuid()
         InventoryService.recordMovement(
             callerId = callerId,
@@ -525,10 +527,10 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         val otherBranchId = TestFixtures.uuid()
         val otherProductId = TestFixtures.uuid()
         val otherCategoryId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Collision Branch $otherBranchId")
-        DatabaseTestHelper.insertTestCategory(otherCategoryId)
-        DatabaseTestHelper.insertTestProduct(otherProductId, categoryId = otherCategoryId)
-        val otherDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Collision Branch $otherBranchId")
+        CommerceFinanceFixtures.insertTestCategory(otherCategoryId)
+        CommerceFinanceFixtures.insertTestProduct(otherProductId, categoryId = otherCategoryId)
+        val otherDayId = BranchWorkforceFixtures.createBranchDayForToday(otherBranchId)
 
         assertFailsWith<ConflictException> {
             InventoryService.recordMovement(
@@ -558,10 +560,10 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `restock writes audit entries`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
 
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         val movementId = TestFixtures.uuid()
 
         InventoryService.recordMovement(
@@ -589,7 +591,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findByBranch returns empty for branch with no inventory`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         val cards = InventoryService.getStock(branchId)
         assertTrue(cards.isEmpty())
     }
@@ -603,7 +605,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findByBranch with non-existent branch returns not found`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         assertFailsWith<NotFoundException> {
             InventoryService.getStock(TestFixtures.uuid())
         }
@@ -611,9 +613,9 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getMovementHistory returns all movements for branch ordered by movedAt DESC`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         val restock =
             InventoryService.recordMovement(
@@ -648,11 +650,11 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `movement on REMITTED day with reason succeeds and flags audit entries`() {
         val remittedDayId =
-            DatabaseTestHelper.createRemittedBranchDay(
+            BranchWorkforceFixtures.createRemittedBranchDay(
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
         val restockId = TestFixtures.uuid()
         InventoryService.recordMovement(
@@ -697,11 +699,11 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getMovementHistory filters by branch day date`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         val pastDate = TestFixtures.today.minusDays(3)
-        val pastDayId = DatabaseTestHelper.createBranchDayForDate(branchId, pastDate)
+        val pastDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, pastDate)
         InventoryService.ensureCard(callerId, branchId, productId)
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = callerId,
             capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
             contextType = CapabilityContextType.BRANCH,
@@ -728,9 +730,9 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getMovementHistory with date of another day returns empty`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         InventoryService.recordMovement(
             callerId = callerId,
@@ -755,12 +757,12 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `getMovementHistory does not leak movements from other branches`() {
         val otherBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Branch ${otherBranchId.toString().take(8)}")
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Branch ${otherBranchId.toString().take(8)}")
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
         InventoryService.ensureCard(callerId, otherBranchId, productId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        val otherDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        val otherDayId = BranchWorkforceFixtures.createBranchDayForToday(otherBranchId)
 
         InventoryService.recordMovement(
             callerId = callerId,
@@ -815,7 +817,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `recordMovement with TESTER decreases stock and logs movement`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
         InventoryService.recordMovement(
             callerId = callerId,
@@ -825,10 +827,10 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
             movementType = MovementType.Restock,
             notes = null,
             quantityChange = 10,
-            branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId),
+            branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId),
         )
 
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         val movement =
             InventoryService.recordMovement(
                 callerId = callerId,
@@ -851,7 +853,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `recordMovement with SAMPLE decreases stock and logs movement`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
         InventoryService.recordMovement(
             callerId = callerId,
@@ -861,10 +863,10 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
             movementType = MovementType.Restock,
             notes = null,
             quantityChange = 10,
-            branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId),
+            branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId),
         )
 
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         val movement =
             InventoryService.recordMovement(
                 callerId = callerId,
@@ -886,7 +888,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `recordMovement with MISSING decreases stock with notes`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
         InventoryService.recordMovement(
             callerId = callerId,
@@ -896,10 +898,10 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
             movementType = MovementType.Restock,
             notes = null,
             quantityChange = 10,
-            branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId),
+            branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId),
         )
 
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         val movement =
             InventoryService.recordMovement(
                 callerId = callerId,
@@ -921,7 +923,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `recordMovement with ADJUSTMENT positive increases stock`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
         InventoryService.recordMovement(
             callerId = callerId,
@@ -931,10 +933,10 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
             movementType = MovementType.Restock,
             notes = null,
             quantityChange = 10,
-            branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId),
+            branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId),
         )
 
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         val movement =
             InventoryService.recordMovement(
                 callerId = callerId,
@@ -964,9 +966,9 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
             movementType = MovementType.Restock,
             notes = null,
             quantityChange = 10,
-            branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId),
+            branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId),
         )
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         val movement =
             InventoryService.recordMovement(
@@ -985,8 +987,8 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `recordMovement with non-existent branch returns not found`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         assertFailsWith<NotFoundException> {
             InventoryService.recordMovement(
@@ -1004,7 +1006,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `recordMovement writes audit entries`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
         InventoryService.recordMovement(
             callerId = callerId,
@@ -1014,10 +1016,10 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
             movementType = MovementType.Restock,
             notes = null,
             quantityChange = 10,
-            branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId),
+            branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId),
         )
 
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         val movementId = TestFixtures.uuid()
 
         InventoryService.recordMovement(
@@ -1045,9 +1047,9 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getLowStockAlerts returns products at or below threshold`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         InventoryService.recordMovement(
             callerId = callerId,
@@ -1079,9 +1081,9 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getLowStockAlerts returns empty when no products are low stock`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         InventoryService.recordMovement(
             callerId = callerId,
@@ -1101,7 +1103,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getLowStockAlerts with non-existent branch returns not found`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         assertFailsWith<NotFoundException> {
             InventoryService.getLowStockAlerts(TestFixtures.uuid())
@@ -1111,7 +1113,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `getLowStockAlerts without MANAGE_PRODUCTS is allowed at service layer`() {
         InventoryService.ensureCard(callerId, branchId, productId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         InventoryService.recordMovement(
             callerId = callerId,
@@ -1134,17 +1136,17 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `getLowStockAlerts uses per-product reorder point`() {
         val highReorderProductId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestProduct(
+        CommerceFinanceFixtures.insertTestProduct(
             id = highReorderProductId,
             categoryId = categoryId,
             name = "High Reorder Product",
             reorderPoint = 10,
         )
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         InventoryService.ensureCard(callerId, branchId, productId)
         InventoryService.ensureCard(callerId, branchId, highReorderProductId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         InventoryService.recordMovement(
             callerId = callerId,
@@ -1198,15 +1200,15 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `getLowStockAlerts with null reorderPoint falls back to global default`() {
         val noReorderProductId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestProduct(
+        CommerceFinanceFixtures.insertTestProduct(
             id = noReorderProductId,
             categoryId = categoryId,
             name = "No Reorder Product",
         )
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         InventoryService.ensureCard(callerId, branchId, noReorderProductId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         InventoryService.recordMovement(
             callerId = callerId,
@@ -1229,17 +1231,17 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `getLowStockAlerts with thresholdOverride overrides stored thresholds`() {
         val highReorderProductId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestProduct(
+        CommerceFinanceFixtures.insertTestProduct(
             id = highReorderProductId,
             categoryId = categoryId,
             name = "High Reorder Product",
             reorderPoint = 10,
         )
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         InventoryService.ensureCard(callerId, branchId, productId)
         InventoryService.ensureCard(callerId, branchId, highReorderProductId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         InventoryService.recordMovement(
             callerId = callerId,
@@ -1269,9 +1271,9 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getLowStockAlerts returns product at exactly the threshold`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         InventoryService.recordMovement(
             callerId = callerId,

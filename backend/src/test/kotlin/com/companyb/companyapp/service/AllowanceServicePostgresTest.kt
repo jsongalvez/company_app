@@ -4,9 +4,10 @@ import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AllowanceTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -34,21 +35,21 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
     private lateinit var branchDayId: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "allowance-caller")
-        DatabaseTestHelper.insertTestUser(targetUserId, "allowance-target")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Allowance Branch")
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
+        IdentityFixtures.insertTestUser(callerId, "allowance-caller")
+        IdentityFixtures.insertTestUser(targetUserId, "allowance-target")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Allowance Branch")
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        IdentityFixtures.grantAssignCompensation(callerId, sourceId)
     }
 
     @Test
     fun `create allowance on REMITTED day with reason succeeds and flags audit entry`() {
         val remittedDayId =
-            DatabaseTestHelper.createRemittedBranchDay(
+            BranchWorkforceFixtures.createRemittedBranchDay(
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val allowanceId = TestFixtures.uuid()
 
         val allowance =
@@ -125,11 +126,11 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
     fun `create rejects UUID collision from another branch day without auditing`() {
         val allowanceId = TestFixtures.uuid()
         val otherDayId =
-            DatabaseTestHelper.createRemittedBranchDay(
+            BranchWorkforceFixtures.createRemittedBranchDay(
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
 
         AllowanceService.create(callerId, allowanceId, branchDayId, targetUserId, BigDecimal("500.00"))
 
@@ -160,11 +161,11 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
     fun `concurrent UUID collision from another branch day returns one success and one not found`() {
         val allowanceId = TestFixtures.uuid()
         val otherDayId =
-            DatabaseTestHelper.createRemittedBranchDay(
+            BranchWorkforceFixtures.createRemittedBranchDay(
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val start = CountDownLatch(1)
         val results = Collections.synchronizedList(mutableListOf<Throwable?>())
         val threads =
@@ -215,7 +216,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create without ASSIGN_COMPENSATION is allowed at service layer`() {
-        DatabaseTestHelper.revokeAllCapabilities(callerId)
+        IdentityFixtures.revokeAllCapabilities(callerId)
 
         val allowanceId = TestFixtures.uuid()
         val allowance =
@@ -279,7 +280,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findByBranchDayId without capability is allowed at service layer`() {
-        DatabaseTestHelper.revokeAllCapabilities(callerId)
+        IdentityFixtures.revokeAllCapabilities(callerId)
 
         val results = AllowanceService.findByBranchDayId(branchDayId)
 

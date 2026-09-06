@@ -7,9 +7,9 @@ import com.companyb.companyapp.identity.LoginResult
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.UserCreateParams
 import com.companyb.companyapp.identity.UserRepository
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -27,7 +27,7 @@ class AuthServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         val passwordHash = Password.create("test-password")
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertUser(
             id = userId,
             username = "logout-test-$userId",
             passwordHash = passwordHash,

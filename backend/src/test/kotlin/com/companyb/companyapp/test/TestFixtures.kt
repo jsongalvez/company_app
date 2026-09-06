@@ -1,6 +1,9 @@
 package com.companyb.companyapp.test
 
 import com.companyb.companyapp.branchday.BranchDayService
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.YearMonth
@@ -31,5 +34,20 @@ object TestFixtures {
         while (realNow().isBefore(boundary)) {
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10))
         }
+    }
+
+    private val json = Json
+
+    /** Extracts one string field from a JSON object string; missing fields read as empty. */
+    fun extractJsonField(
+        jsonString: String,
+        field: String,
+    ): String {
+        val jsonElement = json.parseToJsonElement(jsonString)
+        return jsonElement
+            .jsonObject[field]
+            ?.jsonPrimitive
+            ?.content
+            .orEmpty()
     }
 }

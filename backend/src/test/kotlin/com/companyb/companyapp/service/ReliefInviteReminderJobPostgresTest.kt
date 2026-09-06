@@ -4,9 +4,10 @@ import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.service.attendance.AttendanceService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.Clock
 import java.time.Duration
@@ -31,9 +32,9 @@ class ReliefInviteReminderJobPostgresTest : BasePostgresTest() {
     private val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(inviterId, "reminder-inviter")
-        DatabaseTestHelper.insertTestUser(inviteeId, "reminder-invitee")
-        DatabaseTestHelper.insertTestBranch(branchId, "Reminder Branch ${branchId.toString().take(8)}")
+        IdentityFixtures.insertTestUser(inviterId, "reminder-inviter")
+        IdentityFixtures.insertTestUser(inviteeId, "reminder-invitee")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Reminder Branch ${branchId.toString().take(8)}")
         // Invite creation resolves-or-creates its duty-day rows at this branch.
         transaction {
             UserBranchAssignmentRepository.createInTransaction(

@@ -10,9 +10,10 @@ import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.service.finance.remittance.RemittanceSubmissionResult
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -42,14 +43,14 @@ class RemittanceCrossTypeUndoPostgresTest : BasePostgresTest() {
     private val dayDateC = LocalDate.of(2026, 7, 12)
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "remittance-cross-undo")
-        DatabaseTestHelper.insertTestBranch(branchId, "Cross Undo Branch ${TestFixtures.uuid()}")
-        DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, branchId)
+        IdentityFixtures.insertTestUser(callerId, "remittance-cross-undo")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Cross Undo Branch ${TestFixtures.uuid()}")
+        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
     }
 
     @Test
     fun `undo SESSION first keeps REMITTED until PRODUCT undone`() {
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateA)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateA)
         val sessionId = createDraft(RemittanceType.SESSION)
         val productId = createDraft(RemittanceType.PRODUCT)
         addBreakdown(sessionId, dayId)
@@ -69,7 +70,7 @@ class RemittanceCrossTypeUndoPostgresTest : BasePostgresTest() {
 
     @Test
     fun `undo PRODUCT first keeps REMITTED until SESSION undone`() {
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateA)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateA)
         val sessionId = createDraft(RemittanceType.SESSION)
         val productId = createDraft(RemittanceType.PRODUCT)
         addBreakdown(sessionId, dayId)
@@ -86,9 +87,9 @@ class RemittanceCrossTypeUndoPostgresTest : BasePostgresTest() {
 
     @Test
     fun `overlapping multi-day sets release only uncovered days`() {
-        val dayA = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateA)
-        val dayB = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateB)
-        val dayC = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateC)
+        val dayA = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateA)
+        val dayB = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateB)
+        val dayC = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateC)
         val sessionId = createDraft(RemittanceType.SESSION)
         val productId = createDraft(RemittanceType.PRODUCT)
         addBreakdown(sessionId, dayA)
@@ -110,7 +111,7 @@ class RemittanceCrossTypeUndoPostgresTest : BasePostgresTest() {
 
     @Test
     fun `retained undo writes no branch-day audit, final release writes one`() {
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateA)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateA)
         val sessionId = createDraft(RemittanceType.SESSION)
         val productId = createDraft(RemittanceType.PRODUCT)
         addBreakdown(sessionId, dayId)
@@ -129,7 +130,7 @@ class RemittanceCrossTypeUndoPostgresTest : BasePostgresTest() {
 
     @Test
     fun `concurrent cross-type submits both succeed with one REMITTED transition`() {
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateA)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateA)
         val sessionId = createDraft(RemittanceType.SESSION)
         val productId = createDraft(RemittanceType.PRODUCT)
         addBreakdown(sessionId, dayId)
@@ -172,7 +173,7 @@ class RemittanceCrossTypeUndoPostgresTest : BasePostgresTest() {
 
     @Test
     fun `concurrent submit versus undo ends REMITTED with real audit transitions`() {
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, dayDateA)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDateA)
         val sessionId = createDraft(RemittanceType.SESSION)
         val productId = createDraft(RemittanceType.PRODUCT)
         addBreakdown(sessionId, dayId)

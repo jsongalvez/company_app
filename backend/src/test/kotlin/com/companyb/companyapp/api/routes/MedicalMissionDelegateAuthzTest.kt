@@ -14,10 +14,11 @@ import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.service.MedicalMissionDelegateService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
@@ -46,11 +47,11 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
 
     override fun initTestData() {
         listOf(managerUser, noGrantUser, ownerUser, targetUser).forEach { userId ->
-            DatabaseTestHelper.insertTestUser(userId, "delegate-${userId.toString().take(6)}")
+            IdentityFixtures.insertTestUser(userId, "delegate-${userId.toString().take(6)}")
         }
         assignRole(targetUser, "MANAGER")
         assignRole(ownerUser, "OWNER")
-        DatabaseTestHelper.grantAssignDelegate(managerUser, sourceId)
+        IdentityFixtures.grantAssignDelegate(managerUser, sourceId)
         insertBranch(missionBranch, BranchType.MEDICAL_MISSION)
         insertBranch(clinicBranch, BranchType.CLINIC)
     }
@@ -69,7 +70,7 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { context ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     context.attribute("userId", context.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.exception(ForbiddenException::class.java) { e, context ->

@@ -3,9 +3,9 @@ import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.dto.DailySalesSummaryBrowseResponse
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.decodeDailySummaryCursor
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
@@ -23,7 +23,7 @@ class DailySalesSummaryBrowsePostgresTest : BasePostgresTest() {
     private val today = TestFixtures.today
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestBranch(branchId, "Browse Test Branch")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Browse Test Branch")
     }
 
     @Test

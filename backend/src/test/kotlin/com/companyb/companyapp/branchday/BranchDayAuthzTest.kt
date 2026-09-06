@@ -10,10 +10,12 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.core.eq
@@ -36,21 +38,21 @@ class BranchDayAuthzTest : BasePostgresTest() {
     private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(editOnlyUser, "edit-only")
-        DatabaseTestHelper.insertTestUser(manageOnlyUser, "manage-only")
-        DatabaseTestHelper.insertTestUser(noneUser, "no-caps")
+        IdentityFixtures.insertTestUser(editOnlyUser, "edit-only")
+        IdentityFixtures.insertTestUser(manageOnlyUser, "manage-only")
+        IdentityFixtures.insertTestUser(noneUser, "no-caps")
 
-        DatabaseTestHelper.insertTestBranch(branchId, "Authz Branch $branchId")
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Branch $otherBranchId")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Authz Branch $branchId")
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Branch $otherBranchId")
 
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = editOnlyUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
             contextId = branchId,
             sourceId = sourceId,
         )
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = manageOnlyUser,
             capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
             contextType = CapabilityContextType.BRANCH,
@@ -73,7 +75,7 @@ class BranchDayAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
@@ -119,7 +121,7 @@ class BranchDayAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET today returns REMITTED status for remitted day`() {
-        DatabaseTestHelper.createBranchDayForToday(branchId)
+        BranchWorkforceFixtures.createBranchDayForToday(branchId)
         transaction {
             BranchDayTable.update({ BranchDayTable.branchId eq branchId }) {
                 it[BranchDayTable.status] = DayStatus.REMITTED
@@ -169,7 +171,7 @@ class BranchDayAuthzTest : BasePostgresTest() {
     @Test
     fun `GET today returns 404 for missing branch with grant`() {
         val missingBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = editOnlyUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,

@@ -2,9 +2,9 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.repository.model.ProductCategory
 import com.companyb.companyapp.repository.model.ProductCategoryTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -25,7 +25,7 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
     private val categoryIds = listOf(cat1Id, cat2Id)
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "caller")
+        IdentityFixtures.insertTestUser(callerId, "caller")
     }
 
     private val cat1Name = "Test Category $cat1Id"
@@ -33,7 +33,7 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create persists category and writes audit row`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         val result = ProductCategoryService.create(callerId, cat1Id, cat1Name)
 
@@ -48,7 +48,7 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `duplicate client generated id returns existing category without extra audit`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         ProductCategoryService.create(callerId, cat1Id, cat1Name)
 
@@ -60,7 +60,7 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `list returns all categories`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         ProductCategoryService.create(callerId, cat1Id, cat1Name)
         ProductCategoryService.create(callerId, cat2Id, cat2Name)
@@ -76,7 +76,7 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `find by id returns persisted category`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         ProductCategoryService.create(callerId, cat1Id, cat1Name)
 
@@ -102,11 +102,11 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `findById without MANAGE_PRODUCTS is allowed at service layer`() {
         val newCatId = TestFixtures.uuid()
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         ProductCategoryService.create(callerId, newCatId, "Find Category")
 
         val otherCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCaller, "other")
+        IdentityFixtures.insertTestUser(otherCaller, "other")
 
         val found = ProductCategoryService.findById(newCatId)
         assertEquals("Find Category", found.name)
@@ -156,6 +156,6 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
                     }.orderBy(AuditLogTable.changedAt to SortOrder.DESC)
                     .limit(1)
                     .single()
-            DatabaseTestHelper.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "name")
+            TestFixtures.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "name")
         }
 }

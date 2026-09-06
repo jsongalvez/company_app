@@ -22,10 +22,14 @@ import com.companyb.companyapp.service.inventory.InventoryService
 import com.companyb.companyapp.service.inventory.MovementType
 import com.companyb.companyapp.service.session.SessionBaseRateService
 import com.companyb.companyapp.service.session.SessionService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -103,27 +107,27 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     }
 
     private fun seedUsersAndBranches() {
-        DatabaseTestHelper.insertTestUser(reliefUser, "relief")
-        DatabaseTestHelper.insertTestUser(wrongDayUser, "relief-wrong-day")
-        DatabaseTestHelper.insertTestUser(expiredUser, "relief-expired")
-        DatabaseTestHelper.insertTestUser(branchUser, "branch-editor")
-        DatabaseTestHelper.insertTestUser(branchCUser, "branch-c-editor")
-        DatabaseTestHelper.insertTestUser(globalUser, "global-editor")
-        DatabaseTestHelper.insertTestUser(noGrantUser, "no-grant")
-        DatabaseTestHelper.insertTestBranch(branchA, "Branch A")
-        DatabaseTestHelper.insertTestBranch(branchB, "Branch B")
-        DatabaseTestHelper.insertTestBranch(branchC, "Branch C (no day row)")
+        IdentityFixtures.insertTestUser(reliefUser, "relief")
+        IdentityFixtures.insertTestUser(wrongDayUser, "relief-wrong-day")
+        IdentityFixtures.insertTestUser(expiredUser, "relief-expired")
+        IdentityFixtures.insertTestUser(branchUser, "branch-editor")
+        IdentityFixtures.insertTestUser(branchCUser, "branch-c-editor")
+        IdentityFixtures.insertTestUser(globalUser, "global-editor")
+        IdentityFixtures.insertTestUser(noGrantUser, "no-grant")
+        BranchWorkforceFixtures.insertTestBranch(branchA, "Branch A")
+        BranchWorkforceFixtures.insertTestBranch(branchB, "Branch B")
+        BranchWorkforceFixtures.insertTestBranch(branchC, "Branch C (no day row)")
     }
 
     private fun seedClients() {
-        DatabaseTestHelper.insertTestClient(clientId)
-        DatabaseTestHelper.insertTestClient(otherClientId)
-        DatabaseTestHelper.insertTestClient(createClientId)
+        SessionClientFixtures.insertTestClient(clientId)
+        SessionClientFixtures.insertTestClient(otherClientId)
+        SessionClientFixtures.insertTestClient(createClientId)
     }
 
     private fun seedAuxiliaryData() {
-        DatabaseTestHelper.insertTestSession(sessionOnGrantedDay, clientId, grantedDay)
-        DatabaseTestHelper.insertTestSession(sessionOnOtherDay, otherClientId, otherDaySameBranch)
+        SessionClientFixtures.insertTestSession(sessionOnGrantedDay, clientId, grantedDay)
+        SessionClientFixtures.insertTestSession(sessionOnOtherDay, otherClientId, otherDaySameBranch)
 
         // Session-create base rates (the create resolves today's branch day).
         seedBaseRate(branchA)
@@ -131,8 +135,8 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
         // Inventory card + stock for the product-sale tests (a sale needs stock so nothing
         // trips branch_inventory_current_stock_check).
-        DatabaseTestHelper.insertTestCategory(categoryId)
-        DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
+        CommerceFinanceFixtures.insertTestCategory(categoryId)
+        CommerceFinanceFixtures.insertTestProduct(productId, categoryId = categoryId)
         InventoryService.ensureCard(reliefUser, branchA, productId)
         InventoryService.recordMovement(
             callerId = reliefUser,
@@ -159,7 +163,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     private fun seedGrants() {
         // reliefUser: BRANCH_DAY grant for the granted day (open window).
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = reliefUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH_DAY,
@@ -167,7 +171,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             sourceId = sourceId,
         )
         // wrongDayUser: BRANCH_DAY grant for a DIFFERENT day at the same branch.
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = wrongDayUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH_DAY,
@@ -180,7 +184,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
         // whenever the suite runs inside the seeded window (#412 — daily red span). The wide
         // margins absorb realistic same-host clock skew (the grant must stay expired regardless).
         val seededAt = OffsetDateTime.ofInstant(TestFixtures.realNow(), ZoneOffset.UTC)
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = expiredUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH_DAY,
@@ -190,7 +194,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             validTo = seededAt.minusHours(10),
         )
         // branchUser: ordinary BRANCH grant (the branch leg regression).
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = branchUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
@@ -198,7 +202,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             sourceId = sourceId,
         )
         // branchCUser: BRANCH grant at the no-day-row branch (the null-day fallback success path).
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = branchCUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
@@ -207,7 +211,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
         )
         // globalUser: GLOBAL EDIT_BRANCH_DATA — must NOT satisfy the day gates (pre-change
         // strictness preserved; the #131 class).
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = globalUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.GLOBAL,
@@ -230,7 +234,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
@@ -550,16 +554,16 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     private val globalViewUser = TestFixtures.uuid()
 
     private fun seedReadUsers() {
-        DatabaseTestHelper.insertTestUser(viewUser, "view-user")
-        DatabaseTestHelper.insertTestUser(globalViewUser, "global-view-user")
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.insertTestUser(viewUser, "view-user")
+        IdentityFixtures.insertTestUser(globalViewUser, "global-view-user")
+        IdentityFixtures.grantCapability(
             userId = viewUser,
             capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
             contextId = branchA,
             sourceId = sourceId,
         )
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = globalViewUser,
             capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
             contextType = CapabilityContextType.GLOBAL,

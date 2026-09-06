@@ -15,10 +15,14 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -54,13 +58,13 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Suppress("LongMethod")
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(submitUser, "submit")
-        DatabaseTestHelper.insertTestUser(noneUser, "no-caps")
+        IdentityFixtures.insertTestUser(submitUser, "submit")
+        IdentityFixtures.insertTestUser(noneUser, "no-caps")
 
-        DatabaseTestHelper.insertTestBranch(branchId, "Remittance Branch $branchId")
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Remittance Branch $otherBranchId")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Remittance Branch $branchId")
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Remittance Branch $otherBranchId")
 
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = submitUser,
             capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
             contextType = CapabilityContextType.BRANCH,
@@ -68,11 +72,11 @@ class RemittanceAuthzTest : BasePostgresTest() {
             sourceId = sourceId,
         )
 
-        DatabaseTestHelper.insertTestClient(clientId)
+        SessionClientFixtures.insertTestClient(clientId)
 
         sessionId = TestFixtures.uuid()
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
-        DatabaseTestHelper.insertTestSession(
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, branchDayDate)
+        SessionClientFixtures.insertTestSession(
             id = sessionId,
             clientId = clientId,
             branchDayId = dayId,
@@ -80,10 +84,10 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
         val catId = TestFixtures.uuid()
         val prodId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestCategory(catId, "Cat $catId")
-        DatabaseTestHelper.insertTestProduct(prodId, "Product $prodId", catId)
+        CommerceFinanceFixtures.insertTestCategory(catId, "Cat $catId")
+        CommerceFinanceFixtures.insertTestProduct(prodId, "Product $prodId", catId)
         productSaleId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestProductSale(
+        CommerceFinanceFixtures.insertTestProductSale(
             id = productSaleId,
             branchDayId = dayId,
             productId = prodId,
@@ -123,14 +127,14 @@ class RemittanceAuthzTest : BasePostgresTest() {
             dateRangeEnd = rangeEnd,
         )
         otherBranchBreakdownId = TestFixtures.uuid()
-        val otherDayId = DatabaseTestHelper.createBranchDayForDate(otherBranchId, branchDayDate)
+        val otherDayId = BranchWorkforceFixtures.createBranchDayForDate(otherBranchId, branchDayDate)
         RemittanceService.addDayBreakdown(submitUser, otherBranchDraftId, otherBranchBreakdownId, otherDayId)
 
         submittedRemittanceId = TestFixtures.uuid()
         val subLineId = TestFixtures.uuid()
         submittedBreakdownId = TestFixtures.uuid()
         val secondSessionId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestSession(
+        SessionClientFixtures.insertTestSession(
             id = secondSessionId,
             clientId = clientId,
             branchDayId = dayId,
@@ -176,7 +180,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.exception(ValidationException::class.java) { e, ctx ->
@@ -255,7 +259,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
     @Test
     fun `GET list returns 404 for missing branch with grant`() {
         val missingBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = submitUser,
             capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
             contextType = CapabilityContextType.BRANCH,
@@ -606,8 +610,8 @@ class RemittanceAuthzTest : BasePostgresTest() {
     @Test
     fun `POST line still allowed for granted user`() {
         val freshSessionId = TestFixtures.uuid()
-        val freshDayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
-        DatabaseTestHelper.insertTestSession(
+        val freshDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, branchDayDate)
+        SessionClientFixtures.insertTestSession(
             id = freshSessionId,
             clientId = clientId,
             branchDayId = freshDayId,
@@ -632,8 +636,8 @@ class RemittanceAuthzTest : BasePostgresTest() {
     fun `DELETE line forbidden for no-capability user`() {
         val lineId = TestFixtures.uuid()
         val freshSessionId = TestFixtures.uuid()
-        val freshDayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
-        DatabaseTestHelper.insertTestSession(
+        val freshDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, branchDayDate)
+        SessionClientFixtures.insertTestSession(
             id = freshSessionId,
             clientId = clientId,
             branchDayId = freshDayId,
@@ -663,7 +667,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST day-breakdown forbidden for no-capability user`() {
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, LocalDate.of(2026, 7, 11))
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, LocalDate.of(2026, 7, 11))
         testServer.client.let { client ->
             val body =
                 mapOf(

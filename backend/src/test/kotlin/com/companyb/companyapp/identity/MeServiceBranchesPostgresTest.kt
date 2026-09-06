@@ -8,9 +8,10 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.service.attendance.AttendanceRepository
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.attendance.ClockInParams
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
 import java.util.UUID
@@ -28,9 +29,9 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
     private val reliefBranch = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(userId, "me-branches")
-        DatabaseTestHelper.insertTestUser(noAssignmentUserId, "me-no-assignments")
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertTestUser(userId, "me-branches")
+        IdentityFixtures.insertTestUser(noAssignmentUserId, "me-no-assignments")
+        IdentityFixtures.insertUser(
             id = inactiveUserId,
             username = "inactive-$inactiveUserId",
             passwordHash = "test-password-hash",
@@ -38,9 +39,9 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
             displayName = "Inactive User",
             status = UserStatus.INACTIVE,
         )
-        DatabaseTestHelper.insertTestBranch(branchA, "Branch A")
-        DatabaseTestHelper.insertTestBranch(branchB, "Branch B")
-        DatabaseTestHelper.insertTestBranch(reliefBranch, "Relief Branch")
+        BranchWorkforceFixtures.insertTestBranch(branchA, "Branch A")
+        BranchWorkforceFixtures.insertTestBranch(branchB, "Branch B")
+        BranchWorkforceFixtures.insertTestBranch(reliefBranch, "Relief Branch")
     }
 
     @Test
@@ -111,7 +112,7 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
 
     @Test
     fun `getBranches excludes ended assignments`() {
-        DatabaseTestHelper.insertTestAssignment(
+        BranchWorkforceFixtures.insertTestAssignment(
             userId = userId,
             branchId = branchA,
             slot = 1,
@@ -151,7 +152,7 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
     }
 
     private fun assignToBranch(branchId: UUID): UUID =
-        DatabaseTestHelper.insertTestAssignment(
+        BranchWorkforceFixtures.insertTestAssignment(
             userId = userId,
             branchId = branchId,
             slot = 1,

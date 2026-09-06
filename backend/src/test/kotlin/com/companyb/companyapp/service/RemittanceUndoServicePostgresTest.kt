@@ -14,9 +14,10 @@ import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.service.finance.remittance.RemittanceFinancialSnapshotRepository
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -44,11 +45,11 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
     private val dayDate = LocalDate.of(2026, 7, 10)
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "remittance-undo-caller")
+        IdentityFixtures.insertTestUser(callerId, "remittance-undo-caller")
 
-        DatabaseTestHelper.insertTestBranch(branchId, "Undo Branch ${TestFixtures.uuid()}")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Undo Branch ${TestFixtures.uuid()}")
 
-        DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, branchId)
+        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
     }
 
     @Test
@@ -402,7 +403,7 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
     }
 
     private fun addBreakdown(remittanceId: UUID): UUID {
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, dayDate)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDate)
         RemittanceService.addDayBreakdown(callerId, remittanceId, TestFixtures.uuid(), dayId)
         return dayId
     }

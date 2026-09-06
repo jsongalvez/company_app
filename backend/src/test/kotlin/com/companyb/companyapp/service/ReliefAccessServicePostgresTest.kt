@@ -16,9 +16,10 @@ import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -54,12 +55,12 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     private val branchDayId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(reliefUserId, "relief")
-        DatabaseTestHelper.insertTestUser(memberId, "member")
-        DatabaseTestHelper.insertTestBranch(branchId, branchName)
+        IdentityFixtures.insertTestUser(reliefUserId, "relief")
+        IdentityFixtures.insertTestUser(memberId, "member")
+        BranchWorkforceFixtures.insertTestBranch(branchId, branchName)
         insertBranchDay(branchDayId, branchId)
         // The member's home assignment — grant/deny/cancel authority (#357).
-        DatabaseTestHelper.insertTestAssignment(
+        BranchWorkforceFixtures.insertTestAssignment(
             userId = memberId,
             branchId = branchId,
             slot = 1,
@@ -124,8 +125,8 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     @Test
     fun `request by an assigned member of the branch fails with 400`() {
         val assignedMember = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(assignedMember, "home-member")
-        DatabaseTestHelper.insertTestAssignment(
+        IdentityFixtures.insertTestUser(assignedMember, "home-member")
+        BranchWorkforceFixtures.insertTestAssignment(
             userId = assignedMember,
             branchId = branchId,
             slot = 2,
@@ -139,7 +140,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `request fails with 403 when requester is deactivated`() {
-        DatabaseTestHelper.insertTestUser(inactiveRequester, "inactive")
+        IdentityFixtures.insertTestUser(inactiveRequester, "inactive")
         transaction {
             AppUserTable.update({ AppUserTable.id eq inactiveRequester }) {
                 it[AppUserTable.status] = UserStatus.INACTIVE
@@ -282,7 +283,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     @Test
     fun `grant by a non-member fails with 403`() {
         val outsider = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(outsider, "outsider")
+        IdentityFixtures.insertTestUser(outsider, "outsider")
         val requestId = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
 
@@ -307,7 +308,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     @Test
     fun `two requests from different requesters can both be granted (no supersede)`() {
         val secondRelief = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(secondRelief, "relief-2")
+        IdentityFixtures.insertTestUser(secondRelief, "relief-2")
         val request1 = TestFixtures.uuid()
         val request2 = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(request1, branchId, TestFixtures.today, reliefUserId)
@@ -366,7 +367,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     @Test
     fun `deny by a non-member fails with 403`() {
         val outsider = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(outsider, "other")
+        IdentityFixtures.insertTestUser(outsider, "other")
         val requestId = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
 
@@ -400,7 +401,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
                 it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.PENDING
             }
         }
-        DatabaseTestHelper.grantEditPastDay(memberId, branchId, TestFixtures.uuid())
+        BranchWorkforceFixtures.grantEditPastDay(memberId, branchId, TestFixtures.uuid())
 
         val result = ReliefAccessService.grantAccess(requestId, memberId, "Coordinator correction")
 
@@ -465,7 +466,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     @Test
     fun `cancel by a non-member non-requester fails with 403`() {
         val outsider = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(outsider, "cancel-outsider")
+        IdentityFixtures.insertTestUser(outsider, "cancel-outsider")
         val requestId = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
 
@@ -515,7 +516,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     @Test
     fun `members see every request on the day, outsiders only their own`() {
         val otherOutsider = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherOutsider, "relief-3")
+        IdentityFixtures.insertTestUser(otherOutsider, "relief-3")
         val mine = TestFixtures.uuid()
         val theirs = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(mine, branchId, TestFixtures.today, reliefUserId)
@@ -573,8 +574,8 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     @Test
     fun `broadcast skips deactivated members with open assignments`() {
         val inactiveMember = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(inactiveMember, "inactive-member")
-        DatabaseTestHelper.insertTestAssignment(
+        IdentityFixtures.insertTestUser(inactiveMember, "inactive-member")
+        BranchWorkforceFixtures.insertTestAssignment(
             userId = inactiveMember,
             branchId = branchId,
             slot = 3,
@@ -685,7 +686,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     @Test
     fun `invite acceptance broadcasts to the branch members`() {
         val inviteeId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(inviteeId, "relief-invitee")
+        IdentityFixtures.insertTestUser(inviteeId, "relief-invitee")
         // The acceptance audit row is authored by the invitee; the capability by grant.
 
         // Mint through the service: the invite lands on the pre-seeded today day row.

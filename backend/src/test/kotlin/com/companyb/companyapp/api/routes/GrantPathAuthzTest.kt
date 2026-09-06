@@ -13,10 +13,11 @@ import com.companyb.companyapp.identity.MeRoutes
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
@@ -55,9 +56,9 @@ class GrantPathAuthzTest : BasePostgresTest() {
             accountantUser to "accountant",
             noRoleUser to "no-role",
         ).forEach { (id, prefix) ->
-            DatabaseTestHelper.insertTestUser(id, prefix)
+            IdentityFixtures.insertTestUser(id, prefix)
         }
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertUser(
             id = inactiveOwnerUser,
             username = "inactive-owner-${inactiveOwnerUser.toString().take(8)}",
             passwordHash = "test-password-hash",
@@ -98,7 +99,7 @@ class GrantPathAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->

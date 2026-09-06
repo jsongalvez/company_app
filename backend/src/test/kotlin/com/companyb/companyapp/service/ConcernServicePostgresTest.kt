@@ -10,9 +10,11 @@ import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionConcernTable
 import com.companyb.companyapp.service.session.SessionConcernService
 import com.companyb.companyapp.service.session.SessionService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -43,11 +45,11 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     private val promotedClientId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "concern-caller")
-        DatabaseTestHelper.insertTestBranch(branchId)
-        DatabaseTestHelper.insertTestClient(clientId)
-        DatabaseTestHelper.insertTestClient(promotedClientId)
-        DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
+        IdentityFixtures.insertTestUser(callerId, "concern-caller")
+        BranchWorkforceFixtures.insertTestBranch(branchId)
+        SessionClientFixtures.insertTestClient(clientId)
+        SessionClientFixtures.insertTestClient(promotedClientId)
+        IdentityFixtures.grantEditBranchData(callerId, sourceId)
         insertSessionBaseRate()
         createSession(callerId, sessionId)
         createSession(callerId, promotedSessionId, clientId = promotedClientId)
@@ -68,7 +70,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     @Test
     fun `listAll without EDIT_BRANCH_DATA is allowed at service layer`() {
         val otherCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
+        IdentityFixtures.insertTestUser(otherCaller, "concern-other")
 
         val concerns = ConcernService.listAll()
 
@@ -97,14 +99,14 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add concern on REMITTED day with reason succeeds and flags audit entry`() {
         val remittedDayId =
-            DatabaseTestHelper.createRemittedBranchDay(
+            BranchWorkforceFixtures.createRemittedBranchDay(
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
         val remittedSessionId = TestFixtures.uuid()
-        val remittedClientId = DatabaseTestHelper.insertTestClient()
-        DatabaseTestHelper.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        val remittedClientId = SessionClientFixtures.insertTestClient()
+        SessionClientFixtures.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
 
         SessionConcernService.addToSession(callerId, remittedSessionId, systemConcernId, "Coordinator correction")
 
@@ -133,7 +135,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add concern without EDIT_BRANCH_DATA is allowed at service layer`() {
         val otherCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
+        IdentityFixtures.insertTestUser(otherCaller, "concern-other")
 
         SessionConcernService.addToSession(otherCaller, sessionId, systemConcernId)
 
@@ -181,7 +183,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     fun `remove concern without EDIT_BRANCH_DATA is allowed at service layer`() {
         SessionConcernService.addToSession(callerId, sessionId, systemConcernId)
         val otherCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
+        IdentityFixtures.insertTestUser(otherCaller, "concern-other")
 
         SessionConcernService.removeFromSession(otherCaller, sessionId, systemConcernId)
 
@@ -237,14 +239,14 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     @Test
     fun `getForSession on REMITTED day with EDIT_PAST_DAY returns concerns without requiring a reason`() {
         val remittedDayId =
-            DatabaseTestHelper.createRemittedBranchDay(
+            BranchWorkforceFixtures.createRemittedBranchDay(
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
         val remittedSessionId = TestFixtures.uuid()
-        val remittedClientId = DatabaseTestHelper.insertTestClient()
-        DatabaseTestHelper.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        val remittedClientId = SessionClientFixtures.insertTestClient()
+        SessionClientFixtures.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
 
         SessionConcernService.addToSession(callerId, remittedSessionId, systemConcernId, "Coordinator correction")
 
@@ -257,15 +259,15 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     @Test
     fun `getForSession on REMITTED day without EDIT_PAST_DAY is forbidden`() {
         val otherCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCaller, "concern-remitted-no-caps")
+        IdentityFixtures.insertTestUser(otherCaller, "concern-remitted-no-caps")
         val remittedDayId =
-            DatabaseTestHelper.createRemittedBranchDay(
+            BranchWorkforceFixtures.createRemittedBranchDay(
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
         val remittedSessionId = TestFixtures.uuid()
-        val remittedClientId = DatabaseTestHelper.insertTestClient()
-        DatabaseTestHelper.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
+        val remittedClientId = SessionClientFixtures.insertTestClient()
+        SessionClientFixtures.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
 
         assertFailsWith<ForbiddenException> {
             SessionConcernService.getForSession(otherCaller, remittedSessionId)
@@ -275,7 +277,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     @Test
     fun `getForSession without EDIT_BRANCH_DATA is allowed at service layer`() {
         val otherCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
+        IdentityFixtures.insertTestUser(otherCaller, "concern-other")
 
         val concerns = SessionConcernService.getForSession(otherCaller, promotedSessionId)
 
@@ -285,7 +287,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     @Test
     fun `promote concern without EDIT_BRANCH_DATA is allowed at service layer`() {
         val otherCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
+        IdentityFixtures.insertTestUser(otherCaller, "concern-other")
 
         val promoted =
             SessionConcernService.promoteConcern(

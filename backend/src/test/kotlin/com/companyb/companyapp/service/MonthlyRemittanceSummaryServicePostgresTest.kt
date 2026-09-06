@@ -10,9 +10,12 @@ import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -32,17 +35,17 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
     private val clientId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "summary-caller")
-        DatabaseTestHelper.insertTestBranch(branchId, "Monthly Summary Branch ${TestFixtures.uuid()}")
-        DatabaseTestHelper.insertTestClient(clientId)
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.insertTestUser(callerId, "summary-caller")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Monthly Summary Branch ${TestFixtures.uuid()}")
+        SessionClientFixtures.insertTestClient(clientId)
+        IdentityFixtures.grantCapability(
             userId = callerId,
             capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
             contextType = CapabilityContextType.GLOBAL,
             contextId = CapabilityService.GLOBAL_CONTEXT_ID,
             sourceId = sourceId,
         )
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = callerId,
             capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
             contextType = CapabilityContextType.BRANCH,
@@ -87,11 +90,16 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         createDraftRemittance(remittanceId, currentMonth.atDay(1), currentMonth.atEndOfMonth())
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, branchDayId)
 
-        DatabaseTestHelper.insertTestCompensation(branchDayId, callerId, BigDecimal("300.00"), assignedBy = callerId)
-        DatabaseTestHelper.insertTestExpense(branchDayId, callerId, BigDecimal("150.00"))
+        CommerceFinanceFixtures.insertTestCompensation(
+            branchDayId,
+            callerId,
+            BigDecimal("300.00"),
+            assignedBy = callerId,
+        )
+        CommerceFinanceFixtures.insertTestExpense(branchDayId, callerId, BigDecimal("150.00"))
 
         val sId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestSession(
+        SessionClientFixtures.insertTestSession(
             id = sId,
             clientId = clientId,
             branchDayId = branchDayId,
@@ -203,7 +211,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, branchDayId)
 
         val sId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestSession(
+        SessionClientFixtures.insertTestSession(
             id = sId,
             clientId = clientId,
             branchDayId = branchDayId,
@@ -288,9 +296,9 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         val psId = TestFixtures.uuid()
         val productCategoryId = TestFixtures.uuid()
         val productId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestCategory(productCategoryId, "Test Cat $psId")
-        DatabaseTestHelper.insertTestProduct(productId, "Test Prod $psId", productCategoryId)
-        DatabaseTestHelper.insertTestProductSale(
+        CommerceFinanceFixtures.insertTestCategory(productCategoryId, "Test Cat $psId")
+        CommerceFinanceFixtures.insertTestProduct(productId, "Test Prod $psId", productCategoryId)
+        CommerceFinanceFixtures.insertTestProductSale(
             id = psId,
             branchDayId = branchDayId,
             productId = productId,

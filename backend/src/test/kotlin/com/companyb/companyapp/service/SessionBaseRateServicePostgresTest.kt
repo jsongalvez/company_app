@@ -9,9 +9,11 @@ import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.service.session.SessionBaseRateService
 import com.companyb.companyapp.service.session.SessionService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -39,14 +41,14 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
     private val rateId2 = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "rate-caller")
-        DatabaseTestHelper.insertTestBranch(branchId, name = "Rate-Clinic-$branchId")
-        DatabaseTestHelper.insertTestBranch(otherBranchId, name = "Rate-Clinic-$otherBranchId")
+        IdentityFixtures.insertTestUser(callerId, "rate-caller")
+        BranchWorkforceFixtures.insertTestBranch(branchId, name = "Rate-Clinic-$branchId")
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, name = "Rate-Clinic-$otherBranchId")
     }
 
     @Test
     fun `set rate for branch creates rate and writes audit`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         val result =
             SessionBaseRateService.setRate(
@@ -84,7 +86,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `setting second rate for same branch and type deactivates first`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         val first =
             SessionBaseRateService.setRate(
@@ -126,7 +128,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `find active rates returns only current rates`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, BigDecimal("2500.00"))
         SessionBaseRateService.setRate(callerId, rateId2, branchId, SessionType.SECOND_SESSION, BigDecimal("2000.00"))
@@ -138,7 +140,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `duplicate idempotent set rate returns existing row`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         val first =
             SessionBaseRateService.setRate(
@@ -307,7 +309,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         assertEquals(5, SessionBaseRateService.findActiveRates(seededBranchId).size)
 
         // A fresh branch can create its first session without failing — the acceptance root.
-        val clientId = DatabaseTestHelper.insertTestClient()
+        val clientId = SessionClientFixtures.insertTestClient()
         val sessionId = TestFixtures.uuid()
         SessionService.create(
             callerId = callerId,
@@ -353,7 +355,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `find rates for branch with no rates returns empty`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         val rates = SessionBaseRateService.findActiveRates(branchId)
         assertTrue(rates.isEmpty())
     }

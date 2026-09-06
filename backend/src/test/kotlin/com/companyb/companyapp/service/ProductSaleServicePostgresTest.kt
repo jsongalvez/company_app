@@ -11,9 +11,12 @@ import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.service.finance.commission.CommissionService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -47,25 +50,25 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
     private val productName = "Sale Product ${TestFixtures.uuid().toString().take(8)}"
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "user")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Sale Branch")
-        DatabaseTestHelper.insertTestCategory(categoryId)
-        DatabaseTestHelper.insertTestProduct(productId, productName, categoryId)
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.insertTestClient(clientId)
-        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
-        DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
+        IdentityFixtures.insertTestUser(callerId, "user")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Sale Branch")
+        CommerceFinanceFixtures.insertTestCategory(categoryId)
+        CommerceFinanceFixtures.insertTestProduct(productId, productName, categoryId)
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        SessionClientFixtures.insertTestClient(clientId)
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
+        IdentityFixtures.grantEditBranchData(callerId, sourceId)
         ensureInventoryCard(branchId, productId, 20)
     }
 
     @Test
     fun `sell on REMITTED day with reason succeeds and flags audit entries`() {
         val remittedDayId =
-            DatabaseTestHelper.createRemittedBranchDay(
+            BranchWorkforceFixtures.createRemittedBranchDay(
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val saleId = TestFixtures.uuid()
 
         val sale =
@@ -203,10 +206,10 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         val foreignBranchId = TestFixtures.uuid()
         val foreignClientId = TestFixtures.uuid()
         val foreignSessionId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(foreignBranchId, "Foreign Sale Branch")
-        val foreignBranchDayId = DatabaseTestHelper.createBranchDayForToday(foreignBranchId)
-        DatabaseTestHelper.insertTestClient(foreignClientId)
-        DatabaseTestHelper.insertTestSession(foreignSessionId, foreignClientId, foreignBranchDayId)
+        BranchWorkforceFixtures.insertTestBranch(foreignBranchId, "Foreign Sale Branch")
+        val foreignBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(foreignBranchId)
+        SessionClientFixtures.insertTestClient(foreignClientId)
+        SessionClientFixtures.insertTestSession(foreignSessionId, foreignClientId, foreignBranchDayId)
         val saleId = TestFixtures.uuid()
 
         assertFailsWith<NotFoundException> {
@@ -270,8 +273,8 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
             )
 
         val foreignBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(foreignBranchId, "Foreign Retry Branch")
-        val foreignBranchDayId = DatabaseTestHelper.createBranchDayForToday(foreignBranchId)
+        BranchWorkforceFixtures.insertTestBranch(foreignBranchId, "Foreign Retry Branch")
+        val foreignBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(foreignBranchId)
 
         assertFailsWith<NotFoundException> {
             ProductSaleService.sell(
@@ -298,7 +301,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell without EDIT_BRANCH_DATA is allowed at service layer`() {
-        DatabaseTestHelper.revokeAllCapabilities(callerId)
+        IdentityFixtures.revokeAllCapabilities(callerId)
 
         val sale =
             ProductSaleService.sell(
@@ -446,7 +449,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         )
 
         val foreignCallerId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(foreignCallerId, "foreign-user")
+        IdentityFixtures.insertTestUser(foreignCallerId, "foreign-user")
 
         assertFailsWith<ConflictException> {
             ProductSaleService.sell(

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.integration
 
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
@@ -10,10 +10,11 @@ import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
-import com.companyb.companyapp.test.LockBarrier
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -45,14 +46,14 @@ class CommissionDayLockPostgresTest : BasePostgresTest() {
     private lateinit var productSaleId: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "commission-lock-caller")
-        DatabaseTestHelper.insertTestUser(targetUserId, "commission-lock-target")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Commission Lock Branch")
-        DatabaseTestHelper.insertTestCategory(categoryId, "Test Commission Lock Category")
-        DatabaseTestHelper.insertTestProduct(productId, "Commission Lock Product", categoryId)
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        IdentityFixtures.insertTestUser(callerId, "commission-lock-caller")
+        IdentityFixtures.insertTestUser(targetUserId, "commission-lock-target")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Commission Lock Branch")
+        CommerceFinanceFixtures.insertTestCategory(categoryId, "Test Commission Lock Category")
+        CommerceFinanceFixtures.insertTestProduct(productId, "Commission Lock Product", categoryId)
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         productSaleId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestProductSale(
+        CommerceFinanceFixtures.insertTestProductSale(
             id = productSaleId,
             branchDayId = branchDayId,
             productId = productId,
@@ -87,7 +88,7 @@ class CommissionDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `create on submit-REMITTED day with reason and EDIT_PAST_DAY succeeds flagged`() {
         submitRemittanceCoveringDay(branchDayId)
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
 
         val inclusionId = TestFixtures.uuid()
         val inclusion =
@@ -116,9 +117,9 @@ class CommissionDayLockPostgresTest : BasePostgresTest() {
 
     @Test
     fun `create on lazily-PAST day without EDIT_PAST_DAY is rejected`() {
-        val pastDayId = DatabaseTestHelper.createBranchDayForDate(branchId, TestFixtures.today.minusDays(1))
+        val pastDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, TestFixtures.today.minusDays(1))
         val pastSaleId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestProductSale(
+        CommerceFinanceFixtures.insertTestProductSale(
             id = pastSaleId,
             branchDayId = pastDayId,
             productId = productId,

@@ -11,9 +11,10 @@ import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.service.attendance.AttendanceService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -39,11 +40,11 @@ class ReliefInviteRevokePostgresTest : BasePostgresTest() {
     private val branchId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(inviterId, "revoke-inviter")
-        DatabaseTestHelper.insertTestUser(revokerId, "revoke-revoker")
-        DatabaseTestHelper.insertTestUser(inviteeId, "revoke-invitee")
-        DatabaseTestHelper.insertTestUser(outsiderId, "revoke-outsider")
-        DatabaseTestHelper.insertTestBranch(branchId, "Revoke Branch ${branchId.toString().take(8)}")
+        IdentityFixtures.insertTestUser(inviterId, "revoke-inviter")
+        IdentityFixtures.insertTestUser(revokerId, "revoke-revoker")
+        IdentityFixtures.insertTestUser(inviteeId, "revoke-invitee")
+        IdentityFixtures.insertTestUser(outsiderId, "revoke-outsider")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Revoke Branch ${branchId.toString().take(8)}")
         // Invite creation resolves-or-creates its duty-day rows at this branch.
 
         transaction {

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.test
+package com.companyb.companyapp.testsupport.database
 
 import com.companyb.companyapp.config.AppConfig
 import com.zaxxer.hikari.HikariConfig

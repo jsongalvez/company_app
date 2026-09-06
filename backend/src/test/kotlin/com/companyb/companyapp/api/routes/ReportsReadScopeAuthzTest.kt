@@ -21,10 +21,12 @@ import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.service.CapabilityService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -85,14 +87,14 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
             ownerUser to "reports-owner",
             noneUser to "no-caps",
         ).forEach { (id, prefix) ->
-            DatabaseTestHelper.insertTestUser(id, prefix)
+            IdentityFixtures.insertTestUser(id, prefix)
         }
 
-        DatabaseTestHelper.insertTestBranch(branchA, "Reports Branch 131 A")
-        DatabaseTestHelper.insertTestBranch(branchB, "Reports Branch 131 B")
+        BranchWorkforceFixtures.insertTestBranch(branchA, "Reports Branch 131 A")
+        BranchWorkforceFixtures.insertTestBranch(branchB, "Reports Branch 131 B")
 
         assignRole(ownerUser, "OWNER")
-        DatabaseTestHelper.insertTestAssignment(
+        BranchWorkforceFixtures.insertTestAssignment(
             userId = ownerUser,
             branchId = branchA,
             slot = 1,
@@ -100,7 +102,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         )
 
         // Branch-scoped VIEW_BRANCH_DATA at branchA only.
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = viewA,
             capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
@@ -108,7 +110,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
             sourceId = sourceId,
         )
         // Non-view grant at branchB — readable in the picker window, NOT view-exportable.
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = editB,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
@@ -116,7 +118,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
             sourceId = sourceId,
         )
         // GLOBAL VIEW_BRANCH_DATA with NO branch grants — the all-branches window.
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = globalViewUser,
             capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
             contextType = CapabilityContextType.GLOBAL,
@@ -157,7 +159,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
@@ -345,7 +347,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         branchType: BranchType,
         snapshot: FinancialSnapshot,
     ) {
-        DatabaseTestHelper.insertTestBranch(branchId, branchName, branchType)
+        BranchWorkforceFixtures.insertTestBranch(branchId, branchName, branchType)
         val remittanceId = TestFixtures.uuid()
         val today = TestFixtures.today
         transaction {

@@ -5,9 +5,11 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.model.NotificationCreateParams
 import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -34,12 +36,12 @@ class NotificationServicePostgresTest : BasePostgresTest() {
     }
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "notification-caller")
-        DatabaseTestHelper.insertTestUser(otherUserId, "notification-other")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Branch ${branchId.toString().take(8)}")
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.insertTestClient(clientId)
-        DatabaseTestHelper.insertTestSession(
+        IdentityFixtures.insertTestUser(callerId, "notification-caller")
+        IdentityFixtures.insertTestUser(otherUserId, "notification-other")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Branch ${branchId.toString().take(8)}")
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        SessionClientFixtures.insertTestClient(clientId)
+        SessionClientFixtures.insertTestSession(
             id = sessionId,
             clientId = clientId,
             branchDayId = branchDayId,
@@ -51,9 +53,9 @@ class NotificationServicePostgresTest : BasePostgresTest() {
     @Test
     fun `listUnread returns only unread notifications for caller`() {
         val session2Id = TestFixtures.uuid()
-        val client2Id = DatabaseTestHelper.insertTestClient()
-        val branchDay2Id = DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.insertTestSession(
+        val client2Id = SessionClientFixtures.insertTestClient()
+        val branchDay2Id = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        SessionClientFixtures.insertTestSession(
             id = session2Id,
             clientId = client2Id,
             branchDayId = branchDay2Id,
@@ -332,9 +334,9 @@ class NotificationServicePostgresTest : BasePostgresTest() {
         branchId: UUID,
     ): com.companyb.companyapp.repository.model.Notification {
         val newSessionId = TestFixtures.uuid()
-        val newClientId = DatabaseTestHelper.insertTestClient()
-        val newBranchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.insertTestSession(
+        val newClientId = SessionClientFixtures.insertTestClient()
+        val newBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        SessionClientFixtures.insertTestSession(
             id = newSessionId,
             clientId = newClientId,
             branchDayId = newBranchDayId,

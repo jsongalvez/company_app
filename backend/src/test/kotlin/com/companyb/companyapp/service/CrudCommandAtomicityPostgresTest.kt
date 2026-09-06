@@ -18,9 +18,11 @@ import com.companyb.companyapp.repository.model.SessionConcernTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.service.session.SessionConcernService
 import com.companyb.companyapp.service.session.SessionService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -47,7 +49,7 @@ class CrudCommandAtomicityPostgresTest : BasePostgresTest() {
     private val branchId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "crud-atomic-caller")
+        IdentityFixtures.insertTestUser(callerId, "crud-atomic-caller")
     }
 
     @Test
@@ -170,11 +172,11 @@ class CrudCommandAtomicityPostgresTest : BasePostgresTest() {
     @Test
     fun `version-mismatched compensation update writes no audit row`() {
         val targetUserId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(targetUserId, "crud-atomic-target")
+        IdentityFixtures.insertTestUser(targetUserId, "crud-atomic-target")
         // initTestData only tracks the branch id; this test needs a real branch_day under it.
-        DatabaseTestHelper.insertTestBranch(branchId)
-        val workDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        val payingDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        BranchWorkforceFixtures.insertTestBranch(branchId)
+        val workDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        val payingDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         val created =
             CompensationService.create(
@@ -215,11 +217,11 @@ class CrudCommandAtomicityPostgresTest : BasePostgresTest() {
         // New risk class for batch 3: one command writing THREE audit rows (concern insert,
         // session_concern link insert, session other-concerns clear). All three must commit
         // with the mutations in the command's single transaction.
-        DatabaseTestHelper.insertTestBranch(branchId)
-        val dayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        BranchWorkforceFixtures.insertTestBranch(branchId)
+        val dayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         val clientId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestClient(clientId)
+        SessionClientFixtures.insertTestClient(clientId)
 
         val sessionId = TestFixtures.uuid()
         transaction {

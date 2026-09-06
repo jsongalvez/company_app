@@ -770,9 +770,12 @@ style:
       - '**/backend/src/test/kotlin/com/companyb/companyapp/service/RemittanceServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/service/SessionServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/service/UserBranchAssignmentServicePostgresTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/test/BasePostgresTest.kt' #465 frozen
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/database/BasePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/test/BasePostgresTestTeardownTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/test/DatabaseTestHelper.kt' #465 frozen
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/IdentityFixtures.kt' #552 split from the retired mixed helper
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/BranchWorkforceFixtures.kt' #552 split from the retired mixed helper
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/SessionClientFixtures.kt' #552 split from the retired mixed helper
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/CommerceFinanceFixtures.kt' #552 split from the retired mixed helper
       - '**/composeApp/src/androidMain/kotlin/com/companyb/companyapp/network/TokenStore.android.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/App.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/AuditLogDiff.kt' #465 frozen

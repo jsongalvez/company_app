@@ -5,9 +5,10 @@ import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -50,9 +51,9 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
             directUser to "direct",
             dedupUser to "dedup",
         ).forEach { (id, prefix) ->
-            DatabaseTestHelper.insertTestUser(id, prefix)
+            IdentityFixtures.insertTestUser(id, prefix)
         }
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertUser(
             id = inactiveOwnerUser,
             username = "inactive-owner-${inactiveOwnerUser.toString().take(8)}",
             passwordHash = "test-password-hash",
@@ -61,7 +62,7 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
             status = UserStatus.INACTIVE,
         )
 
-        DatabaseTestHelper.insertTestBranch(branchId, "Grant Path Branch")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Grant Path Branch")
 
         assignRole(ownerUser, "OWNER")
         assignRole(superuserUser, "SUPERUSER")
@@ -71,14 +72,14 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
         assignRole(inactiveOwnerUser, "OWNER")
         assignRole(dedupUser, "OWNER")
 
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = directUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
             contextId = branchId,
             sourceId = sourceId,
         )
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = dedupUser,
             capabilityCode = CapabilityCodes.MANAGE_USERS,
             contextType = CapabilityContextType.GLOBAL,

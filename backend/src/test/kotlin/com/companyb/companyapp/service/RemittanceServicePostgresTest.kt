@@ -23,9 +23,12 @@ import com.companyb.companyapp.service.finance.remittance.RemittancePolicy
 import com.companyb.companyapp.service.finance.remittance.RemittanceRepository
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.service.finance.remittance.RemittanceSubmissionResult
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -60,11 +63,11 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     private var productSaleId: UUID? = null
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "remittance-caller")
+        IdentityFixtures.insertTestUser(callerId, "remittance-caller")
 
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Remittance Branch ${TestFixtures.uuid()}")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Remittance Branch ${TestFixtures.uuid()}")
 
-        DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, branchId)
+        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
     }
 
     @Test
@@ -150,7 +153,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create draft without SUBMIT_REMITTANCE is allowed at service layer`() {
-        DatabaseTestHelper.revokeAllCapabilities(callerId)
+        IdentityFixtures.revokeAllCapabilities(callerId)
 
         val remittance =
             RemittanceService.createDraft(
@@ -169,7 +172,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create draft with non-existent branch returns not found`() {
         val nonexistentBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, nonexistentBranchId)
+        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, nonexistentBranchId)
 
         assertFailsWith<NotFoundException> {
             RemittanceService.createDraft(
@@ -322,7 +325,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     fun `submit without SUBMIT_REMITTANCE is allowed at service layer`() {
         val remittanceId = TestFixtures.uuid()
         createDraftRemittance(remittanceId)
-        DatabaseTestHelper.revokeAllCapabilities(callerId)
+        IdentityFixtures.revokeAllCapabilities(callerId)
 
         val result = RemittanceService.submit(callerId, remittanceId, 1)
 
@@ -411,10 +414,10 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
                             (AuditLogTable.recordId eq branchDayId)
                     }.single()
             }
-        assertEquals("OPEN", DatabaseTestHelper.extractJsonField(audit[AuditLogTable.oldValue].orEmpty(), "status"))
+        assertEquals("OPEN", TestFixtures.extractJsonField(audit[AuditLogTable.oldValue].orEmpty(), "status"))
         assertEquals(
             "REMITTED",
-            DatabaseTestHelper.extractJsonField(audit[AuditLogTable.newValue].orEmpty(), "status"),
+            TestFixtures.extractJsonField(audit[AuditLogTable.newValue].orEmpty(), "status"),
         )
     }
 
@@ -441,10 +444,10 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
                             (AuditLogTable.recordId eq branchDayId)
                     }.single()
             }
-        assertEquals("OPEN", DatabaseTestHelper.extractJsonField(audit[AuditLogTable.oldValue].orEmpty(), "status"))
+        assertEquals("OPEN", TestFixtures.extractJsonField(audit[AuditLogTable.oldValue].orEmpty(), "status"))
         assertEquals(
             "REMITTED",
-            DatabaseTestHelper.extractJsonField(audit[AuditLogTable.newValue].orEmpty(), "status"),
+            TestFixtures.extractJsonField(audit[AuditLogTable.newValue].orEmpty(), "status"),
         )
     }
 
@@ -707,7 +710,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         ensureClientExists()
         val sId = TestFixtures.uuid()
         val branchDayId = resolveBranchDay()
-        DatabaseTestHelper.insertTestSession(
+        SessionClientFixtures.insertTestSession(
             id = sId,
             clientId = clientId,
             branchDayId = branchDayId,
@@ -723,9 +726,9 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val catId = TestFixtures.uuid()
         val prodId = TestFixtures.uuid()
         val branchDayId = resolveBranchDay()
-        DatabaseTestHelper.insertTestCategory(catId, "Cat ${psId.toString().take(8)}")
-        DatabaseTestHelper.insertTestProduct(prodId, "Prod ${psId.toString().take(8)}", catId)
-        DatabaseTestHelper.insertTestProductSale(
+        CommerceFinanceFixtures.insertTestCategory(catId, "Cat ${psId.toString().take(8)}")
+        CommerceFinanceFixtures.insertTestProduct(prodId, "Prod ${psId.toString().take(8)}", catId)
+        CommerceFinanceFixtures.insertTestProductSale(
             id = psId,
             branchDayId = branchDayId,
             productId = prodId,

@@ -12,10 +12,12 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -46,13 +48,18 @@ class ReliefAccessRoutesTest : BasePostgresTest() {
     private val branchDayId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(requester, "requester")
-        DatabaseTestHelper.insertTestUser(otherRequester, "requester-2")
-        DatabaseTestHelper.insertTestUser(memberId, "member")
-        DatabaseTestHelper.insertTestUser(outsider, "outsider")
-        DatabaseTestHelper.insertTestBranch(branchId, branchName)
+        IdentityFixtures.insertTestUser(requester, "requester")
+        IdentityFixtures.insertTestUser(otherRequester, "requester-2")
+        IdentityFixtures.insertTestUser(memberId, "member")
+        IdentityFixtures.insertTestUser(outsider, "outsider")
+        BranchWorkforceFixtures.insertTestBranch(branchId, branchName)
         insertBranchDay(branchDayId, branchId)
-        DatabaseTestHelper.insertTestAssignment(userId = memberId, branchId = branchId, slot = 1, assignedBy = memberId)
+        BranchWorkforceFixtures.insertTestAssignment(
+            userId = memberId,
+            branchId = branchId,
+            slot = 1,
+            assignedBy = memberId,
+        )
     }
 
     companion object {
@@ -69,7 +76,7 @@ class ReliefAccessRoutesTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->

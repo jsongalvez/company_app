@@ -26,9 +26,12 @@ import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.service.inventory.InventoryService
 import com.companyb.companyapp.service.session.SessionBaseRateService
 import com.companyb.companyapp.service.session.SessionService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -72,15 +75,15 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     private val subsequentRateId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "rl")
+        IdentityFixtures.insertTestUser(callerId, "rl")
 
-        DatabaseTestHelper.insertTestBranch(branchId)
+        BranchWorkforceFixtures.insertTestBranch(branchId)
 
-        DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, branchId)
-        DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
+        IdentityFixtures.grantEditBranchData(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
-        DatabaseTestHelper.insertTestClient(clientId)
+        SessionClientFixtures.insertTestClient(clientId)
 
         insertSessionBaseRate()
         insertSessionBaseRate(secondSessionRateId, SessionType.SECOND_SESSION)
@@ -145,8 +148,8 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         val foreignClientId = TestFixtures.uuid()
         val foreignBranchDayId = TestFixtures.uuid()
         val foreignSessionId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(foreignBranchId, "Foreign Remittance Source")
-        DatabaseTestHelper.insertTestClient(foreignClientId)
+        BranchWorkforceFixtures.insertTestBranch(foreignBranchId, "Foreign Remittance Source")
+        SessionClientFixtures.insertTestClient(foreignClientId)
         createSession()
         createProductSale()
         transaction {
@@ -203,7 +206,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         val remittance = createDraftRemittance()
         val outOfRangeDay = BranchDayService.resolveOrCreate(branchId, LocalDate.of(2026, 6, 1))
         val outOfRangeSessionId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestSession(
+        SessionClientFixtures.insertTestSession(
             id = outOfRangeSessionId,
             clientId = clientId,
             branchDayId = outOfRangeDay.id,
@@ -235,7 +238,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         insertProductCategory()
         insertProduct()
         val outOfRangeSaleId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestProductSale(
+        CommerceFinanceFixtures.insertTestProductSale(
             id = outOfRangeSaleId,
             branchDayId = outOfRangeDay.id,
             productId = productId,
@@ -366,7 +369,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         val versionBefore = RemittanceService.getRemittance(remittance.id).remittance.version
         val auditCountBefore = remittanceLineAuditCount()
         val otherUser = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherUser, "rl")
+        IdentityFixtures.insertTestUser(otherUser, "rl")
 
         assertFailsWith<ConflictException> {
             RemittanceService.addLine(
@@ -480,7 +483,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add line without SUBMIT_REMITTANCE is allowed at service layer`() {
         val otherUser = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherUser, "rl")
+        IdentityFixtures.insertTestUser(otherUser, "rl")
         val remittance = createDraftRemittance()
         createSession()
 
@@ -748,7 +751,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `delete line without SUBMIT_REMITTANCE is allowed at service layer`() {
         val otherUser = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherUser, "rl")
+        IdentityFixtures.insertTestUser(otherUser, "rl")
         val remittance = createDraftRemittance()
         createSession()
         val lineId = TestFixtures.uuid()
@@ -873,7 +876,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add day breakdown rejects foreign branch day`() {
         val foreignBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(foreignBranchId)
+        BranchWorkforceFixtures.insertTestBranch(foreignBranchId)
         val foreignDay = BranchDayService.resolveOrCreate(foreignBranchId, TestFixtures.today)
         val remittance = createDraftRemittance()
         assertFailsWith<NotFoundException> {
@@ -943,7 +946,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add day breakdown without capability is allowed at service layer`() {
         val otherUser = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherUser, "rl")
+        IdentityFixtures.insertTestUser(otherUser, "rl")
         val remittance = createDraftRemittance()
 
         val breakdown =
@@ -1076,7 +1079,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `get remittance without capability is allowed at service layer`() {
         val otherUser = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherUser, "rl")
+        IdentityFixtures.insertTestUser(otherUser, "rl")
         val remittance = createDraftRemittance()
 
         val detail = RemittanceService.getRemittance(remittance.id)

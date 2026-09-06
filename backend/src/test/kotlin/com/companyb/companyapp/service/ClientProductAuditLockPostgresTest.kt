@@ -8,9 +8,10 @@ import com.companyb.companyapp.repository.ClientRepository
 import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.ProductTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -38,8 +39,8 @@ class ClientProductAuditLockPostgresTest : BasePostgresTest() {
     private val categoryId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "audit-lock-caller")
-        DatabaseTestHelper.insertTestCategory(categoryId)
+        IdentityFixtures.insertTestUser(callerId, "audit-lock-caller")
+        CommerceFinanceFixtures.insertTestCategory(categoryId)
     }
 
     @Test
@@ -72,10 +73,10 @@ class ClientProductAuditLockPostgresTest : BasePostgresTest() {
             val updates = clientUpdates(clientId)
             assertEquals(1, updates.size, "holder writes no audit; only the contender UPDATE remains")
             val (oldJson, newJson) = updates.single()
-            assertEquals(ORIG_LAST, DatabaseTestHelper.extractJsonField(oldJson, "lastName"))
-            assertEquals(CONTENDER_LAST, DatabaseTestHelper.extractJsonField(newJson, "lastName"))
-            assertEquals("", DatabaseTestHelper.extractJsonField(oldJson, "firstName"))
-            assertEquals("", DatabaseTestHelper.extractJsonField(newJson, "firstName"))
+            assertEquals(ORIG_LAST, TestFixtures.extractJsonField(oldJson, "lastName"))
+            assertEquals(CONTENDER_LAST, TestFixtures.extractJsonField(newJson, "lastName"))
+            assertEquals("", TestFixtures.extractJsonField(oldJson, "firstName"))
+            assertEquals("", TestFixtures.extractJsonField(newJson, "firstName"))
         } finally {
             latches.releaseHolder.countDown()
             holder.join(JOIN_MILLIS)
@@ -107,8 +108,8 @@ class ClientProductAuditLockPostgresTest : BasePostgresTest() {
 
             assertEquals(CONTENDER_FIRST, findClient(clientId).first)
             val (oldJson, newJson) = clientUpdates(clientId).single()
-            assertEquals(HOLDER_FIRST, DatabaseTestHelper.extractJsonField(oldJson, "firstName"))
-            assertEquals(CONTENDER_FIRST, DatabaseTestHelper.extractJsonField(newJson, "firstName"))
+            assertEquals(HOLDER_FIRST, TestFixtures.extractJsonField(oldJson, "firstName"))
+            assertEquals(CONTENDER_FIRST, TestFixtures.extractJsonField(newJson, "firstName"))
         } finally {
             latches.releaseHolder.countDown()
             holder.join(JOIN_MILLIS)
@@ -153,10 +154,10 @@ class ClientProductAuditLockPostgresTest : BasePostgresTest() {
             val updates = productUpdates(productId)
             assertEquals(1, updates.size, "holder writes no audit; only the contender UPDATE remains")
             val (oldJson, newJson) = updates.single()
-            assertEquals(ORIG_PRICE, DatabaseTestHelper.extractJsonField(oldJson, "unitPrice"))
-            assertEquals(CONTENDER_PRICE_STRING, DatabaseTestHelper.extractJsonField(newJson, "unitPrice"))
-            assertEquals("", DatabaseTestHelper.extractJsonField(oldJson, "name"))
-            assertEquals("", DatabaseTestHelper.extractJsonField(newJson, "name"))
+            assertEquals(ORIG_PRICE, TestFixtures.extractJsonField(oldJson, "unitPrice"))
+            assertEquals(CONTENDER_PRICE_STRING, TestFixtures.extractJsonField(newJson, "unitPrice"))
+            assertEquals("", TestFixtures.extractJsonField(oldJson, "name"))
+            assertEquals("", TestFixtures.extractJsonField(newJson, "name"))
         } finally {
             latches.releaseHolder.countDown()
             holder.join(JOIN_MILLIS)
@@ -196,8 +197,8 @@ class ClientProductAuditLockPostgresTest : BasePostgresTest() {
 
             assertEquals(CONTENDER_PRODUCT, findProduct(productId).first)
             val (oldJson, newJson) = productUpdates(productId).single()
-            assertEquals(HOLDER_PRODUCT, DatabaseTestHelper.extractJsonField(oldJson, "name"))
-            assertEquals(CONTENDER_PRODUCT, DatabaseTestHelper.extractJsonField(newJson, "name"))
+            assertEquals(HOLDER_PRODUCT, TestFixtures.extractJsonField(oldJson, "name"))
+            assertEquals(CONTENDER_PRODUCT, TestFixtures.extractJsonField(newJson, "name"))
         } finally {
             latches.releaseHolder.countDown()
             holder.join(JOIN_MILLIS)

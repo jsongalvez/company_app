@@ -7,10 +7,12 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.service.attendance.AttendanceService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -29,11 +31,11 @@ class DashboardAuthzTest : BasePostgresTest() {
     private val otherBranchId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(clockedInUser, "clocked-in")
-        DatabaseTestHelper.insertTestUser(otherBranchUser, "other-branch")
-        DatabaseTestHelper.insertTestUser(notClockedInUser, "not-clocked")
-        DatabaseTestHelper.insertTestBranch(branchId, "Branch A")
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Branch B")
+        IdentityFixtures.insertTestUser(clockedInUser, "clocked-in")
+        IdentityFixtures.insertTestUser(otherBranchUser, "other-branch")
+        IdentityFixtures.insertTestUser(notClockedInUser, "not-clocked")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Branch A")
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Branch B")
 
         AttendanceService.clockIn(TestFixtures.uuid(), branchId, clockedInUser)
         AttendanceService.clockIn(TestFixtures.uuid(), otherBranchId, otherBranchUser)
@@ -53,7 +55,7 @@ class DashboardAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->

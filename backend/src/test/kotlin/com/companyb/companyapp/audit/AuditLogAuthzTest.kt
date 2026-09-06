@@ -17,10 +17,12 @@ import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
@@ -74,49 +76,49 @@ class AuditLogAuthzTest : BasePostgresTest() {
             ownerUser to "owner",
             noneUser to "no-caps",
         ).forEach { (id, prefix) ->
-            DatabaseTestHelper.insertTestUser(id, prefix)
+            IdentityFixtures.insertTestUser(id, prefix)
         }
 
-        DatabaseTestHelper.insertTestBranch(branchA, "Audit Branch A $branchA")
-        DatabaseTestHelper.insertTestBranch(branchB, "Audit Branch B $branchB")
+        BranchWorkforceFixtures.insertTestBranch(branchA, "Audit Branch A $branchA")
+        BranchWorkforceFixtures.insertTestBranch(branchB, "Audit Branch B $branchB")
 
         assignRole(ownerUser, "OWNER")
-        DatabaseTestHelper.insertTestAssignment(
+        BranchWorkforceFixtures.insertTestAssignment(
             userId = ownerUser,
             branchId = branchA,
             slot = 1,
             assignedBy = ownerUser,
         )
 
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = editorA,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
             contextId = branchA,
             sourceId = sourceId,
         )
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = editorB,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
             contextId = branchB,
             sourceId = sourceId,
         )
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = manageUsersUser,
             capabilityCode = CapabilityCodes.MANAGE_USERS,
             contextType = CapabilityContextType.GLOBAL,
             contextId = com.companyb.companyapp.service.CapabilityService.GLOBAL_CONTEXT_ID,
             sourceId = sourceId,
         )
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = manageProductsUser,
             capabilityCode = CapabilityCodes.MANAGE_CATALOG,
             contextType = CapabilityContextType.GLOBAL,
             contextId = com.companyb.companyapp.service.CapabilityService.GLOBAL_CONTEXT_ID,
             sourceId = sourceId,
         )
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = globalViewUser,
             capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
             contextType = CapabilityContextType.GLOBAL,
@@ -237,7 +239,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->

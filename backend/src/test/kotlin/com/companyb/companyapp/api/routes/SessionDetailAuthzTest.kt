@@ -8,10 +8,13 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.service.NotificationService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -39,12 +42,12 @@ class SessionDetailAuthzTest : BasePostgresTest() {
     private lateinit var branchDayId: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(bearerUser, "detail-bearer")
-        DatabaseTestHelper.insertTestUser(otherUser, "detail-other")
-        DatabaseTestHelper.insertTestBranch(branchId, "Branch ${branchId.toString().take(8)}")
-        DatabaseTestHelper.insertTestClient(clientId)
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.insertTestSession(
+        IdentityFixtures.insertTestUser(bearerUser, "detail-bearer")
+        IdentityFixtures.insertTestUser(otherUser, "detail-other")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Branch ${branchId.toString().take(8)}")
+        SessionClientFixtures.insertTestClient(clientId)
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        SessionClientFixtures.insertTestSession(
             id = sessionId,
             clientId = clientId,
             branchDayId = branchDayId,
@@ -66,7 +69,7 @@ class SessionDetailAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
@@ -141,7 +144,7 @@ class SessionDetailAuthzTest : BasePostgresTest() {
         branchId: UUID,
     ): com.companyb.companyapp.repository.model.Notification {
         val notification =
-            DatabaseTestHelper.insertTestNotification(
+            SessionClientFixtures.insertTestNotification(
                 sessionId = sessionId,
                 userId = userId,
                 branchId = branchId,

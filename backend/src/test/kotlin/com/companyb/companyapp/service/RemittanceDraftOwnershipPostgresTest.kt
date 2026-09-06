@@ -7,9 +7,10 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.service.finance.remittance.Remittance
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -35,9 +36,9 @@ class RemittanceDraftOwnershipPostgresTest : BasePostgresTest() {
     private val secondBranchId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "remittance-owner")
+        IdentityFixtures.insertTestUser(callerId, "remittance-owner")
         listOf(firstBranchId to "First", secondBranchId to "Second").forEach { (id, name) ->
-            DatabaseTestHelper.insertTestBranch(id, "Remittance $name Branch ${TestFixtures.uuid()}")
+            BranchWorkforceFixtures.insertTestBranch(id, "Remittance $name Branch ${TestFixtures.uuid()}")
         }
     }
 

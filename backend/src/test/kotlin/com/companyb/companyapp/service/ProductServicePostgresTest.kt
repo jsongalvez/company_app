@@ -3,9 +3,10 @@ import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.ProductTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -27,13 +28,13 @@ class ProductServicePostgresTest : BasePostgresTest() {
     private val productId2 = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "caller")
-        DatabaseTestHelper.insertTestCategory(categoryId)
+        IdentityFixtures.insertTestUser(callerId, "caller")
+        CommerceFinanceFixtures.insertTestCategory(categoryId)
     }
 
     @Test
     fun `create persists product and writes audit row`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         val result =
             ProductService.create(
@@ -58,7 +59,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `duplicate client generated id returns existing product without extra audit`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         val first =
             ProductService.create(
                 callerId = callerId,
@@ -88,7 +89,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `list returns active products`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         ProductService.create(
             callerId = callerId,
             id = productId,
@@ -115,7 +116,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findAll includes deactivated row while findAllActive omits it`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         ProductService.create(
             callerId = callerId,
             id = productId,
@@ -153,7 +154,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `find by id returns persisted product`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         ProductService.create(
             callerId = callerId,
             id = productId,
@@ -169,7 +170,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update persists changes and writes audit row`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         ProductService.create(
             callerId = callerId,
             id = productId,
@@ -241,7 +242,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
     @Test
     fun `findById without MANAGE_PRODUCTS is allowed at service layer`() {
         val newProductId = TestFixtures.uuid()
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         ProductService.create(
             callerId = callerId,
             id = newProductId,
@@ -252,7 +253,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
         )
 
         val otherCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCaller, "other")
+        IdentityFixtures.insertTestUser(otherCaller, "other")
 
         val found = ProductService.findById(newProductId)
         assertEquals("Find Product", found.name)
@@ -260,7 +261,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create with non-existent category returns bad request`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         assertFailsWith<ValidationException> {
             ProductService.create(
@@ -298,11 +299,11 @@ class ProductServicePostgresTest : BasePostgresTest() {
                 }.map { row ->
                     val oldState =
                         row[AuditLogTable.oldValue]?.let {
-                            DatabaseTestHelper.extractJsonField(it, "isActive")
+                            TestFixtures.extractJsonField(it, "isActive")
                         }
                     val newState =
                         row[AuditLogTable.newValue]?.let {
-                            DatabaseTestHelper.extractJsonField(it, "isActive")
+                            TestFixtures.extractJsonField(it, "isActive")
                         }
                     oldState to newState
                 }

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.test
+package com.companyb.companyapp.testsupport.database
 
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branch.BranchTable
@@ -12,6 +12,8 @@ import com.companyb.companyapp.repository.model.CapabilityTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
+import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -37,12 +39,12 @@ class WorkerSchemaResetTest : BasePostgresTest() {
         val seedsBefore = seedCounts()
         val callerId = TestFixtures.uuid()
         val branchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(callerId, "reset-proof")
+        IdentityFixtures.insertTestUser(callerId, "reset-proof")
         BranchService.create(callerId, branchId, "Reset Branch", BranchType.CLINIC)
         assertTrue(baseRateCount(branchId) >= 1, "branch create must seed base rates")
         assertTrue(branchCount(branchId) == 1L, "branch row must exist before reset")
 
-        DatabaseTestHelper.resetWorkerSchema()
+        TestDatabaseLifecycle.resetWorkerSchema()
 
         assertEquals(0L, branchCount(branchId), "branch row must disappear after reset")
         assertEquals(0, baseRateCount(branchId), "side-effect base rates must disappear after reset")
@@ -54,14 +56,14 @@ class WorkerSchemaResetTest : BasePostgresTest() {
     fun `reset allows repeat setup and keeps snapshot trigger enforced`() {
         val callerId = TestFixtures.uuid()
         val branchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(callerId, "reset-repeat")
+        IdentityFixtures.insertTestUser(callerId, "reset-repeat")
         BranchService.create(callerId, branchId, "Repeat Branch", BranchType.CLINIC)
         val remittanceId = insertSubmittedRemittance(branchId, callerId)
         assertUpdateBlocked(remittanceId)
 
-        DatabaseTestHelper.resetWorkerSchema()
+        TestDatabaseLifecycle.resetWorkerSchema()
 
-        DatabaseTestHelper.insertTestUser(callerId, "reset-repeat")
+        IdentityFixtures.insertTestUser(callerId, "reset-repeat")
         BranchService.create(callerId, branchId, "Repeat Branch", BranchType.CLINIC)
         assertEquals(1L, branchCount(branchId), "repeat setup must work after reset")
         val secondRemittance = insertSubmittedRemittance(branchId, callerId)

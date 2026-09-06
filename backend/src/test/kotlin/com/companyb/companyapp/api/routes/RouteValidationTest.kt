@@ -26,10 +26,14 @@ import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.service.CapabilityService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import io.javalin.Javalin
 import io.javalin.config.JavalinConfig
 import kotlinx.serialization.json.Json
@@ -60,8 +64,8 @@ class RouteValidationTest : BasePostgresTest() {
     private val testSessionId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(testUserId, "route-test")
-        DatabaseTestHelper.insertTestBranch(testBranchId, "Route Test Branch $testBranchId")
+        IdentityFixtures.insertTestUser(testUserId, "route-test")
+        BranchWorkforceFixtures.insertTestBranch(testBranchId, "Route Test Branch $testBranchId")
         val allCodes =
             listOf(
                 CapabilityCodes.VIEW_BRANCH_DATA,
@@ -76,14 +80,14 @@ class RouteValidationTest : BasePostgresTest() {
                 CapabilityCodes.ASSIGN_DELEGATE,
             )
         for (code in allCodes) {
-            DatabaseTestHelper.grantCapability(
+            IdentityFixtures.grantCapability(
                 userId = testUserId,
                 capabilityCode = code,
                 contextType = CapabilityContextType.BRANCH,
                 contextId = testBranchId,
                 sourceId = sourceId,
             )
-            DatabaseTestHelper.grantCapability(
+            IdentityFixtures.grantCapability(
                 userId = testUserId,
                 capabilityCode = code,
                 contextType = CapabilityContextType.GLOBAL,
@@ -91,12 +95,12 @@ class RouteValidationTest : BasePostgresTest() {
                 sourceId = sourceId,
             )
         }
-        testBranchDayId = DatabaseTestHelper.createBranchDayForToday(testBranchId)
-        DatabaseTestHelper.insertTestCategory(testCategoryId)
-        DatabaseTestHelper.insertTestProduct(testProductId, categoryId = testCategoryId)
-        DatabaseTestHelper.insertTestClient(testClientId)
-        DatabaseTestHelper.insertTestClient(testClientNoSessionsId)
-        DatabaseTestHelper.insertTestSession(
+        testBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(testBranchId)
+        CommerceFinanceFixtures.insertTestCategory(testCategoryId)
+        CommerceFinanceFixtures.insertTestProduct(testProductId, categoryId = testCategoryId)
+        SessionClientFixtures.insertTestClient(testClientId)
+        SessionClientFixtures.insertTestClient(testClientNoSessionsId)
+        SessionClientFixtures.insertTestSession(
             id = testSessionId,
             clientId = testClientId,
             branchDayId = testBranchDayId,
@@ -118,7 +122,7 @@ class RouteValidationTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", TEST_USER_ID.toString())
                 }
                 cfg.routes.exception(ValidationException::class.java) { e, ctx ->
@@ -320,13 +324,13 @@ class RouteValidationTest : BasePostgresTest() {
     @Test
     fun `GET session concerns on REMITTED day returns 200 with EDIT_PAST_DAY`() {
         val remittedDayId =
-            DatabaseTestHelper.createRemittedBranchDay(
+            BranchWorkforceFixtures.createRemittedBranchDay(
                 testBranchId,
                 TestFixtures.today.minusDays(3),
             )
-        val remittedClientId = DatabaseTestHelper.insertTestClient()
+        val remittedClientId = SessionClientFixtures.insertTestClient()
         val remittedSessionId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
+        SessionClientFixtures.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
 
         testServer.client.let { client ->
             assertEquals(200, client.get("/api/sessions/$remittedSessionId/concerns").code)
@@ -1010,7 +1014,7 @@ class RouteValidationTest : BasePostgresTest() {
     @Test
     fun `GET daily-summaries returns 200 empty feed for branch without days`() {
         val noDaysBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(noDaysBranchId, "No-Days Branch")
+        BranchWorkforceFixtures.insertTestBranch(noDaysBranchId, "No-Days Branch")
         testServer.client.let { client ->
             val response = client.get("/api/branches/$noDaysBranchId/daily-summaries")
             assertEquals(200, response.code, "a feed is 200 not 404 when the branch has no days")

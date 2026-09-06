@@ -13,10 +13,13 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -48,40 +51,45 @@ class SessionEditAuthzTest : BasePostgresTest() {
     private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(editorUser, "session-editor")
-        DatabaseTestHelper.insertTestUser(noGrantUser, "session-no-grant")
-        DatabaseTestHelper.insertTestUser(coordinatorUser, "session-coordinator")
-        DatabaseTestHelper.insertTestUser(wrongBranchUser, "session-wrong-branch")
-        DatabaseTestHelper.insertTestBranch(branchId, "Branch A")
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Branch B")
-        DatabaseTestHelper.insertTestClient(clientId)
+        IdentityFixtures.insertTestUser(editorUser, "session-editor")
+        IdentityFixtures.insertTestUser(noGrantUser, "session-no-grant")
+        IdentityFixtures.insertTestUser(coordinatorUser, "session-coordinator")
+        IdentityFixtures.insertTestUser(wrongBranchUser, "session-wrong-branch")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Branch A")
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Branch B")
+        SessionClientFixtures.insertTestClient(clientId)
 
         val branchDay =
             BranchDayService.resolveOrCreate(branchId, TestFixtures.today)
-        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDay.id, sessionStatus = SessionStatus.NO_SHOW)
+        SessionClientFixtures.insertTestSession(
+            sessionId,
+            clientId,
+            branchDay.id,
+            sessionStatus = SessionStatus.NO_SHOW,
+        )
 
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = editorUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
             contextId = branchId,
             sourceId = sourceId,
         )
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = wrongBranchUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
             contextId = otherBranchId,
             sourceId = sourceId,
         )
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = coordinatorUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
             contextId = branchId,
             sourceId = sourceId,
         )
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = coordinatorUser,
             capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
             contextType = CapabilityContextType.BRANCH,
@@ -104,7 +112,7 @@ class SessionEditAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->

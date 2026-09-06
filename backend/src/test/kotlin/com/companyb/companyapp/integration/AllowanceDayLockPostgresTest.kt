@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.integration
 
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
@@ -11,11 +11,12 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AllowanceRepository
 import com.companyb.companyapp.repository.model.AllowanceTable
+import com.companyb.companyapp.service.AllowanceService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
-import com.companyb.companyapp.test.LockBarrier
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -43,11 +44,11 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
     private lateinit var branchDayId: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "allowance-lock-caller")
-        DatabaseTestHelper.insertTestUser(targetUserId, "allowance-lock-target")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Allowance Lock Branch")
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
+        IdentityFixtures.insertTestUser(callerId, "allowance-lock-caller")
+        IdentityFixtures.insertTestUser(targetUserId, "allowance-lock-target")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Allowance Lock Branch")
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        IdentityFixtures.grantAssignCompensation(callerId, sourceId)
     }
 
     @Test
@@ -76,7 +77,7 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `create on submit-REMITTED day with reason and EDIT_PAST_DAY succeeds flagged`() {
         submitRemittanceCoveringDay(branchDayId)
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
 
         val allowanceId = TestFixtures.uuid()
         val allowance =
@@ -132,7 +133,7 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
 
     @Test
     fun `create on lazily-PAST day without EDIT_PAST_DAY is rejected`() {
-        val pastDayId = DatabaseTestHelper.createBranchDayForDate(branchId, TestFixtures.today.minusDays(1))
+        val pastDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, TestFixtures.today.minusDays(1))
 
         assertFailsWith<ForbiddenException> {
             AllowanceService.create(
@@ -157,8 +158,8 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
         )
 
         val otherCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherCaller, "allowance-lock-other")
-        DatabaseTestHelper.grantAssignCompensation(otherCaller, sourceId)
+        IdentityFixtures.insertTestUser(otherCaller, "allowance-lock-other")
+        IdentityFixtures.grantAssignCompensation(otherCaller, sourceId)
 
         assertFailsWith<ConflictException> {
             AllowanceService.create(
@@ -182,7 +183,7 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
             amount = BigDecimal("500.00"),
         )
 
-        val otherDayId = DatabaseTestHelper.createBranchDayForDate(branchId, TestFixtures.today.minusDays(2))
+        val otherDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, TestFixtures.today.minusDays(2))
 
         assertFailsWith<NotFoundException> {
             AllowanceService.create(

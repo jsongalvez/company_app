@@ -7,9 +7,10 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.service.CapabilityService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -31,11 +32,11 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         listOf(editorId to "audit-editor", acknowledgerId to "audit-acker").forEach { (id, prefix) ->
-            DatabaseTestHelper.insertTestUser(id, prefix)
+            IdentityFixtures.insertTestUser(id, prefix)
         }
         // Global VIEW_BRANCH_DATA = the NULL-branch read fallback (AuditLogReadScope).
         listOf(editorId, acknowledgerId).forEach {
-            DatabaseTestHelper.grantCapability(
+            IdentityFixtures.grantCapability(
                 userId = it,
                 capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
                 contextType = CapabilityContextType.GLOBAL,
@@ -67,7 +68,7 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
     fun `findByTableAndRecord without any capability returns empty not error`() {
         insertAuditEntry(recordId, tableName, AuditAction.INSERT, false)
         val noGrantUser = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(noGrantUser, "audit-no-grant")
+        IdentityFixtures.insertTestUser(noGrantUser, "audit-no-grant")
 
         // NULL-branch rows are invisible to a zero-grant caller, but the call
         // is allowed (D9: no route gate; scoping is authoritative, not 403).
@@ -111,7 +112,7 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
     fun `findFlagged without any capability returns empty not error`() {
         insertAuditEntry(TestFixtures.uuid(), "t1", AuditAction.UPDATE, true)
         val noGrantUser = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(noGrantUser, "audit-no-grant-2")
+        IdentityFixtures.insertTestUser(noGrantUser, "audit-no-grant-2")
 
         assertTrue(AuditLogService.findFlagged(noGrantUser).isEmpty())
     }
@@ -132,7 +133,7 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
         val entryId = TestFixtures.uuid()
         insertAuditEntryWithId(entryId, recordId, tableName, AuditAction.UPDATE, true)
         val noGrantUser = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(noGrantUser, "audit-no-grant-ack")
+        IdentityFixtures.insertTestUser(noGrantUser, "audit-no-grant-ack")
 
         // No 403: acknowledge is gated by the read window, not a capability
         // route gate (D9). Out-of-window rows are invisible -> 404.
@@ -172,7 +173,7 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
     @Test
     fun `findByTableAndRecord hides other-branch rows from the caller window`() {
         val branchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(branchId, "Service Test Branch $branchId")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Service Test Branch $branchId")
         val recId = recordId
         val tblName = tableName
         transaction {
@@ -194,12 +195,12 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
         val branchA = TestFixtures.uuid()
         val branchB = TestFixtures.uuid()
         listOf(branchA to "Svc Branch A", branchB to "Svc Branch B").forEach { (id, name) ->
-            DatabaseTestHelper.insertTestBranch(id, "$name $id")
+            BranchWorkforceFixtures.insertTestBranch(id, "$name $id")
         }
         // Branch-scoped editor without the global view grant: window = branchA only.
         val windowedUser = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(windowedUser, "audit-windowed")
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.insertTestUser(windowedUser, "audit-windowed")
+        IdentityFixtures.grantCapability(
             userId = windowedUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,

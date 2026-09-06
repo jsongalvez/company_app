@@ -14,10 +14,13 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.service.ExpenseService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -52,23 +55,23 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             targetUser1 to "target-1",
             targetUser2 to "target-2",
         ).forEach { (id, prefix) ->
-            DatabaseTestHelper.insertTestUser(id, prefix)
+            IdentityFixtures.insertTestUser(id, prefix)
         }
 
-        DatabaseTestHelper.insertTestBranch(branchId, "Finance Branch $branchId")
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Finance Branch $otherBranchId")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Finance Branch $branchId")
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Finance Branch $otherBranchId")
 
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        otherBranchDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        otherBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(otherBranchId)
 
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = assignUser,
             capabilityCode = CapabilityCodes.ASSIGN_COMPENSATION,
             contextType = CapabilityContextType.BRANCH,
             contextId = branchId,
             sourceId = sourceId,
         )
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = editOnlyUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
@@ -76,12 +79,12 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             sourceId = sourceId,
         )
 
-        DatabaseTestHelper.insertTestCompensation(branchDayId, targetUser1, BigDecimal("1500.00"), assignUser)
-        DatabaseTestHelper.insertTestCompensation(branchDayId, targetUser2, BigDecimal("1200.00"), assignUser)
+        CommerceFinanceFixtures.insertTestCompensation(branchDayId, targetUser1, BigDecimal("1500.00"), assignUser)
+        CommerceFinanceFixtures.insertTestCompensation(branchDayId, targetUser2, BigDecimal("1200.00"), assignUser)
 
-        DatabaseTestHelper.insertTestAttendance(branchDayId, targetUser1)
-        DatabaseTestHelper.insertTestAttendance(branchDayId, targetUser2)
-        DatabaseTestHelper.insertTestAttendance(otherBranchDayId, targetUser1)
+        BranchWorkforceFixtures.insertTestAttendance(branchDayId, targetUser1)
+        BranchWorkforceFixtures.insertTestAttendance(branchDayId, targetUser2)
+        BranchWorkforceFixtures.insertTestAttendance(otherBranchDayId, targetUser1)
 
         expenseId = TestFixtures.uuid()
         ExpenseService.create(
@@ -108,7 +111,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
@@ -136,7 +139,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
         userId: UUID,
         branchId: UUID,
     ) {
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = userId,
             capabilityCode = CapabilityCodes.ASSIGN_COMPENSATION,
             contextType = CapabilityContextType.BRANCH,
@@ -167,7 +170,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     @Test
     fun `GET compensations returns only rows for requested branch day`() {
         val yesterday = TestFixtures.today.minusDays(1)
-        val otherDayBranchDayId = DatabaseTestHelper.createBranchDayForDate(branchId, yesterday)
+        val otherDayBranchDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, yesterday)
         testServer.client.let { client ->
             val response =
                 client.get(
@@ -244,8 +247,8 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     @Test
     fun `GET branch-day users returns only users of requested day`() {
         val yesterday = TestFixtures.today.minusDays(1)
-        val otherDayBranchDayId = DatabaseTestHelper.createBranchDayForDate(branchId, yesterday)
-        DatabaseTestHelper.insertTestAttendance(otherDayBranchDayId, targetUser1)
+        val otherDayBranchDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, yesterday)
+        BranchWorkforceFixtures.insertTestAttendance(otherDayBranchDayId, targetUser1)
         testServer.client.let { client ->
             val response =
                 client.get(

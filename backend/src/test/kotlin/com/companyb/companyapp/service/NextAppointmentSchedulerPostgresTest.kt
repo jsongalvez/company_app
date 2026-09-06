@@ -14,9 +14,11 @@ import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.service.session.SessionBaseRateService
 import com.companyb.companyapp.service.session.SessionService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -61,15 +63,15 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         get() = listOf(callerId, coordinatorId, nonCoordinatorId, unassignedCoordinatorId)
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "scheduler-caller")
-        DatabaseTestHelper.insertTestUser(coordinatorId, "scheduler-coordinator")
-        DatabaseTestHelper.insertTestUser(nonCoordinatorId, "scheduler-practitioner")
-        DatabaseTestHelper.insertTestUser(unassignedCoordinatorId, "scheduler-unassigned-coordinator")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Scheduler Branch ${branchId.toString().take(8)}")
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Branch ${otherBranchId.toString().take(8)}")
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.insertTestClient(clientId)
-        DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
+        IdentityFixtures.insertTestUser(callerId, "scheduler-caller")
+        IdentityFixtures.insertTestUser(coordinatorId, "scheduler-coordinator")
+        IdentityFixtures.insertTestUser(nonCoordinatorId, "scheduler-practitioner")
+        IdentityFixtures.insertTestUser(unassignedCoordinatorId, "scheduler-unassigned-coordinator")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Scheduler Branch ${branchId.toString().take(8)}")
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Branch ${otherBranchId.toString().take(8)}")
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        SessionClientFixtures.insertTestClient(clientId)
+        IdentityFixtures.grantEditBranchData(callerId, sourceId)
         allTestUsers.forEach { userId ->
         }
         insertSessionBaseRate()
@@ -352,7 +354,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         userId: UUID,
         branchId: UUID,
     ) {
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = userId,
             capabilityCode = CapabilityCodes.RECEIVE_NEXT_APPOINTMENT_ALERTS,
             contextType = CapabilityContextType.BRANCH,

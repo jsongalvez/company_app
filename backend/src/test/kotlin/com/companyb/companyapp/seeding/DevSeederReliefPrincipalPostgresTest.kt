@@ -10,7 +10,7 @@ import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.repository.model.CapabilityTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
-import com.companyb.companyapp.test.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList

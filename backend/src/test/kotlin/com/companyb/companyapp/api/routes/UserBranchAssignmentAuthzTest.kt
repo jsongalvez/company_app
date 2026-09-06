@@ -12,10 +12,12 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
@@ -37,7 +39,7 @@ import kotlin.test.assertTrue
  * service layer (the #114 exact-path lesson — the old 4-segment before-filters
  * never matched the 5-segment DELETE and /slots/swap paths).
  *
- * Grants are direct via DatabaseTestHelper (ADR-0023 — role derivation has no
+ * Grants are direct via IdentityFixtures (ADR-0023 — role derivation has no
  * production seed; direct grants are the realistic path today).
  */
 class UserBranchAssignmentAuthzTest : BasePostgresTest() {
@@ -51,19 +53,19 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
 
     override fun initTestData() {
         listOf(managerUser, noGrantUser, userAId, userBId).forEach { id ->
-            DatabaseTestHelper.insertTestUser(id, id.toString().take(6))
+            IdentityFixtures.insertTestUser(id, id.toString().take(6))
         }
-        DatabaseTestHelper.grantManageUsers(managerUser, managerUser)
-        DatabaseTestHelper.insertTestBranch(branchId, "Authz Branch 134")
+        IdentityFixtures.grantManageUsers(managerUser, managerUser)
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Authz Branch 134")
         assignmentAId =
-            DatabaseTestHelper.insertTestAssignment(
+            BranchWorkforceFixtures.insertTestAssignment(
                 userId = userAId,
                 branchId = branchId,
                 slot = 1,
                 assignedBy = managerUser,
             )
         assignmentBId =
-            DatabaseTestHelper.insertTestAssignment(
+            BranchWorkforceFixtures.insertTestAssignment(
                 userId = userBId,
                 branchId = branchId,
                 slot = 2,
@@ -87,7 +89,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.exception(ValidationException::class.java) { e, ctx ->
@@ -266,7 +268,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     @Test
     fun `DELETE own assignment by manager succeeds`() {
         val managerAssignmentId =
-            DatabaseTestHelper.insertTestAssignment(
+            BranchWorkforceFixtures.insertTestAssignment(
                 userId = managerUser,
                 branchId = branchId,
                 slot = 3,

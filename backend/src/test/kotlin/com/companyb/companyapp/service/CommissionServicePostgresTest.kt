@@ -9,9 +9,11 @@ import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import com.companyb.companyapp.service.finance.commission.CommissionService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -43,17 +45,17 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     private lateinit var productSaleId: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "commission-caller")
-        DatabaseTestHelper.insertTestUser(targetUserId, "commission-target")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Commission Branch")
-        DatabaseTestHelper.insertTestCategory(categoryId, "Test Commission Category")
-        DatabaseTestHelper.insertTestProduct(productId, "Commission Product", categoryId)
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        IdentityFixtures.insertTestUser(callerId, "commission-caller")
+        IdentityFixtures.insertTestUser(targetUserId, "commission-target")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Commission Branch")
+        CommerceFinanceFixtures.insertTestCategory(categoryId, "Test Commission Category")
+        CommerceFinanceFixtures.insertTestProduct(productId, "Commission Product", categoryId)
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         ensureInventoryCard(branchId, productId, 100)
-        DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
+        IdentityFixtures.grantEditBranchData(callerId, sourceId)
         productSaleId = createProductSale(branchDayId)
         insertClockIn(targetUserId, branchDayId)
-        DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
+        IdentityFixtures.grantAssignCompensation(callerId, sourceId)
     }
 
     @Test
@@ -154,7 +156,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create without ASSIGN_COMPENSATION is allowed at service layer`() {
-        DatabaseTestHelper.revokeAllCapabilities(callerId)
+        IdentityFixtures.revokeAllCapabilities(callerId)
 
         val inclusionId = TestFixtures.uuid()
         val inclusion =
@@ -393,7 +395,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     }
 
     private fun grantViewBranchData(userId: UUID) {
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = userId,
             capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,

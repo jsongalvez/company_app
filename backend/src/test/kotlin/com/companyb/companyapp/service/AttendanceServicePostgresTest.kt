@@ -13,9 +13,10 @@ import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.attendance.AttendanceServiceResult
 import com.companyb.companyapp.service.attendance.ClockInParams
 import com.companyb.companyapp.service.finance.commission.CommissionService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -43,10 +44,10 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
     private val otherBranchId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(userId, "user")
-        DatabaseTestHelper.insertTestUser(otherUserId, "other-user")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Branch")
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Branch")
+        IdentityFixtures.insertTestUser(userId, "user")
+        IdentityFixtures.insertTestUser(otherUserId, "other-user")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Branch")
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Branch")
     }
 
     @Test
@@ -154,7 +155,7 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `clockIn sets isRelief false when branch assignment exists`() {
-        DatabaseTestHelper.grantManageUsers(userId, sourceId)
+        IdentityFixtures.grantManageUsers(userId, sourceId)
         val assignmentId = TestFixtures.uuid()
         UserBranchAssignmentService.create(userId, assignmentId, branchId, userId, 1)
 
@@ -421,7 +422,7 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
                     }.orderBy(AuditLogTable.changedAt to SortOrder.DESC)
                     .limit(1)
                     .single()
-            DatabaseTestHelper.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "clockOut")
+            TestFixtures.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "clockOut")
         }
 
     private fun branchDayAssignmentCount(userId: UUID): Long =

@@ -18,10 +18,13 @@ import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.service.session.SessionBaseRateService
 import com.companyb.companyapp.service.session.SessionService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -52,12 +55,12 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
     private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "session-server-time")
-        DatabaseTestHelper.insertTestBranch(branchId)
-        DatabaseTestHelper.insertTestClient(bookedClientId)
-        DatabaseTestHelper.insertTestClient(walkInClientId)
-        DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.insertTestUser(callerId, "session-server-time")
+        BranchWorkforceFixtures.insertTestBranch(branchId)
+        SessionClientFixtures.insertTestClient(bookedClientId)
+        SessionClientFixtures.insertTestClient(walkInClientId)
+        BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        IdentityFixtures.grantCapability(
             userId = callerId,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
@@ -197,7 +200,7 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: defaultUser.toString())
                 }
                 cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->

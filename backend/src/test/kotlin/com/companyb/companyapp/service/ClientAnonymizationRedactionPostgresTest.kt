@@ -17,10 +17,13 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import io.javalin.Javalin
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -59,16 +62,16 @@ class ClientAnonymizationRedactionPostgresTest : BasePostgresTest() {
     private var branchDayId: UUID = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "anon-redact-caller")
-        DatabaseTestHelper.insertTestBranch(branchId, "Anon Redact Branch $branchId")
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.insertTestUser(callerId, "anon-redact-caller")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Anon Redact Branch $branchId")
+        IdentityFixtures.grantCapability(
             userId = callerId,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
             contextId = branchId,
             sourceId = TestFixtures.uuid(),
         )
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
     }
 
     @Test
@@ -92,9 +95,9 @@ class ClientAnonymizationRedactionPostgresTest : BasePostgresTest() {
         val anonymizeEvent = entries.single { it.reason == ANONYMIZED_REASON }
         val anonOld = assertNotNull(anonymizeEvent.oldValue, "anonymize event must carry a before-image")
         val anonNew = assertNotNull(anonymizeEvent.newValue, "anonymize event must carry an after-image")
-        assertEquals(AuditValues.REDACTED, DatabaseTestHelper.extractJsonField(anonOld, "firstName"))
-        assertEquals(AuditValues.REDACTED, DatabaseTestHelper.extractJsonField(anonOld, "lastName"))
-        assertEquals(AuditValues.NULL, DatabaseTestHelper.extractJsonField(anonNew, "firstName"))
+        assertEquals(AuditValues.REDACTED, TestFixtures.extractJsonField(anonOld, "firstName"))
+        assertEquals(AuditValues.REDACTED, TestFixtures.extractJsonField(anonOld, "lastName"))
+        assertEquals(AuditValues.NULL, TestFixtures.extractJsonField(anonNew, "firstName"))
 
         val persisted = persistedClient()
         assertNull(persisted.firstName)
@@ -114,7 +117,7 @@ class ClientAnonymizationRedactionPostgresTest : BasePostgresTest() {
     @Test
     fun `failed anonymize leaves history and PII intact`() {
         createClient(firstName = MARKER_FIRST_A, lastName = MARKER_LAST_A)
-        DatabaseTestHelper.insertTestSession(
+        SessionClientFixtures.insertTestSession(
             id = TestFixtures.uuid(),
             clientId = clientId,
             branchDayId = branchDayId,
@@ -195,8 +198,8 @@ class ClientAnonymizationRedactionPostgresTest : BasePostgresTest() {
         val anonymizeRow = auditEntries().single { it.reason == ANONYMIZED_REASON }
         val legacyOld = assertNotNull(anonymizeRow.oldValue, "legacy before-image must survive redaction")
         val legacyNew = assertNotNull(anonymizeRow.newValue, "legacy after-image must survive redaction")
-        assertEquals(AuditValues.REDACTED, DatabaseTestHelper.extractJsonField(legacyOld, "firstName"))
-        assertEquals(AuditValues.NULL, DatabaseTestHelper.extractJsonField(legacyNew, "lastName"))
+        assertEquals(AuditValues.REDACTED, TestFixtures.extractJsonField(legacyOld, "firstName"))
+        assertEquals(AuditValues.NULL, TestFixtures.extractJsonField(legacyNew, "lastName"))
     }
 
     /**
@@ -422,7 +425,7 @@ class ClientAnonymizationRedactionPostgresTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: TestFixtures.uuid().toString())
                 }
                 AuditLogRoutes.register(cfg)

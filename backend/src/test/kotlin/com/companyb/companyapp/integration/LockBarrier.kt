@@ -1,4 +1,4 @@
-package com.companyb.companyapp.test
+package com.companyb.companyapp.integration
 
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.repository.SessionRepository

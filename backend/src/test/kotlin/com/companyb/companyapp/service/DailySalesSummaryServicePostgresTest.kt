@@ -10,9 +10,12 @@ import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -34,8 +37,8 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     private val today = TestFixtures.today
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "summary-user")
-        DatabaseTestHelper.insertTestBranch(branchId, "Summary Test Branch")
+        IdentityFixtures.insertTestUser(callerId, "summary-user")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Summary Test Branch")
         insertBranchDay(branchDayId, branchId, today)
     }
 
@@ -56,8 +59,8 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `returns correct gross income from completed sessions`() {
         grantViewBranchData(callerId)
-        val client1Id = DatabaseTestHelper.insertTestClient()
-        DatabaseTestHelper.insertTestSession(
+        val client1Id = SessionClientFixtures.insertTestClient()
+        SessionClientFixtures.insertTestSession(
             id = TestFixtures.uuid(),
             clientId = client1Id,
             branchDayId = branchDayId,
@@ -66,8 +69,8 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
             basePrice = BigDecimal("2500.00"),
             finalPrice = BigDecimal("2500.00"),
         )
-        val client2Id = DatabaseTestHelper.insertTestClient()
-        DatabaseTestHelper.insertTestSession(
+        val client2Id = SessionClientFixtures.insertTestClient()
+        SessionClientFixtures.insertTestSession(
             id = TestFixtures.uuid(),
             clientId = client2Id,
             branchDayId = branchDayId,
@@ -85,8 +88,8 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `excludes non-completed sessions from gross income`() {
         grantViewBranchData(callerId)
-        val testClientId = DatabaseTestHelper.insertTestClient()
-        DatabaseTestHelper.insertTestSession(
+        val testClientId = SessionClientFixtures.insertTestClient()
+        SessionClientFixtures.insertTestSession(
             id = TestFixtures.uuid(),
             clientId = testClientId,
             branchDayId = branchDayId,
@@ -105,8 +108,8 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     fun `excludes voided sessions from gross income`() {
         grantViewBranchData(callerId)
         val sessionId = TestFixtures.uuid()
-        val testClientId = DatabaseTestHelper.insertTestClient()
-        DatabaseTestHelper.insertTestSession(
+        val testClientId = SessionClientFixtures.insertTestClient()
+        SessionClientFixtures.insertTestSession(
             id = sessionId,
             clientId = testClientId,
             branchDayId = branchDayId,
@@ -126,8 +129,8 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     fun `includes completed sessions that were unvoided`() {
         grantViewBranchData(callerId)
         val sessionId = TestFixtures.uuid()
-        val testClientId = DatabaseTestHelper.insertTestClient()
-        DatabaseTestHelper.insertTestSession(
+        val testClientId = SessionClientFixtures.insertTestClient()
+        SessionClientFixtures.insertTestSession(
             id = sessionId,
             clientId = testClientId,
             branchDayId = branchDayId,
@@ -149,10 +152,10 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
         grantViewBranchData(callerId)
         val user1 = TestFixtures.uuid()
         val user2 = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(user1, "summary-user")
-        DatabaseTestHelper.insertTestUser(user2, "summary-user")
-        DatabaseTestHelper.insertTestCompensation(branchDayId, user1, BigDecimal("500.00"), assignedBy = callerId)
-        DatabaseTestHelper.insertTestCompensation(branchDayId, user2, BigDecimal("300.00"), assignedBy = callerId)
+        IdentityFixtures.insertTestUser(user1, "summary-user")
+        IdentityFixtures.insertTestUser(user2, "summary-user")
+        CommerceFinanceFixtures.insertTestCompensation(branchDayId, user1, BigDecimal("500.00"), assignedBy = callerId)
+        CommerceFinanceFixtures.insertTestCompensation(branchDayId, user2, BigDecimal("300.00"), assignedBy = callerId)
 
         val summary = DailySalesSummaryService.getDailySummary(branchId, today)
 
@@ -163,9 +166,9 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     fun `returns correct total expenses excluding deleted`() {
         grantViewBranchData(callerId)
         val userId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(userId, "summary-user")
-        DatabaseTestHelper.insertTestExpense(branchDayId, userId, BigDecimal("200.00"), deleted = false)
-        DatabaseTestHelper.insertTestExpense(branchDayId, userId, BigDecimal("100.00"), deleted = true)
+        IdentityFixtures.insertTestUser(userId, "summary-user")
+        CommerceFinanceFixtures.insertTestExpense(branchDayId, userId, BigDecimal("200.00"), deleted = false)
+        CommerceFinanceFixtures.insertTestExpense(branchDayId, userId, BigDecimal("100.00"), deleted = true)
 
         val summary = DailySalesSummaryService.getDailySummary(branchId, today)
 
@@ -176,7 +179,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     fun `returns correct product sales total`() {
         grantViewBranchData(callerId)
         val userId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(userId, "summary-user")
+        IdentityFixtures.insertTestUser(userId, "summary-user")
         insertProductSale(branchDayId, userId, BigDecimal("300.00"))
 
         val summary = DailySalesSummaryService.getDailySummary(branchId, today)
@@ -188,7 +191,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     fun `returns correct commission total`() {
         grantViewBranchData(callerId)
         val userId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(userId, "summary-user")
+        IdentityFixtures.insertTestUser(userId, "summary-user")
         insertCommissionSplit(branchDayId, userId, BigDecimal("150.0000"))
 
         val summary = DailySalesSummaryService.getDailySummary(branchId, today)
@@ -200,9 +203,9 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     fun `calculates net income correctly`() {
         grantViewBranchData(callerId)
         val userId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(userId, "summary-user")
-        val netIncomeTestClientId = DatabaseTestHelper.insertTestClient()
-        DatabaseTestHelper.insertTestSession(
+        IdentityFixtures.insertTestUser(userId, "summary-user")
+        val netIncomeTestClientId = SessionClientFixtures.insertTestClient()
+        SessionClientFixtures.insertTestSession(
             id = TestFixtures.uuid(),
             clientId = netIncomeTestClientId,
             branchDayId = branchDayId,
@@ -211,8 +214,13 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
             basePrice = BigDecimal("5000.00"),
             finalPrice = BigDecimal("5000.00"),
         )
-        DatabaseTestHelper.insertTestCompensation(branchDayId, userId, BigDecimal("1000.00"), assignedBy = callerId)
-        DatabaseTestHelper.insertTestExpense(branchDayId, userId, BigDecimal("500.00"), deleted = false)
+        CommerceFinanceFixtures.insertTestCompensation(
+            branchDayId,
+            userId,
+            BigDecimal("1000.00"),
+            assignedBy = callerId,
+        )
+        CommerceFinanceFixtures.insertTestExpense(branchDayId, userId, BigDecimal("500.00"), deleted = false)
 
         val summary = DailySalesSummaryService.getDailySummary(branchId, today)
 
@@ -329,7 +337,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     }
 
     private fun grantViewBranchData(userId: UUID) {
-        DatabaseTestHelper.grantCapability(
+        IdentityFixtures.grantCapability(
             userId = userId,
             capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
             contextType = CapabilityContextType.GLOBAL,

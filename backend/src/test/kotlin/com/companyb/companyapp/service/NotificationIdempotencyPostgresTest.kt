@@ -6,9 +6,11 @@ import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.decodeNotificationCursor
 import com.companyb.companyapp.repository.model.NotificationCreateParams
 import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -40,13 +42,13 @@ class NotificationIdempotencyPostgresTest : BasePostgresTest() {
     private lateinit var branchDayId: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "idempotency-caller")
-        DatabaseTestHelper.insertTestUser(recipientA, "idempotency-a")
-        DatabaseTestHelper.insertTestUser(recipientB, "idempotency-b")
-        DatabaseTestHelper.insertTestBranch(branchId, "Idempotency Branch ${branchId.toString().take(8)}")
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.insertTestClient(clientId)
-        DatabaseTestHelper.insertTestSession(
+        IdentityFixtures.insertTestUser(callerId, "idempotency-caller")
+        IdentityFixtures.insertTestUser(recipientA, "idempotency-a")
+        IdentityFixtures.insertTestUser(recipientB, "idempotency-b")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Idempotency Branch ${branchId.toString().take(8)}")
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        SessionClientFixtures.insertTestClient(clientId)
+        SessionClientFixtures.insertTestSession(
             id = sessionId,
             clientId = clientId,
             branchDayId = branchDayId,

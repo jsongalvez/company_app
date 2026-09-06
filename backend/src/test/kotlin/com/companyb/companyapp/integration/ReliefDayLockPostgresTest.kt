@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.integration
 
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
@@ -12,11 +12,13 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.ReliefInviteRepository
 import com.companyb.companyapp.repository.model.NotificationTable
+import com.companyb.companyapp.service.ReliefAccessService
+import com.companyb.companyapp.service.ReliefInviteService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
-import com.companyb.companyapp.test.LockBarrier
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -46,17 +48,17 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
     private lateinit var branchDayId: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(memberId, "daylock-member")
-        DatabaseTestHelper.insertTestUser(requesterId, "daylock-requester")
-        DatabaseTestHelper.insertTestUser(inviteeId, "daylock-invitee")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Relief Day Lock Branch")
-        DatabaseTestHelper.insertTestAssignment(
+        IdentityFixtures.insertTestUser(memberId, "daylock-member")
+        IdentityFixtures.insertTestUser(requesterId, "daylock-requester")
+        IdentityFixtures.insertTestUser(inviteeId, "daylock-invitee")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Relief Day Lock Branch")
+        BranchWorkforceFixtures.insertTestAssignment(
             userId = memberId,
             branchId = branchId,
             slot = 1,
             assignedBy = memberId,
         )
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
     }
 
     @Test
@@ -150,7 +152,7 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
         val requestId = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, requesterId)
         submitRemittanceCoveringDay(branchDayId)
-        DatabaseTestHelper.grantEditPastDay(memberId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(memberId, branchId, sourceId)
 
         val result = ReliefAccessService.grantAccess(requestId, memberId, "Coordinator correction")
 
@@ -174,7 +176,7 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
         val requestId = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, requesterId)
         submitRemittanceCoveringDay(branchDayId)
-        DatabaseTestHelper.grantEditPastDay(memberId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(memberId, branchId, sourceId)
 
         val result = ReliefAccessService.denyAccess(requestId, memberId, "Coordinator correction")
 
@@ -195,7 +197,7 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `request on submit-REMITTED day with reason and EDIT_PAST_DAY succeeds flagged`() {
         submitRemittanceCoveringDay(branchDayId)
-        DatabaseTestHelper.grantEditPastDay(requesterId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(requesterId, branchId, sourceId)
 
         val requestId = TestFixtures.uuid()
         val result =

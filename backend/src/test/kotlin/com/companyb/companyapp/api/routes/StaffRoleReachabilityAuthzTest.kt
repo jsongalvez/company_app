@@ -11,10 +11,12 @@ import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.core.eq
@@ -64,11 +66,11 @@ class StaffRoleReachabilityAuthzTest : BasePostgresTest() {
             onboardingUser to "reach-onbrd",
             endedCoordinator to "reach-ended",
         ).forEach { (id, prefix) ->
-            DatabaseTestHelper.insertTestUser(id, prefix)
+            IdentityFixtures.insertTestUser(id, prefix)
         }
 
         listOf(branchA to "Reachability Branch A", unrelatedBranch to "Unrelated Branch").forEach { (id, name) ->
-            DatabaseTestHelper.insertTestBranch(id, name)
+            BranchWorkforceFixtures.insertTestBranch(id, name)
         }
 
         assignRole(coordinatorUser, "COORDINATOR")
@@ -81,8 +83,8 @@ class StaffRoleReachabilityAuthzTest : BasePostgresTest() {
         insertAssignment(onboardingUser, branchA)
         insertAssignment(endedCoordinator, branchA, ended = true)
 
-        todayAtBranchA = DatabaseTestHelper.createBranchDayForToday(branchA)
-        todayAtUnrelatedBranch = DatabaseTestHelper.createBranchDayForToday(unrelatedBranch)
+        todayAtBranchA = BranchWorkforceFixtures.createBranchDayForToday(branchA)
+        todayAtUnrelatedBranch = BranchWorkforceFixtures.createBranchDayForToday(unrelatedBranch)
         // Compensations created below are torn down with their owning user (#421 probes).
         // Expenses created below are torn down with their owning day.
         // Audited writes (expense insert, rate set) reference their caller —
@@ -111,7 +113,7 @@ class StaffRoleReachabilityAuthzTest : BasePostgresTest() {
         ended: Boolean = false,
     ) {
         val id =
-            DatabaseTestHelper.insertTestAssignment(
+            BranchWorkforceFixtures.insertTestAssignment(
                 userId = userId,
                 branchId = branchId,
                 slot = 1,
@@ -134,7 +136,7 @@ class StaffRoleReachabilityAuthzTest : BasePostgresTest() {
             return Javalin.create { cfg ->
                 cfg.jsonMapper(KotlinxSerializationMapper())
                 cfg.routes.before { ctx ->
-                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
                 cfg.routes.exception(ValidationException::class.java) { e, ctx ->

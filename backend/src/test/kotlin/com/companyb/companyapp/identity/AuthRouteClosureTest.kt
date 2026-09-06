@@ -4,8 +4,8 @@ import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.UserRepository
-import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import io.javalin.Javalin
 import org.junit.ClassRule
 import kotlin.test.Test

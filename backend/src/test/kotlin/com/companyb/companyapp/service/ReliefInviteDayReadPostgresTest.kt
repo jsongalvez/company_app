@@ -3,9 +3,10 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
 import java.util.UUID
@@ -27,11 +28,11 @@ class ReliefInviteDayReadPostgresTest : BasePostgresTest() {
     private val branchId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(inviterId, "dayread-inviter")
-        DatabaseTestHelper.insertTestUser(secondInviterId, "dayread-second")
-        DatabaseTestHelper.insertTestUser(inviteeId, "dayread-invitee")
-        DatabaseTestHelper.insertTestUser(strangerId, "dayread-stranger")
-        DatabaseTestHelper.insertTestBranch(branchId, "Day Read Branch ${branchId.toString().take(8)}")
+        IdentityFixtures.insertTestUser(inviterId, "dayread-inviter")
+        IdentityFixtures.insertTestUser(secondInviterId, "dayread-second")
+        IdentityFixtures.insertTestUser(inviteeId, "dayread-invitee")
+        IdentityFixtures.insertTestUser(strangerId, "dayread-stranger")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Day Read Branch ${branchId.toString().take(8)}")
         // Invite creation resolves-or-creates its duty-day rows at this branch.
 
         transaction {

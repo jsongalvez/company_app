@@ -12,9 +12,10 @@ import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.finance.commission.CommissionService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -45,15 +46,25 @@ class AttendanceMarkPostgresTest : BasePostgresTest() {
     private val otherBranchId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(markerId, "marker")
-        DatabaseTestHelper.insertTestUser(targetId, "target")
-        DatabaseTestHelper.insertTestUser(outsiderId, "outsider")
-        DatabaseTestHelper.insertTestBranch(branchId, "Mark Branch")
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Branch")
+        IdentityFixtures.insertTestUser(markerId, "marker")
+        IdentityFixtures.insertTestUser(targetId, "target")
+        IdentityFixtures.insertTestUser(outsiderId, "outsider")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Mark Branch")
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Branch")
 
         // Marker and target are home members at branchId; the outsider holds no assignment.
-        DatabaseTestHelper.insertTestAssignment(userId = markerId, branchId = branchId, slot = 1, assignedBy = markerId)
-        DatabaseTestHelper.insertTestAssignment(userId = targetId, branchId = branchId, slot = 2, assignedBy = markerId)
+        BranchWorkforceFixtures.insertTestAssignment(
+            userId = markerId,
+            branchId = branchId,
+            slot = 1,
+            assignedBy = markerId,
+        )
+        BranchWorkforceFixtures.insertTestAssignment(
+            userId = targetId,
+            branchId = branchId,
+            slot = 2,
+            assignedBy = markerId,
+        )
     }
 
     @Test
@@ -365,8 +376,8 @@ class AttendanceMarkPostgresTest : BasePostgresTest() {
 
     @Test
     fun `roster lists members by slot with live presence flags`() {
-        DatabaseTestHelper.insertTestUser(thirdMemberId, "aaa-third-slot")
-        DatabaseTestHelper.insertTestAssignment(
+        IdentityFixtures.insertTestUser(thirdMemberId, "aaa-third-slot")
+        BranchWorkforceFixtures.insertTestAssignment(
             userId = thirdMemberId,
             branchId = branchId,
             slot = 3,
@@ -452,7 +463,7 @@ class AttendanceMarkPostgresTest : BasePostgresTest() {
                     AuditRow(
                         action = row[AuditLogTable.action].name,
                         newMarkedBy =
-                            DatabaseTestHelper.extractJsonField(
+                            TestFixtures.extractJsonField(
                                 row[AuditLogTable.newValue] ?: "{}",
                                 "markedBy",
                             ),

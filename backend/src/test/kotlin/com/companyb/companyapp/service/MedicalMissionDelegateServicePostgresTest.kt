@@ -15,9 +15,9 @@ import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.repository.model.MedicalMissionDelegate
 import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -48,14 +48,14 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
     private val branchName = "Mission-${branchId.toString().take(8)}"
 
     override fun initTestData() {
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertUser(
             id = callerId,
             username = "delegate-caller-$callerId",
             passwordHash = "test-password-hash",
             email = "${callerId.toString().take(8)}@t.st",
             displayName = "Delegate Caller",
         )
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertUser(
             id = targetUserId,
             username = "delegate-target-$targetUserId",
             passwordHash = "test-password-hash",
@@ -69,7 +69,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
                     RoleTable.selectAll().where { RoleTable.name eq "MANAGER" }.single()[RoleTable.id]
             }
         }
-        DatabaseTestHelper.grantAssignDelegate(callerId, sourceId)
+        IdentityFixtures.grantAssignDelegate(callerId, sourceId)
         insertBranch()
     }
 
@@ -107,7 +107,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
     @Test
     fun `assign rejects target without active manager role`() {
         val ineligibleUserId = TestFixtures.uuid()
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertUser(
             id = ineligibleUserId,
             username = "delegate-ineligible-$ineligibleUserId",
             passwordHash = "test-password-hash",
@@ -279,7 +279,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
     fun `assign without ASSIGN_DELEGATE is allowed at service layer`() {
         val delegateId = TestFixtures.uuid()
         val noCapCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertUser(
             id = noCapCaller,
             username = "no-cap-$noCapCaller",
             passwordHash = "test-password-hash",
@@ -377,7 +377,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
 
         val noCapCaller = TestFixtures.uuid()
-        DatabaseTestHelper.insertUser(
+        IdentityFixtures.insertUser(
             id = noCapCaller,
             username = "no-cap-$noCapCaller",
             passwordHash = "test-password-hash",

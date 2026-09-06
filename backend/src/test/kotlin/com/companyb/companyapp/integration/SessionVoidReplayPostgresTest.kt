@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.integration
 
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.exception.ConflictException
@@ -6,10 +6,11 @@ import com.companyb.companyapp.repository.SessionVoidRepository
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.service.session.SessionService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
-import com.companyb.companyapp.test.LockBarrier
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -36,9 +37,9 @@ class SessionVoidReplayPostgresTest : BasePostgresTest() {
     private lateinit var branchDayId: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "void-replay-caller")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Void Replay Branch")
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        IdentityFixtures.insertTestUser(callerId, "void-replay-caller")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Void Replay Branch")
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
     }
 
     @Test
@@ -117,9 +118,9 @@ class SessionVoidReplayPostgresTest : BasePostgresTest() {
     }
 
     private fun insertSession(): UUID {
-        val clientId = DatabaseTestHelper.insertTestClient()
+        val clientId = SessionClientFixtures.insertTestClient()
         val sessionId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         return sessionId
     }
 

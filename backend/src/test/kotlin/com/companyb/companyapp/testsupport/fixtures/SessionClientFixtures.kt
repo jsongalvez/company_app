@@ -1,0 +1,112 @@
+package com.companyb.companyapp.testsupport.fixtures
+
+import com.companyb.companyapp.domain.Gender
+import com.companyb.companyapp.domain.SessionStatus
+import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.NotificationTable
+import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.test.TestFixtures
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.math.BigDecimal
+import java.util.UUID
+
+/**
+ * Session and client fixtures for map #533 (#552).
+ *
+ * Owns session, client and notification rows only.
+ */
+object SessionClientFixtures {
+    private const val TEST_CLIENT_AGE = 30
+
+    /**
+     * Inserts a PENDING REGULAR session row directly against [branchDayId] (bypasses
+     * [com.companyb.companyapp.service.session.SessionService.create]).
+     */
+    @Suppress("LongParameterList") // #552 fixture parity with the retired helper signature
+    fun insertTestSession(
+        id: UUID,
+        clientId: UUID,
+        branchDayId: UUID,
+        sessionType: SessionType = SessionType.REGULAR,
+        sessionStatus: SessionStatus = SessionStatus.PENDING,
+        isWalkIn: Boolean = false,
+        basePrice: BigDecimal = BigDecimal("2500.00"),
+        finalPrice: BigDecimal = BigDecimal("2500.00"),
+    ) {
+        transaction {
+            SessionTable.insertIgnore {
+                it[SessionTable.id] = id
+                it[SessionTable.clientId] = clientId
+                it[SessionTable.branchDayId] = branchDayId
+                it[SessionTable.sessionType] = sessionType
+                it[SessionTable.sessionStatus] = sessionStatus
+                it[SessionTable.isWalkIn] = isWalkIn
+                it[SessionTable.basePrice] = basePrice
+                it[SessionTable.finalPrice] = finalPrice
+            }
+        }
+    }
+
+    fun insertTestClient(id: UUID = TestFixtures.uuid()): UUID {
+        transaction {
+            ClientTable.insertIgnore {
+                it[ClientTable.id] = id
+                it[ClientTable.firstName] = "Test"
+                it[ClientTable.lastName] = "Client"
+                it[ClientTable.gender] = Gender.M.name
+                it[ClientTable.age] = TEST_CLIENT_AGE
+            }
+        }
+        return id
+    }
+
+    /**
+     * Inserts a notification row directly (bypasses the scheduler — the only production
+     * writer). Parameters named like the columns so callers can't fall into the Exposed v1
+     * insert trap (the lambda receiver is the table, so an unqualified FIELD name resolves
+     * to the column, not the test's field).
+     */
+    fun insertTestNotification(
+        id: UUID = TestFixtures.uuid(),
+        sessionId: UUID,
+        userId: UUID,
+        branchId: UUID,
+        dedupKey: String? = null,
+    ): com.companyb.companyapp.repository.model.Notification {
+        transaction {
+            NotificationTable.insert {
+                it[NotificationTable.id] = id
+                it[NotificationTable.sessionId] = sessionId
+                it[NotificationTable.userId] = userId
+                it[NotificationTable.branchId] = branchId
+                it[NotificationTable.message] = "Test notification"
+                // #508 — unique per row by default so helper repeats never collide; pass an
+                // explicit key to pin occurrence identity.
+                it[NotificationTable.dedupKey] = dedupKey ?: "APPT:$sessionId:$id"
+            }
+        }
+        return transaction {
+            NotificationTable
+                .selectAll()
+                .where { NotificationTable.id eq id }
+                .single()
+                .let { row ->
+                    com.companyb.companyapp.repository.model.Notification(
+                        id = row[NotificationTable.id],
+                        sessionId = row[NotificationTable.sessionId],
+                        userId = row[NotificationTable.userId],
+                        branchId = row[NotificationTable.branchId],
+                        message = row[NotificationTable.message],
+                        isRead = row[NotificationTable.isRead],
+                        readAt = row[NotificationTable.readAt],
+                        createdAt = row[NotificationTable.createdAt],
+                    )
+                }
+        }
+    }
+}

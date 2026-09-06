@@ -10,9 +10,12 @@ import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.service.dashboard.DashboardService
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import com.companyb.companyapp.service.finance.commission.CommissionShare
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.Transaction
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.statements.StatementContext
@@ -48,15 +51,15 @@ class CommissionParityPostgresTest : BasePostgresTest() {
     private lateinit var branchDayId: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(userA, "parity-a")
-        DatabaseTestHelper.insertTestUser(userB, "parity-b")
-        DatabaseTestHelper.insertTestUser(userC, "parity-c")
-        DatabaseTestHelper.insertTestUser(userD, "parity-d")
-        DatabaseTestHelper.insertTestBranch(branchId, "Parity Branch")
-        DatabaseTestHelper.insertTestClient(clientId)
-        DatabaseTestHelper.insertTestCategory(categoryId)
-        DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        IdentityFixtures.insertTestUser(userA, "parity-a")
+        IdentityFixtures.insertTestUser(userB, "parity-b")
+        IdentityFixtures.insertTestUser(userC, "parity-c")
+        IdentityFixtures.insertTestUser(userD, "parity-d")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Parity Branch")
+        SessionClientFixtures.insertTestClient(clientId)
+        CommerceFinanceFixtures.insertTestCategory(categoryId)
+        CommerceFinanceFixtures.insertTestProduct(productId, categoryId = categoryId)
+        branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
     }
 
     @Test
@@ -75,7 +78,7 @@ class CommissionParityPostgresTest : BasePostgresTest() {
         include(gatedSale, userD, false)
 
         val voidSessionId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestSession(voidSessionId, clientId, branchDayId)
+        SessionClientFixtures.insertTestSession(voidSessionId, clientId, branchDayId)
         sell(
             branchDayId,
             base.minusMinutes(30),
@@ -119,8 +122,8 @@ class CommissionParityPostgresTest : BasePostgresTest() {
     @Test
     fun `input reads stay bounded as sales grow`() {
         val base = TestFixtures.realNow().atOffset(ZoneOffset.UTC)
-        val fewDay = DatabaseTestHelper.createBranchDayForDate(branchId, TestFixtures.today.minusDays(1))
-        val manyDay = DatabaseTestHelper.createBranchDayForDate(branchId, TestFixtures.today.minusDays(2))
+        val fewDay = BranchWorkforceFixtures.createBranchDayForDate(branchId, TestFixtures.today.minusDays(1))
+        val manyDay = BranchWorkforceFixtures.createBranchDayForDate(branchId, TestFixtures.today.minusDays(2))
 
         clockIn(fewDay, userA, base.minusHours(5))
         sell(fewDay, base.minusHours(4), BigDecimal("10.00"), 1)

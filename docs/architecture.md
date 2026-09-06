@@ -329,7 +329,7 @@ The migration directory is authoritative. Reason about current schema from
   the test database instead.)
 - Test worker schemas need no manual step: each backend-test JVM provisions its
   own owned schema from the same baseline and drops it on shutdown; per-test
-  isolation is `DatabaseTestHelper.resetWorkerSchema`.
+  isolation is `TestDatabaseLifecycle.resetWorkerSchema`.
 - Databases still carrying the retired V3–V6 history fail Flyway validation
   (checksum/missing-version) instead of silently repairing — that red state is
   the signal to run the reset above.

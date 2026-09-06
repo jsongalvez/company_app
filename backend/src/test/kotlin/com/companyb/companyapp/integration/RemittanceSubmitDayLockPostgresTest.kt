@@ -1,17 +1,20 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.integration
 
 import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.service.CompensationService
+import com.companyb.companyapp.service.ExpenseService
 import com.companyb.companyapp.service.finance.remittance.RemittanceFinancialSnapshot
 import com.companyb.companyapp.service.finance.remittance.RemittanceFinancialSnapshotRepository
 import com.companyb.companyapp.service.finance.remittance.RemittanceRepository
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import java.math.BigDecimal
 import java.util.UUID
 import kotlin.concurrent.thread
@@ -37,17 +40,17 @@ class RemittanceSubmitDayLockPostgresTest : BasePostgresTest() {
     private val targetUserId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "submit-lock-caller")
-        DatabaseTestHelper.insertTestUser(targetUserId, "submit-lock-target")
+        IdentityFixtures.insertTestUser(callerId, "submit-lock-caller")
+        IdentityFixtures.insertTestUser(targetUserId, "submit-lock-target")
     }
 
     @Test
     fun `expense racing submit never slips past the frozen snapshot`() {
         repeat(RACE_ITERATIONS) { iteration ->
             val iterBranchId = TestFixtures.uuid()
-            DatabaseTestHelper.insertTestBranch(iterBranchId, "Submit Race Branch ${TestFixtures.uuid()}")
-            DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, iterBranchId)
-            val dayId = DatabaseTestHelper.createBranchDayForToday(iterBranchId)
+            BranchWorkforceFixtures.insertTestBranch(iterBranchId, "Submit Race Branch ${TestFixtures.uuid()}")
+            IdentityFixtures.grantSubmitRemittance(callerId, sourceId, iterBranchId)
+            val dayId = BranchWorkforceFixtures.createBranchDayForToday(iterBranchId)
             val remittanceId = createDraftCovering(iterBranchId, dayId)
             val version = RemittanceService.getRemittance(remittanceId).remittance.version
 
@@ -87,9 +90,9 @@ class RemittanceSubmitDayLockPostgresTest : BasePostgresTest() {
     fun `compensation racing submit never slips past the frozen snapshot`() {
         repeat(RACE_ITERATIONS) { iteration ->
             val iterBranchId = TestFixtures.uuid()
-            DatabaseTestHelper.insertTestBranch(iterBranchId, "Submit Race Branch ${TestFixtures.uuid()}")
-            DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, iterBranchId)
-            val dayId = DatabaseTestHelper.createBranchDayForToday(iterBranchId)
+            BranchWorkforceFixtures.insertTestBranch(iterBranchId, "Submit Race Branch ${TestFixtures.uuid()}")
+            IdentityFixtures.grantSubmitRemittance(callerId, sourceId, iterBranchId)
+            val dayId = BranchWorkforceFixtures.createBranchDayForToday(iterBranchId)
             val remittanceId = createDraftCovering(iterBranchId, dayId)
             val version = RemittanceService.getRemittance(remittanceId).remittance.version
 

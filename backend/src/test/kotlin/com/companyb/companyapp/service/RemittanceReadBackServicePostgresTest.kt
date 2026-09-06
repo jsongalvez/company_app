@@ -20,9 +20,12 @@ import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -60,13 +63,13 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
     private val branchDayDate = LocalDate.of(2026, 7, 10)
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "remittance-read")
+        IdentityFixtures.insertTestUser(callerId, "remittance-read")
 
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Remittance Branch ${TestFixtures.uuid()}")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Remittance Branch ${TestFixtures.uuid()}")
 
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Remittance Branch ${TestFixtures.uuid()}")
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Remittance Branch ${TestFixtures.uuid()}")
 
-        DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, branchId)
+        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
     }
 
     // ──────────────────────────────────────────────
@@ -159,9 +162,9 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
     @Test
     fun `sessions in range returns client name price and time`() {
         val sId = createSession(branchDayDate)
-        val otherBranchDayId = DatabaseTestHelper.createBranchDayForDate(otherBranchId, branchDayDate)
+        val otherBranchDayId = BranchWorkforceFixtures.createBranchDayForDate(otherBranchId, branchDayDate)
         val otherSessionId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestSession(
+        SessionClientFixtures.insertTestSession(
             id = otherSessionId,
             clientId = clientId,
             branchDayId = otherBranchDayId,
@@ -179,9 +182,9 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
     @Test
     fun `sessions in range excludes out-of-range dates`() {
         createSession(branchDayDate)
-        val outsideDayId = DatabaseTestHelper.createBranchDayForDate(branchId, LocalDate.of(2026, 8, 1))
+        val outsideDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, LocalDate.of(2026, 8, 1))
         val outsideSessionId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestSession(
+        SessionClientFixtures.insertTestSession(
             id = outsideSessionId,
             clientId = clientId,
             branchDayId = outsideDayId,
@@ -196,10 +199,10 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
     @Test
     fun `sessions in range returns null client name for anonymized client`() {
         val anonymizedClientId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestClient(anonymizedClientId)
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
+        SessionClientFixtures.insertTestClient(anonymizedClientId)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, branchDayDate)
         val anonSessionId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestSession(
+        SessionClientFixtures.insertTestSession(
             id = anonSessionId,
             clientId = anonymizedClientId,
             branchDayId = dayId,
@@ -220,9 +223,9 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
     @Test
     fun `sessions in range excludes voided sessions`() {
         val sId = createSession(branchDayDate)
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, branchDayDate)
         val voidedSessionId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestSession(
+        SessionClientFixtures.insertTestSession(
             id = voidedSessionId,
             clientId = clientId,
             branchDayId = dayId,
@@ -255,13 +258,13 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
     @Test
     fun `product sales in range returns product name and amount`() {
         val psId = createProductSale(branchDayDate)
-        val otherBranchDayId = DatabaseTestHelper.createBranchDayForDate(otherBranchId, branchDayDate)
+        val otherBranchDayId = BranchWorkforceFixtures.createBranchDayForDate(otherBranchId, branchDayDate)
         val otherPsId = TestFixtures.uuid()
         val catId = TestFixtures.uuid()
         val prodId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestCategory(catId, "Cat ${TestFixtures.uuid()}")
-        DatabaseTestHelper.insertTestProduct(prodId, "Other Product", catId)
-        DatabaseTestHelper.insertTestProductSale(
+        CommerceFinanceFixtures.insertTestCategory(catId, "Cat ${TestFixtures.uuid()}")
+        CommerceFinanceFixtures.insertTestProduct(prodId, "Other Product", catId)
+        CommerceFinanceFixtures.insertTestProductSale(
             id = otherPsId,
             branchDayId = otherBranchDayId,
             productId = prodId,
@@ -291,9 +294,9 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
     @Test
     fun `branch days in range applies lazy effective status`() {
         val today = TestFixtures.today
-        DatabaseTestHelper.createBranchDayForDate(branchId, today.plusDays(10))
-        DatabaseTestHelper.createBranchDayForDate(branchId, today.minusDays(5))
-        val remittedDayId = DatabaseTestHelper.createBranchDayForDate(branchId, today.minusDays(10))
+        BranchWorkforceFixtures.createBranchDayForDate(branchId, today.plusDays(10))
+        BranchWorkforceFixtures.createBranchDayForDate(branchId, today.minusDays(5))
+        val remittedDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, today.minusDays(10))
         val submittedId = TestFixtures.uuid()
         // #483 — the covered day must sit inside the draft range; use the query window itself.
         RemittanceService.createDraft(
@@ -325,8 +328,8 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `branch days in range excludes days outside range and other branches`() {
-        val outsideDayId = DatabaseTestHelper.createBranchDayForDate(branchId, LocalDate.of(2026, 9, 1))
-        val otherBranchDayId = DatabaseTestHelper.createBranchDayForDate(otherBranchId, branchDayDate)
+        val outsideDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, LocalDate.of(2026, 9, 1))
+        val otherBranchDayId = BranchWorkforceFixtures.createBranchDayForDate(otherBranchId, branchDayDate)
 
         val result = RemittanceService.findBranchDaysInRange(branchId, rangeStart, rangeEnd)
 
@@ -349,7 +352,7 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
         val remittanceId = TestFixtures.uuid()
         val breakdownId = TestFixtures.uuid()
         createDraftRemittance(remittanceId)
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, branchDayDate)
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, dayId)
 
         val removed = RemittanceService.removeDayBreakdown(callerId, remittanceId, breakdownId)
@@ -376,7 +379,7 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
         val breakdownId = TestFixtures.uuid()
         val lineId = TestFixtures.uuid()
         createDraftRemittance(remittanceId)
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, branchDayDate)
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, dayId)
         addSessionLine(remittanceId, lineId, BigDecimal("100.00"))
         val version = RemittanceService.getRemittance(remittanceId).remittance.version
@@ -402,7 +405,7 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
             dateRangeStart = rangeStart,
             dateRangeEnd = rangeEnd,
         )
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, branchDayDate)
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, dayId)
 
         assertFailsWith<NotFoundException> {
@@ -477,7 +480,7 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
         val lineId = TestFixtures.uuid()
         val breakdownId = TestFixtures.uuid()
         createDraftRemittance(remittanceId)
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, branchDayDate)
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, dayId)
         addSessionLine(remittanceId, lineId, BigDecimal("1000.00"))
         val version = RemittanceService.getRemittance(remittanceId).remittance.version
@@ -516,7 +519,7 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
         val lineId = TestFixtures.uuid()
         val breakdownId = TestFixtures.uuid()
         createDraftRemittance(remittanceId)
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, branchDayDate)
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, dayId)
         addSessionLine(remittanceId, lineId, BigDecimal("1000.00"))
         val version = RemittanceService.getRemittance(remittanceId).remittance.version
@@ -582,7 +585,7 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
         val lineId = TestFixtures.uuid()
         val breakdownId = TestFixtures.uuid()
         createDraftRemittance(remittanceId)
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, branchDayDate)
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, dayId)
         addSessionLine(remittanceId, lineId, lineAmount)
         val version = RemittanceService.getRemittance(remittanceId).remittance.version
@@ -604,7 +607,7 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
             dateRangeStart = rangeStart,
             dateRangeEnd = rangeEnd,
         )
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, branchDayDate)
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, dayId)
         addProductLine(remittanceId, lineId, lineAmount)
         val version = RemittanceService.getRemittance(remittanceId).remittance.version
@@ -674,10 +677,10 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
 
     private fun createSession(dayDate: LocalDate): UUID {
         if (sessionCreated) return sessionId!!
-        DatabaseTestHelper.insertTestClient(clientId)
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, dayDate)
+        SessionClientFixtures.insertTestClient(clientId)
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDate)
         val sId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestSession(
+        SessionClientFixtures.insertTestSession(
             id = sId,
             clientId = clientId,
             branchDayId = dayId,
@@ -692,10 +695,10 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
         val psId = TestFixtures.uuid()
         val catId = TestFixtures.uuid()
         val prodId = TestFixtures.uuid()
-        val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, dayDate)
-        DatabaseTestHelper.insertTestCategory(catId, "Cat ${psId.toString().take(8)}")
-        DatabaseTestHelper.insertTestProduct(prodId, "Prod ${psId.toString().take(8)}", catId)
-        DatabaseTestHelper.insertTestProductSale(
+        val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, dayDate)
+        CommerceFinanceFixtures.insertTestCategory(catId, "Cat ${psId.toString().take(8)}")
+        CommerceFinanceFixtures.insertTestProduct(prodId, "Prod ${psId.toString().take(8)}", catId)
+        CommerceFinanceFixtures.insertTestProductSale(
             id = psId,
             branchDayId = dayId,
             productId = prodId,

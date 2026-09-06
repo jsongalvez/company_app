@@ -1,8 +1,8 @@
 package com.companyb.companyapp.repository
 
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import org.junit.Assume.assumeTrue
 import kotlin.test.Test
 import kotlin.test.assertFalse
@@ -17,7 +17,7 @@ class SlowQueryRepositoryPostgresTest : BasePostgresTest() {
     private val clientId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestClient(clientId)
+        SessionClientFixtures.insertTestClient(clientId)
     }
 
     @Test

@@ -2,9 +2,9 @@ package com.companyb.companyapp.branchday
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -18,12 +18,12 @@ class BranchDayServicePostgresTest : BasePostgresTest() {
     private val branchId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Branch Day Branch")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Branch Day Branch")
     }
 
     @Test
     fun `getToday returns existing day for today`() {
-        val existingId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val existingId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
         val branchDay = BranchDayService.getToday(branchId)
 
@@ -44,7 +44,7 @@ class BranchDayServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getToday reports REMITTED status for remitted day`() {
-        DatabaseTestHelper.createBranchDayForToday(branchId)
+        BranchWorkforceFixtures.createBranchDayForToday(branchId)
         transaction {
             BranchDayTable.update({ BranchDayTable.branchId eq branchId }) {
                 it[BranchDayTable.status] = DayStatus.REMITTED
@@ -67,7 +67,7 @@ class BranchDayServicePostgresTest : BasePostgresTest() {
     fun `historical day gates evaluate through the central operational-date policy`() {
         val yesterday = TestFixtures.today.minusDays(1)
         val yesterdayId =
-            DatabaseTestHelper.createBranchDayForDate(branchId, yesterday)
+            BranchWorkforceFixtures.createBranchDayForDate(branchId, yesterday)
 
         // Persisted status is still OPEN; the effective evaluation must treat it as PAST.
         transaction {

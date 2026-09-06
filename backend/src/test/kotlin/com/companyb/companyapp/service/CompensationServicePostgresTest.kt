@@ -6,9 +6,10 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -38,22 +39,22 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     private lateinit var payingBranchDayId: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "comp-caller")
-        DatabaseTestHelper.insertTestUser(targetUserId, "comp-target")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Compensation Branch")
-        workBranchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        payingBranchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
+        IdentityFixtures.insertTestUser(callerId, "comp-caller")
+        IdentityFixtures.insertTestUser(targetUserId, "comp-target")
+        BranchWorkforceFixtures.insertTestBranch(branchId, "Test Compensation Branch")
+        workBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        payingBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        IdentityFixtures.grantAssignCompensation(callerId, sourceId)
     }
 
     @Test
     fun `create compensation on REMITTED paying day with reason succeeds and flags audit entry`() {
         val remittedDayId =
-            DatabaseTestHelper.createRemittedBranchDay(
+            BranchWorkforceFixtures.createRemittedBranchDay(
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val compId = TestFixtures.uuid()
 
         val comp =
@@ -224,7 +225,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create without ASSIGN_COMPENSATION is allowed at service layer`() {
-        DatabaseTestHelper.revokeAllCapabilities(callerId)
+        IdentityFixtures.revokeAllCapabilities(callerId)
 
         val compId = TestFixtures.uuid()
         val comp =
@@ -326,8 +327,8 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create with paying day at another branch returns validation error`() {
         val otherBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Cross Comp Branch")
-        val otherBranchDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Cross Comp Branch")
+        val otherBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(otherBranchId)
 
         assertFailsWith<ValidationException> {
             CompensationService.create(
@@ -345,8 +346,8 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create with work day at another branch returns validation error`() {
         val otherBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Cross Work Comp Branch")
-        val otherWorkDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Cross Work Comp Branch")
+        val otherWorkDayId = BranchWorkforceFixtures.createBranchDayForToday(otherBranchId)
 
         assertFailsWith<ValidationException> {
             CompensationService.create(
@@ -364,8 +365,8 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     @Test
     fun `update rejects stored record whose days span branches`() {
         val otherBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Legacy Comp Branch")
-        val legacyPayingDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Legacy Comp Branch")
+        val legacyPayingDayId = BranchWorkforceFixtures.createBranchDayForToday(otherBranchId)
 
         val compId = TestFixtures.uuid()
         transaction {
@@ -416,7 +417,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
             note = null,
         )
 
-        DatabaseTestHelper.revokeAllCapabilities(callerId)
+        IdentityFixtures.revokeAllCapabilities(callerId)
 
         val updated =
             CompensationService.update(
@@ -433,7 +434,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     @Test
     fun `list compensations for paying branch day returns rows with user names`() {
         val secondUser = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(secondUser, "comp-second")
+        IdentityFixtures.insertTestUser(secondUser, "comp-second")
 
         CompensationService.create(
             callerId = callerId,
@@ -464,8 +465,8 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     @Test
     fun `list compensations excludes other paying days`() {
         val otherBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Comp Branch")
-        val otherBranchDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Comp Branch")
+        val otherBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(otherBranchId)
 
         CompensationService.create(
             callerId = callerId,
@@ -495,8 +496,8 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     @Test
     fun `list compensations returns empty for day with no rows`() {
         val emptyBranchId = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(emptyBranchId, "Empty Comp Branch")
-        val emptyBranchDayId = DatabaseTestHelper.createBranchDayForToday(emptyBranchId)
+        BranchWorkforceFixtures.insertTestBranch(emptyBranchId, "Empty Comp Branch")
+        val emptyBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(emptyBranchId)
 
         val rows = CompensationService.findByPayingBranchDayId(emptyBranchDayId)
 

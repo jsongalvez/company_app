@@ -12,9 +12,10 @@ import com.companyb.companyapp.identity.RoleRepository
 import com.companyb.companyapp.identity.UserRepository
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.service.CapabilityService.GLOBAL_CONTEXT_ID
-import com.companyb.companyapp.test.BasePostgresTest
-import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
+import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -38,13 +39,13 @@ class UserServicePostgresTest : BasePostgresTest() {
     private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(callerId, "caller")
-        DatabaseTestHelper.insertTestUser(targetUserId, "target")
+        IdentityFixtures.insertTestUser(callerId, "caller")
+        IdentityFixtures.insertTestUser(targetUserId, "target")
     }
 
     @Test
     fun `deactivate persists inactive status, writes audit log, and rejects existing token`() {
-        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        IdentityFixtures.grantManageUsers(callerId, sourceId)
         val targetToken = JwtService.generateToken(targetUserId.toString())
 
         UserService.deactivate(callerId, targetUserId)
@@ -177,22 +178,22 @@ class UserServicePostgresTest : BasePostgresTest() {
     fun `list returns users with active assignments only, ordered by displayName then username`() {
         val branchA = TestFixtures.uuid()
         val branchB = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestBranch(branchA, "Branch A")
-        DatabaseTestHelper.insertTestBranch(branchB, "Branch B")
+        BranchWorkforceFixtures.insertTestBranch(branchA, "Branch A")
+        BranchWorkforceFixtures.insertTestBranch(branchB, "Branch B")
 
-        DatabaseTestHelper.insertTestAssignment(
+        BranchWorkforceFixtures.insertTestAssignment(
             userId = targetUserId,
             branchId = branchA,
             slot = 2,
             assignedBy = callerId,
         )
-        DatabaseTestHelper.insertTestAssignment(
+        BranchWorkforceFixtures.insertTestAssignment(
             userId = targetUserId,
             branchId = branchB,
             slot = 1,
             assignedBy = callerId,
         )
-        DatabaseTestHelper.insertTestAssignment(
+        BranchWorkforceFixtures.insertTestAssignment(
             userId = callerId,
             branchId = branchA,
             slot = 9,
@@ -370,8 +371,8 @@ class UserServicePostgresTest : BasePostgresTest() {
             AuditEntry(
                 action = row[AuditLogTable.action].name,
                 changedBy = row[AuditLogTable.changedBy].toString(),
-                oldStatus = DatabaseTestHelper.extractJsonField(row[AuditLogTable.oldValue] ?: "{}", "status"),
-                newStatus = DatabaseTestHelper.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "status"),
+                oldStatus = TestFixtures.extractJsonField(row[AuditLogTable.oldValue] ?: "{}", "status"),
+                newStatus = TestFixtures.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "status"),
             )
         }
 
