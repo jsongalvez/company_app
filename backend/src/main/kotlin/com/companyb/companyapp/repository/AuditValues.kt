@@ -1,6 +1,11 @@
 package com.companyb.companyapp.repository
 
 object AuditValues {
+    /**
+     * Legacy null sentinel (#525): historical `{"k":"null"}` payloads encode
+     * absent values as the string "null". New writes use JSON null instead;
+     * readers must accept both. Do not emit this for new rows.
+     */
     const val NULL = "null"
     const val NOW = "now"
     const val NOW_FN = "now()"

@@ -82,7 +82,7 @@ object InventoryMovementTable : Table("inventory_movement") {
 
     override val primaryKey = PrimaryKey(id)
 
-    fun auditFields(entity: InventoryMovement): Map<String, String> =
+    fun auditFields(entity: InventoryMovement): Map<String, String?> =
         mapOf(
             "id" to entity.id.toString(),
             "productId" to entity.productId.toString(),
@@ -90,6 +90,6 @@ object InventoryMovementTable : Table("inventory_movement") {
             "branchDayId" to entity.branchDayId.toString(),
             "reason" to entity.reason.name,
             "quantityChange" to entity.quantityChange.toString(),
-            "notes" to (entity.notes ?: "null"),
+            "notes" to entity.notes,
         )
 }

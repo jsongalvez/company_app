@@ -188,12 +188,16 @@ class ClientPatchSemanticsPostgresTest : BasePostgresTest() {
         val entries = auditEntries()
         val clearEntry = entries.first { it.reason?.startsWith("cleared:") == true }
         assertEquals("cleared: middleName, phoneNumber", clearEntry.reason)
-        for (entry in entries) {
-            assertFalse(
-                (entry.oldValue.orEmpty() + entry.newValue.orEmpty()).contains("09171234567"),
-                "Cleared values must not land in audit payloads",
-            )
-        }
+        // #525 — the clear event itself carries markers, never removed values.
+        // Earlier SET/CREATE payloads retain history until anonymize redacts it.
+        assertFalse(
+            (clearEntry.oldValue.orEmpty() + clearEntry.newValue.orEmpty()).contains("09171234567"),
+            "Cleared values must not land in the clear event's payloads",
+        )
+        assertFalse(
+            (clearEntry.oldValue.orEmpty() + clearEntry.newValue.orEmpty()).contains("Reyes"),
+            "Cleared values must not land in the clear event's payloads",
+        )
     }
 
     @Test

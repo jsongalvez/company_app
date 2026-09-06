@@ -375,18 +375,18 @@ internal object ClientAudit {
         before = before,
         after = after,
         changedBy = changedBy,
-        auditFields = ClientTable::auditFields,
-        // Cleared-field identity without values (#523): the audit vocabulary only
-        // covers names today (#525 owns full coverage), so the reason names which
-        // optional fields were cleared — never their values (#524 safe).
+        // Cleared-field identity without values (#523, #525): cleared PII never
+        // lands in a payload — old cleared values become REDACTED, new stays
+        // null (or N/A for address) — while the reason names the cleared fields.
+        auditFields = { client -> scrubCleared(ClientTable.auditFields(client), clearedFields) },
         reason = clearedFields.takeIf { it.isNotEmpty() }?.let { "cleared: ${it.sorted().joinToString()}" },
     )
 
     /**
-     * Anonymization event (#524): the before-image carries the redaction
-     * marker instead of the removed names, so the event itself can never
-     * resurrect what anonymization just removed. The `anonymized` reason is
-     * the audit-side marker of the anonymization.
+     * Anonymization event (#524, extended #525): the before-image carries the
+     * redaction marker instead of every removed PII value, so the event itself
+     * can never resurrect what anonymization just removed. The `anonymized`
+     * reason is the audit-side marker of the anonymization.
      */
     fun anonymized(
         changedBy: UUID,
@@ -397,6 +397,11 @@ internal object ClientAudit {
             before.copy(
                 firstName = AuditValues.REDACTED,
                 lastName = AuditValues.REDACTED,
+                middleName = before.middleName?.let { AuditValues.REDACTED },
+                suffix = before.suffix?.let { AuditValues.REDACTED },
+                phoneNumber = before.phoneNumber?.let { AuditValues.REDACTED },
+                address = before.address?.let { if (it == DEFAULT_CLIENT_ADDRESS) it else AuditValues.REDACTED },
+                medicalConditions = before.medicalConditions?.let { AuditValues.REDACTED },
             )
         AuditLogRepository.recordUpdate(
             tableName = ClientTable.tableName,
@@ -404,10 +409,37 @@ internal object ClientAudit {
             before = scrubbed,
             after = after,
             changedBy = changedBy,
-            auditFields = ClientTable::auditFields,
+            // BP is numeric on the entity, so its marker is applied at the
+            // payload level: non-null BP becomes REDACTED, nulls stay null.
+            auditFields = { client ->
+                ClientTable.auditFields(client).mapValues { (key, value) ->
+                    if ((key == "systolicBp" || key == "diastolicBp") && value != null) {
+                        AuditValues.REDACTED
+                    } else {
+                        value
+                    }
+                }
+            },
             reason = ANONYMIZED_REASON,
         )
     }
+
+    /**
+     * Cleared-field scrub (#523, #525): for keys in [cleared], a stored PII value
+     * becomes REDACTED while nulls and the N/A address default keep their shape,
+     * so clears record the change without retaining the removed value.
+     */
+    internal fun scrubCleared(
+        fields: Map<String, String?>,
+        cleared: Set<String>,
+    ): Map<String, String?> =
+        fields.mapValues { (key, value) ->
+            if (key in cleared && value != null && value != DEFAULT_CLIENT_ADDRESS) {
+                AuditValues.REDACTED
+            } else {
+                value
+            }
+        }
 }
 
 private const val ANONYMIZED_REASON = "anonymized"

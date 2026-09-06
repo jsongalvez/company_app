@@ -52,13 +52,13 @@ object AppUserTable : Table("app_user") {
 
     override val primaryKey = PrimaryKey(id)
 
-    fun auditFields(entity: AppUser): Map<String, String> =
+    fun auditFields(entity: AppUser): Map<String, String?> =
         mapOf(
             "id" to entity.id,
             "username" to entity.username,
             "status" to entity.status.name,
             "displayName" to entity.displayName,
-            "deactivatedAt" to (entity.deactivatedAt?.toString() ?: "null"),
-            "jwtRevokedAt" to (entity.jwtRevokedAt?.toString() ?: "null"),
+            "deactivatedAt" to entity.deactivatedAt?.toString(),
+            "jwtRevokedAt" to entity.jwtRevokedAt?.toString(),
         )
 }

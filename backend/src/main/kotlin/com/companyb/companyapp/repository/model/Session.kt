@@ -83,13 +83,27 @@ object SessionTable : Table("session") {
 
     override val primaryKey = PrimaryKey(id)
 
-    fun auditFields(entity: Session): Map<String, String> =
+    fun auditFields(entity: Session): Map<String, String?> =
         mapOf(
             "id" to entity.id.toString(),
             "clientId" to entity.clientId.toString(),
             "branchDayId" to entity.branchDayId.toString(),
+            // #525 field policy — every stored creation input is a value diff so
+            // creation context cannot vanish: requested practitioner, walk-in flag,
+            // prices, remarks/concerns, booking and next-appointment dates, and the
+            // idempotency owner. createdAt/version are excluded as derived/internal
+            // (audit changedAt already marks event time; version would noise every
+            // diff). isVoided is excluded: void state is audited via session_void.
+            "requestedPractitionerId" to entity.requestedPractitionerId?.toString(),
+            "isWalkIn" to entity.isWalkIn.toString(),
             "sessionType" to entity.sessionType.name,
             "sessionStatus" to entity.sessionStatus.name,
+            "basePrice" to entity.basePrice.toPlainString(),
             "finalPrice" to entity.finalPrice.toPlainString(),
+            "remarks" to entity.remarks,
+            "otherConcerns" to entity.otherConcerns,
+            "bookedAt" to entity.bookedAt?.toString(),
+            "nextAppointmentDate" to entity.nextAppointmentDate?.toString(),
+            "createdBy" to entity.createdBy?.toString(),
         )
 }

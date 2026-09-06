@@ -46,12 +46,12 @@ object ProductSaleTable : Table("product_sale") {
 
     override val primaryKey = PrimaryKey(id)
 
-    fun auditFields(entity: ProductSale): Map<String, String> =
+    fun auditFields(entity: ProductSale): Map<String, String?> =
         mapOf(
             "id" to entity.id.toString(),
             "branchDayId" to entity.branchDayId.toString(),
-            "sessionId" to (entity.sessionId?.toString() ?: "null"),
-            "clientId" to (entity.clientId?.toString() ?: "null"),
+            "sessionId" to entity.sessionId?.toString(),
+            "clientId" to entity.clientId?.toString(),
             "isWalkIn" to entity.isWalkIn.toString(),
             "productId" to entity.productId.toString(),
             "productName" to entity.productName,

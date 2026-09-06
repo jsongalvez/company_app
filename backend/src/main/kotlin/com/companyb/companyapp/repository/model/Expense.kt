@@ -63,18 +63,18 @@ object ExpenseTable : Table("expense") {
 
     override val primaryKey = PrimaryKey(id)
 
-    fun auditFields(entity: Expense): Map<String, String> =
+    fun auditFields(entity: Expense): Map<String, String?> =
         mapOf(
             "id" to entity.id.toString(),
             "branchDayId" to entity.branchDayId.toString(),
             "amount" to entity.amount.toPlainString(),
             "category" to entity.category.name,
-            "notes" to (entity.notes ?: "null"),
+            "notes" to entity.notes,
             "createdBy" to entity.createdBy.toString(),
             "createdAt" to entity.createdAt.toString(),
-            "deletedBy" to (entity.deletedBy?.toString() ?: "null"),
-            "deletedAt" to (entity.deletedAt?.toString() ?: "null"),
-            "deletedReason" to (entity.deletedReason ?: "null"),
+            "deletedBy" to entity.deletedBy?.toString(),
+            "deletedAt" to entity.deletedAt?.toString(),
+            "deletedReason" to entity.deletedReason,
             "version" to entity.version.toString(),
         )
 }

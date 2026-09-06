@@ -38,13 +38,13 @@ object RemittanceLineTable : Table("remittance_line") {
 
     override val primaryKey = PrimaryKey(id)
 
-    fun auditFields(entity: RemittanceLine): Map<String, String> =
+    fun auditFields(entity: RemittanceLine): Map<String, String?> =
         mapOf(
             "id" to entity.id.toString(),
             "remittanceId" to entity.remittanceId.toString(),
             "type" to entity.type.name,
             "amount" to entity.amount.toPlainString(),
-            "deletedBy" to (entity.deletedBy?.toString() ?: "null"),
-            "deletedAt" to (entity.deletedAt?.toString() ?: "null"),
+            "deletedBy" to entity.deletedBy?.toString(),
+            "deletedAt" to entity.deletedAt?.toString(),
         )
 }

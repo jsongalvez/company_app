@@ -39,13 +39,13 @@ object GrantReliefAccessTable : Table("grant_relief_access") {
 
     override val primaryKey = PrimaryKey(id)
 
-    fun auditFields(entity: ReliefAccess): Map<String, String> =
+    fun auditFields(entity: ReliefAccess): Map<String, String?> =
         mapOf(
             "id" to entity.id.toString(),
             "branchDayId" to entity.branchDayId.toString(),
             "requestedBy" to entity.requestedBy.toString(),
             "requestStatus" to entity.requestStatus.name,
-            "grantedBy" to (entity.grantedBy?.toString() ?: "null"),
-            "grantedAt" to (entity.grantedAt?.toString() ?: "null"),
+            "grantedBy" to entity.grantedBy?.toString(),
+            "grantedAt" to entity.grantedAt?.toString(),
         )
 }

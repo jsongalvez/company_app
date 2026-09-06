@@ -70,14 +70,14 @@ object ReliefInviteTable : Table("relief_invite") {
 
     override val primaryKey = PrimaryKey(id)
 
-    fun auditFields(entity: ReliefInvite): Map<String, String> =
+    fun auditFields(entity: ReliefInvite): Map<String, String?> =
         mapOf(
             "id" to entity.id.toString(),
             "branchDayId" to entity.branchDayId.toString(),
             "invitedBy" to entity.invitedBy.toString(),
             "invitee" to entity.invitee.toString(),
             "status" to entity.status.name,
-            "respondedAt" to (entity.respondedAt?.toString() ?: "null"),
+            "respondedAt" to entity.respondedAt?.toString(),
             "createdAt" to entity.createdAt.toString(),
         )
 }

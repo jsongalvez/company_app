@@ -26,13 +26,13 @@ object MedicalMissionDelegateTable : Table("medical_mission_delegate") {
 
     override val primaryKey = PrimaryKey(id)
 
-    fun auditFields(entity: MedicalMissionDelegate): Map<String, String> =
+    fun auditFields(entity: MedicalMissionDelegate): Map<String, String?> =
         mapOf(
             "id" to entity.id.toString(),
             "targetUser" to entity.targetUser.toString(),
             "assignedAt" to entity.assignedAt.toString(),
             "assignedBy" to entity.assignedBy.toString(),
             "branchId" to entity.branchId.toString(),
-            "endedAt" to (entity.endedAt?.toString() ?: "null"),
+            "endedAt" to entity.endedAt?.toString(),
         )
 }

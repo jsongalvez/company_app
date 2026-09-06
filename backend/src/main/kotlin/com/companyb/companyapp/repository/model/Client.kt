@@ -45,10 +45,25 @@ object ClientTable : Table("client") {
 
     override val primaryKey = PrimaryKey(id)
 
-    fun auditFields(entity: Client): Map<String, String> =
+    fun auditFields(entity: Client): Map<String, String?> =
         mapOf(
             "id" to entity.id.toString(),
-            "firstName" to (entity.firstName ?: "null"),
-            "lastName" to (entity.lastName ?: "null"),
+            // #525 field policy — every externally writable client field is a value
+            // diff so business changes cannot become empty diffs. Names/phone/address
+            // are identifying (redacted on anonymize); BP/conditions are health values
+            // redacted on anonymize so the audit never becomes a second PII store.
+            // Gender/age are retained demographics. deletedAt is excluded: the audit
+            // row's own changedAt already marks the anonymization event.
+            "firstName" to entity.firstName,
+            "lastName" to entity.lastName,
+            "middleName" to entity.middleName,
+            "suffix" to entity.suffix,
+            "phoneNumber" to entity.phoneNumber,
+            "address" to entity.address,
+            "gender" to entity.gender.name,
+            "age" to entity.age.toString(),
+            "systolicBp" to entity.systolicBp?.toString(),
+            "diastolicBp" to entity.diastolicBp?.toString(),
+            "medicalConditions" to entity.medicalConditions,
         )
 }

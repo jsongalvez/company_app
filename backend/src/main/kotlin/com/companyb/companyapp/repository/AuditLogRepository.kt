@@ -7,8 +7,10 @@ import com.companyb.companyapp.repository.model.AuditLogEntry
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.DEFAULT_CLIENT_ADDRESS
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -90,7 +92,7 @@ object AuditLogRepository {
         tableName: String,
         recordId: UUID,
         changedBy: UUID,
-        fields: Map<String, String>,
+        fields: Map<String, String?>,
         branchId: UUID? = null,
         isFlagged: Boolean = false,
         reason: String? = null,
@@ -111,8 +113,8 @@ object AuditLogRepository {
     fun recordUpdate(
         tableName: String,
         recordId: UUID,
-        oldFields: Map<String, String>,
-        newFields: Map<String, String>,
+        oldFields: Map<String, String?>,
+        newFields: Map<String, String?>,
         changedBy: UUID,
         branchId: UUID? = null,
         isFlagged: Boolean = false,
@@ -141,14 +143,17 @@ object AuditLogRepository {
         branchId: UUID? = null,
         isFlagged: Boolean = false,
         reason: String? = null,
-        auditFields: (T) -> Map<String, String>,
+        auditFields: (T) -> Map<String, String?>,
     ) {
         val oldFields = auditFields(before)
         val newFields = auditFields(after)
         val allKeys = oldFields.keys + newFields.keys
         val changedKeys = allKeys.filter { oldFields[it] != newFields[it] }
-        val changedOldFields = changedKeys.associateWith { oldFields[it] ?: AuditValues.NULL }
-        val changedNewFields = changedKeys.associateWith { newFields[it] ?: AuditValues.NULL }
+        // #525 — nulls stay JSON null (no NULL-sentinel fallback): a missing key
+        // cannot occur at runtime (one mapper serves both sides), and a null value
+        // must survive as null so literal "null" text stays distinguishable.
+        val changedOldFields = changedKeys.associateWith { oldFields[it] }
+        val changedNewFields = changedKeys.associateWith { newFields[it] }
         recordUpdate(
             tableName = tableName,
             recordId = recordId,
@@ -170,7 +175,7 @@ object AuditLogRepository {
         branchId: UUID? = null,
         reason: String? = null,
         isFlagged: Boolean = false,
-        auditFields: (T) -> Map<String, String>,
+        auditFields: (T) -> Map<String, String?>,
     ) {
         val oldFields = auditFields(before)
         recordDelete(
@@ -189,8 +194,8 @@ object AuditLogRepository {
     fun recordDelete(
         tableName: String,
         recordId: UUID,
-        oldFields: Map<String, String>,
-        newFields: Map<String, String>,
+        oldFields: Map<String, String?>,
+        newFields: Map<String, String?>,
         changedBy: UUID,
         branchId: UUID? = null,
         reason: String? = null,
@@ -405,17 +410,23 @@ object AuditLogRepository {
 
     fun jsonField(
         key: String,
-        value: String,
+        value: String?,
     ): String = jsonFields(key to value)
 
-    fun jsonFields(vararg fields: Pair<String, String>): String = buildJson(fields.toList())
+    fun jsonFields(vararg fields: Pair<String, String?>): String = buildJson(fields.toList())
 
-    fun jsonFields(fields: Map<String, String>): String = buildJson(fields.toList())
+    fun jsonFields(fields: Map<String, String?>): String = buildJson(fields.toList())
 
-    private fun buildJson(fields: List<Pair<String, String>>): String =
+    /**
+     * #525 — nulls encode as JSON null via the existing kotlinx-serialization
+     * library; every non-null value stays a JSON string for historical
+     * compatibility. Historical `{"k":"null"}` payloads therefore keep parsing;
+     * new `{"k":null}` rows are distinguishable from literal `"null"` text.
+     */
+    private fun buildJson(fields: List<Pair<String, String?>>): String =
         buildJsonObject {
             fields.forEach { (key, value) ->
-                put(key, JsonPrimitive(value))
+                if (value == null) put(key, JsonNull) else put(key, JsonPrimitive(value))
             }
         }.toString()
 
@@ -457,13 +468,31 @@ fun decodeCursor(raw: String): AuditBrowseCursor {
     )
 }
 
-/** Client audit keys whose values identify a person (#524 redaction set; #525 extends). */
-private val CLIENT_IDENTIFYING_KEYS = setOf("firstName", "lastName")
+/**
+ * Client audit keys whose values are nullified on anonymize (BR §Privacy and
+ * Cleanup) and therefore must never survive in a retained payload (#524
+ * redaction set, extended by #525 when the client vocabulary widened beyond
+ * names). Gender/age/id are retained aggregates/identifiers and stay out.
+ */
+private val CLIENT_IDENTIFYING_KEYS =
+    setOf(
+        "firstName",
+        "lastName",
+        "middleName",
+        "suffix",
+        "phoneNumber",
+        "address",
+        "medicalConditions",
+        "systolicBp",
+        "diastolicBp",
+    )
 
 /**
- * One audit payload's name redaction (#524): identifying values become the
- * uniform [AuditValues.REDACTED] marker; uniform `null`s, existing markers,
- * non-object shapes, and unparseable payloads pass through untouched.
+ * One audit payload's PII redaction (#524, extended #525): identifying values
+ * become the uniform [AuditValues.REDACTED] marker; JSON nulls, historical
+ * `"null"` sentinels, existing markers, the `N/A` address default, non-object
+ * shapes, and unparseable payloads pass through untouched so cleared-state
+ * history keeps its shape.
  */
 private fun redactClientNames(raw: String?): String? {
     if (raw == null) return null
@@ -475,8 +504,10 @@ private fun redactClientNames(raw: String?): String? {
             element.forEach { (key, value) ->
                 val keep =
                     key !in CLIENT_IDENTIFYING_KEYS ||
+                        value is JsonNull ||
                         value == JsonPrimitive(AuditValues.NULL) ||
-                        value == JsonPrimitive(AuditValues.REDACTED)
+                        value == JsonPrimitive(AuditValues.REDACTED) ||
+                        value == JsonPrimitive(DEFAULT_CLIENT_ADDRESS)
                 if (keep) {
                     put(key, value)
                 } else {

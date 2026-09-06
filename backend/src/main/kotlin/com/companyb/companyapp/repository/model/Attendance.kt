@@ -26,14 +26,14 @@ object AttendanceTable : Table("attendance") {
 
     override val primaryKey = PrimaryKey(id)
 
-    fun auditFields(entity: Attendance): Map<String, String> =
+    fun auditFields(entity: Attendance): Map<String, String?> =
         mapOf(
             "id" to entity.id.toString(),
             "branchDayId" to entity.branchDayId.toString(),
             "userId" to entity.userId.toString(),
             "markedBy" to entity.markedBy.toString(),
             "clockIn" to entity.clockIn.toString(),
-            "clockOut" to (entity.clockOut?.toString() ?: "null"),
+            "clockOut" to entity.clockOut?.toString(),
         )
 }
 

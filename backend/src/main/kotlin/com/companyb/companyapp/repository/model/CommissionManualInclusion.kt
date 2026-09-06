@@ -43,13 +43,13 @@ object CommissionManualInclusionTable : Table("commission_manual_inclusion") {
 
     override val primaryKey = PrimaryKey(id)
 
-    fun auditFields(entity: CommissionManualInclusion): Map<String, String> =
+    fun auditFields(entity: CommissionManualInclusion): Map<String, String?> =
         mapOf(
             "id" to entity.id.toString(),
             "productSaleId" to entity.productSaleId.toString(),
             "userId" to entity.userId.toString(),
             "isIncluded" to entity.isIncluded.toString(),
-            "reason" to (entity.reason ?: "null"),
+            "reason" to entity.reason,
             "assignedBy" to entity.assignedBy.toString(),
             "assignedAt" to entity.assignedAt.toString(),
         )

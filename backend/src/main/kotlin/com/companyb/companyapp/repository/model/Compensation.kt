@@ -36,7 +36,7 @@ object CompensationTable : Table("compensation") {
 
     override val primaryKey = PrimaryKey(id)
 
-    fun auditFields(entity: Compensation): Map<String, String> =
+    fun auditFields(entity: Compensation): Map<String, String?> =
         mapOf(
             "id" to entity.id.toString(),
             "workBranchDayId" to entity.workBranchDayId.toString(),
@@ -45,7 +45,7 @@ object CompensationTable : Table("compensation") {
             "amount" to entity.amount.toPlainString(),
             "assignedBy" to entity.assignedBy.toString(),
             "assignedAt" to entity.assignedAt.toString(),
-            "note" to (entity.note ?: "null"),
+            "note" to entity.note,
             "version" to entity.version.toString(),
         )
 }

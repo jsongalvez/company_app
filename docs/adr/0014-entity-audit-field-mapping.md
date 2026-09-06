@@ -39,7 +39,8 @@ AuditLogRepository.recordInsert(
 )
 ```
 
-Nullable entity fields are encoded as the literal string `"null"`.
+Nullable entity fields are encoded as JSON null (#525; historical rows use the
+legacy literal string `"null"` and readers accept both).
 
 ## Rejected: Auditable interface on entities
 

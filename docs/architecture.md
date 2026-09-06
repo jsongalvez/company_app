@@ -334,7 +334,7 @@ Edits to REMITTED records require a `reason` in the request body. The service la
   #321, #323) replaced every callback path with command-owned transactions, keeping ADR-0019's
   transaction-local before-state invariant — the command reads the before entity via
   `findByIdInTransaction` inside its own transaction
-- The `AuditLogRepository` convenience methods (`recordInsert`, `recordUpdate`, `recordDelete`) accept `Map<String, String>` field maps; entity-based overloads take `(before, after)` with the Table companion's `auditFields(entity)` function (see ADR 0014 / 0018)
+- The `AuditLogRepository` convenience methods (`recordInsert`, `recordUpdate`, `recordDelete`) accept `Map<String, String?>` field maps (null encodes as JSON null, #525); entity-based overloads take `(before, after)` with the Table companion's `auditFields(entity)` function (see ADR 0014 / 0018)
 - Each Table companion defines an `auditFields(entity)` function (see ADR 0014)
 - These shapes are enforced executably by `BackendFeatureBoundaryArchitectureTest` (§7) — that test,
   not this prose, is authoritative

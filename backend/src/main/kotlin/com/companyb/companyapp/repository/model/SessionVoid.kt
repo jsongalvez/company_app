@@ -30,10 +30,18 @@ object SessionVoidTable : Table("session_void") {
 
     override val primaryKey = PrimaryKey(id)
 
-    fun auditFields(entity: SessionVoid): Map<String, String> =
+    fun auditFields(entity: SessionVoid): Map<String, String?> =
         mapOf(
             "id" to entity.id.toString(),
             "sessionId" to entity.sessionId.toString(),
+            // #525 field policy — the full void lifecycle is value-diffed: the void
+            // event (actor/time/reason) and the unvoid event (actor/time/reason).
+            // No manual additions exist in SessionService beyond this mapping.
+            "voidedAt" to entity.voidedAt.toString(),
+            "voidedBy" to entity.voidedBy.toString(),
             "voidReason" to entity.voidReason,
+            "unvoidedAt" to entity.unvoidedAt?.toString(),
+            "unvoidedBy" to entity.unvoidedBy?.toString(),
+            "unvoidedReason" to entity.unvoidedReason,
         )
 }

@@ -36,7 +36,7 @@ object UserBranchAssignmentTable : Table("user_branch_assignment") {
 
     override val primaryKey = PrimaryKey(id)
 
-    fun auditFields(entity: UserBranchAssignment): Map<String, String> =
+    fun auditFields(entity: UserBranchAssignment): Map<String, String?> =
         mapOf(
             "id" to entity.id.toString(),
             "userId" to entity.userId.toString(),
@@ -44,6 +44,6 @@ object UserBranchAssignmentTable : Table("user_branch_assignment") {
             "slot" to entity.slot.toString(),
             "assignedBy" to entity.assignedBy.toString(),
             "assignedAt" to entity.assignedAt.toString(),
-            "endedAt" to (entity.endedAt?.toString() ?: "null"),
+            "endedAt" to entity.endedAt?.toString(),
         )
 }

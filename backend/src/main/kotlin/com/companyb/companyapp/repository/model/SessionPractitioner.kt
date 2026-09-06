@@ -21,12 +21,12 @@ object SessionPractitionerTable : Table("session_practitioner") {
 
     override val primaryKey = PrimaryKey(id)
 
-    fun auditFields(entity: SessionPractitioner): Map<String, String> =
+    fun auditFields(entity: SessionPractitioner): Map<String, String?> =
         mapOf(
             "id" to entity.id.toString(),
             "sessionId" to entity.sessionId.toString(),
             "practitionerId" to entity.practitionerId.toString(),
-            "remarks" to (entity.remarks ?: "null"),
+            "remarks" to entity.remarks,
             "slotAtTime" to entity.slotAtTime.toString(),
         )
 }
