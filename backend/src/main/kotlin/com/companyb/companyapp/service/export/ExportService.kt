@@ -33,12 +33,12 @@ object ExportService {
         val rows =
             listOf(
                 listOf(
-                    summary.grossIncome.toPlainString(),
-                    summary.totalCompensation.toPlainString(),
-                    summary.totalExpenses.toPlainString(),
-                    summary.netIncome.toPlainString(),
-                    summary.totalProductSales.toPlainString(),
-                    summary.totalCommission.toPlainString(),
+                    CsvCell.Numeric(summary.grossIncome.toPlainString()),
+                    CsvCell.Numeric(summary.totalCompensation.toPlainString()),
+                    CsvCell.Numeric(summary.totalExpenses.toPlainString()),
+                    CsvCell.Numeric(summary.netIncome.toPlainString()),
+                    CsvCell.Numeric(summary.totalProductSales.toPlainString()),
+                    CsvCell.Numeric(summary.totalCommission.toPlainString()),
                 ),
             )
         return buildResult(title, headers, rows, format, "daily-sales-${branch.name}-$date")
@@ -70,12 +70,12 @@ object ExportService {
         val rows =
             listOf(
                 listOf(
-                    gross.toPlainString(),
-                    comp.toPlainString(),
-                    exp.toPlainString(),
-                    (gross - comp - exp).toPlainString(),
-                    productSales.toPlainString(),
-                    commission.toPlainString(),
+                    CsvCell.Numeric(gross.toPlainString()),
+                    CsvCell.Numeric(comp.toPlainString()),
+                    CsvCell.Numeric(exp.toPlainString()),
+                    CsvCell.Numeric((gross - comp - exp).toPlainString()),
+                    CsvCell.Numeric(productSales.toPlainString()),
+                    CsvCell.Numeric(commission.toPlainString()),
                 ),
             )
         return buildResult(title, headers, rows, format, "range-export-${branch.name}-$from-$to")
@@ -103,13 +103,13 @@ object ExportService {
         val rows =
             listOf(
                 listOf(
-                    summary.totalRemittances.toString(),
-                    summary.sessionCount.toString(),
-                    summary.productCount.toString(),
-                    summary.grossIncome.toPlainString(),
-                    summary.totalCompensation.toPlainString(),
-                    summary.totalExpenses.toPlainString(),
-                    summary.netIncome.toPlainString(),
+                    CsvCell.Numeric(summary.totalRemittances.toString()),
+                    CsvCell.Numeric(summary.sessionCount.toString()),
+                    CsvCell.Numeric(summary.productCount.toString()),
+                    CsvCell.Numeric(summary.grossIncome.toPlainString()),
+                    CsvCell.Numeric(summary.totalCompensation.toPlainString()),
+                    CsvCell.Numeric(summary.totalExpenses.toPlainString()),
+                    CsvCell.Numeric(summary.netIncome.toPlainString()),
                 ),
             )
         return buildResult(title, headers, rows, format, "monthly-remittance-${branch.name}-$year-$month")
@@ -161,7 +161,7 @@ object ExportService {
     private fun buildResult(
         title: String,
         headers: List<String>,
-        rows: List<List<String>>,
+        rows: List<List<CsvCell>>,
         format: ExportFormat,
         fileBase: String,
     ): ExportResult =
@@ -176,7 +176,7 @@ object ExportService {
 
             ExportFormat.PDF -> {
                 ExportResult(
-                    bytes = PdfExporter.generate(title, headers, rows),
+                    bytes = PdfExporter.generate(title, headers, rows.map { row -> row.map { it.value } }),
                     contentType = format.contentType,
                     fileName = "$fileBase.${format.extension}",
                 )
@@ -227,30 +227,30 @@ object ExportService {
             "Net Income",
         )
 
-    private fun allTimeRow(s: com.companyb.companyapp.repository.model.MonthlyRemittanceSummary): List<String> =
+    private fun allTimeRow(s: com.companyb.companyapp.repository.model.MonthlyRemittanceSummary): List<CsvCell> =
         listOf(
-            s.year.toString(),
-            Month.of(s.month).name,
-            s.totalRemittances.toString(),
-            s.sessionCount.toString(),
-            s.productCount.toString(),
-            s.grossIncome.toPlainString(),
-            s.totalCompensation.toPlainString(),
-            s.totalExpenses.toPlainString(),
-            s.netIncome.toPlainString(),
+            CsvCell.Numeric(s.year.toString()),
+            CsvCell.Text(Month.of(s.month).name),
+            CsvCell.Numeric(s.totalRemittances.toString()),
+            CsvCell.Numeric(s.sessionCount.toString()),
+            CsvCell.Numeric(s.productCount.toString()),
+            CsvCell.Numeric(s.grossIncome.toPlainString()),
+            CsvCell.Numeric(s.totalCompensation.toPlainString()),
+            CsvCell.Numeric(s.totalExpenses.toPlainString()),
+            CsvCell.Numeric(s.netIncome.toPlainString()),
         )
 
     private fun branchTypeHeaders(): List<String> =
         listOf("Branch", "Year", "Month", "Remittances", "Sessions", "Products", "Net Income")
 
-    private fun branchTypeRow(s: com.companyb.companyapp.repository.BranchTypeMonthlySummary): List<String> =
+    private fun branchTypeRow(s: com.companyb.companyapp.repository.BranchTypeMonthlySummary): List<CsvCell> =
         listOf(
-            s.branchName,
-            s.year.toString(),
-            Month.of(s.month).name,
-            s.totalRemittances.toString(),
-            s.sessionCount.toString(),
-            s.productCount.toString(),
-            s.netIncome.toPlainString(),
+            CsvCell.Text(s.branchName),
+            CsvCell.Numeric(s.year.toString()),
+            CsvCell.Text(Month.of(s.month).name),
+            CsvCell.Numeric(s.totalRemittances.toString()),
+            CsvCell.Numeric(s.sessionCount.toString()),
+            CsvCell.Numeric(s.productCount.toString()),
+            CsvCell.Numeric(s.netIncome.toPlainString()),
         )
 }

@@ -375,6 +375,55 @@ class ExportServicePostgresTest : BasePostgresTest() {
         assertTrue(csv.contains("2200.00"), "Expected CSV to contain '2200.00' (net income) but got: $csv")
     }
 
+    @Test
+    fun `branch type export neutralizes formula prefixes while keeping amounts numeric`() {
+        listOf("=1+1", "+1+1", "@SUM(1)", "Com,ma \"Q\"", "lone\rcr", "crlf\r\nbreak")
+            .forEach { seedFormulaBranch(it) }
+        val result =
+            ExportService.exportByBranchType(
+                BranchType.PROVINCIAL_TOUR,
+                null,
+                null,
+                ExportFormat.CSV,
+            )
+        val csv = String(result.bytes, Charsets.UTF_8)
+        assertTrue(csv.contains("'=1+1"), "formula branch must be single-quote prefixed but got: $csv")
+        assertTrue(csv.contains("'+1+1"), "formula branch must be single-quote prefixed but got: $csv")
+        assertTrue(csv.contains("'@SUM(1)"), "formula branch must be single-quote prefixed but got: $csv")
+        assertFalse(csv.contains("\n=1+1"), "unescaped formula cell must not remain but got: $csv")
+        assertFalse(csv.contains("\n+1+1"), "unescaped formula cell must not remain but got: $csv")
+        assertFalse(csv.contains("\n@SUM"), "unescaped formula cell must not remain but got: $csv")
+        assertTrue(csv.contains("\"Com,ma \"\"Q\"\"\""), "comma/quote branch must stay quoted but got: $csv")
+        assertTrue(csv.contains("\"lone\rcr\""), "lone CR must stay quoted but got: $csv")
+        assertTrue(csv.contains("\"crlf\r\nbreak\""), "CRLF must stay quoted but got: $csv")
+        assertTrue(csv.contains("1500.00"), "expected numeric net 1500.00 but got: $csv")
+        assertTrue(csv.contains("-300.00"), "expected numeric negative net but got: $csv")
+        assertFalse(csv.contains("'-300.00"), "negative amount must stay numeric but got: $csv")
+        assertFalse(csv.contains("'1500.00"), "amount must stay numeric but got: $csv")
+        val pdf =
+            ExportService.exportByBranchType(
+                BranchType.PROVINCIAL_TOUR,
+                null,
+                null,
+                ExportFormat.PDF,
+            )
+        assertContentEquals(
+            byteArrayOf(0x25, 0x50, 0x44, 0x46),
+            pdf.bytes.take(4).toByteArray(),
+        )
+    }
+
+    private fun seedFormulaBranch(name: String) {
+        val id = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestBranch(id, name, BranchType.PROVINCIAL_TOUR)
+        insertBranchDay(TestFixtures.uuid(), id, today)
+        if (name == "lone\rcr") {
+            createSubmittedRemittanceForBranch(id, BigDecimal("1000.00"), BigDecimal("800.00"), BigDecimal("500.00"))
+        } else {
+            createSubmittedRemittanceForBranch(id, BigDecimal("2000.00"), BigDecimal("400.00"), BigDecimal("100.00"))
+        }
+    }
+
     private fun grantViewBranchData(userId: UUID) {
         DatabaseTestHelper.grantCapability(
             userId = userId,
