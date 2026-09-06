@@ -34,6 +34,11 @@ private const val DEV_USER_ROLE_NAME = "OWNER"
 private const val DEV_USER_EMAIL_DOMAIN = "@example.com"
 private const val SCOPED_USER_SLOT: Short = 1
 
+// #575 — the dev owner clocks in at the fixture branch (BranchSelect lists assigned branches;
+// capabilities alone render an empty list with no clock-in path), so the global seed carries
+// a senior home assignment there. Slot is per user per branch — no collision with the scoped seat.
+private const val DEV_USER_SLOT: Short = 1
+
 internal val DEV_FIXTURE_BRANCH_ID = UUID.fromString("00000000-0000-4000-8000-000000000001")
 
 private val DEV_CAPABILITIES =
@@ -119,6 +124,13 @@ object DevSeeder {
         ensureFixtureBranch()
         for (code in DEV_FIXTURE_BRANCH_CAPABILITIES) {
             insertCapability(userId, code, CapabilityContextType.BRANCH, DEV_FIXTURE_BRANCH_ID)
+        }
+        UserBranchAssignmentTable.insert {
+            it[id] = UUID.randomUUID()
+            it[UserBranchAssignmentTable.userId] = userId
+            it[branchId] = DEV_FIXTURE_BRANCH_ID
+            it[slot] = DEV_USER_SLOT
+            it[assignedBy] = userId
         }
         seedSessionBaseRates(userId)
 
