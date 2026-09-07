@@ -830,7 +830,7 @@ style:
       - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/SessionClientFixtures.kt' #552 split from the retired mixed helper
       - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/CommerceFinanceFixtures.kt' #552 split from the retired mixed helper
       - '**/composeApp/src/androidMain/kotlin/com/companyb/companyapp/network/TokenStore.android.kt' #465 frozen
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/App.kt' #465 frozen
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/App.kt' #465 frozen #555 retarget #585 repair
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/AuditLogDiff.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ClientFieldEditor.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ClientPicker.kt' #465 frozen
@@ -874,9 +874,9 @@ style:
       - '**/iosTest/**'
       - '**/*.kts'
       - '**/commonMain/**/ui/theme/LinearTheme.kt'
-      - '**/commonMain/**/ui/drawer/NotificationBadge.kt'
-      - '**/commonMain/**/ui/drawer/HamburgerWithBadge.kt'
-      - '**/commonMain/**/ui/drawer/DrawerContent.kt'
+      - '**/commonMain/**/app/drawer/NotificationBadge.kt' #555 retarget #585 repair
+      - '**/commonMain/**/app/drawer/HamburgerWithBadge.kt' #555 retarget #585 repair
+      - '**/commonMain/**/app/drawer/DrawerContent.kt' #555 retarget #585 repair
     ignoreNumbers:
       - '-1'
       - '0'

@@ -40,7 +40,6 @@ import com.companyb.companyapp.util.logWarn
 import kotlinx.coroutines.flow.collectLatest
 
 @Composable
-@Suppress("TooGenericExceptionCaught")
 fun App() {
     val tokenStore: TokenStore = remember { createTokenStore() }
     val apiClient = remember { ApiClient(tokenStore) }
@@ -160,7 +159,7 @@ private fun AppLaunchValidationEffects(
     }
 }
 
-@Suppress("TooGenericExceptionCaught")
+@Suppress("TooGenericExceptionCaught") // #585 best-effort session clear must not throw (moved #555)
 private suspend fun handleSessionUnauthorized(
     apiClient: ApiClient,
     navController: NavHostController,

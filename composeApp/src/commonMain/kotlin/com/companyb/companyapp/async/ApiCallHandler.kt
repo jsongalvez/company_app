@@ -156,7 +156,7 @@ class ApiCallHandler(
             ),
         )
 
-    @Suppress("TooGenericExceptionCaught")
+    @Suppress("TooGenericExceptionCaught") // #585 generic catch, CancellationException rethrows (moved #554)
     fun <T> launch(request: LaunchRequest<T>): Job {
         logInfo(tag, request.entryMessage ?: "${request.operation} called")
         val captured = request.stamp()
@@ -250,7 +250,7 @@ class ApiCallHandler(
     // Ungated by design (#528): a surface that can move on while a request is in flight must
     // use [launchStatelessGuarded] — a one-time stale check around a suspending decode cannot
     // retract the decode's side effects.
-    @Suppress("TooGenericExceptionCaught")
+    @Suppress("TooGenericExceptionCaught") // #585 generic catch, CancellationException rethrows (moved #554)
     fun launchStateless(
         operation: String,
         endpoint: String,
@@ -286,7 +286,7 @@ class ApiCallHandler(
     // immediately after the second stale read with no suspension gap, on this scope. The
     // first stale read skips already-stale bodies before the wasted parse; the failure legs
     // are non-suspending commits closed by a single pre-commit stale read.
-    @Suppress("TooGenericExceptionCaught")
+    @Suppress("TooGenericExceptionCaught") // #585 generic catch, CancellationException rethrows (moved #554)
     fun <D> launchStatelessGuarded(
         operation: String,
         endpoint: String,
