@@ -153,11 +153,6 @@ object ApiRoutes {
 
     fun branchDelegates(id: String) = "$BRANCHES/$id/delegates"
 
-    fun branchExport(
-        id: String,
-        format: String,
-    ) = "$BRANCHES/$id/export/$format"
-
     fun notification(id: String) = "$NOTIFICATIONS/$id"
 
     fun notificationRead(id: String) = "${notification(id)}/read"
@@ -214,10 +209,6 @@ object ApiRoutes {
     fun remittanceSubmit(id: String) = "${remittance(id)}/submit"
 
     fun remittanceUndo(id: String) = "${remittance(id)}/undo"
-
-    fun commissionSplits(id: String) = "$COMMISSION_SPLITS/$id"
-
-    fun commissionRecalculate(id: String) = "$COMMISSION_RECALCULATE/$id"
 
     fun branchDayUsers(id: String) = "$BRANCH_DAYS/$id/users"
 
@@ -283,7 +274,6 @@ object ApiRoutes {
     const val PRODUCT_PATH = "$PRODUCTS/{productId}"
     const val PRODUCT_CATEGORY_PATH = "$PRODUCT_CATEGORIES/{categoryId}"
     const val CLIENT_PATH = "$CLIENTS/{clientId}"
-    const val USER_PATH = "$USERS/{userId}"
     const val BRANCH_DAY_USERS_PATH = "$BRANCH_DAYS/{branchDayId}/users"
     const val COMMISSION_SPLITS_PATH = "$COMMISSION_SPLITS/{branchDayId}"
     const val COMMISSION_RECALCULATE_PATH = "$COMMISSION_RECALCULATE/{branchDayId}"
@@ -327,13 +317,6 @@ object ApiRoutes {
         path: String,
         query: String,
     ) = "$path?$query"
-
-    fun branchRemittance(id: String) = "$BRANCHES/$id/remittance"
-
-    fun branchInventoryProduct(
-        branchId: String,
-        productId: String,
-    ) = "${branchInventory(branchId)}/$productId"
 
     fun reliefAccessRequest(id: String) = "$RELIEF_ACCESS/$id"
 
