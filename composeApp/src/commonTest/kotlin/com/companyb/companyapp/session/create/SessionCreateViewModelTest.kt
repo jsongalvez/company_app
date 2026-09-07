@@ -1,6 +1,7 @@
 package com.companyb.companyapp.session.create
 
 import com.companyb.companyapp.async.UiState
+import com.companyb.companyapp.client.ClientMutation
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.dto.BranchMemberResponse
@@ -8,7 +9,6 @@ import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.SessionPreviewResponse
 import com.companyb.companyapp.dto.SessionResponse
 import com.companyb.companyapp.network.mockApiClient
-import com.companyb.companyapp.state.ClientMutation
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.client
 
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.Gender

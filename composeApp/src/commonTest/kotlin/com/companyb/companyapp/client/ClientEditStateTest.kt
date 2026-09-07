@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.client
 
 import com.companyb.companyapp.async.UiState
 import kotlin.test.Test

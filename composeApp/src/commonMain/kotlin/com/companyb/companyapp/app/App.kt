@@ -27,11 +27,11 @@ import com.companyb.companyapp.app.SessionBootstrapViewModel
 import com.companyb.companyapp.app.navigation.AppNavHost
 import com.companyb.companyapp.app.navigation.Route
 import com.companyb.companyapp.async.UiState
+import com.companyb.companyapp.client.ClientState
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.network.createTokenStore
 import com.companyb.companyapp.notification.NotificationState
-import com.companyb.companyapp.state.ClientState
 import com.companyb.companyapp.ui.theme.LinearTheme
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logError

@@ -1,6 +1,6 @@
 @file:Suppress("DEPRECATION")
 
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.client
 
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.client
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf

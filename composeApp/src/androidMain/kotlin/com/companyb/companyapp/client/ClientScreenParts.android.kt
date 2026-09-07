@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.client
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.ColumnScope

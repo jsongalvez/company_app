@@ -21,10 +21,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.client.ClientPickerArgs
+import com.companyb.companyapp.client.ClientPickerSection
+import com.companyb.companyapp.client.clientDisplayName
 import com.companyb.companyapp.dto.ClientResponse
-import com.companyb.companyapp.ui.screen.ClientPickerArgs
-import com.companyb.companyapp.ui.screen.ClientPickerSection
-import com.companyb.companyapp.ui.screen.clientDisplayName
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing

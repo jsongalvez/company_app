@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.client
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,11 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.ClientResponse
-import com.companyb.companyapp.state.ClientState
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.ClientViewModel
 
 /**
  * #113 — Client detail screen per locked #99 D4/D5/D10.

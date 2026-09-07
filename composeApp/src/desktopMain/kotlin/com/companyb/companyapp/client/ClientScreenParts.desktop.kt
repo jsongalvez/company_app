@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.client
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column

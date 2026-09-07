@@ -1,6 +1,6 @@
 @file:Suppress("MatchingDeclarationName")
 
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.client
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,7 +28,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.ClientResponse
-import com.companyb.companyapp.session.create.SessionClientPickerApi
 import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
@@ -36,13 +35,13 @@ import com.companyb.companyapp.ui.theme.Spacing
 /**
  * The find-or-create client half of the #348 session-create flow (no selection yet), split out
  * of SessionCreateScreen.kt to keep both files under the detekt file-function budget.
- * #557 — stays in shared `ui/screen` as the deliberate cross-feature edge for #558's client
- * owner (single source, consumed via [SessionClientPickerApi]; never copied into session/).
+ * #558 — lives in the `client` owner as the single source, consumed via the client-owned
+ * [ClientPickerApi] (session's `SessionClientPickerApi` extends it; never copied into session/).
  * Only the entry point is internal.
  */
 
 internal data class ClientPickerArgs(
-    val viewModel: SessionClientPickerApi,
+    val viewModel: ClientPickerApi,
     val query: String,
     val searchState: UiState<List<ClientResponse>>,
     val cachedResults: List<ClientResponse>?,

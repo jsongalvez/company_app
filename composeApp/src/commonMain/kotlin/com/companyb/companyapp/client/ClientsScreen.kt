@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.client
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,13 +32,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.ClientResponse
-import com.companyb.companyapp.state.ClientState
 import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.ClientViewModel
 
 /**
  * #113 — Clients search screen (US-20), per the locked #99 D1–D10.

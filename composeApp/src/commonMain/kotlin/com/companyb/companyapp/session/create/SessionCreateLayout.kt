@@ -9,9 +9,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.async.UiState
+import com.companyb.companyapp.client.ClientPickerArgs
+import com.companyb.companyapp.client.ClientPickerSection
 import com.companyb.companyapp.dto.ClientResponse
-import com.companyb.companyapp.ui.screen.ClientPickerArgs
-import com.companyb.companyapp.ui.screen.ClientPickerSection
 import com.companyb.companyapp.ui.theme.Spacing
 
 internal data class SessionCreateBodyArgs(

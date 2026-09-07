@@ -7,6 +7,9 @@ import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.LaunchRequest
 import com.companyb.companyapp.async.StatelessHooks
 import com.companyb.companyapp.async.UiState
+import com.companyb.companyapp.client.ClientMutation
+import com.companyb.companyapp.client.ClientPickerApi
+import com.companyb.companyapp.client.ClientSearcher
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.dto.AddSessionConcernRequest
 import com.companyb.companyapp.dto.BranchMemberResponse
@@ -16,8 +19,6 @@ import com.companyb.companyapp.dto.CreateSessionRequest
 import com.companyb.companyapp.dto.SessionPreviewResponse
 import com.companyb.companyapp.dto.SessionResponse
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.state.ClientMutation
-import com.companyb.companyapp.viewmodel.ClientSearcher
 import com.companyb.companyapp.workforce.team.extractApiErrorMessage
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -40,14 +41,10 @@ import kotlin.uuid.Uuid
 
 /**
  * #457 — the narrow picker boundary: the client directory needs search + select only,
- * never the form draft/preview/submit surface.
+ * never the form draft/preview/submit surface. #558 — extends the client-owned
+ * [ClientPickerApi] so the dependency runs session → client, never the reverse.
  */
-interface SessionClientPickerApi {
-    val onQueryChange: (String) -> Unit
-    val retrySearch: () -> Unit
-
-    fun selectClient(client: ClientResponse)
-}
+interface SessionClientPickerApi : ClientPickerApi
 
 /**
  * #457 — the narrow form boundary: preview/type-price, concerns, practitioner, submit.

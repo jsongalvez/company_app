@@ -1,4 +1,4 @@
-package com.companyb.companyapp.state
+package com.companyb.companyapp.client
 
 import com.companyb.companyapp.dto.ClientResponse
 import kotlinx.coroutines.flow.MutableStateFlow

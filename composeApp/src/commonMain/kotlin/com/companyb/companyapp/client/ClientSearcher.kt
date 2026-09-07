@@ -1,4 +1,4 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.client
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ApiCallHandler

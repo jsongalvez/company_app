@@ -171,9 +171,9 @@ composeApp/src/androidMain/kotlin/com/companyb/companyapp/network/TokenStore.and
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/App.kt:TooGenericExceptionCaught
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/AuditLogDiff.kt:ReturnCount
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/AuditLogScreen.kt:DEPRECATION
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ClientFieldEditor.kt:MagicNumber
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ClientPicker.kt:LongMethod
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ClientPicker.kt:MatchingDeclarationName
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientFieldEditor.kt:MagicNumber
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientPicker.kt:LongMethod
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientPicker.kt:MatchingDeclarationName
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/FinanceToolbar.kt:DEPRECATION
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt:CyclomaticComplexMethod
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt:LongMethod
@@ -199,6 +199,6 @@ composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/InventoryMuta
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateViewModel.kt:TooManyFunctions
 composeApp/src/desktopMain/kotlin/com/companyb/companyapp/session/dashboard/SessionListEditors.desktop.kt:MagicNumber
 composeApp/src/desktopTest/kotlin/com/companyb/companyapp/ui/screen/InventoryRowPresentationTest.kt:LongParameterList
-composeApp/src/iosMain/kotlin/com/companyb/companyapp/ui/screen/ClientScreenParts.ios.kt:DEPRECATION
+composeApp/src/iosMain/kotlin/com/companyb/companyapp/client/ClientScreenParts.ios.kt:DEPRECATION
 composeApp/src/iosMain/kotlin/com/companyb/companyapp/session/create/SessionCreateLayout.ios.kt:DEPRECATION
 shared/src/commonMain/kotlin/com/companyb/companyapp/api/ApiRoutes.kt:TooManyFunctions
