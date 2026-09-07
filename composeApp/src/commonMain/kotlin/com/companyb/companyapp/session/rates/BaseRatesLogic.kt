@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.rates
 
 import com.companyb.companyapp.app.hasCapability
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -6,12 +6,17 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.dto.RateResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.ui.screen.missionPriceLocked
 
 /**
  * #418 — the base-rate admin screen's pure decision surface, desktopTest-pinned like the
  * #392 inventory predicates. Mirrors the backend's exact gate (`SessionBaseRateRoutes`
  * `requireBranchCapabilityForBranchId`): MANAGE_PRODUCTS at BRANCH context for the specific
  * branch — no GLOBAL leg, no day-state leg (#131 strictness). These must never widen it.
+ *
+ * #573 — moved from `ui/screen` to the `session/rates` owner with the rates screen;
+ * [missionPriceLocked] stays shared in `ui/screen/SessionMoney.kt` (session create
+ * consumes the same lock).
  */
 internal fun canManageRates(
     capabilities: List<UserCapabilityResponse>,

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.rates
 
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
@@ -15,6 +15,8 @@ import kotlin.test.assertTrue
 /**
  * #418 — the base-rate admin screen's pure decision surface: exact-scope gate predicate,
  * canonical five-row display merge, and the route-400-mirroring input validation.
+ *
+ * #573 — moved with the rates owner from `ui/screen` to `session/rates`.
  */
 class BaseRatesLogicTest {
     private val branchId = "11111111-1111-1111-1111-111111111111"

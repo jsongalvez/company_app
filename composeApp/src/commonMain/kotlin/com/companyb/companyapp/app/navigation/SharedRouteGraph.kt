@@ -28,10 +28,11 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
+import com.companyb.companyapp.session.rates.BaseRatesScreen
+import com.companyb.companyapp.session.rates.SessionRatesViewModel
 import com.companyb.companyapp.ui.RouteGateCard
 import com.companyb.companyapp.ui.screen.AuditLogHistoryScreen
 import com.companyb.companyapp.ui.screen.AuditLogScreen
-import com.companyb.companyapp.ui.screen.BaseRatesScreen
 import com.companyb.companyapp.ui.screen.ClientsScreen
 import com.companyb.companyapp.ui.screen.FinanceReportsScreen
 import com.companyb.companyapp.ui.screen.InventoryScreen
@@ -49,7 +50,6 @@ import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.SessionDetailViewModel
 import com.companyb.companyapp.workforce.branch.BranchSelectScreen
 import com.companyb.companyapp.workforce.branch.BranchSelectViewModel
-import com.companyb.companyapp.workforce.branch.BranchViewModel
 import com.companyb.companyapp.workforce.relief.ReliefAccessViewModel
 import com.companyb.companyapp.workforce.relief.ReliefDayScreen
 import com.companyb.companyapp.workforce.relief.ReliefDayViewModel
@@ -256,9 +256,9 @@ private fun NavGraphBuilder.inventoryGraph(apiClient: ApiClient) {
                 selectedBranchId,
             )
         ) {
-            val branchViewModel: BranchViewModel =
-                viewModel { BranchViewModel(apiClient) }
-            BaseRatesScreen(viewModel = branchViewModel, branchId = selectedBranchId)
+            val ratesViewModel: SessionRatesViewModel =
+                viewModel { SessionRatesViewModel(apiClient) }
+            BaseRatesScreen(viewModel = ratesViewModel, branchId = selectedBranchId)
         } else {
             RouteGateCard(label = "Base Rates")
         }

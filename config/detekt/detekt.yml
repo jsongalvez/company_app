@@ -141,6 +141,7 @@ complexity:
       - '**/ui/screen/**'
       - '**/app/**' #555 app shell composables keep the screen complexity exclusion
       - '**/workforce/**' #563 workforce composables keep the screen complexity exclusion
+      - '**/session/**' #573 session composables keep the screen complexity exclusion
   ComplexCondition:
     active: true
     threshold: 4

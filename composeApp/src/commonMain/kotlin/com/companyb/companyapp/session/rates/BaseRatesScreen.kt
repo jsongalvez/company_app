@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalUuidApi::class)
 
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.rates
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,7 +33,6 @@ import com.companyb.companyapp.dto.RateResponse
 import com.companyb.companyapp.dto.SetRateRequest
 import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.Spacing
-import com.companyb.companyapp.workforce.branch.BranchViewModel
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -41,8 +40,11 @@ import kotlin.uuid.Uuid
  * #418 — coordinator base-rate admin (the "No base rate configured" dead end's UI half).
  * Branch-scoped to the clocked-in branch (`selectedBranchId`, the Inventory/Remittance shape);
  * the route gate lives at the NavHost call sites ([canManageRates] — exact-scope MANAGE_PRODUCTS
- * mirroring `SessionBaseRateRoutes`' filter, backend authoritative). Reuses the previously
- * orphaned [BranchViewModel.loadRates]/[BranchViewModel.setRate] legs.
+ * mirroring `SessionBaseRateRoutes`' filter, backend authoritative).
+ *
+ * #573 — moved from `ui/screen` to the `session/rates` owner with its state owner
+ * ([SessionRatesViewModel.loadRates]/[SessionRatesViewModel.setRate]); workforce
+ * `BranchViewModel` no longer carries rate state.
  *
  * Behavior: five canonical rows in BR display order ([toRateDisplayRows]), each with an inline
  * amount field validated by [rateInputError] (the route 400s mirrored) and a Save action that
@@ -53,7 +55,7 @@ import kotlin.uuid.Uuid
  */
 @Composable
 fun BaseRatesScreen(
-    viewModel: BranchViewModel,
+    viewModel: SessionRatesViewModel,
     branchId: String?,
 ) {
     val ratesState by viewModel.rates.collectAsState()
@@ -109,7 +111,7 @@ fun BaseRatesScreen(
 
 @Composable
 private fun RateRows(
-    viewModel: BranchViewModel,
+    viewModel: SessionRatesViewModel,
     branchId: String?,
     rates: List<RateResponse>,
     setRateState: UiState<RateResponse>,
@@ -137,7 +139,7 @@ private fun RateRows(
 
 @Composable
 private fun RateRow(
-    viewModel: BranchViewModel,
+    viewModel: SessionRatesViewModel,
     branchId: String?,
     row: RateDisplayRow,
     saving: Boolean,

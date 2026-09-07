@@ -10,8 +10,6 @@ import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.CreateAssignmentRequest
 import com.companyb.companyapp.dto.CreateBranchRequest
-import com.companyb.companyapp.dto.RateResponse
-import com.companyb.companyapp.dto.SetRateRequest
 import com.companyb.companyapp.dto.SwapSlotsRequest
 import com.companyb.companyapp.dto.UpdateSlotRequest
 import com.companyb.companyapp.network.ApiClient
@@ -62,12 +60,6 @@ class BranchViewModel(
 
     private val _slotSwapState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val slotSwapState: StateFlow<UiState<Unit>> = _slotSwapState.asStateFlow()
-
-    private val _rates = MutableStateFlow<UiState<List<RateResponse>>>(UiState.Idle)
-    val rates: StateFlow<UiState<List<RateResponse>>> = _rates.asStateFlow()
-
-    private val _setRateState = MutableStateFlow<UiState<RateResponse>>(UiState.Idle)
-    val setRateState: StateFlow<UiState<RateResponse>> = _setRateState.asStateFlow()
 
     fun loadBranchDetail(branchId: String) {
         handler.launch(
@@ -212,36 +204,6 @@ class BranchViewModel(
                         handleApiError(response) { _slotUpdate.value = it }
                     },
                 ),
-        )
-    }
-
-    fun loadRates(branchId: String) {
-        handler.launch(
-            state = _rates,
-            operation = "loadRates",
-            endpoint = "GET /api/branches/$branchId/rates",
-            block = { apiClient.httpClient.get(ApiRoutes.branchRates(branchId)) },
-            transform = { it.body() },
-        )
-    }
-
-    fun setRate(
-        branchId: String,
-        request: SetRateRequest,
-    ) {
-        // Single-flight: one in-flight save at a time, so a double-tap before recomposition
-        // cannot mint two rotation ids (the second would close the first's row immediately).
-        if (_setRateState.value is UiState.Loading) return
-        handler.launch(
-            state = _setRateState,
-            operation = "setRate",
-            endpoint = "POST /api/branches/$branchId/rates",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.branchRates(branchId)) {
-                    setBody(request)
-                }
-            },
-            transform = { it.body() },
         )
     }
 }
