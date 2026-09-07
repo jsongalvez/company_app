@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.dashboard
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,18 +31,12 @@ import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.dto.DashboardResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.ui.screen.grossIncomeCents
+import com.companyb.companyapp.ui.screen.moneyToCents
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.formatTimeOfDay
-import com.companyb.companyapp.viewmodel.DashboardPollStatus
-import com.companyb.companyapp.viewmodel.SessionDashboardViewModel
-import com.companyb.companyapp.viewmodel.commitEdit
-import com.companyb.companyapp.viewmodel.discardEdit
-import com.companyb.companyapp.viewmodel.reloadAfterConflict
-import com.companyb.companyapp.viewmodel.startEdit
-import com.companyb.companyapp.viewmodel.updateDraft
-import com.companyb.companyapp.viewmodel.updateReason
 import kotlin.time.Instant
 
 data class SessionListArgs(

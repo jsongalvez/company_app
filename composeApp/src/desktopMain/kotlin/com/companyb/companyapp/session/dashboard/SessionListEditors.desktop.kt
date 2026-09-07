@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.dashboard
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -39,6 +39,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.ui.screen.SessionStatusBadge
+import com.companyb.companyapp.ui.screen.missionPriceLocked
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.dashboard
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,6 +23,12 @@ import androidx.compose.ui.graphics.Color
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.ui.DayStatusWarning
+import com.companyb.companyapp.ui.screen.ClientNameText
+import com.companyb.companyapp.ui.screen.SessionTypeBadge
+import com.companyb.companyapp.ui.screen.VOIDED_ROW_ALPHA
+import com.companyb.companyapp.ui.screen.VoidedPill
+import com.companyb.companyapp.ui.screen.WalkInDot
+import com.companyb.companyapp.ui.screen.bookedTimeLabel
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 

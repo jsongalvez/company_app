@@ -1,8 +1,7 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.dashboard
 
-// #479 — the dashboard price equality/validation policy (#149/#135 mirrors), extracted from
-// DashboardEditState.kt so the file-function wall (TMF) stays honest. Same package, so every
-// existing call site and import resolves unchanged.
+// #556 — the dashboard price equality/validation policy (#149/#135 mirrors), colocated in
+// session/dashboard beside DashboardEditState as pure adjacent policy.
 
 /**
  * Semantic price equality: "2750" == "2750.00" == "2750.0" (the backend normalizes to

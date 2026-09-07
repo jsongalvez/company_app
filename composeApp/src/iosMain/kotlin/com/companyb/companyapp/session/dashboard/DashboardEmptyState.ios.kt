@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.dashboard
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier

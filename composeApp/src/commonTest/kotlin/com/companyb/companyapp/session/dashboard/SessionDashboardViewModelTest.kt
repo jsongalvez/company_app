@@ -1,4 +1,4 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.session.dashboard
 
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.UiState
@@ -9,13 +9,11 @@ import com.companyb.companyapp.dto.DashboardResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.mockApiClient
-import com.companyb.companyapp.ui.screen.DashboardEditField
 import com.companyb.companyapp.ui.screen.bookedTimeLabel
 import com.companyb.companyapp.ui.screen.centsToMoney
 import com.companyb.companyapp.ui.screen.commissionLabel
 import com.companyb.companyapp.ui.screen.grossIncomeCents
 import com.companyb.companyapp.ui.screen.moneyToCents
-import com.companyb.companyapp.ui.screen.remittedReasonRequired
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond

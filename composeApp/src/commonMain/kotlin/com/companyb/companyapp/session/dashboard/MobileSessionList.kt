@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.dashboard
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +23,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.ui.screen.ClientNameText
+import com.companyb.companyapp.ui.screen.SessionStatusBadge
+import com.companyb.companyapp.ui.screen.SessionTypeBadge
+import com.companyb.companyapp.ui.screen.VOIDED_ROW_ALPHA
+import com.companyb.companyapp.ui.screen.VoidedPill
+import com.companyb.companyapp.ui.screen.WalkInDot
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing

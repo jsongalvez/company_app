@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.dashboard
 
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.SessionStatus

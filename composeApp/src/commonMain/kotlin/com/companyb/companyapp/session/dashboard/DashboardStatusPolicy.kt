@@ -1,13 +1,12 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.dashboard
 
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.isStatusCorrection
 import com.companyb.companyapp.domain.isStatusTransitionAllowed
 
-// #479 — the dashboard status/reason policy mirrors (#425 + #403), extracted from
-// DashboardEditState.kt so the file-function wall (TMF) stays honest. Same package, so every
-// existing call site and import resolves unchanged.
+// #556 — the dashboard status/reason policy mirrors (#425 + #403), colocated in
+// session/dashboard beside DashboardEditState as pure adjacent policy (no rendering imports).
 
 /**
  * #425 — client mirror of backend session status transitions. The current value remains in the

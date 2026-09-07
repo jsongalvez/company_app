@@ -441,7 +441,7 @@ naming:
     excludes:
       - '**/Platform.android.kt'
       - '**/Platform.ios.kt'
-      - '**/commonMain/**/ui/screen/SessionDashboardScreen.kt'
+      - '**/commonMain/**/session/dashboard/SessionDashboardScreen.kt' #556 retarget (was ui/screen)
   MemberNameEqualsClassName:
     active: true
     ignoreOverridden: true
@@ -842,13 +842,13 @@ style:
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/RemittanceDetailReceipt.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/SessionCreateLayout.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/SessionCreateScreen.kt' #465 frozen
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/SessionDashboardScreen.kt' #465 frozen
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/dashboard/SessionDashboardScreen.kt' #465 frozen #556 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserManagementScreen.kt' #465 frozen #563 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/async/ApiCallHandler.kt' #465 frozen #554 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/FinanceReportDayEditOps.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/InventoryMutationPolicy.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/SessionCreateViewModel.kt' #465 frozen
-      - '**/composeApp/src/desktopMain/kotlin/com/companyb/companyapp/ui/screen/SessionListEditors.desktop.kt' #465 frozen
+      - '**/composeApp/src/desktopMain/kotlin/com/companyb/companyapp/session/dashboard/SessionListEditors.desktop.kt' #465 frozen #556 retarget
       - '**/composeApp/src/desktopTest/kotlin/com/companyb/companyapp/ui/screen/InventoryRowPresentationTest.kt' #465 frozen
       - '**/shared/src/commonMain/kotlin/com/companyb/companyapp/api/ApiRoutes.kt' #465 frozen
   ForbiddenVoid:
