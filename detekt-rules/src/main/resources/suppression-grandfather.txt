@@ -193,7 +193,7 @@ composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserMana
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserManagementScreen.kt:UnusedParameter
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/util/TimestampFormat.kt:DEPRECATION
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/ApiCallHandler.kt:TooGenericExceptionCaught
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/finance/FinanceReportDayEditOps.kt:LongParameterList
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/finance/FinanceReportsViewModel.kt:LongParameterList
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/InventoryMutationPolicy.kt:LongParameterList
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/InventoryMutationPolicy.kt:TooManyFunctions
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateViewModel.kt:TooManyFunctions

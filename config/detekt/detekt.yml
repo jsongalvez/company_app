@@ -847,7 +847,7 @@ style:
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/dashboard/SessionDashboardScreen.kt' #465 frozen #556 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserManagementScreen.kt' #465 frozen #563 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/async/ApiCallHandler.kt' #465 frozen #554 retarget
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/finance/FinanceReportDayEditOps.kt' #465 frozen #559 retarget
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/finance/FinanceReportsViewModel.kt' #465 frozen #560 retarget (was FinanceReportDayEditOps)
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/InventoryMutationPolicy.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateViewModel.kt' #465 frozen #557 retarget
       - '**/composeApp/src/desktopMain/kotlin/com/companyb/companyapp/session/dashboard/SessionListEditors.desktop.kt' #465 frozen #556 retarget
