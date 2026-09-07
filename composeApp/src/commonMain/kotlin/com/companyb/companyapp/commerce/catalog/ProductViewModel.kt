@@ -40,9 +40,6 @@ class ProductViewModel(
     private val _products = MutableStateFlow<UiState<List<ProductResponse>>>(UiState.Idle)
     val products: StateFlow<UiState<List<ProductResponse>>> = _products.asStateFlow()
 
-    private val _productDetail = MutableStateFlow<UiState<ProductResponse>>(UiState.Idle)
-    val productDetail: StateFlow<UiState<ProductResponse>> = _productDetail.asStateFlow()
-
     private val _createProductResult = MutableStateFlow<UiState<ProductResponse>>(UiState.Idle)
     val createProductResult: StateFlow<UiState<ProductResponse>> = _createProductResult.asStateFlow()
 
@@ -62,16 +59,6 @@ class ProductViewModel(
             operation = "loadProducts",
             endpoint = "GET $path",
             block = { apiClient.httpClient.get(path) },
-            transform = { it.body() },
-        )
-    }
-
-    fun loadProduct(productId: String) {
-        handler.launch(
-            state = _productDetail,
-            operation = "loadProduct",
-            endpoint = "GET /api/products/$productId",
-            block = { apiClient.httpClient.get(ApiRoutes.product(productId)) },
             transform = { it.body() },
         )
     }

@@ -46,7 +46,6 @@ object CornerRadius {
     val md = 8.dp
     val lg = 12.dp
     val xl = 16.dp
-    val xxl = 24.dp
     val pill = 9999.dp
 }
 
@@ -58,7 +57,6 @@ object Spacing {
     val lg = 24.dp
     val xl = 32.dp
     val xxl = 48.dp
-    val section = 96.dp
 }
 
 private val LinearShapes =

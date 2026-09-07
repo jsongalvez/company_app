@@ -1,15 +1,5 @@
 package com.companyb.companyapp.network
 
-import com.companyb.companyapp.api.ApiRoutes
-import io.ktor.client.statement.HttpResponse
-
-/**
- * Reads the server-minted trace id (#471) off a response. Pair it with
- * [BugReport.format] when filing a slow-request report so the backend can
- * pinpoint the exact request in its logs.
- */
-fun HttpResponse.traceId(): String? = headers[ApiRoutes.TRACE_ID_HEADER]
-
 /**
  * Copy-pasteable slow-request report (#471): endpoint + app version + user +
  * timestamp + trace id. Build one at the call site that observed the slow
@@ -22,7 +12,7 @@ fun HttpResponse.traceId(): String? = headers[ApiRoutes.TRACE_ID_HEADER]
  *         appVersion = appVersion,
  *         user = userId,
  *         timestamp = Clock.System.now().toString(),
- *         traceId = response.traceId(),
+ *         traceId = null,
  *     )
  *     logInfo("SlowVM", report.format())
  *     response.body()

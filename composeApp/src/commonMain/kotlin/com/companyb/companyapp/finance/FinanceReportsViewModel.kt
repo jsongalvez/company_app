@@ -163,7 +163,6 @@ class FinanceReportsViewModel(
 
     /** Applied ALL_TIME jump month (null = unbounded all-time). */
     private val jumpMonthState = MutableStateFlow<YearMonth?>(null)
-    val jumpMonth: StateFlow<YearMonth?> = jumpMonthState.asStateFlow()
 
     /** Mode-parameter validation errors (rendered inline next to the field). */
     private val paramErrorState = MutableStateFlow<String?>(null)
