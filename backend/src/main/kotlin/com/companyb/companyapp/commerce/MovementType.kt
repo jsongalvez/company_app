@@ -15,9 +15,7 @@ sealed class MovementType(
 
     data object Sample : MovementType(Sign.NEGATIVE)
 
-    data object Missing : MovementType(Sign.NEGATIVE) {
-        val notesRequired get() = true
-    }
+    data object Missing : MovementType(Sign.NEGATIVE)
 
     data object Adjustment : MovementType(Sign.ANY)
 

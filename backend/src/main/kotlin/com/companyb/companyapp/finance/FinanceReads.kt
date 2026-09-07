@@ -12,13 +12,6 @@ object FinanceReads {
     /** Existence read for the expense day-scoped gate — runs on its own transaction. */
     fun findExpenseById(expenseId: UUID): Expense? = ExpenseRepository.findById(expenseId)
 
-    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
-    fun findExpenseByIdInTransaction(expenseId: UUID): Expense? = ExpenseRepository.findByIdInTransaction(expenseId)
-
     /** Existence read for the compensation route gate — runs on its own transaction. */
     fun findCompensationById(compensationId: UUID): Compensation? = CompensationRepository.findById(compensationId)
-
-    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
-    fun findCompensationByIdInTransaction(compensationId: UUID): Compensation? =
-        CompensationRepository.findByIdInTransaction(compensationId)
 }

@@ -129,14 +129,6 @@ internal object CompensationRepository {
             findByIdInTransaction(id)
         }.also { logger.info { "[FIND-COMPENSATION] Compensation ${id.toString().maskUUID()} found=${it != null}" } }
 
-    fun findByUserAndPayingDay(
-        userId: UUID,
-        payingBranchDayId: UUID,
-    ): Compensation? =
-        transaction {
-            findByUserAndPayingDayInTransaction(userId, payingBranchDayId)
-        }
-
     fun findByPayingBranchDayId(branchDayId: UUID): List<CompensationWithUser> =
         transaction {
             CompensationTable

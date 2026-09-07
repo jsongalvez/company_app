@@ -125,11 +125,6 @@ internal object ProductSaleRepository {
             findByIdInTransaction(id)
         }
 
-    fun findNonVoidedSalesByBranchDay(branchDayId: UUID): List<ProductSale> =
-        transaction {
-            findNonVoidedSalesByBranchDayInTransaction(branchDayId)
-        }
-
     /** In-transaction read (#497) — runs on the caller's transaction for the shared aggregation. */
     fun findNonVoidedSalesByBranchDayInTransaction(branchDayId: UUID): List<ProductSale> =
         ProductSaleTable

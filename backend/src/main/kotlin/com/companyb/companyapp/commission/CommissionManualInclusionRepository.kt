@@ -81,23 +81,6 @@ internal object CommissionManualInclusionRepository {
         return CommissionManualInclusionUpsertResult(null, created)
     }
 
-    fun findByProductSaleAndUser(
-        productSaleId: UUID,
-        userId: UUID,
-    ): CommissionManualInclusion? =
-        transaction {
-            findByProductSaleAndUserInTransaction(productSaleId, userId)
-        }
-
-    fun findBySaleIds(saleIds: List<UUID>): List<CommissionManualInclusion> =
-        if (saleIds.isEmpty()) {
-            emptyList()
-        } else {
-            transaction {
-                findBySaleIdsInTransaction(saleIds)
-            }
-        }
-
     /** In-transaction batched read (#497) — one query for the shared commission aggregation. */
     fun findBySaleIdsInTransaction(saleIds: List<UUID>): List<CommissionManualInclusion> =
         if (saleIds.isEmpty()) {
