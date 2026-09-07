@@ -362,16 +362,6 @@ object ApiRoutes {
 
     fun userReactivate(id: String) = "${user(id)}/reactivate"
 
-    fun expenseCollectionWithBranchDay(branchDayId: String) = "$EXPENSES?branchDayId=$branchDayId"
-
-    fun allowanceCollectionWithBranchDay(branchDayId: String) = "$ALLOWANCES?branchDayId=$branchDayId"
-
-    fun commissionInclusion(id: String) = "$COMMISSION_INCLUSIONS/$id"
-
-    fun auditLogWithQuery(query: String) = "$AUDIT_LOG?$query"
-
-    fun auditLogEntriesWithQuery(query: String) = "$AUDIT_LOG_ENTRIES_PATH?$query"
-
     fun clientAnonymize(id: String) = "${client(id)}/anonymize"
 
     fun auditLogAcknowledge(id: String) = "$AUDIT_LOG/$id/acknowledge"

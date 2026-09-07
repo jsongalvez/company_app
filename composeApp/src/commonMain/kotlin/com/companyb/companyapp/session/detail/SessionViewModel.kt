@@ -9,14 +9,12 @@ import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.session.AddPractitionerRequest
 import com.companyb.companyapp.contracts.session.AddSessionConcernRequest
 import com.companyb.companyapp.contracts.session.ConcernResponse
-import com.companyb.companyapp.contracts.session.CreateSessionRequest
 import com.companyb.companyapp.contracts.session.PromoteConcernRequest
 import com.companyb.companyapp.contracts.session.SessionPractitionerResponse
 import com.companyb.companyapp.contracts.session.SessionResponse
 import com.companyb.companyapp.contracts.session.SessionVoidResponse
 import com.companyb.companyapp.contracts.session.UnvoidSessionRequest
 import com.companyb.companyapp.contracts.session.UpdatePractitionerRemarksRequest
-import com.companyb.companyapp.contracts.session.UpdateSessionStatusRequest
 import com.companyb.companyapp.contracts.session.VoidSessionRequest
 import com.companyb.companyapp.contracts.workforce.BranchMemberResponse
 import com.companyb.companyapp.network.ApiClient
@@ -41,19 +39,11 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * #479's [SessionConcernOps]/[SessionRosterOps] extension files fold back here as private
  * state + member functions per #535: no `internal` members exist only to serve extensions.
- * `createSession`/`updateStatus` stay until #530's semantic dead-code pass retires them —
- * grep alone never proves death.
  */
 class SessionViewModel(
     private val apiClient: ApiClient,
 ) : ViewModel() {
     private val handler = ApiCallHandler(viewModelScope, "SessionVM")
-
-    private val _sessionResult = MutableStateFlow<UiState<SessionResponse>>(UiState.Idle)
-    val sessionResult: StateFlow<UiState<SessionResponse>> = _sessionResult.asStateFlow()
-
-    private val _statusUpdateResult = MutableStateFlow<UiState<SessionResponse>>(UiState.Idle)
-    val statusUpdateResult: StateFlow<UiState<SessionResponse>> = _statusUpdateResult.asStateFlow()
 
     private val _voidResult = MutableStateFlow<UiState<SessionVoidResponse>>(UiState.Idle)
     val voidResult: StateFlow<UiState<SessionVoidResponse>> = _voidResult.asStateFlow()
@@ -85,37 +75,6 @@ class SessionViewModel(
 
     private val branchMembersState = MutableStateFlow<UiState<List<BranchMemberResponse>>>(UiState.Idle)
     val branchMembers: StateFlow<UiState<List<BranchMemberResponse>>> = branchMembersState.asStateFlow()
-
-    fun createSession(request: CreateSessionRequest) {
-        handler.launch(
-            state = _sessionResult,
-            operation = "createSession",
-            endpoint = "POST /api/sessions",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.SESSIONS) {
-                    setBody(request)
-                }
-            },
-            transform = { it.body() },
-        )
-    }
-
-    fun updateStatus(
-        sessionId: String,
-        request: UpdateSessionStatusRequest,
-    ) {
-        handler.launch(
-            state = _statusUpdateResult,
-            operation = "updateStatus",
-            endpoint = "PATCH /api/sessions/$sessionId/status",
-            block = {
-                apiClient.httpClient.patch(ApiRoutes.sessionStatus(sessionId)) {
-                    setBody(request)
-                }
-            },
-            transform = { it.body() },
-        )
-    }
 
     fun voidSession(
         sessionId: String,

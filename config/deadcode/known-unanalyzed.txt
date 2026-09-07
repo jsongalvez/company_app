@@ -1,0 +1,2 @@
+# Files the analyzer could not parse, one repo-relative path per line.
+# Empty means every input file binds. The gate fails when the actual set differs.
