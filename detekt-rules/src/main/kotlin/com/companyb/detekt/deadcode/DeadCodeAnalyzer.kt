@@ -1,6 +1,11 @@
+// #530: the engine pins the repo's own K1 compiler frontend (see
+// config/deadcode/README.md); K1 API usage is an explicit opt-in here.
+@file:OptIn(K1Deprecation::class)
+@file:Suppress("DEPRECATION")
+
 package com.companyb.detekt.deadcode
 
-import org.jetbrains.kotlin.cli.common.CLIConfigurationKeys
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
@@ -101,7 +106,7 @@ object DeadCodeAnalyzer {
     ): DeadCodeResult {
         val configuration =
             CompilerConfiguration().apply {
-                put(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY, MessageCollector.NONE)
+                put(CommonConfigurationKeys.MESSAGE_COLLECTOR_KEY, MessageCollector.NONE)
                 put(CommonConfigurationKeys.MODULE_NAME, DEADCODE_MODULE_NAME)
                 addJvmClasspathRoots(classpath.filter { it.exists() })
             }
