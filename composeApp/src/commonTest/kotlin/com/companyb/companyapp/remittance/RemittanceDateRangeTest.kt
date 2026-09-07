@@ -1,7 +1,8 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.domain.RemittanceLineType
 import com.companyb.companyapp.dto.RemittanceLineResponse
+import com.companyb.companyapp.ui.screen.sessionLinesGrossCents
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn

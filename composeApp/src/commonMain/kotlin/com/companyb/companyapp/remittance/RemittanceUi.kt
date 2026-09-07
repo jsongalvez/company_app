@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.dto.RemittanceDetailResponse
 import com.companyb.companyapp.dto.RemittanceResponse
@@ -53,7 +53,8 @@ internal fun submittedSessionNet(raw: RemittanceResponse): String? =
         null
     }
 
-internal fun peso(raw: String): String = "₱$raw"
+// #561 — peso() lives shared in ui/screen/SessionMoney (finance + remittance consumers);
+// this owner keeps only remittance-specific display vocabulary.
 
 // D2 — create popup defaults the range to today (Manila business day, matching the backend's
 // branch-day calendar).

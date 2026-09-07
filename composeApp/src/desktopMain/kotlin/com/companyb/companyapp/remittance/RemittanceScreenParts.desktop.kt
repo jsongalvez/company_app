@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.remittance
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.dto.RemittanceResponse
+import com.companyb.companyapp.ui.screen.peso
 import com.companyb.companyapp.ui.theme.Spacing
 
 // #120 D1 (desktop) — dense table: type / method / date range / status / net (submitted SESSION

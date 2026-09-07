@@ -1,6 +1,6 @@
 @file:Suppress("DEPRECATION")
 
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.remittance
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -42,8 +42,6 @@ import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.RemittanceViewModel
-import com.companyb.companyapp.viewmodel.remittanceListKey
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 

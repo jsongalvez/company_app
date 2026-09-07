@@ -55,6 +55,11 @@ internal fun sessionLinesGrossCents(lines: List<RemittanceLineResponse>): Long =
 internal fun commissionLabel(productSalesCount: Int): String =
     "from $productSalesCount product sale${if (productSalesCount == 1) "" else "s"}"
 
+// #561 — shared peso formatter (finance + remittance external consumers per #559):
+// lives in ui/screen as the deliberate shared money-display edge; remittance-specific
+// labels stay in remittance/RemittanceUi.
+internal fun peso(raw: String): String = "₱$raw"
+
 /**
  * #405 — a MEDICAL_MISSION visit is always free (BR §Session types): the price affordance is
  * locked client-side wherever this type shows, and the server normalizes any non-zero value

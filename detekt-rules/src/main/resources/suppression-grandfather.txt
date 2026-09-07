@@ -181,8 +181,8 @@ composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/Medica
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ProductCatalogScreen.kt:CyclomaticComplexMethod
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ProductCatalogScreen.kt:LongMethod
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ProductCatalogScreen.kt:LongParameterList
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/RemittanceDetailReceipt.kt:MagicNumber
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/RemittanceListScreen.kt:DEPRECATION
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailReceipt.kt:MagicNumber
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceListScreen.kt:DEPRECATION
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateLayout.kt:MatchingDeclarationName
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateScreen.kt:LongParameterList
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateScreen.kt:TooManyFunctions
