@@ -144,6 +144,7 @@ complexity:
       - '**/session/**' #573 session composables keep the screen complexity exclusion
       - '**/notification/**' #565 notification composables keep the screen complexity exclusion
       - '**/client/**' #558 client composables keep the screen complexity exclusion
+      - '**/finance/**' #559 finance composables keep the screen complexity exclusion
   ComplexCondition:
     active: true
     threshold: 4
@@ -183,7 +184,7 @@ complexity:
     active: true
     threshold: 600
     excludes:
-      - '**/commonMain/**/viewmodel/FinanceReportsViewModel.kt'
+      - '**/commonMain/**/finance/FinanceReportsViewModel.kt' #559 retarget (was viewmodel)
   LongMethod:
     active: true
     threshold: 60
@@ -846,7 +847,7 @@ style:
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/dashboard/SessionDashboardScreen.kt' #465 frozen #556 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserManagementScreen.kt' #465 frozen #563 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/async/ApiCallHandler.kt' #465 frozen #554 retarget
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/FinanceReportDayEditOps.kt' #465 frozen
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/finance/FinanceReportDayEditOps.kt' #465 frozen #559 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/InventoryMutationPolicy.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateViewModel.kt' #465 frozen #557 retarget
       - '**/composeApp/src/desktopMain/kotlin/com/companyb/companyapp/session/dashboard/SessionListEditors.desktop.kt' #465 frozen #556 retarget

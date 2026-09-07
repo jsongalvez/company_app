@@ -1,5 +1,6 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.finance
 
+import com.companyb.companyapp.ui.screen.moneyToCents
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.YearMonth

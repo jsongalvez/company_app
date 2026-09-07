@@ -1,4 +1,4 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.finance
 
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.UiState
@@ -8,7 +8,6 @@ import com.companyb.companyapp.dto.ExpenseResponse
 import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.mockApiClient
-import com.companyb.companyapp.ui.screen.ReportMode
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond

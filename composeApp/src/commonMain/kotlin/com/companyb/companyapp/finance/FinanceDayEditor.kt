@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.finance
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -30,19 +30,10 @@ import com.companyb.companyapp.dto.CompensationResponse
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.dto.ExpenseResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.ui.screen.peso
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
-import com.companyb.companyapp.viewmodel.EditSection
-import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
-import com.companyb.companyapp.viewmodel.createAllowance
-import com.companyb.companyapp.viewmodel.createCompensation
-import com.companyb.companyapp.viewmodel.createExpense
-import com.companyb.companyapp.viewmodel.deleteExpense
-import com.companyb.companyapp.viewmodel.reloadSection
-import com.companyb.companyapp.viewmodel.restoreExpense
-import com.companyb.companyapp.viewmodel.updateCompensation
-import com.companyb.companyapp.viewmodel.updateExpense
 import kotlinx.datetime.LocalDate
 
 /** #479 LPL burn — the day editor's frame (branch identity, date, nav + export wiring). */

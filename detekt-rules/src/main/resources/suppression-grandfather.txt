@@ -174,7 +174,7 @@ composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/AuditLogScree
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientFieldEditor.kt:MagicNumber
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientPicker.kt:LongMethod
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientPicker.kt:MatchingDeclarationName
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/FinanceToolbar.kt:DEPRECATION
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/finance/FinanceToolbar.kt:DEPRECATION
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt:CyclomaticComplexMethod
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt:LongMethod
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt:LongParameterList
@@ -193,7 +193,7 @@ composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserMana
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserManagementScreen.kt:UnusedParameter
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/util/TimestampFormat.kt:DEPRECATION
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/ApiCallHandler.kt:TooGenericExceptionCaught
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/FinanceReportDayEditOps.kt:LongParameterList
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/finance/FinanceReportDayEditOps.kt:LongParameterList
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/InventoryMutationPolicy.kt:LongParameterList
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/InventoryMutationPolicy.kt:TooManyFunctions
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateViewModel.kt:TooManyFunctions

@@ -1,6 +1,6 @@
 @file:Suppress("DEPRECATION")
 
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.finance
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,7 +34,6 @@ import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
 
 /** #479 LPL burn — the toolbar's read-side (state + gates) as one object. */
 internal data class FinanceToolbarUi(

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.finance
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,16 +33,11 @@ import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
 import com.companyb.companyapp.ui.ErrorCard
+import com.companyb.companyapp.ui.screen.peso
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
-import com.companyb.companyapp.viewmodel.exportDay
-import com.companyb.companyapp.viewmodel.loadMore
-import com.companyb.companyapp.viewmodel.refreshFeed
-import com.companyb.companyapp.viewmodel.retryFeed
-import com.companyb.companyapp.viewmodel.selectDay
 
 @Composable
 internal fun FeedSection(

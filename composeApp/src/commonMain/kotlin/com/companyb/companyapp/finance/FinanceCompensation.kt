@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.finance
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,13 +31,11 @@ import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.BranchDayUserResponse
 import com.companyb.companyapp.dto.CompensationResponse
+import com.companyb.companyapp.ui.screen.peso
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.EditSection
-import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
-import com.companyb.companyapp.viewmodel.reloadSection
 
 /** #479 LPL burn — the compensation mutations the section performs, as one object. */
 internal data class CompensationActions(

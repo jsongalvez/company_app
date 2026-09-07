@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.finance
 
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate

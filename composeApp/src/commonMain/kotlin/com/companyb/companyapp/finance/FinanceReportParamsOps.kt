@@ -1,13 +1,12 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.finance
 
 import androidx.lifecycle.ViewModel
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.ui.screen.ReportMode
 import io.ktor.client.request.parameter
 
 // #479 — the report-parameter seam (mode/month/range/jump), extracted from
 // FinanceReportsViewModel so the file-function wall (TMF) stays honest. Extension functions
-// on the ViewModel; FinanceReportsScreen method references resolve via imports added there.
+// on the ViewModel; same-package consumers resolve them without imports (#559).
 
 internal fun FinanceReportsViewModel.setMode(mode: ReportMode) {
     if (mode == modeState.value) return
@@ -27,8 +26,7 @@ internal fun FinanceReportsViewModel.setMonthInput(raw: String) {
 
 internal fun FinanceReportsViewModel.applyMonth() {
     val month =
-        com.companyb.companyapp.ui.screen
-            .parseYearMonthInput(monthInputState.value)
+        parseYearMonthInput(monthInputState.value)
     if (month == null) {
         paramErrorState.value = "Month must be yyyy-MM"
         return
@@ -56,11 +54,9 @@ internal fun FinanceReportsViewModel.setRangeInputs(
 
 internal fun FinanceReportsViewModel.applyRange() {
     val from =
-        com.companyb.companyapp.ui.screen
-            .parseDateInput(rangeFromInputState.value)
+        parseDateInput(rangeFromInputState.value)
     val to =
-        com.companyb.companyapp.ui.screen
-            .parseDateInput(rangeToInputState.value)
+        parseDateInput(rangeToInputState.value)
     when {
         from == null -> {
             paramErrorState.value = "From must be yyyy-MM-dd"
@@ -88,8 +84,7 @@ internal fun FinanceReportsViewModel.setJumpInput(raw: String) {
 
 internal fun FinanceReportsViewModel.applyJump() {
     val month =
-        com.companyb.companyapp.ui.screen
-            .parseYearMonthInput(monthInputState.value)
+        parseYearMonthInput(monthInputState.value)
     if (month == null) {
         paramErrorState.value = "Month must be yyyy-MM"
         return

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.finance
 
 import androidx.lifecycle.ViewModel
 import com.companyb.companyapp.api.ApiRoutes
@@ -7,8 +7,6 @@ import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.DailySalesSummaryBrowseResponse
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
-import com.companyb.companyapp.ui.screen.FeedWindow
-import com.companyb.companyapp.ui.screen.ReportMode
 import com.companyb.companyapp.util.logWarn
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -72,8 +70,8 @@ internal fun FinanceReportsViewModel.refreshWindowAndFeed() {
 }
 
 internal fun FinanceReportsViewModel.currentWindow(): FeedWindow =
-    com.companyb.companyapp.ui.screen.feedWindowFor(
-        com.companyb.companyapp.ui.screen.FeedWindowRequest(
+    feedWindowFor(
+        FeedWindowRequest(
             mode = modeState.value,
             today = today,
             month = appliedMonthState.value,

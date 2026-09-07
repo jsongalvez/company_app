@@ -1,4 +1,4 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.finance
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
@@ -26,8 +26,6 @@ import com.companyb.companyapp.dto.RestoreExpenseRequest
 import com.companyb.companyapp.dto.UpdateCompensationRequest
 import com.companyb.companyapp.dto.UpdateExpenseRequest
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.ui.screen.FeedWindow
-import com.companyb.companyapp.ui.screen.ReportMode
 import com.companyb.companyapp.util.logWarn
 import io.ktor.client.call.body
 import io.ktor.client.request.delete

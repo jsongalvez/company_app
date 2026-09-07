@@ -1,4 +1,4 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.finance
 
 import androidx.lifecycle.ViewModel
 import com.companyb.companyapp.api.ApiRoutes

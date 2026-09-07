@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.finance
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -23,11 +23,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.ExpenseResponse
+import com.companyb.companyapp.ui.screen.peso
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
 
 private const val CREATED_BY_PREFIX_LENGTH = 8
 

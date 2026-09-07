@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.finance
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
-import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
 
 /** #462 LPL burn — the 3 per-day export params as one object (expect + 3 actuals + mobile
  * helper drop 7 params to 5; data classes are LPL-free, the SlotOrderCallbacks precedent). */

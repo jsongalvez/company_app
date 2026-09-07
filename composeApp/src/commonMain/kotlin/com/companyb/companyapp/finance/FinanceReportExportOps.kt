@@ -1,11 +1,10 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.finance
 
 import androidx.lifecycle.ViewModel
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.StatelessHooks
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
-import com.companyb.companyapp.ui.screen.ReportMode
 import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.readRawBytes

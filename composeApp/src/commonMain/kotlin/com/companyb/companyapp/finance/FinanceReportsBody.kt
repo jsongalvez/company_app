@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.finance
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,22 +37,6 @@ import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
-import com.companyb.companyapp.viewmodel.applyJump
-import com.companyb.companyapp.viewmodel.applyMonth
-import com.companyb.companyapp.viewmodel.applyRange
-import com.companyb.companyapp.viewmodel.clearJump
-import com.companyb.companyapp.viewmodel.clearRange
-import com.companyb.companyapp.viewmodel.clearReliefState
-import com.companyb.companyapp.viewmodel.exportDay
-import com.companyb.companyapp.viewmodel.exportModeCurrent
-import com.companyb.companyapp.viewmodel.hasEditCapabilities
-import com.companyb.companyapp.viewmodel.loadReliefDay
-import com.companyb.companyapp.viewmodel.setEditMode
-import com.companyb.companyapp.viewmodel.setJumpInput
-import com.companyb.companyapp.viewmodel.setMode
-import com.companyb.companyapp.viewmodel.setMonthInput
-import com.companyb.companyapp.viewmodel.setRangeInputs
 import kotlinx.datetime.LocalDate
 
 /** #479 LPL burn — the relief/main surface switch as one object. */
