@@ -2,8 +2,8 @@ package com.companyb.companyapp.client
 
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditValues
-import com.companyb.companyapp.domain.Gender
-import com.companyb.companyapp.dto.ClientPatchField
+import com.companyb.companyapp.contracts.client.ClientPatchField
+import com.companyb.companyapp.contracts.client.Gender
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException

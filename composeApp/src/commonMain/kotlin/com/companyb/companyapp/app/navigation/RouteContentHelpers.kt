@@ -10,7 +10,7 @@ import com.companyb.companyapp.app.hasCapabilityAnyContext
 import com.companyb.companyapp.client.ClientDetailScreen
 import com.companyb.companyapp.client.ClientState
 import com.companyb.companyapp.client.ClientViewModel
-import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.notification.NotificationViewModel
 import com.companyb.companyapp.notification.NotificationsScreen

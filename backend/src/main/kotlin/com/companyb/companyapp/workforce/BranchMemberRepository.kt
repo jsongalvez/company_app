@@ -1,6 +1,6 @@
 package com.companyb.companyapp.workforce
 
-import com.companyb.companyapp.domain.UserStatus
+import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and

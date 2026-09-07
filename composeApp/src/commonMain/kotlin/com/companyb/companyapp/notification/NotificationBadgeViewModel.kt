@@ -4,8 +4,8 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.NotificationUnreadCountResponse
-import com.companyb.companyapp.dto.ReliefInviteResponse
+import com.companyb.companyapp.contracts.notification.NotificationUnreadCountResponse
+import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.workforce.relief.currentOperationalDate
 import com.companyb.companyapp.workforce.relief.isInviteActionable

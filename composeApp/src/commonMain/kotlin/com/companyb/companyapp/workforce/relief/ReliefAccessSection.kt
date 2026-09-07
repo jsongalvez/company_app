@@ -21,8 +21,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.ReliefAccessStatus
-import com.companyb.companyapp.dto.ReliefAccessResponse
+import com.companyb.companyapp.contracts.workforce.ReliefAccessResponse
+import com.companyb.companyapp.contracts.workforce.ReliefAccessStatus
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing

@@ -1,12 +1,12 @@
 package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.UserStatus
-import com.companyb.companyapp.dto.AssignDelegateRequest
-import com.companyb.companyapp.dto.BranchResponse
-import com.companyb.companyapp.dto.DelegateResponse
-import com.companyb.companyapp.dto.UserSummaryResponse
+import com.companyb.companyapp.contracts.branch.BranchResponse
+import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.identity.UserStatus
+import com.companyb.companyapp.contracts.identity.UserSummaryResponse
+import com.companyb.companyapp.contracts.workforce.AssignDelegateRequest
+import com.companyb.companyapp.contracts.workforce.DelegateResponse
 import com.companyb.companyapp.network.mockApiClient
 import com.companyb.companyapp.workforce.relief.eligibleDelegateUsers
 import com.companyb.companyapp.workforce.relief.medicalMissionBranches

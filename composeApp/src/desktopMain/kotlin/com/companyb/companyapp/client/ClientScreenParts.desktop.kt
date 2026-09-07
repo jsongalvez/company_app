@@ -16,7 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.companyb.companyapp.dto.ClientResponse
+import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.ui.theme.Spacing
 
 // #113 D3 (desktop) — dense table: name/phone/gender/age. Search results are the scan persona

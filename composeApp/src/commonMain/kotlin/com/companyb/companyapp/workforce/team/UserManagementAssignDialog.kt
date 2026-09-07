@@ -5,8 +5,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.AssignmentResponse
-import com.companyb.companyapp.dto.BranchResponse
+import com.companyb.companyapp.contracts.branch.BranchResponse
+import com.companyb.companyapp.contracts.workforce.AssignmentResponse
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.workforce.branch.AssignUserDialog
 import com.companyb.companyapp.workforce.branch.AssignmentDialogActions

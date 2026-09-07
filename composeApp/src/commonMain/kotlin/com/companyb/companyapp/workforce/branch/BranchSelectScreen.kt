@@ -31,10 +31,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.BranchClockInStatus
-import com.companyb.companyapp.dto.ClockInResponse
-import com.companyb.companyapp.dto.MeBranchResponse
-import com.companyb.companyapp.dto.ReliefInviteResponse
+import com.companyb.companyapp.contracts.branch.BranchClockInStatus
+import com.companyb.companyapp.contracts.branch.MeBranchResponse
+import com.companyb.companyapp.contracts.workforce.ClockInResponse
+import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn

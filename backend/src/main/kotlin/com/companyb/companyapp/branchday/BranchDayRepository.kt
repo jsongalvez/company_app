@@ -1,6 +1,6 @@
 package com.companyb.companyapp.branchday
 
-import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.contracts.branchday.DayStatus
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq

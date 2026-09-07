@@ -1,7 +1,7 @@
 package com.companyb.companyapp.session.dashboard
 
-import com.companyb.companyapp.domain.DayStatus
-import com.companyb.companyapp.domain.SessionStatus
+import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.contracts.session.SessionStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

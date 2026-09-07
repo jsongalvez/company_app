@@ -4,12 +4,12 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.bodyIfPresent
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.dto.DenyReliefAccessRequest
+import com.companyb.companyapp.contracts.workforce.DenyReliefAccessRequest
+import com.companyb.companyapp.contracts.workforce.GrantReliefAccessRequest
+import com.companyb.companyapp.contracts.workforce.ReliefAccessRequest
+import com.companyb.companyapp.contracts.workforce.ReliefAccessResponse
+import com.companyb.companyapp.contracts.workforce.ReliefBranchOptionResponse
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.dto.GrantReliefAccessRequest
-import com.companyb.companyapp.dto.ReliefAccessRequest
-import com.companyb.companyapp.dto.ReliefAccessResponse
-import com.companyb.companyapp.dto.ReliefBranchOptionResponse
 import com.companyb.companyapp.identity.AccountReads
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse

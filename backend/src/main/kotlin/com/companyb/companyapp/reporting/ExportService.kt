@@ -2,7 +2,7 @@ package com.companyb.companyapp.reporting
 
 import com.companyb.companyapp.branch.Branch
 import com.companyb.companyapp.branch.BranchService
-import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import io.github.oshai.kotlinlogging.KotlinLogging

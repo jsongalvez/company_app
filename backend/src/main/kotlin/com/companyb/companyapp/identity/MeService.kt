@@ -2,11 +2,11 @@ package com.companyb.companyapp.identity
 
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayService
-import com.companyb.companyapp.domain.BranchClockInStatus
-import com.companyb.companyapp.domain.UserStatus
-import com.companyb.companyapp.dto.MeBranchResponse
-import com.companyb.companyapp.dto.MeResponse
-import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.branch.BranchClockInStatus
+import com.companyb.companyapp.contracts.branch.MeBranchResponse
+import com.companyb.companyapp.contracts.identity.MeResponse
+import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import io.github.oshai.kotlinlogging.KotlinLogging

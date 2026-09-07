@@ -2,8 +2,8 @@ package com.companyb.companyapp.identity
 
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.UserStatus
+import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.workforce.AttendanceTable
 import com.companyb.companyapp.workforce.UserBranchAssignmentTable

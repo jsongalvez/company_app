@@ -17,8 +17,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.BranchResponse
-import com.companyb.companyapp.dto.UserSummaryResponse
+import com.companyb.companyapp.contracts.branch.BranchResponse
+import com.companyb.companyapp.contracts.identity.UserSummaryResponse
 import com.companyb.companyapp.ui.EmptyState
 import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.Spacing

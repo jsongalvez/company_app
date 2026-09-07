@@ -1,9 +1,9 @@
 package com.companyb.companyapp.ui.screen
 
+import com.companyb.companyapp.contracts.session.DashboardSessionResponse
+import com.companyb.companyapp.contracts.session.SessionStatus
+import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.domain.RemittanceLineType
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.SessionType
-import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.dto.RemittanceLineResponse
 import kotlin.math.abs
 

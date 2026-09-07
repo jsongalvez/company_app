@@ -3,7 +3,7 @@ package com.companyb.companyapp.client
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
-import com.companyb.companyapp.dto.ClientResponse
+import com.companyb.companyapp.contracts.client.ClientResponse
 
 @Composable
 actual fun ClientResultList(

@@ -1,7 +1,7 @@
 package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.branchday.BranchDayService
-import com.companyb.companyapp.domain.ReliefInviteStatus
+import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException

@@ -3,8 +3,8 @@ package com.companyb.companyapp.seeding
 import com.companyb.companyapp.authorization.CapabilityTable
 import com.companyb.companyapp.authorization.UserCapabilityTable
 import com.companyb.companyapp.branch.BranchTable
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.identity.UserRepository
 import com.companyb.companyapp.identity.UserRoleTable

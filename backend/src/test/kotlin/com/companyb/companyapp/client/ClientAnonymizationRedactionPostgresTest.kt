@@ -5,12 +5,12 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditLogRoutes
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.audit.AuditValues
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.client.Gender
+import com.companyb.companyapp.contracts.session.SessionStatus
+import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.domain.Gender
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.http.KotlinxSerializationMapper

@@ -2,7 +2,6 @@ package com.companyb.companyapp.identity
 
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.domain.CredentialTokenPurpose
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.identity.CredentialTokenRepository

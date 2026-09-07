@@ -1,7 +1,7 @@
 package com.companyb.companyapp.workforce.attendance
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.MemberAttendanceResponse
+import com.companyb.companyapp.contracts.workforce.MemberAttendanceResponse
 
 /** #404 — pure roster presentation rules shared by [AttendanceRosterCard] (desktopTest-pinned). */
 object AttendanceRosterLogic {

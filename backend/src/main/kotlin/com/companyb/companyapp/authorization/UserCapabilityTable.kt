@@ -1,7 +1,7 @@
 package com.companyb.companyapp.authorization
 
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.domain.CapabilitySourceType
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
 import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID

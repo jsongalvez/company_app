@@ -1,8 +1,8 @@
 package com.companyb.companyapp.app
 
-import com.companyb.companyapp.dto.ClockInResponse
-import com.companyb.companyapp.dto.MeResponse
-import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.identity.MeResponse
+import com.companyb.companyapp.contracts.workforce.ClockInResponse
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -20,7 +20,7 @@ class AppSessionStateTest {
             id = "u1",
             username = "dev",
             displayName = "Dev",
-            status = com.companyb.companyapp.domain.UserStatus.ACTIVE,
+            status = com.companyb.companyapp.contracts.identity.UserStatus.ACTIVE,
             createdAt = "2026-08-10T00:00:00+08:00",
         )
 
@@ -28,21 +28,21 @@ class AppSessionStateTest {
         listOf(
             UserCapabilityResponse(
                 "MANAGE_USERS",
-                com.companyb.companyapp.domain.CapabilityContextType.GLOBAL,
+                com.companyb.companyapp.contracts.authorization.CapabilityContextType.GLOBAL,
                 "00000000-0000-0000-0000-000000000000",
-                com.companyb.companyapp.domain.CapabilitySourceType.ROLE,
+                com.companyb.companyapp.contracts.authorization.CapabilitySourceType.ROLE,
             ),
             UserCapabilityResponse(
                 "EDIT_BRANCH_DATA",
-                com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+                com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH,
                 "b1",
-                com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                com.companyb.companyapp.contracts.authorization.CapabilitySourceType.MANUAL_OVERRIDE,
             ),
             UserCapabilityResponse(
                 "EDIT_BRANCH_DATA",
-                com.companyb.companyapp.domain.CapabilityContextType.BRANCH_DAY,
+                com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH_DAY,
                 "d1",
-                com.companyb.companyapp.domain.CapabilitySourceType.RELIEF_ACCESS,
+                com.companyb.companyapp.contracts.authorization.CapabilitySourceType.RELIEF_ACCESS,
             ),
         )
 

@@ -43,11 +43,11 @@ import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.client.ClientCreateDialog
 import com.companyb.companyapp.client.ClientState
 import com.companyb.companyapp.client.ClientViewModel
-import com.companyb.companyapp.dto.BranchMemberResponse
-import com.companyb.companyapp.dto.ClientResponse
-import com.companyb.companyapp.dto.ConcernResponse
-import com.companyb.companyapp.dto.CreateClientRequest
-import com.companyb.companyapp.dto.SessionPreviewResponse
+import com.companyb.companyapp.contracts.client.ClientResponse
+import com.companyb.companyapp.contracts.client.CreateClientRequest
+import com.companyb.companyapp.contracts.session.ConcernResponse
+import com.companyb.companyapp.contracts.session.SessionPreviewResponse
+import com.companyb.companyapp.contracts.workforce.BranchMemberResponse
 import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.screen.missionPriceLocked
 import com.companyb.companyapp.ui.theme.CornerRadius

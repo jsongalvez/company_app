@@ -1,8 +1,8 @@
 package com.companyb.companyapp.workforce
 
 import com.companyb.companyapp.api.ApiRoutes
-import com.companyb.companyapp.dto.SwapSlotsRequest
-import com.companyb.companyapp.dto.UpdateSlotRequest
+import com.companyb.companyapp.contracts.workforce.SwapSlotsRequest
+import com.companyb.companyapp.contracts.workforce.UpdateSlotRequest
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.request.patch
 import io.ktor.client.request.post

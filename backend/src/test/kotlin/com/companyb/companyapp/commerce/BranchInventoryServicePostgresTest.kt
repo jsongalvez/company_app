@@ -6,9 +6,9 @@ import com.companyb.companyapp.commerce.InventoryMovementTable
 import com.companyb.companyapp.commerce.InventoryService
 import com.companyb.companyapp.commerce.MovementType
 import com.companyb.companyapp.commerce.ProductTable
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException

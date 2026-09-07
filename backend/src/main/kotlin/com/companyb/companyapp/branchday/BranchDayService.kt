@@ -2,9 +2,9 @@ package com.companyb.companyapp.branchday
 
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branch.BranchService
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException

@@ -1,7 +1,7 @@
 package com.companyb.companyapp.authorization
 
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import java.util.UUID
 
 /**

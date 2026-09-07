@@ -1,9 +1,9 @@
 package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.ReliefInviteStatus
-import com.companyb.companyapp.dto.ReliefCandidateResponse
-import com.companyb.companyapp.dto.ReliefInviteResponse
+import com.companyb.companyapp.contracts.workforce.ReliefCandidateResponse
+import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
+import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
 import com.companyb.companyapp.network.mockApiClient
 import com.companyb.companyapp.notification.NotificationState
 import io.ktor.client.engine.mock.MockRequestHandler

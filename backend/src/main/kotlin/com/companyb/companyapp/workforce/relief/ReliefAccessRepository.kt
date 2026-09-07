@@ -2,8 +2,8 @@ package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.domain.ReliefAccessStatus
-import com.companyb.companyapp.domain.UserStatus
+import com.companyb.companyapp.contracts.identity.UserStatus
+import com.companyb.companyapp.contracts.workforce.ReliefAccessStatus
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.workforce.AttendanceTable
 import org.jetbrains.exposed.v1.core.SortOrder

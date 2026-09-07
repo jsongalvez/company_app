@@ -1,4 +1,4 @@
-package com.companyb.companyapp.dto
+package com.companyb.companyapp.contracts.session
 
 import kotlinx.serialization.Serializable
 

@@ -1,6 +1,6 @@
 package com.companyb.companyapp.branchday
 
-import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.contracts.branchday.DayStatus
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.date

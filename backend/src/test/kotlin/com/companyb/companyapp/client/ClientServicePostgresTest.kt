@@ -1,8 +1,8 @@
 package com.companyb.companyapp.client
 import com.companyb.companyapp.audit.AuditLogTable
-import com.companyb.companyapp.domain.Gender
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.contracts.client.Gender
+import com.companyb.companyapp.contracts.session.SessionStatus
+import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.session.SessionVoidTable

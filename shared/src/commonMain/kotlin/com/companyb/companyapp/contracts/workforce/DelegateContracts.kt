@@ -1,4 +1,4 @@
-package com.companyb.companyapp.dto
+package com.companyb.companyapp.contracts.workforce
 
 import kotlinx.serialization.Serializable
 

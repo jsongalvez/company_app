@@ -4,9 +4,9 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.dto.AssignDelegateRequest
-import com.companyb.companyapp.dto.DelegateResponse
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.workforce.AssignDelegateRequest
+import com.companyb.companyapp.contracts.workforce.DelegateResponse
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse

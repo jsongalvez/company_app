@@ -37,7 +37,8 @@ import com.companyb.companyapp.app.navigation.LocalNavHostController
 import com.companyb.companyapp.app.navigation.Route
 import com.companyb.companyapp.app.navigation.currentRoute
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.ClockOutRequest
+import com.companyb.companyapp.contracts.workforce.ClockOutRequest
+import com.companyb.companyapp.contracts.workforce.ClockOutResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.notification.NotificationBadge
 import com.companyb.companyapp.notification.NotificationState
@@ -259,7 +260,7 @@ private fun ColumnScope.ClockOutSection(
 @Composable
 private fun ClockOutDialog(
     branchName: String?,
-    clockOutState: UiState<com.companyb.companyapp.dto.ClockOutResponse>,
+    clockOutState: UiState<ClockOutResponse>,
     navigationEnabled: Boolean,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,

@@ -1,7 +1,5 @@
-package com.companyb.companyapp.dto
+package com.companyb.companyapp.contracts.session
 
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.SessionType
 import kotlinx.serialization.Serializable
 
 @Serializable

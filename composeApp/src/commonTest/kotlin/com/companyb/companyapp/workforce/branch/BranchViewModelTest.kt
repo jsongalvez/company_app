@@ -1,12 +1,12 @@
 package com.companyb.companyapp.workforce.branch
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.dto.AssignmentResponse
-import com.companyb.companyapp.dto.BranchResponse
-import com.companyb.companyapp.dto.CreateAssignmentRequest
-import com.companyb.companyapp.dto.CreateBranchRequest
-import com.companyb.companyapp.dto.UpdateSlotRequest
+import com.companyb.companyapp.contracts.branch.BranchResponse
+import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.branch.CreateBranchRequest
+import com.companyb.companyapp.contracts.workforce.AssignmentResponse
+import com.companyb.companyapp.contracts.workforce.CreateAssignmentRequest
+import com.companyb.companyapp.contracts.workforce.UpdateSlotRequest
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.MockRequestHandler

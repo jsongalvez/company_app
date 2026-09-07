@@ -1,8 +1,8 @@
 package com.companyb.companyapp.notification
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.NotificationResponse
-import com.companyb.companyapp.dto.ReliefInviteResponse
+import com.companyb.companyapp.contracts.notification.NotificationResponse
+import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
 import com.companyb.companyapp.ui.ErrorCard
 import kotlin.test.Test
 import kotlin.test.assertEquals

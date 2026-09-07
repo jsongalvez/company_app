@@ -1,13 +1,13 @@
 package com.companyb.companyapp.workforce.team
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.UserStatus
-import com.companyb.companyapp.dto.BranchResponse
-import com.companyb.companyapp.dto.InviteMintRequest
-import com.companyb.companyapp.dto.InviteMintResponse
-import com.companyb.companyapp.dto.RoleResponse
-import com.companyb.companyapp.dto.UserAssignmentResponse
-import com.companyb.companyapp.dto.UserSummaryResponse
+import com.companyb.companyapp.contracts.branch.BranchResponse
+import com.companyb.companyapp.contracts.identity.InviteMintRequest
+import com.companyb.companyapp.contracts.identity.InviteMintResponse
+import com.companyb.companyapp.contracts.identity.RoleResponse
+import com.companyb.companyapp.contracts.identity.UserAssignmentResponse
+import com.companyb.companyapp.contracts.identity.UserStatus
+import com.companyb.companyapp.contracts.identity.UserSummaryResponse
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.MockRequestHandler

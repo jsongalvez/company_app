@@ -1,6 +1,6 @@
 package com.companyb.companyapp.identity
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.UserStatus
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.test.TestFixtures
@@ -43,7 +43,7 @@ class MeServicePostgresTest : BasePostgresTest() {
         assertEquals("me-caller-$userId", response.username)
         // #381 — the display name rides on the identity read.
         assertEquals("Me Caller", response.displayName)
-        assertEquals(com.companyb.companyapp.domain.UserStatus.ACTIVE, response.status)
+        assertEquals(com.companyb.companyapp.contracts.identity.UserStatus.ACTIVE, response.status)
         assertTrue(response.createdAt.isNotBlank())
     }
 

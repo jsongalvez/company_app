@@ -5,9 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.ReliefAccessResponse
-import com.companyb.companyapp.dto.ReliefBranchOptionResponse
-import com.companyb.companyapp.dto.ReliefInviteResponse
+import com.companyb.companyapp.contracts.workforce.ReliefAccessResponse
+import com.companyb.companyapp.contracts.workforce.ReliefBranchOptionResponse
+import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get

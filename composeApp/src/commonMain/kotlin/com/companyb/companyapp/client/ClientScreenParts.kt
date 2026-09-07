@@ -17,8 +17,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.companyb.companyapp.domain.Gender
-import com.companyb.companyapp.dto.ClientResponse
+import com.companyb.companyapp.contracts.client.ClientResponse
+import com.companyb.companyapp.contracts.client.Gender
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 

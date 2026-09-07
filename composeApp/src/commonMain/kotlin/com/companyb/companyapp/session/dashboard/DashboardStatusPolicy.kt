@@ -1,9 +1,9 @@
 package com.companyb.companyapp.session.dashboard
 
-import com.companyb.companyapp.domain.DayStatus
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.isStatusCorrection
-import com.companyb.companyapp.domain.isStatusTransitionAllowed
+import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.contracts.session.SessionStatus
+import com.companyb.companyapp.contracts.session.isStatusCorrection
+import com.companyb.companyapp.contracts.session.isStatusTransitionAllowed
 
 // #556 — the dashboard status/reason policy mirrors (#425 + #403), colocated in
 // session/dashboard beside DashboardEditState as pure adjacent policy (no rendering imports).

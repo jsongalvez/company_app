@@ -8,8 +8,8 @@ import com.companyb.companyapp.async.GuardedStateless
 import com.companyb.companyapp.async.LaunchHooks
 import com.companyb.companyapp.async.LaunchRequest
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.AssignDelegateRequest
-import com.companyb.companyapp.dto.DelegateResponse
+import com.companyb.companyapp.contracts.workforce.AssignDelegateRequest
+import com.companyb.companyapp.contracts.workforce.DelegateResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.workforce.team.extractApiErrorMessage
 import io.ktor.client.call.body

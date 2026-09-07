@@ -6,10 +6,10 @@ import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
-import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.session.RateResponse
+import com.companyb.companyapp.contracts.session.SetRateRequest
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.dto.RateResponse
-import com.companyb.companyapp.dto.SetRateRequest
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus

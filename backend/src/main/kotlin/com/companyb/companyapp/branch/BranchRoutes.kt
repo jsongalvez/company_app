@@ -5,9 +5,9 @@ import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.BranchReadScope
 import com.companyb.companyapp.authorization.CapabilityFilter
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.dto.BranchResponse
-import com.companyb.companyapp.dto.CreateBranchRequest
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.branch.BranchResponse
+import com.companyb.companyapp.contracts.branch.CreateBranchRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse

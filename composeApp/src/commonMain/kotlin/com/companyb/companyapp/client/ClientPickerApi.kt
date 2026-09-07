@@ -1,6 +1,6 @@
 package com.companyb.companyapp.client
 
-import com.companyb.companyapp.dto.ClientResponse
+import com.companyb.companyapp.contracts.client.ClientResponse
 
 /**
  * #558 — the narrow client-owned picker boundary: search + select only, never the

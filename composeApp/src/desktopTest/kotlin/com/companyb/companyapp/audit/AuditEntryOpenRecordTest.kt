@@ -2,11 +2,11 @@ package com.companyb.companyapp.audit
 
 import com.companyb.companyapp.app.GLOBAL_CAPABILITY_CONTEXT_ID
 import com.companyb.companyapp.app.hasCapability
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.dto.AuditLogEntryResponse
-import com.companyb.companyapp.dto.UserCapabilityResponse
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

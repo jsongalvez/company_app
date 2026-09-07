@@ -12,8 +12,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.companyb.companyapp.domain.ReliefAccessStatus
-import com.companyb.companyapp.dto.ReliefAccessResponse
+import com.companyb.companyapp.contracts.workforce.ReliefAccessResponse
+import com.companyb.companyapp.contracts.workforce.ReliefAccessStatus
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 

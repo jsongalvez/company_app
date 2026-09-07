@@ -6,7 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.ui.theme.Spacing
 
 @Composable

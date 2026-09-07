@@ -1,9 +1,9 @@
 package com.companyb.companyapp.workforce
 import com.companyb.companyapp.app.AppConfig
-import com.companyb.companyapp.dto.AssignmentResponse
-import com.companyb.companyapp.dto.CreateAssignmentRequest
-import com.companyb.companyapp.dto.SwapSlotsRequest
-import com.companyb.companyapp.dto.UpdateSlotRequest
+import com.companyb.companyapp.contracts.workforce.AssignmentResponse
+import com.companyb.companyapp.contracts.workforce.CreateAssignmentRequest
+import com.companyb.companyapp.contracts.workforce.SwapSlotsRequest
+import com.companyb.companyapp.contracts.workforce.UpdateSlotRequest
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException

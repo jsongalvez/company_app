@@ -2,10 +2,10 @@ package com.companyb.companyapp.workforce.branch
 
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.BranchClockInStatus
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.dto.MeBranchResponse
-import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.branch.BranchClockInStatus
+import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.branch.MeBranchResponse
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond

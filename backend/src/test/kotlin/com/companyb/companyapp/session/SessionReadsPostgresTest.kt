@@ -1,7 +1,7 @@
 package com.companyb.companyapp.session
 import com.companyb.companyapp.branchday.BranchDayService
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.contracts.session.SessionStatus
+import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.session.SessionBaseRateTable

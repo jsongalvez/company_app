@@ -1,4 +1,4 @@
-package com.companyb.companyapp.dto
+package com.companyb.companyapp.contracts.notification
 
 import kotlinx.serialization.Serializable
 
@@ -15,4 +15,20 @@ data class NotificationResponse(
     // #358 — the branch day a relief notification points at; the tap destination is the
     // dashboard scoped to (branchId, targetDate). Appointment reminders leave it null.
     val targetDate: String? = null,
+)
+
+@Serializable
+data class NotificationHistoryResponse(
+    val entries: List<NotificationResponse>,
+    val nextCursor: String? = null,
+)
+
+@Serializable
+data class NotificationMarkAllReadResponse(
+    val unreadCount: Int,
+)
+
+@Serializable
+data class NotificationUnreadCountResponse(
+    val unreadCount: Int,
 )

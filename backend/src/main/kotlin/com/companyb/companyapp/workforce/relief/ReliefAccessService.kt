@@ -7,7 +7,7 @@ import com.companyb.companyapp.authorization.GrantReliefCapabilityParams
 import com.companyb.companyapp.branch.Branch
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
-import com.companyb.companyapp.domain.ReliefAccessStatus
+import com.companyb.companyapp.contracts.workforce.ReliefAccessStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException

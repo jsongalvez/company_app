@@ -20,8 +20,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import com.companyb.companyapp.domain.DayStatus
-import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.contracts.session.DashboardSessionResponse
 import com.companyb.companyapp.ui.DayStatusWarning
 import com.companyb.companyapp.ui.screen.ClientNameText
 import com.companyb.companyapp.ui.screen.SessionTypeBadge

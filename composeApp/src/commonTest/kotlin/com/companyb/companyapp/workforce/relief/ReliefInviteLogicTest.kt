@@ -1,9 +1,9 @@
 package com.companyb.companyapp.workforce.relief
 
-import com.companyb.companyapp.domain.ReliefAccessStatus
-import com.companyb.companyapp.domain.ReliefInviteStatus
-import com.companyb.companyapp.dto.ReliefAccessResponse
-import com.companyb.companyapp.dto.ReliefInviteResponse
+import com.companyb.companyapp.contracts.workforce.ReliefAccessResponse
+import com.companyb.companyapp.contracts.workforce.ReliefAccessStatus
+import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
+import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals

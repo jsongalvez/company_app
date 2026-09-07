@@ -1,6 +1,6 @@
 package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.domain.ReliefInviteStatus
+import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
 import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID

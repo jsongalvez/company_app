@@ -34,7 +34,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.companyb.companyapp.domain.Gender
+import com.companyb.companyapp.contracts.client.Gender
 import com.companyb.companyapp.ui.theme.Spacing
 
 /**

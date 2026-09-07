@@ -43,7 +43,7 @@ class PersistentRevocationPostgresTest : BasePostgresTest() {
             passwordHash = Password.create("original-password"),
             email = "${id.toString().take(8)}@revoke.st",
             displayName = "Revoke Test User",
-            status = com.companyb.companyapp.domain.UserStatus.ACTIVE,
+            status = com.companyb.companyapp.contracts.identity.UserStatus.ACTIVE,
         )
         return id
     }

@@ -1,9 +1,9 @@
 package com.companyb.companyapp.client
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.Gender
-import com.companyb.companyapp.dto.ClientResponse
-import com.companyb.companyapp.dto.CreateClientRequest
+import com.companyb.companyapp.contracts.client.ClientResponse
+import com.companyb.companyapp.contracts.client.CreateClientRequest
+import com.companyb.companyapp.contracts.client.Gender
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.MockRequestHandler

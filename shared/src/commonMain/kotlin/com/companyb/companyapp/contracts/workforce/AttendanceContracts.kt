@@ -1,8 +1,10 @@
-package com.companyb.companyapp.dto
+package com.companyb.companyapp.contracts.workforce
 
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.ReliefAccessStatus
+import com.companyb.companyapp.contracts.branch.BranchType
 import kotlinx.serialization.Serializable
+
+@Serializable
+enum class ReliefAccessStatus { PENDING, GRANTED, DENIED, CANCELLED }
 
 @Serializable
 data class ClockInRequest(

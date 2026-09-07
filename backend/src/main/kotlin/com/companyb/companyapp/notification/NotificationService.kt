@@ -1,7 +1,7 @@
 package com.companyb.companyapp.notification
 
-import com.companyb.companyapp.dto.NotificationHistoryResponse
-import com.companyb.companyapp.dto.NotificationResponse
+import com.companyb.companyapp.contracts.notification.NotificationHistoryResponse
+import com.companyb.companyapp.contracts.notification.NotificationResponse
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
 import io.github.oshai.kotlinlogging.KotlinLogging

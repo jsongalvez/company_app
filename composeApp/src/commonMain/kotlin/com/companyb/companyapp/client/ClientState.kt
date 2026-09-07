@@ -1,6 +1,6 @@
 package com.companyb.companyapp.client
 
-import com.companyb.companyapp.dto.ClientResponse
+import com.companyb.companyapp.contracts.client.ClientResponse
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

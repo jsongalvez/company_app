@@ -2,10 +2,10 @@ package com.companyb.companyapp.branchday
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.CapabilityFilter
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.DayStatus
-import com.companyb.companyapp.dto.BranchDayTodayResponse
-import com.companyb.companyapp.dto.BranchDayUserResponse
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.branchday.BranchDayTodayResponse
+import com.companyb.companyapp.contracts.branchday.BranchDayUserResponse
+import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.workforce.AttendanceService
 import io.javalin.config.JavalinConfig

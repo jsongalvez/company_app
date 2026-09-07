@@ -4,10 +4,10 @@ import com.companyb.companyapp.authorization.CapabilityRepository
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.authorization.UserCapabilityTable
 import com.companyb.companyapp.branch.BranchTable
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.domain.CapabilitySourceType
-import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
+import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserCreateParams

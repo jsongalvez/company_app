@@ -1,7 +1,7 @@
 package com.companyb.companyapp.workforce.team
 
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.dto.BranchResponse
+import com.companyb.companyapp.contracts.branch.BranchResponse
+import com.companyb.companyapp.contracts.branch.BranchType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

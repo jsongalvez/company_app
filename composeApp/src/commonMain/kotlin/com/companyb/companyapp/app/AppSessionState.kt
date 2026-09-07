@@ -1,9 +1,9 @@
 package com.companyb.companyapp.app
 
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.dto.ClockInResponse
-import com.companyb.companyapp.dto.MeResponse
-import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.identity.MeResponse
+import com.companyb.companyapp.contracts.workforce.ClockInResponse
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

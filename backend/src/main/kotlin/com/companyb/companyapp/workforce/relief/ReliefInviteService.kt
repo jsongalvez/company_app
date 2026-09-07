@@ -5,8 +5,8 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.authorization.AuthorizationGrants
 import com.companyb.companyapp.authorization.GrantReliefCapabilityParams
 import com.companyb.companyapp.branchday.BranchDayService
-import com.companyb.companyapp.domain.DayStatus
-import com.companyb.companyapp.domain.ReliefInviteStatus
+import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException

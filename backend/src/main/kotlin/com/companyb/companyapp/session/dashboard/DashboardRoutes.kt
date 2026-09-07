@@ -2,11 +2,11 @@ package com.companyb.companyapp.session.dashboard
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
-import com.companyb.companyapp.dto.ConcernResponse
-import com.companyb.companyapp.dto.DashboardCommissionResponse
-import com.companyb.companyapp.dto.DashboardPractitionerResponse
-import com.companyb.companyapp.dto.DashboardResponse
-import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.contracts.session.ConcernResponse
+import com.companyb.companyapp.contracts.session.DashboardCommissionResponse
+import com.companyb.companyapp.contracts.session.DashboardPractitionerResponse
+import com.companyb.companyapp.contracts.session.DashboardResponse
+import com.companyb.companyapp.contracts.session.DashboardSessionResponse
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.session.Concern
 import com.companyb.companyapp.session.Session

@@ -9,9 +9,9 @@ import com.companyb.companyapp.async.KeyedMirror
 import com.companyb.companyapp.async.LaunchRequest
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.async.mutateRemoved
-import com.companyb.companyapp.dto.CreateReliefInviteRequest
-import com.companyb.companyapp.dto.ReliefCandidateResponse
-import com.companyb.companyapp.dto.ReliefInviteResponse
+import com.companyb.companyapp.contracts.workforce.CreateReliefInviteRequest
+import com.companyb.companyapp.contracts.workforce.ReliefCandidateResponse
+import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.notification.NotificationState
 import io.ktor.client.call.body

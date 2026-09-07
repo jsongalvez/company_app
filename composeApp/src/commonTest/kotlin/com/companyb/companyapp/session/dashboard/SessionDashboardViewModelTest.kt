@@ -2,12 +2,12 @@ package com.companyb.companyapp.session.dashboard
 
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.DayStatus
-import com.companyb.companyapp.dto.ClockInResponse
-import com.companyb.companyapp.dto.DashboardResponse
-import com.companyb.companyapp.dto.DashboardSessionResponse
-import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.contracts.session.DashboardResponse
+import com.companyb.companyapp.contracts.session.DashboardSessionResponse
+import com.companyb.companyapp.contracts.workforce.ClockInResponse
 import com.companyb.companyapp.network.mockApiClient
 import com.companyb.companyapp.ui.screen.bookedTimeLabel
 import com.companyb.companyapp.ui.screen.centsToMoney
@@ -140,9 +140,9 @@ class SessionDashboardViewModelTest {
         listOf(
             UserCapabilityResponse(
                 CapabilityCodes.EDIT_BRANCH_DATA,
-                com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+                com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH,
                 "b1",
-                com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                com.companyb.companyapp.contracts.authorization.CapabilitySourceType.MANUAL_OVERRIDE,
             ),
         )
 
@@ -150,9 +150,9 @@ class SessionDashboardViewModelTest {
         editRow() +
             UserCapabilityResponse(
                 CapabilityCodes.EDIT_PAST_DAY,
-                com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+                com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH,
                 "b1",
-                com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                com.companyb.companyapp.contracts.authorization.CapabilitySourceType.MANUAL_OVERRIDE,
             )
 
     @Test
@@ -1646,10 +1646,10 @@ class SessionDashboardViewModelTest {
             id = id,
             clientId = "c",
             clientName = "C",
-            sessionType = com.companyb.companyapp.domain.SessionType.REGULAR,
+            sessionType = com.companyb.companyapp.contracts.session.SessionType.REGULAR,
             isWalkIn = false,
             sessionStatus =
-                com.companyb.companyapp.domain.SessionStatus
+                com.companyb.companyapp.contracts.session.SessionStatus
                     .valueOf(status),
             basePrice = price,
             finalPrice = price,

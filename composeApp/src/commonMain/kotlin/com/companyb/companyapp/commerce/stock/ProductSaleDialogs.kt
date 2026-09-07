@@ -30,9 +30,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.client.ClientViewModel
+import com.companyb.companyapp.contracts.client.ClientResponse
+import com.companyb.companyapp.contracts.session.DashboardSessionResponse
 import com.companyb.companyapp.dto.BranchInventoryResponse
-import com.companyb.companyapp.dto.ClientResponse
-import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.dto.ProductSaleResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo

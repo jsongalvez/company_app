@@ -32,9 +32,9 @@ import com.companyb.companyapp.commerce.catalog.ProductViewModel
 import com.companyb.companyapp.commerce.stock.InventoryScreen
 import com.companyb.companyapp.commerce.stock.InventoryViewModel
 import com.companyb.companyapp.commerce.stock.ProductSaleViewModel
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.session.DashboardSessionResponse
 import com.companyb.companyapp.finance.FinanceReportsScreen
 import com.companyb.companyapp.finance.FinanceReportsViewModel
 import com.companyb.companyapp.network.ApiClient

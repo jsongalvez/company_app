@@ -1,6 +1,6 @@
 package com.companyb.companyapp.branchday
 
-import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
 import java.time.Instant

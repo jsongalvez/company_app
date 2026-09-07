@@ -4,7 +4,7 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
-import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.dto.AddInventoryCardRequest
 import com.companyb.companyapp.dto.BranchInventoryResponse

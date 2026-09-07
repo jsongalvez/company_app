@@ -2,6 +2,11 @@ package com.companyb.companyapp.domain
 
 import kotlinx.serialization.Serializable
 
+// #566 moved identity/authorization/branch/branchday/session/workforce enums to
+// contracts/<owner> (UserStatus, DayStatus, ReliefAccessStatus, CapabilityContextType,
+// CapabilitySourceType). This umbrella keeps only the finance/commerce/remittance/audit/
+// incident families for #567, which eliminates the remainder.
+
 @Serializable
 enum class RemittanceType { SESSION, PRODUCT }
 
@@ -31,22 +36,7 @@ enum class ExpenseCategory {
 enum class InventoryMovementReason { RESTOCK, SALE, TESTER, SAMPLE, MISSING, ADJUSTMENT }
 
 @Serializable
-enum class DayStatus { OPEN, PAST, REMITTED }
-
-@Serializable
-enum class UserStatus { ACTIVE, INACTIVE }
-
-@Serializable
 enum class AuditAction { INSERT, UPDATE, DELETE }
-
-@Serializable
-enum class ReliefAccessStatus { PENDING, GRANTED, DENIED, CANCELLED }
-
-@Serializable
-enum class CapabilityContextType { GLOBAL, BRANCH, BRANCH_DAY, MEDICAL_MISSION, PROVINCIAL_TOUR }
-
-@Serializable
-enum class CapabilitySourceType { RELIEF_ACCESS, MEDICAL_MISSION_DELEGATE, MANUAL_OVERRIDE, SYSTEM, ROLE }
 
 /** #475 — origin of a triage-ready incident packet; the packet shape is identical either way. */
 @Serializable

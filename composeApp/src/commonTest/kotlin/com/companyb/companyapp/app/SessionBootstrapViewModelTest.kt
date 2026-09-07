@@ -2,8 +2,8 @@ package com.companyb.companyapp.app
 
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.MeResponse
-import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.identity.MeResponse
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond
@@ -176,7 +176,7 @@ class SessionBootstrapViewModelTest {
                     id = "stale",
                     username = "stale",
                     displayName = "Stale",
-                    status = com.companyb.companyapp.domain.UserStatus.ACTIVE,
+                    status = com.companyb.companyapp.contracts.identity.UserStatus.ACTIVE,
                     createdAt = "2026-08-10T00:00:00+08:00",
                 ),
                 emptyList(),

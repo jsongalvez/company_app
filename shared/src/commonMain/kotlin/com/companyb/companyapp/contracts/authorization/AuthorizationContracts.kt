@@ -1,4 +1,6 @@
-package com.companyb.companyapp.domain
+package com.companyb.companyapp.contracts.authorization
+
+import kotlinx.serialization.Serializable
 
 object CapabilityCodes {
     const val VIEW_BRANCH_DATA = "VIEW_BRANCH_DATA"
@@ -13,3 +15,17 @@ object CapabilityCodes {
     const val ASSIGN_DELEGATE = "ASSIGN_DELEGATE"
     const val RECEIVE_NEXT_APPOINTMENT_ALERTS = "RECEIVE_NEXT_APPOINTMENT_ALERTS"
 }
+
+@Serializable
+enum class CapabilityContextType { GLOBAL, BRANCH, BRANCH_DAY, MEDICAL_MISSION, PROVINCIAL_TOUR }
+
+@Serializable
+enum class CapabilitySourceType { RELIEF_ACCESS, MEDICAL_MISSION_DELEGATE, MANUAL_OVERRIDE, SYSTEM, ROLE }
+
+@Serializable
+data class UserCapabilityResponse(
+    val capabilityCode: String,
+    val contextType: CapabilityContextType,
+    val contextId: String,
+    val sourceType: CapabilitySourceType,
+)

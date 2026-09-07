@@ -1,6 +1,6 @@
 package com.companyb.companyapp.branch
 import com.companyb.companyapp.audit.AuditLogTable
-import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

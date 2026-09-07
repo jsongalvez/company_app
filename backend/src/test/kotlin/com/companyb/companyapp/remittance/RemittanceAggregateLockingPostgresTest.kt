@@ -3,7 +3,7 @@ package com.companyb.companyapp.remittance
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType

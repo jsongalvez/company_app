@@ -2,8 +2,8 @@
 
 package com.companyb.companyapp.remittance
 import com.companyb.companyapp.app.AppConfig
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.domain.RemittanceLineType
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceType
@@ -138,7 +138,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
             id = secondSessionId,
             clientId = clientId,
             branchDayId = dayId,
-            sessionStatus = com.companyb.companyapp.domain.SessionStatus.COMPLETED,
+            sessionStatus = com.companyb.companyapp.contracts.session.SessionStatus.COMPLETED,
         )
         RemittanceService.createDraft(
             callerId = submitUser,
@@ -615,7 +615,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
             id = freshSessionId,
             clientId = clientId,
             branchDayId = freshDayId,
-            sessionStatus = com.companyb.companyapp.domain.SessionStatus.COMPLETED,
+            sessionStatus = com.companyb.companyapp.contracts.session.SessionStatus.COMPLETED,
         )
         testServer.client.let { client ->
             val body =
@@ -641,7 +641,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
             id = freshSessionId,
             clientId = clientId,
             branchDayId = freshDayId,
-            sessionStatus = com.companyb.companyapp.domain.SessionStatus.COMPLETED,
+            sessionStatus = com.companyb.companyapp.contracts.session.SessionStatus.COMPLETED,
         )
         RemittanceService.addLine(
             callerId = submitUser,

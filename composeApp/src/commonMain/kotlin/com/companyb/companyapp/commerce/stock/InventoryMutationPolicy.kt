@@ -9,15 +9,15 @@ import com.companyb.companyapp.app.GLOBAL_CAPABILITY_CONTEXT_ID
 import com.companyb.companyapp.app.hasBranchOrDayCapability
 import com.companyb.companyapp.app.hasCapability
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.dto.CreateProductSaleRequest
 import com.companyb.companyapp.dto.InventoryMovementRequest
 import com.companyb.companyapp.dto.ProductResponse
 import com.companyb.companyapp.dto.RestockRequest
-import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.util.logInfo
 import java.util.UUID
 

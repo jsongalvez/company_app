@@ -3,9 +3,9 @@ package com.companyb.companyapp.notification
 import com.companyb.companyapp.authorization.ActiveUserCapabilitiesView
 import com.companyb.companyapp.authorization.CapabilityTable
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.domain.SessionStatus
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.session.ActiveSessionVoidsView
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.workforce.UserBranchAssignmentTable

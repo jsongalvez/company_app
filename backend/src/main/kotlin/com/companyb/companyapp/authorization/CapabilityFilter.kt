@@ -2,11 +2,10 @@ package com.companyb.companyapp.authorization
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.branchday.BranchDayService
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.isStatusCorrection
-import com.companyb.companyapp.dto.UpdateSessionStatusRequest
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.session.SessionStatus
+import com.companyb.companyapp.contracts.session.isStatusCorrection
 import com.companyb.companyapp.finance.FinanceReads
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.session.SessionReads

@@ -24,7 +24,7 @@ import androidx.navigation.compose.NavHost
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.app.drawer.DrawerContent
 import com.companyb.companyapp.client.ClientState
-import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.contracts.session.DashboardSessionResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.session.dashboard.DashboardSelection

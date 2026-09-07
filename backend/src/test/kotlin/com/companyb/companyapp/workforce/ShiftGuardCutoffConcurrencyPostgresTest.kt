@@ -1,8 +1,8 @@
 package com.companyb.companyapp.workforce
 
 import com.companyb.companyapp.branchday.BranchDayRepository
-import com.companyb.companyapp.domain.ReliefAccessStatus
-import com.companyb.companyapp.domain.ReliefInviteStatus
+import com.companyb.companyapp.contracts.workforce.ReliefAccessStatus
+import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

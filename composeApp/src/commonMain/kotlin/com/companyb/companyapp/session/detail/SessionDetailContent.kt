@@ -14,9 +14,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
-import com.companyb.companyapp.dto.ConcernResponse
-import com.companyb.companyapp.dto.DashboardPractitionerResponse
-import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.contracts.session.ConcernResponse
+import com.companyb.companyapp.contracts.session.DashboardPractitionerResponse
+import com.companyb.companyapp.contracts.session.DashboardSessionResponse
 import com.companyb.companyapp.ui.screen.EmptySessionPlaceholder
 import com.companyb.companyapp.ui.screen.SessionStatusBadge
 import com.companyb.companyapp.ui.screen.SessionTypeBadge

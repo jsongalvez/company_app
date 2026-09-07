@@ -7,9 +7,9 @@ import com.companyb.companyapp.async.KeepLast
 import com.companyb.companyapp.async.LaunchRequest
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.async.mutateRemoved
-import com.companyb.companyapp.dto.NotificationHistoryResponse
-import com.companyb.companyapp.dto.NotificationMarkAllReadResponse
-import com.companyb.companyapp.dto.NotificationResponse
+import com.companyb.companyapp.contracts.notification.NotificationHistoryResponse
+import com.companyb.companyapp.contracts.notification.NotificationMarkAllReadResponse
+import com.companyb.companyapp.contracts.notification.NotificationResponse
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get

@@ -6,9 +6,9 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.LaunchRequest
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.MeBranchResponse
-import com.companyb.companyapp.dto.MeResponse
-import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.branch.MeBranchResponse
+import com.companyb.companyapp.contracts.identity.MeResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.workforce.AssignmentSlotOperations
 import com.companyb.companyapp.workforce.team.extractApiErrorMessage

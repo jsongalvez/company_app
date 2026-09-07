@@ -5,9 +5,9 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.ClockInRequest
-import com.companyb.companyapp.dto.ClockInResponse
-import com.companyb.companyapp.dto.MeBranchResponse
+import com.companyb.companyapp.contracts.branch.MeBranchResponse
+import com.companyb.companyapp.contracts.workforce.ClockInRequest
+import com.companyb.companyapp.contracts.workforce.ClockInResponse
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get

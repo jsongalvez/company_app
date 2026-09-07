@@ -107,7 +107,9 @@ class AttendanceRosterViewModelTest {
             advanceUntilIdle()
 
             assertEquals(5, harness.rosterCount)
-            assertIs<UiState.Success<List<com.companyb.companyapp.dto.MemberAttendanceResponse>>>(vm.roster.value)
+            assertIs<UiState.Success<List<com.companyb.companyapp.contracts.workforce.MemberAttendanceResponse>>>(
+                vm.roster.value,
+            )
         }
 
     @Test

@@ -3,11 +3,11 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.parseBrowseLimit
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.contracts.notification.NotificationHistoryResponse
+import com.companyb.companyapp.contracts.notification.NotificationMarkAllReadResponse
+import com.companyb.companyapp.contracts.notification.NotificationResponse
+import com.companyb.companyapp.contracts.notification.NotificationUnreadCountResponse
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.dto.NotificationHistoryResponse
-import com.companyb.companyapp.dto.NotificationMarkAllReadResponse
-import com.companyb.companyapp.dto.NotificationResponse
-import com.companyb.companyapp.dto.NotificationUnreadCountResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus

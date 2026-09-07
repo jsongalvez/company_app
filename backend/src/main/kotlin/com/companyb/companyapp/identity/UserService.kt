@@ -2,12 +2,12 @@ package com.companyb.companyapp.identity
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
-import com.companyb.companyapp.domain.CredentialTokenPurpose
-import com.companyb.companyapp.dto.InviteMintRequest
-import com.companyb.companyapp.dto.InviteMintResponse
-import com.companyb.companyapp.dto.RoleResponse
-import com.companyb.companyapp.dto.UserAssignmentResponse
-import com.companyb.companyapp.dto.UserSummaryResponse
+import com.companyb.companyapp.contracts.identity.InviteMintRequest
+import com.companyb.companyapp.contracts.identity.InviteMintResponse
+import com.companyb.companyapp.contracts.identity.RoleResponse
+import com.companyb.companyapp.contracts.identity.UserAssignmentResponse
+import com.companyb.companyapp.contracts.identity.UserStatus
+import com.companyb.companyapp.contracts.identity.UserSummaryResponse
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUser
@@ -304,7 +304,7 @@ object UserService {
                 username = user.username,
                 displayName = user.displayName,
                 status =
-                    com.companyb.companyapp.domain.UserStatus
+                    UserStatus
                         .valueOf(user.status.name),
                 deactivatedAt =
                     user.deactivatedAt
@@ -359,7 +359,7 @@ internal object UserAudit {
             mapOf(
                 "id" to recordId.toString(),
                 "username" to username,
-                "status" to com.companyb.companyapp.domain.UserStatus.ACTIVE.name,
+                "status" to UserStatus.ACTIVE.name,
                 "displayName" to displayName,
             ),
     )

@@ -1,7 +1,7 @@
 package com.companyb.companyapp.session
 
 import com.companyb.companyapp.branch.BranchTable
-import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID

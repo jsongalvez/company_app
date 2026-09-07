@@ -5,7 +5,7 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.commerce.CommerceReads
 import com.companyb.companyapp.commerce.ProductSale
-import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.workforce.Attendance
 import com.companyb.companyapp.workforce.AttendanceRepository

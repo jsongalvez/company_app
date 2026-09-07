@@ -2,9 +2,9 @@ package com.companyb.companyapp.integration
 
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
-import com.companyb.companyapp.domain.DayStatus
-import com.companyb.companyapp.domain.ReliefAccessStatus
-import com.companyb.companyapp.domain.ReliefInviteStatus
+import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.contracts.workforce.ReliefAccessStatus
+import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ForbiddenException

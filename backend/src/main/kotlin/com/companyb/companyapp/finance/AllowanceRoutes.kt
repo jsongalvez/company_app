@@ -5,7 +5,7 @@ import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
-import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.dto.AllowanceResponse
 import com.companyb.companyapp.dto.CreateAllowanceRequest
 import com.companyb.companyapp.dto.ErrorResponse

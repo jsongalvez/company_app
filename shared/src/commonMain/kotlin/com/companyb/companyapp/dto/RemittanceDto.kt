@@ -1,11 +1,11 @@
 package com.companyb.companyapp.dto
 
-import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.domain.RemittanceLineType
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
-import com.companyb.companyapp.domain.SessionStatus
 import kotlinx.serialization.Serializable
 
 @Serializable

@@ -1,7 +1,9 @@
-package com.companyb.companyapp.dto
+package com.companyb.companyapp.contracts.branchday
 
-import com.companyb.companyapp.domain.DayStatus
 import kotlinx.serialization.Serializable
+
+@Serializable
+enum class DayStatus { OPEN, PAST, REMITTED }
 
 @Serializable
 data class BranchDayTodayResponse(

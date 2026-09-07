@@ -1,6 +1,6 @@
 package com.companyb.companyapp.identity
 
-import com.companyb.companyapp.domain.UserStatus
+import com.companyb.companyapp.contracts.identity.UserStatus
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone

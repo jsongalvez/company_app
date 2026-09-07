@@ -9,13 +9,13 @@ import com.companyb.companyapp.commerce.ProductCreateParams
 import com.companyb.companyapp.commerce.ProductRepository
 import com.companyb.companyapp.commerce.ProductSaleService
 import com.companyb.companyapp.commerce.ProductSaleTable
+import com.companyb.companyapp.contracts.session.SessionStatus
+import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.RemittanceLineType
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException

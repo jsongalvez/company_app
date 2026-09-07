@@ -218,7 +218,7 @@ decision #436, Option 3): product/category collection and detail routes gate
 GLOBAL `MANAGE_CATALOG`, derived GLOBALly for SUPERUSER/OWNER/MANAGER/COORDINATOR
 and excluded from the BRANCH-derived leg, so catalog writes stay global while
 BRANCH `MANAGE_PRODUCTS` keeps governing branch inventory and base rates. The application references codes through
-`shared/src/commonMain/kotlin/com/companyb/companyapp/domain/CapabilityCodes.kt`; migration SQL
+`shared/src/commonMain/kotlin/com/companyb/companyapp/contracts/authorization/AuthorizationContracts.kt`; migration SQL
 keeps its database-owned string literals.
 
 | Code | Scope | Who holds it |

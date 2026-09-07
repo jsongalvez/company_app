@@ -1,5 +1,7 @@
 package com.companyb.companyapp.dto
 
+import com.companyb.companyapp.contracts.client.ClientPatchField
+import com.companyb.companyapp.contracts.client.UpdateClientRequest
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json

@@ -1,7 +1,7 @@
 package com.companyb.companyapp.session.detail
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.contracts.session.DashboardSessionResponse
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.MockRequestHandler
@@ -40,9 +40,9 @@ private fun testRow() =
         id = SESSION_ID,
         clientId = "c1",
         clientName = "Test Client",
-        sessionType = com.companyb.companyapp.domain.SessionType.REGULAR,
+        sessionType = com.companyb.companyapp.contracts.session.SessionType.REGULAR,
         isWalkIn = false,
-        sessionStatus = com.companyb.companyapp.domain.SessionStatus.COMPLETED,
+        sessionStatus = com.companyb.companyapp.contracts.session.SessionStatus.COMPLETED,
         basePrice = "2500.00",
         finalPrice = "2500.00",
         remarks = null,

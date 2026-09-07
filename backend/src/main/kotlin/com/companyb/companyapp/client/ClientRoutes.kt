@@ -4,12 +4,12 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.dto.ClientPatchField
-import com.companyb.companyapp.dto.ClientResponse
-import com.companyb.companyapp.dto.CreateClientRequest
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.client.ClientPatchField
+import com.companyb.companyapp.contracts.client.ClientResponse
+import com.companyb.companyapp.contracts.client.CreateClientRequest
+import com.companyb.companyapp.contracts.client.UpdateClientRequest
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.dto.UpdateClientRequest
 import com.companyb.companyapp.exception.ValidationException
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse

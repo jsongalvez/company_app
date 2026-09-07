@@ -3,9 +3,9 @@ import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.authorization.CapabilityRepository
 import com.companyb.companyapp.authorization.CapabilityService.GLOBAL_CONTEXT_ID
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUserTable
@@ -209,7 +209,7 @@ class UserServicePostgresTest : BasePostgresTest() {
         assertEquals(emptyList(), users[0].assignments, "ended assignments must be excluded")
 
         val target = users[1]
-        assertEquals(com.companyb.companyapp.domain.UserStatus.ACTIVE, target.status)
+        assertEquals(com.companyb.companyapp.contracts.identity.UserStatus.ACTIVE, target.status)
         assertNull(target.deactivatedAt)
         assertEquals(listOf(branchB.toString(), branchA.toString()), target.assignments.map { it.branchId })
         assertEquals(listOf("Branch B", "Branch A"), target.assignments.map { it.branchName })
@@ -223,7 +223,7 @@ class UserServicePostgresTest : BasePostgresTest() {
         val users = UserService.listUsers()
 
         val target = users.single { it.id == targetUserId.toString() }
-        assertEquals(com.companyb.companyapp.domain.UserStatus.INACTIVE, target.status)
+        assertEquals(com.companyb.companyapp.contracts.identity.UserStatus.INACTIVE, target.status)
         assertNotNull(target.deactivatedAt)
     }
 

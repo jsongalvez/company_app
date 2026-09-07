@@ -1,7 +1,7 @@
 package com.companyb.companyapp.seeding
 
 import com.companyb.companyapp.branch.BranchTable
-import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

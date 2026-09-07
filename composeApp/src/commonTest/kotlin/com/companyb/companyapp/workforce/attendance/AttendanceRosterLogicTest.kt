@@ -1,7 +1,7 @@
 package com.companyb.companyapp.workforce.attendance
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.MemberAttendanceResponse
+import com.companyb.companyapp.contracts.workforce.MemberAttendanceResponse
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

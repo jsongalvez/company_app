@@ -1,7 +1,7 @@
 package com.companyb.companyapp.app
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.ClockOutRequest
+import com.companyb.companyapp.contracts.workforce.ClockOutRequest
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond
@@ -66,7 +66,9 @@ class AttendanceViewModelTest {
             assertIs<UiState.Loading>(vm.clockOutState.value)
 
             runCurrent()
-            assertIs<UiState.Success<com.companyb.companyapp.dto.ClockOutResponse>>(vm.clockOutState.value)
+            assertIs<UiState.Success<com.companyb.companyapp.contracts.workforce.ClockOutResponse>>(
+                vm.clockOutState.value,
+            )
             job.join()
         }
 

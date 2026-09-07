@@ -1,7 +1,7 @@
 package com.companyb.companyapp.authorization
 
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq

@@ -2,8 +2,8 @@ package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.domain.DayStatus
-import com.companyb.companyapp.domain.ReliefAccessStatus
+import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.contracts.workforce.ReliefAccessStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException

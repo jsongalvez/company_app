@@ -7,9 +7,9 @@ import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.KeepLast
 import com.companyb.companyapp.async.LaunchRequest
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.ReliefAccessRequest
-import com.companyb.companyapp.dto.ReliefAccessResponse
-import com.companyb.companyapp.dto.ReliefBranchOptionResponse
+import com.companyb.companyapp.contracts.workforce.ReliefAccessRequest
+import com.companyb.companyapp.contracts.workforce.ReliefAccessResponse
+import com.companyb.companyapp.contracts.workforce.ReliefBranchOptionResponse
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get

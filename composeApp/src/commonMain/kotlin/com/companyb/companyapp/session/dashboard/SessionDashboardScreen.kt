@@ -28,9 +28,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.DayStatus
-import com.companyb.companyapp.dto.DashboardResponse
-import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.contracts.session.DashboardResponse
+import com.companyb.companyapp.contracts.session.DashboardSessionResponse
 import com.companyb.companyapp.ui.screen.grossIncomeCents
 import com.companyb.companyapp.ui.screen.moneyToCents
 import com.companyb.companyapp.ui.theme.CornerRadius

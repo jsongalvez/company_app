@@ -2,8 +2,8 @@ package com.companyb.companyapp.app
 
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.app.navigation.Route
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.resetMain
@@ -34,17 +34,17 @@ class DrawerViewModelTest {
     private fun row(code: String): UserCapabilityResponse =
         UserCapabilityResponse(
             code,
-            com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+            com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH,
             "b1",
-            com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+            com.companyb.companyapp.contracts.authorization.CapabilitySourceType.MANUAL_OVERRIDE,
         )
 
     private fun globalRow(code: String): UserCapabilityResponse =
         UserCapabilityResponse(
             code,
-            com.companyb.companyapp.domain.CapabilityContextType.GLOBAL,
+            com.companyb.companyapp.contracts.authorization.CapabilityContextType.GLOBAL,
             com.companyb.companyapp.app.GLOBAL_CAPABILITY_CONTEXT_ID,
-            com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+            com.companyb.companyapp.contracts.authorization.CapabilitySourceType.MANUAL_OVERRIDE,
         )
 
     @Test
@@ -182,9 +182,9 @@ class DrawerViewModelTest {
             listOf(
                 UserCapabilityResponse(
                     capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-                    contextType = com.companyb.companyapp.domain.CapabilityContextType.BRANCH_DAY,
+                    contextType = com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH_DAY,
                     contextId = "d1",
-                    sourceType = com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                    sourceType = com.companyb.companyapp.contracts.authorization.CapabilitySourceType.MANUAL_OVERRIDE,
                 ),
             ),
         )

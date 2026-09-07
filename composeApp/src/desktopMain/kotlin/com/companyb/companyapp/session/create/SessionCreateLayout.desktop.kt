@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.client.ClientPickerArgs
 import com.companyb.companyapp.client.ClientPickerSection
 import com.companyb.companyapp.client.clientDisplayName
-import com.companyb.companyapp.dto.ClientResponse
+import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing

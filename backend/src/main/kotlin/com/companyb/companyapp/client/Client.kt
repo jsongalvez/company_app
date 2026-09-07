@@ -1,6 +1,6 @@
 package com.companyb.companyapp.client
 
-import com.companyb.companyapp.domain.Gender
+import com.companyb.companyapp.contracts.client.Gender
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone

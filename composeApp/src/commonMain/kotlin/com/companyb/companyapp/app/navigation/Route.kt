@@ -1,6 +1,6 @@
 package com.companyb.companyapp.app.navigation
 
-import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.contracts.session.DashboardSessionResponse
 import kotlinx.serialization.Serializable
 
 @Serializable

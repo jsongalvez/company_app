@@ -4,11 +4,11 @@ import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.client.ClientReads
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.SessionType
-import com.companyb.companyapp.domain.isStatusCorrection
-import com.companyb.companyapp.domain.isStatusTransitionAllowed
+import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.session.SessionStatus
+import com.companyb.companyapp.contracts.session.SessionType
+import com.companyb.companyapp.contracts.session.isStatusCorrection
+import com.companyb.companyapp.contracts.session.isStatusTransitionAllowed
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException

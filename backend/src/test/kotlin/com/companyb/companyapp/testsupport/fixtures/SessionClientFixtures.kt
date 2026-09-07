@@ -1,9 +1,9 @@
 package com.companyb.companyapp.testsupport.fixtures
 
 import com.companyb.companyapp.client.ClientTable
-import com.companyb.companyapp.domain.Gender
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.contracts.client.Gender
+import com.companyb.companyapp.contracts.session.SessionStatus
+import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.notification.NotificationTable
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.test.TestFixtures

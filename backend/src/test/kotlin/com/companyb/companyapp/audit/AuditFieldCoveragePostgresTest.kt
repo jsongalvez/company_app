@@ -5,11 +5,11 @@ import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.audit.AuditValues
 import com.companyb.companyapp.client.ClientService
 import com.companyb.companyapp.client.ClientTable
+import com.companyb.companyapp.contracts.client.ClientPatchField
+import com.companyb.companyapp.contracts.client.Gender
+import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.ExpenseCategory
-import com.companyb.companyapp.domain.Gender
-import com.companyb.companyapp.domain.SessionType
-import com.companyb.companyapp.dto.ClientPatchField
 import com.companyb.companyapp.finance.ExpenseService
 import com.companyb.companyapp.finance.ExpenseTable
 import com.companyb.companyapp.session.SessionBaseRateTable
@@ -63,15 +63,15 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
         IdentityFixtures.grantVoidSession(callerId, TestFixtures.uuid())
         IdentityFixtures.grantCapability(
             userId = callerId,
-            capabilityCode = com.companyb.companyapp.domain.CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+            capabilityCode = com.companyb.companyapp.contracts.authorization.CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH,
             contextId = branchId,
             sourceId = TestFixtures.uuid(),
         )
         IdentityFixtures.grantCapability(
             userId = callerId,
-            capabilityCode = com.companyb.companyapp.domain.CapabilityCodes.VOID_SESSION,
-            contextType = com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+            capabilityCode = com.companyb.companyapp.contracts.authorization.CapabilityCodes.VOID_SESSION,
+            contextType = com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH,
             contextId = branchId,
             sourceId = TestFixtures.uuid(),
         )

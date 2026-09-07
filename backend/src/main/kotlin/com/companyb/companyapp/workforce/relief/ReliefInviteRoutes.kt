@@ -3,10 +3,10 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.dto.CreateReliefInviteRequest
+import com.companyb.companyapp.contracts.workforce.CreateReliefInviteRequest
+import com.companyb.companyapp.contracts.workforce.ReliefCandidateResponse
+import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.dto.ReliefCandidateResponse
-import com.companyb.companyapp.dto.ReliefInviteResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus

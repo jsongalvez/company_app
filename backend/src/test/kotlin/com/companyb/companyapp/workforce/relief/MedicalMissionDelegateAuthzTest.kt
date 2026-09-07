@@ -2,8 +2,8 @@ package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.branch.BranchTable
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.dto.DelegateResponse
+import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.workforce.DelegateResponse
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException

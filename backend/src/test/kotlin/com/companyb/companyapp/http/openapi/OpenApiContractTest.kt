@@ -1,6 +1,6 @@
 package com.companyb.companyapp.http.openapi
 
-import com.companyb.companyapp.dto.ClockInResponse
+import com.companyb.companyapp.contracts.workforce.ClockInResponse
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.registerAllRoutes
 import com.fasterxml.jackson.databind.ObjectMapper

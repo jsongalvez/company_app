@@ -1,6 +1,6 @@
 package com.companyb.companyapp.authorization
 
-import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals

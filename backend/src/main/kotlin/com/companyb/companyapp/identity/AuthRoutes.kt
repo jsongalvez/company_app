@@ -1,12 +1,12 @@
 package com.companyb.companyapp.identity
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
-import com.companyb.companyapp.dto.AcceptInviteRequest
+import com.companyb.companyapp.contracts.identity.AcceptInviteRequest
+import com.companyb.companyapp.contracts.identity.ForgotPasswordRequest
+import com.companyb.companyapp.contracts.identity.LoginRequest
+import com.companyb.companyapp.contracts.identity.LoginResponse
+import com.companyb.companyapp.contracts.identity.ResetPasswordRequest
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.dto.ForgotPasswordRequest
-import com.companyb.companyapp.dto.LoginRequest
-import com.companyb.companyapp.dto.LoginResponse
-import com.companyb.companyapp.dto.ResetPasswordRequest
 import com.companyb.companyapp.identity.AuthService
 import com.companyb.companyapp.identity.LoginResult
 import io.javalin.config.JavalinConfig

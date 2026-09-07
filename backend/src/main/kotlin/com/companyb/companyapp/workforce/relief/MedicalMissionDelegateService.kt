@@ -5,8 +5,8 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.authorization.AuthorizationGrants
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branch.BranchService
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException

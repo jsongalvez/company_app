@@ -1,9 +1,9 @@
 package com.companyb.companyapp.session.rates
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.SessionType
-import com.companyb.companyapp.dto.RateResponse
-import com.companyb.companyapp.dto.SetRateRequest
+import com.companyb.companyapp.contracts.session.RateResponse
+import com.companyb.companyapp.contracts.session.SessionType
+import com.companyb.companyapp.contracts.session.SetRateRequest
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.MockRequestHandler

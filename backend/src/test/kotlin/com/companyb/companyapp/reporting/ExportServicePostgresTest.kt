@@ -3,15 +3,15 @@ import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.commission.CommissionSplitTable
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.session.SessionStatus
+import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.domain.RemittanceLineType
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.remittance.RemittanceDayBreakdownTable
@@ -545,7 +545,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
                 it[SessionTable.id] = sessionId
                 it[SessionTable.clientId] = lineClientId
                 it[SessionTable.branchDayId] = targetDayId
-                it[SessionTable.sessionType] = com.companyb.companyapp.domain.SessionType.REGULAR
+                it[SessionTable.sessionType] = com.companyb.companyapp.contracts.session.SessionType.REGULAR
                 it[SessionTable.sessionStatus] = SessionStatus.COMPLETED
                 it[SessionTable.basePrice] = grossIncome
                 it[SessionTable.finalPrice] = grossIncome

@@ -2,7 +2,7 @@ package com.companyb.companyapp.commission
 
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.commerce.ProductSaleTable
-import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.session.dashboard.DashboardService
 import com.companyb.companyapp.test.TestFixtures

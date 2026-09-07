@@ -1,8 +1,8 @@
 package com.companyb.companyapp.app
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.MeBranchResponse
-import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.branch.MeBranchResponse
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.MockRequestHandler
@@ -126,7 +126,7 @@ class ProfileViewModelTest {
             vm.loadAll()
             advanceUntilIdle()
 
-            val meState = assertIs<UiState.Success<com.companyb.companyapp.dto.MeResponse>>(vm.me.value)
+            val meState = assertIs<UiState.Success<com.companyb.companyapp.contracts.identity.MeResponse>>(vm.me.value)
             assertEquals("Dev", meState.data.displayName)
             val branchState = assertIs<UiState.Success<List<MeBranchResponse>>>(vm.branches.value)
             assertEquals(listOf("b1", "b2"), branchState.data.map { it.branchId })

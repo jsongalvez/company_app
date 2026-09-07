@@ -2,11 +2,11 @@ package com.companyb.companyapp.finance
 
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.ClockInResponse
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.workforce.ClockInResponse
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.dto.ExpenseResponse
 import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
-import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.MockRequestHandler
@@ -102,9 +102,9 @@ class FinanceReportsViewModelTest {
     private fun branchRow(code: String): UserCapabilityResponse =
         UserCapabilityResponse(
             code,
-            com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+            com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH,
             BRANCH_A,
-            com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+            com.companyb.companyapp.contracts.authorization.CapabilitySourceType.MANUAL_OVERRIDE,
         )
 
     @AfterTest
@@ -1565,15 +1565,15 @@ class FinanceReportsViewModelTest {
                     branchRow("ASSIGN_COMPENSATION"),
                     UserCapabilityResponse(
                         "EDIT_BRANCH_DATA",
-                        com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+                        com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH,
                         BRANCH_B,
-                        com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                        com.companyb.companyapp.contracts.authorization.CapabilitySourceType.MANUAL_OVERRIDE,
                     ),
                     UserCapabilityResponse(
                         "ASSIGN_COMPENSATION",
-                        com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+                        com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH,
                         BRANCH_B,
-                        com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                        com.companyb.companyapp.contracts.authorization.CapabilitySourceType.MANUAL_OVERRIDE,
                     ),
                 ),
             )
@@ -1852,9 +1852,9 @@ class FinanceReportsViewModelTest {
                     branchRow("VIEW_BRANCH_DATA"),
                     UserCapabilityResponse(
                         "ASSIGN_COMPENSATION",
-                        com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+                        com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH,
                         "branch-b",
-                        com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                        com.companyb.companyapp.contracts.authorization.CapabilitySourceType.MANUAL_OVERRIDE,
                     ),
                 ),
             )
@@ -1869,9 +1869,9 @@ class FinanceReportsViewModelTest {
                     branchRow("VIEW_BRANCH_DATA"),
                     UserCapabilityResponse(
                         "ASSIGN_COMPENSATION",
-                        com.companyb.companyapp.domain.CapabilityContextType.GLOBAL,
+                        com.companyb.companyapp.contracts.authorization.CapabilityContextType.GLOBAL,
                         "00000000-0000-0000-0000-000000000000",
-                        com.companyb.companyapp.domain.CapabilitySourceType.ROLE,
+                        com.companyb.companyapp.contracts.authorization.CapabilitySourceType.ROLE,
                     ),
                 ),
             )
@@ -1908,9 +1908,9 @@ class FinanceReportsViewModelTest {
                 listOf(
                     UserCapabilityResponse(
                         "EDIT_BRANCH_DATA",
-                        com.companyb.companyapp.domain.CapabilityContextType.BRANCH_DAY,
+                        com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH_DAY,
                         DAY_ID,
-                        com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                        com.companyb.companyapp.contracts.authorization.CapabilitySourceType.MANUAL_OVERRIDE,
                     ),
                 ),
             )
@@ -1928,9 +1928,9 @@ class FinanceReportsViewModelTest {
                 listOf(
                     UserCapabilityResponse(
                         "EDIT_BRANCH_DATA",
-                        com.companyb.companyapp.domain.CapabilityContextType.BRANCH_DAY,
+                        com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH_DAY,
                         "other-day",
-                        com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                        com.companyb.companyapp.contracts.authorization.CapabilitySourceType.MANUAL_OVERRIDE,
                     ),
                 ),
             )
@@ -1941,9 +1941,9 @@ class FinanceReportsViewModelTest {
                 listOf(
                     UserCapabilityResponse(
                         "VIEW_BRANCH_DATA",
-                        com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+                        com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH,
                         BRANCH_A,
-                        com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                        com.companyb.companyapp.contracts.authorization.CapabilitySourceType.MANUAL_OVERRIDE,
                     ),
                 ),
             )
@@ -2049,9 +2049,9 @@ class FinanceReportsViewModelTest {
                 listOf(
                     UserCapabilityResponse(
                         "EDIT_BRANCH_DATA",
-                        com.companyb.companyapp.domain.CapabilityContextType.BRANCH_DAY,
+                        com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH_DAY,
                         DAY_ID,
-                        com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                        com.companyb.companyapp.contracts.authorization.CapabilitySourceType.MANUAL_OVERRIDE,
                     ),
                 ),
             )

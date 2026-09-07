@@ -1,7 +1,7 @@
 package com.companyb.companyapp.session.dashboard
 import com.companyb.companyapp.commission.CommissionManualInclusionRepository
 import com.companyb.companyapp.commission.CommissionManualInclusionUpsertParams
-import com.companyb.companyapp.domain.SessionStatus
+import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.notification.NotificationService

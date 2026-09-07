@@ -1,8 +1,8 @@
 package com.companyb.companyapp.session
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branch.BranchService
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.session.SessionBaseRateRepository

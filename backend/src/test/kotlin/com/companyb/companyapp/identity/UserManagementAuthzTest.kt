@@ -1,8 +1,8 @@
 package com.companyb.companyapp.identity
 import com.companyb.companyapp.app.AppConfig
-import com.companyb.companyapp.domain.UserStatus
-import com.companyb.companyapp.dto.InviteMintResponse
-import com.companyb.companyapp.dto.UserSummaryResponse
+import com.companyb.companyapp.contracts.identity.InviteMintResponse
+import com.companyb.companyapp.contracts.identity.UserStatus
+import com.companyb.companyapp.contracts.identity.UserSummaryResponse
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -131,7 +131,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
         }
         assertEquals(3, users.size)
         val target = users.single { it.id == targetUser.toString() }
-        assertEquals(com.companyb.companyapp.domain.UserStatus.ACTIVE, target.status)
+        assertEquals(com.companyb.companyapp.contracts.identity.UserStatus.ACTIVE, target.status)
         assertEquals(1, target.assignments.size)
         assertEquals("Authz Branch", target.assignments[0].branchName)
         assertEquals(1, target.assignments[0].slot)

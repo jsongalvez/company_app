@@ -2,7 +2,7 @@ package com.companyb.companyapp.app
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.LoginResponse
+import com.companyb.companyapp.contracts.identity.LoginResponse
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.ContentType

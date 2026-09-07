@@ -15,10 +15,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.UserStatus
-import com.companyb.companyapp.dto.AssignmentResponse
-import com.companyb.companyapp.dto.BranchResponse
-import com.companyb.companyapp.dto.UserSummaryResponse
+import com.companyb.companyapp.contracts.branch.BranchResponse
+import com.companyb.companyapp.contracts.identity.UserStatus
+import com.companyb.companyapp.contracts.identity.UserSummaryResponse
+import com.companyb.companyapp.contracts.workforce.AssignmentResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn

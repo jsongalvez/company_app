@@ -1,9 +1,9 @@
 package com.companyb.companyapp.commerce.stock
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.domain.CapabilitySourceType
-import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

@@ -6,7 +6,7 @@ import com.companyb.companyapp.async.GuardedStateless
 import com.companyb.companyapp.async.KeepLast
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.async.mutateRemoved
-import com.companyb.companyapp.dto.ClientResponse
+import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get

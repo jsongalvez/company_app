@@ -1,6 +1,6 @@
 package com.companyb.companyapp.workforce
 
-import com.companyb.companyapp.domain.UserStatus
+import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.identity.AppUserTable
 import io.github.oshai.kotlinlogging.KotlinLogging

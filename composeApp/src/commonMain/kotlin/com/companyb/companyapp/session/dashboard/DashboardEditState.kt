@@ -1,6 +1,6 @@
 package com.companyb.companyapp.session.dashboard
 
-import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.contracts.session.DashboardSessionResponse
 
 /**
  * #149 — the session dashboard's per-field edit state machine (#97 Q4 + ADR-0022:

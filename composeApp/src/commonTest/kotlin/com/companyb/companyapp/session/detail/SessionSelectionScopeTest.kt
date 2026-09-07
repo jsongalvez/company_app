@@ -1,10 +1,10 @@
 package com.companyb.companyapp.session.detail
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.SessionPractitionerResponse
-import com.companyb.companyapp.dto.SessionVoidResponse
-import com.companyb.companyapp.dto.UnvoidSessionRequest
-import com.companyb.companyapp.dto.VoidSessionRequest
+import com.companyb.companyapp.contracts.session.SessionPractitionerResponse
+import com.companyb.companyapp.contracts.session.SessionVoidResponse
+import com.companyb.companyapp.contracts.session.UnvoidSessionRequest
+import com.companyb.companyapp.contracts.session.VoidSessionRequest
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond

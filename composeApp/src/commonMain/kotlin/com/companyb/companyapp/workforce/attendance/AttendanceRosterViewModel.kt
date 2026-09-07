@@ -7,8 +7,8 @@ import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.KeepLast
 import com.companyb.companyapp.async.LaunchRequest
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.MarkAttendanceRequest
-import com.companyb.companyapp.dto.MemberAttendanceResponse
+import com.companyb.companyapp.contracts.workforce.MarkAttendanceRequest
+import com.companyb.companyapp.contracts.workforce.MemberAttendanceResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.workforce.AssignmentSlotOperations
 import com.companyb.companyapp.workforce.team.extractApiErrorMessage

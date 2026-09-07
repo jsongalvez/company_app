@@ -1,7 +1,7 @@
 package com.companyb.companyapp.app.auth
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.LoginResponse
+import com.companyb.companyapp.contracts.identity.LoginResponse
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

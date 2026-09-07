@@ -6,11 +6,11 @@ import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.LaunchHooks
 import com.companyb.companyapp.async.LaunchRequest
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.AcceptInviteRequest
-import com.companyb.companyapp.dto.ForgotPasswordRequest
-import com.companyb.companyapp.dto.LoginRequest
-import com.companyb.companyapp.dto.LoginResponse
-import com.companyb.companyapp.dto.ResetPasswordRequest
+import com.companyb.companyapp.contracts.identity.AcceptInviteRequest
+import com.companyb.companyapp.contracts.identity.ForgotPasswordRequest
+import com.companyb.companyapp.contracts.identity.LoginRequest
+import com.companyb.companyapp.contracts.identity.LoginResponse
+import com.companyb.companyapp.contracts.identity.ResetPasswordRequest
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.workforce.team.extractApiErrorMessage
 import io.ktor.client.call.body

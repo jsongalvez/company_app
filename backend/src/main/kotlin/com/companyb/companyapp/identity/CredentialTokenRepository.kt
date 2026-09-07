@@ -1,6 +1,5 @@
 package com.companyb.companyapp.identity
 
-import com.companyb.companyapp.domain.CredentialTokenPurpose
 import com.companyb.companyapp.identity.CredentialTokenRow
 import com.companyb.companyapp.identity.CredentialTokenTable
 import org.jetbrains.exposed.v1.core.ResultRow

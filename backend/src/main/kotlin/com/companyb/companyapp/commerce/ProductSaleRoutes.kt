@@ -3,7 +3,7 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
-import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.dto.CreateProductSaleRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.ProductSaleResponse

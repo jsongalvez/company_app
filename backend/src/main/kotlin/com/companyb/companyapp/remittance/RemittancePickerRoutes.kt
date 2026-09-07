@@ -3,7 +3,7 @@ package com.companyb.companyapp.remittance
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.CapabilityFilter
-import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.dto.RemittanceDayPickerEntryResponse
 import com.companyb.companyapp.dto.RemittanceProductSalePickerEntryResponse

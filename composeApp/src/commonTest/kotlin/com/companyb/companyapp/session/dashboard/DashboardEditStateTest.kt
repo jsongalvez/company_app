@@ -1,6 +1,6 @@
 package com.companyb.companyapp.session.dashboard
 
-import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.contracts.session.DashboardSessionResponse
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -24,11 +24,11 @@ class DashboardEditStateTest {
         clientId = "c1",
         clientName = "Client",
         sessionType =
-            com.companyb.companyapp.domain.SessionType
+            com.companyb.companyapp.contracts.session.SessionType
                 .valueOf(type),
         isWalkIn = false,
         sessionStatus =
-            com.companyb.companyapp.domain.SessionStatus
+            com.companyb.companyapp.contracts.session.SessionStatus
                 .valueOf(status),
         basePrice = "2500.00",
         finalPrice = price,

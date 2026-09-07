@@ -7,10 +7,10 @@ import com.companyb.companyapp.client.ClientCreateParams
 import com.companyb.companyapp.client.ClientRepository
 import com.companyb.companyapp.client.ClientService
 import com.companyb.companyapp.client.ClientTable
+import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.client.Gender
+import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.Gender
-import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.finance.CompensationService

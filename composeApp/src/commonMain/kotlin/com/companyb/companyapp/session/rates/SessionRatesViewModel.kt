@@ -5,8 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.RateResponse
-import com.companyb.companyapp.dto.SetRateRequest
+import com.companyb.companyapp.contracts.session.RateResponse
+import com.companyb.companyapp.contracts.session.SetRateRequest
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get

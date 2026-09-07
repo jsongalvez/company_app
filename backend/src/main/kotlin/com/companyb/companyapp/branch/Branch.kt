@@ -1,6 +1,6 @@
 package com.companyb.companyapp.branch
 
-import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.contracts.branch.BranchType
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.postgresql.util.PGobject

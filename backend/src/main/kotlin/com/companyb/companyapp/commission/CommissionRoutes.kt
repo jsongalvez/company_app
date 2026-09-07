@@ -4,7 +4,7 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
-import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.dto.CommissionInclusionResponse
 import com.companyb.companyapp.dto.CommissionSplitResponse
 import com.companyb.companyapp.dto.CreateCommissionInclusionRequest

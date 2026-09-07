@@ -2,10 +2,10 @@ package com.companyb.companyapp.testsupport.fixtures
 
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.workforce.AttendanceTable
 import com.companyb.companyapp.workforce.UserBranchAssignmentTable

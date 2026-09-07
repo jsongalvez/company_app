@@ -37,8 +37,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.companyb.companyapp.domain.DayStatus
-import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.contracts.session.DashboardSessionResponse
 import com.companyb.companyapp.ui.screen.SessionStatusBadge
 import com.companyb.companyapp.ui.screen.missionPriceLocked
 import com.companyb.companyapp.ui.theme.InkSubtle

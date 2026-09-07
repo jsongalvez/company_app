@@ -95,7 +95,7 @@ internal fun DayPickerDayRow(
     onToggle: (id: String) -> Unit,
 ) {
     val included = entry.id in includedIds
-    val remitted = entry.status == com.companyb.companyapp.domain.DayStatus.REMITTED
+    val remitted = entry.status == com.companyb.companyapp.contracts.branchday.DayStatus.REMITTED
     val selectable = !included && !remitted
     Row(
         verticalAlignment = Alignment.CenterVertically,

@@ -1,8 +1,8 @@
 package com.companyb.companyapp.identity
 import com.companyb.companyapp.branchday.BranchDayService
-import com.companyb.companyapp.domain.BranchClockInStatus
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.UserStatus
+import com.companyb.companyapp.contracts.branch.BranchClockInStatus
+import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.test.TestFixtures

@@ -1,7 +1,7 @@
 package com.companyb.companyapp.branch
 
 import com.companyb.companyapp.audit.AuditLog
-import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.session.SessionBaseRateService

@@ -33,7 +33,7 @@ import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.app.AuthViewModel
 import com.companyb.companyapp.app.SessionBootstrapViewModel
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.LoginResponse
+import com.companyb.companyapp.contracts.identity.LoginResponse
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo

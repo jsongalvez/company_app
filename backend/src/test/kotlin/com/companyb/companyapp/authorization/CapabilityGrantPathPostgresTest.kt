@@ -1,8 +1,8 @@
 package com.companyb.companyapp.authorization
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.domain.CapabilitySourceType
-import com.companyb.companyapp.domain.UserStatus
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
+import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.test.TestFixtures
@@ -247,14 +247,14 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
     @Test
     fun `derived rows are reported with ROLE source and GLOBAL context`() {
         val caps = CapabilityService.getCapabilitiesForUser(ownerUser)
-        val derived = caps.filter { it.sourceType == com.companyb.companyapp.domain.CapabilitySourceType.ROLE }
+        val derived = caps.filter { it.sourceType == CapabilitySourceType.ROLE }
         assertEquals(
             5,
             derived.size,
             "OWNER derives management GLOBAL capabilities plus catalog plus all-branches VIEW_BRANCH_DATA",
         )
         derived.forEach {
-            assertEquals(com.companyb.companyapp.domain.CapabilityContextType.GLOBAL, it.contextType)
+            assertEquals(CapabilityContextType.GLOBAL, it.contextType)
             assertEquals(CapabilityService.GLOBAL_CONTEXT_ID.toString(), it.contextId)
         }
         assertEquals(

@@ -8,8 +8,9 @@ import com.companyb.companyapp.app.hasCapability
 import com.companyb.companyapp.app.hasCapabilityAnyContext
 import com.companyb.companyapp.app.hasDayGrant
 import com.companyb.companyapp.app.navigation.Route
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -98,7 +99,7 @@ class DrawerViewModel : ViewModel() {
         }
     }
 
-    private fun DrawerItem.isVisible(caps: List<com.companyb.companyapp.dto.UserCapabilityResponse>): Boolean {
+    private fun DrawerItem.isVisible(caps: List<UserCapabilityResponse>): Boolean {
         val capabilityVisible =
             capabilityCode != null &&
                 if (globalCapabilityOnly) {

@@ -1,7 +1,7 @@
 package com.companyb.companyapp.workforce.attendance
 
 import androidx.compose.runtime.saveable.SaverScope
-import com.companyb.companyapp.dto.MemberAttendanceResponse
+import com.companyb.companyapp.contracts.workforce.MemberAttendanceResponse
 import com.companyb.companyapp.workforce.team.SlotEditTarget
 import kotlin.test.Test
 import kotlin.test.assertEquals

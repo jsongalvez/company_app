@@ -1,10 +1,10 @@
 package com.companyb.companyapp.identity
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.branch.MeBranchResponse
+import com.companyb.companyapp.contracts.identity.MeResponse
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.dto.MeBranchResponse
-import com.companyb.companyapp.dto.MeResponse
-import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.identity.MeService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus

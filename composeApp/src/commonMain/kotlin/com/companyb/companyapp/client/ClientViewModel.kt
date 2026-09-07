@@ -6,9 +6,9 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.LaunchRequest
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.ClientResponse
-import com.companyb.companyapp.dto.CreateClientRequest
-import com.companyb.companyapp.dto.UpdateClientRequest
+import com.companyb.companyapp.contracts.client.ClientResponse
+import com.companyb.companyapp.contracts.client.CreateClientRequest
+import com.companyb.companyapp.contracts.client.UpdateClientRequest
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.workforce.team.extractApiErrorMessage
 import io.ktor.client.call.body

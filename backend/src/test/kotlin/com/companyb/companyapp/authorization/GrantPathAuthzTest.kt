@@ -1,9 +1,9 @@
 package com.companyb.companyapp.authorization
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.branch.BranchRoutes
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.UserStatus
-import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException

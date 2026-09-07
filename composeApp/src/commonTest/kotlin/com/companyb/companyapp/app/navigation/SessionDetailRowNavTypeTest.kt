@@ -1,10 +1,10 @@
 package com.companyb.companyapp.app.navigation
 
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.SessionType
-import com.companyb.companyapp.dto.ConcernResponse
-import com.companyb.companyapp.dto.DashboardPractitionerResponse
-import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.contracts.session.ConcernResponse
+import com.companyb.companyapp.contracts.session.DashboardPractitionerResponse
+import com.companyb.companyapp.contracts.session.DashboardSessionResponse
+import com.companyb.companyapp.contracts.session.SessionStatus
+import com.companyb.companyapp.contracts.session.SessionType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

@@ -1,6 +1,6 @@
 package com.companyb.companyapp.notification
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.contracts.session.SessionStatus
+import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.notification.NotificationCreateParams
 import com.companyb.companyapp.notification.NotificationRepository

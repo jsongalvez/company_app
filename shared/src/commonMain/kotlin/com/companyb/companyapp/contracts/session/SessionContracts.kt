@@ -1,8 +1,49 @@
-package com.companyb.companyapp.dto
+package com.companyb.companyapp.contracts.session
 
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.SessionType
 import kotlinx.serialization.Serializable
+
+@Serializable
+enum class SessionType { REGULAR, SECOND_SESSION, SUBSEQUENT, PROVINCIAL_FIRST, MEDICAL_MISSION }
+
+@Serializable
+enum class SessionStatus { PENDING, COMPLETED, NO_SHOW, CANCELLED }
+
+/**
+ * #425 - the session status correction vocabulary (owner ruling 2026-08-26), shared so the
+ * backend enforcement and the dashboard dropdown mirror can never diverge.
+ *
+ * - A ROUTINE MARK is the forward direction the lifecycle already allows anyone with edit
+ *   authority: PENDING -> COMPLETED / NO_SHOW / CANCELLED (walk-ins still blocked from
+ *   NO_SHOW/CANCELLED server-side).
+ * - A CORRECTION is any other swap among PENDING / NO_SHOW / CANCELLED -- fixing a mis-mark
+ *   (NO_SHOW -> PENDING) or reclassifying between terminal outcomes. Coordinator authority
+ *   ([com.companyb.companyapp.contracts.authorization.CapabilityCodes.EDIT_PAST_DAY]) is required at every day state; day-state rules
+ *   (PAST/REMITTED gates, REMITTED reason) apply on top.
+ * - COMPLETED is immutable outside the void/unvoid machinery: [isStatusCorrection] is false
+ *   for any pair touching it, so such requests are rejected outright - money flows are never
+ *   resurrected through status edits.
+ */
+fun isRoutineStatusMark(
+    from: SessionStatus,
+    to: SessionStatus,
+): Boolean = from == SessionStatus.PENDING && to != SessionStatus.PENDING
+
+fun isStatusCorrection(
+    from: SessionStatus,
+    to: SessionStatus,
+): Boolean =
+    from != to && from != SessionStatus.COMPLETED && to != SessionStatus.COMPLETED &&
+        !isRoutineStatusMark(from, to)
+
+private val WALK_IN_FORBIDDEN_STATUS_VALUES = setOf(SessionStatus.NO_SHOW, SessionStatus.CANCELLED)
+
+fun isStatusTransitionAllowed(
+    from: SessionStatus,
+    to: SessionStatus,
+    isWalkIn: Boolean,
+): Boolean =
+    (!isWalkIn || to !in WALK_IN_FORBIDDEN_STATUS_VALUES) &&
+        (isRoutineStatusMark(from, to) || isStatusCorrection(from, to))
 
 @Serializable
 data class CreateSessionRequest(
@@ -104,7 +145,7 @@ data class SessionPractitionerResponse(
 
 /**
  * #348 — pre-create preview for the SessionCreate screen: the session type the server WILL
- * assign (same [com.companyb.companyapp.domain.SessionType] algorithm as create) and the base
+ * assign (same [SessionType] algorithm as create) and the base
  * rate that will default the final price. Server-authoritative — the frontend never replicates
  * history counting or rate lookup.
  */

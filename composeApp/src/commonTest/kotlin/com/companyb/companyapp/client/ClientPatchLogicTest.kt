@@ -1,10 +1,10 @@
 package com.companyb.companyapp.client
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.Gender
-import com.companyb.companyapp.dto.ClientPatchField
-import com.companyb.companyapp.dto.ClientResponse
-import com.companyb.companyapp.dto.UpdateClientRequest
+import com.companyb.companyapp.contracts.client.ClientPatchField
+import com.companyb.companyapp.contracts.client.ClientResponse
+import com.companyb.companyapp.contracts.client.Gender
+import com.companyb.companyapp.contracts.client.UpdateClientRequest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

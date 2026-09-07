@@ -1,7 +1,9 @@
-package com.companyb.companyapp.dto
+package com.companyb.companyapp.contracts.client
 
-import com.companyb.companyapp.domain.Gender
 import kotlinx.serialization.Serializable
+
+@Serializable
+enum class Gender { M, F }
 
 @Serializable
 data class CreateClientRequest(

@@ -1,7 +1,7 @@
 package com.companyb.companyapp.identity
 
 import com.companyb.companyapp.branch.BranchTable
-import com.companyb.companyapp.domain.UserStatus
+import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.RegistrationConflictException
 import com.companyb.companyapp.exception.RegistrationConflictField
 import com.companyb.companyapp.identity.AppUser

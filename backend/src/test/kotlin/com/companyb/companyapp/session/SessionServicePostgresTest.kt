@@ -4,12 +4,12 @@ import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.client.ClientService
 import com.companyb.companyapp.client.ClientTable
+import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.contracts.identity.UserStatus
+import com.companyb.companyapp.contracts.session.SessionStatus
+import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.DayStatus
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.SessionType
-import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException

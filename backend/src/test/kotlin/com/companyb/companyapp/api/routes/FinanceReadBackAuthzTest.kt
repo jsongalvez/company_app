@@ -3,8 +3,8 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.branchday.BranchDayRoutes
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException

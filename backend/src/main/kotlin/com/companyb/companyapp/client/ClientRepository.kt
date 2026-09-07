@@ -1,7 +1,7 @@
 package com.companyb.companyapp.client
 
-import com.companyb.companyapp.domain.Gender
-import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.contracts.client.Gender
+import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.session.ActiveSessionVoidsView
 import com.companyb.companyapp.session.SessionTable

@@ -10,11 +10,11 @@ import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.GuardedStateless
 import com.companyb.companyapp.async.StatelessHooks
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.branch.BranchResponse
+import com.companyb.companyapp.contracts.branchday.BranchDayUserResponse
 import com.companyb.companyapp.dto.AllowanceResponse
-import com.companyb.companyapp.dto.BranchDayUserResponse
-import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.CompensationResponse
 import com.companyb.companyapp.dto.CreateAllowanceRequest
 import com.companyb.companyapp.dto.CreateCompensationRequest

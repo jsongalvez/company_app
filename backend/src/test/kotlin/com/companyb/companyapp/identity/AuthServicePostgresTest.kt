@@ -1,6 +1,6 @@
 package com.companyb.companyapp.identity
 import com.companyb.companyapp.audit.AuditLogTable
-import com.companyb.companyapp.domain.UserStatus
+import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.RegistrationConflictException
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.LoginResult

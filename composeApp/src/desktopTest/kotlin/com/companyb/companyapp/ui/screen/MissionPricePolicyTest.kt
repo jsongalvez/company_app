@@ -1,6 +1,6 @@
 package com.companyb.companyapp.ui.screen
 
-import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.contracts.session.SessionType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
