@@ -100,12 +100,13 @@ re-verifies the claim (its own classifier must return exactly the named
 gates) before honouring it. There is no poison signal: poison stays parked
 for a human.
 
-The same rework fixed the supervisor's liveness predicate: a session counts
-as exited only after `WAYFINDER_EXIT_GONE_TICKS` (default 2) consecutive
-ticks where the direct session GET fails AND the id is absent from
-`/api/session/active` (previously one failed `/active` poll read a live,
-user-paused worker as dead and minted phantom successors), and the
-died-without-handoff path requires the same proof before a fresh respawn.
+The same rework fixed the supervisor's liveness predicate: the direct session
+GET answers for historical sessions too, so it proves nothing — a session
+counts as exited only after `WAYFINDER_EXIT_GONE_TICKS` (default 2)
+consecutive ticks of proven `/api/session/active` absence (previously one
+failed `/active` poll read a live, user-paused worker as dead and minted
+phantom successors), and the died-without-handoff path requires the same
+proof before a fresh respawn. An unreadable `/active` always answers "alive".
 
 This watchdog is host-local like `local-ci.sh`; it adds no hosted workflow,
 schedule, hook gate, or cross-machine claim. The existing `flock` remains the

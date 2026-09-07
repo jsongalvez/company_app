@@ -623,15 +623,15 @@ progress_map_for_doc() {
   printf '%s' "$MAP_ISSUE"
 }
 
-# session_gone <sid>: dual-signal liveness with fail-safe direction. Gone only
-# when the direct session GET fails AND a successful /active read proves the
-# id absent. Any API unreadability answers "alive": the 2026-09-07
-# phantom-completion class came from treating one failed poll as death while
-# the worker was merely paused on user input. Callers must only ever
-# spawn/complete on proven absence, never on unknown.
+# session_gone <sid>: proven absence from the live set. The direct session GET
+# is USELESS for death detection — the API returns historical records for
+# long-dead sessions (rc=0). The authority signal is /active membership, and
+# only a SUCCESSFUL fetch counts: an unreadable /active answers "alive"
+# (the 2026-09-07 phantom-completion class came from treating one failed poll
+# as death while the worker was merely paused on user input). Callers only
+# ever spawn/complete on proven absence, never on unknown.
 session_gone() {
   local sid="$1" active
-  api get "/api/session/$sid" >/dev/null 2>&1 && return 1
   active="$(api get /api/session/active 2>/dev/null || true)"
   [ -n "$active" ] || return 1
   printf '%s' "$active" | jq -e --arg s "$sid" '.data | has($s) | not' >/dev/null 2>&1
@@ -1063,10 +1063,10 @@ progress_note_completion() {
 wait_for_session_exit() {
   local notified=0 gone_ticks=0
   while :; do
-    # Dual-signal grace: one failed /active poll (or a session paused on user
-    # input) must not read as death. Exit only after EXIT_GONE_TICKS
-    # consecutive observations where the direct GET fails AND the id is absent
-    # from /active. A parent awaiting sub-agents counts as alive throughout.
+    # Proven-absence grace: one failed /active poll (or a session paused on
+    # user input) must not read as death. Exit only after EXIT_GONE_TICKS
+    # consecutive ticks of proven /active absence (successful fetch, id
+    # unlisted). A parent awaiting sub-agents counts as alive throughout.
     if session_gone "$session_id" && ! active_children "$session_id"; then
       gone_ticks=$((gone_ticks + 1))
       [ "$gone_ticks" -ge "$EXIT_GONE_TICKS" ] && break
@@ -1443,36 +1443,28 @@ supervise_session() {
     # while the service itself is down = transient outage (count, notify at 3,
     # retry — don't kill a healthy session on a blip).
     sess="$(api get "/api/session/$session_id" 2>/dev/null || true)"
-    if [ -z "$sess" ]; then
-      if api get "/api/session/active" >/dev/null 2>&1; then
-        # The direct GET failed but the API itself answers: only respawn on
-        # proof of death (#578). A worker still listed in /active (or with
-        # live children) is alive — the GET failure was a blip, not an exit.
-        # Even an unlisted worker gets a 2-tick blip filter before the fresh
-        # path: one bad poll must never mint a duplicate session.
-        if session_alive "$session_id" || active_children "$session_id"; then
-          outages=$((outages+1))
-          not_alive_ticks=0
-          if [ "$outages" -eq 3 ]; then
-            notify "opencode2 API unstable" "daemon will keep retrying — check 'opencode2 service status'"
-            outages=0
-          fi
-          sleep 30
-        elif [ "${not_alive_ticks:-0}" -ge 2 ]; then
-          not_alive_ticks=0
-          session_dead fresh
-        else
-          not_alive_ticks=$(( ${not_alive_ticks:-0} + 1 ))
-        fi
-      else
-        outages=$((outages+1))
-        if [ "$outages" -eq 3 ]; then
-          notify "opencode2 API unstable" "daemon will keep retrying — check 'opencode2 service status'"
-          outages=0
-        fi
-        sleep 30
+    if [ -z "$sess" ] && ! api get "/api/session/active" >/dev/null 2>&1; then
+      outages=$((outages+1))
+      if [ "$outages" -eq 3 ]; then
+        notify "opencode2 API unstable" "daemon will keep retrying — check 'opencode2 service status'"
+        outages=0
       fi
+      sleep 30
       continue
+    fi
+    # Proof-of-death gate (#578): the direct GET answers for historical
+    # sessions too, so only proven /active absence (with a blip filter) may
+    # fresh-respawn. Anything else — listed, child-running, or unreadable —
+    # is alive-or-unknown and keeps supervision.
+    if session_gone "$session_id" && ! active_children "$session_id"; then
+      not_alive_ticks=$(( ${not_alive_ticks:-0} + 1 ))
+      if [ "$not_alive_ticks" -ge 2 ]; then
+        not_alive_ticks=0
+        session_dead fresh
+        continue
+      fi
+    else
+      not_alive_ticks=0
     fi
     outages=0
 

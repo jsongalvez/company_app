@@ -62,7 +62,9 @@ else ok "no git writes in daemon (status/rev-parse/remote only)"; fi
 # --- shared stub builders -------------------------------------------------
 # Writes $stubdir/{opencode2,gh} plus fixture files under $fix. The opencode2
 # stub keeps a live-set ($fix/live, one id per line); sessions are created
-# into it and removed by the test driver to simulate exits. The gh stub serves
+# into it and removed by the test driver to simulate exits. Direct GETs
+# answer for any ever-known id (production truth: historical records),
+# so only live-set absence reads as death. The gh stub serves
 # tracker fixtures from files the driver rewrites mid-run.
 make_stubs() { # $1=stubdir $2=fix
   local stubdir="$1" fix="$2"
@@ -75,7 +77,7 @@ case "\$cmd" in
     echo prompt >> "$fix/PROMPTS"; echo '{}'; exit 0 ;;
   *"post /api/session --data"*)
     n=\$(( \$(wc -l < "$fix/SPAWNS" 2>/dev/null || echo 0) + 1 ))
-    id="ses_new\$n"; echo "\$id" >> "$fix/live"; echo "\$id" >> "$fix/SPAWNS"
+    id="ses_new\$n"; echo "\$id" >> "$fix/live"; echo "\$id" >> "$fix/ever"; echo "\$id" >> "$fix/SPAWNS"
     echo "{\\"data\\":{\\"id\\":\\"\$id\\"}}"; exit 0 ;;
   *"get /api/session/active"*)
     ids=\$(jq -R . 2>/dev/null < "$fix/live" | jq -s 'map({(.): {"type":"assistant"}}) | add // {}' 2>/dev/null || echo '{}')
@@ -86,7 +88,9 @@ case "\$cmd" in
     echo '{"data":[]}'; exit 0 ;;
   *"get /api/session/"*)
     id=\$(printf '%s' "\$cmd" | grep -o 'ses_[A-Za-z0-9]*' | head -1)
-    if grep -qx "\$id" "$fix/live" 2>/dev/null; then
+    # Production truth: direct GET answers for any session that ever existed
+    # (historical records), dead or alive — death is live-set absence only.
+    if grep -qx "\$id" "$fix/live" 2>/dev/null || grep -qx "\$id" "$fix/ever" 2>/dev/null || [ "\$id" = ses_t ]; then
       echo "{\\"data\\":{\\"id\\":\\"\$id\\",\\"tokens\\":{\\"input\\":10,\\"output\\":5,\\"reasoning\\":2},\\"time\\":{\\"updated\\":100}}}"
       exit 0
     fi
@@ -130,7 +134,7 @@ esac
 exit 1
 STUB
   chmod +x "$stubdir/opencode2" "$stubdir/gh"
-  touch "$fix/live" "$fix/SPAWNS" "$fix/PROMPTS" "$fix/creates.log" "$fix/ghwrites.log"
+  touch "$fix/live" "$fix/ever" "$fix/SPAWNS" "$fix/PROMPTS" "$fix/creates.log" "$fix/ghwrites.log"
   printf '[]\n' > "$fix/search.json"
 }
 
