@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.commerce.stock
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -31,24 +31,16 @@ import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.client.ClientViewModel
+import com.companyb.companyapp.commerce.catalog.ProductViewModel
 import com.companyb.companyapp.dto.AddInventoryCardRequest
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
-import com.companyb.companyapp.viewmodel.InventoryViewModel
-import com.companyb.companyapp.viewmodel.ProductSaleViewModel
-import com.companyb.companyapp.viewmodel.ProductViewModel
-import com.companyb.companyapp.viewmodel.canEnsureCard
-import com.companyb.companyapp.viewmodel.inventoryRowActions
-import com.companyb.companyapp.viewmodel.writesDisabled
 
 /** Which write flow a row tap opens (#392, #419 sale). */
 internal enum class InventoryWriteKind { RESTOCK, MOVEMENT, SELL }
-
-/** Per-row affordance enablement: owned by the mutation policy ([inventoryRowActions]). */
-internal typealias InventoryRowActions = com.companyb.companyapp.viewmodel.InventoryRowActions
 
 /** One open write dialog (#392); null = none. */
 internal sealed interface InventoryWriteTarget {

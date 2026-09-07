@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.commerce.stock
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -27,13 +27,6 @@ import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
-import com.companyb.companyapp.viewmodel.InventoryViewModel
-import com.companyb.companyapp.viewmodel.allowedMovementReasons
-import com.companyb.companyapp.viewmodel.consumeWriteSuccess
-import com.companyb.companyapp.viewmodel.firstWriteError
-import com.companyb.companyapp.viewmodel.submitMovement
-import com.companyb.companyapp.viewmodel.submitRestock
-import com.companyb.companyapp.viewmodel.submitWalkInSale
 
 /** Entry load plus the #392 write-success legs (+#395 ensure-card): clear + authoritative refresh. */
 @Composable

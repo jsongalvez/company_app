@@ -1,4 +1,4 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.commerce.catalog
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes

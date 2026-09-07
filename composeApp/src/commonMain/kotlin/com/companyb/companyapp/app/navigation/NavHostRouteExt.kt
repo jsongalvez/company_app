@@ -14,12 +14,12 @@ import androidx.navigation.toRoute
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.app.GLOBAL_CAPABILITY_CONTEXT_ID
 import com.companyb.companyapp.app.hasCapability
+import com.companyb.companyapp.commerce.catalog.ProductCatalogScreen
+import com.companyb.companyapp.commerce.catalog.ProductViewModel
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.ui.RouteGateCard
-import com.companyb.companyapp.ui.screen.ProductCatalogScreen
-import com.companyb.companyapp.viewmodel.ProductViewModel
 import com.companyb.companyapp.workforce.relief.DelegateViewModel
 import com.companyb.companyapp.workforce.relief.MedicalMissionDelegateScreen
 import com.companyb.companyapp.workforce.team.UserViewModel

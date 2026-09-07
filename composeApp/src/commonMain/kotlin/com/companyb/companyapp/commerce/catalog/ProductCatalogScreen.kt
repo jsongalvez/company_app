@@ -1,6 +1,6 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.commerce.catalog
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -51,7 +51,6 @@ import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.ProductViewModel
 import kotlin.uuid.Uuid
 
 /**

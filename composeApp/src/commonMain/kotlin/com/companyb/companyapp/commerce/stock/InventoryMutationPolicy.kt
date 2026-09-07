@@ -3,7 +3,7 @@
 // must read as one contract mirror). Any further growth must split, not suppress again.
 @file:Suppress("TooManyFunctions")
 
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.commerce.stock
 
 import com.companyb.companyapp.app.GLOBAL_CAPABILITY_CONTEXT_ID
 import com.companyb.companyapp.app.hasBranchOrDayCapability
@@ -25,8 +25,9 @@ import java.util.UUID
  * #458 — the one inventory-mutation policy seam: every inventory write (restock, movement,
  * ensure-card, walk-in sale) shares its capability predicates and its effect/refresh wiring
  * here, so screens cannot disagree on who may mutate and what refreshes. The pure decision
- * surface moved verbatim from `ui.screen.InventoryWriteLogic` + `ui.screen.ProductSaleLogic`
- * (#392/#395/#419); dialogs keep only field state + validation display and submit through
+ * surface moved verbatim from the pre-#562 `ui.screen` write/sale logic
+ * (#392/#395/#419, now colocated in commerce/stock); dialogs keep only field
+ * state + validation display and submit through
  * the [submitRestock]/[submitMovement]/[submitWalkInSale] arms, and the screen's load effects
  * + error banner + row affordances read the [consumeWriteSuccess]/[firstWriteError]/
  * [inventoryRowActions] predicates instead of recomputing them inline.

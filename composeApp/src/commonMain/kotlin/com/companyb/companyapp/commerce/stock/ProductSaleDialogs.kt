@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.commerce.stock
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -37,11 +37,6 @@ import com.companyb.companyapp.dto.ProductSaleResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.InventoryViewModel
-import com.companyb.companyapp.viewmodel.ProductSaleViewModel
-import com.companyb.companyapp.viewmodel.SaleDraft
-import com.companyb.companyapp.viewmodel.buildSaleRequest
-import com.companyb.companyapp.viewmodel.saleQuantityError
 
 /**
  * Buyer mode for a walk-in sale: anonymous (no record) or linked to a searched client.

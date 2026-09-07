@@ -178,9 +178,9 @@ composeApp/src/commonMain/kotlin/com/companyb/companyapp/finance/FinanceToolbar.
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt:CyclomaticComplexMethod
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt:LongMethod
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt:LongParameterList
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ProductCatalogScreen.kt:CyclomaticComplexMethod
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ProductCatalogScreen.kt:LongMethod
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ProductCatalogScreen.kt:LongParameterList
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/catalog/ProductCatalogScreen.kt:CyclomaticComplexMethod
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/catalog/ProductCatalogScreen.kt:LongMethod
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/catalog/ProductCatalogScreen.kt:LongParameterList
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailReceipt.kt:MagicNumber
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceListScreen.kt:DEPRECATION
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateLayout.kt:MatchingDeclarationName
@@ -194,11 +194,11 @@ composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserMana
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/util/TimestampFormat.kt:DEPRECATION
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/ApiCallHandler.kt:TooGenericExceptionCaught
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/finance/FinanceReportsViewModel.kt:LongParameterList
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/InventoryMutationPolicy.kt:LongParameterList
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/InventoryMutationPolicy.kt:TooManyFunctions
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/InventoryMutationPolicy.kt:LongParameterList
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/InventoryMutationPolicy.kt:TooManyFunctions
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateViewModel.kt:TooManyFunctions
 composeApp/src/desktopMain/kotlin/com/companyb/companyapp/session/dashboard/SessionListEditors.desktop.kt:MagicNumber
-composeApp/src/desktopTest/kotlin/com/companyb/companyapp/ui/screen/InventoryRowPresentationTest.kt:LongParameterList
+composeApp/src/desktopTest/kotlin/com/companyb/companyapp/commerce/stock/InventoryRowPresentationTest.kt:LongParameterList
 composeApp/src/iosMain/kotlin/com/companyb/companyapp/client/ClientScreenParts.ios.kt:DEPRECATION
 composeApp/src/iosMain/kotlin/com/companyb/companyapp/session/create/SessionCreateLayout.ios.kt:DEPRECATION
 shared/src/commonMain/kotlin/com/companyb/companyapp/api/ApiRoutes.kt:TooManyFunctions

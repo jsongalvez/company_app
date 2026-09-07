@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.commerce.catalog
 
 import com.companyb.companyapp.dto.ProductCategoryResponse
 import com.companyb.companyapp.dto.ProductResponse

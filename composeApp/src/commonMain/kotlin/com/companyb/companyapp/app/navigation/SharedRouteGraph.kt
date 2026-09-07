@@ -25,6 +25,10 @@ import com.companyb.companyapp.app.hasCapabilityAnyContext
 import com.companyb.companyapp.app.hasDayGrant
 import com.companyb.companyapp.client.ClientViewModel
 import com.companyb.companyapp.client.ClientsScreen
+import com.companyb.companyapp.commerce.catalog.ProductViewModel
+import com.companyb.companyapp.commerce.stock.InventoryScreen
+import com.companyb.companyapp.commerce.stock.InventoryViewModel
+import com.companyb.companyapp.commerce.stock.ProductSaleViewModel
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.dto.DashboardSessionResponse
@@ -43,11 +47,7 @@ import com.companyb.companyapp.session.rates.SessionRatesViewModel
 import com.companyb.companyapp.ui.RouteGateCard
 import com.companyb.companyapp.ui.screen.AuditLogHistoryScreen
 import com.companyb.companyapp.ui.screen.AuditLogScreen
-import com.companyb.companyapp.ui.screen.InventoryScreen
 import com.companyb.companyapp.viewmodel.AuditLogViewModel
-import com.companyb.companyapp.viewmodel.InventoryViewModel
-import com.companyb.companyapp.viewmodel.ProductSaleViewModel
-import com.companyb.companyapp.viewmodel.ProductViewModel
 import com.companyb.companyapp.workforce.branch.BranchSelectScreen
 import com.companyb.companyapp.workforce.branch.BranchSelectViewModel
 import com.companyb.companyapp.workforce.relief.ReliefAccessViewModel

@@ -20,6 +20,11 @@ import com.companyb.companyapp.app.hasBranchOrDayCapability
 import com.companyb.companyapp.app.hasCapability
 import com.companyb.companyapp.app.hasDayGrant
 import com.companyb.companyapp.async.UiState
+import com.companyb.companyapp.commerce.stock.InventoryViewModel
+import com.companyb.companyapp.commerce.stock.PaneSaleContext
+import com.companyb.companyapp.commerce.stock.PaneSaleDialogHost
+import com.companyb.companyapp.commerce.stock.ProductSaleViewModel
+import com.companyb.companyapp.commerce.stock.SaleEffects
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.SessionStatus
@@ -34,14 +39,9 @@ import com.companyb.companyapp.dto.UpdatePractitionerRemarksRequest
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.ui.screen.EmptySessionPlaceholder
-import com.companyb.companyapp.ui.screen.PaneSaleContext
-import com.companyb.companyapp.ui.screen.PaneSaleDialogHost
-import com.companyb.companyapp.ui.screen.SaleEffects
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.InventoryViewModel
-import com.companyb.companyapp.viewmodel.ProductSaleViewModel
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -161,7 +161,7 @@ internal class PaneResults(
 /**
  * Snapshot of the pane's observed flows (plus static host config), bundled for low arity.
  * The capability snapshot and clocked-in day are collected inside [EditableSessionPane]
- * (the [com.companyb.companyapp.ui.screen.InventoryScreen] header idiom).
+ * (the [com.companyb.companyapp.commerce.stock.InventoryScreen] header idiom).
  */
 private class PaneState(
     val currentUserId: String?,

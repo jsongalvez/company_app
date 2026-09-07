@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.commerce.stock
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,7 +26,6 @@ import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.formatRelativeTimestamp
-import com.companyb.companyapp.viewmodel.InventoryViewModel
 
 /** Shared dialog-body leg: the centered spinner for Idle/Loading states. */
 @Composable

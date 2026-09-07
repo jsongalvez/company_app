@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.commerce.stock
 
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import kotlin.test.Test
