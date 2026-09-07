@@ -1,6 +1,7 @@
 package com.companyb.companyapp.viewmodel
 
 import androidx.lifecycle.ViewModel
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.ui.screen.ReportMode
 import io.ktor.client.request.parameter
 

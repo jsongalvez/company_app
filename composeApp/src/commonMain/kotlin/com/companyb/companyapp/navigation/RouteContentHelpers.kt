@@ -10,9 +10,9 @@ import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.ClientState
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.state.hasCapabilityAnyContext
+import com.companyb.companyapp.ui.RouteGateCard
 import com.companyb.companyapp.ui.screen.ClientDetailScreen
 import com.companyb.companyapp.ui.screen.NotificationsScreen
-import com.companyb.companyapp.ui.screen.RouteGateCard
 import com.companyb.companyapp.ui.screen.SessionCreateScreen
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel

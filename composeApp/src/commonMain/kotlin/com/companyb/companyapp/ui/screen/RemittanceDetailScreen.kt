@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.dto.AddDayBreakdownRequest
 import com.companyb.companyapp.dto.CreateRemittanceLineRequest
@@ -60,6 +61,7 @@ import com.companyb.companyapp.dto.RemittanceSubmitResponse
 import com.companyb.companyapp.dto.SubmitRemittanceRequest
 import com.companyb.companyapp.dto.UndoRemittanceRequest
 import com.companyb.companyapp.dto.UpdateRemittanceHeaderRequest
+import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.ui.theme.rowHover
@@ -67,7 +69,6 @@ import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.addDayBreakdown
 import com.companyb.companyapp.viewmodel.addLine
 import com.companyb.companyapp.viewmodel.deleteDayBreakdown

@@ -1,6 +1,7 @@
 package com.companyb.companyapp.viewmodel
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.AddSessionConcernRequest
 import com.companyb.companyapp.dto.PromoteConcernRequest
 import io.ktor.client.call.body

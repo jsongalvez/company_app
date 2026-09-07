@@ -20,13 +20,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.dto.ReliefAccessResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
-import com.companyb.companyapp.viewmodel.UiState
 
 /**
  * #357 — the relief-access surface on the session dashboard, both sides of the broadcast

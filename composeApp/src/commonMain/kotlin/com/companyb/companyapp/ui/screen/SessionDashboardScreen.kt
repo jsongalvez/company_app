@@ -27,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.dto.DashboardResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
@@ -36,7 +37,6 @@ import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.formatTimeOfDay
 import com.companyb.companyapp.viewmodel.DashboardPollStatus
 import com.companyb.companyapp.viewmodel.SessionDashboardViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.commitEdit
 import com.companyb.companyapp.viewmodel.discardEdit
 import com.companyb.companyapp.viewmodel.reloadAfterConflict

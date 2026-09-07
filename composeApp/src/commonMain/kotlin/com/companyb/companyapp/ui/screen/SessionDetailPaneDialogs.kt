@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.AddPractitionerRequest
 import com.companyb.companyapp.dto.BranchMemberResponse
 import com.companyb.companyapp.dto.ConcernResponse
@@ -27,7 +28,6 @@ import com.companyb.companyapp.dto.PromoteConcernRequest
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.viewmodel.SessionViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.addPractitioner
 import com.companyb.companyapp.viewmodel.loadBranchMembers
 import com.companyb.companyapp.viewmodel.promoteConcern

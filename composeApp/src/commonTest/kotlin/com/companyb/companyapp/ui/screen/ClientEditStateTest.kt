@@ -1,6 +1,6 @@
 package com.companyb.companyapp.ui.screen
 
-import com.companyb.companyapp.viewmodel.UiState
+import com.companyb.companyapp.async.UiState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

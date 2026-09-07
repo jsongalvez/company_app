@@ -16,13 +16,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.AuditLogEntryResponse
 import com.companyb.companyapp.dto.AuditLogTableResponse
+import com.companyb.companyapp.ui.EmptyState
+import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.AuditLogFilters
 import com.companyb.companyapp.viewmodel.AuditLogViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.applyFilters
 import com.companyb.companyapp.viewmodel.loadBrowse
 import com.companyb.companyapp.viewmodel.loadMore

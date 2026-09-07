@@ -39,12 +39,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.BranchMemberResponse
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.ConcernResponse
 import com.companyb.companyapp.dto.CreateClientRequest
 import com.companyb.companyapp.dto.SessionPreviewResponse
 import com.companyb.companyapp.state.ClientState
+import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
@@ -54,7 +56,6 @@ import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.SessionCreateDraft
 import com.companyb.companyapp.viewmodel.SessionCreateFormApi
 import com.companyb.companyapp.viewmodel.SessionCreateViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.bookingFields
 import com.companyb.companyapp.viewmodel.isSessionCreateLocked
 

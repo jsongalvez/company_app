@@ -34,13 +34,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.CreateRemittanceDraftRequest
 import com.companyb.companyapp.dto.RemittanceResponse
+import com.companyb.companyapp.ui.EmptyState
+import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.remittanceListKey
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid

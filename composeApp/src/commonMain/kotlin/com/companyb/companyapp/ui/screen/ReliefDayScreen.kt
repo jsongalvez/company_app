@@ -14,13 +14,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.dto.ReliefAccessResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
+import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.viewmodel.ReliefDayViewModel
-import com.companyb.companyapp.viewmodel.UiState
 
 /**
  * #358 — the relief notification tap destination: one branch day's requests, addressed by

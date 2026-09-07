@@ -4,11 +4,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.viewmodel.BranchViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.UserViewModel
 
 /**

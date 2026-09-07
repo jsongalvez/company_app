@@ -30,11 +30,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
-import com.companyb.companyapp.viewmodel.UiState
 
 /** #479 LPL burn — the toolbar's read-side (state + gates) as one object. */
 internal data class FinanceToolbarUi(

@@ -22,6 +22,7 @@ import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.state.hasCapabilityAnyContext
 import com.companyb.companyapp.state.hasDayGrant
+import com.companyb.companyapp.ui.RouteGateCard
 import com.companyb.companyapp.ui.screen.AcceptInviteScreen
 import com.companyb.companyapp.ui.screen.AuditLogHistoryScreen
 import com.companyb.companyapp.ui.screen.AuditLogScreen
@@ -37,7 +38,6 @@ import com.companyb.companyapp.ui.screen.ReliefDayScreen
 import com.companyb.companyapp.ui.screen.RemittanceDetailArgs
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
 import com.companyb.companyapp.ui.screen.RemittanceListScreen
-import com.companyb.companyapp.ui.screen.RouteGateCard
 import com.companyb.companyapp.ui.screen.SessionDetailScreen
 import com.companyb.companyapp.viewmodel.AuditLogViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel

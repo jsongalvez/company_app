@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.navigation.AppNavHost
 import com.companyb.companyapp.navigation.Route
 import com.companyb.companyapp.network.ApiClient
@@ -36,7 +37,6 @@ import com.companyb.companyapp.util.logError
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import kotlinx.coroutines.flow.collectLatest
 
 @Composable

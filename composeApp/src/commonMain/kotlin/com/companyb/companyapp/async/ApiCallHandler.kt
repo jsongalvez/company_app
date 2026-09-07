@@ -1,4 +1,4 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.async
 
 import com.companyb.companyapp.util.logError
 import com.companyb.companyapp.util.logInfo

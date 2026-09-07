@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.BranchResponse
@@ -22,7 +23,6 @@ import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.BranchViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.UserViewModel
 import com.companyb.companyapp.viewmodel.filterUsers
 import com.companyb.companyapp.viewmodel.slotOrderForBranch

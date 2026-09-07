@@ -67,7 +67,6 @@ import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.addDayBreakdown
 import com.companyb.companyapp.viewmodel.addLine
 import com.companyb.companyapp.viewmodel.deleteDayBreakdown

@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.BranchResponse
@@ -33,7 +34,6 @@ import com.companyb.companyapp.dto.CreateBranchRequest
 import com.companyb.companyapp.dto.UserAssignmentResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.ui.theme.Spacing
-import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.parseSlotInput
 import com.companyb.companyapp.viewmodel.slotInputError
 import kotlin.uuid.ExperimentalUuidApi

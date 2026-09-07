@@ -1,4 +1,4 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.async
 
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandleScope

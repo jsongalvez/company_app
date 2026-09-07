@@ -8,11 +8,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.viewmodel.SessionCreateDraft
 import com.companyb.companyapp.viewmodel.SessionCreateFormApi
-import com.companyb.companyapp.viewmodel.UiState
 
 internal data class SessionCreateBodyArgs(
     val viewModel: SessionCreateFormApi,

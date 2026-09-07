@@ -22,12 +22,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.CreateClientRequest
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.UiState
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 

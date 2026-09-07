@@ -1,5 +1,6 @@
 package com.companyb.companyapp.viewmodel
 
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.NotificationResponse
 import com.companyb.companyapp.network.mockApiClient
 import com.companyb.companyapp.state.NotificationState

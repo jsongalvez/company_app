@@ -1,4 +1,4 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.async
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

@@ -1,5 +1,6 @@
 package com.companyb.companyapp.viewmodel
 
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.MeBranchResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.mockApiClient

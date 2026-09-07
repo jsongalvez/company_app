@@ -30,13 +30,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.MemberAttendanceResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.AttendanceRosterViewModel
-import com.companyb.companyapp.viewmodel.UiState
 
 private const val TAG = "AttendanceRosterSection"
 

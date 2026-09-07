@@ -28,11 +28,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.RateResponse
 import com.companyb.companyapp.dto.SetRateRequest
+import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.viewmodel.BranchViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 

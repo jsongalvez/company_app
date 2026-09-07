@@ -1,4 +1,4 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.async
 
 import kotlin.test.Test
 import kotlin.test.assertEquals

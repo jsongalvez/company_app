@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.ui.theme.InkSubtle
@@ -25,7 +26,6 @@ import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.SessionDetailViewModel
-import com.companyb.companyapp.viewmodel.UiState
 
 /**
  * SessionDetail route on both platforms (#152 — the #151 resolution).

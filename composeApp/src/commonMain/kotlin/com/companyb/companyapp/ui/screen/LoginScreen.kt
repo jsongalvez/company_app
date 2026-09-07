@@ -29,6 +29,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.state.SessionState
@@ -37,7 +38,6 @@ import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.AuthViewModel
 import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
-import com.companyb.companyapp.viewmodel.UiState
 
 /**
  * #94 Phase 2 — fresh login. One continuous loading from button-press to BranchSelect-render:

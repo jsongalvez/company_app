@@ -1,5 +1,6 @@
 package com.companyb.companyapp.viewmodel
 
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.SessionPractitionerResponse
 import com.companyb.companyapp.dto.SessionVoidResponse
 import com.companyb.companyapp.dto.UnvoidSessionRequest

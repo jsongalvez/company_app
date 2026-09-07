@@ -1,4 +1,4 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.async
 
 sealed class UiState<out T> {
     data object Idle : UiState<Nothing>()

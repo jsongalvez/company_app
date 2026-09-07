@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.AssignmentResponse
@@ -46,7 +47,6 @@ import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.ui.theme.rowHover
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.BranchViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.UserSlotRow
 import com.companyb.companyapp.viewmodel.UserViewModel
 import com.companyb.companyapp.viewmodel.parseSlotInput

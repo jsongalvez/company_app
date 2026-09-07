@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
@@ -39,7 +40,6 @@ import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.InventoryViewModel
 import com.companyb.companyapp.viewmodel.ProductSaleViewModel
 import com.companyb.companyapp.viewmodel.SaleDraft
-import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.buildSaleRequest
 import com.companyb.companyapp.viewmodel.saleQuantityError
 

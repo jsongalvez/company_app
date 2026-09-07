@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.dto.ConcernResponse
@@ -28,7 +29,6 @@ import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.SessionViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 

@@ -1,10 +1,10 @@
 package com.companyb.companyapp.ui.screen
 
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.dto.ClientPatchField
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.UpdateClientRequest
-import com.companyb.companyapp.viewmodel.UiState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

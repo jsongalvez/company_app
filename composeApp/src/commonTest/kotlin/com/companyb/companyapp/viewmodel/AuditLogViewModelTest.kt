@@ -1,5 +1,6 @@
 package com.companyb.companyapp.viewmodel
 
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.dto.AuditLogEntryResponse
 import com.companyb.companyapp.dto.AuditLogTableResponse

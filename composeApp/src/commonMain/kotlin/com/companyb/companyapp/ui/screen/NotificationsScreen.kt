@@ -24,9 +24,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.dto.NotificationResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
+import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.ui.theme.rowHover
@@ -35,7 +37,6 @@ import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.NotificationViewModel
 import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
-import com.companyb.companyapp.viewmodel.UiState
 
 // D1/D3: unread queue (locked #102). Screen renders unread rows at full emphasis + a dimmed,
 // in-memory Read section (rows marked read this session). Platform tap behavior differs only in

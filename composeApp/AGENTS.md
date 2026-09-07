@@ -36,7 +36,7 @@ All composeApp code uses `expect/actual Log` functions from `com.companyb.compan
 
 ## ApiCallHandler
 
-ViewModels must use `ApiCallHandler` (`com.companyb.companyapp.viewmodel`) for all API calls instead of writing inline `try/catch/log/state` boilerplate:
+ViewModels must use `ApiCallHandler` (`com.companyb.companyapp.async`) for all API calls instead of writing inline `try/catch/log/state` boilerplate:
 
 ```kotlin
 class ExampleViewModel(private val apiClient: ApiClient) : ViewModel() {

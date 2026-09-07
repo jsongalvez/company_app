@@ -17,13 +17,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.dto.ReliefAccessResponse
 import com.companyb.companyapp.dto.ReliefBranchOptionResponse
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
-import com.companyb.companyapp.viewmodel.UiState
 
 /**
  * The outsider's pre-clock-in relief-request surface (#357): pick any branch, optionally

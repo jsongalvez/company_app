@@ -20,12 +20,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.AuditLogEntryResponse
+import com.companyb.companyapp.ui.EmptyState
+import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.AuditLogViewModel
-import com.companyb.companyapp.viewmodel.UiState
 
 // #479 — the pushed per-record history screen (#104 D8), extracted from AuditLogScreen.kt so
 // the file-function wall (TMF) stays honest: entry-scoped VM load effect, breadcrumb header,

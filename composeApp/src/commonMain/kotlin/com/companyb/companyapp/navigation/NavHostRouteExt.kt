@@ -17,9 +17,9 @@ import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.GLOBAL_CAPABILITY_CONTEXT_ID
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.state.hasCapability
+import com.companyb.companyapp.ui.RouteGateCard
 import com.companyb.companyapp.ui.screen.MedicalMissionDelegateScreen
 import com.companyb.companyapp.ui.screen.ProductCatalogScreen
-import com.companyb.companyapp.ui.screen.RouteGateCard
 import com.companyb.companyapp.viewmodel.DelegateViewModel
 import com.companyb.companyapp.viewmodel.ProductViewModel
 import com.companyb.companyapp.viewmodel.UserViewModel

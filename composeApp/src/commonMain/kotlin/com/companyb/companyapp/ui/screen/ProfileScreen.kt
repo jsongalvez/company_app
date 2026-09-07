@@ -24,15 +24,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.dto.MeBranchResponse
 import com.companyb.companyapp.dto.MeResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.ProfileViewModel
-import com.companyb.companyapp.viewmodel.UiState
 
 /**
  * #381 — the signed-in user's own profile: identity, branch assignments (with Branch Slot),

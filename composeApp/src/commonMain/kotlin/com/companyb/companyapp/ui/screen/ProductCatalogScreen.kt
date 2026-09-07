@@ -38,18 +38,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.input.KeyboardType
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.CreateProductCategoryRequest
 import com.companyb.companyapp.dto.CreateProductRequest
 import com.companyb.companyapp.dto.ProductCategoryResponse
 import com.companyb.companyapp.dto.ProductResponse
 import com.companyb.companyapp.dto.UpdateProductRequest
+import com.companyb.companyapp.ui.EmptyState
+import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.ProductViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import kotlin.uuid.Uuid
 
 /**

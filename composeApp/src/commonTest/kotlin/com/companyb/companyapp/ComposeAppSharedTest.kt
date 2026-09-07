@@ -1,6 +1,6 @@
 package com.companyb.companyapp
 
-import com.companyb.companyapp.viewmodel.UiState
+import com.companyb.companyapp.async.UiState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs

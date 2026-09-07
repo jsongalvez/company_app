@@ -1,5 +1,6 @@
 package com.companyb.companyapp.viewmodel
 
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.dto.UserCapabilityResponse

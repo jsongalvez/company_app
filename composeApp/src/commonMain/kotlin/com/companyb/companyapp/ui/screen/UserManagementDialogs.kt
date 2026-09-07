@@ -36,6 +36,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.BranchResponse
@@ -50,7 +51,6 @@ import com.companyb.companyapp.ui.theme.rowHover
 import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.UserSlotRow
 import com.companyb.companyapp.viewmodel.parseSlotInput
 import com.companyb.companyapp.viewmodel.slotInputError

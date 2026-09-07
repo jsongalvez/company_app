@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.ui.DayStatusWarning
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 

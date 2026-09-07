@@ -21,10 +21,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
-import com.companyb.companyapp.viewmodel.UiState
 
 /** #462 LPL burn — the 3 per-day export params as one object (expect + 3 actuals + mobile
  * helper drop 7 params to 5; data classes are LPL-free, the SlotOrderCallbacks precedent). */

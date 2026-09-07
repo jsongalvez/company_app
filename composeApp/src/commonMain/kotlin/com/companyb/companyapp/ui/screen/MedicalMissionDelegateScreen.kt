@@ -37,12 +37,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.AssignDelegateRequest
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.DelegateResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
+import com.companyb.companyapp.ui.EmptyState
+import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
@@ -50,7 +53,6 @@ import com.companyb.companyapp.ui.theme.rowHover
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.DelegateViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.UserViewModel
 import kotlin.uuid.Uuid
 

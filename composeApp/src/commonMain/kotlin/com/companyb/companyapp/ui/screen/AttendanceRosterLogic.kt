@@ -1,7 +1,7 @@
 package com.companyb.companyapp.ui.screen
 
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.MemberAttendanceResponse
-import com.companyb.companyapp.viewmodel.UiState
 
 /** #404 — pure roster presentation rules shared by [AttendanceRosterCard] (desktopTest-pinned). */
 object AttendanceRosterLogic {

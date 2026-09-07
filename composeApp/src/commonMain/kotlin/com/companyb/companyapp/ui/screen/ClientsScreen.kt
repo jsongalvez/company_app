@@ -30,14 +30,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.state.ClientState
+import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.ClientViewModel
-import com.companyb.companyapp.viewmodel.UiState
 
 /**
  * #113 — Clients search screen (US-20), per the locked #99 D1–D10.
@@ -293,34 +294,5 @@ private fun CenteredHint(text: String) {
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-    }
-}
-
-/**
- * #113 D7/D8 — route gate card. Drawer hides the Clients item without `EDIT_BRANCH_DATA` (#108
- * DrawerViewModel), so this only renders on a direct nav; the code-only gate is the #156
- * any-context check (#92 Q3), with the backend's GLOBAL gate (F5) as the authoritative
- * backstop (ADR-0007). #92's `UiState.Unauthorized` card is an unimplemented lock —
- * this minimal card is the in-place 403 surface per D8.
- */
-@Composable
-fun RouteGateCard(label: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Surface(
-            shape = RoundedCornerShape(CornerRadius.md),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(
-                modifier = Modifier.padding(Spacing.md),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    text = "You don't have permission to view $label",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-        }
     }
 }

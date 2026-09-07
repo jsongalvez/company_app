@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.BranchDayUserResponse
 import com.companyb.companyapp.dto.CompensationResponse
 import com.companyb.companyapp.ui.theme.InkSubtle
@@ -36,7 +37,6 @@ import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.EditSection
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.reloadSection
 
 /** #479 LPL burn — the compensation mutations the section performs, as one object. */

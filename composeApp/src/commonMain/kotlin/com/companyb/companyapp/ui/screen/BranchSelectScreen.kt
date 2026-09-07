@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.BranchClockInStatus
 import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.MeBranchResponse
@@ -40,7 +41,6 @@ import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.BranchSelectViewModel
 import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
 import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
-import com.companyb.companyapp.viewmodel.UiState
 import kotlinx.datetime.LocalDate
 
 /**

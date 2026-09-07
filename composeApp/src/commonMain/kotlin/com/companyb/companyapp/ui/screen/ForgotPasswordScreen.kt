@@ -28,13 +28,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.validation.PasswordPolicy
 import com.companyb.companyapp.viewmodel.AuthViewModel
-import com.companyb.companyapp.viewmodel.UiState
 
 /**
  * #353 — public forgot-password flow, both legs on one screen: request a reset code by

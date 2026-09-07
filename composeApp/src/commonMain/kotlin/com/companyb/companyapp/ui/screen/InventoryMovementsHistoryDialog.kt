@@ -22,11 +22,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.viewmodel.InventoryViewModel
-import com.companyb.companyapp.viewmodel.UiState
 
 /** Shared dialog-body leg: the centered spinner for Idle/Loading states. */
 @Composable

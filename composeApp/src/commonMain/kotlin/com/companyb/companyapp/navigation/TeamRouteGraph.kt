@@ -10,8 +10,8 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.state.hasCapabilityAnyContext
+import com.companyb.companyapp.ui.RouteGateCard
 import com.companyb.companyapp.ui.screen.ProfileScreen
-import com.companyb.companyapp.ui.screen.RouteGateCard
 import com.companyb.companyapp.ui.screen.UserManagementScreen
 import com.companyb.companyapp.viewmodel.BranchViewModel
 import com.companyb.companyapp.viewmodel.ProfileViewModel

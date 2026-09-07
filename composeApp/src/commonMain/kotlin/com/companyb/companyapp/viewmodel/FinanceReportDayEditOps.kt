@@ -2,6 +2,8 @@ package com.companyb.companyapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.async.GuardedStateless
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.AllowanceResponse
 import com.companyb.companyapp.dto.CompensationResponse
 import com.companyb.companyapp.dto.CreateAllowanceRequest

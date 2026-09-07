@@ -4,11 +4,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.KeyboardType
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.dto.ClientPatchField
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.UpdateClientRequest
-import com.companyb.companyapp.viewmodel.UiState
 
 /** Editable fields on the client detail screen (D4) — identity + contact/health, per-field edit. */
 internal enum class ClientField {

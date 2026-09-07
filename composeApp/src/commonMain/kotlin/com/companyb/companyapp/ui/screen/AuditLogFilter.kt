@@ -26,12 +26,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.dto.AuditLogTableResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.AuditLogFilters
-import com.companyb.companyapp.viewmodel.UiState
 
 // #479 — the audit-log filter-bar seam (#104 D4/D8), extracted from AuditLogScreen.kt so the
 // file-function wall (TMF) stays honest: server-driven table dropdown, action dropdown,

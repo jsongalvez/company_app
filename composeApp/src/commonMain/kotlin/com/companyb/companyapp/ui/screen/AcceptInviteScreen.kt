@@ -23,13 +23,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.validation.PasswordPolicy
 import com.companyb.companyapp.viewmodel.AuthViewModel
-import com.companyb.companyapp.viewmodel.UiState
 
 /**
  * #350 — public accept-invite screen. The admin-minted code is the only credential for this
