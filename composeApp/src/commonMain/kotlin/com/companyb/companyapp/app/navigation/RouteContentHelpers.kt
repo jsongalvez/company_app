@@ -9,13 +9,13 @@ import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.app.hasCapabilityAnyContext
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.network.ApiClient
+import com.companyb.companyapp.notification.NotificationViewModel
+import com.companyb.companyapp.notification.NotificationsScreen
 import com.companyb.companyapp.state.ClientState
 import com.companyb.companyapp.ui.RouteGateCard
 import com.companyb.companyapp.ui.screen.ClientDetailScreen
-import com.companyb.companyapp.ui.screen.NotificationsScreen
 import com.companyb.companyapp.ui.screen.SessionCreateScreen
 import com.companyb.companyapp.viewmodel.ClientViewModel
-import com.companyb.companyapp.viewmodel.NotificationViewModel
 import com.companyb.companyapp.viewmodel.SessionCreateViewModel
 import com.companyb.companyapp.workforce.relief.ReliefInviteViewModel
 

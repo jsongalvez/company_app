@@ -1,4 +1,4 @@
-package com.companyb.companyapp.state
+package com.companyb.companyapp.notification
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

@@ -1,4 +1,4 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.notification
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
@@ -7,7 +7,6 @@ import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.NotificationUnreadCountResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.state.NotificationState
 import com.companyb.companyapp.workforce.relief.currentOperationalDate
 import com.companyb.companyapp.workforce.relief.isInviteActionable
 import io.ktor.client.call.body

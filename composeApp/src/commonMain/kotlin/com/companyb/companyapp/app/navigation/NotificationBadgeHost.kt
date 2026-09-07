@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.viewmodel.NotificationBadgeViewModel
+import com.companyb.companyapp.notification.NotificationBadgeViewModel
 
 /**
  * #96 Q6 — Shell-scoped NotificationBadgeVM bounded by isPostClockIn (DrawerShell's conditional

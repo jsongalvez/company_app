@@ -1,4 +1,4 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.notification
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
@@ -11,7 +11,6 @@ import com.companyb.companyapp.dto.NotificationHistoryResponse
 import com.companyb.companyapp.dto.NotificationMarkAllReadResponse
 import com.companyb.companyapp.dto.NotificationResponse
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.state.NotificationState
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.patch

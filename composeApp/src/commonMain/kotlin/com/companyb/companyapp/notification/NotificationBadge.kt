@@ -1,4 +1,4 @@
-package com.companyb.companyapp.app.drawer
+package com.companyb.companyapp.notification
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape

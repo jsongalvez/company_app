@@ -5,7 +5,7 @@ import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.dto.ReliefCandidateResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.network.mockApiClient
-import com.companyb.companyapp.state.NotificationState
+import com.companyb.companyapp.notification.NotificationState
 import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.ContentType

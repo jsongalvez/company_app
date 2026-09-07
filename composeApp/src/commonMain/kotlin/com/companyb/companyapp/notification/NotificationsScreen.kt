@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.notification
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -35,7 +35,6 @@ import com.companyb.companyapp.ui.theme.rowHover
 import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.NotificationViewModel
 import com.companyb.companyapp.workforce.relief.ReliefInviteViewModel
 import com.companyb.companyapp.workforce.relief.currentOperationalDate
 import com.companyb.companyapp.workforce.relief.isInviteExpired

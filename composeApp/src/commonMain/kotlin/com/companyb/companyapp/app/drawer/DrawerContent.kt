@@ -39,7 +39,8 @@ import com.companyb.companyapp.app.navigation.currentRoute
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.ClockOutRequest
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.state.NotificationState
+import com.companyb.companyapp.notification.NotificationBadge
+import com.companyb.companyapp.notification.NotificationState
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.PrimaryHover
 import com.companyb.companyapp.ui.theme.Spacing

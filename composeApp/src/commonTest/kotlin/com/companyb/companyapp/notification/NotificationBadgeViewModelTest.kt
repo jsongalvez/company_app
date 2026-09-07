@@ -1,8 +1,7 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.notification
 
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.network.mockApiClient
-import com.companyb.companyapp.state.NotificationState
 import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.ContentType

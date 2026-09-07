@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.notification.NotificationBadge
 
 /**
  * #96 Q3c — #24: hamburger-tap-to-open (mobile) with annotation badge.

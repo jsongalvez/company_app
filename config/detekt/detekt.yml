@@ -142,6 +142,7 @@ complexity:
       - '**/app/**' #555 app shell composables keep the screen complexity exclusion
       - '**/workforce/**' #563 workforce composables keep the screen complexity exclusion
       - '**/session/**' #573 session composables keep the screen complexity exclusion
+      - '**/notification/**' #565 notification composables keep the screen complexity exclusion
   ComplexCondition:
     active: true
     threshold: 4
@@ -876,7 +877,7 @@ style:
       - '**/iosTest/**'
       - '**/*.kts'
       - '**/commonMain/**/ui/theme/LinearTheme.kt'
-      - '**/commonMain/**/app/drawer/NotificationBadge.kt' #555 retarget #585 repair
+      - '**/commonMain/**/notification/NotificationBadge.kt' #565 retarget (was app/drawer, #555 #585)
       - '**/commonMain/**/app/drawer/HamburgerWithBadge.kt' #555 retarget #585 repair
       - '**/commonMain/**/app/drawer/DrawerContent.kt' #555 retarget #585 repair
     ignoreNumbers:
@@ -1035,7 +1036,7 @@ style:
     allowedNames: '^_$|^serialVersionUID$'
     excludes:
       - '**/commonMain/**/ui/theme/LinearTheme.kt'
-      - '**/commonMain/**/ui/screen/NotificationsScreen.kt'
+      - '**/commonMain/**/notification/NotificationsScreen.kt' #565 retarget (was ui/screen)
   UseAnyOrNoneInsteadOfFind:
     active: true
   UseArrayLiteralsInAnnotations:

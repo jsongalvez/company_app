@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.notification
 
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.NotificationResponse
