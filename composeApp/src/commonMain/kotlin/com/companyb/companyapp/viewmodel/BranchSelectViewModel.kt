@@ -2,13 +2,13 @@ package com.companyb.companyapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.ClockInRequest
 import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.MeBranchResponse
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.state.SessionState
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.post
@@ -26,7 +26,7 @@ import kotlin.uuid.Uuid
  * status (GET /api/me/branches, #98) + the clock-in flow (Phase 3 of the #94 outline).
  *
  * Clock-in chains the ADR-0021 second trigger: POST /api/attendance/clock-in (via
- * success → SessionState.
+ * success → AppSessionState.
  * setClockedIn (branch + clock context publish together — #498:
  * the full row list is stored; the clock-in refetch keeps it fresh) → GET
  * /api/me/capabilities refresh. The screen holds on BranchSelect while EITHER is in flight
@@ -92,7 +92,7 @@ class BranchSelectViewModel(
                 if (clockInState is UiState.Success) {
                     // #498 — one atomic clock publication (branch + attendance + day + relief),
                     // preserving user + pre-refresh capabilities; refresh lands separately.
-                    SessionState.setClockedIn(branch.branchId, branch.branchName, clockInState.data)
+                    AppSessionState.setClockedIn(branch.branchId, branch.branchName, clockInState.data)
                     refreshCapabilities(clockInState.data.id).join()
                 }
             } finally {
@@ -110,7 +110,7 @@ class BranchSelectViewModel(
         // or the current clock on manual retry). A late landing after clock-out/logout
         // must not repopulate capabilities onto a cleared or replaced session.
         val expected =
-            expectedAttendanceId ?: SessionState.snapshot.value.clock
+            expectedAttendanceId ?: AppSessionState.snapshot.value.clock
                 ?.attendanceId
         return handler.launch(
             state = _refreshState,
@@ -120,10 +120,10 @@ class BranchSelectViewModel(
             transform = {
                 // #156 — the full row list is stored (the client-side branch slice filter
                 // is gone; resolution happens at consumption sites).
-                if (SessionState.snapshot.value.clock
+                if (AppSessionState.snapshot.value.clock
                         ?.attendanceId == expected
                 ) {
-                    SessionState.setCapabilities(it.body())
+                    AppSessionState.setCapabilities(it.body())
                 }
                 Unit
             },

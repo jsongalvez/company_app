@@ -183,7 +183,7 @@ class NotificationBadgeViewModelTest {
                 message = "dispose() must cancel the invite poll loop too",
             )
             // dispose() cancels viewModelScope but does NOT clear NotificationState (that's the App-level
-            // SessionState.clear() pairing's job, per #109). The singleton StateFlow holds its last
+            // AppSessionState.clear() pairing's job, per #109). The singleton StateFlow holds its last
             // successful value: 0 (one successful poll wrote it before dispose).
             assertIs<UiState.Success<Int>>(vm.pollResult.value)
             assertEquals(expected = 0, actual = NotificationState.unreadCount.value)

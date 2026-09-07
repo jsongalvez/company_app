@@ -2,6 +2,9 @@ package com.companyb.companyapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.app.AppSessionState
+import com.companyb.companyapp.app.hasBranchOrDayCapability
+import com.companyb.companyapp.app.hasCapability
 import com.companyb.companyapp.async.ActionTracker
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.UiState
@@ -23,9 +26,6 @@ import com.companyb.companyapp.dto.RestoreExpenseRequest
 import com.companyb.companyapp.dto.UpdateCompensationRequest
 import com.companyb.companyapp.dto.UpdateExpenseRequest
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.state.SessionState
-import com.companyb.companyapp.state.hasBranchOrDayCapability
-import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.ui.screen.FeedWindow
 import com.companyb.companyapp.ui.screen.ReportMode
 import com.companyb.companyapp.util.logWarn
@@ -103,7 +103,7 @@ class FinanceReportsViewModel(
                     val default =
                         list.firstOrNull { b ->
                             b.id ==
-                                SessionState.snapshot.value.clock
+                                AppSessionState.snapshot.value.clock
                                     ?.branchId
                         }
                             ?: list.firstOrNull()

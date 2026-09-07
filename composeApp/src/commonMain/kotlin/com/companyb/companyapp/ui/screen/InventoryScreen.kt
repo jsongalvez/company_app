@@ -28,10 +28,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.AddInventoryCardRequest
 import com.companyb.companyapp.dto.BranchInventoryResponse
-import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
@@ -150,7 +150,7 @@ fun InventoryScreen(
     val movementResult by viewModel.movementResult.collectAsState()
     val cardResult by viewModel.cardResult.collectAsState()
     val saleResult by productSaleViewModel.saleResult.collectAsState()
-    val snapshot by SessionState.snapshot.collectAsState()
+    val snapshot by AppSessionState.snapshot.collectAsState()
     val capabilities = snapshot.capabilities
     val branchDayId = snapshot.clock?.branchDayId
     var overlay by remember { mutableStateOf<InventoryOverlay?>(null) }
@@ -214,7 +214,7 @@ private fun InventoryHeader(
     cardResult: UiState<*>,
     onOverlay: (InventoryOverlay) -> Unit,
 ) {
-    val snapshot by SessionState.snapshot.collectAsState()
+    val snapshot by AppSessionState.snapshot.collectAsState()
     val capabilities = snapshot.capabilities
     val branchId = context.branchId
     Row(
@@ -431,7 +431,7 @@ private fun InventoryWriteDialogs(
     context: InventorySectionContext,
     onDone: () -> Unit,
 ) {
-    val snapshot by SessionState.snapshot.collectAsState()
+    val snapshot by AppSessionState.snapshot.collectAsState()
     val branchDayId = snapshot.clock?.branchDayId
     when (target) {
         is InventoryWriteTarget.Restock -> {

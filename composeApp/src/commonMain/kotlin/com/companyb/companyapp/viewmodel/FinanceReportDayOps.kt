@@ -2,14 +2,14 @@ package com.companyb.companyapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.app.AppSessionState
+import com.companyb.companyapp.app.hasBranchOrDayCapability
+import com.companyb.companyapp.app.hasCapability
 import com.companyb.companyapp.async.GuardedStateless
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
-import com.companyb.companyapp.state.SessionState
-import com.companyb.companyapp.state.hasBranchOrDayCapability
-import com.companyb.companyapp.state.hasCapability
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import kotlinx.coroutines.launch
@@ -26,7 +26,7 @@ internal fun FinanceReportsViewModel.selectDay(day: DailySalesSummaryResponse?) 
 
 internal fun FinanceReportsViewModel.loadReliefDay(date: String) {
     val branchId =
-        SessionState.snapshot.value.clock
+        AppSessionState.snapshot.value.clock
             ?.branchId
             ?: run {
                 reliefDayState.value = UiState.Error("No clocked-in branch")
@@ -92,7 +92,7 @@ internal fun FinanceReportsViewModel.clearReliefState() {
  * section loads and the backend 403s all agree. A null viewed branch fails closed.
  */
 internal fun FinanceReportsViewModel.hasAssignCapability(): Boolean =
-    SessionState.snapshot.value.capabilities.hasCapability(
+    AppSessionState.snapshot.value.capabilities.hasCapability(
         CapabilityCodes.ASSIGN_COMPENSATION,
         CapabilityContextType.BRANCH,
         selectedBranchIdState.value,
@@ -106,14 +106,14 @@ internal fun FinanceReportsViewModel.hasAssignCapability(): Boolean =
  * day leg closed.
  */
 internal fun FinanceReportsViewModel.hasEditBranchDataCapability(): Boolean =
-    SessionState.snapshot.value.capabilities.hasBranchOrDayCapability(
+    AppSessionState.snapshot.value.capabilities.hasBranchOrDayCapability(
         CapabilityCodes.EDIT_BRANCH_DATA,
         selectedBranchIdState.value,
         selectedDayState.value?.branchDayId,
     )
 
 internal fun FinanceReportsViewModel.hasEditCapabilities(): Boolean {
-    val caps = SessionState.snapshot.value.capabilities
+    val caps = AppSessionState.snapshot.value.capabilities
     val branchId = selectedBranchIdState.value
     // #158 — the EDIT_BRANCH_DATA leg includes the day-scoped relief grant; the
     // ASSIGN_COMPENSATION + EDIT_PAST_DAY legs stay BRANCH-only (not relief-eligible,

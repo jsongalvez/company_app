@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
+import com.companyb.companyapp.app.App
 import com.companyb.companyapp.network.AndroidAppContext
 
 class MainActivity : ComponentActivity() {

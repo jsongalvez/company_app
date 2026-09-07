@@ -1,12 +1,12 @@
 package com.companyb.companyapp.viewmodel
 
+import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.BranchClockInStatus
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.dto.MeBranchResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.mockApiClient
-import com.companyb.companyapp.state.SessionState
 import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.ContentType
@@ -32,7 +32,7 @@ import kotlin.test.assertTrue
 
 /**
  * #94-grad — the BranchSelect surface VM: GET /api/me/branches (the #98 data source) and the
- * Phase-3 clock-in chain (POST clock-in → SessionState.setClockedIn → ADR-0021 capability
+ * Phase-3 clock-in chain (POST clock-in → AppSessionState.setClockedIn → ADR-0021 capability
  * refresh → Success on refreshState, which is what the screen navigates on). The refresh
  * stores the FULL row list (#156; the client-side branch slice filter is gone). A failed
  * clock-in must NOT write the selected branch or fire the refresh; a failed
@@ -46,13 +46,13 @@ class BranchSelectViewModelTest {
     fun setup() {
         testScheduler = TestCoroutineScheduler()
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        SessionState.clear()
+        AppSessionState.clear()
     }
 
     @AfterTest
     fun teardown() {
         Dispatchers.resetMain()
-        SessionState.clear()
+        AppSessionState.clear()
     }
 
     private val branch =
@@ -124,29 +124,29 @@ class BranchSelectViewModelTest {
             assertIs<UiState.Success<Unit>>(vm.clockInState.value)
             assertEquals(
                 "b1",
-                SessionState.snapshot.value.clock
+                AppSessionState.snapshot.value.clock
                     ?.branchId,
             )
             assertEquals(
                 "Main Branch",
-                SessionState.snapshot.value.clock
+                AppSessionState.snapshot.value.clock
                     ?.branchName,
             )
             // #147 — the clock-state slots persist for the drawer's clock-out request.
             assertEquals(
                 "a1",
-                SessionState.snapshot.value.clock
+                AppSessionState.snapshot.value.clock
                     ?.attendanceId,
             )
             assertEquals(
                 "d1",
-                SessionState.snapshot.value.clock
+                AppSessionState.snapshot.value.clock
                     ?.branchDayId,
             )
             // ADR-0021 second trigger — the full row list is stored (#156), including rows
             // outside the selected branch (b2) and other contexts.
             assertIs<UiState.Success<Unit>>(vm.refreshState.value)
-            val caps = SessionState.snapshot.value.capabilities
+            val caps = AppSessionState.snapshot.value.capabilities
             assertEquals(3, caps.size)
             assertEquals(
                 listOf("MANAGE_USERS", "SUBMIT_REMITTANCE", "EDIT_BRANCH_DATA"),
@@ -175,10 +175,10 @@ class BranchSelectViewModelTest {
             assertIs<UiState.Error>(vm.clockInState.value)
             assertEquals(
                 null,
-                SessionState.snapshot.value.clock
+                AppSessionState.snapshot.value.clock
                     ?.branchId,
             )
-            assertEquals(emptyList<UserCapabilityResponse>(), SessionState.snapshot.value.capabilities)
+            assertEquals(emptyList<UserCapabilityResponse>(), AppSessionState.snapshot.value.capabilities)
             assertEquals(0, capsCalls)
         }
 
@@ -200,11 +200,11 @@ class BranchSelectViewModelTest {
             assertIs<UiState.Success<Unit>>(vm.clockInState.value)
             assertEquals(
                 "b1",
-                SessionState.snapshot.value.clock
+                AppSessionState.snapshot.value.clock
                     ?.branchId,
             )
             assertIs<UiState.Error>(vm.refreshState.value)
-            assertEquals(emptyList<UserCapabilityResponse>(), SessionState.snapshot.value.capabilities)
+            assertEquals(emptyList<UserCapabilityResponse>(), AppSessionState.snapshot.value.capabilities)
         }
 
     @Test
@@ -226,7 +226,7 @@ class BranchSelectViewModelTest {
             assertEquals(1, clockInCalls)
             assertEquals(
                 "b1",
-                SessionState.snapshot.value.clock
+                AppSessionState.snapshot.value.clock
                     ?.branchId,
             )
         }

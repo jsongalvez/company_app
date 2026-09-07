@@ -15,6 +15,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.companyb.companyapp.app.AppSessionState
+import com.companyb.companyapp.app.hasBranchOrDayCapability
+import com.companyb.companyapp.app.hasCapability
+import com.companyb.companyapp.app.hasDayGrant
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
@@ -29,10 +33,6 @@ import com.companyb.companyapp.dto.SessionVoidResponse
 import com.companyb.companyapp.dto.UpdatePractitionerRemarksRequest
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.state.SessionState
-import com.companyb.companyapp.state.hasBranchOrDayCapability
-import com.companyb.companyapp.state.hasCapability
-import com.companyb.companyapp.state.hasDayGrant
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
@@ -105,7 +105,7 @@ internal fun SessionDetailPane(
         viewModel(key = "session-sale-${session.id}") { ProductSaleViewModel(apiClient) }
     val inventoryVm: InventoryViewModel =
         viewModel(key = "session-inventory-${session.id}") { InventoryViewModel(apiClient) }
-    val snapshot by SessionState.snapshot.collectAsState()
+    val snapshot by AppSessionState.snapshot.collectAsState()
     val currentUser = snapshot.user
     val roster by sessionVm.practitioners.collectAsState()
     val practitionerResult by sessionVm.practitionerResult.collectAsState()
@@ -234,7 +234,7 @@ private fun EditableSessionPane(
     modifier: Modifier,
 ) {
     val targets = remember(session.id) { PaneDialogTargets() }
-    val snapshot by SessionState.snapshot.collectAsState()
+    val snapshot by AppSessionState.snapshot.collectAsState()
     val capabilities = snapshot.capabilities
     val branchDayId = snapshot.clock?.branchDayId
     val gates = paneGates(capabilities, session, branchDayId, state.allowVoid)

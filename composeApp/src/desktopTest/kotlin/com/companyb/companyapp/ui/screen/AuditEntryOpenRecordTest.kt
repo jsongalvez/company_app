@@ -1,12 +1,12 @@
 package com.companyb.companyapp.ui.screen
 
+import com.companyb.companyapp.app.GLOBAL_CAPABILITY_CONTEXT_ID
+import com.companyb.companyapp.app.hasCapability
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.dto.AuditLogEntryResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
-import com.companyb.companyapp.state.GLOBAL_CAPABILITY_CONTEXT_ID
-import com.companyb.companyapp.state.hasCapability
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

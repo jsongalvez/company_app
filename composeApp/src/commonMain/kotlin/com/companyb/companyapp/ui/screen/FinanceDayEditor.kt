@@ -19,6 +19,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.app.hasBranchOrDayCapability
+import com.companyb.companyapp.app.hasCapability
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
@@ -28,8 +30,6 @@ import com.companyb.companyapp.dto.CompensationResponse
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.dto.ExpenseResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
-import com.companyb.companyapp.state.hasBranchOrDayCapability
-import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing

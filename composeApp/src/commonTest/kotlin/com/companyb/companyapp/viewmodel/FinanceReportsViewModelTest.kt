@@ -1,5 +1,6 @@
 package com.companyb.companyapp.viewmodel
 
+import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
@@ -7,7 +8,6 @@ import com.companyb.companyapp.dto.ExpenseResponse
 import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.mockApiClient
-import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.screen.ReportMode
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.MockRequestHandler
@@ -73,9 +73,9 @@ class FinanceReportsViewModelTest {
     fun setup() {
         testScheduler = TestCoroutineScheduler()
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        SessionState.clear()
+        AppSessionState.clear()
         // #498 — finance tests run clocked-in at BRANCH_A; caps preserve the clock.
-        SessionState.setClockedIn(
+        AppSessionState.setClockedIn(
             BRANCH_A,
             "Branch A",
             ClockInResponse(
@@ -90,7 +90,7 @@ class FinanceReportsViewModelTest {
         )
         // The pass-3/4 per-element gates skip section loads without the capability. #156 —
         // branch-scoped rows for the selected branch (the strict-BRANCH backend gate shape).
-        SessionState.setCapabilities(
+        AppSessionState.setCapabilities(
             listOf(
                 branchRow("EDIT_BRANCH_DATA"),
                 branchRow("ASSIGN_COMPENSATION"),
@@ -110,7 +110,7 @@ class FinanceReportsViewModelTest {
 
     @AfterTest
     fun teardown() {
-        SessionState.clear()
+        AppSessionState.clear()
         Dispatchers.resetMain()
     }
 
@@ -219,7 +219,7 @@ class FinanceReportsViewModelTest {
     @Test
     fun branchesLoad_accountantWithoutSelectedBranch_picksFirstBranch() =
         runTest(testScheduler) {
-            SessionState.clear()
+            AppSessionState.clear()
             val handler: MockRequestHandler = { request ->
                 when {
                     request.url.encodedPath == "/api/branches/accessible" -> {
@@ -941,7 +941,7 @@ class FinanceReportsViewModelTest {
     @Test
     fun editMode_loadsAllFourSectionsForTheSelectedDay() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(
+            AppSessionState.setCapabilities(
                 listOf(
                     branchRow("ASSIGN_COMPENSATION"),
                     branchRow("EDIT_BRANCH_DATA"),
@@ -1560,7 +1560,7 @@ class FinanceReportsViewModelTest {
             // Grants at both branches: the pass-6/7 superseded-PATCH lifecycle is the subject,
             // not the capability gates (those have their own tests) — section loads must be
             // legal at the viewed branch AFTER the switch (the #156 viewed-branch resolution).
-            SessionState.setCapabilities(
+            AppSessionState.setCapabilities(
                 listOf(
                     branchRow("EDIT_BRANCH_DATA"),
                     branchRow("ASSIGN_COMPENSATION"),
@@ -1815,18 +1815,18 @@ class FinanceReportsViewModelTest {
     fun hasEditCapabilities_resolvesTheViewedBranch() =
         runTest(testScheduler) {
             val vm = FinanceReportsViewModel(mockApiClient(handler = { respondJson("{}") }), now = NOW)
-            SessionState.clear()
+            AppSessionState.clear()
             assertTrue(!vm.hasEditCapabilities())
 
             // Read-only viewer never sees the Edit toggle (viewed branch selected).
-            SessionState.setCapabilities(listOf(branchRow("VIEW_BRANCH_DATA")))
+            AppSessionState.setCapabilities(listOf(branchRow("VIEW_BRANCH_DATA")))
             vm.selectBranch(BRANCH_A)
             assertTrue(!vm.hasEditCapabilities(), "read-only viewer never sees the Edit toggle")
 
             // #156 — the toggle resolves the VIEWED branch (what the backend gates on via the
             // day row), not the clocked-in SessionState branch. Grants at the viewed branch
             // enable the toggle even when clocked in elsewhere…
-            SessionState.setClockedIn(
+            AppSessionState.setClockedIn(
                 "branch-b",
                 "Branch B",
                 ClockInResponse(
@@ -1839,7 +1839,7 @@ class FinanceReportsViewModelTest {
                     isRelief = false,
                 ),
             )
-            SessionState.setCapabilities(
+            AppSessionState.setCapabilities(
                 listOf(
                     branchRow("VIEW_BRANCH_DATA"),
                     branchRow("ASSIGN_COMPENSATION"),
@@ -1848,7 +1848,7 @@ class FinanceReportsViewModelTest {
             assertTrue(vm.hasEditCapabilities(), "grant at the viewed branch enables the toggle")
 
             // …and grants at the clocked-in branch do NOT enable it while viewing another branch.
-            SessionState.setCapabilities(
+            AppSessionState.setCapabilities(
                 listOf(
                     branchRow("VIEW_BRANCH_DATA"),
                     UserCapabilityResponse(
@@ -1865,7 +1865,7 @@ class FinanceReportsViewModelTest {
             )
 
             // GLOBAL-only rows never resolve branch-scoped.
-            SessionState.setCapabilities(
+            AppSessionState.setCapabilities(
                 listOf(
                     branchRow("VIEW_BRANCH_DATA"),
                     UserCapabilityResponse(
@@ -1905,7 +1905,7 @@ class FinanceReportsViewModelTest {
             val day = (vm.feedEntries.value as UiState.Success).data.single()
 
             // Only a BRANCH_DAY grant for the day row's branchDayId satisfies the leg.
-            SessionState.setCapabilities(
+            AppSessionState.setCapabilities(
                 listOf(
                     UserCapabilityResponse(
                         "EDIT_BRANCH_DATA",
@@ -1925,7 +1925,7 @@ class FinanceReportsViewModelTest {
 
             // A grant for a DIFFERENT day does not resolve.
             vm.selectDay(day)
-            SessionState.setCapabilities(
+            AppSessionState.setCapabilities(
                 listOf(
                     UserCapabilityResponse(
                         "EDIT_BRANCH_DATA",
@@ -1938,7 +1938,7 @@ class FinanceReportsViewModelTest {
             assertTrue(!vm.hasEditBranchDataCapability(), "a grant for another day must not resolve")
 
             // Without any grant the branch legs still fail closed for a day-grant-free user.
-            SessionState.setCapabilities(
+            AppSessionState.setCapabilities(
                 listOf(
                     UserCapabilityResponse(
                         "VIEW_BRANCH_DATA",
@@ -1985,7 +1985,7 @@ class FinanceReportsViewModelTest {
     @Test
     fun loadReliefDay_withoutClockedInBranch_failsClosed() =
         runTest(testScheduler) {
-            SessionState.clear()
+            AppSessionState.clear()
             val handler: MockRequestHandler = { request ->
                 respondJson("{}", HttpStatusCode.NotFound)
             }
@@ -2046,7 +2046,7 @@ class FinanceReportsViewModelTest {
             // Load day A, enter edit mode (sections armed). The BRANCH_DAY grant + a
             // responding expenses endpoint make the arm real (P5 — without the grant the
             // sections never load and the Idle assert is trivially true).
-            SessionState.setCapabilities(
+            AppSessionState.setCapabilities(
                 listOf(
                     UserCapabilityResponse(
                         "EDIT_BRANCH_DATA",

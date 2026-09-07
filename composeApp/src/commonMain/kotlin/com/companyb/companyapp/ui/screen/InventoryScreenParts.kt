@@ -21,9 +21,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.BranchInventoryResponse
-import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
@@ -143,7 +143,7 @@ internal fun MovementWriteDialog(
     branchDayId: String?,
     onDone: () -> Unit,
 ) {
-    val snapshot by SessionState.snapshot.collectAsState()
+    val snapshot by AppSessionState.snapshot.collectAsState()
     val capabilities = snapshot.capabilities
     MovementDialog(
         card = card,

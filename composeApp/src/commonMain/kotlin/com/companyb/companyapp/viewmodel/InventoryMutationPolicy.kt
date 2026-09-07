@@ -5,6 +5,9 @@
 
 package com.companyb.companyapp.viewmodel
 
+import com.companyb.companyapp.app.GLOBAL_CAPABILITY_CONTEXT_ID
+import com.companyb.companyapp.app.hasBranchOrDayCapability
+import com.companyb.companyapp.app.hasCapability
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
@@ -15,9 +18,6 @@ import com.companyb.companyapp.dto.InventoryMovementRequest
 import com.companyb.companyapp.dto.ProductResponse
 import com.companyb.companyapp.dto.RestockRequest
 import com.companyb.companyapp.dto.UserCapabilityResponse
-import com.companyb.companyapp.state.GLOBAL_CAPABILITY_CONTEXT_ID
-import com.companyb.companyapp.state.hasBranchOrDayCapability
-import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.util.logInfo
 import java.util.UUID
 

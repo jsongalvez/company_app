@@ -16,15 +16,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.app.AppSessionState
+import com.companyb.companyapp.app.hasCapabilityAnyContext
+import com.companyb.companyapp.app.hasDayGrant
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
-import com.companyb.companyapp.state.SessionState
-import com.companyb.companyapp.state.hasCapabilityAnyContext
-import com.companyb.companyapp.state.hasDayGrant
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.saveDownload
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
@@ -99,7 +99,7 @@ private fun rememberFinanceReportsCollected(viewModel: FinanceReportsViewModel):
     val editMode by viewModel.editMode.collectAsState()
     val downloads by viewModel.downloads.collectAsState()
     val exportErrors by viewModel.exportErrors.collectAsState()
-    val snapshot by SessionState.snapshot.collectAsState()
+    val snapshot by AppSessionState.snapshot.collectAsState()
     val capabilities = snapshot.capabilities
     val today =
         Clock.System

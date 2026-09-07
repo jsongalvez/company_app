@@ -139,6 +139,7 @@ complexity:
     threshold: 25
     excludes:
       - '**/ui/screen/**'
+      - '**/app/**' #555 app shell composables keep the screen complexity exclusion
   ComplexCondition:
     active: true
     threshold: 4

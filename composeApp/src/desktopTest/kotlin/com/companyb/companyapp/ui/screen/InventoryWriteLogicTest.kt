@@ -162,7 +162,7 @@ class InventoryWriteLogicTest {
                 cap(
                     "MANAGE_CATALOG",
                     CapabilityContextType.GLOBAL,
-                    com.companyb.companyapp.state.GLOBAL_CAPABILITY_CONTEXT_ID,
+                    com.companyb.companyapp.app.GLOBAL_CAPABILITY_CONTEXT_ID,
                 )
         assertTrue(canEnsureCard(catalogManager, branchId))
 

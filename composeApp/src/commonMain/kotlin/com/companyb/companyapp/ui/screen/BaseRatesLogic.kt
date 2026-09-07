@@ -1,11 +1,11 @@
 package com.companyb.companyapp.ui.screen
 
+import com.companyb.companyapp.app.hasCapability
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.dto.RateResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
-import com.companyb.companyapp.state.hasCapability
 
 /**
  * #418 — the base-rate admin screen's pure decision surface, desktopTest-pinned like the

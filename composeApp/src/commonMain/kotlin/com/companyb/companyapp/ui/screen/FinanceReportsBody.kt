@@ -26,13 +26,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.app.AppSessionState
+import com.companyb.companyapp.app.hasCapability
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
-import com.companyb.companyapp.state.SessionState
-import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
@@ -377,7 +377,7 @@ private fun ReliefDayInputRow(
                     !ui.capabilities.hasCapability(
                         CapabilityCodes.EDIT_PAST_DAY,
                         CapabilityContextType.BRANCH,
-                        SessionState.snapshot.value.clock
+                        AppSessionState.snapshot.value.clock
                             ?.branchId,
                     )
             TextButton(
@@ -428,10 +428,10 @@ private fun ReliefDayResultContent(
                     edit =
                         DayEditorUi(
                             branchId =
-                                SessionState.snapshot.value.clock
+                                AppSessionState.snapshot.value.clock
                                     ?.branchId ?: "",
                             branchName =
-                                SessionState.snapshot.value.clock
+                                AppSessionState.snapshot.value.clock
                                     ?.branchName ?: "",
                             today = ui.today,
                             capabilities = ui.capabilities,

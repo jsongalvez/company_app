@@ -1,5 +1,6 @@
 package com.companyb.companyapp.viewmodel
 
+import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.DayStatus
@@ -8,7 +9,6 @@ import com.companyb.companyapp.dto.DashboardResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.mockApiClient
-import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.screen.DashboardEditField
 import com.companyb.companyapp.ui.screen.bookedTimeLabel
 import com.companyb.companyapp.ui.screen.centsToMoney
@@ -113,10 +113,10 @@ class SessionDashboardViewModelTest {
     fun setup() {
         testScheduler = TestCoroutineScheduler()
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        SessionState.clear()
+        AppSessionState.clear()
         // #498 — dashboard tests run clocked-in (branch b1); day d1 is inert for the
         // branch-leg gates under test.
-        SessionState.setClockedIn(
+        AppSessionState.setClockedIn(
             "b1",
             "Branch A",
             ClockInResponse(
@@ -134,7 +134,7 @@ class SessionDashboardViewModelTest {
     @AfterTest
     fun teardown() {
         Dispatchers.resetMain()
-        SessionState.clear()
+        AppSessionState.clear()
     }
 
     // #156 — canEdit resolves branch-scoped vs the selected branch (setup sets "b1").
@@ -556,7 +556,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun refresh_without_selected_branch_fails_closed_without_request() =
         runTest(testScheduler) {
-            SessionState.clear()
+            AppSessionState.clear()
             var requestCount = 0
             val vm =
                 SessionDashboardViewModel(
@@ -608,7 +608,7 @@ class SessionDashboardViewModelTest {
 
     @Test
     fun can_edit_reflects_branch_capability_slice() {
-        SessionState.setCapabilities(editRow())
+        AppSessionState.setCapabilities(editRow())
         val granted =
             SessionDashboardViewModel(
                 mockApiClient(
@@ -621,7 +621,7 @@ class SessionDashboardViewModelTest {
             granted.pause()
         }
 
-        SessionState.setCapabilities(emptyList<UserCapabilityResponse>())
+        AppSessionState.setCapabilities(emptyList<UserCapabilityResponse>())
         val revoked =
             SessionDashboardViewModel(
                 mockApiClient(
@@ -648,7 +648,7 @@ class SessionDashboardViewModelTest {
                 runCurrent()
                 assertFalse(vm.canEdit.value)
 
-                SessionState.setCapabilities(editRow())
+                AppSessionState.setCapabilities(editRow())
                 runCurrent()
 
                 assertTrue(vm.canEdit.value)
@@ -660,7 +660,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun capability_revocation_discards_open_editor() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             val vm =
                 SessionDashboardViewModel(
                     mockApiClient(
@@ -673,7 +673,7 @@ class SessionDashboardViewModelTest {
                 vm.updateDraft("PENDING")
                 assertNotNull(vm.editState.value)
 
-                SessionState.setCapabilities(emptyList())
+                AppSessionState.setCapabilities(emptyList())
                 runCurrent()
 
                 assertNull(vm.editState.value)
@@ -686,7 +686,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun late_edit_response_cannot_overwrite_editor_started_after_revocation() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             val requestStarted = CompletableDeferred<Unit>()
             val releaseResponse = CompletableDeferred<Unit>()
             val vm =
@@ -713,11 +713,11 @@ class SessionDashboardViewModelTest {
                 runCurrent()
                 assertTrue(requestStarted.isCompleted)
 
-                SessionState.setCapabilities(emptyList())
+                AppSessionState.setCapabilities(emptyList())
                 runCurrent()
                 assertNull(vm.editState.value)
 
-                SessionState.setCapabilities(editRow())
+                AppSessionState.setCapabilities(editRow())
                 runCurrent()
                 vm.startEdit("s1", DashboardEditField.FINAL_PRICE)
                 assertEquals(DashboardEditField.FINAL_PRICE, vm.editState.value?.field)
@@ -736,7 +736,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun coordinator_revocation_discards_open_correction_editor() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(coordinatorEditRow())
+            AppSessionState.setCapabilities(coordinatorEditRow())
             val vm =
                 SessionDashboardViewModel(
                     mockApiClient(
@@ -752,7 +752,7 @@ class SessionDashboardViewModelTest {
                 vm.updateDraft("CANCELLED")
                 assertNotNull(vm.editState.value)
 
-                SessionState.setCapabilities(editRow())
+                AppSessionState.setCapabilities(editRow())
                 runCurrent()
 
                 assertNull(vm.editState.value)
@@ -766,7 +766,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun dashboard_poll_refreshes_day_status() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             var todayJson = TODAY_OPEN_JSON
             val vm =
                 SessionDashboardViewModel(
@@ -815,7 +815,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun failed_day_status_read_disables_editing_until_refresh() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             val vm =
                 SessionDashboardViewModel(
                     mockApiClient(
@@ -839,7 +839,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun failed_day_status_refresh_keeps_active_draft() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             var todayStatus = HttpStatusCode.OK
             val vm =
                 SessionDashboardViewModel(
@@ -870,7 +870,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun commit_final_price_success_recomputes_gross() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             val vm =
                 SessionDashboardViewModel(
                     mockApiClient(
@@ -895,7 +895,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun commit_unchanged_draft_exits_without_request() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             var patchHits = 0
             val vm =
                 SessionDashboardViewModel(
@@ -925,7 +925,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun mid_edit_poll_keeps_draft_and_baseline() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             val vm =
                 SessionDashboardViewModel(
                     mockApiClient(
@@ -954,7 +954,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun concurrent_status_change_surfaces_conflict_instead_of_client_invalid_status() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             var json = DASHBOARD_JSON
             var patchHits = 0
             val vm =
@@ -991,7 +991,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun commit_403_clears_edit_silently_and_hides_affordance() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             var patchHits = 0
             val vm =
                 SessionDashboardViewModel(
@@ -1024,7 +1024,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun edit_403_remains_revoked_after_pause_and_resume() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(coordinatorEditRow())
+            AppSessionState.setCapabilities(coordinatorEditRow())
             val vm =
                 SessionDashboardViewModel(
                     mockApiClient(
@@ -1055,7 +1055,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun correction_403_revokes_all_status_edit_authority_fail_closed() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(coordinatorEditRow())
+            AppSessionState.setCapabilities(coordinatorEditRow())
             val vm =
                 SessionDashboardViewModel(
                     mockApiClient(
@@ -1083,7 +1083,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun commit_409_keeps_draft_and_reload_rebaselines_with_changed_mark() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             var patchHits = 0
             var json = DASHBOARD_JSON
             val vm =
@@ -1130,7 +1130,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun commit_transport_failure_keeps_draft_model_a() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             var patchHits = 0
             val vm =
                 SessionDashboardViewModel(
@@ -1170,7 +1170,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun commit_invalid_price_fails_client_side_without_request() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             var patchHits = 0
             val vm =
                 SessionDashboardViewModel(
@@ -1203,7 +1203,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun in_flight_double_commit_dispatches_one_request() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             var patchHits = 0
             val vm =
                 SessionDashboardViewModel(
@@ -1235,7 +1235,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun conflict_state_blocks_commit_until_reload() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             var patchHits = 0
             var json = DASHBOARD_JSON
             val vm =
@@ -1282,7 +1282,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun reload_after_failed_refresh_keeps_conflict() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             var getHits = 0
             val vm =
                 SessionDashboardViewModel(
@@ -1325,7 +1325,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun start_edit_blocked_while_failure_error_shows() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             val vm =
                 SessionDashboardViewModel(
                     mockApiClient(
@@ -1357,7 +1357,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun draft_edit_during_conflict_keeps_reload_path_visible() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             var json = DASHBOARD_JSON
             val vm =
                 SessionDashboardViewModel(
@@ -1399,7 +1399,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun start_edit_clears_parked_machine_when_row_vanished() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             var json = DASHBOARD_JSON
             val vm =
                 SessionDashboardViewModel(
@@ -1450,7 +1450,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun discard_clears_machine_without_request() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             var patchHits = 0
             val vm =
                 SessionDashboardViewModel(
@@ -1480,7 +1480,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun status_edit_hits_the_status_endpoint() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             var patchPath: String? = null
             val vm =
                 SessionDashboardViewModel(
@@ -1526,7 +1526,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun remitted_day_blocks_blank_reason_before_dispatch() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(coordinatorEditRow())
+            AppSessionState.setCapabilities(coordinatorEditRow())
             var patchHits = 0
             val vm =
                 SessionDashboardViewModel(
@@ -1562,7 +1562,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun remitted_day_commit_with_reason_dispatches_and_clears() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(coordinatorEditRow())
+            AppSessionState.setCapabilities(coordinatorEditRow())
             var patchHits = 0
             val vm =
                 SessionDashboardViewModel(
@@ -1594,7 +1594,7 @@ class SessionDashboardViewModelTest {
     @Test
     fun open_day_commits_without_reason() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
+            AppSessionState.setCapabilities(editRow())
             var patchHits = 0
             val vm =
                 SessionDashboardViewModel(

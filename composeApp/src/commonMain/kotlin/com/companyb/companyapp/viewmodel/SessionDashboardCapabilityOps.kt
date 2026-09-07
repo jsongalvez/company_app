@@ -2,6 +2,9 @@ package com.companyb.companyapp.viewmodel
 
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.app.AppSessionState
+import com.companyb.companyapp.app.hasBranchOrDayCapability
+import com.companyb.companyapp.app.hasCapability
 import com.companyb.companyapp.async.GuardedStateless
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
@@ -10,9 +13,6 @@ import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.isStatusCorrection
 import com.companyb.companyapp.dto.BranchDayTodayResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
-import com.companyb.companyapp.state.SessionState
-import com.companyb.companyapp.state.hasBranchOrDayCapability
-import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.ui.screen.DashboardEditField
 import com.companyb.companyapp.ui.screen.DashboardEditState
 import com.companyb.companyapp.util.logWarn
@@ -40,7 +40,7 @@ internal fun SessionDashboardViewModel.observeCapabilities() {
     capabilityJob =
         viewModelScope.launch {
             // #498 — one coherent snapshot per emission (no multi-flow combine/reconstruction).
-            SessionState.snapshot.collect { snap ->
+            AppSessionState.snapshot.collect { snap ->
                 val capabilities = snap.capabilities
                 val branchId = snap.clock?.branchId
                 val dayId = snap.clock?.branchDayId
@@ -143,7 +143,7 @@ internal fun SessionDashboardViewModel.isCorrectionEdit(): Boolean {
  */
 internal fun SessionDashboardViewModel.loadDayStatus() {
     val branchId =
-        SessionState.snapshot.value.clock
+        AppSessionState.snapshot.value.clock
             ?.branchId ?: return
     if (!canEditState.value) return
     dayStatusState.value = null
