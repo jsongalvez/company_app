@@ -119,7 +119,7 @@ Before any exit the worktree is clean: commit coherent slices normally
 pop only the stash their packet names — no unrelated stash is touched.
 
 After the packet is recorded and the worktree is clean, launch
-`bash scripts/local-ci.sh` detached as the final exit action and leave
+`bash tools/quality/local-ci.sh` detached as the final exit action and leave
 without waiting: the run pins HEAD, the daemon watchdog consumes
 `result.txt`, and the sweep never gates exit.
 

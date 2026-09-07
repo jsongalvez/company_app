@@ -15,12 +15,12 @@ is the human-readable record of what "normal" looks like for each endpoint.
 2. Run the baseline (Terminal 2):
    ```bash
    TEST_USERNAME=owner TEST_PASSWORD=pass \
-     k6 run tests/k6/baseline.js --summary-export=tests/k6/results/latest.json
+     k6 run tools/performance/k6/baseline.js --summary-export=tools/performance/k6/results/latest.json
    ```
 
 3. Clean the test DB afterwards:
    ```bash
-   bash scripts/clean-test-db.sh
+   bash tools/database/clean-test-db.sh
    ```
 
 **How to update:** Re-run the baseline after intentionally adding new functionality to an

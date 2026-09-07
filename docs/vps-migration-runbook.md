@@ -18,7 +18,7 @@ Move the unattended wayfinder chain (tmux daemon + opencode sessions) from the l
 | Postgres 18 (docker compose) | backend tests (run on demand) | `docker compose -f docker/docker-compose.yml up -d` |
 | `.env` (repo root) | DB creds, JWT secret, test-user creds | copy real values from local box |
 | `.wayfinder-loop.env` (gitignored) | ntfy topic + `WAYFINDER_MODEL` | copy |
-| `bash scripts/setup-hooks.sh` | `.githooks` + ktlint CLI | run once after clone |
+| `bash tools/quality/setup-hooks.sh` | `.githooks` + ktlint CLI | run once after clone |
 | k6 (optional) | manual load-test runs | skip OK; or install aarch64 binary |
 | git + GitHub push auth | sessions commit to `master` and push immediately | `gh auth git-credential` (from `gh auth login`) |
 
@@ -89,7 +89,7 @@ docker compose -f docker/docker-compose.yml up -d
 docker compose -f docker/docker-compose.yml ps   # wait for healthy
 
 # 10. Hooks + ktlint
-bash scripts/setup-hooks.sh
+bash tools/quality/setup-hooks.sh
 
 # 11. Android SDK — targeted Android compile/test validation needs it.
 #     On aarch64 (the A1) AGP's aapt2 is x86_64-only, so first make x86_64

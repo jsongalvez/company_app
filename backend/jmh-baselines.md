@@ -9,7 +9,7 @@ Last updated: 2026-08-21
 > 5 clean `ubuntu-latest` (JDK 21, Temurin) runs on master, workflow runs 32449735234,
 > 32456048722, 32456448282, 32457067330, 32457565962 (2026-08-21, ticket #311); benchmark
 > code was identical across all five. The range column shows the observed min–max across
-> those runs; only the score (median) column is compared by `scripts/check-baselines.sh`.
+> those runs; only the score (median) column is compared by `tools/performance/check-baselines.sh`.
 >
 > **Runner variance is large:** shared-runner CPU allocation clusters into low/mid/high
 > lots (~1.6× between extremes on the same code). Worst observed single-run dip vs median
@@ -21,7 +21,7 @@ Last updated: 2026-08-21
 
 > **BranchDayBenchmark reconfigured:** `@Measurement` increased from (5, 1s) to (10, 2s),
 > `@Fork` 1→2, `@Warmup` (3, 1s)→(5, 2s). Baseline threshold raised from 20%→40% for
-> BranchDayBenchmark.* only (see `scripts/check-baselines.sh`). These benchmarks operate at
+> BranchDayBenchmark.* only (see `tools/performance/check-baselines.sh`). These benchmarks operate at
 > nanosecond scale and are hypersensitive to system jitter — longer windows + relaxed threshold
 > reduce false-positive failures while still catching real regressions.
 

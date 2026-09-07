@@ -16,7 +16,7 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
 Future non-merge commits must include `ref #<number>` somewhere in the commit
 message. The local `.githooks/commit-msg` hook checks this offline, so references
 may target closed issues and multiple issue references are allowed. Git-generated
-merge commits are exempt. Install enforcement with `bash scripts/setup-hooks.sh`.
+merge commits are exempt. Install enforcement with `bash tools/quality/setup-hooks.sh`.
 
 Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
 

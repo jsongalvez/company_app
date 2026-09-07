@@ -21,7 +21,7 @@
 #   WAYFINDER_STALL_SECS   no-progress zombie threshold in seconds (default 540 = old WAIT_SECS×STALL_SLICES)
 #   WAYFINDER_DRY_RUN      non-empty = log transitions, never spawn
 #   WAYFINDER_LOCAL_CI_DIR  local-ci state directory (default logs/local-ci)
-#   WAYFINDER_LOCAL_CI_SCRIPT local-ci launcher (default scripts/local-ci.sh)
+#   WAYFINDER_LOCAL_CI_SCRIPT local-ci launcher (default tools/quality/local-ci.sh)
 #   WAYFINDER_GH_BIN       gh executable used for red-verdict tracker writes
 #   WAYFINDER_GH_REPO      repository for tracker writes (default from origin)
 #   WAYFINDER_MAP_ISSUE    map whose frontier the repair ticket blocks (default 533)
@@ -37,7 +37,7 @@ POLL_SECS="${WAYFINDER_POLL_SECS:-15}"
 TICK_SECS="${WAYFINDER_TICK_SECS:-5}"
 STALL_SECS="${WAYFINDER_STALL_SECS:-540}"
 LOCAL_CI_DIR="${WAYFINDER_LOCAL_CI_DIR:-$REPO/logs/local-ci}"
-LOCAL_CI_SCRIPT="${WAYFINDER_LOCAL_CI_SCRIPT:-$REPO/scripts/local-ci.sh}"
+LOCAL_CI_SCRIPT="${WAYFINDER_LOCAL_CI_SCRIPT:-$REPO/tools/quality/local-ci.sh}"
 GH_BIN="${WAYFINDER_GH_BIN:-$(command -v gh || true)}"
 MAP_ISSUE="${WAYFINDER_MAP_ISSUE:-533}"
 GH_REPO="${WAYFINDER_GH_REPO:-}"

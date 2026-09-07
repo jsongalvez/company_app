@@ -12,24 +12,54 @@ relevant self-test whenever you edit its sibling.
 
 ## Validation and diagnostics
 
+Canonical owner: `tools/quality/`. `scripts/validate.sh`, `scripts/local-ci.sh`,
+`scripts/inspect.sh`, and `scripts/setup-hooks.sh` are thin exec wrappers for
+human/external callers; new invocations should prefer the canonical path.
+
 | Script | Purpose |
 |---|---|
-| `validate.sh` | Targeted-validation entry point (see AGENTS.md Commands). Auto mode classifies changed files into the narrowest warm Gradle set (focused `--tests` filters for changed test files; docs-only changes skip builds entirely). Passthrough mode runs any gradle args given. Agent-invoked only — hooks never call it. |
-| `local-ci.sh` | Replicates the hosted `quality.yml` gate set locally, detached: quality tasks verbatim, then OpenAPI and the compose-compile matrix (Android leg skips without an SDK). `--status` prints per-gate PASS/FAIL/SKIP/RUNNING; state under gitignored `logs/local-ci/`. Opt-in diagnostic, never a gate. |
-| `run-k6-contract-suites.sh` | Boots the backend on the **test** DB (never the app DB; port 8180 default, refuses a busy port) with DevSeeder provisioning both the GLOBAL owner and — when `SCOPED_USERNAME`/`SCOPED_PASSWORD` are set (#411) — the branch-scoped principal that drives the authz 403 contract and full-suite's scoped leg group, then runs every k6 suite — remittance-race first (it needs a fresh clock-in; strict 201 vs the others' 409 tolerance). Failure-safe cleanup always restores test-DB cleanliness. Manual diagnostic when load/contract behavior is the ticket's actual question. |
-| `check-baselines.sh` | Compares JMH output (default `/tmp/company-app-jmh.log`, `BASELINE` env overrides the baseline file) against `backend/jmh-baselines.md`. Exit 1 = regression past threshold (20% default, 40% for `BranchDayBenchmark.*` noise-class); exit 2 = missing/malformed/incomplete benchmark evidence, which also fails. New benchmarks report NEW, not fail. Companion to `./gradlew :backend:jmh`. |
+| `tools/quality/validate.sh` | Targeted-validation entry point (see AGENTS.md Commands). Auto mode classifies changed files into the narrowest warm Gradle set (focused `--tests` filters for changed test files; shell/tool-only changes run `bash -n` plus the families' DB-free self-tests; docs-only changes skip builds entirely). `detekt-rules/*` and module `*/build.gradle.kts` classify as build logic. Passthrough mode runs any gradle args given. Agent-invoked only — hooks never call it. |
+| `tools/quality/local-ci.sh` | Replicates the hosted `quality.yml` gate set locally, detached: quality tasks verbatim, then OpenAPI and the compose-compile matrix (Android leg skips without an SDK). `--status` prints per-gate PASS/FAIL/SKIP/RUNNING; state under gitignored `logs/local-ci/`. Opt-in diagnostic, never a gate. |
+| `tools/quality/run-k6-contract-suites.sh` | Boots the backend on the **test** DB (never the app DB; port 8180 default, refuses a busy port) with DevSeeder provisioning both the GLOBAL owner and — when `SCOPED_USERNAME`/`SCOPED_PASSWORD` are set (#411) — the branch-scoped principal that drives the authz 403 contract and full-suite's scoped leg group, then runs every k6 suite — remittance-race first (it needs a fresh clock-in; strict 201 vs the others' 409 tolerance). Failure-safe cleanup always restores test-DB cleanliness. Manual diagnostic when load/contract behavior is the ticket's actual question. |
+| `tools/quality/inspect.sh` | Static-analysis reproduction commands (#532, map #531 Phase A): `detekt`, `compiler`, `parity`, `ide-profile`, `all` — same committed config/profile CI uses. Full multi-platform Detekt/test coverage stays asynchronous CI work (#329). |
+| `tools/quality/wrapper-contract.test.sh` | Proves every `scripts/*` compat wrapper exec-delegates with arg/status propagation and reaches the same endpoints from any cwd (map #533 #569). |
+
+## Performance tooling
+
+Canonical owner: `tools/performance/`. `scripts/check-baselines.sh` and
+`scripts/run-k6-contract-suites.sh` are thin exec wrappers; new invocations
+should prefer the canonical path.
+
+| Script | Purpose |
+|---|---|
+| `tools/performance/check-baselines.sh` | Compares JMH output (default `/tmp/company-app-jmh.log`, `BASELINE` env overrides the baseline file) against `backend/jmh-baselines.md`. Exit 1 = regression past threshold (20% default, 40% for `BranchDayBenchmark.*` noise-class); exit 2 = missing/malformed/incomplete benchmark evidence, which also fails. New benchmarks report NEW, not fail. Companion to `./gradlew :backend:jmh`. |
+| `tools/performance/check-baselines-test.sh` | Fixture suite for the baseline checker (empty/truncated/missing/malformed/complete/regressed/missing-log cases). Plain bash — no Gradle, database, or network. |
+| `tools/performance/run-k6-contract-suites.sh` | Boots the backend on the **test** DB (never the app DB; port 8180 default, refuses a busy port) with DevSeeder provisioning both the GLOBAL owner and — when `SCOPED_USERNAME`/`SCOPED_PASSWORD` are set (#411) — the branch-scoped principal that drives the authz 403 contract and full-suite's scoped leg group, then runs every k6 suite — remittance-race first (it needs a fresh clock-in; strict 201 vs the others' 409 tolerance). Failure-safe cleanup always restores test-DB cleanliness. Manual diagnostic when load/contract behavior is the ticket's actual question. |
+| `tools/performance/k6/` | k6 suites (`baseline`, `authz-test`, `concurrency-test`, `full-suite`, `remittance-race-test`), `helpers.js` (single source of truth for metrics/thresholds/auth), and `results/` measurement history. |
 
 ## Test database
 
-Shared helpers for both live in `lib/common.sh`: `test_db_name` (explicit `TEST_DB_NAME`
-or `<POSTGRES_DB>_test`), `test_data_tables` (non-seed base-table discovery; fails closed
-on unsafe identifiers or unreadable DB — unreadable must never look clean),
-`test_db_psql` (docker-exec transport when `TEST_DB_CONTAINER` set or host psql absent).
+Canonical owner: `tools/database/`. `scripts/check-test-cleanliness.sh` and
+`scripts/clean-test-db.sh` are thin exec wrappers; new invocations should
+prefer the canonical path.
+
+Shared helpers live in `tools/database/lib/db-common.sh`: `test_db_name`
+(explicit `TEST_DB_NAME` or `<POSTGRES_DB>_test`), `test_data_tables`
+(non-seed base-table discovery; fails closed on unsafe identifiers or
+unreadable DB — unreadable must never look clean), `test_db_psql`
+(docker-exec transport when `TEST_DB_CONTAINER` set or host psql absent).
+Generic shell mechanics (`log`, `ensure_root_dir`, `source_env`,
+`port_is_listening`, `kill_cleanup`) live in
+`tools/quality/lib/shell-common.sh`, sourced by `db-common.sh` — hooks and
+quality scripts source `shell-common.sh` directly.
 
 | Script | Purpose |
 |---|---|
-| `check-test-cleanliness.sh` | Asserts zero leftover rows in any `public`-schema test-managed table (seed tables `role`/`capability`/`role_capability` + Flyway metadata excepted). k6/manual `public`-DB evidence only (#493) — backend workers use owned `test_w_*` schemas and never touch `public` (lifecycle proof: `WorkerSchemaLifecycleTest`). |
-| `clean-test-db.sh` | Truncates `public` user-data tables preserving seeds, then re-runs the cleanliness check as proof. Run after k6 sessions. Backend focused tests need no cleanup — each worker mints a fresh owned schema per JVM. |
+| `tools/database/check-test-cleanliness.sh` | Asserts zero leftover rows in any `public`-schema test-managed table (seed tables `role`/`capability`/`role_capability` + Flyway metadata excepted). k6/manual `public`-DB evidence only (#493) — backend workers use owned `test_w_*` schemas and never touch `public` (lifecycle proof: `WorkerSchemaLifecycleTest`). |
+| `tools/database/clean-test-db.sh` | Truncates `public` user-data tables preserving seeds, then re-runs the cleanliness check as proof. Run after k6 sessions. Backend focused tests need no cleanup — each worker mints a fresh owned schema per JVM. |
+| `tools/database/test-db-name-test.sh` | Fixtures for `test_db_name` derivation/override plus the k6 default. |
+| `tools/database/test-db-discovery-test.sh` | Mocked-transport fixtures for `test_data_tables` discovery, quoting, empty-DB, and failure-propagation (failure-to-discover stays an error). |
+| `tools/database/test-db-discovery-disposable-test.sh` | Live-DB disposable fixture: real-table discovery, `clean-test-db.sh` truncation proof, and unsafe-identifier rejection. Needs a running database and refuses the application DB — manual verification, never auto-run by `validate.sh`. |
 
 ## OpenAPI contract gate (#495 contract, #496 old-pipeline deletion)
 
@@ -52,11 +82,11 @@ Design invariant: near-zero cost — no Gradle, DB, containers, network clients,
 
 | Script | Guards |
 |---|---|
-| `setup-hooks.sh` | Installs `.githooks/*` + standalone ktlint CLI. Run once after cloning. |
-| `pre-commit-docs-only-test.sh` | pre-commit still runs its cheap checks on docs-only staging (the deleted docs-only fast path must stay dead). |
-| `pre-commit-formatter-status-test.sh` | A failing ktlint formatter run propagates nonzero. |
-| `test-commit-msg-hook.sh` | commit-msg `ref #n` acceptance rules (present/multiple/closed-tense) + merge-commit exemption. |
-| `test-hooks-no-expensive-commands.sh` | Failing shims prove pre-commit/pre-push never invoke gradle/psql/docker/k6/curl/wget/pg_isready; negative controls replay the retired gates-heavy hooks. |
+| `tools/quality/setup-hooks.sh` | Installs `.githooks/*` + standalone ktlint CLI. Run once after cloning. |
+| `tools/quality/pre-commit-docs-only-test.sh` | pre-commit still runs its cheap checks on docs-only staging (the deleted docs-only fast path must stay dead). |
+| `tools/quality/pre-commit-formatter-status-test.sh` | A failing ktlint formatter run propagates nonzero. |
+| `tools/quality/test-commit-msg-hook.sh` | commit-msg `ref #n` acceptance rules (present/multiple/closed-tense) + merge-commit exemption. |
+| `tools/quality/test-hooks-no-expensive-commands.sh` | Failing shims prove pre-commit/pre-push never invoke gradle/psql/docker/k6/curl/wget/pg_isready; negative controls replay the retired gates-heavy hooks. |
 
 ## Wayfinder operations
 
@@ -82,9 +112,11 @@ prefer the canonical path.
 | `vps-migration-wizard.sh` | Interactive wizard, generated by `/wizard`: walks the human through provisioning an Oracle Cloud VPS end-to-end — VM creation, Tailscale, base packages + Android SDK, opencode2 service, repo clone + secrets, Postgres 18, hooks + warm build, firewall/SSH hardening, Coolify install and app deployment, then daemon migration and post-migration checks. Re-run safe (saved answers in `.env`-style state); do not hand-edit the library section above the STAGES marker. |
 | `tmp-bun-so-clean.sh` | Host maintenance (not Wayfinder-owned): deletes orphaned Bun `.so` extraction temp files from `/tmp` (older than 10 min, not held open). Recovery for the /tmp-fill class the wayfinder-loop disk-floor tripwire detects; safe to rerun anytime. Stays in `scripts/` — checked callers show no automatic invocation, only manual recovery. |
 
-## Shared library
+## Shared libraries
 
-`lib/common.sh` — sourced by project scripts and hooks: timestamped `log`, repo-root
-discovery (`ensure_root_dir`), silent `.env` sourcing, test-DB naming/discovery/psql
-transport (host or docker-exec), SQL identifier quoting, port-liveness probe, graceful
-SIGTERM→SIGKILL process cleanup.
+- `tools/quality/lib/shell-common.sh` — sourced by quality scripts and hooks:
+  timestamped `log`, repo-root discovery (`ensure_root_dir`), silent `.env`
+  sourcing, port-liveness probe, graceful SIGTERM→SIGKILL process cleanup.
+- `tools/database/lib/db-common.sh` — sources `shell-common.sh` and adds
+  test-DB naming/discovery/psql transport (host or docker-exec) plus SQL
+  identifier quoting.

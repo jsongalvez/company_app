@@ -48,7 +48,7 @@ retired.
 
 Local validation is agent-invoked, targeted, informational (map #329). Run the smallest
 warm task that answers the current question, once per meaningful slice — never again just
-because commit/push is next. `bash scripts/validate.sh` auto-selects from changed files;
+because commit/push is next. `bash tools/quality/validate.sh` auto-selects from changed files;
 pass gradle args to override. Keep the daemon and configuration/build caches warm: no
 `--no-daemon` without a documented isolation reason.
 
@@ -89,14 +89,14 @@ the per-benchmark **medians of repeated clean CI runs** — after a runner basel
 the workflow several times and recompute the medians (see the workflow's comment and the
 baseline file's header).
 
-Install hooks once: `bash scripts/setup-hooks.sh` (sets `core.hooksPath = .githooks`).
+Install hooks once: `bash tools/quality/setup-hooks.sh` (sets `core.hooksPath = .githooks`).
 
 `-PwarningsAsErrors=true` is available for targeted local compiles and stays on in
 asynchronous CI. Warnings must be fixed, not suppressed or baselined.
 
 Postgres test database hosts one owned `test_w_*` schema per backend test JVM (#493).
 Parallel `./gradlew :backend:test` workers no longer race — each owns disjoint tables.
-`bash scripts/clean-test-db.sh` remains for k6/manual `public` cleanup only, never for
+`bash tools/database/clean-test-db.sh` remains for k6/manual `public` cleanup only, never for
 backend workers (their schemas drop on JVM shutdown; a killed worker leaves its uniquely
 named schema behind and never scans/deletes others).
 
@@ -533,13 +533,13 @@ Key things to look for in JFR:
 
 ### HTTP-level load testing (k6)
 
-All k6 scripts live in `tests/k6/`. `helpers.js` is the single source of truth for metrics,
+All k6 scripts live in `tools/performance/k6/`. `helpers.js` is the single source of truth for metrics,
 thresholds, and auth utilities.
 
 k6 tests MUST run against the **test database** (`company_app_test`), not the main DB.
 The test DB is designed for throwaway use; clean it after each run with
-`bash scripts/clean-test-db.sh` to preserve the cleanliness invariant that
-`scripts/check-test-cleanliness.sh` verifies.
+`bash tools/database/clean-test-db.sh` to preserve the cleanliness invariant that
+`tools/database/check-test-cleanliness.sh` verifies.
 
 **Quick start — two terminals:**
 
@@ -551,41 +551,41 @@ POSTGRES_DB=company_app_test TEST_USERNAME=owner TEST_PASSWORD=pass ./gradlew :b
 Terminal 2 — once the app is ready, run any k6 script:
 ```bash
 # Baseline load test (branches, clients search, products — staged ramp-up)
-TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tests/k6/baseline.js
+TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tools/performance/k6/baseline.js
 
 # Full load test (all endpoints, 5 VUs ramp-up)
-TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tests/k6/full-suite.js
+TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tools/performance/k6/full-suite.js
 
 # Concurrency edge cases (pending guard, version mismatch, idempotency)
-TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tests/k6/concurrency-test.js
+TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tools/performance/k6/concurrency-test.js
 
 # Authz edge cases (invalid token, expired token, insufficient capability —
 # the 403 principal is the DevSeeder branch-scoped user, #411; full-suite also
 # runs branch-scoped leg group when SCOPED_USERNAME/SCOPED_PASSWORD are set)
-SCOPED_USERNAME=scoped SCOPED_PASSWORD=scopepass k6 run tests/k6/authz-test.js
+SCOPED_USERNAME=scoped SCOPED_PASSWORD=scopepass k6 run tools/performance/k6/authz-test.js
 
 # Concurrent remittance submission (serializable isolation race)
-TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tests/k6/remittance-race-test.js
+TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tools/performance/k6/remittance-race-test.js
 ```
 
 After the k6 run, clean the test DB to preserve the cleanliness invariant:
 ```bash
-bash scripts/clean-test-db.sh
+bash tools/database/clean-test-db.sh
 ```
 
 Run this workflow manually when load-testing is the ticket's question; hooks and CI do
 not start the backend or run k6 for you (#333/#335 — the hosted k6 workflow was removed, and
 broad/load suites are manual diagnostics).
 
-The baseline uses `thresholdProfiles.baseline` from `tests/k6/helpers.js`. Edit the named profile
+The baseline uses `thresholdProfiles.baseline` from `tools/performance/k6/helpers.js`. Edit the named profile
 there to adjust thresholds; suites consume profiles and do not own threshold values:
 - `branches_latency`: p95 < 500ms
 - `clients_search_latency`: p95 < 1000ms
 - `product_latency`: p95 < 1000ms
 - `errors`: rate < 5%
 
-**Adding a new endpoint to the baseline** — edit `tests/k6/baseline.js` and
-`tests/k6/helpers.js`:
+**Adding a new endpoint to the baseline** — edit `tools/performance/k6/baseline.js` and
+`tools/performance/k6/helpers.js`:
 1. Use an existing metric from `helpers.js` or add a new `Trend` to `metrics` in `helpers.js`
 2. Add the metric threshold to the appropriate named `thresholdProfiles` entry in `helpers.js`
 3. Add the `http.get`/`http.post` call in the `default` function
@@ -624,8 +624,8 @@ Threshold violation detected
 
 3. **k6 threshold** — Run k6 3 times and take the worst p95. Add a 50% buffer for the
    new threshold. Update the relevant named `thresholdProfiles` entry in
-   `tests/k6/helpers.js` and record the resulting threshold/history in
-   `tests/k6/results/baseline-results.md`.
+   `tools/performance/k6/helpers.js` and record the resulting threshold/history in
+   `tools/performance/k6/results/baseline-results.md`.
 
 4. **Commit message** — Include the tool, the old threshold, the new threshold, and a brief
    justification. Example:
@@ -641,6 +641,6 @@ Threshold violation detected
 | File | What it tracks |
 |---|---|
 | `backend/jmh-baselines.md` | JMH scores and measureTimedValue thresholds |
-| `tests/k6/helpers.js` | k6 metrics and named threshold profiles (runtime source of truth) |
-| `tests/k6/results/baseline-results.md` | k6 threshold history and run instructions |
-| `tests/k6/results/latest.json` | k6 raw JSON output from last run (gitignored) |
+| `tools/performance/k6/helpers.js` | k6 metrics and named threshold profiles (runtime source of truth) |
+| `tools/performance/k6/results/baseline-results.md` | k6 threshold history and run instructions |
+| `tools/performance/k6/results/latest.json` | k6 raw JSON output from last run (gitignored) |

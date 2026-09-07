@@ -607,7 +607,7 @@ if [[ -z "$PG_OK" ]]; then
 fi
 
 stage "Git hooks + ktlint" 2
-vps 'cd ~/company_app && bash scripts/setup-hooks.sh'
+vps 'cd ~/company_app && bash tools/quality/setup-hooks.sh'
 
 stage "Warm the build gate" 16
 GATE_CMD="cd ~/company_app && nohup ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid :composeApp:testDebugUnitTest > /tmp/gate-warm.log 2>&1 &"

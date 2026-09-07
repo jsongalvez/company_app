@@ -12,7 +12,7 @@ set -euo pipefail
 
 HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
-source "$ROOT_DIR/scripts/lib/common.sh"
+source "$ROOT_DIR/tools/quality/lib/shell-common.sh"
 LOG_TAG=pre-commit
 log pre-commit "$@"
 

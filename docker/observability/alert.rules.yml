@@ -2,7 +2,7 @@ groups:
   - name: companyapp-latency
     interval: 30s
     rules:
-      # k6 contract: client search p95 < 1000ms (tests/k6/helpers.js baseline).
+      # k6 contract: client search p95 < 1000ms (tools/performance/k6/helpers.js baseline).
       # for: 5m = burn duration, not instant — deploy blips never page.
       - alert: ClientSearchSlow
         expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{route="/api/clients/search"}[5m]))) > 1

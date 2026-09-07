@@ -11,7 +11,7 @@
 Targeted and agent-invoked (map #329): a narrow desktop UI change compiles
 `:composeApp:compileKotlinDesktop` only — never every platform target by default. VM logic
 adds `:composeApp:desktopTest --tests '<Fqcn>'`. Broader target compiles are risk-based:
-common/shared contract changes may justify them. `bash scripts/validate.sh` auto-selects.
+common/shared contract changes may justify them. `bash tools/quality/validate.sh` auto-selects.
 Full multi-platform Detekt/test coverage is asynchronous CI work.
 
 ## Design language

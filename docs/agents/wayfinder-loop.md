@@ -37,7 +37,7 @@ is in `result.txt`, not whatever HEAD happens to be when the gates finish.
 
 The daemon owns the local verification watch. It polls `logs/local-ci/` on its
 normal session/doc ticks; active workers never run `--status`, poll a detached
-process, or poll hosted CI. `scripts/local-ci.sh` captures the current commit
+process, or poll hosted CI. `tools/quality/local-ci.sh` captures the current commit
 before starting any gate, writes `head.sha`/`run.id`, clears the previous
 verdict, and passes that pin into the detached runner. A push during a run
 therefore cannot make the old result claim the new tree.
@@ -49,7 +49,7 @@ Each poll applies this table:
 | active run covers current HEAD | keep supervising | none |
 | active run covers an older HEAD | remember the newest HEAD as pending | none; never relabel the active run |
 | completed `result.txt` has current `head.sha` | consume `PASS` or `FAIL` once per SHA | PASS is silent; FAIL enters the repair gate |
-| missing, incomplete, or stale run | launch `scripts/local-ci.sh` for current HEAD | never blocks on missing evidence |
+| missing, incomplete, or stale run | launch `tools/quality/local-ci.sh` for current HEAD | never blocks on missing evidence |
 
 On a red result, the daemon first verifies `gh auth status` in its own
 environment. With valid auth it finds or creates exactly one marker-bearing

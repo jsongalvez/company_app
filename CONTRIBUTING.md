@@ -8,7 +8,7 @@ or a multi-agent concurrency boundary.
 
 ## Normal Flow
 
-1. Implement with targeted, warm validation (`bash scripts/validate.sh`
+1. Implement with targeted, warm validation (`bash tools/quality/validate.sh`
    auto-selects; see `backend/AGENTS.md` "Targeted validation") — run the
    smallest check that answers the current question, once per meaningful slice.
 2. Commit with issue references (`ref #<number>`; enforced by the local
@@ -31,7 +31,7 @@ cleanliness checks, and the active agent never polls it — failures are consume
 next session.
 
 While implementing, run the smallest warm Gradle/test task that answers the current
-question (`bash scripts/validate.sh` auto-selects; see `backend/AGENTS.md` "Targeted
+question (`bash tools/quality/validate.sh` auto-selects; see `backend/AGENTS.md` "Targeted
 validation"); do not rerun broad suites because commit or push is next.
 
 ## Emergency Or AFK Work

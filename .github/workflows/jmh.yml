@@ -52,7 +52,7 @@ jobs:
         run: |
           run_compare() {
             local log=$1 out=$2
-            bash scripts/check-baselines.sh "$log" > "$out" 2>&1
+            bash tools/performance/check-baselines.sh "$log" > "$out" 2>&1
             local status=$?
             cat "$out"
             return "$status"

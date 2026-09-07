@@ -104,7 +104,7 @@ company-app/
 │   ├── agents/               # Agent meta-docs (issue tracker, triage, domain)
 │   ├── adr/                  # Architecture decision records
 │   └── specs/                # Feature specs
-├── tests/k6/                 # HTTP-level load testing
+├── tools/performance/k6/     # HTTP-level load testing
 └── docker/
 ```
 

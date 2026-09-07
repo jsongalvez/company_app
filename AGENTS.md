@@ -106,13 +106,13 @@ This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `d
 | Triage labels | `docs/agents/triage-labels.md` |
 | Decision-loop lenses + deferred human-review frame | `docs/agents/decision-loop.md` |
 | Performance baselines | `backend/jmh-baselines.md` |
-| Load test results | `tests/k6/results/baseline-results.md` |
+| Load test results | `tools/performance/k6/results/baseline-results.md` |
 
 ## Commands
 
 ```bash
 # One-time setup
-bash scripts/setup-hooks.sh          # installs git hooks + ktlint CLI (for staged-only formatting)
+bash tools/quality/setup-hooks.sh          # installs git hooks + ktlint CLI (for staged-only formatting)
 cp .env.example .env                  # then fill in values
 
 # Docker (Postgres 18)
@@ -121,19 +121,19 @@ docker compose -f docker/docker-compose.yml down -v   # teardown + wipe data
 
 # Targeted local validation (map #329) — auto-selects the narrowest warm Gradle
 # tasks for the current change; pass gradle args to override. No broad gates.
-bash scripts/validate.sh
+bash tools/quality/validate.sh
 
 # Local full-CI replication (#341) — runs the hosted quality.yml gate set detached
 # (non-blocking) when CI minutes are unavailable; opt-in diagnostic, never a gate.
-bash scripts/local-ci.sh            # launch detached
-bash scripts/local-ci.sh --status   # per-gate PASS/FAIL/SKIP/RUNNING
+bash tools/quality/local-ci.sh            # launch detached
+bash tools/quality/local-ci.sh --status   # per-gate PASS/FAIL/SKIP/RUNNING
 
 # Format (auto-fix all subprojects)
 ./gradlew ktlintFormat
 
 # JMH benchmarks + baseline check — manual diagnostics only, never a ticket toll
 ./gradlew :backend:jmh
-bash scripts/check-baselines.sh
+bash tools/performance/check-baselines.sh
 
 # Run backend (requires Postgres at DB_HOST:DB_PORT, workingDir = repo root for .env)
 ./gradlew :backend:run
@@ -147,7 +147,7 @@ table: `backend/AGENTS.md` ("Targeted validation"). Hooks and CI own no local ga
 Future non-merge commits must include `ref #<number>` somewhere in the commit
 message. The local `commit-msg` hook enforces this without network access, accepts
 closed issue numbers, permits multiple references, and exempts Git merge commits.
-Run `bash scripts/setup-hooks.sh` after cloning to install `.githooks`.
+Run `bash tools/quality/setup-hooks.sh` after cloning to install `.githooks`.
 
 ## Integration — direct-to-master
 
@@ -172,7 +172,7 @@ long-lived integration branches.
 
 ## Git hooks (CRITICAL)
 
-After `bash scripts/setup-hooks.sh`:
+After `bash tools/quality/setup-hooks.sh`:
 
 - **pre-commit** formats staged `.kt`/`.kts` files with the standalone ktlint CLI (warn + skip when missing — never a Gradle fallback) and runs `bash -n` on staged shell files. It never starts Gradle, Postgres, the backend, k6, JMH, or tests; normal overhead is well under 5 seconds. Compile/static/test coverage is targeted, warm, agent-invoked validation plus asynchronous CI.
 - **pre-push** is bookkeeping only: no Gradle, DB, backend startup, OpenAPI build, Compose compile, k6, JMH, Detekt, `ktlintCheck`, warning-as-error compile, or test execution. Full validation runs asynchronously in CI; push network transfer dominates. Run hook and `git push` tool calls with normal short timeouts.

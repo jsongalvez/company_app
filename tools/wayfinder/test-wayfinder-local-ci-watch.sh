@@ -19,8 +19,8 @@ assert_eq() {
 
 # local-ci.sh pins the run at entry, even when a gate moves HEAD mid-run.
 PIN_REPO="$WORK/pin-repo"
-mkdir -p "$PIN_REPO/scripts" "$PIN_REPO/docker" "$WORK/bin"
-cp "$ROOT/scripts/local-ci.sh" "$PIN_REPO/scripts/"
+mkdir -p "$PIN_REPO/tools/quality" "$PIN_REPO/docker" "$WORK/bin"
+cp "$ROOT/tools/quality/local-ci.sh" "$PIN_REPO/tools/quality/"
 printf 'DB_HOST=127.0.0.1\nDB_PORT=5432\n' >"$PIN_REPO/.env"
 cat >"$PIN_REPO/docker/docker-compose.yml" <<'EOF'
 services: {}
@@ -51,7 +51,7 @@ chmod +x "$PIN_REPO/gradlew" "$WORK/bin/docker" "$WORK/bin/pg_isready"
     git commit --allow-empty -q -m init
 )
 PINNED_SHA="$(git -C "$PIN_REPO" rev-parse HEAD)"
-PATH="$WORK/bin:$PATH" bash "$PIN_REPO/scripts/local-ci.sh" --run
+PATH="$WORK/bin:$PATH" bash "$PIN_REPO/tools/quality/local-ci.sh" --run
 assert_eq "$PINNED_SHA" "$(cat "$PIN_REPO/logs/local-ci/head.sha")" "local-ci changed the covered HEAD pin"
 assert_eq PASS "$(cat "$PIN_REPO/logs/local-ci/result.txt")" "pinned fixture did not finish green"
 [ -s "$PIN_REPO/logs/local-ci/run.id" ] || die "local-ci did not write a run id"

@@ -21,10 +21,10 @@ runs without any detection mechanism.
    The test DB name is configurable via `TEST_DB_NAME` env var (defaults to `${POSTGRES_DB}_test`).
    `docker/init-test-db.sql` auto-creates the test database on container startup.
 
-2. **Post-test cleanliness check.** `scripts/check-test-cleanliness.sh` queries all non-seed
+2. **Post-test cleanliness check.** `tools/database/check-test-cleanliness.sh` queries all non-seed
    tables (`pg_tables` minus role, capability, role_capability, flyway_schema_history) and fails
    if any row count > 0. Wired into the quality workflow (`.github/workflows/quality.yml`)
-   and runnable locally (`bash scripts/check-test-cleanliness.sh`); git hooks never run it
+   and runnable locally (`bash tools/database/check-test-cleanliness.sh`); git hooks never run it
    (#329/#335 — hooks are bookkeeping only).
 
 ## Amendment #493 — owned schema per test JVM
@@ -71,9 +71,10 @@ the reset proof (unregistered side-effect rows disappear, seeds survive, repeat 
 works, snapshot UPDATE stays rejected before and after reset).
 
 Backend-suite evidence is that lifecycle test plus the full `:backend:test` run —
-`scripts/check-test-cleanliness.sh` no longer proves anything about backend tests
+`tools/database/check-test-cleanliness.sh` no longer proves anything about backend tests
 because backend workers never touch `public` tables. The script, `clean-test-db.sh`,
-and `scripts/lib/common.sh` stay for k6 load-test cleanup on the `public` test
+and `tools/database/lib/db-common.sh` (split from the former `scripts/lib/common.sh`,
+map #533 #569) stay for k6 load-test cleanup on the `public` test
 database; quality/local-ci no longer run the public check as a backend gate.
 
 ## Consequences

@@ -21,9 +21,8 @@ on:
       - 'settings.gradle.kts'
       - 'config/detekt/**'
       - '.githooks/**'
-      - 'scripts/check-test-cleanliness.sh'
-      - 'scripts/clean-test-db.sh'
-      - 'scripts/lib/**'
+      - 'tools/database/**'
+      - 'tools/quality/lib/**'
       - 'docker/**'
       - '.github/workflows/quality.yml'
   pull_request:
@@ -40,9 +39,8 @@ on:
       - 'settings.gradle.kts'
       - 'config/detekt/**'
       - '.githooks/**'
-      - 'scripts/check-test-cleanliness.sh'
-      - 'scripts/clean-test-db.sh'
-      - 'scripts/lib/**'
+      - 'tools/database/**'
+      - 'tools/quality/lib/**'
       - 'docker/**'
       - '.github/workflows/quality.yml'
   workflow_dispatch:
@@ -132,7 +130,7 @@ jobs:
 
       # Backend workers use owned test_w_* schemas (#493); public-table cleanliness no
       # longer evidences backend tests. Lifecycle proof lives in WorkerSchemaLifecycleTest.
-      # scripts/check-test-cleanliness.sh stays for k6/manual public-DB cleanup only.
+      # tools/database/check-test-cleanliness.sh stays for k6/manual public-DB cleanup only.
 
       - name: Verify OpenAPI contract (#495 Gradle gate)
         run: ./gradlew :backend:verifyOpenApiContract -PwarningsAsErrors=true
