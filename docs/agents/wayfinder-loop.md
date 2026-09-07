@@ -110,6 +110,8 @@ routes human decisions through tracker issues (`needs-info` /
 
 ## Playbook
 
+**Empty frontier drives the gate** — a session whose map frontier is empty claims one open external gate instead of exiting (full rule: `docs/agents/issue-tracker.md`, "Frontier query"). The gate claim is that session's one claim. Never flag a gate-driving session as stalled, and never route around an assigned or human-deferred gate.
+
 **Chain looks stalled** — diagnose from `.wayfinder-loop.log` + `git status --porcelain`:
 
 | Log line | Meaning | Action |

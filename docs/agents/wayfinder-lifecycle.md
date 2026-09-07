@@ -16,7 +16,8 @@ start → hydrate → reconcile CI (once) → claim → work → resolve → han
 ```
 
 A fresh session starts from `/wayfinder <handoff>`: load the map and packet,
-hydrate, reconcile CI exactly once, claim one frontier child, work it to
+hydrate, reconcile CI exactly once, claim one frontier child — an external gate
+when the home frontier is empty (`docs/agents/issue-tracker.md`, "Frontier query") — work it to
 resolution, write the successor packet, exit. One frontier ticket per
 session; a ticket may span sessions.
 
