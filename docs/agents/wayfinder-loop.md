@@ -32,10 +32,6 @@ is in `result.txt`, not whatever HEAD happens to be when the gates finish.
   chain after 2 fruitless continuations.
 - The daemon never stages, commits, or stashes — worktree hygiene belongs to
   the sessions.
-- **A revised packet is not progress.** The daemon snapshots the map's tracker
-  state per session and parks chains whose sessions advance nothing (see
-  "Chain advancement supervision" below) — a no-op session that re-stamps its
-  packet brings the chain one session closer to parking, not one session further.
 
 ## Detached local-CI watchdog (#577)
 
@@ -67,46 +63,6 @@ unblocked and is retried by the daemon; it is never converted into a false
 green verdict. A green result creates no tracker issue and does not close an
 older red repair ticket. When there is no claimable child, the repair issue is
 left as an unblocked map child for the next frontier query.
-
-## Chain advancement supervision (#578)
-
-The daemon supervises map advancement, not session exhaust. After every spawn
-it fingerprints the map's native children (`number|state|assignees|labels|blocked`
-per child — claims, closures, label changes, and unblocks all move it;
-comments do not). A session that exits with the fingerprint unchanged spends
-one of `WAYFINDER_PROGRESS_STRIKES` (default 3) consecutive no-advance
-sessions; the Kth consecutive one parks instead of spawning.
-
-| Park class | Meaning | Wake |
-|---|---|---|
-| starved | frontier empty, every open child gated by an open blocker outside the map's subtree | automatic — a named-gate change (close or label change), any fingerprint movement (unblock, new child), or a manually written new packet resumes the chain |
-| poison | frontier empty with no external gate (internal deadlock, all-assigned stall, or unverifiable) | operator or new packet only — sleeps through tracker movement; inspect, then restart or `--retry` |
-
-Parking records the packet, class, and gate refs in daemon state, files one
-`[parked] wayfinder chain: <doc>` marker issue (labelled `wayfinder:task`
-without `ready-for-agent`, and deliberately not attached as a native map
-child — attachment would expose it to frontier queries and its creation
-would move the fingerprint, waking its own park; the snapshot also filters
-`[parked]` titles), and keeps the local-CI watch running while parked. Every
-tracker failure fails open to normal spawning — a park needs positive
-evidence of starvation, never an unread read.
-
-Two packet lines feed the machinery (both optional; absence only loses
-precision, never blocks). `Progress-Map: <n>` declares the packet's map
-(fallbacks: the `wayfinder-<map>-*` basename, then `WAYFINDER_MAP_ISSUE`).
-`Park-Signal: starved-on #a #b` lets a
-session that already proved starvation park immediately — the daemon
-re-verifies the claim (its own classifier must return exactly the named
-gates) before honouring it. There is no poison signal: poison stays parked
-for a human.
-
-The same rework fixed the supervisor's liveness predicate: the direct session
-GET answers for historical sessions too, so it proves nothing — a session
-counts as exited only after `WAYFINDER_EXIT_GONE_TICKS` (default 2)
-consecutive ticks of proven `/api/session/active` absence (previously one
-failed `/active` poll read a live, user-paused worker as dead and minted
-phantom successors), and the died-without-handoff path requires the same
-proof before a fresh respawn. An unreadable `/active` always answers "alive".
 
 This watchdog is host-local like `local-ci.sh`; it adds no hosted workflow,
 schedule, hook gate, or cross-machine claim. The existing `flock` remains the
@@ -163,8 +119,6 @@ routes human decisions through tracker issues (`needs-info` /
 | `waiting for session … to exit` | normal supervision, worker alive | check the session's tokens via `/api/session/<id>` before assuming stall |
 | `stalled … resuming` | zombie detector firing | unbounded — every stall gets the NUDGE forever; a wedged session is the operator's call |
 | `chain paused` | terminal assistant error (auth/quota-class) or config failure | fix cause, then restart (below) |
-| `chain parked (starved` | K consecutive sessions advanced the map nothing; an external gate owns the frontier — marker issue filed with the gate refs | none — auto-resumes when the tracker moves; do not `--retry` a sleeping chain awake |
-| `chain parked (poison` | same, but no external gate found — marker issue filed | inspect the map (internal deadlock or idle claims), then restart or `--retry` |
 | `transient provider error — sent recovery prompt` | truncated model stream (`provider.invalid-output`) | none — daemon nudges every new failed turn, never pauses |
 | session died without handoff | worker gone before writing its packet | none — daemon respawns fresh for the same packet, unbounded; repeated notifications on one packet = poison packet, inspect manually |
 | repeated `stopped without handoff` + `worked since last recovery` with no handoff detected | wedge: packet invisible (non-canonical filename), dirty tree, or poison packet — each re-query clears the fruitless budget | fix per the prompt's wedge self-heal (canonical `wayfinder-*-handoff.md` name, commit/park, reconcile map vs native state), verify, write the successor packet, stop |

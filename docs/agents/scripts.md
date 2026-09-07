@@ -73,7 +73,6 @@ prefer the canonical path.
 | `tools/wayfinder/test-wayfinder-loop-no-git-writes.sh` | Recording git shim proves the daemon bootstrap/spawn paths issue no `add`/`commit`/stash-like commands; dirty tree pauses instead of auto-committing. Covers both canonical and wrapper entrypoints. |
 | `tools/wayfinder/test-wayfinder-local-ci-watch.sh` | Contract for the detached local-CI pin/watch path: HEAD pin stability, queued relaunch, verdict dedupe, dry-run planning, and red-verdict repair gating. |
 | `tools/wayfinder/recovery-contract.test.sh` | Structural + behavioral contract for the recovery prompt, retry guard, transient-error nudges, and progress-budget reset; also proves the loop wrapper delegates. |
-| `tools/wayfinder/progress-contract.test.sh` | Contract for chain-advancement supervision (#578): strike-park, advancement reset, exit grace, tracker wake, and poison classification against stubbed API/gh fixtures. |
 | `tools/wayfinder/wrapper-contract.test.sh` | Proves every `scripts/wayfinder-*` wrapper exec-delegates with arg/status/signal propagation and reaches the same endpoints from any cwd. |
 
 ## Environment hygiene

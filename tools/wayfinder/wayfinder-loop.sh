@@ -19,8 +19,6 @@
 #   WAYFINDER_POLL_SECS    doc poll interval (default 15)
 #   WAYFINDER_TICK_SECS    session poll interval — form/permission/completion checks (default 5)
 #   WAYFINDER_STALL_SECS   no-progress zombie threshold in seconds (default 540 = old WAIT_SECS×STALL_SLICES)
-#   WAYFINDER_PROGRESS_STRIKES consecutive no-advance sessions before the chain parks (default 3; #578)
-#   WAYFINDER_EXIT_GONE_TICKS consecutive dual-signal-gone ticks before a handoff wait ends (default 2; #578)
 #   WAYFINDER_DRY_RUN      non-empty = log transitions, never spawn
 #   WAYFINDER_LOCAL_CI_DIR  local-ci state directory (default logs/local-ci)
 #   WAYFINDER_LOCAL_CI_SCRIPT local-ci launcher (default scripts/local-ci.sh)
@@ -44,9 +42,6 @@ GH_BIN="${WAYFINDER_GH_BIN:-$(command -v gh || true)}"
 MAP_ISSUE="${WAYFINDER_MAP_ISSUE:-533}"
 GH_REPO="${WAYFINDER_GH_REPO:-}"
 REPAIR_MARKER="wayfinder-local-ci-repair"
-PARK_MARKER="wayfinder-chain-parked"
-PROGRESS_STRIKES="${WAYFINDER_PROGRESS_STRIKES:-3}"
-EXIT_GONE_TICKS="${WAYFINDER_EXIT_GONE_TICKS:-2}"
 [[ "$LOCAL_CI_DIR" = /* ]] || LOCAL_CI_DIR="$REPO/$LOCAL_CI_DIR"
 [[ "$LOCAL_CI_SCRIPT" = /* ]] || LOCAL_CI_SCRIPT="$REPO/$LOCAL_CI_SCRIPT"
 LOCAL_CI_PID_FILE="$LOCAL_CI_DIR/pid"
@@ -180,15 +175,9 @@ api() { "$OC_BIN" api "$@"; }
 load_state() {
   last_doc=""; session_id=""; pending_doc=""
   local_ci_pending_sha=""; local_ci_verdicts=""; local_ci_repair_issues=""
-  progress_map=""; progress_fp=""; progress_strikes=0; progress_parked=""; progress_gate=""; progress_park_issue=""
-  progress_park_class=""; progress_gate_fp=""
   [ -f "$STATE_FILE" ] || return 0
   # shellcheck disable=SC1090
   source "$STATE_FILE"
-  # Back-compat: states written before #578 lack the progress fields.
-  progress_map="${progress_map:-}"; progress_fp="${progress_fp:-}"; progress_strikes="${progress_strikes:-0}"
-  progress_parked="${progress_parked:-}"; progress_gate="${progress_gate:-}"; progress_park_issue="${progress_park_issue:-}"
-  progress_park_class="${progress_park_class:-}"; progress_gate_fp="${progress_gate_fp:-}"
 }
 
 save_state() {
@@ -201,14 +190,6 @@ save_state() {
     echo "local_ci_pending_sha=${local_ci_pending_sha:-}"
     echo "local_ci_verdicts=${local_ci_verdicts:-}"
     echo "local_ci_repair_issues=${local_ci_repair_issues:-}"
-    echo "progress_map=${progress_map:-}"
-    echo "progress_fp=${progress_fp:-}"
-    echo "progress_strikes=${progress_strikes:-0}"
-    echo "progress_parked=${progress_parked:-}"
-    echo "progress_gate=${progress_gate:-}"
-    echo "progress_park_issue=${progress_park_issue:-}"
-    echo "progress_park_class=${progress_park_class:-}"
-    echo "progress_gate_fp=${progress_gate_fp:-}"
   } > "$STATE_FILE"
 }
 
@@ -601,482 +582,13 @@ ensure_local_ci_run() {
   fi
 }
 
-# --- Chain advancement supervision (#578) ------------------------------------
-# The daemon used to supervise session exhaust: any session that exited having
-# revised its packet counted as progress, so an externally-starved chain
-# respawned forever (the 2026-09-07 empty-frontier spin: 8+ sessions, zero
-# advancement, all gated on external #532). These functions supervise map
-# advancement instead: snapshot the map's tracker state per session, park the
-# chain when consecutive sessions advance nothing, and sleep until the tracker
-# moves again. Advisory only — every tracker failure fails open to normal
-# spawning; the spawn gate and session supervision above stay authoritative.
-
-# progress_map_for_doc <doc>: map issue number for a packet. Precedence:
-# explicit `Progress-Map: <n>` packet line (sessions know their map), the
-# wayfinder-<map>-* / wayfinder-map<map>-* basename convention, then MAP_ISSUE.
-progress_map_for_doc() {
-  local doc="$1" map="" base=""
-  map="$(sed -n 's/^[Pp]rogress-[Mm]ap:[[:space:]]*#\?\([0-9][0-9]*\).*/\1/p' "$HANDOFF_DIR/$doc" 2>/dev/null | head -1 || true)"
-  if [ -n "$map" ]; then printf '%s' "$map"; return 0; fi
-  base="$(printf '%s' "$doc" | sed -n 's/^wayfinder-\(map\)\?\([0-9][0-9]*\)-.*/\2/p' || true)"
-  if [ -n "$base" ]; then printf '%s' "$base"; return 0; fi
-  printf '%s' "$MAP_ISSUE"
-}
-
-# session_gone <sid>: proven absence from the live set. The direct session GET
-# is USELESS for death detection — the API returns historical records for
-# long-dead sessions (rc=0). The authority signal is /active membership, and
-# only a SUCCESSFUL fetch counts: an unreadable /active answers "alive"
-# (the 2026-09-07 phantom-completion class came from treating one failed poll
-# as death while the worker was merely paused on user input). Callers only
-# ever spawn/complete on proven absence, never on unknown.
-session_gone() {
-  local sid="$1" active
-  active="$(api get /api/session/active 2>/dev/null || true)"
-  [ -n "$active" ] || return 1
-  printf '%s' "$active" | jq -e --arg s "$sid" '.data | has($s) | not' >/dev/null 2>&1
-}
-
-# progress_snapshot <map>: canonical `number|state|assignees|labels|blocked`
-# lines for every native child except the daemon's own `[parked] wayfinder
-# chain:` markers (runtime state, not map work — snapshotting them would let a
-# park wake itself). Claims, closures, label changes, and unblocks all move
-# the fingerprint; comments do not. Fails on ANY tracker failure, including a
-# single unreadable open child: partial reads are worse than no reads, and
-# every caller fails open to normal spawning on failure.
-progress_snapshot() {
-  local map="$1" repo page list_file det_file num state line
-  repo="$(tracker_repo)"
-  [ -n "$GH_BIN" ] || return 1
-  list_file="$(mktemp)"; det_file="$(mktemp)"
-  page=1
-  while [ "$page" -le 5 ]; do
-    if ! "$GH_BIN" api "repos/$repo/issues/$map/sub_issues?per_page=100&page=$page" >"$list_file" 2>/dev/null; then
-      rm -f "$list_file" "$det_file" "$list_file.nums"
-      return 1
-    fi
-    [ "$(jq 'length' "$list_file" 2>/dev/null || echo 0)" -gt 0 ] || break
-    jq -r '.[] | select(((.title // "") | startswith("[parked] wayfinder chain:")) | not) | .number // empty' "$list_file" 2>/dev/null >"$list_file.nums" || true
-    while IFS= read -r num; do
-      [ -n "$num" ] || continue
-      state="$(jq -r --argjson n "$num" '.[] | select(.number == $n) | .state // ""' "$list_file" 2>/dev/null || true)"
-      if [ "$state" = "open" ]; then
-        if "$GH_BIN" api "repos/$repo/issues/$num" >"$det_file" 2>/dev/null; then
-          line="$(jq -r --argjson n "$num" '"\($n)|\(.state // "open")|\([.assignees[]?.login] | join(","))|\([.labels[]?.name] | sort | join(","))|\(.issue_dependencies_summary.blocked_by // 0)"' "$det_file" 2>/dev/null || true)"
-          if [ -n "$line" ]; then
-            printf '%s\n' "$line"
-          else
-            rm -f "$list_file" "$det_file" "$list_file.nums"
-            return 1
-          fi
-        else
-          rm -f "$list_file" "$det_file" "$list_file.nums"
-          return 1
-        fi
-      else
-        printf '%s|%s|||\n' "$num" "$state"
-      fi
-    done < "$list_file.nums"
-    [ "$(jq 'length' "$list_file" 2>/dev/null || echo 0)" -lt 100 ] && break
-    page=$((page + 1))
-  done
-  rm -f "$list_file" "$det_file" "$list_file.nums"
-  return 0
-}
-
-# progress_fp <map>: sha256 over the sorted snapshot; fails when untrackable.
-progress_fp() {
-  local map="$1" snap fp
-  snap="$(progress_snapshot "$map" | sort -n || true)"
-  [ -n "$snap" ] || return 1
-  fp="$(printf '%s' "$snap" | sha256sum | awk '{print $1}' || true)"
-  [ -n "$fp" ] && printf '%s' "$fp"
-}
-
-# progress_line_claimable <line>: 0 when a snapshot line is frontier-claimable
-# under the issue-tracker.md rule (open, unassigned, unblocked, no
-# human-deferral label). Shared by the claimable listing and the classifier so
-# the two can never disagree on what the frontier is.
-progress_line_claimable() {
-  local num state assignees labels blocked
-  IFS='|' read -r num state assignees labels blocked <<< "$1"
-  [ "$state" = "open" ] || return 1
-  [ -z "$assignees" ] || return 1
-  [[ "$blocked" =~ ^[0-9]+$ ]] || blocked=1
-  [ "$blocked" -eq 0 ] || return 1
-  case ",$labels," in *,ready-for-human,*|*,needs-info,*) return 1 ;; esac
-  return 0
-}
-
-# progress_claimable <map>: open, unassigned, unblocked children without a
-# human-deferral label — the same frontier rule issue-tracker.md states.
-# Prints numbers, one per line; fails when the tracker is unreadable.
-progress_claimable() {
-  local map="$1" snap line
-  snap="$(progress_snapshot "$map" || true)"
-  [ -n "$snap" ] || return 1
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    progress_line_claimable "$line" || continue
-    printf '%s\n' "${line%%|*}"
-  done <<< "$snap"
-  return 0
-}
-
-# progress_classify <map>: `starved #g1 #g2...` when the frontier is empty and
-# at least one open child is gated by an OPEN blocker outside the map's own
-# subtree; `active` when frontier exists (caller must not park); `poison`
-# when the frontier is verifiably empty with no external gate. FAILS (nonzero,
-# no verdict) on anything unverifiable — no gh, unreadable children, or zero
-# successful dependency reads: a park needs positive evidence, never a blip.
-# Reads, never writes.
-progress_classify() {
-  local map="$1" repo children child state blocked gate gates=" " open_ext deps_ok=0 line deps_file
-  repo="$(tracker_repo)"
-  [ -n "$GH_BIN" ] || return 1
-  children="$(progress_snapshot "$map" || true)"
-  [ -n "$children" ] || return 1
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    progress_line_claimable "$line" && { printf 'active\n'; return 0; }
-  done <<< "$children"
-  deps_file="$(mktemp)"
-  while IFS='|' read -r child state _ _ blocked; do
-    [ "$state" = "open" ] || continue
-    [[ "$blocked" =~ ^[0-9]+$ ]] || blocked=0
-    [ "$blocked" -gt 0 ] || continue
-    if "$GH_BIN" api "repos/$repo/issues/$child/dependencies/blocked_by" >"$deps_file" 2>/dev/null; then
-      deps_ok=1
-      open_ext="$(jq -r '.[]? | select(.state == "open") | .number // empty' "$deps_file" 2>/dev/null || true)"
-    else
-      continue
-    fi
-    for gate in $open_ext; do
-      grep -q "^${gate}|" <<< "$children" && continue
-      case "$gates" in *" #$gate "*) ;; *) gates="$gates#$gate " ;; esac
-    done
-  done <<< "$children"
-  rm -f "$deps_file"
-  gates="$(printf '%s' "$gates" | tr -s ' ' | sed 's/^ //;s/ $//')"
-  if [ -n "$gates" ]; then
-    printf 'starved %s\n' "$gates"
-    return 0
-  fi
-  [ "$deps_ok" -eq 1 ] || return 1
-  printf 'poison\n'
-  return 0
-}
-
-# progress_verify_signal <map> <signal...>: validate a session-declared
-# `Park-Signal: starved-on #a #b` line against live tracker state. Accepts
-# only when the daemon's own classifier returns exactly the named gate set —
-# proving an empty frontier AND that those gates actually block map children.
-# Prints the normalized `starved #..` verdict; fails otherwise (caller falls
-# back to the strike path, never parks on words alone). There is deliberately
-# no poison signal: poison stays parked for a human, and no session fast-path
-# may claim it.
-progress_verify_signal() {
-  local map="$1"; shift
-  local have have_gates want g
-  [ "${1:-}" = "starved-on" ] || return 1
-  shift
-  [ $# -gt 0 ] || return 1
-  for g in "$@"; do
-    [[ "${g#"#"}" =~ ^[0-9]+$ ]] || return 1
-  done
-  want="$(for g in "$@"; do printf '%s\n' "${g#"#"}"; done | sort -n | tr '\n' ' ')"
-  have="$(progress_classify "$map" || true)"
-  case "$have" in starved*) ;; *) return 1 ;; esac
-  have_gates="$(printf '%s' "${have#starved }" | tr ' ' '\n' | sed 's/^#//' | sort -n | tr '\n' ' ')"
-  [ "$have_gates" = "$want" ] || return 1
-  printf '%s\n' "$have"
-  return 0
-}
-
-# progress_gate_fingerprint <refs...>: sha over `number|state|labels` lines
-# for named external gates (refs with or without `#`). A gate close AND a
-# gate label change both move it. Fails when any gate is unreadable — an
-# unreadable gate never wakes a chain.
-progress_gate_fingerprint() {
-  local g repo det lines="" line fp
-  [ $# -gt 0 ] || return 1
-  repo="$(tracker_repo)"
-  [ -n "$GH_BIN" ] || return 1
-  det="$(mktemp)"
-  for g in "$@"; do
-    g="${g#"#"}"
-    [[ "$g" =~ ^[0-9]+$ ]] || { rm -f "$det"; return 1; }
-    "$GH_BIN" api "repos/$repo/issues/$g" >"$det" 2>/dev/null || { rm -f "$det"; return 1; }
-    line="$(jq -r --argjson n "$g" '"\($n)|\(.state // "unknown")|\([.labels[]?.name] | sort | join(","))"' "$det" 2>/dev/null || true)"
-    [ -n "$line" ] || { rm -f "$det"; return 1; }
-    lines="$lines$line
-"
-  done
-  rm -f "$det"
-  fp="$(printf '%s' "$lines" | sha256sum | awk '{print $1}' || true)"
-  [ -n "$fp" ] && printf '%s' "$fp"
-}
-
-# progress_park_issue <park|resume> <doc> <class> <detail>: find-or-create one
-# marker issue per parked packet (precedent: #577 repair issues), comment and
-# close it on resume. Operator-facing state, never agent work: labelled
-# wayfinder:task WITHOUT ready-for-agent, and deliberately NOT attached as a
-# native map child — attachment would expose it to frontier queries and its
-# creation would move the map fingerprint (a park waking itself). Traceability
-# is the marker string plus the daemon's progress_park_issue state field.
-# Fail-open everywhere — a park must never depend on a tracker write.
-progress_park_issue() {
-  local mode="$1" doc="$2" class="$3" detail="$4"
-  local repo issue_file found number state title body url
-  if [ -n "$DRY_RUN" ]; then
-    log "DRY-RUN: park marker $mode for $doc ($class $detail) — no tracker write"
-    return 0
-  fi
-  [ -n "$GH_BIN" ] || { log "park marker $mode for $doc — gh unavailable"; return 1; }
-  "$GH_BIN" auth status >/dev/null 2>&1 || { log "park marker $mode for $doc — gh auth unavailable"; return 1; }
-  repo="$(tracker_repo)"
-  issue_file="$(mktemp)"
-  "$GH_BIN" api "repos/$repo/issues?state=all&per_page=100" >"$issue_file" 2>/dev/null || {
-    rm -f "$issue_file"; log "could not search park markers for $doc"; return 1
-  }
-  found="$(jq -r --arg marker "$PARK_MARKER" --arg doc "$doc" '
-    [.[] | select(.pull_request == null)
-     | select(((.body // "") | contains($marker)))
-     | select(((.body // "") | contains($doc)))]
-    | first | if . == null then "" else ((.number | tostring) + "\t" + (.state // "")) end
-  ' "$issue_file" 2>/dev/null || true)"
-  rm -f "$issue_file"
-  number="${found%%$'\t'*}"
-  state="${found#*$'\t'}"
-  if [ "$mode" = park ]; then
-    if [ -z "$number" ]; then
-      title="[parked] wayfinder chain: $doc"
-      body="<!-- $PARK_MARKER -->
-Packet: \`$doc\`
-Map: #${progress_map:-unknown}
-Class: $class
-Detail: $detail
-
-The daemon parked this chain: consecutive sessions advanced the map nothing
-($class). Starved chains resume automatically when the tracker moves; poison
-chains need an operator. This issue is tracker state, not agent work: do not
-claim it, and it is intentionally not attached as a map child."
-      url="$("$GH_BIN" issue create --repo "$repo" --title "$title" --body "$body" \
-        --label wayfinder:task 2>/dev/null || true)"
-      number="$(printf '%s\n' "$url" | sed -n 's#.*issues/\([0-9][0-9]*\).*#\1#p' | tail -1)"
-      [ -n "$number" ] || { log "could not create park marker for $doc"; return 1; }
-      progress_park_issue="$number"
-      save_state
-      log "park marker #$number created for $doc ($class)"
-    elif [ "$state" = closed ]; then
-      "$GH_BIN" issue reopen "$number" --repo "$repo" >/dev/null 2>&1 || true
-      "$GH_BIN" issue comment "$number" --repo "$repo" --body "Chain re-parked on \`$doc\` ($class $detail)." >/dev/null 2>&1 || true
-      progress_park_issue="$number"
-      save_state
-    else
-      "$GH_BIN" issue comment "$number" --repo "$repo" --body "Chain still parked on \`$doc\` ($class $detail)." >/dev/null 2>&1 || true
-      progress_park_issue="$number"
-      save_state
-    fi
-    return 0
-  fi
-  [ -n "$number" ] || return 0
-  [ "$state" != "closed" ] || return 0
-  "$GH_BIN" issue comment "$number" --repo "$repo" --body "Chain resumed on \`$doc\` ($detail)." >/dev/null 2>&1 || true
-  "$GH_BIN" issue close "$number" --repo "$repo" >/dev/null 2>&1 || true
-  return 0
-}
-
-# progress_park <doc> <class> [gates...]: record the park, escalate via the
-# marker issue, then sleep until a class-appropriate wake. Starved chains
-# wake on tracker movement; poison chains sleep through it (operator-only
-# wake). Returns with last_doc set to the packet to resume and the park
-# cleared.
-progress_park() {
-  local doc="$1" class="$2"; shift 2
-  progress_parked="$doc"; progress_gate="$*"; progress_park_class="$class"
-  progress_gate_fp="$(progress_gate_fingerprint "$@" || true)"
-  save_state
-  # shellcheck disable=SC2086
-  progress_park_issue park "$doc" "$class" "$*" || true
-  if [ "$class" = starved ]; then
-    log "chain parked (starved): $doc advanced nothing for ${progress_strikes} sessions; gated on$([ -n "$*" ] && printf ' %s' "$*" || printf ' an unverified gate') — sleeping until the tracker moves"
-    notify "wayfinder parked" "$doc is starved$([ -n "$*" ] && printf ' on %s' "$*" || true) — chain sleeps until it clears"
-  else
-    log "chain parked (poison): $doc advanced nothing for ${progress_strikes} sessions with no external gate — operator inspect, then restart or --retry"
-    notify "wayfinder chain parked" "$doc shows no advancement and no external gate — attach TUI to inspect"
-  fi
-  progress_park_watch
-}
-
-# progress_park_watch: sleep until a class-appropriate wake. Any chain wakes on
-# a manually written new packet. Starved chains additionally wake on tracker
-# movement: a named-gate change (close or label change) or any map fingerprint
-# movement (unblocks, new children). Poison chains sleep through tracker
-# movement — only a human (restart/--retry) or a new packet wakes them.
-# Local-CI watch duties continue while parked.
-progress_park_watch() {
-  local doc fp_now parked_fp nd gate_now
-  doc="$progress_parked"
-  parked_fp="${progress_fp:-}"
-  while :; do
-    sleep "$POLL_SECS"
-    ensure_local_ci_run
-    nd="$(newest_unprocessed || true)"
-    if [ -n "$nd" ] && [ "$nd" != "$doc" ]; then
-      sleep 10
-      last_doc="$nd"
-      mark_seen "$nd"
-      progress_note_baseline "$last_doc"
-      progress_unpark "new packet $nd"
-      return 0
-    fi
-    [ "${progress_park_class:-}" = poison ] && continue
-    if [ -n "${progress_gate:-}" ]; then
-      # shellcheck disable=SC2086
-      gate_now="$(progress_gate_fingerprint $progress_gate || true)"
-      if [ -z "$gate_now" ]; then
-        : # unreadable gate never wakes — keep sleeping
-      elif [ -z "${progress_gate_fp:-}" ]; then
-        progress_gate_fp="$gate_now"
-        save_state
-      elif [ "$gate_now" != "$progress_gate_fp" ]; then
-        last_doc="$doc"
-        progress_fp="$(progress_fp "${progress_map:-$MAP_ISSUE}" || true)"
-        progress_gate_fp="$gate_now"
-        progress_unpark "gate changed (${progress_gate:-unknown})"
-        return 0
-      fi
-    fi
-    fp_now="$(progress_fp "${progress_map:-$MAP_ISSUE}" || true)"
-    [ -n "$fp_now" ] || continue
-    if [ -n "$parked_fp" ] && [ "$fp_now" != "$parked_fp" ]; then
-      last_doc="$doc"
-      progress_fp="$fp_now"
-      progress_unpark "tracker moved on map #${progress_map:-$MAP_ISSUE}"
-      return 0
-    fi
-    parked_fp="$fp_now"
-  done
-}
-
-# progress_unpark <reason>: clear park state, close the marker, log the wake.
-progress_unpark() {
-  local reason="$1"
-  progress_park_issue resume "$progress_parked" "" "$reason" || true
-  log "chain resumed on $last_doc — $reason"
-  notify "wayfinder resumed" "$last_doc — $reason"
-  progress_parked=""; progress_gate=""; progress_strikes=0; progress_park_class=""; progress_gate_fp=""
-  save_state
-}
-
-# progress_note_baseline <doc>: (re)base advancement tracking after a spawn or
-# a map switch. External movement between sessions clears stale strikes; an
-# unreadable tracker pauses accounting without touching the counters.
-progress_note_baseline() {
-  local doc="$1" map fp_now
-  map="$(progress_map_for_doc "$doc")"
-  if [ "$map" != "${progress_map:-}" ]; then
-    progress_map="$map"; progress_strikes=0
-    log "progress tracking (re)based on map #$map for $doc"
-  fi
-  fp_now="$(progress_fp "$map" || true)"
-  if [ -z "$fp_now" ]; then
-    log "progress snapshot unavailable for map #$map — spawning without advancement accounting"
-    save_state
-    return 0
-  fi
-  if [ -z "${progress_fp:-}" ] || [ "$fp_now" != "$progress_fp" ]; then
-    [ -n "${progress_fp:-}" ] && log "map #$map moved outside the chain — progress strikes cleared"
-    progress_fp="$fp_now"; progress_strikes=0
-  fi
-  save_state
-}
-
-# progress_note_completion <doc>: advancement gate between session exit and
-# the next spawn. Returns 1 only in DRY_RUN (caller exits); otherwise always
-# returns 0 — parking happens inside via progress_park_watch.
-progress_note_completion() {
-  local doc="$1" map fp_now signal verdict
-  map="$(progress_map_for_doc "$doc")"
-  if [ -n "$DRY_RUN" ]; then
-    log "DRY-RUN: progress note for $doc (map #$map, strikes ${progress_strikes:-0}) — no advancement accounting"
-    return 1
-  fi
-  if [ "$map" != "${progress_map:-}" ]; then
-    progress_note_baseline "$doc"
-    map="$progress_map"
-  fi
-  fp_now="$(progress_fp "$map" || true)"
-  if [ -z "$fp_now" ]; then
-    log "progress snapshot unavailable for map #$map — spawning without advancement accounting"
-    return 0
-  fi
-  if [ -z "${progress_fp:-}" ]; then
-    progress_fp="$fp_now"; progress_strikes=0; save_state
-    return 0
-  fi
-  signal="$(sed -n 's/^[Pp]ark-[Ss]ignal:[[:space:]]*\(.*\)/\1/p' "$HANDOFF_DIR/$doc" 2>/dev/null | head -1 || true)"
-  if [ -n "$signal" ]; then
-    # shellcheck disable=SC2086
-    if verdict="$(progress_verify_signal "$map" $signal)" && [ -n "$verdict" ]; then
-      # shellcheck disable=SC2086
-      progress_fp="$fp_now"; save_state
-      log "session declared park ($signal) — verified against the tracker"
-      # shellcheck disable=SC2086
-      progress_park "$doc" $verdict
-      return 0
-    fi
-    log "session-declared park ($signal) did not verify — falling back to strikes"
-  fi
-  if [ "$fp_now" != "$progress_fp" ]; then
-    progress_fp="$fp_now"; progress_strikes=0; save_state
-    log "map #$map advanced this session — progress strikes cleared"
-    return 0
-  fi
-  progress_strikes=$(( ${progress_strikes:-0} + 1 ))
-  save_state
-  if [ "$progress_strikes" -lt "$PROGRESS_STRIKES" ]; then
-    log "map #$map unchanged for $progress_strikes/$PROGRESS_STRIKES sessions — spawning"
-    return 0
-  fi
-  verdict="$(progress_classify "$map" || true)"
-  case "$verdict" in
-    "") log "map #$map unreadable at strike $progress_strikes — spawning without accounting (fail open)"; return 0 ;;
-    active*)
-      progress_strikes=0; save_state
-      log "map #$map has frontier despite unchanged fingerprint — spawning (sessions may be idle, not starved)"
-      return 0
-      ;;
-    starved*)
-      # shellcheck disable=SC2086
-      progress_park "$doc" $verdict
-      return 0
-      ;;
-    *)
-      progress_park "$doc" poison
-      return 0
-      ;;
-  esac
-}
-
 wait_for_session_exit() {
-  local notified=0 gone_ticks=0
-  while :; do
-    # Proven-absence grace: one failed /active poll (or a session paused on
-    # user input) must not read as death. Exit only after EXIT_GONE_TICKS
-    # consecutive ticks of proven /active absence (successful fetch, id
-    # unlisted). A parent awaiting sub-agents counts as alive throughout.
-    if session_gone "$session_id" && ! active_children "$session_id"; then
-      gone_ticks=$((gone_ticks + 1))
-      [ "$gone_ticks" -ge "$EXIT_GONE_TICKS" ] && break
-    else
-      gone_ticks=0
-      if [ "$notified" -eq 0 ]; then
-        log "handoff $pending_doc detected; waiting for session $session_id to exit before spawning"
-        notify "wayfinder waiting" "handoff $pending_doc is ready; waiting for session $session_id to finish"
-        notified=1
-      fi
+  local notified=0
+  while session_alive "$session_id" || active_children "$session_id"; do
+    if [ "$notified" -eq 0 ]; then
+      log "handoff $pending_doc detected; waiting for session $session_id to exit before spawning"
+      notify "wayfinder waiting" "handoff $pending_doc is ready; waiting for session $session_id to finish"
+      notified=1
     fi
     sleep "$TICK_SECS"
   done
@@ -1334,10 +846,6 @@ spawn_session() {
   # spawn count as activity — a later revision of the same filename chains as
   # the successor link on session exit, while the untouched packet never re-fires.
   mark_seen "$doc"
-  # Advancement baseline (#578): snapshot the map now so the completion gate
-  # can tell work from exhaust. External movement between sessions clears
-  # stale strikes here; an unreadable tracker pauses accounting, never parks.
-  progress_note_baseline "$doc"
   save_state
   log "spawned $sid reading $doc"
   notify "wayfinder session started" "session $sid — reading $doc"
@@ -1389,9 +897,6 @@ supervise_session() {
       last_doc="$pending_doc"
       pending_doc=""
       save_state
-      # Advancement gate (#578): park starved/poison chains instead of
-      # respawning them. Returns after a park-watch wake with last_doc set.
-      progress_note_completion "$last_doc" || { log "dry-run: chain would continue"; exit 0; }
       spawn_session "$last_doc" || { log "dry-run: chain would continue"; exit 0; }
       # keep supervising the freshly spawned session (the old `return 0` left it
       # to wait_for_doc, which only picks sessions up after their handoff lands —
@@ -1443,28 +948,18 @@ supervise_session() {
     # while the service itself is down = transient outage (count, notify at 3,
     # retry — don't kill a healthy session on a blip).
     sess="$(api get "/api/session/$session_id" 2>/dev/null || true)"
-    if [ -z "$sess" ] && ! api get "/api/session/active" >/dev/null 2>&1; then
-      outages=$((outages+1))
-      if [ "$outages" -eq 3 ]; then
-        notify "opencode2 API unstable" "daemon will keep retrying — check 'opencode2 service status'"
-        outages=0
-      fi
-      sleep 30
-      continue
-    fi
-    # Proof-of-death gate (#578): the direct GET answers for historical
-    # sessions too, so only proven /active absence (with a blip filter) may
-    # fresh-respawn. Anything else — listed, child-running, or unreadable —
-    # is alive-or-unknown and keeps supervision.
-    if session_gone "$session_id" && ! active_children "$session_id"; then
-      not_alive_ticks=$(( ${not_alive_ticks:-0} + 1 ))
-      if [ "$not_alive_ticks" -ge 2 ]; then
-        not_alive_ticks=0
+    if [ -z "$sess" ]; then
+      if api get "/api/session/active" >/dev/null 2>&1; then
         session_dead fresh
-        continue
+      else
+        outages=$((outages+1))
+        if [ "$outages" -eq 3 ]; then
+          notify "opencode2 API unstable" "daemon will keep retrying — check 'opencode2 service status'"
+          outages=0
+        fi
+        sleep 30
       fi
-    else
-      not_alive_ticks=0
+      continue
     fi
     outages=0
 
@@ -1541,14 +1036,12 @@ supervise_session() {
       continue
     fi
 
-    # liveness: session provably gone with no new doc = died without a
-    # handoff — resume it in place. Dual-signal (#578): a missing /active
-    # entry alone is not death while the direct GET still answers (API blips
-    # and user-input pauses both look like silence). Grace period: a
-    # just-spawned session may take a few ticks to appear in /active; and a
-    # parent awaiting parallel sub-agents (the phased-review-loop shape) also
-    # leaves the set — never resume while its children run.
-    if session_gone "$session_id"; then
+    # liveness: session left the active set with no new doc = died without a
+    # handoff — resume it in place. Grace period: a just-spawned session may
+    # take a few ticks to appear in /active; and a parent awaiting parallel
+    # sub-agents (the phased-review-loop shape) also leaves the set — never
+    # resume while its children run.
+    if ! session_alive "$session_id"; then
       not_alive_ticks=$((not_alive_ticks + 1))
       if [ "$not_alive_ticks" -ge 12 ] && ! active_children "$session_id"; then
         not_alive_ticks=0
@@ -1693,8 +1186,6 @@ if [ "${1:-}" = "--bootstrap" ]; then
   last_doc="$doc"
   mark_seen "$doc"
   retries=0
-  progress_map=""; progress_fp=""; progress_strikes=0; progress_parked=""; progress_gate=""; progress_park_issue=""
-  progress_park_class=""; progress_gate_fp=""
   save_state
   log "bootstrap with $doc — spawning first session"
   if ! spawn_session "$doc"; then
@@ -1726,27 +1217,12 @@ elif [ "${1:-}" = "--retry" ]; then
   fi
   session_id=""
   retries=0
-  if [ -n "${progress_parked:-}" ] || [ -n "${progress_park_issue:-}" ]; then
-    progress_park_issue resume "${progress_parked:-$last_doc}" "" "manual --retry" || true
-  fi
-  progress_parked=""; progress_strikes=0; progress_park_class=""; progress_gate=""; progress_gate_fp=""
   save_state
   log "manual retry for $last_doc (prior session confirmed gone)"
   spawn_session "$last_doc" || exit 0
   supervise_session
 else
   [ -n "$last_doc" ] || die "no state — first run needs: --bootstrap <doc>"
-  # Parked chains resume their watch, not a spawn (#578): the tracker, not a
-  # timer, decides when work exists again. progress_park_watch returns with
-  # last_doc set to the packet to resume.
-  if [ -n "${progress_parked:-}" ] && [ -f "$HANDOFF_DIR/$progress_parked" ]; then
-    last_doc="$progress_parked"
-    save_state
-    log "daemon restart resumes parked watch for $last_doc"
-    progress_park_watch
-    spawn_session "$last_doc" || exit 0
-    supervise_session
-  fi
   if [ -n "$session_id" ]; then
     log "resuming supervision of $session_id"
     supervise_session
