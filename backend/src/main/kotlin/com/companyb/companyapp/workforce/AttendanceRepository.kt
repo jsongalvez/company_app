@@ -138,11 +138,6 @@ internal object AttendanceRepository {
                 ?.let { it[BranchDayAssignmentTable.isRelief] }
         }
 
-    fun findById(attendanceId: UUID): Attendance? =
-        transaction {
-            findByIdInTransaction(attendanceId)
-        }
-
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
     fun findByIdInTransaction(attendanceId: UUID): Attendance? =
         AttendanceTable

@@ -27,11 +27,6 @@ internal object ConcernRepository {
                 .map { it.toConcern() }
         }
 
-    fun findById(id: UUID): Concern? =
-        transaction {
-            findByIdInTransaction(id)
-        }
-
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
     fun findByIdInTransaction(id: UUID): Concern? =
         ConcernTable

@@ -154,7 +154,7 @@ intentionally shallow.
 
 **Owns:** client CRUD, trigram+ILIKE search, anonymize (soft-delete under row lock with a PENDING-session guard). Shallow module — direct service/repository/test path.
 **Anchors:** `client/ClientService.kt` (+ internal `ClientRepository` in same package) · `client/Client.kt` (record + internal table) · `client/ClientRoutes.kt`.
-**Public seam:** `create` / `search` / `findById` / `update` / `anonymize` · `ClientReads.acquireLockInTransaction` / `findById` / `findByIdInTransaction` (session lock/read seam).
+**Public seam:** `create` / `search` / `findById` / `update` / `anonymize` · `ClientReads.acquireLockInTransaction` / `findById` (session lock/read seam).
 **Depends on:** Sessions (pending-session guard via `acquireClientLock` + `hasActivePendingSessionInTransaction`).
 **Expansion triggers:** anonymization column nulling set; search ranking (`similarity()` threshold).
 **Search:** `anonymizeInTransaction`, `similarity(`.

@@ -137,20 +137,6 @@ internal object SessionPractitionerRepository {
             logger.info { "[FIND-PRACTITIONERS-BY-SESSION] Found ${it.size} practitioners for session $sessionId" }
         }
 
-    fun findBySessionAndPractitioner(
-        sessionId: UUID,
-        practitionerId: UUID,
-    ): SessionPractitioner? =
-        transaction {
-            SessionPractitionerTable
-                .selectAll()
-                .where {
-                    (SessionPractitionerTable.sessionId eq sessionId) and
-                        (SessionPractitionerTable.practitionerId eq practitionerId)
-                }.singleOrNull()
-                ?.toSessionPractitioner()
-        }
-
     private fun org.jetbrains.exposed.v1.core.ResultRow.toSessionPractitioner(): SessionPractitioner =
         SessionPractitioner(
             id = this[SessionPractitionerTable.id],

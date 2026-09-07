@@ -24,11 +24,6 @@ data class DelegateRevokeResult(
 )
 
 internal object MedicalMissionDelegateRepository {
-    fun findById(id: UUID): MedicalMissionDelegate? =
-        transaction {
-            findByIdInTransaction(id)
-        }
-
     fun findByIdInTransaction(id: UUID): MedicalMissionDelegate? =
         MedicalMissionDelegateTable
             .selectAll()

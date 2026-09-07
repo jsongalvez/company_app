@@ -38,13 +38,6 @@ internal object AttendanceTable : Table("attendance") {
         )
 }
 
-data class BranchDayAssignment(
-    val id: UUID,
-    val branchDayId: UUID,
-    val userId: UUID,
-    val isRelief: Boolean,
-)
-
 internal object BranchDayAssignmentTable : Table("branch_day_assignment") {
     val id = javaUUID("id").autoGenerate()
     val branchDayId = javaUUID("branch_day_id").references(BranchDayTable.id)

@@ -3,7 +3,6 @@ package com.companyb.companyapp.workforce
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.logging.maskUUID
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -153,11 +152,6 @@ internal object UserBranchAssignmentRepository {
         transaction {
             findActiveByBranchAndUserInTransaction(branchId, userId, forUpdate = false)
         }
-
-    fun findById(id: UUID): UserBranchAssignment? =
-        transaction {
-            findByIdInTransaction(id)
-        }.also { logger.info { "[FIND-ASSIGNMENT-BY-ID] id=${id.toString().maskUUID()} found=${it != null}" } }
 
     private fun findByIdInTransaction(id: UUID): UserBranchAssignment? =
         UserBranchAssignmentTable

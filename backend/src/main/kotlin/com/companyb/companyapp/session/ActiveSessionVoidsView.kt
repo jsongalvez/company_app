@@ -4,6 +4,5 @@ import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 
 internal object ActiveSessionVoidsView : Table("active_session_voids") {
-    val id = javaUUID("id")
     val sessionId = javaUUID("session_id")
 }

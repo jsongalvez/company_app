@@ -14,7 +14,4 @@ object ClientReads {
 
     /** Existence + anonymization-state read for session preview. */
     fun findById(clientId: UUID): Client? = ClientRepository.findById(clientId)
-
-    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
-    fun findByIdInTransaction(clientId: UUID): Client? = ClientRepository.findByIdInTransaction(clientId)
 }

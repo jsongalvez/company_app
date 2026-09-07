@@ -138,29 +138,7 @@ object BranchDayService {
             ?: throw NotFoundException("Branch day not found")
 
     /**
-     * Today-scoped edit gate (#452: one gate for session create/preview, the branch-day
-     * status read, and the member directory). Find-only today resolution ([findToday] —
-     * never creates, so a 403'd attempt leaves no day row behind) plus the #157
-     * BRANCH-or-BRANCH_DAY OR: with a day row, a grant at the branch or a relief grant
-     * for today passes; with no day row, the plain BRANCH leg alone governs (no day
-     * grant can exist without its day row). GLOBAL grants never satisfy this gate
-     * (the #131 strictness — the OR adds only the narrower day-scoped form).
-     */
-    fun hasBranchOrDayForToday(
-        userId: UUID,
-        branchId: UUID,
-        capabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
-    ): Boolean {
-        val todayBranchDayId = findToday(branchId)?.id
-        return if (todayBranchDayId != null) {
-            CapabilityService.hasCapabilityForBranchDay(userId, capabilityCode, branchId, todayBranchDayId)
-        } else {
-            CapabilityService.hasCapability(userId, capabilityCode, CapabilityContextType.BRANCH, branchId)
-        }
-    }
-
-    /**
-     * Throwing twin of [hasBranchOrDayForToday]. Returns today's branch-day id (null when
+     * Throwing twin of the today-scoped branch-or-day gate. Returns today's branch-day id (null when
      * no day row exists yet) so gates whose write must share the resolution — the session
      * create's midnight-boundary handoff — can reuse it instead of re-resolving.
      *

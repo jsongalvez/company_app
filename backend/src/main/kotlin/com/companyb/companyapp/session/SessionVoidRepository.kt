@@ -18,11 +18,6 @@ data class VoidResult(
 )
 
 internal object SessionVoidRepository {
-    fun findById(id: UUID): SessionVoid? =
-        transaction {
-            findByIdInTransaction(id)
-        }
-
     fun findBySessionId(sessionId: UUID): SessionVoid? =
         transaction {
             findBySessionIdInTransaction(sessionId)

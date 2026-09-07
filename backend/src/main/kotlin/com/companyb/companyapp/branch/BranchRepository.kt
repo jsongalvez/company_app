@@ -1,6 +1,5 @@
 package com.companyb.companyapp.branch
 
-import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.logging.maskUUID
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -59,15 +58,6 @@ internal object BranchRepository {
                 .orderBy(BranchTable.name to SortOrder.ASC, BranchTable.id to SortOrder.ASC)
                 .map { it.toBranch() }
         }.also { logger.info { "[FIND-BRANCHES] Fetched ${it.size} branch(es)" } }
-
-    fun findByType(branchType: BranchType): List<Branch> =
-        transaction {
-            BranchTable
-                .selectAll()
-                .where { BranchTable.branchType eq branchType }
-                .orderBy(BranchTable.name to SortOrder.ASC, BranchTable.id to SortOrder.ASC)
-                .map { it.toBranch() }
-        }.also { logger.info { "[FIND-BRANCHES-BY-TYPE] Fetched ${it.size} branch(es) of type $branchType" } }
 
     private fun findByIdInTransaction(id: UUID): Branch? =
         BranchTable
