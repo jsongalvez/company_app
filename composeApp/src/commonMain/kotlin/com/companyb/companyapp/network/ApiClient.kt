@@ -131,7 +131,9 @@ class ApiClient(
                             if (!isProtectedApiRequest(request.url.build(), Url(baseUrl))) return@onRequest
                             val token = tokenStore.getToken() ?: return@onRequest
                             request.headers.append(HttpHeaders.Authorization, "Bearer $token")
-                        } catch (e: Exception) {
+                        } catch (e: IllegalArgumentException) {
+                            // #581 — URL-shape failures only; token-store I/O is hardened at the
+                            // source (DesktopTokenStore.getToken), so attach stays best-effort here.
                             logInfo("ApiClient", "bearer attach skipped: ${e.message}")
                         }
                     }

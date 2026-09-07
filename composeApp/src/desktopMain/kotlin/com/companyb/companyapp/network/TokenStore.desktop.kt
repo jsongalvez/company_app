@@ -34,9 +34,16 @@ class DesktopTokenStore(
     }
 
     override fun getToken(): String? {
-        val found = tokenFile.exists() && tokenFile.readText().trim().isNotEmpty()
-        logInfo("TokenStore", "getToken: found=$found")
-        return if (tokenFile.exists()) tokenFile.readText().trim().ifEmpty { null } else null
+        // #581 — an unreadable token file means unsigned; never fail a request over token storage.
+        val token =
+            try {
+                if (tokenFile.exists()) tokenFile.readText().trim().ifEmpty { null } else null
+            } catch (e: IOException) {
+                logError("TokenStore", "Could not read token file; treating as signed-out", e)
+                null
+            }
+        logInfo("TokenStore", "getToken: found=${token != null}")
+        return token
     }
 
     override fun clearToken() {

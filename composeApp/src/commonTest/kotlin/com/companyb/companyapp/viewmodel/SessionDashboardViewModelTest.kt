@@ -366,9 +366,10 @@ class SessionDashboardViewModelTest {
                 )
             try {
                 runCurrent()
-                // The Ktor Auth plugin re-sends a 401'd request once (empirically proven) —
-                // the handler sees 2 hits per poll; the VM must swallow both.
-                assertEquals(2, hits)
+                // #504 ended the Ktor Auth plugin's silent 401 re-send (explicit bearer, no
+                // silent retry) — the handler now sees 1 hit per poll; the VM must swallow it.
+                // #581 refreshes this stale 2-hit premise.
+                assertEquals(1, hits)
                 assertFalse(vm.dashboardState.value is UiState.Error, "401 must be swallowed (global auth path)")
                 assertEquals(DashboardPollStatus.FRESH, vm.pollStatus.value)
                 assertNull(vm.lastData.value)
@@ -376,7 +377,7 @@ class SessionDashboardViewModelTest {
                 // pass-2: 401 pauses polling (the session is dead — symmetric with 403).
                 advanceTimeBy(30_000.milliseconds)
                 runCurrent()
-                assertEquals(2, hits, "401 must stop the poll loop")
+                assertEquals(1, hits, "401 must stop the poll loop")
                 assertEquals(DashboardPollStatus.FRESH, vm.pollStatus.value, "401s must never reach the stale counters")
             } finally {
                 vm.pause()

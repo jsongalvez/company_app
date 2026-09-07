@@ -391,6 +391,10 @@ private fun NavGraphBuilder.auditGraph(
 // alphabet never collides with route delimiters (? & = # %) and survives the framework's
 // percent-decode leg as identity, so no dependency on internal NavUriUtils. Null follows the
 // StringType "null" convention on both legs (the arg has a default, so absent encodes as null).
+// Hex radix for the SessionDetail row codec below; a named constant keeps MagicNumber
+// honest about the one literal the hex pair codec actually depends on.
+private const val HEX_RADIX = 16
+
 internal val SessionDetailRowNavType =
     object : NavType<DashboardSessionResponse?>(isNullableAllowed = true) {
         private val json = Json { ignoreUnknownKeys = true }
@@ -426,10 +430,10 @@ internal val SessionDetailRowNavType =
             if (value == null) "null" else json.encodeToString(value).toNavHex()
 
         private fun String.toNavHex(): String =
-            encodeToByteArray().joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
+            encodeToByteArray().joinToString("") { it.toUByte().toString(HEX_RADIX).padStart(2, '0') }
 
         private fun String.fromNavHex(): String =
-            chunked(2).map { it.toInt(16).toByte() }.toByteArray().toString(Charsets.UTF_8)
+            chunked(2).map { it.toInt(HEX_RADIX).toByte() }.toByteArray().toString(Charsets.UTF_8)
     }
 
 private fun NavGraphBuilder.sessionGraph(
