@@ -23,8 +23,8 @@ import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.contracts.branch.BranchResponse
-import com.companyb.companyapp.dto.DailySalesSummaryResponse
-import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
+import com.companyb.companyapp.contracts.reporting.DailySalesSummaryResponse
+import com.companyb.companyapp.contracts.reporting.MonthlyRemittanceSummaryResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.saveDownload
 import kotlinx.datetime.LocalDate

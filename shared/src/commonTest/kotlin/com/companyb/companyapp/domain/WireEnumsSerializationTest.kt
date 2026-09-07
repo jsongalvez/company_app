@@ -1,8 +1,12 @@
 package com.companyb.companyapp.domain
 
+import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
 import com.companyb.companyapp.contracts.identity.UserStatus
+import com.companyb.companyapp.contracts.remittance.RemittanceLineType
+import com.companyb.companyapp.contracts.remittance.RemittanceType
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.workforce.ReliefAccessStatus
 import kotlinx.serialization.decodeFromString

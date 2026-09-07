@@ -12,12 +12,12 @@ import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
-import com.companyb.companyapp.domain.InventoryMovementReason
-import com.companyb.companyapp.dto.BranchInventoryResponse
-import com.companyb.companyapp.dto.CreateProductSaleRequest
-import com.companyb.companyapp.dto.InventoryMovementRequest
-import com.companyb.companyapp.dto.ProductResponse
-import com.companyb.companyapp.dto.RestockRequest
+import com.companyb.companyapp.contracts.commerce.BranchInventoryResponse
+import com.companyb.companyapp.contracts.commerce.CreateProductSaleRequest
+import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
+import com.companyb.companyapp.contracts.commerce.InventoryMovementRequest
+import com.companyb.companyapp.contracts.commerce.ProductResponse
+import com.companyb.companyapp.contracts.commerce.RestockRequest
 import com.companyb.companyapp.util.logInfo
 import java.util.UUID
 

@@ -2,7 +2,7 @@ package com.companyb.companyapp.finance
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.companyb.companyapp.dto.DailySalesSummaryResponse
+import com.companyb.companyapp.contracts.reporting.DailySalesSummaryResponse
 import kotlinx.datetime.LocalDate
 
 @Composable

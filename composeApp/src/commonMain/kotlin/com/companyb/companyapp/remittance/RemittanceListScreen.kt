@@ -35,8 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.CreateRemittanceDraftRequest
-import com.companyb.companyapp.dto.RemittanceResponse
+import com.companyb.companyapp.contracts.remittance.CreateRemittanceDraftRequest
+import com.companyb.companyapp.contracts.remittance.RemittanceResponse
 import com.companyb.companyapp.ui.EmptyState
 import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.Spacing
@@ -294,11 +294,11 @@ private fun CreateRemittanceDialog(
             CreateRemittanceDraftRequest(
                 id = Uuid.random().toString(),
                 type =
-                    com.companyb.companyapp.domain.RemittanceType
+                    com.companyb.companyapp.contracts.remittance.RemittanceType
                         .valueOf(type.raw),
                 branchId = branchId,
                 method =
-                    com.companyb.companyapp.domain.RemittanceMethod
+                    com.companyb.companyapp.contracts.remittance.RemittanceMethod
                         .valueOf(method.raw),
                 dateRangeStart = startDate,
                 dateRangeEnd = endDate,

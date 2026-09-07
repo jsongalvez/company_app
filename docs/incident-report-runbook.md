@@ -6,7 +6,7 @@ timestamp, and pool snapshot already attached.
 
 ## Packet shape
 
-`IncidentPacket` (`shared/.../dto/FeedbackDto.kt`), identical for user
+`IncidentPacket` (`shared/.../contracts/incident/IncidentContracts.kt`), identical for user
 reports (`USER_REPORT`) and 5xx auto-files (`AUTO_5XX`):
 
 ```

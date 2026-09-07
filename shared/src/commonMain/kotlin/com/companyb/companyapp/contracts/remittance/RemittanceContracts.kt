@@ -1,12 +1,20 @@
-package com.companyb.companyapp.dto
+package com.companyb.companyapp.contracts.remittance
 
 import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.contracts.session.SessionStatus
-import com.companyb.companyapp.domain.RemittanceLineType
-import com.companyb.companyapp.domain.RemittanceMethod
-import com.companyb.companyapp.domain.RemittanceStatus
-import com.companyb.companyapp.domain.RemittanceType
 import kotlinx.serialization.Serializable
+
+@Serializable
+enum class RemittanceType { SESSION, PRODUCT }
+
+@Serializable
+enum class RemittanceMethod { BANK_TRANSFER, HANDED_TO_ACCOUNTANT }
+
+@Serializable
+enum class RemittanceStatus { DRAFT, SUBMITTED }
+
+@Serializable
+enum class RemittanceLineType { SESSION, PRODUCT_SALE }
 
 @Serializable
 data class CreateRemittanceDraftRequest(

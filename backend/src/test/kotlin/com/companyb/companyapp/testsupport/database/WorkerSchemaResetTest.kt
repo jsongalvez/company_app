@@ -4,9 +4,9 @@ import com.companyb.companyapp.authorization.CapabilityTable
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.contracts.branch.BranchType
-import com.companyb.companyapp.domain.RemittanceMethod
-import com.companyb.companyapp.domain.RemittanceStatus
-import com.companyb.companyapp.domain.RemittanceType
+import com.companyb.companyapp.contracts.remittance.RemittanceMethod
+import com.companyb.companyapp.contracts.remittance.RemittanceStatus
+import com.companyb.companyapp.contracts.remittance.RemittanceType
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.remittance.RemittanceFinancialSnapshotTable

@@ -3,7 +3,7 @@ package com.companyb.companyapp.commerce.stock
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
-import com.companyb.companyapp.dto.BranchInventoryResponse
+import com.companyb.companyapp.contracts.commerce.BranchInventoryResponse
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

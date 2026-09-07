@@ -17,8 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.AuditLogEntryResponse
-import com.companyb.companyapp.dto.AuditLogTableResponse
+import com.companyb.companyapp.contracts.audit.AuditLogEntryResponse
+import com.companyb.companyapp.contracts.audit.AuditLogTableResponse
 import com.companyb.companyapp.ui.EmptyState
 import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.Spacing

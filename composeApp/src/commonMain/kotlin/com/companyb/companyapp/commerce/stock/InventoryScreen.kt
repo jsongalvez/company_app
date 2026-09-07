@@ -32,8 +32,8 @@ import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.client.ClientViewModel
 import com.companyb.companyapp.commerce.catalog.ProductViewModel
-import com.companyb.companyapp.dto.AddInventoryCardRequest
-import com.companyb.companyapp.dto.BranchInventoryResponse
+import com.companyb.companyapp.contracts.commerce.AddInventoryCardRequest
+import com.companyb.companyapp.contracts.commerce.BranchInventoryResponse
 import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing

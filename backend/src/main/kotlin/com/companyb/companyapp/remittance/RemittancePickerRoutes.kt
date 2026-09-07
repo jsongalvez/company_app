@@ -4,10 +4,10 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.remittance.RemittanceDayPickerEntryResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceProductSalePickerEntryResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceSessionPickerEntryResponse
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.dto.RemittanceDayPickerEntryResponse
-import com.companyb.companyapp.dto.RemittanceProductSalePickerEntryResponse
-import com.companyb.companyapp.dto.RemittanceSessionPickerEntryResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context

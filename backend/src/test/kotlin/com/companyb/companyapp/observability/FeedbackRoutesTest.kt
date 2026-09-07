@@ -1,7 +1,7 @@
 package com.companyb.companyapp.observability
 
 import com.companyb.companyapp.api.middleware.TraceIdFilter
-import com.companyb.companyapp.dto.FeedbackResponse
+import com.companyb.companyapp.contracts.incident.FeedbackResponse
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.http.KotlinxSerializationMapper
 import com.companyb.companyapp.identity.RateLimiter

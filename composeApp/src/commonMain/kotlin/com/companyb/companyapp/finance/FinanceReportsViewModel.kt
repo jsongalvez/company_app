@@ -14,19 +14,19 @@ import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.branch.BranchResponse
 import com.companyb.companyapp.contracts.branchday.BranchDayUserResponse
-import com.companyb.companyapp.dto.AllowanceResponse
-import com.companyb.companyapp.dto.CompensationResponse
-import com.companyb.companyapp.dto.CreateAllowanceRequest
-import com.companyb.companyapp.dto.CreateCompensationRequest
-import com.companyb.companyapp.dto.CreateExpenseRequest
-import com.companyb.companyapp.dto.DailySalesSummaryBrowseResponse
-import com.companyb.companyapp.dto.DailySalesSummaryResponse
-import com.companyb.companyapp.dto.DeleteExpenseRequest
-import com.companyb.companyapp.dto.ExpenseResponse
-import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
-import com.companyb.companyapp.dto.RestoreExpenseRequest
-import com.companyb.companyapp.dto.UpdateCompensationRequest
-import com.companyb.companyapp.dto.UpdateExpenseRequest
+import com.companyb.companyapp.contracts.finance.AllowanceResponse
+import com.companyb.companyapp.contracts.finance.CompensationResponse
+import com.companyb.companyapp.contracts.finance.CreateAllowanceRequest
+import com.companyb.companyapp.contracts.finance.CreateCompensationRequest
+import com.companyb.companyapp.contracts.finance.CreateExpenseRequest
+import com.companyb.companyapp.contracts.finance.DeleteExpenseRequest
+import com.companyb.companyapp.contracts.finance.ExpenseResponse
+import com.companyb.companyapp.contracts.finance.RestoreExpenseRequest
+import com.companyb.companyapp.contracts.finance.UpdateCompensationRequest
+import com.companyb.companyapp.contracts.finance.UpdateExpenseRequest
+import com.companyb.companyapp.contracts.reporting.DailySalesSummaryBrowseResponse
+import com.companyb.companyapp.contracts.reporting.DailySalesSummaryResponse
+import com.companyb.companyapp.contracts.reporting.MonthlyRemittanceSummaryResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.util.logWarn
 import io.ktor.client.call.body
@@ -1023,7 +1023,7 @@ class FinanceReportsViewModel(
                             branchDayId = day.branchDayId,
                             amount = amount,
                             category =
-                                com.companyb.companyapp.domain.ExpenseCategory
+                                com.companyb.companyapp.contracts.finance.ExpenseCategory
                                     .valueOf(categoryCode),
                             notes = notes,
                             reason = reason,
@@ -1079,7 +1079,7 @@ class FinanceReportsViewModel(
                         UpdateExpenseRequest(
                             amount = amount,
                             category =
-                                com.companyb.companyapp.domain.ExpenseCategory
+                                com.companyb.companyapp.contracts.finance.ExpenseCategory
                                     .valueOf(categoryCode),
                             notes = notes,
                             expectedVersion = expense.version,

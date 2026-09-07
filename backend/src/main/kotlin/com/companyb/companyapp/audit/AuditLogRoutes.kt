@@ -6,10 +6,10 @@ import com.companyb.companyapp.api.routes.parseBrowseLimit
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.branchday.BranchDayService
-import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.dto.AuditLogBrowseResponse
-import com.companyb.companyapp.dto.AuditLogEntryResponse
-import com.companyb.companyapp.dto.AuditLogTableResponse
+import com.companyb.companyapp.contracts.audit.AuditAction
+import com.companyb.companyapp.contracts.audit.AuditLogBrowseResponse
+import com.companyb.companyapp.contracts.audit.AuditLogEntryResponse
+import com.companyb.companyapp.contracts.audit.AuditLogTableResponse
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse

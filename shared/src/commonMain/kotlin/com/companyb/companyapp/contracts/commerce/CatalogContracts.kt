@@ -1,4 +1,4 @@
-package com.companyb.companyapp.dto
+package com.companyb.companyapp.contracts.commerce
 
 import kotlinx.serialization.Serializable
 
@@ -28,4 +28,16 @@ data class ProductResponse(
     val isActive: Boolean,
     val unitPrice: String,
     val commissionAmount: String,
+)
+
+@Serializable
+data class CreateProductCategoryRequest(
+    val id: String,
+    val name: String,
+)
+
+@Serializable
+data class ProductCategoryResponse(
+    val id: String,
+    val name: String,
 )

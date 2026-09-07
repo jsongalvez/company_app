@@ -1,8 +1,8 @@
 package com.companyb.companyapp.reporting
 
 import com.companyb.companyapp.branch.BranchService
-import com.companyb.companyapp.dto.DailySalesSummaryBrowseResponse
-import com.companyb.companyapp.dto.DailySalesSummaryResponse
+import com.companyb.companyapp.contracts.reporting.DailySalesSummaryBrowseResponse
+import com.companyb.companyapp.contracts.reporting.DailySalesSummaryResponse
 import com.companyb.companyapp.exception.NotFoundException
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.LocalDate

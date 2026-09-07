@@ -1,7 +1,7 @@
 package com.companyb.companyapp.commerce.catalog
 
-import com.companyb.companyapp.dto.ProductCategoryResponse
-import com.companyb.companyapp.dto.ProductResponse
+import com.companyb.companyapp.contracts.commerce.ProductCategoryResponse
+import com.companyb.companyapp.contracts.commerce.ProductResponse
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

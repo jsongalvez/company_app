@@ -1,9 +1,9 @@
 package com.companyb.companyapp.remittance
 
-import com.companyb.companyapp.domain.RemittanceLineType
-import com.companyb.companyapp.domain.RemittanceMethod
-import com.companyb.companyapp.domain.RemittanceStatus
-import com.companyb.companyapp.domain.RemittanceType
+import com.companyb.companyapp.contracts.remittance.RemittanceLineType
+import com.companyb.companyapp.contracts.remittance.RemittanceMethod
+import com.companyb.companyapp.contracts.remittance.RemittanceStatus
+import com.companyb.companyapp.contracts.remittance.RemittanceType
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime

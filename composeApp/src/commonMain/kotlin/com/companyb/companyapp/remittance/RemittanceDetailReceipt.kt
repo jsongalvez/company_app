@@ -45,22 +45,22 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.RemittanceStatus
-import com.companyb.companyapp.dto.AddDayBreakdownRequest
-import com.companyb.companyapp.dto.CreateRemittanceLineRequest
-import com.companyb.companyapp.dto.RemittanceDayBreakdownResponse
-import com.companyb.companyapp.dto.RemittanceDayPickerEntryResponse
-import com.companyb.companyapp.dto.RemittanceDetailResponse
-import com.companyb.companyapp.dto.RemittanceDriftResponse
-import com.companyb.companyapp.dto.RemittanceFinancialSnapshotResponse
-import com.companyb.companyapp.dto.RemittanceLineResponse
-import com.companyb.companyapp.dto.RemittanceProductSalePickerEntryResponse
-import com.companyb.companyapp.dto.RemittanceResponse
-import com.companyb.companyapp.dto.RemittanceSessionPickerEntryResponse
-import com.companyb.companyapp.dto.RemittanceSubmitResponse
-import com.companyb.companyapp.dto.SubmitRemittanceRequest
-import com.companyb.companyapp.dto.UndoRemittanceRequest
-import com.companyb.companyapp.dto.UpdateRemittanceHeaderRequest
+import com.companyb.companyapp.contracts.remittance.AddDayBreakdownRequest
+import com.companyb.companyapp.contracts.remittance.CreateRemittanceLineRequest
+import com.companyb.companyapp.contracts.remittance.RemittanceDayBreakdownResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceDayPickerEntryResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceDetailResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceDriftResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceFinancialSnapshotResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceLineResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceProductSalePickerEntryResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceSessionPickerEntryResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceStatus
+import com.companyb.companyapp.contracts.remittance.RemittanceSubmitResponse
+import com.companyb.companyapp.contracts.remittance.SubmitRemittanceRequest
+import com.companyb.companyapp.contracts.remittance.UndoRemittanceRequest
+import com.companyb.companyapp.contracts.remittance.UpdateRemittanceHeaderRequest
 import com.companyb.companyapp.ui.screen.peso
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
@@ -232,7 +232,7 @@ internal fun RemittanceDetailLinesSection(
             ?.data
             ?.associate { it.id to it.productName }
             .orEmpty()
-    val isDraft = detail.status == com.companyb.companyapp.domain.RemittanceStatus.DRAFT
+    val isDraft = detail.status == com.companyb.companyapp.contracts.remittance.RemittanceStatus.DRAFT
     Spacer(Modifier.size(Spacing.sm))
     SectionLabel("Lines")
     detail.lines.forEach { line ->
@@ -269,7 +269,7 @@ internal fun RemittanceDetailDaysSection(
             ?.data
             ?.associate { it.id to it }
             .orEmpty()
-    val isDraft = detail.status == com.companyb.companyapp.domain.RemittanceStatus.DRAFT
+    val isDraft = detail.status == com.companyb.companyapp.contracts.remittance.RemittanceStatus.DRAFT
     Spacer(Modifier.size(Spacing.sm))
     SectionLabel("Days covered")
     detail.dayBreakdowns.forEach { breakdown ->
@@ -322,8 +322,8 @@ internal fun RemittanceDetailReceiptSection(
     dialogs: RemittanceDetailDialogState,
 ) {
     val isSubmittedSession =
-        detail.status == com.companyb.companyapp.domain.RemittanceStatus.SUBMITTED &&
-            detail.type == com.companyb.companyapp.domain.RemittanceType.SESSION
+        detail.status == com.companyb.companyapp.contracts.remittance.RemittanceStatus.SUBMITTED &&
+            detail.type == com.companyb.companyapp.contracts.remittance.RemittanceType.SESSION
     val snapshot = detail.snapshot
     if (isSubmittedSession && snapshot != null) {
         Spacer(Modifier.size(Spacing.md))

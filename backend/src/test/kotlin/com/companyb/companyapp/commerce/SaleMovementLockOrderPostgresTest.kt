@@ -8,7 +8,7 @@ import com.companyb.companyapp.commerce.InventoryService
 import com.companyb.companyapp.commerce.MovementType
 import com.companyb.companyapp.commerce.ProductRepository
 import com.companyb.companyapp.commerce.ProductSaleTable
-import com.companyb.companyapp.domain.AuditAction
+import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

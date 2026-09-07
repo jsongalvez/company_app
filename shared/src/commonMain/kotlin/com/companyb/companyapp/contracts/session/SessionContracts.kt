@@ -17,7 +17,8 @@ enum class SessionStatus { PENDING, COMPLETED, NO_SHOW, CANCELLED }
  *   NO_SHOW/CANCELLED server-side).
  * - A CORRECTION is any other swap among PENDING / NO_SHOW / CANCELLED -- fixing a mis-mark
  *   (NO_SHOW -> PENDING) or reclassifying between terminal outcomes. Coordinator authority
- *   ([com.companyb.companyapp.contracts.authorization.CapabilityCodes.EDIT_PAST_DAY]) is required at every day state; day-state rules
+ *   ([com.companyb.companyapp.contracts.authorization.CapabilityCodes.EDIT_PAST_DAY])
+ *   is required at every day state; day-state rules
  *   (PAST/REMITTED gates, REMITTED reason) apply on top.
  * - COMPLETED is immutable outside the void/unvoid machinery: [isStatusCorrection] is false
  *   for any pair touching it, so such requests are rejected outright - money flows are never

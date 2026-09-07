@@ -1,9 +1,9 @@
 package com.companyb.companyapp.audit
 
-import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.dto.AuditLogBrowseResponse
-import com.companyb.companyapp.dto.AuditLogEntryResponse
-import com.companyb.companyapp.dto.AuditLogTableResponse
+import com.companyb.companyapp.contracts.audit.AuditAction
+import com.companyb.companyapp.contracts.audit.AuditLogBrowseResponse
+import com.companyb.companyapp.contracts.audit.AuditLogEntryResponse
+import com.companyb.companyapp.contracts.audit.AuditLogTableResponse
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import io.github.oshai.kotlinlogging.KotlinLogging

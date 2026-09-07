@@ -3,7 +3,7 @@ package com.companyb.companyapp.finance
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDayService
-import com.companyb.companyapp.domain.ExpenseCategory
+import com.companyb.companyapp.contracts.finance.ExpenseCategory
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException

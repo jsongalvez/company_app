@@ -1,7 +1,7 @@
 package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.commerce.ProductSaleTable
-import com.companyb.companyapp.domain.RemittanceLineType
+import com.companyb.companyapp.contracts.remittance.RemittanceLineType
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.session.SessionTable
 import org.jetbrains.exposed.v1.core.Table

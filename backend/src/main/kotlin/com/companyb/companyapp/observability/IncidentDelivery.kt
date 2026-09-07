@@ -1,6 +1,6 @@
 package com.companyb.companyapp.observability
 
-import com.companyb.companyapp.dto.IncidentPacket
+import com.companyb.companyapp.contracts.incident.IncidentPacket
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json

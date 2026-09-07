@@ -1,7 +1,7 @@
 package com.companyb.companyapp.observability
 
-import com.companyb.companyapp.dto.FeedbackRequest
-import com.companyb.companyapp.dto.IncidentPacket
+import com.companyb.companyapp.contracts.incident.FeedbackRequest
+import com.companyb.companyapp.contracts.incident.IncidentPacket
 import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.ArrayBlockingQueue

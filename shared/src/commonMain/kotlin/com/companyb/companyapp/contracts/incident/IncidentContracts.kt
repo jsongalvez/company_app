@@ -1,7 +1,10 @@
-package com.companyb.companyapp.dto
+package com.companyb.companyapp.contracts.incident
 
-import com.companyb.companyapp.domain.IncidentSource
 import kotlinx.serialization.Serializable
+
+/** #475 — origin of a triage-ready incident packet; the packet shape is identical either way. */
+@Serializable
+enum class IncidentSource { USER_REPORT, AUTO_5XX }
 
 /**
  * #475 — in-app incident report call. [traceId] is the #471 echoed id of the slow

@@ -1,7 +1,7 @@
 package com.companyb.companyapp.audit
 
-import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.dto.AuditLogEntryResponse
+import com.companyb.companyapp.contracts.audit.AuditAction
+import com.companyb.companyapp.contracts.audit.AuditLogEntryResponse
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue

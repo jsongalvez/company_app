@@ -1,7 +1,7 @@
 package com.companyb.companyapp.commerce.stock
 
-import com.companyb.companyapp.dto.BranchInventoryResponse
-import com.companyb.companyapp.dto.InventoryMovementResponse
+import com.companyb.companyapp.contracts.commerce.BranchInventoryResponse
+import com.companyb.companyapp.contracts.commerce.InventoryMovementResponse
 
 /**
  * #391 — the Inventory presentation rule surface, pinned by the desktopTest packet: sort +

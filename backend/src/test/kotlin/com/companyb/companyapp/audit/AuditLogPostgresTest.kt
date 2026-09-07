@@ -1,6 +1,6 @@
 package com.companyb.companyapp.audit
 import com.companyb.companyapp.audit.AuditLogTable
-import com.companyb.companyapp.domain.AuditAction
+import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures

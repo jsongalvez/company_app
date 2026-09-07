@@ -1,7 +1,7 @@
 package com.companyb.companyapp.workforce
 
 import com.companyb.companyapp.audit.AuditLogTable
-import com.companyb.companyapp.domain.AuditAction
+import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

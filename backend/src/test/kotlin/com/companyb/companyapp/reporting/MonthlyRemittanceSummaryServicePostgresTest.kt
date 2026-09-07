@@ -4,11 +4,11 @@ import com.companyb.companyapp.authorization.UserCapabilityTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.remittance.RemittanceLineType
+import com.companyb.companyapp.contracts.remittance.RemittanceMethod
+import com.companyb.companyapp.contracts.remittance.RemittanceType
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.SessionType
-import com.companyb.companyapp.domain.RemittanceLineType
-import com.companyb.companyapp.domain.RemittanceMethod
-import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.test.TestFixtures

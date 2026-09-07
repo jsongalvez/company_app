@@ -6,8 +6,8 @@ import com.companyb.companyapp.commission.CommissionManualInclusionRepository
 import com.companyb.companyapp.commission.CommissionManualInclusionTable
 import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.contracts.branchday.DayStatus
-import com.companyb.companyapp.domain.RemittanceMethod
-import com.companyb.companyapp.domain.RemittanceType
+import com.companyb.companyapp.contracts.remittance.RemittanceMethod
+import com.companyb.companyapp.contracts.remittance.RemittanceType
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.test.TestFixtures

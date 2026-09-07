@@ -1,6 +1,6 @@
 package com.companyb.companyapp.remittance
 
-import com.companyb.companyapp.domain.RemittanceLineType
+import com.companyb.companyapp.contracts.remittance.RemittanceLineType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID

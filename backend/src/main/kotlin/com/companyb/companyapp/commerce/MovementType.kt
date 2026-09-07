@@ -1,6 +1,6 @@
 package com.companyb.companyapp.commerce
 
-import com.companyb.companyapp.domain.InventoryMovementReason
+import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
 
 sealed class MovementType(
     val signRequired: Sign,

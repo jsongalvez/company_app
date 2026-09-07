@@ -1,7 +1,9 @@
-package com.companyb.companyapp.dto
+package com.companyb.companyapp.contracts.audit
 
-import com.companyb.companyapp.domain.AuditAction
 import kotlinx.serialization.Serializable
+
+@Serializable
+enum class AuditAction { INSERT, UPDATE, DELETE }
 
 @Serializable
 data class AuditLogEntryResponse(
@@ -20,4 +22,16 @@ data class AuditLogEntryResponse(
     val reason: String? = null,
     val acknowledgedBy: String? = null,
     val acknowledgedAt: String? = null,
+)
+
+@Serializable
+data class AuditLogBrowseResponse(
+    val entries: List<AuditLogEntryResponse>,
+    val nextCursor: String? = null,
+)
+
+@Serializable
+data class AuditLogTableResponse(
+    val tableName: String,
+    val label: String,
 )

@@ -1,7 +1,7 @@
 package com.companyb.companyapp.remittance
 
-import com.companyb.companyapp.domain.RemittanceStatus
-import com.companyb.companyapp.domain.RemittanceType
+import com.companyb.companyapp.contracts.remittance.RemittanceStatus
+import com.companyb.companyapp.contracts.remittance.RemittanceType
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import java.math.BigDecimal

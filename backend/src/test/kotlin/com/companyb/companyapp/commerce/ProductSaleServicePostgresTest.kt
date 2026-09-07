@@ -7,7 +7,7 @@ import com.companyb.companyapp.commerce.ProductSaleRepository
 import com.companyb.companyapp.commerce.ProductSaleTable
 import com.companyb.companyapp.commerce.ProductTable
 import com.companyb.companyapp.commission.CommissionService
-import com.companyb.companyapp.domain.InventoryMovementReason
+import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException

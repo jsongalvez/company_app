@@ -26,10 +26,10 @@ import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.contracts.branchday.BranchDayUserResponse
-import com.companyb.companyapp.dto.AllowanceResponse
-import com.companyb.companyapp.dto.CompensationResponse
-import com.companyb.companyapp.dto.DailySalesSummaryResponse
-import com.companyb.companyapp.dto.ExpenseResponse
+import com.companyb.companyapp.contracts.finance.AllowanceResponse
+import com.companyb.companyapp.contracts.finance.CompensationResponse
+import com.companyb.companyapp.contracts.finance.ExpenseResponse
+import com.companyb.companyapp.contracts.reporting.DailySalesSummaryResponse
 import com.companyb.companyapp.ui.screen.peso
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle

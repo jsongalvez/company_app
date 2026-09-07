@@ -1,5 +1,5 @@
 package com.companyb.companyapp.audit
-import com.companyb.companyapp.domain.AuditAction
+import com.companyb.companyapp.contracts.audit.AuditAction
 import org.jetbrains.exposed.v1.core.ColumnType
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID

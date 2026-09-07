@@ -6,8 +6,8 @@ import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.dto.AllowanceResponse
-import com.companyb.companyapp.dto.CreateAllowanceRequest
+import com.companyb.companyapp.contracts.finance.AllowanceResponse
+import com.companyb.companyapp.contracts.finance.CreateAllowanceRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse

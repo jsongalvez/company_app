@@ -7,10 +7,10 @@ import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.dto.CompensationResponse
-import com.companyb.companyapp.dto.CreateCompensationRequest
+import com.companyb.companyapp.contracts.finance.CompensationResponse
+import com.companyb.companyapp.contracts.finance.CreateCompensationRequest
+import com.companyb.companyapp.contracts.finance.UpdateCompensationRequest
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.dto.UpdateCompensationRequest
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HandlerType

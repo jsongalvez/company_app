@@ -3,9 +3,9 @@ import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.authorization.CapabilityRepository
 import com.companyb.companyapp.authorization.CapabilityService.GLOBAL_CONTEXT_ID
+import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.identity.UserStatus
-import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUserTable

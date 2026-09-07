@@ -1,7 +1,7 @@
 package com.companyb.companyapp.observability
 
+import com.companyb.companyapp.contracts.incident.PoolSnapshot
 import com.companyb.companyapp.database.DatabaseConfig
-import com.companyb.companyapp.dto.PoolSnapshot
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
 

@@ -5,11 +5,11 @@ import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.audit.AuditValues
 import com.companyb.companyapp.client.ClientService
 import com.companyb.companyapp.client.ClientTable
+import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.client.ClientPatchField
 import com.companyb.companyapp.contracts.client.Gender
+import com.companyb.companyapp.contracts.finance.ExpenseCategory
 import com.companyb.companyapp.contracts.session.SessionType
-import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.finance.ExpenseService
 import com.companyb.companyapp.finance.ExpenseTable
 import com.companyb.companyapp.session.SessionBaseRateTable
@@ -295,7 +295,7 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
                     .where {
                         (AuditLogTable.auditTableName eq SessionTable.tableName) and
                             (AuditLogTable.recordId eq sessionId) and
-                            (AuditLogTable.action eq com.companyb.companyapp.domain.AuditAction.INSERT)
+                            (AuditLogTable.action eq com.companyb.companyapp.contracts.audit.AuditAction.INSERT)
                     }.single()
             }
         val payload = Json.parseToJsonElement(insert[AuditLogTable.newValue].orEmpty()).jsonObject

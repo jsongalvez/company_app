@@ -3,7 +3,7 @@ package com.companyb.companyapp.testsupport.fixtures
 import com.companyb.companyapp.commerce.ProductCategoryTable
 import com.companyb.companyapp.commerce.ProductSaleTable
 import com.companyb.companyapp.commerce.ProductTable
-import com.companyb.companyapp.domain.ExpenseCategory
+import com.companyb.companyapp.contracts.finance.ExpenseCategory
 import com.companyb.companyapp.finance.CompensationTable
 import com.companyb.companyapp.finance.ExpenseTable
 import com.companyb.companyapp.test.TestFixtures

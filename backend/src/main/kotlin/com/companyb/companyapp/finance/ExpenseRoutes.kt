@@ -6,13 +6,13 @@ import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
-import com.companyb.companyapp.domain.ExpenseCategory
-import com.companyb.companyapp.dto.CreateExpenseRequest
-import com.companyb.companyapp.dto.DeleteExpenseRequest
+import com.companyb.companyapp.contracts.finance.CreateExpenseRequest
+import com.companyb.companyapp.contracts.finance.DeleteExpenseRequest
+import com.companyb.companyapp.contracts.finance.ExpenseCategory
+import com.companyb.companyapp.contracts.finance.ExpenseResponse
+import com.companyb.companyapp.contracts.finance.RestoreExpenseRequest
+import com.companyb.companyapp.contracts.finance.UpdateExpenseRequest
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.dto.ExpenseResponse
-import com.companyb.companyapp.dto.RestoreExpenseRequest
-import com.companyb.companyapp.dto.UpdateExpenseRequest
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HandlerType
@@ -231,7 +231,7 @@ object ExpenseRoutes {
             branchDayId = branchDayId.toString(),
             amount = amount.toPlainString(),
             category =
-                com.companyb.companyapp.domain.ExpenseCategory
+                com.companyb.companyapp.contracts.finance.ExpenseCategory
                     .valueOf(category.name),
             notes = notes,
             createdBy = createdBy.toString(),

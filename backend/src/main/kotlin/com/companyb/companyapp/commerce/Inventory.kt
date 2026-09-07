@@ -1,6 +1,6 @@
 package com.companyb.companyapp.commerce
 
-import com.companyb.companyapp.domain.InventoryMovementReason
+import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone

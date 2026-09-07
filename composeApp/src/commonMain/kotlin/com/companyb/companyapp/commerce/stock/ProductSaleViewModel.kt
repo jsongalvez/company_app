@@ -4,8 +4,8 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.CreateProductSaleRequest
-import com.companyb.companyapp.dto.ProductSaleResponse
+import com.companyb.companyapp.contracts.commerce.CreateProductSaleRequest
+import com.companyb.companyapp.contracts.commerce.ProductSaleResponse
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.post

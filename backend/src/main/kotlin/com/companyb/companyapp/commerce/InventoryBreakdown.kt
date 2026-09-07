@@ -1,6 +1,6 @@
 package com.companyb.companyapp.commerce
 
-import com.companyb.companyapp.domain.InventoryMovementReason
+import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
 
 /**
  * #442 — the 5-value inventory sheet breakdown (owner decision 2026-09-03).

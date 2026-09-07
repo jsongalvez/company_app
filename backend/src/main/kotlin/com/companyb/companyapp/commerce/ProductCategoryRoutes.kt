@@ -4,9 +4,9 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
-import com.companyb.companyapp.dto.CreateProductCategoryRequest
+import com.companyb.companyapp.contracts.commerce.CreateProductCategoryRequest
+import com.companyb.companyapp.contracts.commerce.ProductCategoryResponse
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.dto.ProductCategoryResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus

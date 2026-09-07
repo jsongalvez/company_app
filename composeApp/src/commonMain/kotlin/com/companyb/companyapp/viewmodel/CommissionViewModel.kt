@@ -4,9 +4,9 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.CommissionInclusionResponse
-import com.companyb.companyapp.dto.CommissionSplitResponse
-import com.companyb.companyapp.dto.CreateCommissionInclusionRequest
+import com.companyb.companyapp.contracts.commission.CommissionInclusionResponse
+import com.companyb.companyapp.contracts.commission.CommissionSplitResponse
+import com.companyb.companyapp.contracts.commission.CreateCommissionInclusionRequest
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get

@@ -1,7 +1,7 @@
 package com.companyb.companyapp.commerce
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.commerce.ProductTable
-import com.companyb.companyapp.domain.AuditAction
+import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

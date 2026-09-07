@@ -3,10 +3,10 @@ package com.companyb.companyapp.commerce.stock
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
-import com.companyb.companyapp.domain.InventoryMovementReason
-import com.companyb.companyapp.dto.BranchInventoryResponse
-import com.companyb.companyapp.dto.InventoryMovementResponse
-import com.companyb.companyapp.dto.ProductResponse
+import com.companyb.companyapp.contracts.commerce.BranchInventoryResponse
+import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
+import com.companyb.companyapp.contracts.commerce.InventoryMovementResponse
+import com.companyb.companyapp.contracts.commerce.ProductResponse
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

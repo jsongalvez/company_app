@@ -1,6 +1,6 @@
 package com.companyb.companyapp.finance
 
-import com.companyb.companyapp.domain.ExpenseCategory
+import com.companyb.companyapp.contracts.finance.ExpenseCategory
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone

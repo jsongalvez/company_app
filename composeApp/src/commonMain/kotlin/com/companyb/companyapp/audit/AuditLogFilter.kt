@@ -27,8 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.dto.AuditLogTableResponse
+import com.companyb.companyapp.contracts.audit.AuditAction
+import com.companyb.companyapp.contracts.audit.AuditLogTableResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logWarn
 

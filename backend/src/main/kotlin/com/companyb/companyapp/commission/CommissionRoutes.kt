@@ -5,9 +5,9 @@ import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.dto.CommissionInclusionResponse
-import com.companyb.companyapp.dto.CommissionSplitResponse
-import com.companyb.companyapp.dto.CreateCommissionInclusionRequest
+import com.companyb.companyapp.contracts.commission.CommissionInclusionResponse
+import com.companyb.companyapp.contracts.commission.CommissionSplitResponse
+import com.companyb.companyapp.contracts.commission.CreateCommissionInclusionRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse

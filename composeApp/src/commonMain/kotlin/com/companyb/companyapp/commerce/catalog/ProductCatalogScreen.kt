@@ -39,11 +39,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.input.KeyboardType
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.CreateProductCategoryRequest
-import com.companyb.companyapp.dto.CreateProductRequest
-import com.companyb.companyapp.dto.ProductCategoryResponse
-import com.companyb.companyapp.dto.ProductResponse
-import com.companyb.companyapp.dto.UpdateProductRequest
+import com.companyb.companyapp.contracts.commerce.CreateProductCategoryRequest
+import com.companyb.companyapp.contracts.commerce.CreateProductRequest
+import com.companyb.companyapp.contracts.commerce.ProductCategoryResponse
+import com.companyb.companyapp.contracts.commerce.ProductResponse
+import com.companyb.companyapp.contracts.commerce.UpdateProductRequest
 import com.companyb.companyapp.ui.EmptyState
 import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.CornerRadius

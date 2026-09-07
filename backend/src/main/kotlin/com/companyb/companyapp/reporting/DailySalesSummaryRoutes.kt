@@ -5,8 +5,8 @@ import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.dto.DailySalesSummaryBrowseResponse
-import com.companyb.companyapp.dto.DailySalesSummaryResponse
+import com.companyb.companyapp.contracts.reporting.DailySalesSummaryBrowseResponse
+import com.companyb.companyapp.contracts.reporting.DailySalesSummaryResponse
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse

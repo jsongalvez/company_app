@@ -1,7 +1,39 @@
-package com.companyb.companyapp.dto
+package com.companyb.companyapp.contracts.commerce
 
-import com.companyb.companyapp.domain.InventoryMovementReason
 import kotlinx.serialization.Serializable
+
+@Serializable
+enum class InventoryMovementReason { RESTOCK, SALE, TESTER, SAMPLE, MISSING, ADJUSTMENT }
+
+@Serializable
+data class CreateProductSaleRequest(
+    val id: String,
+    val branchDayId: String,
+    val sessionId: String? = null,
+    val clientId: String? = null,
+    val isWalkIn: Boolean,
+    val productId: String,
+    val quantity: Int,
+    val expectedVersion: Int,
+    val reason: String? = null,
+)
+
+@Serializable
+data class ProductSaleResponse(
+    val id: String,
+    val branchDayId: String,
+    val sessionId: String?,
+    val clientId: String?,
+    val isWalkIn: Boolean,
+    val productId: String,
+    val productName: String,
+    val handledBy: String,
+    val quantity: Int,
+    val unitPriceAtTime: String,
+    val totalAmountAtTime: String,
+    val commissionAmountAtTime: String,
+    val soldAt: String,
+)
 
 @Serializable
 data class AddInventoryCardRequest(

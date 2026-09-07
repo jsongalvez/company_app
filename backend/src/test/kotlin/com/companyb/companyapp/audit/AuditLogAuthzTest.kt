@@ -3,12 +3,12 @@
 package com.companyb.companyapp.audit
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.contracts.audit.AuditAction
+import com.companyb.companyapp.contracts.audit.AuditLogBrowseResponse
+import com.companyb.companyapp.contracts.audit.AuditLogEntryResponse
+import com.companyb.companyapp.contracts.audit.AuditLogTableResponse
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
-import com.companyb.companyapp.domain.AuditAction
-import com.companyb.companyapp.dto.AuditLogBrowseResponse
-import com.companyb.companyapp.dto.AuditLogEntryResponse
-import com.companyb.companyapp.dto.AuditLogTableResponse
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException

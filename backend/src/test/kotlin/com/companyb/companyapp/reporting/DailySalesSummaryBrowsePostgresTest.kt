@@ -1,6 +1,6 @@
 package com.companyb.companyapp.reporting
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.dto.DailySalesSummaryBrowseResponse
+import com.companyb.companyapp.contracts.reporting.DailySalesSummaryBrowseResponse
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest

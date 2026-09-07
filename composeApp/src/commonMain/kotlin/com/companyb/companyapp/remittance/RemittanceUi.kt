@@ -1,7 +1,7 @@
 package com.companyb.companyapp.remittance
 
-import com.companyb.companyapp.dto.RemittanceDetailResponse
-import com.companyb.companyapp.dto.RemittanceResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceDetailResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceResponse
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -45,8 +45,8 @@ internal fun remittanceMethodLabel(raw: String): String =
 
 // D1 — Net appears only on submitted SESSION rows (the snapshot join; PRODUCT has no snapshot).
 internal fun submittedSessionNet(raw: RemittanceResponse): String? =
-    if (raw.status == com.companyb.companyapp.domain.RemittanceStatus.SUBMITTED &&
-        raw.type == com.companyb.companyapp.domain.RemittanceType.SESSION
+    if (raw.status == com.companyb.companyapp.contracts.remittance.RemittanceStatus.SUBMITTED &&
+        raw.type == com.companyb.companyapp.contracts.remittance.RemittanceType.SESSION
     ) {
         raw.netIncome
     } else {
@@ -73,7 +73,7 @@ internal fun isValidIsoDate(value: String): Boolean =
 // The server is authoritative; this is the hide-when-expired affordance (the #119 hide key:
 // submittedAt != null && status == SUBMITTED, plus the clock check).
 internal fun remittanceCanUndo(detail: RemittanceDetailResponse): Boolean {
-    if (detail.status != com.companyb.companyapp.domain.RemittanceStatus.SUBMITTED) return false
+    if (detail.status != com.companyb.companyapp.contracts.remittance.RemittanceStatus.SUBMITTED) return false
     val submittedAt =
         detail.submittedAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
             ?: return false

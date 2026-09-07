@@ -5,10 +5,10 @@ import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
-import com.companyb.companyapp.dto.CreateProductRequest
+import com.companyb.companyapp.contracts.commerce.CreateProductRequest
+import com.companyb.companyapp.contracts.commerce.ProductResponse
+import com.companyb.companyapp.contracts.commerce.UpdateProductRequest
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.dto.ProductResponse
-import com.companyb.companyapp.dto.UpdateProductRequest
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus

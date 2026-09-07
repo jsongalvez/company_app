@@ -1,8 +1,8 @@
 package com.companyb.companyapp.observability
 
-import com.companyb.companyapp.domain.IncidentSource
-import com.companyb.companyapp.dto.FeedbackRequest
-import com.companyb.companyapp.dto.IncidentPacket
+import com.companyb.companyapp.contracts.incident.FeedbackRequest
+import com.companyb.companyapp.contracts.incident.IncidentPacket
+import com.companyb.companyapp.contracts.incident.IncidentSource
 import com.companyb.companyapp.logging.maskUUID
 import java.time.Instant
 import java.util.UUID

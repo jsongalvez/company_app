@@ -1,7 +1,7 @@
 package com.companyb.companyapp.commerce.catalog
 
-import com.companyb.companyapp.dto.ProductCategoryResponse
-import com.companyb.companyapp.dto.ProductResponse
+import com.companyb.companyapp.contracts.commerce.ProductCategoryResponse
+import com.companyb.companyapp.contracts.commerce.ProductResponse
 
 /**
  * #441 — the catalog admin screen's pure decision surface, pinned in commonTest like the

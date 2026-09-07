@@ -1,10 +1,10 @@
 package com.companyb.companyapp.ui.screen
 
+import com.companyb.companyapp.contracts.remittance.RemittanceLineResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceLineType
 import com.companyb.companyapp.contracts.session.DashboardSessionResponse
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.SessionType
-import com.companyb.companyapp.domain.RemittanceLineType
-import com.companyb.companyapp.dto.RemittanceLineResponse
 import kotlin.math.abs
 
 private const val CENTS_PER_UNIT = 100L

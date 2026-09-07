@@ -7,9 +7,9 @@ import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.GuardedStateless
 import com.companyb.companyapp.async.StatelessHooks
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.AuditLogBrowseResponse
-import com.companyb.companyapp.dto.AuditLogEntryResponse
-import com.companyb.companyapp.dto.AuditLogTableResponse
+import com.companyb.companyapp.contracts.audit.AuditLogBrowseResponse
+import com.companyb.companyapp.contracts.audit.AuditLogEntryResponse
+import com.companyb.companyapp.contracts.audit.AuditLogTableResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.util.logWarn
 import io.ktor.client.call.body

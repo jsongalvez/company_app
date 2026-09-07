@@ -3,10 +3,10 @@ package com.companyb.companyapp.finance
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.finance.ExpenseResponse
+import com.companyb.companyapp.contracts.reporting.DailySalesSummaryResponse
+import com.companyb.companyapp.contracts.reporting.MonthlyRemittanceSummaryResponse
 import com.companyb.companyapp.contracts.workforce.ClockInResponse
-import com.companyb.companyapp.dto.DailySalesSummaryResponse
-import com.companyb.companyapp.dto.ExpenseResponse
-import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.MockRequestHandler

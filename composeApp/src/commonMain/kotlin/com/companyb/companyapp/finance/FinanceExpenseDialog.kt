@@ -20,7 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import com.companyb.companyapp.dto.ExpenseResponse
+import com.companyb.companyapp.contracts.finance.ExpenseResponse
 import com.companyb.companyapp.ui.theme.Spacing
 
 /** #479 LPL burn — the expense dialog's editable field state as one object. */

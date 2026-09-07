@@ -1,21 +1,21 @@
 package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.AddDayBreakdownRequest
-import com.companyb.companyapp.dto.CreateRemittanceDraftRequest
-import com.companyb.companyapp.dto.CreateRemittanceLineRequest
-import com.companyb.companyapp.dto.RemittanceDayBreakdownResponse
-import com.companyb.companyapp.dto.RemittanceDayPickerEntryResponse
-import com.companyb.companyapp.dto.RemittanceDetailResponse
-import com.companyb.companyapp.dto.RemittanceDriftResponse
-import com.companyb.companyapp.dto.RemittanceLineResponse
-import com.companyb.companyapp.dto.RemittanceProductSalePickerEntryResponse
-import com.companyb.companyapp.dto.RemittanceResponse
-import com.companyb.companyapp.dto.RemittanceSessionPickerEntryResponse
-import com.companyb.companyapp.dto.RemittanceSubmitResponse
-import com.companyb.companyapp.dto.SubmitRemittanceRequest
-import com.companyb.companyapp.dto.UndoRemittanceRequest
-import com.companyb.companyapp.dto.UpdateRemittanceHeaderRequest
+import com.companyb.companyapp.contracts.remittance.AddDayBreakdownRequest
+import com.companyb.companyapp.contracts.remittance.CreateRemittanceDraftRequest
+import com.companyb.companyapp.contracts.remittance.CreateRemittanceLineRequest
+import com.companyb.companyapp.contracts.remittance.RemittanceDayBreakdownResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceDayPickerEntryResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceDetailResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceDriftResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceLineResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceProductSalePickerEntryResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceSessionPickerEntryResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceSubmitResponse
+import com.companyb.companyapp.contracts.remittance.SubmitRemittanceRequest
+import com.companyb.companyapp.contracts.remittance.UndoRemittanceRequest
+import com.companyb.companyapp.contracts.remittance.UpdateRemittanceHeaderRequest
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.MockRequestHandler
@@ -238,9 +238,9 @@ class RemittanceViewModelTest {
             vm.createDraft(
                 CreateRemittanceDraftRequest(
                     id = "new-id",
-                    type = com.companyb.companyapp.domain.RemittanceType.SESSION,
+                    type = com.companyb.companyapp.contracts.remittance.RemittanceType.SESSION,
                     branchId = "b1",
-                    method = com.companyb.companyapp.domain.RemittanceMethod.BANK_TRANSFER,
+                    method = com.companyb.companyapp.contracts.remittance.RemittanceMethod.BANK_TRANSFER,
                     dateRangeStart = "2026-08-01",
                     dateRangeEnd = "2026-08-09",
                 ),
@@ -642,7 +642,7 @@ class RemittanceViewModelTest {
                 "r1",
                 CreateRemittanceLineRequest(
                     id = "l1",
-                    type = com.companyb.companyapp.domain.RemittanceLineType.SESSION,
+                    type = com.companyb.companyapp.contracts.remittance.RemittanceLineType.SESSION,
                     sessionId = "s1",
                     amount = "500.00",
                 ),
@@ -665,7 +665,7 @@ class RemittanceViewModelTest {
                 "r1",
                 CreateRemittanceLineRequest(
                     id = "l1",
-                    type = com.companyb.companyapp.domain.RemittanceLineType.SESSION,
+                    type = com.companyb.companyapp.contracts.remittance.RemittanceLineType.SESSION,
                     sessionId = "s1",
                     amount = "500.00",
                 ),
@@ -696,7 +696,7 @@ class RemittanceViewModelTest {
                 "r1",
                 CreateRemittanceLineRequest(
                     id = "l1",
-                    type = com.companyb.companyapp.domain.RemittanceLineType.SESSION,
+                    type = com.companyb.companyapp.contracts.remittance.RemittanceLineType.SESSION,
                     sessionId = "s1",
                     amount = "500.00",
                 ),
@@ -952,8 +952,8 @@ class RemittanceViewModelTest {
 
     private fun headerRequest(version: Int) =
         UpdateRemittanceHeaderRequest(
-            type = com.companyb.companyapp.domain.RemittanceType.PRODUCT,
-            method = com.companyb.companyapp.domain.RemittanceMethod.HANDED_TO_ACCOUNTANT,
+            type = com.companyb.companyapp.contracts.remittance.RemittanceType.PRODUCT,
+            method = com.companyb.companyapp.contracts.remittance.RemittanceMethod.HANDED_TO_ACCOUNTANT,
             dateRangeStart = "2026-08-01",
             dateRangeEnd = "2026-08-09",
             expectedVersion = version,

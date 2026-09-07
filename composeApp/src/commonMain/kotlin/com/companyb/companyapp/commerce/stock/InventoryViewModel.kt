@@ -5,11 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.AddInventoryCardRequest
-import com.companyb.companyapp.dto.BranchInventoryResponse
-import com.companyb.companyapp.dto.InventoryMovementRequest
-import com.companyb.companyapp.dto.InventoryMovementResponse
-import com.companyb.companyapp.dto.RestockRequest
+import com.companyb.companyapp.contracts.commerce.AddInventoryCardRequest
+import com.companyb.companyapp.contracts.commerce.BranchInventoryResponse
+import com.companyb.companyapp.contracts.commerce.InventoryMovementRequest
+import com.companyb.companyapp.contracts.commerce.InventoryMovementResponse
+import com.companyb.companyapp.contracts.commerce.RestockRequest
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get

@@ -28,6 +28,7 @@ import com.companyb.companyapp.commerce.stock.SaleEffects
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.commerce.ProductSaleResponse
 import com.companyb.companyapp.contracts.session.AddPractitionerRequest
 import com.companyb.companyapp.contracts.session.DashboardPractitionerResponse
 import com.companyb.companyapp.contracts.session.DashboardSessionResponse
@@ -36,7 +37,6 @@ import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.SessionVoidResponse
 import com.companyb.companyapp.contracts.session.UpdatePractitionerRemarksRequest
 import com.companyb.companyapp.contracts.workforce.BranchMemberResponse
-import com.companyb.companyapp.dto.ProductSaleResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.ui.screen.EmptySessionPlaceholder
 import com.companyb.companyapp.ui.theme.Spacing

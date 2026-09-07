@@ -1,7 +1,7 @@
 package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.domain.InventoryMovementReason
+import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.VersionMismatchException
 import io.github.oshai.kotlinlogging.KotlinLogging

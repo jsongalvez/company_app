@@ -1,8 +1,8 @@
 package com.companyb.companyapp.integration
 
-import com.companyb.companyapp.domain.ExpenseCategory
-import com.companyb.companyapp.domain.RemittanceMethod
-import com.companyb.companyapp.domain.RemittanceType
+import com.companyb.companyapp.contracts.finance.ExpenseCategory
+import com.companyb.companyapp.contracts.remittance.RemittanceMethod
+import com.companyb.companyapp.contracts.remittance.RemittanceType
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.finance.CompensationService

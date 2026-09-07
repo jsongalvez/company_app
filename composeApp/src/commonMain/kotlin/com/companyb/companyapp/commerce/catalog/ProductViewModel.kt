@@ -5,11 +5,11 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.LaunchRequest
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.dto.CreateProductCategoryRequest
-import com.companyb.companyapp.dto.CreateProductRequest
-import com.companyb.companyapp.dto.ProductCategoryResponse
-import com.companyb.companyapp.dto.ProductResponse
-import com.companyb.companyapp.dto.UpdateProductRequest
+import com.companyb.companyapp.contracts.commerce.CreateProductCategoryRequest
+import com.companyb.companyapp.contracts.commerce.CreateProductRequest
+import com.companyb.companyapp.contracts.commerce.ProductCategoryResponse
+import com.companyb.companyapp.contracts.commerce.ProductResponse
+import com.companyb.companyapp.contracts.commerce.UpdateProductRequest
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.workforce.team.extractApiErrorMessage
 import io.ktor.client.call.body

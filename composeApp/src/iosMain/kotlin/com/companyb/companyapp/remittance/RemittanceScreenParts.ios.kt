@@ -1,7 +1,7 @@
 package com.companyb.companyapp.remittance
 
 import androidx.compose.runtime.Composable
-import com.companyb.companyapp.dto.RemittanceResponse
+import com.companyb.companyapp.contracts.remittance.RemittanceResponse
 
 @Composable
 actual fun RemittanceRowList(
