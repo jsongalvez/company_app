@@ -3,7 +3,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ApiCallHandler
-import com.companyb.companyapp.async.LaunchHooks
 import com.companyb.companyapp.async.LaunchRequest
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.identity.AcceptInviteRequest
@@ -30,9 +29,6 @@ class AuthViewModel(
     private val _loginState = MutableStateFlow<UiState<LoginResponse>>(UiState.Idle)
     val loginState: StateFlow<UiState<LoginResponse>> = _loginState.asStateFlow()
 
-    private val _logoutState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
-    val logoutState: StateFlow<UiState<Unit>> = _logoutState.asStateFlow()
-
     // #350 — accept-invite result; Success means the password is set and the code consumed.
     private val _acceptInviteState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val acceptInviteState: StateFlow<UiState<Unit>> = _acceptInviteState.asStateFlow()
@@ -55,20 +51,6 @@ class AuthViewModel(
                 transform = { it.body() },
             ),
         )
-
-    fun logout() {
-        _loginState.value = UiState.Idle
-        handler.launchUnit(
-            state = _logoutState,
-            operation = "logout",
-            endpoint = "POST /api/auth/logout",
-            block = { apiClient.httpClient.post(ApiRoutes.AUTH_LOGOUT) },
-            hooks =
-                LaunchHooks(
-                    entryMessage = "logout attempt start",
-                ),
-        )
-    }
 
     /**
      * #350 — public single-use invite redemption. 204 (no body) lands Success; the backend's

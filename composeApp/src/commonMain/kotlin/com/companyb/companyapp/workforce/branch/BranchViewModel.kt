@@ -10,14 +10,12 @@ import com.companyb.companyapp.contracts.branch.BranchResponse
 import com.companyb.companyapp.contracts.branch.CreateBranchRequest
 import com.companyb.companyapp.contracts.workforce.AssignmentResponse
 import com.companyb.companyapp.contracts.workforce.CreateAssignmentRequest
-import com.companyb.companyapp.contracts.workforce.SwapSlotsRequest
 import com.companyb.companyapp.contracts.workforce.UpdateSlotRequest
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.workforce.AssignmentSlotOperations
 import com.companyb.companyapp.workforce.team.extractApiErrorMessage
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
-import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -40,14 +38,8 @@ class BranchViewModel(
         }
     }
 
-    private val _branchDetail = MutableStateFlow<UiState<BranchResponse>>(UiState.Idle)
-    val branchDetail: StateFlow<UiState<BranchResponse>> = _branchDetail.asStateFlow()
-
     private val _createBranchState = MutableStateFlow<UiState<BranchResponse>>(UiState.Idle)
     val createBranchState: StateFlow<UiState<BranchResponse>> = _createBranchState.asStateFlow()
-
-    private val _assignments = MutableStateFlow<UiState<List<AssignmentResponse>>>(UiState.Idle)
-    val assignments: StateFlow<UiState<List<AssignmentResponse>>> = _assignments.asStateFlow()
 
     private val _assignmentResult = MutableStateFlow<UiState<AssignmentResponse>>(UiState.Idle)
     val assignmentResult: StateFlow<UiState<AssignmentResponse>> = _assignmentResult.asStateFlow()
@@ -57,19 +49,6 @@ class BranchViewModel(
 
     private val _deleteAssignmentState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val deleteAssignmentState: StateFlow<UiState<Unit>> = _deleteAssignmentState.asStateFlow()
-
-    private val _slotSwapState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
-    val slotSwapState: StateFlow<UiState<Unit>> = _slotSwapState.asStateFlow()
-
-    fun loadBranchDetail(branchId: String) {
-        handler.launch(
-            state = _branchDetail,
-            operation = "loadBranchDetail",
-            endpoint = "GET /api/branches/$branchId",
-            block = { apiClient.httpClient.get(ApiRoutes.branch(branchId)) },
-            transform = { it.body() },
-        )
-    }
 
     fun createBranch(request: CreateBranchRequest) {
         if (_createBranchState.value is UiState.Loading) return
@@ -152,35 +131,6 @@ class BranchViewModel(
                         handleApiError(response) { _deleteAssignmentState.value = it }
                     },
                 ),
-        )
-    }
-
-    fun loadAssignments(branchId: String) {
-        handler.launch(
-            state = _assignments,
-            operation = "loadAssignments",
-            endpoint = "GET /api/branches/$branchId/assignments",
-            block = { apiClient.httpClient.get(ApiRoutes.branchAssignments(branchId)) },
-            transform = { it.body() },
-        )
-    }
-
-    fun swapSlots(
-        branchId: String,
-        request: SwapSlotsRequest,
-    ) {
-        handler.launchUnit(
-            state = _slotSwapState,
-            operation = "swapSlots",
-            endpoint = "POST /api/branches/$branchId/slots/swap",
-            block = {
-                AssignmentSlotOperations.swapSlots(
-                    apiClient,
-                    branchId,
-                    request.assignmentIdA,
-                    request.assignmentIdB,
-                )
-            },
         )
     }
 

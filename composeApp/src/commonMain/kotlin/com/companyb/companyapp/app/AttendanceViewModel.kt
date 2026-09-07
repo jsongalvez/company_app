@@ -4,8 +4,6 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.contracts.workforce.ClockInRequest
-import com.companyb.companyapp.contracts.workforce.ClockInResponse
 import com.companyb.companyapp.contracts.workforce.ClockOutRequest
 import com.companyb.companyapp.contracts.workforce.ClockOutResponse
 import com.companyb.companyapp.network.ApiClient
@@ -22,31 +20,8 @@ class AttendanceViewModel(
 ) : ViewModel() {
     private val handler = ApiCallHandler(viewModelScope, "AttendanceVM")
 
-    private val _clockInState = MutableStateFlow<UiState<ClockInResponse>>(UiState.Idle)
-    val clockInState: StateFlow<UiState<ClockInResponse>> = _clockInState.asStateFlow()
-
     private val _clockOutState = MutableStateFlow<UiState<ClockOutResponse>>(UiState.Idle)
     val clockOutState: StateFlow<UiState<ClockOutResponse>> = _clockOutState.asStateFlow()
-
-    fun clockIn(request: ClockInRequest): Job {
-        // Synchronous pre-set: the guard must hold from the caller's frame (a double-tap
-        // before any dispatch would otherwise launch two clock-ins — the #135 double-tap
-        // pattern; the #140 BranchSelect wrapper checks this state before delegating).
-        _clockInState.value = UiState.Loading
-        // Return type added for #140's chain — the caller joins the job to fire the
-        // ADR-0021 capability refresh only after the clock-in succeeded.
-        return handler.launch(
-            state = _clockInState,
-            operation = "clockIn",
-            endpoint = "POST /api/attendance/clock-in",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.ATTENDANCE_CLOCK_IN) {
-                    setBody(request)
-                }
-            },
-            transform = { it.body() },
-        )
-    }
 
     fun resetClockOut() {
         // #147 pass-2 — the drawer dialog reopens after a failed attempt: a stale Error must
