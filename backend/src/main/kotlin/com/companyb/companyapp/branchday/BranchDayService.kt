@@ -195,7 +195,7 @@ object BranchDayService {
 
     /**
      * Resolves the branch day and asserts it is editable by [callerId].
-     * Covers branch-day lookup, [EDIT_PAST_DAY] capability checks, and day-state validation.
+     * Covers branch-day lookup, [CapabilityCodes.EDIT_PAST_DAY] capability checks, and day-state validation.
      *
      * @return the resolved [BranchDay] so callers can use it without a second lookup.
      * @throws NotFoundException if the branch day does not exist.

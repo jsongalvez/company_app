@@ -119,7 +119,6 @@ object ExpenseService {
 
             val after =
                 ExpenseRepository.softDeleteInTransaction(expenseId, callerId, reason)
-                    ?: throw NotFoundException("Expense not found")
 
             ExpenseAudit.deleted(
                 AuditContext(callerId, branchDay.branchId, isRemitted, reason),

@@ -216,9 +216,9 @@ private fun BranchSelectStatusEffects(
     }
 
     LaunchedEffect(clockInState) {
-        when (val state = clockInState) {
+        when (clockInState) {
             is UiState.Error -> {
-                logWarn("BranchSelectScreen", "clockInState=Error: ${state.message}")
+                logWarn("BranchSelectScreen", "clockInState=Error: ${clockInState.message}")
             }
 
             else -> {}
@@ -226,14 +226,14 @@ private fun BranchSelectStatusEffects(
     }
 
     LaunchedEffect(refreshState) {
-        when (val state = refreshState) {
+        when (refreshState) {
             is UiState.Success -> {
                 logInfo("BranchSelectScreen", "refreshState=Success, navigating to Dashboard")
                 onClockInComplete()
             }
 
             is UiState.Error -> {
-                logWarn("BranchSelectScreen", "refreshState=Error: ${state.message}")
+                logWarn("BranchSelectScreen", "refreshState=Error: ${refreshState.message}")
             }
 
             else -> {}

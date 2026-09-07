@@ -67,7 +67,7 @@ internal object ExpenseRepository {
         expenseId: UUID,
         deletedBy: UUID,
         deletedReason: String,
-    ): Expense? {
+    ): Expense {
         ExpenseTable.update({ ExpenseTable.id eq expenseId }) {
             it[ExpenseTable.deletedBy] = deletedBy
             it[ExpenseTable.deletedAt] =

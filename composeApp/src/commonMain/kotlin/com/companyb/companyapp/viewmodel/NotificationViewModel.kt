@@ -180,7 +180,7 @@ class NotificationViewModel(
         // list — no write), so the stamp bump + badge decrement fire only on a real removal.
         val removed = keptNotifications.mutateRemoved { it.id == notification.id }
         if (removed) {
-            _readThisSession.value = _readThisSession.value + notification
+            _readThisSession.value += notification
         }
         return removed
     }
@@ -192,7 +192,7 @@ class NotificationViewModel(
         // Success write.
         keptNotifications.mutate { current ->
             val newRead = current.filterNot { row -> _readThisSession.value.any { it.id == row.id } }
-            _readThisSession.value = _readThisSession.value + newRead
+            _readThisSession.value += newRead
             emptyList()
         }
     }

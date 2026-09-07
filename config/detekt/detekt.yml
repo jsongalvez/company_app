@@ -1,4 +1,8 @@
 # #460 governance: thresholds here mirror detekt-anti-slop.yml (see its header).
+# #532 parity contract: every rule active in BOTH files carries identical
+# effective values (detekt.yml is the single-file IntelliJ plugin entry point,
+# so it mirrors the merged Gradle policy). Overlays add activations only.
+# backend/.../architecture/DetektConfigParityTest pins the drift set.
 # Exclude policy: no new exclude without a `#<ticket>` link; screen-composable
 # excludes burn down file-by-file (removal ships with the refactor, never solo).
 # #464: custom rules live in :detekt-rules (CompanyApp ruleset, ServiceLoader-registered).
@@ -150,8 +154,11 @@ complexity:
   CyclomaticComplexMethod:
     active: true
     threshold: 15
-    ignoreSingleWhenExpression: false
-    ignoreSimpleWhenEntries: false
+    # #532 decided policy (Phase A freeze): single-when bodies and simple
+    # entries don't count — the de-facto enforced standard (Compose leans on
+    # when-expressions; e.g. ClientDetailLogic.commitBpDrafts). Pinned by test.
+    ignoreSingleWhenExpression: true
+    ignoreSimpleWhenEntries: true
     ignoreNestingFunctions: false
     nestingFunctions:
       - 'also'
@@ -190,7 +197,8 @@ complexity:
   NamedArguments:
     active: false
     threshold: 3
-    ignoreArgumentsMatchingNames: false
+    # #532 parity: mirrors detekt-anti-slop.yml (inactive in both; value kept identical).
+    ignoreArgumentsMatchingNames: true
   NestedBlockDepth:
     active: true
     threshold: 4
@@ -261,7 +269,9 @@ empty-blocks:
   active: true
   EmptyCatchBlock:
     active: true
-    allowedExceptionNameRegex: '_|(ignore|expected).*'
+    # #532 parity: mirrors detekt-anti-slop.yml (strict; intentionally ignored
+    # outcomes belong in a typed API, not a name).
+    allowedExceptionNameRegex: '^$'
   EmptyClassBlock:
     active: true
   EmptyDefaultConstructor:
@@ -317,12 +327,9 @@ exceptions:
     ignoreLabeled: false
   SwallowedException:
     active: true
-    ignoredExceptionTypes:
-      - 'InterruptedException'
-      - 'MalformedURLException'
-      - 'NumberFormatException'
-      - 'ParseException'
-    allowedExceptionNameRegex: '_|(ignore|expected).*'
+    # #532 parity: mirrors detekt-anti-slop.yml (strict).
+    ignoredExceptionTypes: []
+    allowedExceptionNameRegex: '^$'
   ThrowingExceptionFromFinally:
     active: true
   ThrowingExceptionInMain:
@@ -353,7 +360,7 @@ exceptions:
       - 'NullPointerException'
       - 'RuntimeException'
       - 'Throwable'
-    allowedExceptionNameRegex: '_|(ignore|expected).*'
+    allowedExceptionNameRegex: '^$'
   TooGenericExceptionThrown:
     active: true
     exceptionNames:
@@ -369,7 +376,8 @@ naming:
   active: true
   BooleanPropertyNaming:
     active: false
-    allowedPattern: '^(is|has|are)'
+    # #532 parity: mirrors detekt-anti-slop.yml (inactive in both; value kept identical).
+    allowedPattern: '^(is|has|can|should|was|will|needs)[A-Z].*'
   ClassNaming:
     active: true
     classPattern: '[A-Z][a-zA-Z0-9]*'
@@ -383,7 +391,17 @@ naming:
     enumEntryPattern: '[A-Z][_a-zA-Z0-9]*'
   ForbiddenClassName:
     active: true
-    forbiddenName: []
+    # #532 parity: mirrors detekt-anti-slop.yml effective policy.
+    forbiddenName:
+      - '*Shape'
+      - '*Manager'
+      - '*Helper'
+      - '*Util'
+      - '*Utils'
+      - '*Wrapper'
+      - '*Impl'
+      - '*Common'
+      - '*Misc'
   FunctionMaxLength:
     active: false
     maximumFunctionNameLength: 30
@@ -652,25 +670,64 @@ style:
         value: 'java.lang.annotation.Inherited'
   ForbiddenComment:
     active: true
+    # #532 parity: mirrors detekt-anti-slop.yml effective policy (regex markers).
     comments:
-      - reason: 'Forbidden FIXME todo marker in comment, please fix the problem.'
-        value: 'FIXME:'
-      - reason: 'Forbidden STOPSHIP todo marker in comment, please address the problem before shipping the code.'
-        value: 'STOPSHIP:'
-      - reason: 'Forbidden TODO todo marker in comment, please do the changes.'
-        value: 'TODO:'
+      - reason: 'Resolve TODO work before merging; track future work outside source.'
+        value: '(?i)\bTODO\b'
+      - reason: 'Resolve FIXME work before merging.'
+        value: '(?i)\bFIXME\b'
+      - reason: 'STOPSHIP markers must never reach the main branch.'
+        value: '(?i)\bSTOPSHIP\b'
+      - reason: 'Replace temporary code with the intended implementation.'
+        value: '(?i)\bTEMP(?:ORARY)?\b'
+      - reason: 'Replace placeholder code with the intended implementation.'
+        value: '(?i)\bPLACEHOLDER\b'
+      - reason: 'Explain and remove hacks instead of normalizing them.'
+        value: '(?i)\bHACK\b'
+      - reason: 'Resolve XXX review markers before merging.'
+        value: '(?i)\bXXX\b'
+      - reason: 'Do not leave unimplemented behavior in production source.'
+        value: '(?i)\bNOT[ -]?IMPLEMENTED\b'
     allowedPatterns: ''
   ForbiddenImport:
     active: false
     imports: []
     forbiddenPatterns: ''
   ForbiddenMethodCall:
-    active: false
+    active: true
+    # #532 parity: mirrors detekt-anti-slop.yml effective policy (console output,
+    # reflection, global mocking, and blocking calls are reviewed seams).
     methods:
-      - reason: 'print does not allow you to configure the output stream. Use a logger instead.'
+      - reason: 'Ad-hoc console output is not application logging.'
         value: 'kotlin.io.print'
-      - reason: 'println does not allow you to configure the output stream. Use a logger instead.'
+      - reason: 'Ad-hoc console output is not application logging.'
         value: 'kotlin.io.println'
+      - reason: 'Reflection bypasses normal contracts; keep behind a reviewed, typed boundary.'
+        value: 'java.lang.Class.forName'
+      - reason: 'Reflection bypasses normal contracts; keep behind a reviewed, typed boundary.'
+        value: 'java.lang.reflect.Method.invoke'
+      - reason: 'Reflection bypasses normal contracts; keep behind a reviewed, typed boundary.'
+        value: 'java.lang.reflect.Constructor.newInstance'
+      - reason: 'Reflection bypasses normal contracts; keep behind a reviewed, typed boundary.'
+        value: 'java.lang.reflect.Field.get'
+      - reason: 'Reflection bypasses normal contracts; keep behind a reviewed, typed boundary.'
+        value: 'java.lang.reflect.Field.set'
+      - reason: 'Reflection bypasses normal contracts; keep behind a reviewed, typed boundary.'
+        value: 'kotlin.reflect.KCallable.call'
+      - reason: 'Reflection bypasses normal contracts; keep behind a reviewed, typed boundary.'
+        value: 'kotlin.reflect.KCallable.callBy'
+      - reason: 'Static/object/constructor mocking changes global behavior; prefer a real/fake seam.'
+        value: 'io.mockk.mockkStatic'
+      - reason: 'Static/object/constructor mocking changes global behavior; prefer a real/fake seam.'
+        value: 'io.mockk.mockkObject'
+      - reason: 'Static/object/constructor mocking changes global behavior; prefer a real/fake seam.'
+        value: 'io.mockk.mockkConstructor'
+      - reason: 'Static/object/constructor mocking changes global behavior; prefer a real/fake seam.'
+        value: 'org.mockito.Mockito.mockStatic'
+      - reason: 'Static/object/constructor mocking changes global behavior; prefer a real/fake seam.'
+        value: 'org.mockito.Mockito.mockConstruction'
+      - reason: 'Blocking policy remains forbidden in business code.'
+        value: 'java.lang.Thread.sleep'
   ForbiddenSuppress:
     active: false
     rules: []
@@ -843,7 +900,8 @@ style:
     active: false
   MaxChainedCallsOnSameLine:
     active: false
-    maxChainedCalls: 5
+    # #532 parity: mirrors detekt-anti-slop.yml (inactive in both; value kept identical).
+    maxChainedCalls: 4
   MaxLineLength:
     active: true
     maxLineLength: 120
@@ -891,12 +949,17 @@ style:
     active: false
   ReturnCount:
     active: true
-    max: 2
+    # #532 decided policy (Phase A freeze): max 3, guard clauses excluded. This
+    # is the de-facto enforced standard — 24 existing guard-clause functions
+    # across 10 features predate this ticket and pass CI under it. Tightening
+    # to max 2 is future per-function refactor work (Phase B), never a silent
+    # config flip: this test pins the values.
+    max: 3
     excludedFunctions:
       - 'equals'
     excludeLabeled: false
     excludeReturnFromLambda: true
-    excludeGuardClauses: false
+    excludeGuardClauses: true
     excludes:
   SafeCast:
     active: true
@@ -910,8 +973,11 @@ style:
     ignoredCharacters: []
   ThrowsCount:
     active: true
+    # #532 decided policy (Phase A freeze): max 2, guard throws excluded — the
+    # de-facto enforced standard (#460 still splits throw sites into named
+    # guards where a function genuinely grows). Pinned by the parity test.
     max: 2
-    excludeGuardClauses: false
+    excludeGuardClauses: true
   TrailingWhitespace:
     active: false
   TrimMultilineRawString:
@@ -950,16 +1016,25 @@ style:
     active: false
   UnusedParameter:
     active: true
-    allowedNames: 'ignored|expected'
+    # #532 parity: mirrors detekt-anti-slop.yml effective policy (strict).
+    allowedNames: '^$'
     excludes:
   UnusedPrivateClass:
     active: true
   UnusedPrivateMember:
     active: true
-    allowedNames: ''
+    # #532 parity: mirrors detekt-anti-slop.yml effective policy (strict) plus its
+    # route carve-outs, so the single-file IDE load agrees with the Gradle merge.
+    allowedNames: '^$'
+    excludes:
+      - '**/finance/CompensationRoutes.kt' #532 parity mirror
+      - '**/commerce/BranchInventoryRoutes.kt' #532 parity mirror
+      - '**/remittance/RemittanceRoutes.kt' #532 parity mirror
+      - '**/commission/CommissionRoutes.kt' #532 parity mirror
   UnusedPrivateProperty:
     active: true
-    allowedNames: '_|ignored|expected|serialVersionUID'
+    # #532 parity: mirrors detekt-anti-slop.yml effective policy (strict).
+    allowedNames: '^_$|^serialVersionUID$'
     excludes:
       - '**/commonMain/**/ui/theme/LinearTheme.kt'
       - '**/commonMain/**/ui/screen/NotificationsScreen.kt'

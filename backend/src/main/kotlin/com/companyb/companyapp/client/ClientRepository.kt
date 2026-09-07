@@ -230,21 +230,23 @@ internal object ClientRepository {
     fun countSessions(clientIds: Collection<UUID>): Map<UUID, Int> {
         if (clientIds.isEmpty()) return emptyMap()
         val ids = clientIds.toList()
-        return transaction {
-            val sessionCount = SessionTable.id.count()
-            SessionTable
-                .leftJoin(
-                    ActiveSessionVoidsView,
-                    { SessionTable.id },
-                    { ActiveSessionVoidsView.sessionId },
-                ).select(SessionTable.clientId, sessionCount)
-                .where {
-                    (SessionTable.clientId inList ids) and
-                        (SessionTable.sessionType neq SessionType.MEDICAL_MISSION) and
-                        (ActiveSessionVoidsView.sessionId.isNull())
-                }.groupBy(SessionTable.clientId)
-                .associate { row -> row[SessionTable.clientId] to row[sessionCount].toInt() }
-        }.let { counts -> ids.associateWith { counts[it] ?: 0 } }
+        val counts =
+            transaction {
+                val sessionCount = SessionTable.id.count()
+                SessionTable
+                    .leftJoin(
+                        ActiveSessionVoidsView,
+                        { SessionTable.id },
+                        { ActiveSessionVoidsView.sessionId },
+                    ).select(SessionTable.clientId, sessionCount)
+                    .where {
+                        (SessionTable.clientId inList ids) and
+                            (SessionTable.sessionType neq SessionType.MEDICAL_MISSION) and
+                            (ActiveSessionVoidsView.sessionId.isNull())
+                    }.groupBy(SessionTable.clientId)
+                    .associate { row -> row[SessionTable.clientId] to row[sessionCount].toInt() }
+            }
+        return ids.associateWith { counts[it] ?: 0 }
     }
 
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */

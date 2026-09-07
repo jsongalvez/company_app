@@ -1,0 +1,35 @@
+<!-- Repo-owned IntelliJ/Kotlin inspection profile (#532, map #531 Phase A).
+  Canonical location: config/inspection/Project_Default.xml (tracked). The IDE
+  reads profiles from .idea/inspectionProfiles/ (git-ignored by repo
+  convention), so copy this file there to use it in the IDE:
+      cp config/inspection/Project_Default.xml .idea/inspectionProfiles/
+  or run: bash scripts/inspect.sh ide-profile
+
+  Parity contract: these inspection classes are the IDE surface of the same
+  policy CI enforces headlessly. Mapping (inspection -> authoritative gate):
+    KDocUnresolvedReference        Kotlin compiler KDoc validation + Detekt
+    ArrayInDataClass               fixed per occurrence (ExportResult, #532)
+    SimpleRedundantLet             Detekt UnnecessaryLet family + review
+    ComplexRedundantLet            Detekt UnnecessaryLet family + review
+    ReplaceAssignmentWithOperatorAssignment  fixed per occurrence (#532)
+    SimplifiableIfStatement        fixed per occurrence (Elvis fold, #532)
+    RedundantIf / CanBeVal         Detekt VarCouldBeVal + review
+    ReturnCount / ThrowsCount      Detekt (config/detekt/*.yml, pinned by
+                                   DetektConfigParityTest)
+  IDE-only cosmetic hints stay non-blocking by design (#329, map #531
+  invariant: prioritize signal). Headless Qodana remains deferred: it would
+  duplicate the full build inside the 300-min/month hosted budget for no new
+  enforced class (see #532 resolution comment). -->
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="KDocUnresolvedReference" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="ArrayInDataClass" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="SimpleRedundantLet" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="ComplexRedundantLet" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="ReplaceAssignmentWithOperatorAssignment" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="SimplifiableIfStatement" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="RedundantIf" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="CanBeVal" enabled="true" level="WARNING" enabled_by_default="true" />
+  </profile>
+</component>

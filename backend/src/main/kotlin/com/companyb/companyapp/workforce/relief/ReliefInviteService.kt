@@ -390,11 +390,8 @@ object ReliefInviteService {
         callerId: UUID,
         branchId: UUID,
     ) {
-        val assignment =
-            UserBranchAssignmentRepository.findActiveByBranchAndUserInTransaction(branchId, callerId, forUpdate = true)
-        if (assignment == null) {
-            throw ForbiddenException("An active assignment at this branch is required")
-        }
+        UserBranchAssignmentRepository.findActiveByBranchAndUserInTransaction(branchId, callerId, forUpdate = true)
+            ?: throw ForbiddenException("An active assignment at this branch is required")
     }
 }
 

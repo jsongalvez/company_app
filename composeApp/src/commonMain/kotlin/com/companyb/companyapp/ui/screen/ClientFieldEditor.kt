@@ -84,7 +84,7 @@ internal fun ClientFieldEditor(
                 )
             } else {
                 Text(
-                    text = if (spec.value.isBlank()) "—" else spec.value,
+                    text = spec.value.ifBlank { "—" },
                     style = MaterialTheme.typography.bodyMedium,
                     color =
                         if (spec.value.isBlank()) {
