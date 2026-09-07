@@ -184,6 +184,9 @@ complexity:
     threshold: 60
     excludes:
   LongParameterList:
+    # #535: design signal, not a mandate for arbitrary DTO wrappers — coherent
+    # state-owner and declarative-UI signatures stay whole; bundle only on a real
+    # ownership decision (see composeApp/AGENTS.md "State ownership vs file splits").
     active: true
     functionThreshold: 6
     constructorThreshold: 7
@@ -221,19 +224,11 @@ complexity:
     excludeStringsWithLessThan5Characters: true
     ignoreStringsRegex: '$^'
   TooManyFunctions:
-    active: true
-    excludes:
-      - '**/test/**'
-      - '**/androidTest/**'
-      - '**/commonTest/**'
-      - '**/desktopTest/**'
-      - '**/jvmTest/**'
-      - '**/androidUnitTest/**'
-      - '**/androidInstrumentedTest/**'
-      - '**/jsTest/**'
-      - '**/iosTest/**'
-      - '**/commonMain/**/viewmodel/SessionDashboardViewModel.kt'
-      - '**/commonMain/**/viewmodel/FinanceReportsViewModel.kt'
+    # #535: retired as a hard gate — a cohesive private implementation stays in its
+    # owner instead of being split into extension files or exposing internals to
+    # satisfy a function budget. Complexity gates (Cognitive/Cyclomatic/LongMethod,
+    # ComplexInterface, MethodOverloading, LargeClass) remain the enforcement.
+    active: false
     thresholdInFiles: 11
     thresholdInClasses: 11
     thresholdInInterfaces: 11

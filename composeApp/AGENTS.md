@@ -71,3 +71,14 @@ class ExampleViewModel(private val apiClient: ApiClient) : ViewModel() {
 - **`stale: () -> Boolean`** (`launchStateless`, #173) — the skip-gate: when it reads true at a landing, all three hooks (transform/onNonSuccess/onError) are skipped — a superseded landing is inert. This is where the per-site generation guards live (a caller whose surface can move on — window/branch/mode/filter switch — passes `stale = { generation != itsGeneration }` with the launch-time capture; see FinanceReportsViewModel/AuditLogViewModel). Default `{ false }` = the gate never fires. The stateful `launch` owns its stale class via the #165 `stamp`/`fallback` SUBSTITUTION shape instead — do not port it there, and give this gate no substitute-fallback: stateless surfaces only skip (a stale body is never deserialized).
 - **`stamp`/`fallback`** (`launch`, #165 + #176) — the stateful stale-substitution guard: a load that lands after the state it was launched against moved on must not commit its pre-action snapshot, on any leg. `stamp()` is read at launch (captured) and again at landing; a SUCCESS landing commits `transform` only when the two reads agree, else substitutes `fallback()` (a freshest-value read + re-issue; the #165 substitution shape — a stale body is never deserialized). The FAILURE legs are gated too (#176 — the guard is no longer success-only): a superseded non-success or exception landing may run its hooks but writes NO `UiState.Error` onto the moved-on surface. Default `{ 0L }` = the gate never fires (a constant stamp always agrees — every existing caller is byte-identical). Use it only where a post-launch action must invalidate an in-flight load (NotificationVM/ReliefInviteVM receive paths); the stateless generation gates sit in `launchStateless`'s `stale` instead.
 - ViewModels that use `ApiCallHandler` exclusively do not need to import `logInfo`, `logError`, or `launch` from kotlinx.coroutines.
+
+## State ownership vs file splits (#535)
+
+- Prefer private members or a genuine state-owning collaborator over ViewModel
+  extension files that need mutable internals (`internal` state, exposed API
+  clients) merely to satisfy a function count. A cohesive owner with many
+  functions is not a violation — `TooManyFunctions` is retired as a gate.
+- `LongParameterList` (6 params) is a design signal, not an obligation to
+  manufacture DTO wrappers: keep coherent state-owner and declarative-UI
+  signatures whole; bundle parameters only where the bundle is a real
+  ownership decision, with a `#<ticket>` rationale where suppressed.

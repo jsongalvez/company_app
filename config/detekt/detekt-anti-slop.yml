@@ -407,7 +407,7 @@ style:
       - 'ThrowsCount'
       - 'TooGenericExceptionCaught'
       - 'TooGenericExceptionThrown'
-      - 'TooManyFunctions'
+      # #535: TooManyFunctions retired as a gate — no longer an effective-active rule.
       - 'TopLevelPropertyNaming'
       - 'UNCHECKED_CAST'
       - 'UnconditionalJumpStatementInLoop'
