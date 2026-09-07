@@ -81,19 +81,6 @@ internal object UserRepository {
                 }.singleOrNull()
         }.also { logger.info { "[FIND-BY-USERNAME] Fetched username" } }
 
-    fun isEmailTaken(email: String): Boolean =
-        transaction {
-            AppUserTable
-                .select(AppUserTable.id)
-                .where { AppUserTable.email eq email }
-                .empty()
-                .not()
-        }.also {
-            if (it) {
-                logger.info { "[IS-EMAIL-TAKEN] Email is taken" }
-            }
-        }
-
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
     fun createUserInTransaction(params: UserCreateParams): UUID {
         val insert =

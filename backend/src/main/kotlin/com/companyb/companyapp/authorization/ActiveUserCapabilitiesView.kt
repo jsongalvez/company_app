@@ -23,7 +23,6 @@ object ActiveUserCapabilitiesView : Table("active_user_capabilities") {
             },
         )
     val contextId = javaUUID("context_id")
-    val priority = short("priority")
     val sourceType =
         customEnumeration<CapabilitySourceType>(
             name = "source_type",

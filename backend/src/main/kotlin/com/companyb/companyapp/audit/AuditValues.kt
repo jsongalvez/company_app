@@ -7,8 +7,6 @@ object AuditValues {
      * readers must accept both. Do not emit this for new rows.
      */
     const val NULL = "null"
-    const val NOW = "now"
-    const val NOW_FN = "now()"
 
     /**
      * Anonymization redaction marker (#524): replaces identifying values in

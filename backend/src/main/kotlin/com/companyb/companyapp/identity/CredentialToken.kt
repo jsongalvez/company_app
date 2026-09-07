@@ -2,7 +2,6 @@ package com.companyb.companyapp.identity
 
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
-import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
 import java.time.OffsetDateTime
@@ -39,9 +38,6 @@ internal object CredentialTokenTable : Table("credential_token") {
     val expiresAt = timestampWithTimeZone("expires_at")
     val consumedAt = timestampWithTimeZone("consumed_at").nullable()
     val createdBy = javaUUID("created_by").references(AppUserTable.id).nullable()
-    val createdAt =
-        timestampWithTimeZone("created_at")
-            .defaultExpression(CurrentTimestampWithTimeZone)
 
     override val primaryKey = PrimaryKey(id)
 }

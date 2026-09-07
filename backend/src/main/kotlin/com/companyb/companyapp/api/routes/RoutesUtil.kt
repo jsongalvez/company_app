@@ -37,15 +37,6 @@ fun parseBrowseLimit(raw: String?): Int {
     return limit
 }
 
-@Suppress("UnreachableCode")
-fun Context.uuidFromBody(key: String): UUID {
-    val node = this.bodyAsClass(kotlinx.serialization.json.JsonObject::class.java)
-    val value =
-        node[key]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
-            ?: throw BadRequestResponse("$key is required in request body")
-    return uuidOrThrow(value, key)
-}
-
 /**
  * Parses the request body only when one is present; endpoints that historically accepted
  * a body-less request keep working without one.

@@ -3,12 +3,6 @@ package com.companyb.companyapp.identity
 import com.companyb.companyapp.authorization.CapabilityTable
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
-import java.util.UUID
-
-data class Role(
-    val id: UUID,
-    val name: String,
-)
 
 internal object RoleTable : Table("role") {
     val id = javaUUID("id").autoGenerate()
