@@ -29,8 +29,8 @@ import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.session.dashboard.DashboardSelection
 import com.companyb.companyapp.session.dashboard.SessionDashboardScreen
 import com.companyb.companyapp.session.dashboard.SessionDashboardViewModel
+import com.companyb.companyapp.session.detail.SessionDetailPane
 import com.companyb.companyapp.state.ClientState
-import com.companyb.companyapp.ui.screen.SessionDetailPane
 import com.companyb.companyapp.workforce.attendance.AttendanceRosterCard
 import com.companyb.companyapp.workforce.attendance.AttendanceRosterViewModel
 import com.companyb.companyapp.workforce.relief.ReliefAccessCard

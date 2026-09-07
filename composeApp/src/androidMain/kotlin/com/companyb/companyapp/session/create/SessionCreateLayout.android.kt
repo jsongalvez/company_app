@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.create
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable

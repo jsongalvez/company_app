@@ -28,15 +28,17 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.ClientResponse
+import com.companyb.companyapp.session.create.SessionClientPickerApi
 import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
-import com.companyb.companyapp.viewmodel.SessionClientPickerApi
 
 /**
  * The find-or-create client half of the #348 session-create flow (no selection yet), split out
- * of SessionCreateScreen.kt to keep both files under the detekt file-function budget. Same
- * package; only the entry point is internal.
+ * of SessionCreateScreen.kt to keep both files under the detekt file-function budget.
+ * #557 — stays in shared `ui/screen` as the deliberate cross-feature edge for #558's client
+ * owner (single source, consumed via [SessionClientPickerApi]; never copied into session/).
+ * Only the entry point is internal.
  */
 
 internal data class ClientPickerArgs(

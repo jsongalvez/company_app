@@ -1,4 +1,4 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.session.detail
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

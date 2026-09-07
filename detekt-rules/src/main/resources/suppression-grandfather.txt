@@ -183,9 +183,9 @@ composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ProductCatalo
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ProductCatalogScreen.kt:LongParameterList
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/RemittanceDetailReceipt.kt:MagicNumber
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/RemittanceListScreen.kt:DEPRECATION
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/SessionCreateLayout.kt:MatchingDeclarationName
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/SessionCreateScreen.kt:LongParameterList
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/SessionCreateScreen.kt:TooManyFunctions
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateLayout.kt:MatchingDeclarationName
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateScreen.kt:LongParameterList
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateScreen.kt:TooManyFunctions
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/dashboard/SessionDashboardScreen.kt:LongParameterList
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/dashboard/SessionDashboardScreen.kt:UnusedParameter
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserManagementDialogs.kt:DEPRECATION
@@ -196,9 +196,9 @@ composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/ApiCallHandle
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/FinanceReportDayEditOps.kt:LongParameterList
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/InventoryMutationPolicy.kt:LongParameterList
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/InventoryMutationPolicy.kt:TooManyFunctions
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/SessionCreateViewModel.kt:TooManyFunctions
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateViewModel.kt:TooManyFunctions
 composeApp/src/desktopMain/kotlin/com/companyb/companyapp/session/dashboard/SessionListEditors.desktop.kt:MagicNumber
 composeApp/src/desktopTest/kotlin/com/companyb/companyapp/ui/screen/InventoryRowPresentationTest.kt:LongParameterList
 composeApp/src/iosMain/kotlin/com/companyb/companyapp/ui/screen/ClientScreenParts.ios.kt:DEPRECATION
-composeApp/src/iosMain/kotlin/com/companyb/companyapp/ui/screen/SessionCreateLayout.ios.kt:DEPRECATION
+composeApp/src/iosMain/kotlin/com/companyb/companyapp/session/create/SessionCreateLayout.ios.kt:DEPRECATION
 shared/src/commonMain/kotlin/com/companyb/companyapp/api/ApiRoutes.kt:TooManyFunctions

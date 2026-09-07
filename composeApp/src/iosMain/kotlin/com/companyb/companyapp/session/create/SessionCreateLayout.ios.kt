@@ -1,6 +1,6 @@
 @file:Suppress("DEPRECATION")
 
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.create
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.ExperimentalComposeUiApi

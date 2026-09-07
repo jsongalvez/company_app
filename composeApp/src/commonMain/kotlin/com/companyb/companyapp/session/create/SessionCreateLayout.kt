@@ -1,6 +1,6 @@
 @file:Suppress("MatchingDeclarationName")
 
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.create
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,9 +10,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.ClientResponse
+import com.companyb.companyapp.ui.screen.ClientPickerArgs
+import com.companyb.companyapp.ui.screen.ClientPickerSection
 import com.companyb.companyapp.ui.theme.Spacing
-import com.companyb.companyapp.viewmodel.SessionCreateDraft
-import com.companyb.companyapp.viewmodel.SessionCreateFormApi
 
 internal data class SessionCreateBodyArgs(
     val viewModel: SessionCreateFormApi,

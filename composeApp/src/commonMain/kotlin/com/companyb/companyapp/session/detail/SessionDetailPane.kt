@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.detail
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,19 +33,15 @@ import com.companyb.companyapp.dto.SessionVoidResponse
 import com.companyb.companyapp.dto.UpdatePractitionerRemarksRequest
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.ApiClient
+import com.companyb.companyapp.ui.screen.EmptySessionPlaceholder
+import com.companyb.companyapp.ui.screen.PaneSaleContext
+import com.companyb.companyapp.ui.screen.PaneSaleDialogHost
+import com.companyb.companyapp.ui.screen.SaleEffects
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.InventoryViewModel
 import com.companyb.companyapp.viewmodel.ProductSaleViewModel
-import com.companyb.companyapp.viewmodel.SessionViewModel
-import com.companyb.companyapp.viewmodel.addPractitioner
-import com.companyb.companyapp.viewmodel.consumeConcernResult
-import com.companyb.companyapp.viewmodel.consumePractitionerResult
-import com.companyb.companyapp.viewmodel.loadSessionPractitioners
-import com.companyb.companyapp.viewmodel.removePractitioner
-import com.companyb.companyapp.viewmodel.removeSessionConcern
-import com.companyb.companyapp.viewmodel.updatePractitionerRemarks
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 

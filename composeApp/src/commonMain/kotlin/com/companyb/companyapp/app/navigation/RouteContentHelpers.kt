@@ -11,12 +11,12 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.notification.NotificationViewModel
 import com.companyb.companyapp.notification.NotificationsScreen
+import com.companyb.companyapp.session.create.SessionCreateScreen
+import com.companyb.companyapp.session.create.SessionCreateViewModel
 import com.companyb.companyapp.state.ClientState
 import com.companyb.companyapp.ui.RouteGateCard
 import com.companyb.companyapp.ui.screen.ClientDetailScreen
-import com.companyb.companyapp.ui.screen.SessionCreateScreen
 import com.companyb.companyapp.viewmodel.ClientViewModel
-import com.companyb.companyapp.viewmodel.SessionCreateViewModel
 import com.companyb.companyapp.workforce.relief.ReliefInviteViewModel
 
 // #460 — gate + entry helpers extracted from SharedRouteGraph (TooManyFunctions budget

@@ -28,6 +28,8 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
+import com.companyb.companyapp.session.detail.SessionDetailScreen
+import com.companyb.companyapp.session.detail.SessionDetailViewModel
 import com.companyb.companyapp.session.rates.BaseRatesScreen
 import com.companyb.companyapp.session.rates.SessionRatesViewModel
 import com.companyb.companyapp.ui.RouteGateCard
@@ -39,7 +41,6 @@ import com.companyb.companyapp.ui.screen.InventoryScreen
 import com.companyb.companyapp.ui.screen.RemittanceDetailArgs
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
 import com.companyb.companyapp.ui.screen.RemittanceListScreen
-import com.companyb.companyapp.ui.screen.SessionDetailScreen
 import com.companyb.companyapp.viewmodel.AuditLogViewModel
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
@@ -47,7 +48,6 @@ import com.companyb.companyapp.viewmodel.InventoryViewModel
 import com.companyb.companyapp.viewmodel.ProductSaleViewModel
 import com.companyb.companyapp.viewmodel.ProductViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
-import com.companyb.companyapp.viewmodel.SessionDetailViewModel
 import com.companyb.companyapp.workforce.branch.BranchSelectScreen
 import com.companyb.companyapp.workforce.branch.BranchSelectViewModel
 import com.companyb.companyapp.workforce.relief.ReliefAccessViewModel

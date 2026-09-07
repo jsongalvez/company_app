@@ -28,6 +28,13 @@ private const val MUTED_BADGE_BG_ALPHA = 0.4f
 private const val MUTED_BADGE_FG_ALPHA = 0.5f
 private const val VOIDED_PILL_BG_ALPHA = 0.35f
 
+/**
+ * #557 — shared voided-row dimming: dashboard lists and the detail content render the same
+ * voided affordance, so the constant stays in shared `ui/screen` as a deliberate edge
+ * (detail does not own dashboard rendering).
+ */
+internal const val VOIDED_ROW_ALPHA = 0.22f
+
 @Composable
 internal fun WalkInDot(
     voided: Boolean,

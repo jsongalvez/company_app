@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.detail
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,10 +17,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.companyb.companyapp.dto.ConcernResponse
 import com.companyb.companyapp.dto.DashboardPractitionerResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.ui.screen.EmptySessionPlaceholder
+import com.companyb.companyapp.ui.screen.SessionStatusBadge
+import com.companyb.companyapp.ui.screen.SessionTypeBadge
+import com.companyb.companyapp.ui.screen.VoidedPill
+import com.companyb.companyapp.ui.screen.WalkInDot
+import com.companyb.companyapp.ui.screen.bookedTimeLabel
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
-
-internal const val VOIDED_ROW_ALPHA = 0.22f
 
 private const val DETAIL_LABEL_WEIGHT = 0.35f
 private const val DETAIL_VALUE_WEIGHT = 0.65f

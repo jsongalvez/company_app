@@ -1,6 +1,6 @@
 @file:Suppress("TooManyFunctions")
 
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.create
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,17 +47,14 @@ import com.companyb.companyapp.dto.CreateClientRequest
 import com.companyb.companyapp.dto.SessionPreviewResponse
 import com.companyb.companyapp.state.ClientState
 import com.companyb.companyapp.ui.ErrorCard
+import com.companyb.companyapp.ui.screen.ClientCreateDialog
+import com.companyb.companyapp.ui.screen.missionPriceLocked
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.ClientViewModel
-import com.companyb.companyapp.viewmodel.SessionCreateDraft
-import com.companyb.companyapp.viewmodel.SessionCreateFormApi
-import com.companyb.companyapp.viewmodel.SessionCreateViewModel
-import com.companyb.companyapp.viewmodel.bookingFields
-import com.companyb.companyapp.viewmodel.isSessionCreateLocked
 
 /**
  * #348 — start a client's session end-to-end. No client chosen: the debounced picker (the

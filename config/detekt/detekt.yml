@@ -154,7 +154,7 @@ complexity:
     includePrivateDeclarations: false
     ignoreOverloaded: false
     excludes:
-      - '**/commonMain/**/viewmodel/SessionCreateViewModel.kt' #469 SessionCreateFormApi seam kept whole deliberately (see #460 note on TooManyFunctions)
+      - '**/commonMain/**/session/create/SessionCreateViewModel.kt' #469 SessionCreateFormApi seam kept whole deliberately (see #460 note on TooManyFunctions) #557 retarget (was viewmodel)
   CyclomaticComplexMethod:
     active: true
     threshold: 15
@@ -840,14 +840,14 @@ style:
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt' #465 frozen #563 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ProductCatalogScreen.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/RemittanceDetailReceipt.kt' #465 frozen
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/SessionCreateLayout.kt' #465 frozen
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/SessionCreateScreen.kt' #465 frozen
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateLayout.kt' #465 frozen #557 retarget
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateScreen.kt' #465 frozen #557 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/dashboard/SessionDashboardScreen.kt' #465 frozen #556 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserManagementScreen.kt' #465 frozen #563 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/async/ApiCallHandler.kt' #465 frozen #554 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/FinanceReportDayEditOps.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/InventoryMutationPolicy.kt' #465 frozen
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/SessionCreateViewModel.kt' #465 frozen
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateViewModel.kt' #465 frozen #557 retarget
       - '**/composeApp/src/desktopMain/kotlin/com/companyb/companyapp/session/dashboard/SessionListEditors.desktop.kt' #465 frozen #556 retarget
       - '**/composeApp/src/desktopTest/kotlin/com/companyb/companyapp/ui/screen/InventoryRowPresentationTest.kt' #465 frozen
       - '**/shared/src/commonMain/kotlin/com/companyb/companyapp/api/ApiRoutes.kt' #465 frozen

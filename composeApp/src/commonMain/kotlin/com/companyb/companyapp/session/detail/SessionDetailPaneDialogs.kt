@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.session.detail
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -27,10 +27,6 @@ import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.dto.PromoteConcernRequest
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
-import com.companyb.companyapp.viewmodel.SessionViewModel
-import com.companyb.companyapp.viewmodel.addPractitioner
-import com.companyb.companyapp.viewmodel.loadBranchMembers
-import com.companyb.companyapp.viewmodel.promoteConcern
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
