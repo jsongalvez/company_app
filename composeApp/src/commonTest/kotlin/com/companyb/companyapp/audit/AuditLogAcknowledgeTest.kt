@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.audit
 
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.dto.AuditLogEntryResponse

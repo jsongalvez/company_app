@@ -1,6 +1,6 @@
 @file:Suppress("DEPRECATION")
 
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.audit
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -53,13 +53,6 @@ import com.companyb.companyapp.ui.theme.rowHover
 import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.AuditLogFilters
-import com.companyb.companyapp.viewmodel.AuditLogViewModel
-import com.companyb.companyapp.viewmodel.applyFilters
-import com.companyb.companyapp.viewmodel.loadBrowse
-import com.companyb.companyapp.viewmodel.loadMore
-import com.companyb.companyapp.viewmodel.refreshBrowse
-import com.companyb.companyapp.viewmodel.retryBrowse
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive

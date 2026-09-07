@@ -169,8 +169,8 @@ backend/src/test/kotlin/com/companyb/companyapp/test/DatabaseTestHelper.kt:Forbi
 backend/src/test/kotlin/com/companyb/companyapp/test/DatabaseTestHelper.kt:LongParameterList
 composeApp/src/androidMain/kotlin/com/companyb/companyapp/network/TokenStore.android.kt:TooGenericExceptionCaught
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/App.kt:TooGenericExceptionCaught
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/AuditLogDiff.kt:ReturnCount
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/AuditLogScreen.kt:DEPRECATION
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/audit/AuditLogDiff.kt:ReturnCount
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/audit/AuditLogScreen.kt:DEPRECATION
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientFieldEditor.kt:MagicNumber
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientPicker.kt:LongMethod
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientPicker.kt:MatchingDeclarationName

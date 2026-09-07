@@ -23,6 +23,9 @@ import com.companyb.companyapp.app.auth.LoginScreen
 import com.companyb.companyapp.app.hasCapability
 import com.companyb.companyapp.app.hasCapabilityAnyContext
 import com.companyb.companyapp.app.hasDayGrant
+import com.companyb.companyapp.audit.AuditLogHistoryScreen
+import com.companyb.companyapp.audit.AuditLogScreen
+import com.companyb.companyapp.audit.AuditLogViewModel
 import com.companyb.companyapp.client.ClientViewModel
 import com.companyb.companyapp.client.ClientsScreen
 import com.companyb.companyapp.commerce.catalog.ProductViewModel
@@ -45,9 +48,6 @@ import com.companyb.companyapp.session.detail.SessionDetailViewModel
 import com.companyb.companyapp.session.rates.BaseRatesScreen
 import com.companyb.companyapp.session.rates.SessionRatesViewModel
 import com.companyb.companyapp.ui.RouteGateCard
-import com.companyb.companyapp.ui.screen.AuditLogHistoryScreen
-import com.companyb.companyapp.ui.screen.AuditLogScreen
-import com.companyb.companyapp.viewmodel.AuditLogViewModel
 import com.companyb.companyapp.workforce.branch.BranchSelectScreen
 import com.companyb.companyapp.workforce.branch.BranchSelectViewModel
 import com.companyb.companyapp.workforce.relief.ReliefAccessViewModel

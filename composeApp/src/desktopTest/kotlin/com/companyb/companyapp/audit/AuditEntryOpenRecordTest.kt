@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.audit
 
 import com.companyb.companyapp.app.GLOBAL_CAPABILITY_CONTEXT_ID
 import com.companyb.companyapp.app.hasCapability

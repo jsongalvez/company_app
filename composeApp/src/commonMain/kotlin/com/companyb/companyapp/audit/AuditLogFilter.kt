@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.audit
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -31,7 +31,6 @@ import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.dto.AuditLogTableResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.AuditLogFilters
 
 // #479 — the audit-log filter-bar seam (#104 D4/D8), extracted from AuditLogScreen.kt so the
 // file-function wall (TMF) stays honest: server-driven table dropdown, action dropdown,

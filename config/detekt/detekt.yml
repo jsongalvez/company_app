@@ -146,6 +146,7 @@ complexity:
       - '**/client/**' #558 client composables keep the screen complexity exclusion
       - '**/finance/**' #559 finance composables keep the screen complexity exclusion
       - '**/commerce/**' #562 commerce composables keep the screen complexity exclusion
+      - '**/audit/**' #564 audit composables keep the screen complexity exclusion
   ComplexCondition:
     active: true
     threshold: 4
@@ -837,7 +838,7 @@ style:
       - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/CommerceFinanceFixtures.kt' #552 split from the retired mixed helper
       - '**/composeApp/src/androidMain/kotlin/com/companyb/companyapp/network/TokenStore.android.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/App.kt' #465 frozen #555 retarget #585 repair
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/AuditLogDiff.kt' #465 frozen
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/audit/AuditLogDiff.kt' #465 frozen #564 retarget (was ui/screen)
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientFieldEditor.kt' #465 frozen #558 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientPicker.kt' #465 frozen #558 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt' #465 frozen #563 retarget

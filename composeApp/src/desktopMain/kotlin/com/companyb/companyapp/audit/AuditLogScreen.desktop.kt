@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.audit
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column

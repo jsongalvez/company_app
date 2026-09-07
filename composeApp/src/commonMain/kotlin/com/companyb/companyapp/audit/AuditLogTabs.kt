@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.audit
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,13 +23,6 @@ import com.companyb.companyapp.ui.EmptyState
 import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.AuditLogFilters
-import com.companyb.companyapp.viewmodel.AuditLogViewModel
-import com.companyb.companyapp.viewmodel.applyFilters
-import com.companyb.companyapp.viewmodel.loadBrowse
-import com.companyb.companyapp.viewmodel.loadMore
-import com.companyb.companyapp.viewmodel.refreshBrowse
-import com.companyb.companyapp.viewmodel.retryBrowse
 
 // #479 — the audit-log tab seam (#104 D1/D5/D10), extracted from AuditLogScreen.kt so the
 // file-function wall (TMF) stays honest: the tab content switch, the For-review and

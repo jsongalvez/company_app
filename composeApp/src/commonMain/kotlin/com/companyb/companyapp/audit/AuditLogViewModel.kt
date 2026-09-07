@@ -1,19 +1,22 @@
-package com.companyb.companyapp.viewmodel
+package com.companyb.companyapp.audit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ActionTracker
 import com.companyb.companyapp.async.ApiCallHandler
+import com.companyb.companyapp.async.GuardedStateless
 import com.companyb.companyapp.async.StatelessHooks
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.dto.AuditLogBrowseResponse
 import com.companyb.companyapp.dto.AuditLogEntryResponse
 import com.companyb.companyapp.dto.AuditLogTableResponse
 import com.companyb.companyapp.network.ApiClient
+import com.companyb.companyapp.util.logWarn
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.patch
+import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,9 +46,9 @@ data class AuditLogFilters(
  *   Route.AuditLogHistory (D8).
  */
 class AuditLogViewModel(
-    internal val apiClient: ApiClient,
+    private val apiClient: ApiClient,
 ) : ViewModel() {
-    internal val handler = ApiCallHandler(viewModelScope, "AuditLogVM")
+    private val handler = ApiCallHandler(viewModelScope, "AuditLogVM")
 
     private val _flaggedEntries = MutableStateFlow<UiState<List<AuditLogEntryResponse>>>(UiState.Idle)
     val flaggedEntries: StateFlow<UiState<List<AuditLogEntryResponse>>> = _flaggedEntries.asStateFlow()
@@ -63,7 +66,7 @@ class AuditLogViewModel(
     // transform drops them so the locally-acknowledged state is the authority mid-mutation (#143
     // guard shape). Acknowledged rows never legitimately re-appear in the flagged list (re-flagging
     // creates a new entry).
-    internal val acknowledgedIds = mutableSetOf<String>()
+    private val acknowledgedIds = mutableSetOf<String>()
 
     // D2 — ack in-flight set + per-row inline errors (ADR-0022: pessimistic, failure keeps row).
     // The acknowledge response routes through ackTracker + the list writes; no state flow.
@@ -74,24 +77,24 @@ class AuditLogViewModel(
     // D5/D8/D10 — browse: accumulated pages + cursor; page-1 loads drive [browseEntries], while
     // refresh/load-more calls are state-less (the #168 launch) so the accumulated list is never
     // clobbered by a failed or in-flight page fetch.
-    internal val browseEntriesState = MutableStateFlow<UiState<List<AuditLogEntryResponse>>>(UiState.Idle)
+    private val browseEntriesState = MutableStateFlow<UiState<List<AuditLogEntryResponse>>>(UiState.Idle)
     val browseEntries: StateFlow<UiState<List<AuditLogEntryResponse>>> = browseEntriesState.asStateFlow()
-    internal val appliedFiltersState = MutableStateFlow(AuditLogFilters())
+    private val appliedFiltersState = MutableStateFlow(AuditLogFilters())
     val appliedFilters: StateFlow<AuditLogFilters> = appliedFiltersState.asStateFlow()
-    internal val nextCursorState = MutableStateFlow<String?>(null)
+    private val nextCursorState = MutableStateFlow<String?>(null)
     val nextCursor: StateFlow<String?> = nextCursorState.asStateFlow()
-    internal val isRefreshingState = MutableStateFlow(false)
+    private val isRefreshingState = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = isRefreshingState.asStateFlow()
 
     // Tab-scoped refresh error lines: a failed For-review refresh must not surface atop All
     // activity and vice versa (each tab renders only its own).
     private val _flaggedRefreshError = MutableStateFlow<String?>(null)
     val flaggedRefreshError: StateFlow<String?> = _flaggedRefreshError.asStateFlow()
-    internal val browseRefreshErrorState = MutableStateFlow<String?>(null)
+    private val browseRefreshErrorState = MutableStateFlow<String?>(null)
     val browseRefreshError: StateFlow<String?> = browseRefreshErrorState.asStateFlow()
-    internal val isLoadingMoreState = MutableStateFlow(false)
+    private val isLoadingMoreState = MutableStateFlow(false)
     val isLoadingMore: StateFlow<Boolean> = isLoadingMoreState.asStateFlow()
-    internal val loadMoreErrorState = MutableStateFlow<String?>(null)
+    private val loadMoreErrorState = MutableStateFlow<String?>(null)
     val loadMoreError: StateFlow<String?> = loadMoreErrorState.asStateFlow()
 
     // Generation guard for the browse list: applyFilters bumps it, and every in-flight page
@@ -99,7 +102,7 @@ class AuditLogViewModel(
     // superseded filter generation must not append to or replace the new list, nor write its
     // cursor or error surface. The stale fetch is deliberately NOT cancelled: cancellation would
     // make the guard untestable, and an inert single GET is cheaper than a second mechanism.
-    internal var browseGeneration = 0
+    private var browseGeneration = 0
 
     // D4 — server-driven table list for the dropdown.
     private val _tables = MutableStateFlow<UiState<List<AuditLogTableResponse>>>(UiState.Idle)
@@ -268,5 +271,212 @@ class AuditLogViewModel(
                     if (entry.id == entryId) entry.copy(isFlagged = false) else entry
                 },
             )
+    }
+
+    // #564 — the All-activity browse seam (#104 D5/D8/D10), folded from the #479
+    // AuditLogBrowseOps extension file into private state ownership (#535): cursor pagination
+    // with the #173 generation gate, keep-last-list across silent refresh/load-more, and the
+    // pass-5/pass-6 same-generation commit/failure guards. Intent operations stay public;
+    // page mechanics and FetchMode stay private.
+
+    // D8 — apply filter bar values: fresh page-1 load, previous pages discarded. Unguarded by
+    // design — an in-flight page fetch from an older filter generation is made inert by the
+    // generation guard (it can't append to, replace, or error the new list).
+    fun applyFilters(filters: AuditLogFilters) {
+        browseGeneration++
+        isRefreshingState.value = false
+        isLoadingMoreState.value = false
+        appliedFiltersState.value = filters
+        nextCursorState.value = null
+        browseRefreshErrorState.value = null
+        loadMoreErrorState.value = null
+        browseEntriesState.value = UiState.Loading
+        fetchPage(FetchMode.Cold, cursor = null)
+    }
+
+    // D10 — All-activity first-visit load (cold loud path: Loading → error card + retry).
+    fun loadBrowse() {
+        applyFilters(appliedFiltersState.value)
+    }
+
+    // D10 — manual refresh: silent page-1 re-fetch; the accumulated list stays rendered while
+    // in-flight and on failure (keep-last-list, #97 Q5 axis). The cursor is NOT pre-nulled: a
+    // failed refresh keeps the old list AND its Load-more availability (D5); the success path
+    // replaces both from the fresh page.
+    fun refreshBrowse() {
+        if (isRefreshingState.value || isLoadingMoreState.value) return
+        browseRefreshErrorState.value = null
+        loadMoreErrorState.value = null
+        fetchPage(FetchMode.Refresh, cursor = null)
+    }
+
+    // D10 — error-card retry: re-fires the last applied filters as a cold load (the list state
+    // holds no content, so the error card must give way to a fresh Loading + fetch).
+    fun retryBrowse() = loadBrowse()
+
+    // D5 — cursor-based pagination: appends the next page; `nextCursor` null = last page.
+    fun loadMore() {
+        val cursor = nextCursorState.value ?: return
+        if (isLoadingMoreState.value || isRefreshingState.value) return
+        loadMoreErrorState.value = null
+        fetchPage(FetchMode.LoadMore, cursor = cursor)
+    }
+
+    // Any failure type must clear the in-flight flags before the failure is surfaced.
+    private fun fetchPage(
+        mode: FetchMode,
+        cursor: String?,
+    ) {
+        val filters = appliedFiltersState.value
+        val generation = browseGeneration
+        if (mode == FetchMode.Refresh) isRefreshingState.value = true
+        if (mode == FetchMode.LoadMore) isLoadingMoreState.value = true
+        handler.launchStatelessGuarded(
+            // State-less (#168): the list state is mutated in commit, so a failed or
+            // in-flight page fetch can never clobber the accumulated list (D10).
+            operation = mode.operationName,
+            endpoint = "GET /api/audit-log/entries",
+            block = { browseRequest(filters, cursor) },
+            guarded =
+                GuardedStateless(
+                    // #528 — suspend decode owns the parse; every list/cursor/flag write below is
+                    // the non-suspending commit. A filter switch mid-decode drops the body.
+                    decode = { it.body<AuditLogBrowseResponse>() },
+                    commit = { page ->
+                        // A cold response that lands after a concurrent same-generation fetch
+                        // already wrote Success is the older snapshot (older rows + older
+                        // cursor — accumulated load-more pages would truncate): skip the whole
+                        // commit (pass-6 HARD, the success-side mirror of the pass-5 failure
+                        // guard). Cold only launches from Loading/Error/Idle, so Success at
+                        // landing ⟺ a concurrent refresh already committed.
+                        val listAlreadyCommitted =
+                            mode == FetchMode.Cold && browseEntriesState.value is UiState.Success
+                        if (listAlreadyCommitted) {
+                            logWarn("AuditLogVM", "cold browse success suppressed — list superseded")
+                        } else {
+                            if (browseRefreshErrorState.value != null) {
+                                // Any successful commit supersedes a failed refresh's error line:
+                                // the list below is fresh, so the line would be stale (pass-6
+                                // SOFT); log rather than vanish silently.
+                                logWarn(
+                                    "AuditLogVM",
+                                    "browse commit cleared stale refresh error: ${browseRefreshErrorState.value}",
+                                )
+                            }
+                            browseRefreshErrorState.value = null
+                            nextCursorState.value = page.nextCursor
+                            // A page snapshot taken before an ack commit may still carry the
+                            // now-acked row's flag — clear it for locally-acknowledged ids (the
+                            // flagged-transform mirror; the badge must not resurrect on browse).
+                            applyPage(
+                                mode,
+                                page.entries.map { entry ->
+                                    if (entry.id in acknowledgedIds) {
+                                        entry.copy(isFlagged = false)
+                                    } else {
+                                        entry
+                                    }
+                                },
+                            )
+                        }
+                        finish(mode)
+                    },
+                    // #173 — the hand-rolled browseGeneration guard folds into the guarded stale
+                    // gate: a stale response (applyFilters bumped the generation while this fetch was
+                    // in flight) is inert — no list write, no cursor write, no error line, no flag
+                    // cleanup (applyFilters already reset the flags).
+                    stale = { generation != browseGeneration },
+                    onNonSuccess = { response ->
+                        handlePageFailure(mode, "browse failed: ${response.status.value}")
+                        finish(mode)
+                    },
+                    onError = { e ->
+                        // Network or deserialization failure — same error surface + flag cleanup so the
+                        // list state and buttons never freeze (keep-last-list); gated by the stale flag
+                        // so a superseded fetch's failure can't surface on the new list. onError is
+                        // that single surface (#169).
+                        handlePageFailure(mode, "browse failed: ${e.message ?: "network error"}")
+                        finish(mode)
+                    },
+                ),
+        )
+    }
+
+    private suspend fun browseRequest(
+        filters: AuditLogFilters,
+        cursor: String?,
+    ): HttpResponse =
+        apiClient.httpClient.get(ApiRoutes.AUDIT_LOG_ENTRIES_PATH) {
+            filters.tableName?.takeIf { it.isNotBlank() }?.let { parameter("tableName", it) }
+            filters.action?.let { parameter("action", it) }
+            filters.callerName?.takeIf { it.isNotBlank() }?.let { parameter("callerName", it) }
+            filters.dateFrom?.takeIf { it.isNotBlank() }?.let { parameter("dateFrom", it) }
+            filters.dateTo?.takeIf { it.isNotBlank() }?.let { parameter("dateTo", it) }
+            cursor?.let { parameter("cursor", it) }
+        }
+
+    private fun applyPage(
+        mode: FetchMode,
+        entries: List<AuditLogEntryResponse>,
+    ) {
+        when (mode) {
+            FetchMode.Cold -> {
+                browseEntriesState.value = UiState.Success(entries)
+            }
+
+            FetchMode.Refresh -> {
+                browseEntriesState.value = UiState.Success(entries)
+            }
+
+            FetchMode.LoadMore -> {
+                val current =
+                    (browseEntriesState.value as? UiState.Success<List<AuditLogEntryResponse>>)
+                        ?.data
+                        .orEmpty()
+                browseEntriesState.value = UiState.Success(current + entries)
+            }
+        }
+    }
+
+    private fun handlePageFailure(
+        mode: FetchMode,
+        message: String,
+    ) {
+        when (mode) {
+            FetchMode.Cold -> {
+                // D10 keep-last: a cold failure only surfaces as the error card when the list
+                // holds nothing current. A concurrent same-generation fetch (e.g. a Refresh
+                // tapped while the first-visit cold was in flight) may have already written a
+                // Success list — a stale cold failure must not clobber it (pass-5 HARD).
+                if (browseEntriesState.value !is UiState.Success) {
+                    browseEntriesState.value = UiState.Error(message)
+                } else {
+                    // The suppressed failure has no user-visible loss (the list is newer), but
+                    // it must not vanish silently (pass-6 SOFT).
+                    logWarn("AuditLogVM", "cold browse failure suppressed — list superseded: $message")
+                }
+            }
+
+            FetchMode.Refresh -> {
+                browseRefreshErrorState.value = message
+            }
+
+            FetchMode.LoadMore -> {
+                loadMoreErrorState.value = message
+            }
+        }
+    }
+
+    private fun finish(mode: FetchMode) {
+        if (mode == FetchMode.Refresh) isRefreshingState.value = false
+        if (mode == FetchMode.LoadMore) isLoadingMoreState.value = false
+    }
+
+    private enum class FetchMode(
+        val operationName: String,
+    ) {
+        Cold("browse"),
+        Refresh("refreshBrowse"),
+        LoadMore("loadMore"),
     }
 }

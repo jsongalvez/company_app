@@ -1,4 +1,4 @@
-package com.companyb.companyapp.ui.screen
+package com.companyb.companyapp.audit
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
