@@ -8,8 +8,8 @@ import com.companyb.companyapp.dto.NotificationUnreadCountResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.NotificationState
-import com.companyb.companyapp.ui.screen.currentOperationalDate
-import com.companyb.companyapp.ui.screen.isInviteActionable
+import com.companyb.companyapp.workforce.relief.currentOperationalDate
+import com.companyb.companyapp.workforce.relief.isInviteActionable
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import kotlinx.coroutines.cancel

@@ -20,7 +20,7 @@ import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.NotificationViewModel
-import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
+import com.companyb.companyapp.workforce.relief.ReliefInviteViewModel
 
 /**
  * Queue derivations hoisted out of [NotificationsScreen] for the #462 LongMethod burn-down.

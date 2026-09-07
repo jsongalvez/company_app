@@ -16,8 +16,8 @@ import com.companyb.companyapp.ui.screen.NotificationsScreen
 import com.companyb.companyapp.ui.screen.SessionCreateScreen
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
-import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
 import com.companyb.companyapp.viewmodel.SessionCreateViewModel
+import com.companyb.companyapp.workforce.relief.ReliefInviteViewModel
 
 // #460 — gate + entry helpers extracted from SharedRouteGraph (TooManyFunctions budget
 // is 11 per file; the graph keeps registrations, this file keeps the three gate

@@ -10,8 +10,8 @@ import com.companyb.companyapp.dto.MeBranchResponse
 import com.companyb.companyapp.dto.MeResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.viewmodel.AssignmentSlotOperations
-import com.companyb.companyapp.viewmodel.extractApiErrorMessage
+import com.companyb.companyapp.workforce.AssignmentSlotOperations
+import com.companyb.companyapp.workforce.team.extractApiErrorMessage
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText

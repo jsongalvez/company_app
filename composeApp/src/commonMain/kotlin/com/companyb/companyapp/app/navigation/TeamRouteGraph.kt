@@ -13,9 +13,9 @@ import com.companyb.companyapp.app.profile.ProfileScreen
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.ui.RouteGateCard
-import com.companyb.companyapp.ui.screen.UserManagementScreen
-import com.companyb.companyapp.viewmodel.BranchViewModel
-import com.companyb.companyapp.viewmodel.UserViewModel
+import com.companyb.companyapp.workforce.branch.BranchViewModel
+import com.companyb.companyapp.workforce.team.UserManagementScreen
+import com.companyb.companyapp.workforce.team.UserViewModel
 
 // #460 — team-management routes split out of auditGraph (LongMethod budget is 60;
 // each graph stays under it and the registration file stays within TooManyFunctions).

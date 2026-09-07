@@ -31,13 +31,13 @@ import com.companyb.companyapp.dto.MeBranchResponse
 import com.companyb.companyapp.dto.MeResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.ui.ErrorCard
-import com.companyb.companyapp.ui.screen.EditSlotDialog
-import com.companyb.companyapp.ui.screen.SlotDialogOptions
-import com.companyb.companyapp.ui.screen.SlotEditTarget
-import com.companyb.companyapp.ui.screen.SlotEditTargetSaver
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logWarn
+import com.companyb.companyapp.workforce.team.EditSlotDialog
+import com.companyb.companyapp.workforce.team.SlotDialogOptions
+import com.companyb.companyapp.workforce.team.SlotEditTarget
+import com.companyb.companyapp.workforce.team.SlotEditTargetSaver
 
 /**
  * #381 — the signed-in user's own profile: identity, branch assignments (with Branch Slot),

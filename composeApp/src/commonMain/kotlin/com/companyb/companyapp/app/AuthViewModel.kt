@@ -12,7 +12,7 @@ import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.dto.ResetPasswordRequest
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.viewmodel.extractApiErrorMessage
+import com.companyb.companyapp.workforce.team.extractApiErrorMessage
 import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody

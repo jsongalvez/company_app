@@ -140,6 +140,7 @@ complexity:
     excludes:
       - '**/ui/screen/**'
       - '**/app/**' #555 app shell composables keep the screen complexity exclusion
+      - '**/workforce/**' #563 workforce composables keep the screen complexity exclusion
   ComplexCondition:
     active: true
     threshold: 4
@@ -834,13 +835,13 @@ style:
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/AuditLogDiff.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ClientFieldEditor.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ClientPicker.kt' #465 frozen
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/MedicalMissionDelegateScreen.kt' #465 frozen
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt' #465 frozen #563 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ProductCatalogScreen.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/RemittanceDetailReceipt.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/SessionCreateLayout.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/SessionCreateScreen.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/SessionDashboardScreen.kt' #465 frozen
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/UserManagementScreen.kt' #465 frozen
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserManagementScreen.kt' #465 frozen #563 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/async/ApiCallHandler.kt' #465 frozen #554 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/FinanceReportDayEditOps.kt' #465 frozen
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/InventoryMutationPolicy.kt' #465 frozen

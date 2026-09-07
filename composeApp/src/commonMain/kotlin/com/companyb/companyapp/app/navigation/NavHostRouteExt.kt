@@ -18,11 +18,11 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.ui.RouteGateCard
-import com.companyb.companyapp.ui.screen.MedicalMissionDelegateScreen
 import com.companyb.companyapp.ui.screen.ProductCatalogScreen
-import com.companyb.companyapp.viewmodel.DelegateViewModel
 import com.companyb.companyapp.viewmodel.ProductViewModel
-import com.companyb.companyapp.viewmodel.UserViewModel
+import com.companyb.companyapp.workforce.relief.DelegateViewModel
+import com.companyb.companyapp.workforce.relief.MedicalMissionDelegateScreen
+import com.companyb.companyapp.workforce.team.UserViewModel
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.serializer
 import kotlin.reflect.KClass

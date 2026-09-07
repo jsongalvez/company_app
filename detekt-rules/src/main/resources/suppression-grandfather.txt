@@ -175,9 +175,9 @@ composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ClientFieldEd
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ClientPicker.kt:LongMethod
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ClientPicker.kt:MatchingDeclarationName
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/FinanceToolbar.kt:DEPRECATION
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/MedicalMissionDelegateScreen.kt:CyclomaticComplexMethod
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/MedicalMissionDelegateScreen.kt:LongMethod
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/MedicalMissionDelegateScreen.kt:LongParameterList
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt:CyclomaticComplexMethod
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt:LongMethod
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt:LongParameterList
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ProductCatalogScreen.kt:CyclomaticComplexMethod
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ProductCatalogScreen.kt:LongMethod
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ProductCatalogScreen.kt:LongParameterList
@@ -188,9 +188,9 @@ composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/SessionCreate
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/SessionCreateScreen.kt:TooManyFunctions
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/SessionDashboardScreen.kt:LongParameterList
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/SessionDashboardScreen.kt:UnusedParameter
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/UserManagementDialogs.kt:DEPRECATION
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/UserManagementScreen.kt:DEPRECATION
-composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/UserManagementScreen.kt:UnusedParameter
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserManagementDialogs.kt:DEPRECATION
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserManagementScreen.kt:DEPRECATION
+composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserManagementScreen.kt:UnusedParameter
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/util/TimestampFormat.kt:DEPRECATION
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/ApiCallHandler.kt:TooGenericExceptionCaught
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/FinanceReportDayEditOps.kt:LongParameterList

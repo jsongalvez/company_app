@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.companyb.companyapp.app.AppSessionState
+import com.companyb.companyapp.app.AttendanceViewModel
 import com.companyb.companyapp.app.DrawerItem
 import com.companyb.companyapp.app.DrawerViewModel
 import com.companyb.companyapp.app.navigation.LocalNavHostController
@@ -42,7 +43,6 @@ import com.companyb.companyapp.state.NotificationState
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.PrimaryHover
 import com.companyb.companyapp.ui.theme.Spacing
-import com.companyb.companyapp.viewmodel.AttendanceViewModel
 
 /**
  * #96 Q1 + Q4 + Q7 — stateless presentational composable in commonMain.

@@ -28,13 +28,13 @@ import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.state.ClientState
 import com.companyb.companyapp.state.NotificationState
-import com.companyb.companyapp.ui.screen.AttendanceRosterCard
 import com.companyb.companyapp.ui.screen.DashboardSelection
-import com.companyb.companyapp.ui.screen.ReliefAccessCard
 import com.companyb.companyapp.ui.screen.SessionDashboardScreen
-import com.companyb.companyapp.viewmodel.AttendanceRosterViewModel
-import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
 import com.companyb.companyapp.viewmodel.SessionDashboardViewModel
+import com.companyb.companyapp.workforce.attendance.AttendanceRosterCard
+import com.companyb.companyapp.workforce.attendance.AttendanceRosterViewModel
+import com.companyb.companyapp.workforce.relief.ReliefAccessCard
+import com.companyb.companyapp.workforce.relief.ReliefAccessViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
