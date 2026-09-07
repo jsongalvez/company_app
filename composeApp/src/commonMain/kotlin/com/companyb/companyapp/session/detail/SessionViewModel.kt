@@ -7,8 +7,6 @@ import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.LaunchRequest
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.session.AddPractitionerRequest
-import com.companyb.companyapp.contracts.session.AddSessionConcernRequest
-import com.companyb.companyapp.contracts.session.ConcernResponse
 import com.companyb.companyapp.contracts.session.PromoteConcernRequest
 import com.companyb.companyapp.contracts.session.SessionPractitionerResponse
 import com.companyb.companyapp.contracts.session.SessionResponse
@@ -34,7 +32,7 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * Distinct lifetime from entry-scoped [SessionDetailViewModel] (the mobile pushed route's
  * one-shot bearer fetch): this owner holds the roster (`GET .../practitioners`), the
- * concern collection, and every pane mutation; the authoritative row arrives via the pane
+ * concern mutations, and every pane mutation; the authoritative row arrives via the pane
  * param and reloads pessimistically after each landing (ADR-0022).
  *
  * #479's [SessionConcernOps]/[SessionRosterOps] extension files fold back here as private
@@ -56,12 +54,6 @@ class SessionViewModel(
 
     private val practitionerResultState = MutableStateFlow<UiState<SessionPractitionerResponse>>(UiState.Idle)
     val practitionerResult: StateFlow<UiState<SessionPractitionerResponse>> = practitionerResultState.asStateFlow()
-
-    private val concernsState = MutableStateFlow<UiState<List<ConcernResponse>>>(UiState.Idle)
-    val concerns: StateFlow<UiState<List<ConcernResponse>>> = concernsState.asStateFlow()
-
-    private val sessionConcernsState = MutableStateFlow<UiState<List<ConcernResponse>>>(UiState.Idle)
-    val sessionConcerns: StateFlow<UiState<List<ConcernResponse>>> = sessionConcernsState.asStateFlow()
 
     private val concernResultState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val concernResult: StateFlow<UiState<Unit>> = concernResultState.asStateFlow()
@@ -119,44 +111,8 @@ class SessionViewModel(
         _unvoidResult.value = UiState.Idle
     }
 
-    // #557 — folded from SessionConcernOps (#479): the session-concern collection lives with
-    // its state owner; no extension file exists only to satisfy a function budget.
-    fun loadAllConcerns() {
-        handler.launch(
-            state = concernsState,
-            operation = "loadAllConcerns",
-            endpoint = "GET /api/concerns",
-            block = { apiClient.httpClient.get(ApiRoutes.CONCERNS) },
-            transform = { it.body() },
-        )
-    }
-
-    fun loadSessionConcerns(sessionId: String) {
-        handler.launch(
-            state = sessionConcernsState,
-            operation = "loadSessionConcerns",
-            endpoint = "GET /api/sessions/$sessionId/concerns",
-            block = { apiClient.httpClient.get(ApiRoutes.sessionConcerns(sessionId)) },
-            transform = { it.body() },
-        )
-    }
-
-    fun addSessionConcern(
-        sessionId: String,
-        request: AddSessionConcernRequest,
-    ) {
-        handler.launchUnit(
-            state = concernResultState,
-            operation = "addSessionConcern",
-            endpoint = "POST /api/sessions/$sessionId/concerns",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.sessionConcerns(sessionId)) {
-                    setBody(request)
-                }
-            },
-        )
-    }
-
+    // #557 — folded from SessionConcernOps (#479): the session-concern mutations live
+    // with their state owner; no extension file exists only to satisfy a function budget.
     fun removeSessionConcern(
         sessionId: String,
         concernId: String,

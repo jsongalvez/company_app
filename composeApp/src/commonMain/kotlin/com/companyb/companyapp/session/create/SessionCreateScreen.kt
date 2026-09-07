@@ -255,31 +255,6 @@ internal fun SessionCreateEffects(
     }
 }
 
-/** The form half: previewed type + price, concerns, optional notes, submit. */
-@Composable
-internal fun SessionFormSection(args: SessionCreateBodyArgs) {
-    val client = args.selectedClient ?: return
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = listOfNotNull(client.firstName, client.lastName).joinToString(" "),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f),
-        )
-        TextButton(onClick = args.viewModel::clearSelectedClient, enabled = !args.isSubmissionLocked) {
-            Text("Change")
-        }
-    }
-
-    SessionFormFields(
-        viewModel = args.viewModel,
-        draft = args.draft,
-        isSubmissionLocked = args.isSubmissionLocked,
-        onSubmissionStarted = args.onSubmissionStarted,
-        onContinueAfterConcernFailure = args.onContinueAfterConcernFailure,
-    )
-}
-
 /** Shared form controls used by mobile and desktop layouts. */
 @Composable
 internal fun SessionFormFields(

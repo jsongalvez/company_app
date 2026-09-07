@@ -4,9 +4,15 @@ package com.companyb.companyapp.session.create
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.client.ClientPickerArgs
@@ -61,7 +67,27 @@ internal fun SessionCreateMobileBody(
             modifier = modifier.verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            SessionFormSection(args)
+            // #620 — sole caller of the deleted SessionFormSection: the mobile form
+            // header (client name + Change) lives with its exempt mobile body; the
+            // shared SessionFormFields below stays (desktop workspace uses it too).
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = listOfNotNull(client.firstName, client.lastName).joinToString(" "),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = args.viewModel::clearSelectedClient, enabled = !args.isSubmissionLocked) {
+                    Text("Change")
+                }
+            }
+            SessionFormFields(
+                viewModel = args.viewModel,
+                draft = args.draft,
+                isSubmissionLocked = args.isSubmissionLocked,
+                onSubmissionStarted = args.onSubmissionStarted,
+                onContinueAfterConcernFailure = args.onContinueAfterConcernFailure,
+            )
         }
     }
 }
