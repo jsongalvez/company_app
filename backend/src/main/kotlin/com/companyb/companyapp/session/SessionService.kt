@@ -4,6 +4,7 @@ import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.client.ClientReads
+import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.SessionType
@@ -382,6 +383,14 @@ object SessionService {
                 )
             }
 
+            // #667 — a voided session drops out of the commission aggregation input
+            // (findNonVoidedSalesByBranchDayInTransaction), so the persisted splits
+            // join this command transaction. Default force=false keeps the
+            // PAST/REMITTED auto-skip. Lock order stays client -> session -> day:
+            // the day row is already held by the gate above, recalc re-locks it
+            // harmlessly in the same transaction (sale/attendance precedent).
+            CommissionService.recalculateInTransaction(session.branchDayId)
+
             logger.info { "[VOID-SESSION] Session $sessionId voided" }
 
             result
@@ -441,6 +450,11 @@ object SessionService {
                 sessionVoid,
                 updated,
             )
+
+            // #667 — unvoid restores the session to the commission aggregation input;
+            // same transaction-joined recalc as void above (force=false keeps the
+            // PAST/REMITTED auto-skip; day row already held by the gate).
+            CommissionService.recalculateInTransaction(session.branchDayId)
 
             logger.info { "[UNVOID-SESSION] Session $sessionId unvoided" }
 
