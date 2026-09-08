@@ -40,7 +40,6 @@ object MonthlyRemittanceSummaryRoutes {
     private const val MAX_MONTH = 12
     private const val MIN_MONTH = 1
 
-    @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
         config.routes.before(ApiRoutes.BRANCH_MONTHLY_SUMMARY_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
@@ -54,19 +53,8 @@ object MonthlyRemittanceSummaryRoutes {
         config.routes.get(ApiRoutes.BRANCH_MONTHLY_SUMMARY_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
 
-            val yearParam =
-                context.queryParam("year")
-                    ?: throw BadRequestResponse("year query param is required")
-            val year =
-                runCatching { yearParam.toInt() }
-                    .getOrElse { throw BadRequestResponse("Invalid year format") }
-
-            val monthParam =
-                context.queryParam("month")
-                    ?: throw BadRequestResponse("month query param is required")
-            val month =
-                runCatching { monthParam.toInt() }
-                    .getOrElse { throw BadRequestResponse("Invalid month format") }
+            val year = parseRequiredInt(context, "year")
+            val month = parseRequiredInt(context, "month")
             if (month < MIN_MONTH || month > MAX_MONTH) {
                 throw BadRequestResponse("month must be between 1 and 12")
             }
@@ -76,6 +64,17 @@ object MonthlyRemittanceSummaryRoutes {
             context.status(HttpStatus.OK)
             context.json(summary.toResponse())
         }
+    }
+
+    private fun parseRequiredInt(
+        context: io.javalin.http.Context,
+        paramName: String,
+    ): Int {
+        val param =
+            context.queryParam(paramName)
+                ?: throw BadRequestResponse("$paramName query param is required")
+        return runCatching { param.toInt() }
+            .getOrElse { throw BadRequestResponse("Invalid $paramName format") }
     }
 
     private fun MonthlyRemittanceSummary.toResponse(): MonthlyRemittanceSummaryResponse =

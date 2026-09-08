@@ -41,7 +41,6 @@ import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.util.UUID
 
-@Suppress("TooManyFunctions")
 @OpenApi(
     path = ApiRoutes.REMITTANCES,
     methods = [HttpMethod.GET],
@@ -203,8 +202,18 @@ import java.util.UUID
     ],
 )
 object RemittanceRoutes {
-    @Suppress("LongMethod")
     fun register(config: JavalinConfig) {
+        registerGuards(config)
+        registerReads(config)
+        registerMutations(config)
+    }
+
+    private fun registerGuards(config: JavalinConfig) {
+        registerCollectionGuard(config)
+        registerItemGuards(config)
+    }
+
+    private fun registerCollectionGuard(config: JavalinConfig) {
         config.routes.before(ApiRoutes.REMITTANCES) { context ->
             val branchId =
                 when (context.method()) {
@@ -229,7 +238,9 @@ object RemittanceRoutes {
                 CapabilityCodes.SUBMIT_REMITTANCE,
             )
         }
+    }
 
+    private fun registerItemGuards(config: JavalinConfig) {
         config.routes.before(ApiRoutes.REMITTANCE_PATH) { context ->
             val remittanceId = context.pathParamAsUuid("remittanceId")
             RemittanceAuthz.requireBranchCapabilityForRemittance(context, remittanceId)
@@ -283,11 +294,16 @@ object RemittanceRoutes {
                 context.pathParamAsUuid("remittanceId"),
             )
         }
+    }
 
-        config.routes.post(ApiRoutes.REMITTANCES, ::handleCreateDraft)
+    private fun registerReads(config: JavalinConfig) {
         config.routes.get(ApiRoutes.REMITTANCES, ::handleListRemittances)
         config.routes.get(ApiRoutes.REMITTANCE_PATH, ::handleGetRemittance)
         config.routes.get(ApiRoutes.REMITTANCE_DRIFT_PATH, ::handleGetDrift)
+    }
+
+    private fun registerMutations(config: JavalinConfig) {
+        config.routes.post(ApiRoutes.REMITTANCES, ::handleCreateDraft)
         config.routes.post(ApiRoutes.REMITTANCE_LINES_PATH, ::handleAddLine)
         config.routes.delete(ApiRoutes.REMITTANCE_LINE_PATH, ::handleRemoveLine)
         config.routes.post(ApiRoutes.REMITTANCE_DAY_BREAKDOWNS_PATH, ::handleAddDayBreakdown)
@@ -297,7 +313,6 @@ object RemittanceRoutes {
         config.routes.patch(ApiRoutes.REMITTANCE_PATH, ::handleUpdateHeader)
     }
 
-    @Suppress("ThrowsCount")
     private fun handleCreateDraft(context: Context) {
         val callerId = context.callerUuid()
         val request = context.bodyAsClass<CreateRemittanceDraftRequest>()
@@ -328,38 +343,44 @@ object RemittanceRoutes {
         val dateRangeEnd: LocalDate,
     )
 
-    @Suppress("ThrowsCount")
     private fun parseHeader(
         type: String,
         method: String,
         dateRangeStart: String,
         dateRangeEnd: String,
     ): ParsedRemittanceHeader {
-        val parsedType =
-            runCatching { RemittanceType.valueOf(type.uppercase()) }
-                .getOrElse {
-                    throw BadRequestResponse(
-                        "Invalid remittance type: must be SESSION or PRODUCT",
-                    )
-                }
-        val parsedMethod =
-            runCatching { RemittanceMethod.valueOf(method.uppercase()) }
-                .getOrElse {
-                    throw BadRequestResponse(
-                        "Invalid remittance method: must be BANK_TRANSFER or HANDED_TO_ACCOUNTANT",
-                    )
-                }
-        val parsedStart =
-            runCatching { LocalDate.parse(dateRangeStart) }
-                .getOrElse { throw BadRequestResponse("Invalid dateRangeStart") }
-        val parsedEnd =
-            runCatching { LocalDate.parse(dateRangeEnd) }
-                .getOrElse { throw BadRequestResponse("Invalid dateRangeEnd") }
+        val parsedType = parseRemittanceType(type)
+        val parsedMethod = parseRemittanceMethod(method)
+        val parsedStart = parseHeaderDate(dateRangeStart, "dateRangeStart")
+        val parsedEnd = parseHeaderDate(dateRangeEnd, "dateRangeEnd")
         if (parsedEnd.isBefore(parsedStart)) {
             throw BadRequestResponse("dateRangeEnd must not be before dateRangeStart")
         }
         return ParsedRemittanceHeader(parsedType, parsedMethod, parsedStart, parsedEnd)
     }
+
+    private fun parseRemittanceType(raw: String): RemittanceType =
+        runCatching { RemittanceType.valueOf(raw.uppercase()) }
+            .getOrElse {
+                throw BadRequestResponse(
+                    "Invalid remittance type: must be SESSION or PRODUCT",
+                )
+            }
+
+    private fun parseRemittanceMethod(raw: String): RemittanceMethod =
+        runCatching { RemittanceMethod.valueOf(raw.uppercase()) }
+            .getOrElse {
+                throw BadRequestResponse(
+                    "Invalid remittance method: must be BANK_TRANSFER or HANDED_TO_ACCOUNTANT",
+                )
+            }
+
+    private fun parseHeaderDate(
+        raw: String,
+        paramName: String,
+    ): LocalDate =
+        runCatching { LocalDate.parse(raw) }
+            .getOrElse { throw BadRequestResponse("Invalid $paramName") }
 
     private fun handleGetRemittance(context: Context) {
         val callerId = context.callerUuid()
@@ -369,7 +390,6 @@ object RemittanceRoutes {
         context.json(detail.toResponse())
     }
 
-    @Suppress("ThrowsCount")
     private fun handleListRemittances(context: Context) {
         val branchId = context.uuidFromQuery("branchId")
         val rawStatus = context.queryParam("status")
@@ -407,7 +427,6 @@ object RemittanceRoutes {
         context.json(breakdown.toResponse())
     }
 
-    @Suppress("ThrowsCount")
     private fun handleAddLine(context: Context) {
         val callerId = context.callerUuid()
         val remittanceId = context.pathParamAsUuid("remittanceId")
@@ -422,15 +441,11 @@ object RemittanceRoutes {
 
         when (type) {
             RemittanceLineType.SESSION -> {
-                if (sessionId == null) throw BadRequestResponse("sessionId is required for SESSION line type")
-                if (productSaleId != null) throw BadRequestResponse("productSaleId must be null for SESSION line type")
+                requireSessionLinePayload(sessionId, productSaleId)
             }
 
             RemittanceLineType.PRODUCT_SALE -> {
-                if (productSaleId == null) {
-                    throw BadRequestResponse("productSaleId is required for PRODUCT_SALE line type")
-                }
-                if (sessionId != null) throw BadRequestResponse("sessionId must be null for PRODUCT_SALE line type")
+                requireProductSaleLinePayload(sessionId, productSaleId)
             }
         }
 
@@ -447,6 +462,24 @@ object RemittanceRoutes {
 
         context.status(HttpStatus.CREATED)
         context.json(line.toResponse())
+    }
+
+    private fun requireSessionLinePayload(
+        sessionId: UUID?,
+        productSaleId: UUID?,
+    ) {
+        if (sessionId == null) throw BadRequestResponse("sessionId is required for SESSION line type")
+        if (productSaleId != null) throw BadRequestResponse("productSaleId must be null for SESSION line type")
+    }
+
+    private fun requireProductSaleLinePayload(
+        sessionId: UUID?,
+        productSaleId: UUID?,
+    ) {
+        if (productSaleId == null) {
+            throw BadRequestResponse("productSaleId is required for PRODUCT_SALE line type")
+        }
+        if (sessionId != null) throw BadRequestResponse("sessionId must be null for PRODUCT_SALE line type")
     }
 
     private fun handleRemoveLine(context: Context) {
@@ -493,7 +526,6 @@ object RemittanceRoutes {
         context.json(result.toSubmitResponse())
     }
 
-    @Suppress("ThrowsCount")
     private fun handleUndo(context: Context) {
         val callerId = context.callerUuid()
         val remittanceId = context.pathParamAsUuid("remittanceId")
@@ -518,7 +550,6 @@ object RemittanceRoutes {
         context.json(remittance.toResponse())
     }
 
-    @Suppress("ThrowsCount")
     private fun handleUpdateHeader(context: Context) {
         val callerId = context.callerUuid()
         val remittanceId = context.pathParamAsUuid("remittanceId")

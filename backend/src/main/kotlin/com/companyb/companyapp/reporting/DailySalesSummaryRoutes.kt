@@ -63,7 +63,6 @@ import java.util.UUID
     ],
 )
 object DailySalesSummaryRoutes {
-    @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
         config.routes.before(ApiRoutes.BRANCH_DAILY_SUMMARY_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")

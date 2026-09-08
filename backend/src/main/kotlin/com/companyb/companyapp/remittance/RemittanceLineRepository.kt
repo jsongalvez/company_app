@@ -42,7 +42,6 @@ private val logger = KotlinLogging.logger {}
  * on the caller's (command-owned) transaction — they keep the idempotent-insert, duplicate-source
  * guard, and optimistic-version bump; audit stays with the command. Read helpers keep wrappers.
  */
-@Suppress("TooManyFunctions")
 internal object RemittanceLineRepository {
     /** Idempotency probe for a retried add request; asserts payload match on a hit. */
     fun findExistingRequestInTransaction(params: AddLineParams): RemittanceLine? =

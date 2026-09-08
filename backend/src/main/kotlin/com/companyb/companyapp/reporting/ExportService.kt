@@ -11,7 +11,6 @@ import java.time.LocalDate
 import java.time.Month
 import java.util.UUID
 
-@Suppress("TooManyFunctions")
 object ExportService {
     private val logger = KotlinLogging.logger {}
 

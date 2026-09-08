@@ -54,7 +54,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-@Suppress("LargeClass")
+// #595 1291-line scenario coverage stays whole (same precedent as SessionServicePostgresTest #593).
+@Suppress("LargeClass") // #595
 class RemittanceLineServicePostgresTest : BasePostgresTest() {
     private companion object {
         const val CONCURRENT_BREAKDOWNS = 2
@@ -141,38 +142,13 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    @Suppress("LongMethod")
     fun `add line rejects session and product sale from another branch`() {
         val remittance = createDraftRemittance()
 
-        val foreignBranchId = TestFixtures.uuid()
-        val foreignClientId = TestFixtures.uuid()
-        val foreignBranchDayId = TestFixtures.uuid()
-        val foreignSessionId = TestFixtures.uuid()
-        BranchWorkforceFixtures.insertTestBranch(foreignBranchId, "Foreign Remittance Source")
-        SessionClientFixtures.insertTestClient(foreignClientId)
+        val foreign = seedForeignBranchSource()
         createSession()
         createProductSale()
-        transaction {
-            BranchDayTable.insert {
-                it[BranchDayTable.id] = foreignBranchDayId
-                it[BranchDayTable.branchId] = foreignBranchId
-                it[BranchDayTable.date] = LocalDate.of(2026, 7, 10)
-            }
-            SessionTable.insert {
-                it[SessionTable.id] = foreignSessionId
-                it[SessionTable.clientId] = foreignClientId
-                it[SessionTable.branchDayId] = foreignBranchDayId
-                it[SessionTable.sessionType] = SessionType.REGULAR
-                it[SessionTable.sessionStatus] = SessionStatus.COMPLETED
-                it[SessionTable.isWalkIn] = false
-                it[SessionTable.basePrice] = BigDecimal("2500.00")
-                it[SessionTable.finalPrice] = BigDecimal("2500.00")
-            }
-            ProductSaleTable.update({ ProductSaleTable.id eq productSaleId }) {
-                it[ProductSaleTable.branchDayId] = foreignBranchDayId
-            }
-        }
+        moveProductSaleToBranchDay(productSaleId, foreign.branchDayId)
 
         assertFailsWith<NotFoundException> {
             RemittanceService.addLine(
@@ -180,7 +156,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 remittance.id,
                 TestFixtures.uuid(),
                 RemittanceLineType.SESSION,
-                foreignSessionId,
+                foreign.sessionId,
                 null,
                 BigDecimal("1500.00"),
             )
@@ -200,6 +176,49 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         assertEquals(remittance.version, RemittanceService.getRemittance(remittance.id).remittance.version)
         assertTrue(RemittanceService.getRemittance(remittance.id).lines.isEmpty())
         assertEquals(0, remittanceLineAuditCount())
+    }
+
+    private data class ForeignBranchSource(
+        val branchDayId: UUID,
+        val sessionId: UUID,
+    )
+
+    private fun seedForeignBranchSource(): ForeignBranchSource {
+        val foreignBranchId = TestFixtures.uuid()
+        val foreignClientId = TestFixtures.uuid()
+        val foreignBranchDayId = TestFixtures.uuid()
+        val foreignSessionId = TestFixtures.uuid()
+        BranchWorkforceFixtures.insertTestBranch(foreignBranchId, "Foreign Remittance Source")
+        SessionClientFixtures.insertTestClient(foreignClientId)
+        transaction {
+            BranchDayTable.insert {
+                it[BranchDayTable.id] = foreignBranchDayId
+                it[BranchDayTable.branchId] = foreignBranchId
+                it[BranchDayTable.date] = LocalDate.of(2026, 7, 10)
+            }
+            SessionTable.insert {
+                it[SessionTable.id] = foreignSessionId
+                it[SessionTable.clientId] = foreignClientId
+                it[SessionTable.branchDayId] = foreignBranchDayId
+                it[SessionTable.sessionType] = SessionType.REGULAR
+                it[SessionTable.sessionStatus] = SessionStatus.COMPLETED
+                it[SessionTable.isWalkIn] = false
+                it[SessionTable.basePrice] = BigDecimal("2500.00")
+                it[SessionTable.finalPrice] = BigDecimal("2500.00")
+            }
+        }
+        return ForeignBranchSource(foreignBranchDayId, foreignSessionId)
+    }
+
+    private fun moveProductSaleToBranchDay(
+        saleId: UUID,
+        branchDayId: UUID,
+    ) {
+        transaction {
+            ProductSaleTable.update({ ProductSaleTable.id eq saleId }) {
+                it[ProductSaleTable.branchDayId] = branchDayId
+            }
+        }
     }
 
     @Test
@@ -1226,8 +1245,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         )
     }
 
-    @Suppress("UNUSED_PARAMETER")
-    private fun insertProductCategory(changedBy: UUID = callerId) {
+    private fun insertProductCategory() {
         transaction {
             ProductCategoryRepository.createInTransaction(
                 id = productCategoryId,
@@ -1236,8 +1254,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         }
     }
 
-    @Suppress("UNUSED_PARAMETER")
-    private fun insertProduct(changedBy: UUID = callerId) {
+    private fun insertProduct() {
         transaction {
             ProductRepository.createInTransaction(
                 ProductCreateParams(

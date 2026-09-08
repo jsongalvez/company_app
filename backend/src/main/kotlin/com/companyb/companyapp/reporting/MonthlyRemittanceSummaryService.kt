@@ -8,7 +8,6 @@ import java.util.UUID
 object MonthlyRemittanceSummaryService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("ThrowsCount")
     fun getMonthlySummary(
         branchId: UUID,
         year: Int,

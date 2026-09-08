@@ -18,7 +18,6 @@ import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.util.UUID
 
-@Suppress("TooManyFunctions")
 @OpenApi(
     path = ApiRoutes.BRANCHES_EXPORT_MEDICAL_MISSION_PATH,
     methods = [HttpMethod.GET],
@@ -163,7 +162,6 @@ object ExportRoutes {
     private const val MAX_MONTH = 12
     private const val MIN_MONTH = 1
 
-    @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
         // #114 lesson, 4th occurrence: a 4-segment literal filter never fires
         // on the 5-segment routes below — the wildcard is what makes the gate
@@ -309,7 +307,6 @@ object ExportRoutes {
         }
     }
 
-    @Suppress("ComplexCondition")
     private fun validateOptionalMonth(
         year: Int?,
         month: Int?,
@@ -317,8 +314,8 @@ object ExportRoutes {
         if ((year == null) != (month == null)) {
             throw BadRequestResponse("Both year and month must be provided together, or neither")
         }
-        if (year != null && month != null && (month < MIN_MONTH || month > MAX_MONTH)) {
-            throw BadRequestResponse("month must be between 1 and 12")
+        if (month != null) {
+            validateMonthRange(month)
         }
     }
 }

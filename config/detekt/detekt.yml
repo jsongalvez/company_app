@@ -747,16 +747,12 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/client/ClientRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commission/CommissionRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/CompensationRoutes.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/reporting/DailySalesSummaryRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/ExpenseRoutes.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/reporting/ExportRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateRoutes.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/reporting/MonthlyRemittanceSummaryRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commerce/ProductRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commerce/ProductSaleRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/ReliefAccessRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/ReliefInviteRoutes.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/remittance/RemittanceRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/RoutesUtil.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/JwtService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/Password.kt' #465 frozen
@@ -777,10 +773,8 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/client/ClientService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/CompensationService.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/reporting/DailySalesSummaryService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/ExpenseService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateService.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/reporting/MonthlyRemittanceSummaryService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commerce/ProductSaleService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commerce/ProductService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/ReliefAccessService.kt' #465 frozen
@@ -790,13 +784,8 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/AttendanceRepository.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/AttendanceService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/branchday/BranchDayService.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/reporting/ExportService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commission/CommissionService.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/remittance/RemittanceDayBreakdownRepository.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/remittance/RemittanceFinancialSnapshotRepository.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/remittance/RemittanceLineRepository.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/remittance/RemittanceRepository.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/remittance/RemittanceService.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/remittance/RemittanceService.kt' #465 frozen #595 ticketed LongMethod+LongParameterList
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commerce/InventoryService.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commerce/StockValidator.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/session/SessionPractitionerService.kt' #465 frozen #593 ticketed LongParameterList
@@ -807,8 +796,7 @@ style:
       - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/FinanceReadBackAuthzTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/workforce/relief/ReliefDayGateAuthzTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/workforce/relief/ReliefInviteAuthzTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceAuthzTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/reporting/ReportsReadScopeAuthzTest.kt' #465 frozen
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceAuthzTest.kt' #465 frozen #595 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/RouteValidationTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/commerce/BranchInventoryServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/client/ClientServicePostgresTest.kt' #465 frozen
@@ -817,9 +805,9 @@ style:
       - '**/backend/src/test/kotlin/com/companyb/companyapp/notification/NextAppointmentSchedulerPostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/commerce/ProductSaleServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/workforce/relief/ReliefAccessServicePostgresTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceLineServicePostgresTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceReadBackServicePostgresTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceServicePostgresTest.kt' #465 frozen
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceLineServicePostgresTest.kt' #465 frozen #595 ticketed LargeClass
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceReadBackServicePostgresTest.kt' #465 frozen #595 ticketed LargeClass
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceServicePostgresTest.kt' #465 frozen #595 ticketed LargeClass+SameParameterValue
       - '**/backend/src/test/kotlin/com/companyb/companyapp/session/SessionServicePostgresTest.kt' #465 frozen #593 ticketed LargeClass+LongParameterList
       - '**/backend/src/test/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentServicePostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/database/BasePostgresTest.kt' #465 frozen

@@ -12,7 +12,6 @@ import java.util.UUID
  * store operations on the caller's (command-owned) transaction; the read helper keeps its
  * convenience wrapper.
  */
-@Suppress("UnreachableCode")
 internal object RemittanceFinancialSnapshotRepository {
     fun insertInTransaction(params: RemittanceFinancialSnapshotCreateParams): RemittanceFinancialSnapshot {
         RemittanceFinancialSnapshotTable.insert {

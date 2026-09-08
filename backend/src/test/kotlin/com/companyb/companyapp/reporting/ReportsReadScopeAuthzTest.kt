@@ -1,5 +1,3 @@
-@file:Suppress("LargeClass")
-
 package com.companyb.companyapp.reporting
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig

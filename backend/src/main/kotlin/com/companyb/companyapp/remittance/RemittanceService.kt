@@ -30,11 +30,13 @@ import java.util.UUID
  * the same transaction ([RemittanceAudit]), so every mutation commits together with its audit
  * trail or not at all. Pure state/financial rules live in [RemittancePolicy].
  */
-@Suppress("TooManyFunctions")
 object RemittanceService {
     private val logger = KotlinLogging.logger {}
 
     private const val SERIALIZABLE_ISOLATION = Connection.TRANSACTION_SERIALIZABLE
+
+    // #595: SERIALIZABLE submit workflow stays in one command-owned transaction (ADR-0024);
+    // splitting the snapshot/day-transition sequence would break atomicity.
 
     /**
      * Freezes the draft into a SUBMITTED remittance: locks the row, validates the transition,
@@ -42,7 +44,7 @@ object RemittanceService {
      * SESSION snapshot, stamps the submission, marks every covered day REMITTED through the
      * Branch Day boundary, and audits all of it inside one SERIALIZABLE transaction.
      */
-    @Suppress("ThrowsCount", "LongMethod")
+    @Suppress("LongMethod") // #595
     fun submit(
         callerId: UUID,
         remittanceId: UUID,
@@ -113,7 +115,8 @@ object RemittanceService {
         return result
     }
 
-    @Suppress("ThrowsCount", "LongParameterList")
+    // #595: 7-param creation command stays whole per #535; bundle only on a real ownership decision.
+    @Suppress("LongParameterList") // #595
     fun createDraft(
         callerId: UUID,
         id: UUID,
@@ -150,7 +153,6 @@ object RemittanceService {
         return result.remittance
     }
 
-    @Suppress("ThrowsCount")
     fun undo(
         callerId: UUID,
         remittanceId: UUID,
@@ -164,6 +166,9 @@ object RemittanceService {
             reason = reason,
         )
 
+    // #595: SERIALIZABLE undo workflow stays in one command-owned transaction (ADR-0024);
+    // splitting the snapshot-delete/day-release sequence would break atomicity.
+
     /**
      * Reverts a SUBMITTED remittance to DRAFT within the server-enforced 48-hour window
      * ([RemittancePolicy.assertWithinUndoWindow], database clock), deletes the immutable
@@ -172,7 +177,7 @@ object RemittanceService {
      *
      * [now] remains an explicit test seam for deterministic boundary tests.
      */
-    @Suppress("ThrowsCount", "LongMethod")
+    @Suppress("LongMethod") // #595
     internal fun undoAt(
         callerId: UUID,
         remittanceId: UUID,
@@ -238,7 +243,8 @@ object RemittanceService {
         return remittance
     }
 
-    @Suppress("ThrowsCount", "LongParameterList")
+    // #595: 7-param header-update command stays whole per #535; bundle only on a real ownership decision.
+    @Suppress("LongParameterList") // #595
     fun updateHeader(
         callerId: UUID,
         remittanceId: UUID,
@@ -286,7 +292,8 @@ object RemittanceService {
         return remittance
     }
 
-    @Suppress("ThrowsCount", "LongParameterList")
+    // #595: 7-param line-add command stays whole per #535; bundle only on a real ownership decision.
+    @Suppress("LongParameterList") // #595
     fun addLine(
         callerId: UUID,
         remittanceId: UUID,
@@ -332,7 +339,6 @@ object RemittanceService {
         return line
     }
 
-    @Suppress("ThrowsCount")
     private fun requireSourceInRange(
         type: RemittanceLineType,
         sessionId: UUID?,
@@ -370,7 +376,6 @@ object RemittanceService {
         )
     }
 
-    @Suppress("ThrowsCount")
     fun removeLine(
         callerId: UUID,
         remittanceId: UUID,
@@ -405,7 +410,6 @@ object RemittanceService {
         return line
     }
 
-    @Suppress("ThrowsCount")
     fun addDayBreakdown(
         callerId: UUID,
         remittanceId: UUID,
@@ -449,7 +453,6 @@ object RemittanceService {
         return breakdown
     }
 
-    @Suppress("ThrowsCount")
     fun removeDayBreakdown(
         callerId: UUID,
         remittanceId: UUID,
@@ -485,7 +488,6 @@ object RemittanceService {
      * source date and every covered day must sit inside the new range, else 400. All reads
      * here are `*InTransaction` on the caller's open transaction.
      */
-    @Suppress("ThrowsCount")
     private fun assertExistingContentInRange(
         remittanceId: UUID,
         rangeStart: LocalDate,
@@ -525,7 +527,6 @@ object RemittanceService {
         }
     }
 
-    @Suppress("ReturnCount")
     fun getRemittance(remittanceId: UUID): RemittanceDetail {
         val remittance =
             RemittanceRepository.findById(remittanceId)
@@ -545,7 +546,6 @@ object RemittanceService {
         )
     }
 
-    @Suppress("ThrowsCount")
     fun listRemittances(
         branchId: UUID,
         status: RemittanceStatus?,
@@ -554,7 +554,6 @@ object RemittanceService {
         return RemittanceRepository.findByBranchId(branchId, status)
     }
 
-    @Suppress("ThrowsCount")
     fun findSessionsInRange(
         branchId: UUID,
         from: LocalDate,
@@ -564,7 +563,6 @@ object RemittanceService {
         return RemittanceRepository.findSessionsInRange(branchId, from, to)
     }
 
-    @Suppress("ThrowsCount")
     fun findProductSalesInRange(
         branchId: UUID,
         from: LocalDate,
@@ -574,7 +572,6 @@ object RemittanceService {
         return RemittanceRepository.findProductSalesInRange(branchId, from, to)
     }
 
-    @Suppress("ThrowsCount")
     fun findBranchDaysInRange(
         branchId: UUID,
         from: LocalDate,
@@ -593,7 +590,6 @@ object RemittanceService {
             }
     }
 
-    @Suppress("ThrowsCount", "ReturnCount")
     fun getDrift(remittanceId: UUID): RemittanceDrift {
         RemittanceRepository.findById(remittanceId)
             ?: throw NotFoundException("Remittance not found")

@@ -98,7 +98,6 @@ data class RemittanceProductSalePickerEntry(
  * check+write WHERE clauses. Read helpers may still open their own convenient transaction
  * wrappers.
  */
-@Suppress("TooManyFunctions")
 internal object RemittanceRepository {
     fun findById(id: UUID): Remittance? =
         transaction {

@@ -23,7 +23,6 @@ data class AddDayBreakdownResult(
  * Remittance day-breakdown store (#320, ADR-0024). Mutating functions are in-transaction store
  * operations on the caller's (command-owned) transaction; the read helper keeps its wrapper.
  */
-@Suppress("UnreachableCode")
 internal object RemittanceDayBreakdownRepository {
     /**
      * Inserts the breakdown. `created` distinguishes a fresh insert (the command audits it)

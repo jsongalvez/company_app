@@ -1,4 +1,5 @@
-@file:Suppress("LargeClass")
+// #595 950-line authz matrix stays whole (same precedent as SessionServicePostgresTest #593).
+@file:Suppress("LargeClass") // #595
 
 package com.companyb.companyapp.remittance
 import com.companyb.companyapp.app.AppConfig
@@ -56,8 +57,14 @@ class RemittanceAuthzTest : BasePostgresTest() {
     private lateinit var sessionId: UUID
     private lateinit var productSaleId: UUID
 
-    @Suppress("LongMethod")
     override fun initTestData() {
+        seedIdentityAndBranches()
+        val dayId = seedSessionAndProductSale()
+        seedDraftRemittances(dayId)
+        seedSubmittedRemittance(dayId)
+    }
+
+    private fun seedIdentityAndBranches() {
         IdentityFixtures.insertTestUser(submitUser, "submit")
         IdentityFixtures.insertTestUser(noneUser, "no-caps")
 
@@ -73,7 +80,9 @@ class RemittanceAuthzTest : BasePostgresTest() {
         )
 
         SessionClientFixtures.insertTestClient(clientId)
+    }
 
+    private fun seedSessionAndProductSale(): UUID {
         sessionId = TestFixtures.uuid()
         val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, branchDayDate)
         SessionClientFixtures.insertTestSession(
@@ -93,7 +102,10 @@ class RemittanceAuthzTest : BasePostgresTest() {
             productId = prodId,
             handledBy = submitUser,
         )
+        return dayId
+    }
 
+    private fun seedDraftRemittances(dayId: UUID) {
         draftRemittanceId = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = submitUser,
@@ -129,7 +141,9 @@ class RemittanceAuthzTest : BasePostgresTest() {
         otherBranchBreakdownId = TestFixtures.uuid()
         val otherDayId = BranchWorkforceFixtures.createBranchDayForDate(otherBranchId, branchDayDate)
         RemittanceService.addDayBreakdown(submitUser, otherBranchDraftId, otherBranchBreakdownId, otherDayId)
+    }
 
+    private fun seedSubmittedRemittance(dayId: UUID) {
         submittedRemittanceId = TestFixtures.uuid()
         val subLineId = TestFixtures.uuid()
         submittedBreakdownId = TestFixtures.uuid()

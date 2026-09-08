@@ -1,4 +1,5 @@
-@file:Suppress("LargeClass")
+// #595 711-line scenario coverage stays whole (same precedent as SessionServicePostgresTest #593).
+@file:Suppress("LargeClass") // #595
 
 package com.companyb.companyapp.remittance
 import com.companyb.companyapp.audit.AuditLogTable
@@ -577,7 +578,6 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
         )
     }
 
-    @Suppress("LongMethod")
     private fun createSubmittedSessionRemittance(
         remittanceId: UUID,
         lineAmount: BigDecimal,

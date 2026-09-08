@@ -53,7 +53,8 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
-@Suppress("LargeClass")
+// #595 836-line scenario coverage stays whole (same precedent as SessionServicePostgresTest #593).
+@Suppress("LargeClass") // #595
 class RemittanceServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val sourceId = TestFixtures.uuid()
@@ -575,7 +576,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         assertEquals(0L, auditCount, "no audit row for a failed mutation")
     }
 
-    @Suppress("LongMethod")
     @Test
     fun `concurrent submit of the same draft lets exactly one win`() {
         val remittanceId = TestFixtures.uuid()
@@ -609,40 +609,45 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
             assertTrue(executor.awaitTermination(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
         }
 
-        val outcome =
-            transaction {
-                val remittance = RemittanceTable.selectAll().where { RemittanceTable.id eq remittanceId }.single()
-                val day = BranchDayTable.selectAll().where { BranchDayTable.id eq branchDayId }.single()
-                val rAudits =
-                    AuditLogTable
-                        .selectAll()
-                        .where {
-                            (AuditLogTable.recordId eq remittanceId) and
-                                (AuditLogTable.auditTableName eq RemittanceTable.tableName) and
-                                (AuditLogTable.action eq AuditAction.UPDATE)
-                        }.count()
-                val dAudits =
-                    AuditLogTable
-                        .selectAll()
-                        .where {
-                            (AuditLogTable.recordId eq branchDayId) and
-                                (AuditLogTable.auditTableName eq BranchDayTable.tableName) and
-                                (AuditLogTable.action eq AuditAction.UPDATE)
-                        }.count()
-                SubmitOutcome(
-                    remittance[RemittanceTable.status],
-                    remittance[RemittanceTable.version],
-                    day[BranchDayTable.status],
-                    rAudits,
-                    dAudits,
-                )
-            }
+        val outcome = readConcurrentSubmitOutcome(remittanceId, branchDayId)
         assertEquals(RemittanceStatus.SUBMITTED, outcome.status)
         assertEquals(draftVersion + 1, outcome.version, "one winner, one version bump")
         assertEquals(DayStatus.REMITTED, outcome.dayStatus)
         assertEquals(1L, outcome.remittanceAudits, "one remittance audit row total")
         assertEquals(1L, outcome.dayAudits, "one branch-day audit row total")
     }
+
+    private fun readConcurrentSubmitOutcome(
+        remittanceId: UUID,
+        branchDayId: UUID,
+    ): SubmitOutcome =
+        transaction {
+            val remittance = RemittanceTable.selectAll().where { RemittanceTable.id eq remittanceId }.single()
+            val day = BranchDayTable.selectAll().where { BranchDayTable.id eq branchDayId }.single()
+            val rAudits =
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.recordId eq remittanceId) and
+                            (AuditLogTable.auditTableName eq RemittanceTable.tableName) and
+                            (AuditLogTable.action eq AuditAction.UPDATE)
+                    }.count()
+            val dAudits =
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.recordId eq branchDayId) and
+                            (AuditLogTable.auditTableName eq BranchDayTable.tableName) and
+                            (AuditLogTable.action eq AuditAction.UPDATE)
+                    }.count()
+            SubmitOutcome(
+                remittance[RemittanceTable.status],
+                remittance[RemittanceTable.version],
+                day[BranchDayTable.status],
+                rAudits,
+                dAudits,
+            )
+        }
 
     private fun createDraftRemittance(remittanceId: UUID) {
         RemittanceService.createDraft(
@@ -780,7 +785,8 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         }
     }
 
-    @Suppress("SameParameterValue")
+    // #595 single-scenario fixture helper keeps its full insert shape (mirrors production signature).
+    @Suppress("SameParameterValue") // #595
     private fun addCompensation(
         id: UUID,
         payingBranchDayId: UUID,
@@ -798,7 +804,8 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         }
     }
 
-    @Suppress("SameParameterValue")
+    // #595 single-scenario fixture helper keeps its full insert shape (mirrors production signature).
+    @Suppress("SameParameterValue") // #595
     private fun addExpense(
         branchDayId: UUID,
         amount: BigDecimal,
