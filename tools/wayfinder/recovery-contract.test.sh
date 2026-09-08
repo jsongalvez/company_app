@@ -284,5 +284,90 @@ else
 fi
 rm -rf "$stubdir" "$worktree"
 
+echo "10. rate-limit/server-abort failures resume, never advance past (#664)"
+contains "$script" 'is_transient_failure' "shared transient classifier present"
+contains "$script" 'refusing to advance' "wait-phase terminal refusal present"
+
+# 10a behavioral: a rate-limit error in normal supervision gets the NUDGE
+# (like invalid-output), not a chain pause.
+stubdir="$(mktemp -d)"
+prompts="$stubdir/prompts"
+cat > "$stubdir/opencode2" <<STUB
+#!/usr/bin/env bash
+cmd="\$*"
+case "\$cmd" in
+  *"get /api/session/ses_rltest"*message*) cat "$stubdir/errmsg.json"; exit 0 ;;
+  *"get /api/session/ses_rltest"*) echo '{"data":{"id":"ses_rltest"}}'; exit 0 ;;
+  *"get /api/session/active"*) echo '{"data":{"ses_rltest":{"type":"assistant"}}}'; exit 0 ;;
+  *"post /api/session/ses_rltest/prompt"*) echo nudged >> "$prompts"; exit 0 ;;
+esac
+exit 1
+STUB
+chmod +x "$stubdir/opencode2"
+
+worktree="$(mktemp -d)"
+mkdir -p "$worktree/.wayfinder/handoffs" "$worktree/tools/wayfinder"
+cp "$script" "$worktree/tools/wayfinder/wayfinder-loop.sh"
+touch "$worktree/.wayfinder/handoffs/wayfinder-test-handoff.md"
+fp="$(sha256sum "$worktree/.wayfinder/handoffs/wayfinder-test-handoff.md" | awk '{print $1}')"
+printf 'last_doc=wayfinder-test-handoff.md\nsession_id=ses_rltest\npending_doc=\nretries=0\nseen_docs=wayfinder-test-handoff.md@%s\n' "$fp" \
+  > "$worktree/.wayfinder-loop.state"
+printf '{"data":[{"id":"msg_r1","type":"assistant","time":{"completed":1788881207},"finish":"error","error":{"type":"provider.rate-limit","message":"Error from provider (Console Go): Upstream request failed: [rate_limit_exceeded] Rate limit exceeded."}}]}' \
+  > "$stubdir/errmsg.json"
+
+PATH="$stubdir:$PATH" OPENCODE_BIN="$stubdir/opencode2" WAYFINDER_TICK_SECS=1 WAYFINDER_STALL_SECS=9999 \
+  timeout -s TERM 5 bash "$worktree/tools/wayfinder/wayfinder-loop.sh" > "$worktree/ratelimit.out" 2>&1
+if [ -s "$prompts" ] && grep -q "transient provider error" "$worktree/ratelimit.out" &&
+   ! grep -q "chain paused" "$worktree/ratelimit.out"; then
+  ok "rate-limit error sent recovery prompt and kept supervising"
+else
+  bad "rate-limit did not nudge cleanly: $(head -3 "$worktree/ratelimit.out")"
+fi
+
+# 10b behavioral: wait-phase with the worker absent from /active BUT failed
+# transiently must nudge and hold — never log completion or spawn.
+cat > "$stubdir/opencode2" <<STUB
+#!/usr/bin/env bash
+cmd="\$*"
+case "\$cmd" in
+  *"get /api/session/ses_rlwait"*message*) cat "$stubdir/errmsg.json"; exit 0 ;;
+  *"get /api/session/active"*) echo '{"data":{}}'; exit 0 ;;
+  *"post /api/session/ses_rlwait/prompt"*) echo nudged >> "$prompts"; exit 0 ;;
+esac
+exit 1
+STUB
+chmod +x "$stubdir/opencode2"
+touch "$worktree/.wayfinder/handoffs/wayfinder-second-handoff.md"
+printf 'last_doc=wayfinder-test-handoff.md\nsession_id=ses_rlwait\npending_doc=\nretries=0\nseen_docs=wayfinder-test-handoff.md@%s\n' "$fp" \
+  > "$worktree/.wayfinder-loop.state"
+rm -f "$prompts"
+
+PATH="$stubdir:$PATH" OPENCODE_BIN="$stubdir/opencode2" WAYFINDER_TICK_SECS=1 WAYFINDER_STALL_SECS=9999 \
+  timeout -s TERM 8 bash "$worktree/tools/wayfinder/wayfinder-loop.sh" > "$worktree/rlhold.out" 2>&1
+if [ -s "$prompts" ] && grep -q "transient failure" "$worktree/rlhold.out" &&
+   ! grep -q "completed; next handoff" "$worktree/rlhold.out" &&
+   ! grep -q "created ses_" "$worktree/rlhold.out"; then
+  ok "wait-phase rate-limit failure nudged and held with no advance"
+else
+  bad "wait-phase did not hold on transient failure: $(head -3 "$worktree/rlhold.out")"
+fi
+
+# 10c behavioral: wait-phase with a TERMINAL failure must pause, not spawn.
+printf '{"data":[{"id":"msg_t1","type":"assistant","time":{"completed":1788881207},"finish":"error","error":{"type":"auth.invalid-key","message":"bad key"}}]}' \
+  > "$stubdir/errmsg.json"
+printf 'last_doc=wayfinder-test-handoff.md\nsession_id=ses_rlwait\npending_doc=\nretries=0\nseen_docs=wayfinder-test-handoff.md@%s\n' "$fp" \
+  > "$worktree/.wayfinder-loop.state"
+
+PATH="$stubdir:$PATH" OPENCODE_BIN="$stubdir/opencode2" WAYFINDER_TICK_SECS=1 WAYFINDER_STALL_SECS=9999 \
+  timeout -s TERM 8 bash "$worktree/tools/wayfinder/wayfinder-loop.sh" > "$worktree/rlterm.out" 2>&1
+rc=$?
+if [ $rc -eq 0 ] && grep -q "refusing to advance" "$worktree/rlterm.out" &&
+   ! grep -q "created ses_" "$worktree/rlterm.out"; then
+  ok "wait-phase terminal failure paused without spawning (exit $rc)"
+else
+  bad "terminal failure advanced or errored (exit $rc): $(head -3 "$worktree/rlterm.out")"
+fi
+rm -rf "$stubdir" "$worktree"
+
 echo
 if [ $fail -eq 0 ]; then echo "ALL PASS"; else echo "FAILURES PRESENT"; exit 1; fi

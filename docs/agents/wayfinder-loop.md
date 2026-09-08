@@ -121,7 +121,7 @@ routes human decisions through tracker issues (`needs-info` /
 | `waiting for session … to exit` | normal supervision, worker alive | check the session's tokens via `/api/session/<id>` before assuming stall |
 | `stalled … resuming` | zombie detector firing | unbounded — every stall gets the NUDGE forever; a wedged session is the operator's call |
 | `chain paused` | terminal assistant error (auth/quota-class) or config failure | fix cause, then restart (below) |
-| `transient provider error — sent recovery prompt` | truncated model stream (`provider.invalid-output`) | none — daemon nudges every new failed turn, never pauses |
+| `transient provider error — sent recovery prompt` | truncated model stream (`provider.invalid-output`), rate-limit throttle, or server-aborted step | none — daemon nudges every new failed turn, never pauses; a failed worker also holds the exit-wait instead of reading as an exit |
 | session died without handoff | worker gone before writing its packet | none — daemon respawns fresh for the same packet, unbounded; repeated notifications on one packet = poison packet, inspect manually |
 | repeated `stopped without handoff` + `worked since last recovery` with no handoff detected | wedge: packet invisible (non-canonical filename), dirty tree, or poison packet — each re-query clears the fruitless budget | fix per the prompt's wedge self-heal (canonical `wayfinder-*-handoff.md` name, commit/park, reconcile map vs native state), verify, write the successor packet, stop |
 | nothing new + empty active set | daemon dead | restart (below) |

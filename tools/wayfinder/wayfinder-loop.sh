@@ -585,8 +585,34 @@ wait_for_session_exit() {
   # while the owner was still mid-ticket. Fetch failures hold the wait as an
   # outage (never exit evidence); exit needs EXIT_CONFIRM_TICKS consecutive
   # absent observations. A real exit costs ~15s; blips auto-heal.
-  local notified=0 absent_ticks=0 outages=0 snap alive
+  local notified=0 absent_ticks=0 outages=0 snap alive failure_state ferr_id ferr_text last_wait_err_id=""
   while :; do
+    # A failed worker is not an exited worker (#664): ses_f7e5effc left
+    # /active on provider.rate-limit and the old code confirmed "exit" and
+    # advanced on a queued packet. Transient failures get a deduped NUDGE and
+    # hold the wait (streak reset); terminal failures refuse the advance —
+    # return 1 so the caller pauses instead of spawning on a dead worker.
+    failure_state="$(assistant_error "$session_id")"
+    if [ -n "$failure_state" ]; then
+      ferr_id="${failure_state%%$'\t'*}"
+      ferr_text="${failure_state#*$'\t'}"
+      if is_transient_failure "$ferr_text"; then
+        if [ "$ferr_id" != "$last_wait_err_id" ]; then
+          if api post "/api/session/$session_id/prompt" --data "$(jq -nc --arg t "$NUDGE" '{text: $t}')" >/dev/null 2>&1; then
+            last_wait_err_id="$ferr_id"
+            log "exit-wait for $session_id: transient failure — sent recovery prompt, holding: $ferr_text"
+          else
+            log "exit-wait for $session_id: recovery prompt failed — holding: $ferr_text"
+          fi
+        fi
+        absent_ticks=0
+        sleep "$TICK_SECS"
+        continue
+      fi
+      log "session $session_id failed terminally with handoff $pending_doc pending — refusing to advance: $ferr_text"
+      notify "wayfinder chain paused" "session $session_id failed ($ferr_text) with $pending_doc pending — recover any claimed ticket per crash-after-claim, then restart the loop"
+      return 1
+    fi
     snap="$(api get /api/session/active 2>/dev/null || true)"
     if [ -z "$snap" ]; then
       outages=$((outages + 1))
@@ -810,6 +836,20 @@ assistant_error() {
     ' 2>/dev/null || true
 }
 
+# Transient-failure classifier (#657 truncated streams; #664 rate-limit
+# throttles + server-side step aborts observed live during a throttling
+# episode). These resume in place with a canonical NUDGE — a throttled or
+# load-shed step heals once the episode passes, while prompting cannot repair
+# auth/quota-style failures. Every other error class stays terminal.
+is_transient_failure() {
+  case "$1" in
+    provider.invalid-output:*|\
+    *rate-limit*|*rate_limit*|*Rate\ limit*|*429*|\
+    aborted:\ Step\ interrupted*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 spawn_session() {
   local doc="$1" sid
   if [ -n "$DRY_RUN" ]; then
@@ -912,7 +952,10 @@ supervise_session() {
       pending_doc="$d"
       retries=0
       save_state
-      wait_for_session_exit
+      if ! wait_for_session_exit; then
+        log "chain paused: not advancing on failed session $session_id"
+        exit 0
+      fi
       [ -f "$HANDOFF_DIR/$pending_doc" ] || die "pending handoff disappeared: $pending_doc"
       log "session $session_id completed; next handoff: $pending_doc"
       notify "wayfinder session done" "handoff written: $pending_doc — starting next"
@@ -1002,37 +1045,35 @@ supervise_session() {
       save_state
     fi
 
-    # Assistant errors split by recoverability. provider.invalid-output is the truncated-
-    # stream class (the free model ending a turn mid-stream): a canonical NUDGE resumes it —
-    # manual continuations after every 2026-08-22 truncation worked, while each pause took
-    # the whole chain down. Deduped per message id (one nudge per failed turn) and UNBOUNDED:
-    # this class never exhausts a retry budget and never pauses the chain — the daemon keeps
-    # nudging for as long as the provider keeps truncating. Every other error class stays
-    # terminal: prompting cannot repair auth/quota-style failures.
+    # Assistant errors split by recoverability (shared is_transient_failure
+    # classifier, #657/#664). Transient classes get a canonical NUDGE and keep
+    # supervision — manual continuations after every 2026-08-22 truncation
+    # worked, while each pause took the whole chain down; rate-limit and
+    # server-abort steps likewise heal once the episode passes. Deduped per
+    # message id (one nudge per failed turn) and UNBOUNDED: no transient class
+    # exhausts a retry budget or pauses the chain. Every other error class
+    # stays terminal: prompting cannot repair auth/quota-style failures.
     assistant_failure="$(assistant_error "$session_id")"
     if [ -n "$assistant_failure" ]; then
       err_id="${assistant_failure%%$'\t'*}"
       err_text="${assistant_failure#*$'\t'}"
-      case "$err_text" in
-        provider.invalid-output:*)
+      if is_transient_failure "$err_text"; then
           if [ "$err_id" != "$last_err_id" ]; then
             if api post "/api/session/$session_id/prompt" --data "$(jq -nc --arg t "$NUDGE" '{text: $t}')" >/dev/null 2>&1; then
               last_err_id="$err_id"
               work_msg_id="$(latest_message_id "$session_id")"
               log "session $session_id hit a transient provider error — sent recovery prompt: $err_text"
-              notify "wayfinder continuing" "session $session_id hit a truncated provider response — recovery sent"
+              notify "wayfinder continuing" "session $session_id hit a transient error — recovery sent"
             else
               log "recovery prompt failed for $session_id — retrying next tick"
             fi
           fi
           continue
-          ;;
-        *)
+      else
           log "session $session_id ended with assistant error — chain paused: $err_text"
           notify "wayfinder chain paused" "session $session_id failed: $err_text"
           exit 0
-          ;;
-      esac
+      fi
     fi
 
     # Immediate stop detector: a final assistant turn without a handoff is not a healthy
