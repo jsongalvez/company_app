@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -23,7 +22,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,8 +33,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.branch.BranchResponse
 import com.companyb.companyapp.contracts.branch.BranchType
@@ -46,6 +45,15 @@ import com.companyb.companyapp.contracts.workforce.AssignDelegateRequest
 import com.companyb.companyapp.contracts.workforce.DelegateResponse
 import com.companyb.companyapp.ui.EmptyState
 import com.companyb.companyapp.ui.ErrorCard
+import com.companyb.companyapp.ui.contract.ColdLoadPlaceholder
+import com.companyb.companyapp.ui.contract.CurrentObjectHeading
+import com.companyb.companyapp.ui.contract.DestructiveConfirmDialog
+import com.companyb.companyapp.ui.contract.InlineStatus
+import com.companyb.companyapp.ui.contract.InlineStatusKind
+import com.companyb.companyapp.ui.contract.PrimaryActionButton
+import com.companyb.companyapp.ui.contract.SecondaryLabel
+import com.companyb.companyapp.ui.contract.TertiaryActionButton
+import com.companyb.companyapp.ui.contract.operationalField
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
@@ -95,6 +103,11 @@ fun MedicalMissionDelegateScreen(
     var assignmentRequestId by rememberSaveable { mutableStateOf<String?>(null) }
     var revokeTarget by remember { mutableStateOf<DelegateResponse?>(null) }
     var lastLoadedBranches by remember { mutableStateOf(emptyList<BranchResponse>()) }
+    // #670 — dialog close returns focus: Cancel paths restore to the intact invoker via the
+    // platform; a landed revoke removes the row's Revoke button, so focus moves to Refresh
+    // (nearest surviving control) only on that transition — never on Cancel.
+    val headerFocus = remember { FocusRequester() }
+    var refocusAfterRevoke by remember { mutableStateOf(false) }
 
     val loadedBranches = (branchesState as? UiState.Success<List<BranchResponse>>)?.data
     val availableBranches = loadedBranches ?: lastLoadedBranches
@@ -125,7 +138,10 @@ fun MedicalMissionDelegateScreen(
             selectedTargetId = null
             assignmentRequestId = null
         },
-        onRevokeLanded = { revokeTarget = null },
+        onRevokeLanded = {
+            revokeTarget = null
+            refocusAfterRevoke = true
+        },
     )
     DelegateErrorEffects(
         branchesState = branchesState,
@@ -155,6 +171,7 @@ fun MedicalMissionDelegateScreen(
     ) {
         DelegateScreenHeader(
             refreshDisabled = refreshDisabled,
+            refreshFocus = headerFocus,
             onRefresh = {
                 delegateViewModel.clearMutationResults()
                 userViewModel.loadBranches()
@@ -204,11 +221,10 @@ fun MedicalMissionDelegateScreen(
             onRevoke = { revokeTarget = it },
         )
         if (revokeState is UiState.Error) {
-            Text(
+            InlineStatus(
                 // SAFETY: `is` check above; delegated State value doesn't smart-cast #467
-                text = (revokeState as UiState.Error).message,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
+                message = (revokeState as UiState.Error).message,
+                kind = InlineStatusKind.FAILURE,
             )
         }
     }
@@ -221,6 +237,12 @@ fun MedicalMissionDelegateScreen(
         onDismiss = { revokeTarget = null },
         onConfirm = { delegateViewModel.revokeDelegate(it) },
     )
+    LaunchedEffect(revokeTarget, refocusAfterRevoke) {
+        if (revokeTarget == null && refocusAfterRevoke) {
+            refocusAfterRevoke = false
+            runCatching { headerFocus.requestFocus() }
+        }
+    }
 }
 
 @Composable
@@ -341,6 +363,7 @@ private fun DelegateErrorEffects(
 private fun DelegateScreenHeader(
     refreshDisabled: Boolean,
     onRefresh: () -> Unit,
+    refreshFocus: FocusRequester? = null,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -348,19 +371,16 @@ private fun DelegateScreenHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text("Medical mission delegates", style = MaterialTheme.typography.titleLarge)
-            Text(
-                "Assign active Manager users to manage mission attendance",
-                style = MaterialTheme.typography.bodySmall,
-                color = InkSubtle,
-            )
+            // #670 — current object owns the 24sp slot; description recedes.
+            CurrentObjectHeading(text = "Medical mission delegates")
+            SecondaryLabel(text = "Assign active Manager users to manage mission attendance")
         }
-        TextButton(
+        TertiaryActionButton(
+            label = "Refresh",
             onClick = onRefresh,
             enabled = !refreshDisabled,
-        ) {
-            Text("Refresh")
-        }
+            modifier = if (refreshFocus != null) Modifier.focusRequester(refreshFocus) else Modifier,
+        )
     }
 }
 
@@ -388,16 +408,20 @@ private fun ColumnScope.DelegateScreenBody(
     onRetryDelegates: () -> Unit,
     onRevoke: (DelegateResponse) -> Unit,
 ) {
+    // #670 — a refresh (explicit Refresh button) retains the populated region: stale rows
+    // stay mounted under an UPDATING/FAILURE banner instead of unmounting to a spinner.
+    // Cold loads (nothing retained) keep the bounded placeholder / error card.
+    val hasRetained = missionBranches.isNotEmpty()
     when {
-        branchesState is UiState.Error -> {
+        branchesState is UiState.Error && !hasRetained -> {
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 ErrorCard(branchesState.message, onRetryBranches)
             }
         }
 
-        branchesState !is UiState.Success -> {
+        branchesState !is UiState.Success && !hasRetained -> {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+                ColdLoadPlaceholder(message = "Loading branches…")
             }
         }
 
@@ -408,6 +432,15 @@ private fun ColumnScope.DelegateScreenBody(
         }
 
         else -> {
+            if (branchesState is UiState.Loading) {
+                InlineStatus(message = "Refreshing branches…", kind = InlineStatusKind.UPDATING)
+            } else if (branchesState is UiState.Error) {
+                InlineStatus(
+                    message = branchesState.message,
+                    kind = InlineStatusKind.FAILURE,
+                    onRetry = onRetryBranches,
+                )
+            }
             DelegateBranchContent(
                 missionBranches = missionBranches,
                 selectedBranchId = selectedBranchId,
@@ -491,27 +524,15 @@ private fun DelegateRevokeDialog(
     onConfirm: (String) -> Unit,
 ) {
     revokeTarget?.let { target ->
-        AlertDialog(
-            onDismissRequest = {
-                if (revokeState !is UiState.Loading) onDismiss()
-            },
-            title = { Text("Revoke delegate?") },
-            text = {
-                Text("Remove ${userNames[target.targetUser] ?: target.targetUser} from this medical mission?")
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { onConfirm(target.id) },
-                    enabled = !mutationsDisabled,
-                ) {
-                    Text(if (revokeState is UiState.Loading) "Revoking..." else "Revoke")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismiss, enabled = revokeState !is UiState.Loading) {
-                    Text("Cancel")
-                }
-            },
+        // #670 — destructive confirm: safe-action initial focus, pinned while busy.
+        DestructiveConfirmDialog(
+            title = "Revoke delegate?",
+            body = "Remove ${userNames[target.targetUser] ?: target.targetUser} from this medical mission?",
+            confirmLabel = "Revoke",
+            onConfirm = { onConfirm(target.id) },
+            onDismiss = onDismiss,
+            isBusy = revokeState is UiState.Loading,
+            confirmEnabled = !mutationsDisabled,
         )
     }
 }
@@ -576,9 +597,10 @@ private fun EligibleManagerDropdown(
             value = selected?.displayName ?: "No eligible Manager selected",
             onValueChange = {},
             readOnly = true,
+            singleLine = true,
             label = { Text("Eligible Manager") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).operationalField(),
             enabled = !mutationsDisabled && eligibleUsers.isNotEmpty(),
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -601,15 +623,14 @@ private fun AssignmentEligibilityStatus(
     eligibleUsers: List<UserSummaryResponse>,
 ) {
     if (usersState is UiState.Error) {
-        Text(
-            text = "Eligible users unavailable: ${usersState.message}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
+        InlineStatus(
+            message = "Eligible users unavailable: ${usersState.message}",
+            kind = InlineStatusKind.FAILURE,
         )
     } else if (usersState !is UiState.Success && eligibleUsers.isEmpty()) {
-        Text("Loading eligible users…", style = MaterialTheme.typography.bodySmall, color = InkSubtle)
+        InlineStatus(message = "Loading eligible users…", kind = InlineStatusKind.UPDATING)
     } else if (eligibleUsers.isEmpty()) {
-        Text("No active Manager users available", style = MaterialTheme.typography.bodySmall, color = InkSubtle)
+        SecondaryLabel(text = "No active Manager users available")
     }
 }
 
@@ -620,18 +641,15 @@ private fun AssignmentActionRow(
     assignState: UiState<DelegateResponse>,
     onAssign: () -> Unit,
 ) {
-    TextButton(
+    // #670 — one filled primary per task region; label + bounds persist while assigning.
+    PrimaryActionButton(
+        label = "Assign delegate",
         onClick = onAssign,
         enabled = selected != null && !mutationsDisabled,
-    ) {
-        Text(if (assignState is UiState.Loading) "Assigning..." else "Assign delegate")
-    }
+        isBusy = assignState is UiState.Loading,
+    )
     if (assignState is UiState.Error) {
-        Text(
-            text = assignState.message,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
-        )
+        InlineStatus(message = assignState.message, kind = InlineStatusKind.FAILURE)
     }
 }
 
@@ -654,9 +672,10 @@ private fun MissionBranchPicker(
             value = selected?.let { "${it.name} (MEDICAL_MISSION)" } ?: "Select a medical mission",
             onValueChange = {},
             readOnly = true,
+            singleLine = true,
             label = { Text("Medical mission branch") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).operationalField(),
             enabled = enabled,
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -686,13 +705,17 @@ private fun ColumnScope.DelegateList(
     when (state) {
         is UiState.Error -> {
             Box(Modifier.fillMaxWidth().weight(1f)) {
-                ErrorCard(state.message, onRetry)
+                // #670 — shared inline failure + Retry (never steals focus); the revoke
+                // confirm stays a dialog, this is the list leg.
+                InlineStatus(message = state.message, kind = InlineStatusKind.FAILURE, onRetry = onRetry)
             }
         }
 
         is UiState.Loading -> {
-            Box(Modifier.fillMaxWidth().padding(Spacing.lg), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+            // #670 — bounded placeholder; branch-switch loads must not retain the prior
+            // branch's rows (cross-branch bleed class), so no keep-last here.
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                ColdLoadPlaceholder(message = "Loading delegates…")
             }
         }
 
@@ -758,7 +781,7 @@ private fun DelegateRow(
                 )
             }
             if (active) {
-                TextButton(onClick = onRevoke, enabled = enabled) { Text("Revoke") }
+                TertiaryActionButton(label = "Revoke", onClick = onRevoke, enabled = enabled)
             }
         }
     }

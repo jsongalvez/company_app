@@ -11,16 +11,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.branch.BranchClockInStatus
@@ -28,6 +25,16 @@ import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.branch.MeBranchResponse
 import com.companyb.companyapp.contracts.workforce.ReliefCandidateResponse
 import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
+import com.companyb.companyapp.ui.contract.DestructiveConfirmDialog
+import com.companyb.companyapp.ui.contract.InlineStatus
+import com.companyb.companyapp.ui.contract.InlineStatusKind
+import com.companyb.companyapp.ui.contract.OperationalUiContract
+import com.companyb.companyapp.ui.contract.PageHeading
+import com.companyb.companyapp.ui.contract.PrimaryActionButton
+import com.companyb.companyapp.ui.contract.SecondaryActionButton
+import com.companyb.companyapp.ui.contract.SecondaryLabel
+import com.companyb.companyapp.ui.contract.operationalFocusRing
+import com.companyb.companyapp.ui.theme.PrimaryHover
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.ui.theme.rowHover
 import com.companyb.companyapp.util.logWarn
@@ -42,28 +49,17 @@ internal fun RevokeDutyConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Revoke relief duty?") },
-        text = {
-            Text(
-                "${invite.inviteeName}'s duty at ${invite.branchName} on ${invite.date} " +
-                    "will be revoked and their access removed.",
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onConfirm,
-                enabled = !busy,
-            ) {
-                Text("Revoke")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        },
+    // #670 — destructive confirm: safe-action initial focus, Escape/Back pinned while busy.
+    // The label stays constant (stable geometry lives in the shared shell's reserved slot).
+    DestructiveConfirmDialog(
+        title = "Revoke relief duty?",
+        body =
+            "${invite.inviteeName}'s duty at ${invite.branchName} on ${invite.date} " +
+                "will be revoked and their access removed.",
+        confirmLabel = "Revoke",
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+        isBusy = busy,
     )
 }
 
@@ -110,6 +106,8 @@ internal fun BranchCardInfo(
         Text(
             text = branch.branchName,
             style = MaterialTheme.typography.titleSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
         Spacer(modifier = Modifier.height(Spacing.xs))
         Text(
@@ -130,32 +128,27 @@ internal fun BranchCardInfo(
                 if (branch.clockInStatus == BranchClockInStatus.NOT_CLOCKED_IN) {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 } else {
-                    MaterialTheme.colorScheme.primary
+                    // #670 — Primary undershoots 4.5:1 at 12sp; PrimaryHover clears AA.
+                    PrimaryHover
                 },
         )
     }
 }
 
-/** Clock-in action with busy spinner; rendered only for NOT_CLOCKED_IN branches. */
+/** Clock-in action with stable pending geometry; rendered only for NOT_CLOCKED_IN branches. */
 @Composable
 internal fun BranchClockInButton(
     isClockingIn: Boolean,
     canClockIn: Boolean,
     onClockIn: () -> Unit,
 ) {
-    Button(
+    // #670 — label + bounds persist while busy; duplicate submission disabled.
+    PrimaryActionButton(
+        label = "Clock In",
         onClick = onClockIn,
         enabled = canClockIn,
-    ) {
-        if (isClockingIn) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(18.dp),
-                strokeWidth = 2.dp,
-            )
-        } else {
-            Text("Clock In")
-        }
-    }
+        isBusy = isClockingIn,
+    )
 }
 
 /**
@@ -173,19 +166,12 @@ internal fun BranchContinueButton(
     enabled: Boolean,
     onContinue: () -> Unit,
 ) {
-    Button(
+    PrimaryActionButton(
+        label = "Continue at $branchName",
         onClick = onContinue,
         enabled = enabled,
-    ) {
-        if (busy) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(18.dp),
-                strokeWidth = 2.dp,
-            )
-        } else {
-            Text("Continue at $branchName")
-        }
-    }
+        isBusy = busy,
+    )
 }
 
 /** Single candidate row: identity plus Invite affordance gated on a valid date. */
@@ -203,6 +189,7 @@ internal fun CandidateRow(
                 .clickable(enabled = dateValid && !sendBusy) {
                     onInvite(candidate)
                 }.rowHover(enabled = dateValid && !sendBusy)
+                .operationalFocusRing()
                 .padding(vertical = Spacing.xs),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
@@ -211,25 +198,37 @@ internal fun CandidateRow(
             Text(
                 text = candidate.displayName,
                 style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = candidate.username,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
-        if (sendBusy) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
-                strokeWidth = 2.dp,
-            )
-        } else {
+        // #670 — stable trailing slot: the 18dp spinner reserves beside a persistent Invite
+        // label instead of replacing it, so row bounds never shift while sending.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(OperationalUiContract.progressSlot),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (sendBusy) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(OperationalUiContract.progressSlot),
+                        strokeWidth = OperationalUiContract.focusRingWidth,
+                    )
+                }
+            }
             Text(
                 text = "Invite",
                 style = MaterialTheme.typography.labelMedium,
                 color =
-                    if (dateValid) {
-                        MaterialTheme.colorScheme.primary
+                    if (dateValid && !sendBusy) {
+                        PrimaryHover
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
@@ -241,16 +240,10 @@ internal fun CandidateRow(
 /** Branch-select title block: heading plus clock-in subtitle. */
 @Composable
 internal fun BranchSelectHeader() {
-    Text(
-        text = "Select branch",
-        style = MaterialTheme.typography.titleLarge,
-    )
+    // #670 — page heading owns the hierarchy; subtitle recedes as secondary text.
+    PageHeading(text = "Select branch")
     Spacer(modifier = Modifier.height(Spacing.sm))
-    Text(
-        text = "Clock in to start your day",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    SecondaryLabel(text = "Clock in to start your day")
     Spacer(modifier = Modifier.height(Spacing.sm))
 }
 
@@ -264,35 +257,23 @@ internal fun BranchErrorBanners(
     onRetryRestore: () -> Unit,
 ) {
     clockInError?.let { error ->
-        Text(
-            text = error,
-            color = MaterialTheme.colorScheme.error,
-            style = MaterialTheme.typography.bodyMedium,
-        )
+        InlineStatus(message = error, kind = InlineStatusKind.FAILURE)
         Spacer(modifier = Modifier.height(Spacing.sm))
     }
     refreshError?.let { error ->
-        Text(
-            text = "$error — you're already clocked in.",
-            color = MaterialTheme.colorScheme.error,
-            style = MaterialTheme.typography.bodyMedium,
+        InlineStatus(
+            message = "$error — you're already clocked in.",
+            kind = InlineStatusKind.FAILURE,
+            onRetry = onRetryRefresh,
         )
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        OutlinedButton(onClick = onRetryRefresh) {
-            Text("Retry")
-        }
         Spacer(modifier = Modifier.height(Spacing.sm))
     }
     restoreError?.let { error ->
-        Text(
-            text = error,
-            color = MaterialTheme.colorScheme.error,
-            style = MaterialTheme.typography.bodyMedium,
+        InlineStatus(
+            message = error,
+            kind = InlineStatusKind.FAILURE,
+            onRetry = onRetryRestore,
         )
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        OutlinedButton(onClick = onRetryRestore) {
-            Text("Retry")
-        }
         Spacer(modifier = Modifier.height(Spacing.sm))
     }
 }
@@ -309,15 +290,9 @@ internal fun BranchLoadErrorContent(
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyLarge,
-            )
+            InlineStatus(message = message, kind = InlineStatusKind.FAILURE)
             Spacer(modifier = Modifier.height(Spacing.md))
-            OutlinedButton(onClick = onRetry) {
-                Text("Retry")
-            }
+            SecondaryActionButton(label = "Retry", onClick = onRetry)
         }
     }
 }
@@ -334,26 +309,11 @@ internal fun CandidateResults(
         is UiState.Idle -> {}
 
         is UiState.Loading -> {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                Text(
-                    text = "Searching…",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            InlineStatus(message = "Searching…", kind = InlineStatusKind.UPDATING)
         }
 
         is UiState.Error -> {
-            Text(
-                text = state.message,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
+            InlineStatus(message = state.message, kind = InlineStatusKind.FAILURE)
         }
 
         is UiState.Success -> {

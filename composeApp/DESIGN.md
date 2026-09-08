@@ -124,3 +124,28 @@ spacing:
   xxl: 48px
   section: 96px
 ---
+
+# Operational UI contract (#670)
+
+Authoritative over any contradictory token usage below. The shared owners live in
+`composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/contract/`.
+
+- Hierarchy: page heading 28sp/34sp (24sp/30sp compact), current object 24sp, section
+  18sp; decisive numerals 32sp only. Desktop body 14sp, touch body 16sp, secondary
+  labels floor 12sp (labelSmall is 12sp, not 11sp). Headings keep Inter via the Linear
+  title slots — never M3-default headlineLarge.
+- Actions: one filled primary per task region; secondary outlined; tertiary text.
+  Busy keeps label + bounds with a reserved 18dp progress slot; duplicate submission is
+  disabled. Minimum 48dp height covers touch; desktop 40dp pointer targets sit inside it.
+  Destructive red only for destructive intent. Visible 2dp PrimaryHover focus ring,
+  distinct from hover/selection. Icons 18–20dp with accessible names.
+- Feedback: `InlineStatus` (updating/stale/failure + Retry/success, polite live region,
+  never steals focus); cold load uses a bounded placeholder; background refreshes never
+  replace populated regions; success is short nonmodal with no auto-navigation.
+- Dialogs: max 560dp, viewport-inset on compact, scrolling body with fixed
+  title/actions; initial focus = first field (safe action when destructive); Escape/Back
+  cancels only when allowed; no entrance animation. Money/count columns use tabular
+  figures with end alignment.
+- Proven on: Login, Accept invite, Forgot password, launch splash, BranchSelect chrome,
+  Mission delegates. All other surfaces adopt in their own redesign tickets.
+

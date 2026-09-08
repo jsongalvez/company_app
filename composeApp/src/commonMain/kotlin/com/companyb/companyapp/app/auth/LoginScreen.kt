@@ -7,15 +7,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -28,13 +26,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.app.AuthViewModel
 import com.companyb.companyapp.app.SessionBootstrapViewModel
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.identity.LoginResponse
 import com.companyb.companyapp.network.TokenStore
+import com.companyb.companyapp.ui.contract.InlineStatus
+import com.companyb.companyapp.ui.contract.InlineStatusKind
+import com.companyb.companyapp.ui.contract.PageHeading
+import com.companyb.companyapp.ui.contract.PrimaryActionButton
+import com.companyb.companyapp.ui.contract.TertiaryActionButton
+import com.companyb.companyapp.ui.contract.operationalField
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
@@ -77,14 +80,16 @@ fun LoginScreen(
 
     val canSubmit = username.isNotBlank() && password.isNotBlank()
     val submitLogin = {
-        if (canSubmit) {
+        // #670 — IME resubmits route through the same busy gate as the button: no second POST.
+        if (canSubmit && !isLoading) {
             showExpiredNotice = false
             authViewModel.login(username, password)
         }
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(Spacing.xl),
+        // #670 — auth chrome scrolls: 390px + 200% font must reach every field.
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.xl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -120,6 +125,7 @@ fun LoginScreen(
             showExpiredNotice = showExpiredNotice,
             inlineError = loginErrorText(loginState, bootstrapState),
             actions = actions,
+            isLoading = isLoading,
         )
     }
 }
@@ -215,10 +221,8 @@ private fun LoginTopSection(
     isLoading: Boolean,
     onUsernameChange: (String) -> Unit,
 ) {
-    Text(
-        text = "CompanyApp",
-        style = MaterialTheme.typography.headlineLarge,
-    )
+    // #670 — page heading owns the 28sp slot; Inter comes from the Linear title slot.
+    PageHeading(text = "CompanyApp")
 
     Spacer(modifier = Modifier.height(Spacing.xxl))
 
@@ -242,7 +246,7 @@ private fun LoginUsernameField(
         onValueChange = onUsernameChange,
         label = { Text("Username") },
         singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.operationalField(),
         keyboardOptions =
             KeyboardOptions(
                 keyboardType = KeyboardType.Text,
@@ -272,7 +276,7 @@ private fun LoginPasswordField(
             ),
         keyboardActions = KeyboardActions(onDone = { onDone() }),
         enabled = !isLoading,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.operationalField(),
     )
 
     Spacer(modifier = Modifier.height(Spacing.lg))
@@ -284,21 +288,15 @@ private fun LoginSubmitButton(
     isLoading: Boolean,
     onSubmit: () -> Unit,
 ) {
-    Button(
+    // #670 — stable pending geometry: label + bounds persist, 18dp slot reserves the
+    // spinner, duplicate submission is disabled without shifting adjacent controls.
+    PrimaryActionButton(
+        label = "Log in",
         onClick = onSubmit,
-        modifier = Modifier.fillMaxWidth().height(50.dp),
-        enabled = canSubmit && !isLoading,
-    ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(24.dp),
-                color = MaterialTheme.colorScheme.onPrimary,
-                strokeWidth = 2.dp,
-            )
-        } else {
-            Text("Log in")
-        }
-    }
+        modifier = Modifier.fillMaxWidth(),
+        enabled = canSubmit,
+        isBusy = isLoading,
+    )
 }
 
 @Composable
@@ -306,34 +304,39 @@ private fun LoginBottomSection(
     showExpiredNotice: Boolean,
     inlineError: String?,
     actions: LoginNavActions,
+    isLoading: Boolean = false,
 ) {
     when {
         showExpiredNotice -> {
             Spacer(modifier = Modifier.height(Spacing.md))
-            Text(
-                text = "Your session has expired. Please log in again.",
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+            InlineStatus(
+                message = "Your session has expired. Please log in again.",
+                kind = InlineStatusKind.INFO,
             )
         }
 
         inlineError != null -> {
             Spacer(modifier = Modifier.height(Spacing.md))
-            Text(
-                text = inlineError,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+            InlineStatus(
+                message = inlineError,
+                kind = InlineStatusKind.FAILURE,
             )
         }
     }
 
     Spacer(modifier = Modifier.height(Spacing.lg))
 
-    TextButton(onClick = actions.onAcceptInviteClick) {
-        Text("Have an invite code? Set up your account")
-    }
+    // #670 — navigating away mid-POST/mid-bootstrap would orphan the chained effects
+    // above; the links wait like Back-to-login does on the sibling screens.
+    TertiaryActionButton(
+        label = "Have an invite code? Set up your account",
+        onClick = actions.onAcceptInviteClick,
+        enabled = !isLoading,
+    )
 
-    TextButton(onClick = actions.onForgotPasswordClick) {
-        Text("Forgot password?")
-    }
+    TertiaryActionButton(
+        label = "Forgot password?",
+        onClick = actions.onForgotPasswordClick,
+        enabled = !isLoading,
+    )
 }

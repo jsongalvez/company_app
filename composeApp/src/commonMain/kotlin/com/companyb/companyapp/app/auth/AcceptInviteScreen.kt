@@ -7,11 +7,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -26,6 +27,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.companyb.companyapp.app.AuthViewModel
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.network.TokenStore
+import com.companyb.companyapp.ui.contract.InlineStatus
+import com.companyb.companyapp.ui.contract.InlineStatusKind
+import com.companyb.companyapp.ui.contract.PageHeading
+import com.companyb.companyapp.ui.contract.PrimaryActionButton
+import com.companyb.companyapp.ui.contract.TertiaryActionButton
+import com.companyb.companyapp.ui.contract.operationalField
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
@@ -56,14 +63,13 @@ fun AcceptInviteScreen(
         modifier =
             Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(Spacing.xl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(
-            text = "Set up your account",
-            style = MaterialTheme.typography.headlineLarge,
-        )
+        // #670 — page heading owns the 28sp slot.
+        PageHeading(text = "Set up your account")
 
         Spacer(modifier = Modifier.height(Spacing.xs))
 
@@ -79,10 +85,9 @@ fun AcceptInviteScreen(
 
         Spacer(modifier = Modifier.height(Spacing.lg))
 
-        BusySubmitButton(
+        // #670 — stable pending geometry on the shared primary action.
+        PrimaryActionButton(
             label = "Set password",
-            enabled = form.inviteCode.isNotBlank() && form.password.isNotBlank() && !isLoading,
-            isBusy = isLoading,
             onClick = {
                 if (PasswordPolicy.isValid(form.password)) {
                     authViewModel.acceptInvite(form.inviteCode.trim(), form.password)
@@ -90,11 +95,14 @@ fun AcceptInviteScreen(
                     form.policyError = true
                 }
             },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = form.inviteCode.isNotBlank() && form.password.isNotBlank(),
+            isBusy = isLoading,
         )
 
         when (val state = acceptState) {
             is UiState.Error -> {
-                InlineError(state.message)
+                InlineStatus(message = state.message, kind = InlineStatusKind.FAILURE)
             }
 
             else -> {}
@@ -102,9 +110,7 @@ fun AcceptInviteScreen(
 
         Spacer(modifier = Modifier.height(Spacing.lg))
 
-        TextButton(onClick = onDone, enabled = !isLoading) {
-            Text("Back to login")
-        }
+        TertiaryActionButton(label = "Back to login", onClick = onDone, enabled = !isLoading)
     }
 }
 
@@ -158,7 +164,7 @@ private fun AcceptInviteFields(
         label = { Text("Invite code") },
         singleLine = true,
         enabled = !isLoading,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.operationalField(),
     )
 
     Spacer(modifier = Modifier.height(Spacing.md))
@@ -176,6 +182,6 @@ private fun AcceptInviteFields(
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         isError = form.policyError,
         enabled = !isLoading,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.operationalField(),
     )
 }

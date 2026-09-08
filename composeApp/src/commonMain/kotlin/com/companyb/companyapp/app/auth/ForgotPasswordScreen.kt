@@ -7,15 +7,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -27,10 +25,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.app.AuthViewModel
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.network.TokenStore
+import com.companyb.companyapp.ui.contract.InlineStatus
+import com.companyb.companyapp.ui.contract.InlineStatusKind
+import com.companyb.companyapp.ui.contract.PageHeading
+import com.companyb.companyapp.ui.contract.PrimaryActionButton
+import com.companyb.companyapp.ui.contract.TertiaryActionButton
+import com.companyb.companyapp.ui.contract.operationalField
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
@@ -84,14 +87,13 @@ fun ForgotPasswordScreen(
         modifier =
             Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(Spacing.xl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(
-            text = "Reset your password",
-            style = MaterialTheme.typography.headlineLarge,
-        )
+        // #670 — page heading owns the 28sp slot.
+        PageHeading(text = "Reset your password")
 
         Spacer(modifier = Modifier.height(Spacing.xs))
 
@@ -115,9 +117,11 @@ fun ForgotPasswordScreen(
 
         Spacer(modifier = Modifier.height(Spacing.lg))
 
-        TextButton(onClick = onDone, enabled = !isRequesting && !isResetting) {
-            Text("Back to login")
-        }
+        TertiaryActionButton(
+            label = "Back to login",
+            onClick = onDone,
+            enabled = !isRequesting && !isResetting,
+        )
     }
 }
 
@@ -144,16 +148,18 @@ private fun RequestLeg(
         label = { Text("Username or email") },
         singleLine = true,
         enabled = !isRequesting,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.operationalField(),
     )
 
     Spacer(modifier = Modifier.height(Spacing.lg))
 
-    BusySubmitButton(
+    // #670 — stable pending geometry on the shared primary action.
+    PrimaryActionButton(
         label = "Request reset code",
-        enabled = form.identifier.isNotBlank() && !isRequesting,
-        isBusy = isRequesting,
         onClick = { authViewModel.requestPasswordReset(form.identifier.trim()) },
+        modifier = Modifier.fillMaxWidth(),
+        enabled = form.identifier.isNotBlank(),
+        isBusy = isRequesting,
     )
 
     when (val state = requestState) {
@@ -169,7 +175,7 @@ private fun RequestLeg(
         }
 
         is UiState.Error -> {
-            InlineError(state.message)
+            InlineStatus(message = state.message, kind = InlineStatusKind.FAILURE)
         }
 
         else -> {}
@@ -191,7 +197,7 @@ private fun ResetLeg(
         label = { Text("Reset code") },
         singleLine = true,
         enabled = !isResetting,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.operationalField(),
     )
 
     Spacer(modifier = Modifier.height(Spacing.md))
@@ -209,15 +215,13 @@ private fun ResetLeg(
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         isError = form.policyError,
         enabled = !isResetting,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.operationalField(),
     )
 
     Spacer(modifier = Modifier.height(Spacing.lg))
 
-    BusySubmitButton(
+    PrimaryActionButton(
         label = "Set new password",
-        enabled = form.resetCode.isNotBlank() && form.newPassword.isNotBlank() && !isResetting,
-        isBusy = isResetting,
         onClick = {
             if (PasswordPolicy.isValid(form.newPassword)) {
                 authViewModel.resetPassword(form.resetCode.trim(), form.newPassword)
@@ -225,48 +229,16 @@ private fun ResetLeg(
                 form.policyError = true
             }
         },
+        modifier = Modifier.fillMaxWidth(),
+        enabled = form.resetCode.isNotBlank() && form.newPassword.isNotBlank(),
+        isBusy = isResetting,
     )
 
     when (val state = resetState) {
         is UiState.Error -> {
-            InlineError(state.message)
+            InlineStatus(message = state.message, kind = InlineStatusKind.FAILURE)
         }
 
         else -> {}
     }
-}
-
-/** The shared full-width submit button with its inline busy spinner (auth flow screens). */
-@Composable
-internal fun BusySubmitButton(
-    label: String,
-    enabled: Boolean,
-    isBusy: Boolean,
-    onClick: () -> Unit,
-) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(50.dp),
-        enabled = enabled,
-    ) {
-        if (isBusy) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(24.dp),
-                color = MaterialTheme.colorScheme.onPrimary,
-                strokeWidth = 2.dp,
-            )
-        } else {
-            Text(label)
-        }
-    }
-}
-
-@Composable
-internal fun InlineError(message: String) {
-    Spacer(modifier = Modifier.height(Spacing.md))
-    Text(
-        text = message,
-        color = MaterialTheme.colorScheme.error,
-        style = MaterialTheme.typography.bodyMedium,
-    )
 }

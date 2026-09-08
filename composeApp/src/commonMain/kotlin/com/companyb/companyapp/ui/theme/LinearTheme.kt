@@ -116,8 +116,14 @@ fun LinearTheme(content: @Composable () -> Unit) {
                     fontWeight = FontWeight.SemiBold,
                 ),
             titleMedium = TextStyle(fontFamily = fontFamily, fontSize = 16.sp, lineHeight = 24.sp),
+            // #670 — titleSmall/labelMedium keep Inter too: branch names ("Select branch"
+            // cards) and row affordances previously fell back to M3 defaults.
+            titleSmall = TextStyle(fontFamily = fontFamily, fontSize = 14.sp, lineHeight = 20.sp),
+            labelMedium = TextStyle(fontFamily = fontFamily, fontSize = 12.sp, lineHeight = 16.sp),
             labelLarge = TextStyle(fontFamily = fontFamily, fontSize = 14.sp, lineHeight = 20.sp),
-            labelSmall = TextStyle(fontFamily = fontFamily, fontSize = 11.sp, lineHeight = 16.sp),
+            // #670 — secondary labels floor at 12sp: labelSmall was 11sp and read as fine
+            // print under the contract; badges/pickers inherit the floor now.
+            labelSmall = TextStyle(fontFamily = fontFamily, fontSize = 12.sp, lineHeight = 16.sp),
         )
 
     MaterialTheme(

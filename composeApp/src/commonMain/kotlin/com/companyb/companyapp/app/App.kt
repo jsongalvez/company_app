@@ -5,11 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -32,6 +27,11 @@ import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.network.createTokenStore
 import com.companyb.companyapp.notification.NotificationState
+import com.companyb.companyapp.ui.contract.ColdLoadPlaceholder
+import com.companyb.companyapp.ui.contract.InlineStatus
+import com.companyb.companyapp.ui.contract.InlineStatusKind
+import com.companyb.companyapp.ui.contract.SecondaryActionButton
+import com.companyb.companyapp.ui.contract.TertiaryActionButton
 import com.companyb.companyapp.ui.theme.LinearTheme
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logError
@@ -216,30 +216,20 @@ private fun LaunchValidationSplash(
     ) {
         if (errorMessage == null) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator()
-                if (busyMessage != null) {
-                    Spacer(modifier = Modifier.height(Spacing.md))
-                    Text(
-                        text = busyMessage,
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                }
+                // #670 — cold load uses a bounded placeholder; splash retry repeats reads
+                // only, never POSTs (resolver contract from #669 stays intact).
+                ColdLoadPlaceholder(message = busyMessage ?: "Loading…")
             }
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = errorMessage,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyLarge,
+                InlineStatus(
+                    message = errorMessage,
+                    kind = InlineStatusKind.FAILURE,
                 )
                 Spacer(modifier = Modifier.height(Spacing.md))
-                OutlinedButton(onClick = onRetry) {
-                    Text("Retry")
-                }
+                SecondaryActionButton(label = "Retry", onClick = onRetry)
                 Spacer(modifier = Modifier.height(Spacing.sm))
-                TextButton(onClick = onGoToLogin) {
-                    Text("Go to Login")
-                }
+                TertiaryActionButton(label = "Go to Login", onClick = onGoToLogin)
             }
         }
     }

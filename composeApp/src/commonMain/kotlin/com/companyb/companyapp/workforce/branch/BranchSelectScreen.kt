@@ -9,17 +9,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -29,13 +26,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.branch.BranchClockInStatus
 import com.companyb.companyapp.contracts.branch.MeBranchResponse
 import com.companyb.companyapp.contracts.workforce.ActiveShiftResponse
 import com.companyb.companyapp.contracts.workforce.ClockInResponse
 import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
+import com.companyb.companyapp.ui.contract.ColdLoadPlaceholder
+import com.companyb.companyapp.ui.contract.FieldErrorText
+import com.companyb.companyapp.ui.contract.InlineStatus
+import com.companyb.companyapp.ui.contract.InlineStatusKind
+import com.companyb.companyapp.ui.contract.TertiaryActionButton
+import com.companyb.companyapp.ui.contract.operationalField
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
@@ -84,6 +86,12 @@ fun BranchSelectScreen(
     // state; the branch gate (active assignment) is backend-authoritative, so the panel is
     // offered on every card and a 403 surfaces inline.
     var inviteBranchId by remember { mutableStateOf<String?>(null) }
+    // #670 — populated branch rows stay mounted across reloads (restore-null restale);
+    // Loading with retained rows renders them under an UPDATING banner instead of swapping.
+    var lastBranches by remember { mutableStateOf(emptyList<MeBranchResponse>()) }
+    LaunchedEffect(branchesState) {
+        (branchesState as? UiState.Success<List<MeBranchResponse>>)?.let { lastBranches = it.data }
+    }
 
     BranchSelectStatusEffects(
         clockInState = clockInState,
@@ -113,19 +121,41 @@ fun BranchSelectScreen(
 
         when (val state = branchesState) {
             is UiState.Loading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator()
+                if (lastBranches.isEmpty()) {
+                    // #670 — cold load uses a bounded placeholder, not a full-screen takeover.
+                    ColdLoadPlaceholder(message = "Loading branches…")
+                } else {
+                    InlineStatus(message = "Refreshing branches…", kind = InlineStatusKind.UPDATING)
+                    BranchSuccessContent(
+                        branches = lastBranches,
+                        inviteBranchId = inviteBranchId,
+                        onToggleInvite = { inviteBranchId = it },
+                        viewModel = viewModel,
+                        reliefInviteViewModel = reliefInviteViewModel,
+                    )
                 }
             }
 
             is UiState.Error -> {
-                BranchLoadErrorContent(
-                    message = state.message,
-                    onRetry = { viewModel.loadBranches() },
-                )
+                if (lastBranches.isEmpty()) {
+                    BranchLoadErrorContent(
+                        message = state.message,
+                        onRetry = { viewModel.loadBranches() },
+                    )
+                } else {
+                    InlineStatus(
+                        message = state.message,
+                        kind = InlineStatusKind.FAILURE,
+                        onRetry = { viewModel.loadBranches() },
+                    )
+                    BranchSuccessContent(
+                        branches = lastBranches,
+                        inviteBranchId = inviteBranchId,
+                        onToggleInvite = { inviteBranchId = it },
+                        viewModel = viewModel,
+                        reliefInviteViewModel = reliefInviteViewModel,
+                    )
+                }
             }
 
             is UiState.Success -> {
@@ -350,9 +380,10 @@ private fun BranchCard(
                     .padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.xs),
             horizontalArrangement = Arrangement.End,
         ) {
-            TextButton(onClick = actions.onToggleInvite) {
-                Text(if (inviteExpanded) "Close" else "Invite staff")
-            }
+            TertiaryActionButton(
+                label = if (inviteExpanded) "Close" else "Invite staff",
+                onClick = actions.onToggleInvite,
+            )
         }
     }
 }
@@ -486,36 +517,27 @@ private fun InvitePanelForm(
                 label = { Text("Date (yyyy-MM-dd)") },
                 singleLine = true,
                 isError = state.dateText.isNotBlank() && state.validDate == null,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.operationalField(),
             )
+            if (state.dateText.isNotBlank() && state.validDate == null) {
+                FieldErrorText(message = "Use yyyy-MM-dd, today or later.")
+            }
             OutlinedTextField(
                 value = state.query,
                 onValueChange = callbacks.onQueryChange,
                 label = { Text("Search staff by name") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.operationalField(),
             )
 
             (createState as? UiState.Error)?.message?.let { error ->
-                Text(
-                    text = error,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
+                InlineStatus(message = error, kind = InlineStatusKind.FAILURE)
             }
             (retractState as? UiState.Error)?.message?.let { error ->
-                Text(
-                    text = error,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
+                InlineStatus(message = error, kind = InlineStatusKind.FAILURE)
             }
             (revokeState as? UiState.Error)?.message?.let { error ->
-                Text(
-                    text = error,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
+                InlineStatus(message = error, kind = InlineStatusKind.FAILURE)
             }
 
             results()
@@ -533,6 +555,10 @@ private fun InvitePanelResults(
     // #377 — the destructive revoke needs an explicit confirm (removes someone's granted
     // access); the tapped row parks here until the dialog resolves it.
     var pendingRevoke by remember { mutableStateOf<ReliefInviteResponse?>(null) }
+    // #670 — the confirm stays mounted through the revoke POST (busy slot + Escape pin
+    // live in the shared shell) and parks only on a terminal leg, mirroring the delegate
+    // twin. Conflict converges to Idle with a reload, so Idle-after-loading also parks.
+    var revokeWasLoading by remember { mutableStateOf(false) }
 
     val candidatesState by viewModel.candidates.collectAsState()
     // Branch-keyed keep-last mirror (#162 KeepLastByKey — the #160 pass-1/pass-2 cross-branch
@@ -577,12 +603,21 @@ private fun InvitePanelResults(
         RevokeDutyConfirmDialog(
             invite = invite,
             busy = revokeBusy,
-            onConfirm = {
-                viewModel.revokeInvite(invite.id, branchId)
-                pendingRevoke = null
-            },
+            onConfirm = { viewModel.revokeInvite(invite.id, branchId) },
             onDismiss = { pendingRevoke = null },
         )
+    }
+    LaunchedEffect(revokeState) {
+        if (revokeState is UiState.Loading) {
+            revokeWasLoading = true
+        } else if (
+            revokeState is UiState.Success ||
+            revokeState is UiState.Error ||
+            (revokeState is UiState.Idle && revokeWasLoading)
+        ) {
+            revokeWasLoading = false
+            pendingRevoke = null
+        }
     }
 }
 
@@ -627,12 +662,11 @@ private fun SentInvitesSection(
                     )
                 }
                 if (isInviteActionable(invite, today)) {
-                    TextButton(
+                    TertiaryActionButton(
+                        label = "Retract",
                         onClick = { onRetract(invite.id) },
                         enabled = !retractBusy,
-                    ) {
-                        Text("Retract")
-                    }
+                    )
                 }
             }
         }
@@ -678,12 +712,11 @@ private fun AcceptedDutiesSection(
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(
+                TertiaryActionButton(
+                    label = "Revoke",
                     onClick = { onRevokeRequest(invite) },
                     enabled = !revokeBusy,
-                ) {
-                    Text("Revoke")
-                }
+                )
             }
         }
     }
