@@ -478,63 +478,73 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         // Branch Day transitions (which write their own audit, #603) on the command transaction,
         // then the audit insert into that same transaction. A failing audit statement must abort
         // everything.
-        val error =
-            runCatching {
-                transaction {
-                    val before =
-                        RemittanceRepository.lockByIdInTransaction(remittanceId) ?: error("missing draft")
-                    RemittancePolicy.assertSubmittable(before.status, before.version, 1, remittanceId)
-                    RemittanceRepository.markSubmittedInTransaction(
-                        remittanceId,
-                        1,
-                        callerId,
-                        LocalDate.of(2026, 7, 10),
-                    )
-                    BranchDayService.markDaysRemittedInTransaction(listOf(branchDayId), changedBy = callerId)
-                    AuditLog.record(
-                        tableName = RemittanceTable.tableName,
-                        recordId = remittanceId,
-                        action = AuditAction.UPDATE,
-                        changedBy = callerId,
-                        oldValue = "{not-valid-json",
-                    )
-                }
-            }.exceptionOrNull()
+        val error = runFailingSubmitWithBadAudit(remittanceId, branchDayId)
 
         assertNotNull(error, "malformed jsonb audit payload must fail the statement")
 
-        val rollback =
-            transaction {
-                val remittance = RemittanceTable.selectAll().where { RemittanceTable.id eq remittanceId }.single()
-                val day = BranchDayTable.selectAll().where { BranchDayTable.id eq branchDayId }.single()
-                val audits =
-                    AuditLogTable
-                        .selectAll()
-                        .where {
-                            (AuditLogTable.recordId eq remittanceId) and
-                                (AuditLogTable.action eq AuditAction.UPDATE)
-                        }.count()
-                val dayAudits =
-                    AuditLogTable
-                        .selectAll()
-                        .where {
-                            (AuditLogTable.recordId eq branchDayId) and
-                                (AuditLogTable.auditTableName eq BranchDayTable.tableName) and
-                                (AuditLogTable.action eq AuditAction.UPDATE)
-                        }.count()
-                SubmitOutcome(
-                    status = remittance[RemittanceTable.status],
-                    version = remittance[RemittanceTable.version],
-                    dayStatus = day[BranchDayTable.status],
-                    remittanceAudits = audits,
-                    dayAudits = dayAudits,
-                )
-            }
+        val rollback = readSubmitRollback(remittanceId, branchDayId)
         assertEquals(RemittanceStatus.DRAFT, rollback.status, "mutation rolled back with the failed audit")
         assertEquals(DayStatus.OPEN, rollback.dayStatus, "branch-day transition rolled back with the failed audit")
         assertEquals(0L, rollback.remittanceAudits, "no partial audit row survived")
         assertEquals(0L, rollback.dayAudits, "no partial branch-day audit row survived")
     }
+
+    private fun runFailingSubmitWithBadAudit(
+        remittanceId: UUID,
+        branchDayId: UUID,
+    ): Throwable? =
+        runCatching {
+            transaction {
+                val before =
+                    RemittanceRepository.lockByIdInTransaction(remittanceId) ?: error("missing draft")
+                RemittancePolicy.assertSubmittable(before.status, before.version, 1, remittanceId)
+                RemittanceRepository.markSubmittedInTransaction(
+                    remittanceId,
+                    1,
+                    callerId,
+                    LocalDate.of(2026, 7, 10),
+                )
+                BranchDayService.markDaysRemittedInTransaction(listOf(branchDayId), changedBy = callerId)
+                AuditLog.record(
+                    tableName = RemittanceTable.tableName,
+                    recordId = remittanceId,
+                    action = AuditAction.UPDATE,
+                    changedBy = callerId,
+                    oldValue = "{not-valid-json",
+                )
+            }
+        }.exceptionOrNull()
+
+    private fun readSubmitRollback(
+        remittanceId: UUID,
+        branchDayId: UUID,
+    ): SubmitOutcome =
+        transaction {
+            val remittance = RemittanceTable.selectAll().where { RemittanceTable.id eq remittanceId }.single()
+            val day = BranchDayTable.selectAll().where { BranchDayTable.id eq branchDayId }.single()
+            val audits =
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.recordId eq remittanceId) and
+                            (AuditLogTable.action eq AuditAction.UPDATE)
+                    }.count()
+            val dayAudits =
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.recordId eq branchDayId) and
+                            (AuditLogTable.auditTableName eq BranchDayTable.tableName) and
+                            (AuditLogTable.action eq AuditAction.UPDATE)
+                    }.count()
+            SubmitOutcome(
+                status = remittance[RemittanceTable.status],
+                version = remittance[RemittanceTable.version],
+                dayStatus = day[BranchDayTable.status],
+                remittanceAudits = audits,
+                dayAudits = dayAudits,
+            )
+        }
 
     @Test
     fun `failed submit writes no audit rows`() {
