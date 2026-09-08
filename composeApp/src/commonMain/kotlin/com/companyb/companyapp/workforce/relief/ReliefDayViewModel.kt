@@ -50,6 +50,13 @@ class ReliefDayViewModel(
     val branchName: StateFlow<String?> = _branchName.asStateFlow()
 
     fun load() {
+        reloadRequests()
+        reloadInvites()
+        resolveBranchName()
+    }
+
+    /** #680 — per-leg retry: a failed invites leg retries without resetting the requests leg. */
+    fun reloadRequests() {
         handler.launch(
             state = _requests,
             operation = "loadReliefDay",
@@ -57,6 +64,10 @@ class ReliefDayViewModel(
             block = { apiClient.httpClient.get(ApiRoutes.reliefAccessByBranchAndDate(branchId, date)) },
             transform = { it.body() },
         )
+    }
+
+    /** #680 — per-leg retry: a failed requests leg retries without resetting the invites leg. */
+    fun reloadInvites() {
         handler.launch(
             state = _invites,
             operation = "loadReliefDayInvites",
@@ -64,7 +75,6 @@ class ReliefDayViewModel(
             block = { apiClient.httpClient.get(ApiRoutes.branchReliefInvitesByDate(branchId, date)) },
             transform = { it.body() },
         )
-        resolveBranchName()
     }
 
     private fun resolveBranchName() {

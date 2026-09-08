@@ -4,9 +4,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -31,10 +33,13 @@ import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.session.dashboard.DashboardSelection
 import com.companyb.companyapp.session.dashboard.SessionDashboardScreen
 import com.companyb.companyapp.session.dashboard.SessionDashboardViewModel
+import com.companyb.companyapp.ui.theme.InkSubtle
+import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.workforce.attendance.AttendanceRosterCard
 import com.companyb.companyapp.workforce.attendance.AttendanceRosterViewModel
-import com.companyb.companyapp.workforce.relief.ReliefAccessCard
 import com.companyb.companyapp.workforce.relief.ReliefAccessViewModel
+import com.companyb.companyapp.workforce.relief.ReliefInviteViewModel
+import com.companyb.companyapp.workforce.relief.ReliefPlanningTabContent
 import com.companyb.companyapp.workforce.relief.incomingPending
 import kotlinx.coroutines.launch
 
@@ -185,6 +190,11 @@ private fun MobileDashboardLive(
     // #351 — entry-scoped relief-access VM (the #112 self-cleaning shape).
     val reliefAccessViewModel: ReliefAccessViewModel =
         viewModel { ReliefAccessViewModel(apiClient) }
+    // #680 — entry-scoped relief-invite VM: the Team Relief tab plans invitations from the
+    // shift (same shared owner as the BranchSelect shortcut), so clocked-in members never
+    // clock out merely to manage invitations.
+    val reliefInviteViewModel: ReliefInviteViewModel =
+        viewModel { ReliefInviteViewModel(apiClient) }
     // #404 — entry-scoped member-attendance roster (same self-cleaning shape).
     val attendanceViewModel: AttendanceRosterViewModel =
         viewModel { AttendanceRosterViewModel(apiClient) }
@@ -237,12 +247,27 @@ private fun MobileDashboardLive(
         },
         teamRequestCount = reliefRows?.incomingPending(currentUserId?.id)?.size,
         reliefAccessContent = {
-            if (dayId != null) {
-                ReliefAccessCard(
-                    viewModel = reliefAccessViewModel,
+            // #680 — the Relief tab: today's requests plus invitation planning for the
+            // viewed branch/date (shared owner with BranchSelect).
+            val clockedBranchId = selectedBranchId
+            if (clockedBranchId != null) {
+                ReliefPlanningTabContent(
+                    branchId = clockedBranchId,
+                    branchName = selectedBranchName,
+                    viewedDate = snapshot.clock?.operationalDate,
                     branchDayId = dayId,
+                    inviteViewModel = reliefInviteViewModel,
+                    accessViewModel = reliefAccessViewModel,
                     currentUserId = currentUserId?.id,
                     isReliefUser = isRelief,
+                )
+            } else {
+                // Transient pre-clock snapshot: the tab never renders blank without guidance.
+                Text(
+                    text = "Clock in to a branch to plan relief.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkSubtle,
+                    modifier = Modifier.padding(Spacing.md),
                 )
             }
         },

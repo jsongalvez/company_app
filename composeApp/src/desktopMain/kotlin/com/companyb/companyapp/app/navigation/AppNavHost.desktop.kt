@@ -16,6 +16,7 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -44,11 +45,13 @@ import com.companyb.companyapp.session.dashboard.SessionDashboardScreen
 import com.companyb.companyapp.session.dashboard.SessionDashboardViewModel
 import com.companyb.companyapp.session.detail.SessionDetailPane
 import com.companyb.companyapp.ui.contract.TertiaryActionButton
+import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.workforce.attendance.AttendanceRosterCard
 import com.companyb.companyapp.workforce.attendance.AttendanceRosterViewModel
-import com.companyb.companyapp.workforce.relief.ReliefAccessCard
 import com.companyb.companyapp.workforce.relief.ReliefAccessViewModel
+import com.companyb.companyapp.workforce.relief.ReliefInviteViewModel
+import com.companyb.companyapp.workforce.relief.ReliefPlanningTabContent
 import com.companyb.companyapp.workforce.relief.incomingPending
 import kotlinx.coroutines.launch
 
@@ -215,20 +218,34 @@ private fun DesktopShellNavHost(
 
 @Composable
 private fun DashboardReliefContent(
-    branchDayId: String?,
+    context: DashboardMasterContext,
+    inviteViewModel: ReliefInviteViewModel,
     viewModel: ReliefAccessViewModel,
-    currentUserId: String?,
-    isReliefUser: Boolean,
 ) {
-    val dayId = branchDayId
-    if (dayId != null) {
-        ReliefAccessCard(
-            viewModel = viewModel,
-            branchDayId = dayId,
-            currentUserId = currentUserId,
-            isReliefUser = isReliefUser,
+    // #680 — the Relief tab: today's requests plus invitation planning for the viewed
+    // branch/date (shared owner with BranchSelect and mobile). The context bundle is the
+    // file's DashboardMasterContext (the #535 real-ownership shape), not a new DTO.
+    val id = context.branchId
+    if (id == null) {
+        // Transient pre-clock snapshot: the tab never renders blank without guidance.
+        Text(
+            text = "Clock in to a branch to plan relief.",
+            style = MaterialTheme.typography.bodySmall,
+            color = InkSubtle,
+            modifier = Modifier.padding(Spacing.md),
         )
+        return
     }
+    ReliefPlanningTabContent(
+        branchId = id,
+        branchName = context.branchName,
+        viewedDate = context.operationalDate,
+        branchDayId = context.branchDayId,
+        inviteViewModel = inviteViewModel,
+        accessViewModel = viewModel,
+        currentUserId = context.userId,
+        isReliefUser = context.isReliefUser,
+    )
 }
 
 @Composable
@@ -494,6 +511,10 @@ private fun DesktopMasterPane(
     // same NavBackStackEntry owner as before the #671 split, so lifecycle is unchanged.
     val reliefAccessViewModel: ReliefAccessViewModel =
         viewModel { ReliefAccessViewModel(apiClient) }
+    // #680 — entry-scoped relief-invite VM for the Team Relief tab (shared owner with
+    // BranchSelect and mobile).
+    val reliefInviteViewModel: ReliefInviteViewModel =
+        viewModel { ReliefInviteViewModel(apiClient) }
     val attendanceViewModel: AttendanceRosterViewModel =
         viewModel { AttendanceRosterViewModel(apiClient) }
     // #672 — the relief rows load here (not inside the Team sheet slot) so the
@@ -520,10 +541,9 @@ private fun DesktopMasterPane(
         teamRequestCount = reliefRows?.incomingPending(context.userId)?.size,
         reliefAccessContent = {
             DashboardReliefContent(
-                branchDayId = context.branchDayId,
+                context = context,
+                inviteViewModel = reliefInviteViewModel,
                 viewModel = reliefAccessViewModel,
-                currentUserId = context.userId,
-                isReliefUser = context.isReliefUser,
             )
         },
         attendanceContent = {

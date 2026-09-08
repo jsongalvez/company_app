@@ -7,7 +7,9 @@ import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.GuardedStateless
 import com.companyb.companyapp.async.KeepLast
 import com.companyb.companyapp.async.KeyedMirror
+import com.companyb.companyapp.async.LatestLoad
 import com.companyb.companyapp.async.LaunchRequest
+import com.companyb.companyapp.async.LoadGeneration
 import com.companyb.companyapp.async.ReconcilingLoad
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.async.mutateRemoved
@@ -85,6 +87,21 @@ class ReliefInviteViewModel(
     private val keptAccepted = KeyedMirror<String, List<ReliefInviteResponse>>()
     val acceptedByKey: StateFlow<Map<String, List<ReliefInviteResponse>>> = keptAccepted.lastByKey
 
+    // #680 — refresh-failure legs for the keyed mirrors (the mirrors themselves retain the
+    // last committed list across failures; these carry the section Retry, kept separate from
+    // the action errors below so a failed background refresh never reads as a failed send).
+    private val _sentLoadError = MutableStateFlow<String?>(null)
+    val sentLoadError: StateFlow<String?> = _sentLoadError.asStateFlow()
+
+    private val _acceptedLoadError = MutableStateFlow<String?>(null)
+    val acceptedLoadError: StateFlow<String?> = _acceptedLoadError.asStateFlow()
+
+    /** Clears stale refresh errors when a planning surface (re)opens for a branch (#680). */
+    fun clearPlanningLoadErrors() {
+        _sentLoadError.value = null
+        _acceptedLoadError.value = null
+    }
+
     private val _createResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val createResult: StateFlow<UiState<Unit>> = _createResult.asStateFlow()
 
@@ -95,8 +112,12 @@ class ReliefInviteViewModel(
     val revokeResult: StateFlow<UiState<Unit>> = _revokeResult.asStateFlow()
 
     // #113 shape: the newest search cancels the in-flight one — a stale response dies at the
-    // cancellation instead of committing.
+    // cancellation instead of committing. #680 adds the generation guard (the LatestLoad
+    // policy): a superseded landing that slips past cancellation (already decoded, slow
+    // branch/date switch) still commits nothing — late results for an old date/branch are
+    // inert.
     private var searchJob: Job? = null
+    private val searchGeneration = LoadGeneration()
 
     fun searchCandidates(
         branchId: String,
@@ -105,44 +126,60 @@ class ReliefInviteViewModel(
     ): Job {
         searchJob?.cancel()
         val encodedQuery = query.encodeURLParameter(spaceToPlus = false)
+        val candidatesUrl = "${ApiRoutes.branchReliefCandidates(branchId)}?q=$encodedQuery&date=$date"
         searchJob =
-            handler.launch(
-                state = _candidates,
-                operation = "searchCandidates",
-                endpoint = "GET /api/branches/$branchId/relief-candidates?q=$encodedQuery&date=$date",
-                block = {
-                    apiClient.httpClient.get("${ApiRoutes.branchReliefCandidates(branchId)}?q=$encodedQuery&date=$date")
-                },
-                transform = { it.body() },
+            handler.launchLatest(
+                LatestLoad(
+                    state = _candidates,
+                    operation = "searchCandidates",
+                    endpoint = "GET /api/branches/$branchId/relief-candidates?q=$encodedQuery&date=$date",
+                    block = { apiClient.httpClient.get(candidatesUrl) },
+                    decode = { it.body() },
+                    guard = searchGeneration,
+                ),
             )
         return searchJob!!
     }
+
+    // #680 — the pending send blocks duplicate submission at the VM layer too (the Send
+    // button disables, but a same-frame double-tap lands before Loading renders). The flag
+    // flips synchronously at invocation — the UiState check alone races coroutine start —
+    // and releases on every completion path including cancellation.
+    private var sendInFlight = false
 
     fun sendInvite(
         branchId: String,
         inviteeUserId: String,
         date: String,
-    ): Job =
-        handler.launch(
-            state = _createResult,
-            operation = "sendInvite",
-            endpoint = "POST /api/branches/$branchId/relief-invites",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.branchReliefInvites(branchId)) {
-                    setBody(CreateReliefInviteRequest(inviteeUserId = inviteeUserId, date = date))
-                }
-            },
-            transform = {
-                loadSent(branchId)
-                // The invited user is no longer a candidate — drop them locally (the next
-                // search would exclude them server-side anyway).
-                val current = _candidates.value
-                if (current is UiState.Success) {
-                    _candidates.value = UiState.Success(current.data.filterNot { it.id == inviteeUserId })
-                }
-                Unit
-            },
-        )
+    ): Job {
+        if (sendInFlight) return Job()
+        sendInFlight = true
+        return handler
+            .launch(
+                LaunchRequest(
+                    state = _createResult,
+                    operation = "sendInvite",
+                    endpoint = "POST /api/branches/$branchId/relief-invites",
+                    block = {
+                        apiClient.httpClient.post(ApiRoutes.branchReliefInvites(branchId)) {
+                            setBody(CreateReliefInviteRequest(inviteeUserId = inviteeUserId, date = date))
+                        }
+                    },
+                    transform = {
+                        loadSent(branchId)
+                        // The invited user is no longer a candidate — drop them locally (the next
+                        // search would exclude them server-side anyway).
+                        val current = _candidates.value
+                        if (current is UiState.Success) {
+                            _candidates.value = UiState.Success(current.data.filterNot { it.id == inviteeUserId })
+                        }
+                        Unit
+                    },
+                ),
+            ).also { job ->
+                job.invokeOnCompletion { sendInFlight = false }
+            }
+    }
 
     // Bumped per loadSent: a response that lands with a mismatched stamp belongs to an older
     // launch of ANY branch — committing it would let a stale snapshot be the last writer on a
@@ -176,8 +213,11 @@ class ReliefInviteViewModel(
                         // the screen gate `sentByKey[panelBranch]` can then trust that a passing gate
                         // means the rendered list IS this panel's.
                         keptSent.commit(branchId, body)
+                        _sentLoadError.value = null
                     },
                     stale = { stamp != sentStamp },
+                    onNonSuccess = { _sentLoadError.value = SENT_LOAD_ERROR },
+                    onError = { _sentLoadError.value = SENT_LOAD_ERROR },
                 ),
         )
     }
@@ -187,14 +227,28 @@ class ReliefInviteViewModel(
         branchId: String,
     ): Job =
         handler.launch(
-            state = _retractResult,
-            operation = "retractInvite",
-            endpoint = "POST /api/relief-invites/$inviteId/retract",
-            block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "retract")) },
-            transform = {
-                loadSent(branchId)
-                Unit
-            },
+            LaunchRequest(
+                state = _retractResult,
+                operation = "retractInvite",
+                endpoint = "POST /api/relief-invites/$inviteId/retract",
+                block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "retract")) },
+                // #680 — a 409 is authoritative server confirmation the invite already left
+                // PENDING (double-tap beating the busy gate, cross-device retract): converge
+                // via reload like revokeInvite instead of erroring a stale row.
+                onNonSuccess = { response ->
+                    if (response.status == HttpStatusCode.Conflict) {
+                        _retractResult.value = UiState.Idle
+                        loadSent(branchId)
+                        true
+                    } else {
+                        false
+                    }
+                },
+                transform = {
+                    loadSent(branchId)
+                    Unit
+                },
+            ),
         )
 
     // Same per-load ordering stamp as sentStamp, for the accepted mirror.
@@ -211,8 +265,13 @@ class ReliefInviteViewModel(
             guarded =
                 GuardedStateless(
                     decode = { response -> response.body<List<ReliefInviteResponse>>() },
-                    commit = { body -> keptAccepted.commit(branchId, body) },
+                    commit = { body ->
+                        keptAccepted.commit(branchId, body)
+                        _acceptedLoadError.value = null
+                    },
                     stale = { stamp != acceptedStamp },
+                    onNonSuccess = { _acceptedLoadError.value = ACCEPTED_LOAD_ERROR },
+                    onError = { _acceptedLoadError.value = ACCEPTED_LOAD_ERROR },
                 ),
         )
     }
@@ -259,6 +318,9 @@ class ReliefInviteViewModel(
             ?.takeIf { it.isNotBlank() }
             ?: "Revoke failed (${response.status.value})"
 }
+
+private const val SENT_LOAD_ERROR = "Couldn't load sent invites"
+private const val ACCEPTED_LOAD_ERROR = "Couldn't load accepted duties"
 
 /**
  * A confirmed invite resolution retained for the visit (#679): the last-seen row plus the

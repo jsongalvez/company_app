@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -301,6 +302,9 @@ fun SessionDashboardScreen(
     // a branch switch cannot fire a stale return onto the new branch's trigger).
     val teamTriggerFocus = remember { FocusRequester() }
     var teamWasOpen by remember(userId, branchId) { mutableStateOf(false) }
+    // #680 — relief users open on the Relief tab (their operational work); members keep
+    // the Attendance default for today's operational work.
+    val teamDefaultTab = if (snapshot.clock?.isRelief == true) TeamTab.RELIEF else TeamTab.ATTENDANCE
     LaunchedEffect(showTeam) {
         if (showTeam) {
             teamWasOpen = true
@@ -344,6 +348,7 @@ fun SessionDashboardScreen(
                     onShowTeamChange = { showTeam = it },
                     teamTriggerFocus = teamTriggerFocus,
                     teamRequestCount = teamRequestCount,
+                    teamDefaultTab = teamDefaultTab,
                     pollStatus = pollStatus,
                     lastUpdatedAt = lastUpdatedAt,
                     isRefreshing = isManualRefreshing && state is UiState.Loading,
@@ -439,6 +444,7 @@ private fun DashboardWorkspace(
     onShowTeamChange: (Boolean) -> Unit,
     teamTriggerFocus: FocusRequester,
     teamRequestCount: Int?,
+    teamDefaultTab: TeamTab,
     pollStatus: DashboardPollStatus,
     lastUpdatedAt: Instant?,
     isRefreshing: Boolean,
@@ -542,6 +548,7 @@ private fun DashboardWorkspace(
                 onClose = { onShowTeamChange(false) },
                 attendanceContent = attendanceContent,
                 reliefAccessContent = reliefAccessContent,
+                defaultTab = teamDefaultTab,
             )
         }
     }
@@ -754,11 +761,21 @@ private fun DashboardFreshness(
     }
 }
 
+/** #680 — the Team sheet tabs: Attendance stays default for today's operational work. */
+enum class TeamTab {
+    ATTENDANCE,
+    RELIEF,
+}
+
 /**
  * #672 — the Team sheet: attendance + relief requests/invites as an overlay panel
  * (full-width on compact screens), never a third permanent column. The workspace
  * list stays composed underneath, so closing restores row/scroll exactly; focus
  * returns to the Team trigger (screen-owned LaunchedEffect).
+ *
+ * #680 — Attendance and Relief ride separate tabs (Attendance default for today's
+ * operational work); a SaveableStateHolder keeps each tab's drafts across switches,
+ * and closing still returns focus to the Team trigger.
  */
 @Composable
 private fun TeamSheetOverlay(
@@ -766,7 +783,10 @@ private fun TeamSheetOverlay(
     onClose: () -> Unit,
     attendanceContent: @Composable () -> Unit,
     reliefAccessContent: @Composable () -> Unit,
+    defaultTab: TeamTab = TeamTab.ATTENDANCE,
 ) {
+    var tab by rememberSaveable(defaultTab) { mutableStateOf(defaultTab) }
+    val holder = rememberSaveableStateHolder()
     Box(modifier = Modifier.fillMaxSize()) {
         // #672 — dismiss surface carries an accessible label (redundant with Close
         // by design, so pointer and screen-reader dismissal agree).
@@ -804,12 +824,53 @@ private fun TeamSheetOverlay(
                     )
                     TertiaryActionButton(label = "Close", onClick = onClose)
                 }
-                Column(
-                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                // #680 — Attendance / Relief tabs: one row, full-width compact keeps every
+                // action (no width-gated hiding here).
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = Spacing.md),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    attendanceContent()
-                    reliefAccessContent()
+                    val chipModifier = Modifier.operationalTouchTarget().operationalFocusRing()
+                    FilterChip(
+                        selected = tab == TeamTab.ATTENDANCE,
+                        onClick = { tab = TeamTab.ATTENDANCE },
+                        label = { Text("Attendance") },
+                        modifier = chipModifier,
+                    )
+                    FilterChip(
+                        selected = tab == TeamTab.RELIEF,
+                        onClick = { tab = TeamTab.RELIEF },
+                        label = { Text("Relief") },
+                        modifier = chipModifier,
+                    )
+                }
+                // #680 — each tab scrolls independently and positions hold across actions
+                // within a tab (the holder retains typed drafts across tab switches; plain
+                // scroll states reset on switch by design).
+                holder.SaveableStateProvider(TEAM_TAB_ATTENDANCE_KEY) {
+                    if (tab == TeamTab.ATTENDANCE) {
+                        Column(
+                            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        ) {
+                            attendanceContent()
+                        }
+                    }
+                }
+                holder.SaveableStateProvider(TEAM_TAB_RELIEF_KEY) {
+                    if (tab == TeamTab.RELIEF) {
+                        Column(
+                            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        ) {
+                            reliefAccessContent()
+                        }
+                    }
                 }
             }
         }
@@ -819,3 +880,5 @@ private fun TeamSheetOverlay(
 private const val FRESHNESS_MIN_HEIGHT = 32
 private const val TEAM_SHEET_WIDTH = 400
 private const val TEAM_SCRIM_ALPHA = 0.5f
+private const val TEAM_TAB_ATTENDANCE_KEY = "team-tab-attendance"
+private const val TEAM_TAB_RELIEF_KEY = "team-tab-relief"

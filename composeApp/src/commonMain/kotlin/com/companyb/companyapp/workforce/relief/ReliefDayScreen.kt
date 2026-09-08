@@ -2,9 +2,7 @@ package com.companyb.companyapp.workforce.relief
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -12,13 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.contracts.workforce.ReliefAccessResponse
-import com.companyb.companyapp.contracts.workforce.ReliefAccessStatus
-import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
-import com.companyb.companyapp.ui.ErrorCard
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.workforce.relief.ReliefDayViewModel
@@ -57,115 +49,24 @@ fun ReliefDayScreen(
             color = InkSubtle,
         )
 
-        when (val state = requestsState) {
-            is UiState.Loading -> {
-                Text("Loading…", style = MaterialTheme.typography.bodySmall, color = InkSubtle)
-            }
-
-            is UiState.Error -> {
-                // #388 — shared error+retry card: load() is idempotent, so Retry re-issues
-                // both the request list and the pending name resolution.
-                ErrorCard(
-                    message = state.message,
-                    onRetry = viewModel::load,
-                )
-            }
-
-            is UiState.Success -> {
-                if (state.data.isEmpty()) {
-                    Text(
-                        "No relief activity on this day",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = InkSubtle,
-                    )
-                } else {
-                    // #399 — this panel IS one branch day; past-operational-date PENDING rows
-                    // render Expired (resolved statuses keep their raw enum text).
-                    val today = currentOperationalDate()
-                    val dayPast = parseInviteDate(date)?.let { it < today } == true
-                    state.data.forEach { row -> DayRequestRow(row, dayPast) }
-                }
-            }
-
-            UiState.Idle -> {
-                Unit
-            }
-        }
+        // #680 — the day's requests and invites render through the shared planning owner
+        // (same Expired rule, status text, empty states, per-leg Retry as the planning
+        // tab) with no actions — the deep link selects the exact branch/day read-only.
+        // #399 — this panel IS one branch day; past-operational-date PENDING rows
+        // render Expired (resolved statuses keep their raw enum text).
+        val dayPast = parseInviteDate(date)?.let { it < currentOperationalDate() } == true
+        PlanningDayRequests(
+            state = requestsState,
+            dayPast = dayPast,
+            onRetry = viewModel::reloadRequests,
+        )
 
         // #401 — the day's invites under the requests: invite-sourced taps (accepted /
         // declined / revoked / reminder) render the tapped entity's true state instead of
-        // dying as an empty day. Own leg — a failure here is an inline retry strip and the
-        // request list above stays untouched.
-        DayInvitesSection(
-            invitesState = invitesState,
-            onRetry = viewModel::load,
-        )
-    }
-}
-
-@Composable
-private fun DayInvitesSection(
-    invitesState: UiState<List<ReliefInviteResponse>>,
-    onRetry: () -> Unit,
-) {
-    when (val state = invitesState) {
-        is UiState.Error -> {
-            ErrorCard(
-                message = state.message,
-                onRetry = onRetry,
-            )
-        }
-
-        is UiState.Success -> {
-            if (state.data.isNotEmpty()) {
-                Text("Invites", style = MaterialTheme.typography.titleSmall)
-                val today = currentOperationalDate()
-                toReliefDayInviteRows(state.data, today).forEach { row -> DayInviteRow(row) }
-            }
-        }
-
-        UiState.Loading,
-        UiState.Idle,
-        -> {
-            Unit
-        }
-    }
-}
-
-@Composable
-private fun DayInviteRow(row: ReliefDayInviteRow) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(text = row.title, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-        Text(text = row.statusText, style = MaterialTheme.typography.labelSmall, color = InkSubtle)
-    }
-}
-
-@Composable
-private fun DayRequestRow(
-    row: ReliefAccessResponse,
-    dayPast: Boolean,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        // #666 — label with the requester display name; the mine list ships null
-        // requesterName (the caller is the requester), so fall back to the id.
-        Text(
-            text = reliefRequestRowLabel(row),
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.weight(1f),
-        )
-        val expired = dayPast && row.requestStatus == ReliefAccessStatus.PENDING
-        Text(
-            text = if (expired) "Expired" else row.requestStatus.name,
-            style = MaterialTheme.typography.labelSmall,
-            color = InkSubtle,
+        // dying as an empty day. Own leg — a failure here never touches the requests above.
+        PlanningDayInvites(
+            state = invitesState,
+            onRetry = viewModel::reloadInvites,
         )
     }
 }

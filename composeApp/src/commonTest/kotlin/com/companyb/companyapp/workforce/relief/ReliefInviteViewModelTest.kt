@@ -980,5 +980,225 @@ class ReliefInviteViewModelTest {
         )
     }
 
+    @Test
+    fun `sent load failure surfaces retryable error and retains the list`() =
+        runTest(testScheduler) {
+            var failNext = false
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/branches/b1/relief-invites" && it.method.value == "GET" -> {
+                                if (failNext) {
+                                    respond(
+                                        content = ByteReadChannel("""{"error":"boom"}"""),
+                                        status = HttpStatusCode.BadRequest,
+                                        headers =
+                                            headersOf(
+                                                HttpHeaders.ContentType,
+                                                ContentType.Application.Json.toString(),
+                                            ),
+                                    )
+                                } else {
+                                    ok("""[${inviteJson("i1", "PENDING", inviteeName = "Alice")}]""")
+                                }
+                            }
+
+                            else -> {
+                                ok("[]")
+                            }
+                        }
+                    },
+                )
+            val vm = ReliefInviteViewModel(apiClient)
+            vm.loadSent("b1")
+            runCurrent()
+            assertEquals(1, vm.sentByKey.value["b1"]!!.size)
+            assertNull(vm.sentLoadError.value)
+
+            failNext = true
+            vm.loadSent("b1")
+            runCurrent()
+            assertEquals("Couldn't load sent invites", vm.sentLoadError.value)
+            assertEquals(
+                1,
+                vm.sentByKey.value["b1"]!!.size,
+                "the mirror retains the list across the refresh failure",
+            )
+
+            failNext = false
+            vm.loadSent("b1")
+            runCurrent()
+            assertNull(vm.sentLoadError.value, "a successful retry clears the error")
+        }
+
+    @Test
+    fun `accepted load failure surfaces retryable error and retains the list`() =
+        runTest(testScheduler) {
+            var failNext = false
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/branches/b1/relief-invites/accepted" -> {
+                                if (failNext) {
+                                    respond(
+                                        content = ByteReadChannel("""{"error":"boom"}"""),
+                                        status = HttpStatusCode.BadRequest,
+                                        headers =
+                                            headersOf(
+                                                HttpHeaders.ContentType,
+                                                ContentType.Application.Json.toString(),
+                                            ),
+                                    )
+                                } else {
+                                    ok("""[${inviteJson("i1", "ACCEPTED", inviteeName = "Alice")}]""")
+                                }
+                            }
+
+                            else -> {
+                                ok("[]")
+                            }
+                        }
+                    },
+                )
+            val vm = ReliefInviteViewModel(apiClient)
+            vm.loadAccepted("b1")
+            runCurrent()
+            assertEquals(1, vm.acceptedByKey.value["b1"]!!.size)
+
+            failNext = true
+            vm.loadAccepted("b1")
+            runCurrent()
+            assertEquals("Couldn't load accepted duties", vm.acceptedLoadError.value)
+            assertEquals(
+                1,
+                vm.acceptedByKey.value["b1"]!!.size,
+                "the mirror retains the list across the refresh failure",
+            )
+        }
+
+    @Test
+    fun `rapid reissue resolves to the newer query`() =
+        runTest(testScheduler) {
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/branches/b1/relief-candidates" -> {
+                                val query = it.url.parameters["q"].orEmpty()
+                                if (query == "al") {
+                                    withContext(StandardTestDispatcher(testScheduler)) {
+                                        kotlinx.coroutines.delay(10_000)
+                                    }
+                                    ok("""[{"id":"u1","username":"alice","displayName":"Alice"}]""")
+                                } else {
+                                    ok("""[{"id":"u2","username":"bob","displayName":"Bob"}]""")
+                                }
+                            }
+
+                            else -> {
+                                ok("[]")
+                            }
+                        }
+                    },
+                )
+            val vm = ReliefInviteViewModel(apiClient)
+            // Back-to-back reissue (date-switch shape): the newer query wins and a late
+            // superseded landing — via cancellation or the generation guard — never overwrites it.
+            vm.searchCandidates("b1", "al", "2026-08-16")
+            vm.searchCandidates("b1", "bo", "2026-08-17")
+            runCurrent()
+            val second = vm.candidates.value
+            assertIs<UiState.Success<List<ReliefCandidateResponse>>>(second)
+            assertEquals("u2", second.data.single().id)
+
+            advanceTimeBy(20_000)
+            runCurrent()
+            val after = vm.candidates.value
+            assertIs<UiState.Success<List<ReliefCandidateResponse>>>(after)
+            assertEquals(
+                "u2",
+                after.data.single().id,
+                "the superseded landing must not overwrite the newer results",
+            )
+        }
+
+    @Test
+    fun `rapid double send issues a single post`() =
+        runTest(testScheduler) {
+            var postCalls = 0
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/branches/b1/relief-invites" && it.method.value == "POST" -> {
+                                postCalls++
+                                withContext(StandardTestDispatcher(testScheduler)) {
+                                    kotlinx.coroutines.delay(5_000)
+                                }
+                                ok(inviteJson("i1", "PENDING", inviteeName = "Alice"))
+                            }
+
+                            else -> {
+                                ok("[]")
+                            }
+                        }
+                    },
+                )
+            val vm = ReliefInviteViewModel(apiClient)
+            vm.sendInvite("b1", "u1", "2026-08-16")
+            vm.sendInvite("b1", "u1", "2026-08-16")
+            runCurrent()
+            assertEquals(1, postCalls, "the second tap while pending must not re-post")
+
+            advanceTimeBy(10_000)
+            runCurrent()
+            assertIs<UiState.Success<Unit>>(vm.createResult.value)
+
+            // A send after the first lands is a genuine consecutive invitation, not a duplicate.
+            vm.sendInvite("b1", "u2", "2026-08-16")
+            runCurrent()
+            assertEquals(2, postCalls)
+        }
+
+    @Test
+    fun `retract conflict converges without an error`() =
+        runTest(testScheduler) {
+            var sentCalls = 0
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/branches/b1/relief-invites" && it.method.value == "GET" -> {
+                                sentCalls++
+                                ok("[]")
+                            }
+
+                            it.url.encodedPath == "/api/relief-invites/i1/retract" -> {
+                                respond(
+                                    content = ByteReadChannel("""{"error":"already resolved"}"""),
+                                    status = HttpStatusCode.Conflict,
+                                    headers =
+                                        headersOf(
+                                            HttpHeaders.ContentType,
+                                            ContentType.Application.Json.toString(),
+                                        ),
+                                )
+                            }
+
+                            else -> {
+                                ok("[]")
+                            }
+                        }
+                    },
+                )
+            val vm = ReliefInviteViewModel(apiClient)
+            vm.retractInvite("i1", "b1")
+            runCurrent()
+            assertIs<UiState.Idle>(vm.retractResult.value)
+            assertEquals(1, sentCalls, "the conflict reload converges server truth")
+        }
+
     private fun handler(block: MockRequestHandler): MockRequestHandler = block
 }

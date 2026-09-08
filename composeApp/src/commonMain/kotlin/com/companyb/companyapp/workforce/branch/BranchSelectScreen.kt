@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,25 +30,18 @@ import com.companyb.companyapp.contracts.branch.BranchClockInStatus
 import com.companyb.companyapp.contracts.branch.MeBranchResponse
 import com.companyb.companyapp.contracts.workforce.ActiveShiftResponse
 import com.companyb.companyapp.contracts.workforce.ClockInResponse
-import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
 import com.companyb.companyapp.ui.contract.ColdLoadPlaceholder
-import com.companyb.companyapp.ui.contract.FieldErrorText
 import com.companyb.companyapp.ui.contract.InlineStatus
 import com.companyb.companyapp.ui.contract.InlineStatusKind
 import com.companyb.companyapp.ui.contract.TertiaryActionButton
-import com.companyb.companyapp.ui.contract.operationalField
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.workforce.branch.BranchSelectViewModel
 import com.companyb.companyapp.workforce.relief.ReliefAccessViewModel
+import com.companyb.companyapp.workforce.relief.ReliefInvitePlanningContent
 import com.companyb.companyapp.workforce.relief.ReliefInviteViewModel
 import com.companyb.companyapp.workforce.relief.ReliefRequestPanel
-import com.companyb.companyapp.workforce.relief.currentOperationalDate
-import com.companyb.companyapp.workforce.relief.isInviteActionable
-import com.companyb.companyapp.workforce.relief.isInviteExpired
-import com.companyb.companyapp.workforce.relief.parseInviteDate
-import kotlinx.datetime.LocalDate
 
 /**
  * #94-grad — BranchSelect surface (Phase 3 of the #94 outline): the caller's branches with
@@ -239,6 +231,7 @@ private fun BranchSuccessContent(
                 if (inviteBranchId == branch.branchId) {
                     InviteStaffPanel(
                         branchId = branch.branchId,
+                        branchName = branch.branchName,
                         viewModel = reliefInviteViewModel,
                     )
                 }
@@ -389,335 +382,23 @@ private fun BranchCard(
 }
 
 /**
- * #160 — the BranchSelect inviter side (placement per #106): date pick (defaults to
- * tomorrow — the invite use case is future-day planning), candidate search (username /
- * displayName prefix; results tap-to-invite), and the sent-invites list with Retract on
- * PENDING rows (the Q6 lifecycle — a sent list without retract would render the endpoint
- * dead). The panel is branch-scoped; every request carries the branchId path param.
+ * #160 — the BranchSelect inviter side (placement per #106): clock-in stays primary on the
+ * card; this panel is the secondary Relief access entry for pre-shift needs.
+ * #680 — the panel renders the shared relief-planning owner ([ReliefInvitePlanningContent])
+ * with explicit branch/date — the same implementation the Sessions Team Relief tab uses —
+ * so managing invitations never forces a clock-out. No viewed date pre-shift, so the
+ * default resolves to tomorrow.
  */
 @Composable
 private fun InviteStaffPanel(
     branchId: String,
+    branchName: String?,
     viewModel: ReliefInviteViewModel,
 ) {
-    var dateText by remember { mutableStateOf(defaultInviteDate()) }
-    var query by remember { mutableStateOf("") }
-
-    val validDate = parseInviteDate(dateText)
-
-    // NOTE (#462 LPL burn): result/error/queue states are self-collected inside each child
-    // (duplicate StateFlow subscriptions cheap — LoginNoticeEffect precedent), so the panel
-    // keeps one slim call per child.
-    InvitePanelEffects(
-        viewModel = viewModel,
+    ReliefInvitePlanningContent(
         branchId = branchId,
-        query = query,
-        dateText = dateText,
-        validDate = validDate,
+        branchName = branchName,
+        viewedDate = null,
+        inviteViewModel = viewModel,
     )
-
-    InvitePanelForm(
-        viewModel = viewModel,
-        state = InvitePanelFormState(dateText = dateText, query = query, validDate = validDate),
-        callbacks = InvitePanelFormCallbacks(onDateChange = { dateText = it }, onQueryChange = { query = it }),
-    ) {
-        InvitePanelResults(
-            branchId = branchId,
-            viewModel = viewModel,
-            dateText = dateText,
-            validDate = validDate,
-        )
-    }
-}
-
-/** LPL/TMF-free carriers for [InvitePanelForm] (#462 burn — 9 params → viewModel + state + callbacks). */
-private data class InvitePanelFormState(
-    val dateText: String,
-    val query: String,
-    val validDate: LocalDate?,
-)
-
-private data class InvitePanelFormCallbacks(
-    val onDateChange: (String) -> Unit,
-    val onQueryChange: (String) -> Unit,
-)
-
-@Composable
-private fun InvitePanelEffects(
-    viewModel: ReliefInviteViewModel,
-    branchId: String,
-    query: String,
-    dateText: String,
-    validDate: LocalDate?,
-) {
-    val createState by viewModel.createResult.collectAsState()
-    val retractState by viewModel.retractResult.collectAsState()
-    val revokeState by viewModel.revokeResult.collectAsState()
-    LaunchedEffect(Unit) {
-        logInfo("BranchSelectScreen", "invite panel opened for branch $branchId")
-        viewModel.loadSent(branchId)
-        viewModel.loadAccepted(branchId)
-    }
-    LaunchedEffect(query, dateText, validDate) {
-        // A malformed date (mid-typing) must not fire a search the backend 400s — gate the
-        // effect on the parsed date (pass-1 finding).
-        if (validDate != null) {
-            viewModel.searchCandidates(branchId, query, dateText)
-        }
-    }
-    LaunchedEffect(createState) {
-        val error = createState as? UiState.Error
-        if (error != null) {
-            logWarn("BranchSelectScreen", "sendInvite=Error: ${error.message}")
-        }
-    }
-    LaunchedEffect(retractState) {
-        val error = retractState as? UiState.Error
-        if (error != null) {
-            logWarn("BranchSelectScreen", "retractInvite=Error: ${error.message}")
-        }
-    }
-    LaunchedEffect(revokeState) {
-        val error = revokeState as? UiState.Error
-        if (error != null) {
-            logWarn("BranchSelectScreen", "revokeInvite=Error: ${error.message}")
-        }
-    }
-}
-
-@Composable
-private fun InvitePanelForm(
-    viewModel: ReliefInviteViewModel,
-    state: InvitePanelFormState,
-    callbacks: InvitePanelFormCallbacks,
-    results: @Composable () -> Unit,
-) {
-    val createState by viewModel.createResult.collectAsState()
-    val retractState by viewModel.retractResult.collectAsState()
-    val revokeState by viewModel.revokeResult.collectAsState()
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            Text(
-                text = "Invite staff for relief",
-                style = MaterialTheme.typography.titleSmall,
-            )
-            OutlinedTextField(
-                value = state.dateText,
-                onValueChange = callbacks.onDateChange,
-                label = { Text("Date (yyyy-MM-dd)") },
-                singleLine = true,
-                isError = state.dateText.isNotBlank() && state.validDate == null,
-                modifier = Modifier.operationalField(),
-            )
-            if (state.dateText.isNotBlank() && state.validDate == null) {
-                FieldErrorText(message = "Use yyyy-MM-dd, today or later.")
-            }
-            OutlinedTextField(
-                value = state.query,
-                onValueChange = callbacks.onQueryChange,
-                label = { Text("Search staff by name") },
-                singleLine = true,
-                modifier = Modifier.operationalField(),
-            )
-
-            (createState as? UiState.Error)?.message?.let { error ->
-                InlineStatus(message = error, kind = InlineStatusKind.FAILURE)
-            }
-            (retractState as? UiState.Error)?.message?.let { error ->
-                InlineStatus(message = error, kind = InlineStatusKind.FAILURE)
-            }
-            (revokeState as? UiState.Error)?.message?.let { error ->
-                InlineStatus(message = error, kind = InlineStatusKind.FAILURE)
-            }
-
-            results()
-        }
-    }
-}
-
-@Composable
-private fun InvitePanelResults(
-    branchId: String,
-    viewModel: ReliefInviteViewModel,
-    dateText: String,
-    validDate: LocalDate?,
-) {
-    // #377 — the destructive revoke needs an explicit confirm (removes someone's granted
-    // access); the tapped row parks here until the dialog resolves it.
-    var pendingRevoke by remember { mutableStateOf<ReliefInviteResponse?>(null) }
-    // #670 — the confirm stays mounted through the revoke POST (busy slot + Escape pin
-    // live in the shared shell) and parks only on a terminal leg, mirroring the delegate
-    // twin. Conflict converges to Idle with a reload, so Idle-after-loading also parks.
-    var revokeWasLoading by remember { mutableStateOf(false) }
-
-    val candidatesState by viewModel.candidates.collectAsState()
-    // Branch-keyed keep-last mirror (#162 KeepLastByKey — the #160 pass-1/pass-2 cross-branch
-    // bleed class is structurally unrenderable: the gate below reads THIS panel's key, so
-    // another branch's rows can never pass it; the old commit-stamp machinery is gone).
-    val sentByKey by viewModel.sentByKey.collectAsState()
-    val acceptedByKey by viewModel.acceptedByKey.collectAsState()
-    val createState by viewModel.createResult.collectAsState()
-    val retractState by viewModel.retractResult.collectAsState()
-    val revokeState by viewModel.revokeResult.collectAsState()
-    val lastSent = sentByKey[branchId]
-    val lastAccepted = acceptedByKey[branchId]
-
-    val sendBusy = createState is UiState.Loading
-    val retractBusy = retractState is UiState.Loading
-    val revokeBusy = revokeState is UiState.Loading
-
-    CandidateResults(
-        state = candidatesState,
-        sendBusy = sendBusy,
-        dateValid = validDate != null,
-        onInvite = { candidate ->
-            if (validDate != null) {
-                viewModel.sendInvite(branchId, candidate.id, dateText)
-            }
-        },
-    )
-
-    SentInvitesSection(
-        lastSent = lastSent,
-        retractBusy = retractBusy,
-        onRetract = { inviteId -> viewModel.retractInvite(inviteId, branchId) },
-    )
-
-    AcceptedDutiesSection(
-        lastAccepted = lastAccepted,
-        revokeBusy = revokeBusy,
-        onRevokeRequest = { invite -> pendingRevoke = invite },
-    )
-
-    pendingRevoke?.let { invite ->
-        RevokeDutyConfirmDialog(
-            invite = invite,
-            busy = revokeBusy,
-            onConfirm = { viewModel.revokeInvite(invite.id, branchId) },
-            onDismiss = { pendingRevoke = null },
-        )
-    }
-    LaunchedEffect(revokeState) {
-        if (revokeState is UiState.Loading) {
-            revokeWasLoading = true
-        } else if (
-            revokeState is UiState.Success ||
-            revokeState is UiState.Error ||
-            (revokeState is UiState.Idle && revokeWasLoading)
-        ) {
-            revokeWasLoading = false
-            pendingRevoke = null
-        }
-    }
-}
-
-@Composable
-private fun SentInvitesSection(
-    lastSent: List<ReliefInviteResponse>?,
-    retractBusy: Boolean,
-    onRetract: (String) -> Unit,
-) {
-    // Branch-gated keep-last (the #160 pass-1/pass-2 HARD class, now by construction): the
-    // caller passes THIS panel's keyed mirror entry — null until this branch's first commit, so
-    // another branch's rows (with live Retract) can never render here while this panel's load
-    // is in flight or failed; a committed entry covers same-branch reloads (Loading/Error keep
-    // rendering it).
-    if (lastSent == null) return
-    val sent = lastSent
-    // #399 — past-operational-date PENDING invites render Expired with no Retract (the
-    // NotificationsScreen pattern); resolved statuses keep their raw enum text.
-    val today = currentOperationalDate()
-
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-        Text(
-            text = "Sent invites (${sent.size})",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        sent.forEach { invite ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "${invite.inviteeName} · ${invite.date}",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Text(
-                        text = if (isInviteExpired(invite, today)) "Expired" else invite.status.name,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (isInviteActionable(invite, today)) {
-                    TertiaryActionButton(
-                        label = "Retract",
-                        onClick = { onRetract(invite.id) },
-                        enabled = !retractBusy,
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * #377 — branch-wide ACCEPTED duties (colleagues' included): any active member may revoke
- * until the invitee clocks in. Same keyed-mirror gate as the sent list — null (nothing ever
- * committed; a non-member's 403 never commits) renders nothing, so non-members never see
- * the affordance.
- */
-@Composable
-private fun AcceptedDutiesSection(
-    lastAccepted: List<ReliefInviteResponse>?,
-    revokeBusy: Boolean,
-    onRevokeRequest: (ReliefInviteResponse) -> Unit,
-) {
-    if (lastAccepted == null) return
-    val accepted = lastAccepted
-
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-        Text(
-            text = "Accepted relief duties (${accepted.size})",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (accepted.isEmpty()) {
-            Text(
-                text = "No accepted duties",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        accepted.forEach { invite ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "${invite.inviteeName} · ${invite.date}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                TertiaryActionButton(
-                    label = "Revoke",
-                    onClick = { onRevokeRequest(invite) },
-                    enabled = !revokeBusy,
-                )
-            }
-        }
-    }
 }
