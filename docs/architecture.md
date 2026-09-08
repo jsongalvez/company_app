@@ -93,8 +93,7 @@ company-app/
 │       ├── logging/          # Logback converters, logging extensions
 │       ├── api/              # Thin remaining adapters: health probe, context extensions, trace filter, route utils
 │       ├── exception/        # Domain exception hierarchy
-│       ├── repository/       # Shared CursorCodec seam only (stays shared, #549)
-│       ├── service/          # Empty remnant dirs of moved owners — do not add new code here
+│       ├── utils/            # Stateless mechanism helpers (opaque cursor codec, id generator)
 │       └── Main.kt           # Explicit composition root (#551)
 ├── docs/
 │   ├── architecture.md       # This file — system/ownership overview with pointers
@@ -108,9 +107,12 @@ company-app/
 └── docker/
 ```
 
-Transitional remnants (`service/` empty dirs, the shared `repository/CursorCodec.kt`
-seam, thin `api/` adapters) stay until their owning map children land; later
-children update this tree incrementally and never pre-document unimplemented paths.
+Transitional remnants (thin `api/` adapters) stay until their owning map children
+land; later children update this tree incrementally and never pre-document
+unimplemented paths. The `service/` remnant dirs and the shared `repository/`
+bucket are gone (#607): the opaque cursor codec lives at `utils/` under the
+mechanism owner, and resurrected legacy/shared paths fail ownership
+classification.
 
 ### Module Dependencies
 
@@ -157,11 +159,11 @@ These dependency rules are executable, not prose: `SemanticOwnershipArchitecture
 
 - `api/**` stays an HTTP adapter — no Exposed imports, transaction blocks, persistence-table
   imports, or raw-SQL exec (the health probe lives in `database/DatabaseHealth`).
-- In `service/**`, persistence-table knowledge appears only inside `internal object` bodies
+- In feature packages, persistence-table knowledge appears only inside `internal object` bodies
   (`*Audit` seams, `*Repository` stores) — public command/service surfaces stay table-free;
   feature-local stores are declared `internal`.
 - Audit writes are owned by feature seams/commands inside the command's transaction — never
-  opened from `repository/**`; the retired `auditFn` callback stays gone.
+  from a shared persistence layer; the retired `auditFn` callback stays gone.
 
 ---
 

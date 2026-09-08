@@ -12,7 +12,7 @@ import java.util.UUID
 /**
  * Remittance feature result records (#343). Plain value objects owned by the feature commands and
  * returned across the public service surface; the internal stores map persistence rows onto them.
- * The Exposed `*Table` definitions stay behind the store seam in `repository/model`.
+ * The Exposed `*Table` definitions stay behind the store seam colocated in the feature package.
  */
 data class Remittance(
     val id: UUID,

@@ -1,7 +1,7 @@
 package com.companyb.companyapp.reporting
 
-import com.companyb.companyapp.repository.decodeOpaqueCursor
-import com.companyb.companyapp.repository.encodeOpaqueCursor
+import com.companyb.companyapp.utils.decodeOpaqueCursor
+import com.companyb.companyapp.utils.encodeOpaqueCursor
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder

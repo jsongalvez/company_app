@@ -17,18 +17,24 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 /**
- * Semantic owner/seam policy for map #533 (#534, repaired #572).
+ * Semantic owner/seam policy for map #533 (#534, repaired #572, legacy
+ * scaffolding retired #607).
  *
- * Single architecture-test owner: whole-source discovery plus small explicit
- * owner mapping that supports legacy locations and #533 target packages side
- * by side. Production movement belongs to the feature children (#536, #537);
- * this file moves no production sources.
+ * Single architecture-test owner: whole-source discovery plus a small explicit
+ * owner mapping over the completed feature packages. Production movement
+ * belonged to the feature children (#536–#551); this file moves no production
+ * sources.
  *
  * Owner vocabulary follows #533: identity, authorization, branch, branchday,
  * workforce, client, session, commerce, finance, commission, remittance,
  * reporting, audit, notification; mechanisms http, database, observability,
- * logging; legacy buckets persistence (global repository layer) and
- * mechanism/app.
+ * logging, mechanism; app composition.
+ *
+ * #607: the completed feature locations are authoritative. There are no legacy
+ * aliases, no service-root inventory, and no shared persistence bucket — a path
+ * outside the mapping is unclassified and fails the tree closed. The opaque
+ * cursor codec lives at `utils/` under the mechanism owner like the other
+ * stateless mechanism helper there.
  *
  * #572: semantic owner (which feature) is separate from architectural role
  * (what shape: HTTP adapter, command, store). Moving a route beside its
@@ -44,9 +50,6 @@ object BackendArchitectureOwners {
     const val STORE = "store"
     const val COMMAND = "command"
     const val OTHER = "other"
-
-    /** Legacy shared bucket: stores/tables here stay importable until their feature move. */
-    const val LEGACY_SHARED = "persistence"
 
     val mainRoot: File = File("backend/src/main/kotlin/com/companyb/companyapp")
 
@@ -65,11 +68,11 @@ object BackendArchitectureOwners {
         return sources
     }
 
-    /** Explicit owner for a path relative to [mainRoot]; null means unclassified. */
+    /** Explicit owner for a path relative to [mainRoot]; null means unclassified (#607 fail-closed). */
     fun ownerOf(relativePath: String): String? {
         val path = relativePath.trimStart('/')
-        val prefixed = OWNER_PREFIXES.firstOrNull { (prefix, _) -> path.startsWith(prefix) }?.second
-        return prefixed ?: serviceRootFileOwner(path)
+        if (path == "Main.kt") return "app"
+        return OWNER_PREFIXES.firstOrNull { (prefix, _) -> path.startsWith(prefix) }?.second
     }
 
     /**
@@ -89,101 +92,30 @@ object BackendArchitectureOwners {
         }
     }
 
-    private fun serviceRootFileOwner(path: String): String? =
-        when {
-            path == "Main.kt" -> "app"
-            path.startsWith("service/") && '/' !in path.removePrefix("service/") -> serviceRootOwner(path)
-            else -> null
-        }
-
-    /** Legacy service-root files predate feature directories; each maps explicitly. */
-    fun serviceRootOwner(path: String): String? = SERVICE_ROOT_OWNERS[path.removePrefix("service/")]
-
-    private val SERVICE_ROOT_OWNERS: Map<String, String> =
-        mapOf(
-            "AllowanceService.kt" to "commerce",
-            "AuditLogReadScope.kt" to "audit",
-            "AuditLogService.kt" to "audit",
-            "AuthService.kt" to "identity",
-            "BranchReadScope.kt" to "branch",
-            "BranchService.kt" to "branch",
-            "CapabilityService.kt" to "authorization",
-            "ClientService.kt" to "client",
-            "CompensationService.kt" to "commerce",
-            "ConcernService.kt" to "session",
-            "DailySalesSummaryService.kt" to "reporting",
-            "ExpenseService.kt" to "commerce",
-            "MeRepository.kt" to "identity",
-            "MeService.kt" to "identity",
-            "MedicalMissionDelegateService.kt" to "workforce",
-            "MonthlyRemittanceSummaryService.kt" to "reporting",
-            "NextAppointmentRepository.kt" to "notification",
-            "NextAppointmentScheduler.kt" to "notification",
-            "NotificationService.kt" to "notification",
-            "ProductCategoryService.kt" to "commerce",
-            "ProductSaleService.kt" to "commerce",
-            "ProductService.kt" to "commerce",
-            "ReliefAccessService.kt" to "workforce",
-            "ReliefInviteReminderJob.kt" to "workforce",
-            "ReliefInviteService.kt" to "workforce",
-            "ReliefNotifications.kt" to "workforce",
-            "ReliefRequestExpiryJob.kt" to "workforce",
-            "SchedulerLifecycle.kt" to "app",
-            "UserBranchAssignmentService.kt" to "workforce",
-            "UserService.kt" to "identity",
-        )
-
     private val OWNER_PREFIXES: List<Pair<String, String>> =
         listOf(
-            "service/branchday/" to "branchday",
             "branchday/" to "branchday",
-            "service/attendance/" to "workforce",
-            "service/workforce/" to "workforce",
             "workforce/" to "workforce",
-            "service/session/" to "session",
             "session/" to "session",
-            "service/inventory/" to "commerce",
-            "service/commerce/" to "commerce",
             "commerce/" to "commerce",
-            "inventory/" to "commerce",
-            "service/finance/commission/" to "commission",
-            "service/commission/" to "commission",
             "commission/" to "commission",
-            "service/finance/remittance/" to "remittance",
-            "service/remittance/" to "remittance",
             "remittance/" to "remittance",
-            "service/finance/" to "finance",
             "finance/" to "finance",
-            "service/dashboard/" to "reporting",
-            "dashboard/" to "reporting",
-            "service/export/" to "reporting",
-            "export/" to "reporting",
-            "service/reporting/" to "reporting",
             "reporting/" to "reporting",
-            "service/audit/" to "audit",
             "audit/" to "audit",
-            "service/notification/" to "notification",
             "notification/" to "notification",
-            "service/identity/" to "identity",
             "identity/" to "identity",
-            "service/authorization/" to "authorization",
             "authorization/" to "authorization",
-            "service/branch/" to "branch",
             "branch/" to "branch",
-            "service/client/" to "client",
             "client/" to "client",
             "api/" to "http",
             "http/" to "http",
-            "service/http/" to "http",
-            "config/" to "http",
             "app/" to "app",
-            "auth/" to "identity",
             "database/" to "database",
             "exception/" to "mechanism",
             "utils/" to "mechanism",
             "logging/" to "logging",
             "observability/" to "observability",
-            "repository/" to "persistence",
         )
 
     /** Recorded Instant.now owners (#322, retained): auth lifecycle, branch-day clock, incident filing. */
@@ -468,13 +400,11 @@ object BackendArchitectureOwners {
             it.name?.takeIf { name -> name.endsWith("Repository") || name.endsWith("Store") }
         }
 
-    private fun isSharedStoreOwner(owner: String): Boolean = owner == LEGACY_SHARED
-
     private fun isForeignStore(
         store: String,
         importerOwner: String,
         storeOwners: Map<String, Set<String>>,
-    ): Boolean = storeOwners[store]?.any { it != importerOwner && !isSharedStoreOwner(it) } == true
+    ): Boolean = storeOwners[store]?.any { it != importerOwner } == true
 
     private fun importedStoreOffenders(
         importerOwner: String,
@@ -523,8 +453,9 @@ object BackendArchitectureOwners {
      * references resolving to a store owned by another feature. Both sides
      * being `internal` grants nothing — Kotlin `internal` is module-wide
      * (#572). [storeOwners] maps store name to owning owners (tree-wide
-     * derivation); [store] imports from [LEGACY_SHARED] stay allowed until
-     * their move. [allowed] carries explicit read-projection grants.
+     * derivation over classified files only — an unclassified path contributes
+     * no ownership, so a resurrected shared location legalizes nothing, #607).
+     * [allowed] carries explicit read-projection grants.
      */
     fun foreignStoreRefs(
         importerOwner: String,

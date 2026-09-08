@@ -2,8 +2,8 @@ package com.companyb.companyapp.notification
 
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.notification.NotificationMapper.toNotification
-import com.companyb.companyapp.repository.decodeOpaqueCursor
-import com.companyb.companyapp.repository.encodeOpaqueCursor
+import com.companyb.companyapp.utils.decodeOpaqueCursor
+import com.companyb.companyapp.utils.encodeOpaqueCursor
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and

@@ -1,8 +1,8 @@
 package com.companyb.companyapp.audit
 
 import com.companyb.companyapp.contracts.audit.AuditAction
-import com.companyb.companyapp.repository.decodeOpaqueCursor
-import com.companyb.companyapp.repository.encodeOpaqueCursor
+import com.companyb.companyapp.utils.decodeOpaqueCursor
+import com.companyb.companyapp.utils.encodeOpaqueCursor
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject

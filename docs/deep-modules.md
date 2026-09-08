@@ -179,7 +179,7 @@ Not a semantic module — read only when the ticket touches it directly:
 `http/KotlinxSerializationMapper.kt` + `http/openapi/*` (canonical contract, projector, export — #551),
 `observability/*` (incident packets/delivery, metrics, feedback/metrics adapters, slow-query reads — #551),
 `logging/*` converters (tracing stays distinguishable from observability — #551),
-`repository/model/*` Exposed tables/views (schema work only —
+feature-colocated `*Table`/`*View` mappings (schema work only —
 `V1__full_schema.sql` (squashed baseline, #370/#461/#548) and `V2` seeds in
 `backend/src/main/resources/db/migration/` are the current-schema authority).
 

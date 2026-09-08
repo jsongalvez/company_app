@@ -4,10 +4,12 @@ import org.jetbrains.kotlin.psi.KtFile
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Semantic-owner architecture checks (#534, repaired #572, map #533).
+ * Semantic-owner architecture checks (#534, repaired #572, legacy scaffolding
+ * retired #607, map #533).
  *
  * Owner (which feature) is separate from role (what shape): HTTP-adapter
  * checks follow every `*Routes.kt` plus `api/` wherever they live, and
@@ -20,8 +22,9 @@ import kotlin.test.assertTrue
  * uniformly. No rule depends on declaration order.
  *
  * Stronger replacements for the folder-pinned predecessors, kept alongside
- * the surviving count pins: every production whole-tree scan below covers
- * legacy and target layouts. The retired
+ * the surviving count pins: every production whole-tree scan below covers the
+ * completed feature layout, and resurrected legacy/shared paths fail the
+ * classification closed (#607). The retired
  * BackendFeatureBoundaryArchitectureTest folder scopes and the BranchDay-only
  * store check are subsumed here; per-file transaction-count pins stay where
  * they guard exact wrapper budgets.
@@ -39,9 +42,7 @@ class SemanticOwnershipArchitectureTest {
 
     private fun owner(path: String): String? = BackendArchitectureOwners.ownerOf(path)
 
-    private fun isServiceScope(path: String): Boolean =
-        path.startsWith("service/") ||
-            TARGET_FEATURE_DIRS.any { path.startsWith(it) }
+    private fun isServiceScope(path: String): Boolean = TARGET_FEATURE_DIRS.any { path.startsWith(it) }
 
     // ---- Discovery (replaces api/service/repository-only scans) ----
 
@@ -63,31 +64,49 @@ class SemanticOwnershipArchitectureTest {
     }
 
     @Test
-    fun `every production file has an explicit owner in legacy or target packages`() {
+    fun `every production file has an explicit owner`() {
         val unclassified = sources.keys.filter { owner(it) == null }
         assertTrue(unclassified.isEmpty(), "unclassified production packages:\n${unclassified.joinToString("\n")}")
     }
 
     @Test
-    fun `owner mapping covers legacy and target packages so deletion cannot pass silently`() {
-        assertEquals("branchday", owner("service/branchday/BranchDayService.kt"))
+    fun `owner mapping covers the completed feature layout and nothing else`() {
         assertEquals("branchday", owner("branchday/BranchDayService.kt"))
-        assertEquals("branch", owner("service/BranchService.kt"))
         assertEquals("branch", owner("branch/BranchService.kt"))
-        assertEquals("identity", owner("service/AuthService.kt"))
         assertEquals("identity", owner("identity/AuthService.kt"))
         assertEquals("http", owner("api/routes/BranchDayRoutes.kt"))
-        assertEquals("persistence", owner("repository/BranchRepository.kt"))
-        assertEquals("commission", owner("service/finance/commission/CommissionService.kt"))
-        assertEquals("remittance", owner("service/finance/remittance/RemittanceService.kt"))
-        assertEquals("finance", owner("service/finance/ExpenseService.kt"))
+        assertEquals("commission", owner("commission/CommissionService.kt"))
+        assertEquals("remittance", owner("remittance/RemittanceService.kt"))
         assertEquals("finance", owner("finance/ExpenseService.kt"))
-        assertEquals("session", owner("service/session/SessionService.kt"))
         assertEquals("session", owner("session/SessionService.kt"))
         assertEquals("session", owner("session/dashboard/DashboardService.kt"))
-        assertEquals("reporting", owner("service/dashboard/DashboardService.kt"))
-        assertEquals("reporting", owner("dashboard/DashboardService.kt"))
-        assertEquals("reporting", owner("service/export/ExportService.kt"))
+        assertEquals("reporting", owner("reporting/DailySalesSummaryService.kt"))
+        assertEquals("mechanism", owner("utils/CursorCodec.kt"))
+        assertEquals("app", owner("Main.kt"))
+    }
+
+    @Test
+    fun `resurrected legacy and shared paths stay unclassified`() {
+        val resurrected =
+            listOf(
+                "service/SessionService.kt",
+                "service/BranchService.kt",
+                "service/branchday/BranchDayService.kt",
+                "service/finance/commission/CommissionService.kt",
+                "service/finance/remittance/RemittanceService.kt",
+                "service/dashboard/DashboardService.kt",
+                "service/export/ExportService.kt",
+                "repository/WidgetRepository.kt",
+                "repository/model/WidgetTable.kt",
+                "repository/BranchRepository.kt",
+                "auth/OldAuth.kt",
+                "config/AppConfig.kt",
+                "inventory/StockService.kt",
+                "dashboard/DashboardService.kt",
+                "export/ExportService.kt",
+            )
+        val classified = resurrected.filter { owner(it) != null }
+        assertTrue(classified.isEmpty(), "resurrected paths must not classify:\n${classified.joinToString("\n")}")
     }
 
     @Test
@@ -102,10 +121,10 @@ class SemanticOwnershipArchitectureTest {
         assertEquals("command", BackendArchitectureOwners.roleOf("branch/BranchService.kt"))
     }
 
-    // ---- HTTP adapter (role-based: legacy routes and colocated feature routes) ----
+    // ---- HTTP adapter (role-based: every *Routes.kt plus api/) ----
 
     @Test
-    fun `http adapters stay persistence-free in legacy and target locations`() {
+    fun `http adapters stay persistence-free in every location`() {
         val offenders =
             files
                 .filter { (path, _) -> isHttpAdapter(path) }
@@ -217,7 +236,6 @@ class SemanticOwnershipArchitectureTest {
     ): Boolean {
         val table = op.substringBefore('.')
         val tableOwner = tableOwners[table] ?: return false
-        if (tableOwner == BackendArchitectureOwners.LEGACY_SHARED) return false
         return tableOwner != importer
     }
 
@@ -283,17 +301,17 @@ class SemanticOwnershipArchitectureTest {
         assertTrue(!scheduler.contains(".toLocalDate()"), "scheduler must not derive a calendar date itself")
     }
 
-    // ---- Fixtures (#572 acceptance: legacy and target locations fail alike) ----
+    // ---- Fixtures (#572 acceptance: relocated files fail alike; #607: resurrections stay unclassified) ----
 
     private fun parse(source: String): KtFile = BackendArchitectureOwners.parseKt(source)
 
     @Test
-    fun `fixture - http persistence access fails in legacy and colocated routes`() {
+    fun `fixture - http persistence access fails in feature routes`() {
         val dirty =
             """
             package fixture
             import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-            import com.companyb.companyapp.repository.model.WidgetTable
+            import com.companyb.companyapp.commerce.WidgetTable
 
             object DirtyRoutes {
                 fun handler() {
@@ -422,7 +440,7 @@ class SemanticOwnershipArchitectureTest {
         val leakAfterSeam =
             """
             package fixture
-            import com.companyb.companyapp.repository.model.WidgetTable
+            import com.companyb.companyapp.commerce.WidgetTable
 
             internal object Seam {
                 val t = 1
@@ -439,7 +457,7 @@ class SemanticOwnershipArchitectureTest {
         val seamOnly =
             """
             package fixture
-            import com.companyb.companyapp.repository.model.WidgetTable
+            import com.companyb.companyapp.commerce.WidgetTable
 
             object ThingService {
                 fun go(): Int = 1
@@ -513,6 +531,161 @@ class SemanticOwnershipArchitectureTest {
     }
 
     @Test
+    fun `fixture - resurrected shared store grants no ownership standing`() {
+        val widgetStore =
+            """
+            package com.companyb.companyapp.repository
+
+            internal object WidgetRepository {
+                fun findInTransaction() = 1
+            }
+            """.trimIndent()
+        val importer =
+            """
+            package com.companyb.companyapp.session
+            import com.companyb.companyapp.repository.WidgetRepository
+
+            internal object SessionService {
+                fun read() = WidgetRepository.findInTransaction()
+            }
+            """.trimIndent()
+        val tree =
+            mapOf(
+                "repository/WidgetRepository.kt" to parse(widgetStore),
+                "session/WidgetUser.kt" to parse(importer),
+            )
+        assertNull(BackendArchitectureOwners.ownerOf("repository/WidgetRepository.kt"))
+        assertTrue(
+            BackendArchitectureOwners.treeStoreOwners(tree).isEmpty(),
+            "an unclassified path must contribute no store ownership",
+        )
+        val unclassified = tree.keys.filter { BackendArchitectureOwners.ownerOf(it) == null }
+        assertEquals(
+            listOf("repository/WidgetRepository.kt"),
+            unclassified,
+            "a used shared resurrection must still fail the whole-tree classification gate",
+        )
+        // Unknown stores stay silent in dependency enforcement by design — the
+        // classification gate above is the enforcement for resurrected paths (#607).
+        assertEquals(
+            emptyList(),
+            BackendArchitectureOwners.foreignStoreRefs(
+                "session",
+                parse(importer),
+                BackendArchitectureOwners.treeStoreOwners(tree),
+            ),
+        )
+    }
+
+    @Test
+    fun `fixture - resurrected shared table stays outside table ownership`() {
+        val widgetTable =
+            """
+            package com.companyb.companyapp.repository.model
+
+            object WidgetTable
+            """.trimIndent()
+        val writer =
+            """
+            package com.companyb.companyapp.session
+            import com.companyb.companyapp.repository.model.WidgetTable
+
+            internal object WidgetRepository {
+                fun write() = WidgetTable.insert { }
+            }
+            """.trimIndent()
+        val tree =
+            mapOf(
+                "repository/model/WidgetTable.kt" to parse(widgetTable),
+                "session/WidgetWriter.kt" to parse(writer),
+            )
+        assertNull(BackendArchitectureOwners.ownerOf("repository/model/WidgetTable.kt"))
+        assertTrue(
+            BackendArchitectureOwners.treeTableNames(tree) == setOf("WidgetTable"),
+            "table names still derive mechanically even where the owner does not",
+        )
+        val unclassified = tree.keys.filter { BackendArchitectureOwners.ownerOf(it) == null }
+        assertEquals(
+            listOf("repository/model/WidgetTable.kt"),
+            unclassified,
+            "a written shared resurrection must still fail the whole-tree classification gate",
+        )
+        assertEquals(
+            listOf("WidgetTable.insert"),
+            BackendArchitectureOwners.tableWriteOps(parse(writer), setOf("WidgetTable")),
+            "the foreign write stays mechanically visible — no exemption swallows it",
+        )
+    }
+
+    @Test
+    fun `fixture - target-layout counterparts keep their standing`() {
+        val widgetStore =
+            """
+            package com.companyb.companyapp.commerce
+
+            internal object WidgetStore {
+                fun findInTransaction() = 1
+            }
+            """.trimIndent()
+        val tree = mapOf("commerce/WidgetStore.kt" to parse(widgetStore))
+        assertEquals("commerce", BackendArchitectureOwners.ownerOf("commerce/WidgetStore.kt"))
+        assertEquals(
+            mapOf("WidgetStore" to setOf("commerce")),
+            BackendArchitectureOwners.treeStoreOwners(tree),
+        )
+        val sameOwner =
+            """
+            package com.companyb.companyapp.commerce
+
+            internal object WidgetService {
+                fun read() = WidgetStore.findInTransaction()
+            }
+            """.trimIndent()
+        assertEquals(
+            emptyList(),
+            BackendArchitectureOwners.foreignStoreRefs(
+                "commerce",
+                parse(sameOwner),
+                mapOf("WidgetStore" to setOf("commerce")),
+                emptySet(),
+            ),
+        )
+        val foreignImporter =
+            """
+            package com.companyb.companyapp.session
+            import com.companyb.companyapp.commerce.WidgetStore
+
+            internal object SessionService {
+                fun read() = WidgetStore.findInTransaction()
+            }
+            """.trimIndent()
+        assertEquals(
+            listOf("import com.companyb.companyapp.commerce.WidgetStore"),
+            BackendArchitectureOwners.foreignStoreRefs(
+                "session",
+                parse(foreignImporter),
+                mapOf("WidgetStore" to setOf("commerce")),
+                emptySet(),
+            ),
+        )
+        val widgetTable =
+            """
+            package com.companyb.companyapp.commerce
+
+            object WidgetTable
+            """.trimIndent()
+        val tableTree = mapOf("commerce/WidgetTable.kt" to parse(widgetTable))
+        assertEquals("commerce", BackendArchitectureOwners.ownerOf("commerce/WidgetTable.kt"))
+        assertTrue(
+            "WidgetTable" in BackendArchitectureOwners.treeTableNames(tableTree),
+            "a feature-colocated table keeps its mechanical standing",
+        )
+        val tableOwners = mapOf("WidgetTable" to "commerce")
+        assertTrue(isForeignTableWrite("WidgetTable.insert", "session", tableOwners))
+        assertTrue(!isForeignTableWrite("WidgetTable.insert", "commerce", tableOwners))
+    }
+
+    @Test
     fun `fixture - projections private helpers comments and strings behave`() {
         assertEquals(
             emptyList(),
@@ -538,7 +711,7 @@ class SemanticOwnershipArchitectureTest {
                 parse(
                     """
                     package fixture
-                    import com.companyb.companyapp.repository.model.WidgetTable
+                    import com.companyb.companyapp.commerce.WidgetTable
 
                     object Svc {
                         fun go(): String = "WidgetTable.selectAll()"
@@ -682,7 +855,6 @@ class SemanticOwnershipArchitectureTest {
                 "commission/",
                 "remittance/",
                 "reporting/",
-                "dashboard/",
                 "audit/",
                 "notification/",
                 "http/",

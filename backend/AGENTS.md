@@ -27,8 +27,11 @@ Existing dev/test databases are rebuilt from V1+V2 (no production database exist
 the folded files. Databases carrying retired V3–V6 history fail Flyway validation —
 reset them via docs/architecture.md §10, never Flyway-repair the history to match.
 
-Package root: `com.companyb.companyapp`. Layers: `api/routes`, `api/middleware`, `service`, `repository`
-(+ `repository/model` for Exposed `Table` objects), `auth`, `database`, `logging`.
+Package root: `com.companyb.companyapp`. Feature packages own their commands, internal
+stores, and colocated Exposed `Table`/`View` mappings (`identity`, `authorization`,
+`branch`, `branchday`, `workforce`, `client`, `session`, `commerce`, `finance`,
+`commission`, `remittance`, `reporting`, `notification`, `audit`); platform support:
+`api`, `http`, `app`, `database`, `exception`, `utils`, `logging`, `observability`.
 
 ## Quality gate
 
@@ -294,7 +297,7 @@ available via `SqlExpressionBuilder` receiver in `where {}` blocks.
 
 ### Table & view definitions
 
-- Every table and view needs an Exposed `Table` / `object` in `repository/model/`.
+- Every table and view needs an Exposed `Table` / `object` colocated in its feature package.
 - Views (e.g. `ActiveUserCapabilitiesView`) are modeled as `Table` objects with the view name; they are read-only — never insert/update/delete against them.
 - Add `exposed-java-time` for `timestampWithTimeZone` / `CurrentTimestampWithTimeZone`.
 - Use `javaUUID()` (not `uuid()`) for `java.util.UUID` columns. Import `org.jetbrains.exposed.v1.core.java.javaUUID`.
@@ -486,7 +489,7 @@ top-level functions are accessible from Java as `ClassName.INSTANCE` or `ClassNa
 ```java
 package com.companyb.companyapp.benchmark;
 
-import com.companyb.companyapp.service.SomeService;
+import com.companyb.companyapp.session.SessionService;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -498,7 +501,7 @@ public class SomeBenchmark {
 
     @Benchmark
     public void myHotPath(Blackhole bh) {
-        bh.consume(SomeService.INSTANCE.someMethod(input));
+        bh.consume(SessionService.INSTANCE.someMethod(input));
     }
 }
 ```
