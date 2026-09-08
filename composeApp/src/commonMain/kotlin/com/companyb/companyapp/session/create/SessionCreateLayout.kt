@@ -14,6 +14,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.client.ClientPickerArgs
 import com.companyb.companyapp.client.ClientPickerSection
@@ -31,8 +32,10 @@ internal data class SessionCreateBodyArgs(
     val draft: SessionCreateDraft,
     val isSubmissionLocked: Boolean,
     val onClientProfileClick: (String) -> Unit,
-    val onSubmissionStarted: () -> Unit,
-    val onContinueAfterConcernFailure: () -> Unit,
+    val priceFocus: FocusRequester,
+    val dateFocus: FocusRequester,
+    val showValidation: Boolean,
+    val onChangeClient: () -> Unit,
 )
 
 /** Only the client-picker/form arrangement diverges between mobile and desktop. */
@@ -86,20 +89,25 @@ internal fun SessionCreateMobileBody(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                TextButton(onClick = args.viewModel::clearSelectedClient, enabled = !args.isSubmissionLocked) {
+                TextButton(onClick = args.onChangeClient, enabled = !args.isSubmissionLocked) {
                     Text("Change")
                 }
             }
             SessionFormFields(
                 viewModel = args.viewModel,
                 draft = args.draft,
+                selectedClient = client,
                 isSubmissionLocked = args.isSubmissionLocked,
-                onSubmissionStarted = args.onSubmissionStarted,
-                onContinueAfterConcernFailure = args.onContinueAfterConcernFailure,
+                priceFocus = args.priceFocus,
+                dateFocus = args.dateFocus,
+                showValidation = args.showValidation,
             )
         }
     }
 }
 
 @Composable
-internal expect fun SessionCreateBackHandler(enabled: Boolean)
+internal expect fun SessionCreateBackHandler(
+    locked: Boolean,
+    onBack: () -> Unit,
+)

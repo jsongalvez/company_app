@@ -335,6 +335,26 @@ class SessionCreateViewModel(
         _selectedPractitioner.value = member
     }
 
+    /**
+     * #674 — abandoning a dirty draft offers Keep editing / Discard changes. Reset
+     * everything the entry owns (selection, price/client-specific draft, concerns,
+     * practitioner, submit + retry states) so the next entry starts untouched.
+     */
+    fun discardDraft() {
+        if (isSubmissionLocked()) return
+        previewJob?.cancel()
+        previewJob = null
+        concernRetryJob?.cancel()
+        concernRetryJob = null
+        _selectedClient.value = null
+        _draft.value = SessionCreateDraft()
+        _preview.value = UiState.Idle
+        _createResult.value = UiState.Idle
+        _concernRetryState.value = UiState.Idle
+        _selectedPractitioner.value = null
+        concernPoster.clear()
+    }
+
     // --- Submit ---
 
     private val _createResult = MutableStateFlow<UiState<SessionResponse>>(UiState.Idle)
@@ -478,6 +498,55 @@ data class SessionCreateDraft(
 )
 
 /**
+ * #674 — user-authored edits only: the preview's automatic price default (including the
+ * medical-mission ₱0) never counts by itself. Backing out after merely selecting a client
+ * still prompts (the picked client + loaded preview are abandoned); Change-client skips
+ * the prompt unless user-authored content exists (see the screen's requestChangeClient).
+ */
+fun SessionCreateDraft.hasUserEdits(): Boolean {
+    if (finalPriceEdited || isBooked) return true
+    return otherConcerns.isNotBlank() || remarks.isNotBlank() || nextAppointmentDate.isNotBlank()
+}
+
+/**
+ * #674 — the dirty rule shared by the screen (recomputed from collected flows so it
+ * recomposes) and unit tests: a picked client, user edits, picked concerns, or a
+ * requested practitioner all count as work worth a Keep editing / Discard offer.
+ */
+fun isSessionCreateDirty(
+    selectedClient: ClientResponse?,
+    draft: SessionCreateDraft,
+    selectedConcernIds: Set<String>,
+    selectedPractitioner: BranchMemberResponse?,
+): Boolean {
+    if (selectedClient != null || selectedPractitioner != null) return true
+    return draft.hasUserEdits() || selectedConcernIds.isNotEmpty()
+}
+
+/**
+ * #674 — the Additional-details summary: practitioner and/or remarks when populated,
+ * null when the section holds nothing (callers render the "Optional" affordance).
+ */
+fun additionalDetailsSummary(
+    practitionerName: String?,
+    remarks: String,
+): String? {
+    val parts = mutableListOf<String>()
+    practitionerName?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
+    if (remarks.isNotBlank()) parts.add("Remarks added")
+    return parts.joinToString(" · ").takeIf { parts.isNotEmpty() }
+}
+
+/**
+ * #674 — client-side price gate: a finite parseable non-negative amount. Null shapes to
+ * the price field's inline error + focus; the server stays authoritative on submit.
+ */
+fun parseSessionPrice(raw: String): Double? {
+    val amount = raw.trim().toDoubleOrNull() ?: return null
+    return amount.takeIf { it >= 0 && it.isFinite() }
+}
+
+/**
  * Owns the concern multi-select (#348): the picked ids and the posts onto the created session.
  * Failed ids are retained — the session exists by then, so the screen can retry or explicitly
  * continue without failed links.
@@ -497,6 +566,13 @@ private class ConcernPoster(
         _selectedIds.update { selected ->
             if (concernId in selected) selected - concernId else selected + concernId
         }
+    }
+
+    /** #674 — discard-draft reset: picks, failures, and retained failed ids all clear. */
+    fun clear() {
+        _selectedIds.value = emptySet()
+        failedIds.value = emptySet()
+        failures.value = 0
     }
 
     suspend fun postSelected(

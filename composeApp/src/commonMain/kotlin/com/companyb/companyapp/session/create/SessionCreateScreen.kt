@@ -1,18 +1,25 @@
 package com.companyb.companyapp.session.create
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
@@ -20,6 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -32,9 +40,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
@@ -47,6 +59,13 @@ import com.companyb.companyapp.contracts.session.ConcernResponse
 import com.companyb.companyapp.contracts.session.SessionPreviewResponse
 import com.companyb.companyapp.contracts.workforce.BranchMemberResponse
 import com.companyb.companyapp.ui.ErrorCard
+import com.companyb.companyapp.ui.contract.OperationalUiContract
+import com.companyb.companyapp.ui.contract.PrimaryActionButton
+import com.companyb.companyapp.ui.contract.SecondaryActionButton
+import com.companyb.companyapp.ui.contract.TertiaryActionButton
+import com.companyb.companyapp.ui.contract.operationalField
+import com.companyb.companyapp.ui.contract.operationalFocusRing
+import com.companyb.companyapp.ui.contract.operationalTouchTarget
 import com.companyb.companyapp.ui.screen.missionPriceLocked
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
@@ -81,13 +100,105 @@ fun SessionCreateScreen(
     val selectedClient by viewModel.selectedClient.collectAsState()
     val draft by viewModel.draft.collectAsState()
     val createResult by viewModel.createResult.collectAsState()
+    val preview by viewModel.preview.collectAsState()
+    val selectedConcernIds by viewModel.selectedConcernIds.collectAsState()
+    val selectedPractitioner by viewModel.selectedPractitioner.collectAsState()
     val isSubmissionLocked = isSessionCreateLocked(createResult)
-    SessionCreateNavigationGuard(isSubmissionLocked, onSubmissionLockChanged)
+    // #674 — abandoning a dirty draft (Back, Cancel, system back) offers Keep
+    // editing / Discard; untouched forms and mid-flight submissions pop silently
+    // (locked backs stay swallowed by the platform handler).
+    val dirty =
+        isSessionCreateDirty(selectedClient, draft, selectedConcernIds, selectedPractitioner)
+    // User-authored content only (auto price excluded): abandoning it via Change
+    // client loses a typed price with no recovery, so Change confirms while plain
+    // re-selection stays in-flow.
+    val userAuthored =
+        draft.hasUserEdits() || selectedConcernIds.isNotEmpty() || selectedPractitioner != null
+    var showDiscardDialog by rememberSaveable { mutableStateOf(false) }
+    // False = Discard only abandons the draft and stays (Change-client path).
+    var discardPopsAfter by rememberSaveable { mutableStateOf(true) }
+    val requestBack = {
+        if (!isSubmissionLocked) {
+            if (dirty) {
+                discardPopsAfter = true
+                showDiscardDialog = true
+            } else {
+                onBack()
+            }
+        }
+    }
+    val requestChangeClient = {
+        if (!isSubmissionLocked) {
+            if (userAuthored) {
+                discardPopsAfter = false
+                showDiscardDialog = true
+            } else {
+                viewModel.clearSelectedClient()
+            }
+        }
+    }
+    // System back dismisses the discard dialog first (stays editing), matching
+    // the dialog's own Escape behavior; buttons share requestBack directly.
+    SessionCreateNavigationGuard(
+        isSubmissionLocked = isSubmissionLocked,
+        onSubmissionLockChanged = onSubmissionLockChanged,
+        onBack = requestBack,
+        onSystemBack = {
+            if (showDiscardDialog) {
+                showDiscardDialog = false
+            } else {
+                requestBack()
+            }
+        },
+    )
+    // #674 — selecting a client focuses the first required intake control (price);
+    // the generation guard below keeps profile-pop recompositions from stealing focus.
+    val priceFocus = remember { FocusRequester() }
+    val dateFocus = remember { FocusRequester() }
+    var showValidation by rememberSaveable { mutableStateOf(false) }
+    var lastFocusedClientId by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(selectedClient?.id) {
+        val id = selectedClient?.id
+        if (id == null) {
+            lastFocusedClientId = null
+        } else if (id != lastFocusedClientId) {
+            lastFocusedClientId = id
+            // A new client's validation state never inherits the previous one.
+            showValidation = false
+            priceFocus.requestFocus()
+        }
+    }
+    // #674 — submit validates client-side first: the first invalid field receives
+    // focus with its inline explanation; values are always retained. The server
+    // stays authoritative once the request leaves.
+    val attemptSubmit: () -> Unit = {
+        val price = parseSessionPrice(draft.finalPrice)
+        val booking = bookingFields(draft.isBooked, draft.nextAppointmentDate)
+        if (selectedClient == null || preview !is UiState.Success) {
+            // Unreachable via the bar (primary needs a client + ready preview);
+            // the card owns preview recovery.
+            if (preview !is UiState.Success) viewModel.retryPreview()
+        } else if (price == null) {
+            showValidation = true
+            priceFocus.requestFocus()
+        } else if (booking == null) {
+            showValidation = true
+            dateFocus.requestFocus()
+        } else {
+            onSubmissionLockChanged(true)
+            viewModel.createSession(
+                draft.finalPrice.trim(),
+                draft.remarks,
+                draft.otherConcerns,
+                booking,
+            )
+        }
+    }
     // The dialog's create path lives in the caller-provided ClientViewModel (entry-scoped).
     val createState by clientViewModel.createClientResult.collectAsState()
 
     var showCreateDialog by remember { mutableStateOf(false) }
-    var sessionNavigationStarted by remember { mutableStateOf(false) }
+    var sessionNavigationStarted by rememberSaveable { mutableStateOf(false) }
     val navigateToCreatedSession: (String) -> Unit = { sessionId ->
         if (!sessionNavigationStarted) {
             sessionNavigationStarted = true
@@ -106,10 +217,11 @@ fun SessionCreateScreen(
         modifier =
             Modifier
                 .fillMaxSize()
+                .imePadding()
                 .padding(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        SessionCreateHeader(branchName, isSubmissionLocked, onBack)
+        SessionCreateHeader(branchName, isSubmissionLocked, requestBack)
 
         SessionCreateBodyLayout(
             args =
@@ -122,13 +234,40 @@ fun SessionCreateScreen(
                     draft = draft,
                     isSubmissionLocked = isSubmissionLocked,
                     onClientProfileClick = onClientProfileClick,
-                    onSubmissionStarted = { onSubmissionLockChanged(true) },
-                    onContinueAfterConcernFailure = {
-                        (createResult as? UiState.Success)?.data?.id?.let(navigateToCreatedSession)
-                    },
+                    priceFocus = priceFocus,
+                    dateFocus = dateFocus,
+                    showValidation = showValidation,
+                    onChangeClient = requestChangeClient,
                 ),
             onCreateNewClick = { showCreateDialog = true },
             modifier = Modifier.fillMaxWidth().weight(1f),
+        )
+
+        // #674 — persistent action bar: Cancel + Start/Create with a reserved
+        // validation slot. Outside the scrolling form so Start stays reachable
+        // at 1366x768 and 390x844 with the keyboard visible.
+        SessionCreateActionBar(
+            viewModel = viewModel,
+            draft = draft,
+            hasClient = selectedClient != null,
+            showValidation = showValidation,
+            onCancel = requestBack,
+            onSubmit = attemptSubmit,
+            onContinueAfterConcernFailure = {
+                (createResult as? UiState.Success)?.data?.id?.let(navigateToCreatedSession)
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+
+    if (showDiscardDialog) {
+        DiscardDraftDialog(
+            onKeepEditing = { showDiscardDialog = false },
+            onDiscard = {
+                showDiscardDialog = false
+                viewModel.discardDraft()
+                if (discardPopsAfter) onBack()
+            },
         )
     }
 
@@ -159,14 +298,20 @@ private fun SessionCreateHeader(
 private fun SessionCreateNavigationGuard(
     isSubmissionLocked: Boolean,
     onSubmissionLockChanged: (Boolean) -> Unit,
+    onBack: () -> Unit,
+    onSystemBack: () -> Unit,
 ) {
     LaunchedEffect(isSubmissionLocked) {
         onSubmissionLockChanged(isSubmissionLocked)
     }
+    val lockedNow by rememberUpdatedState(isSubmissionLocked)
     DisposableEffect(Unit) {
-        onDispose { onSubmissionLockChanged(false) }
+        // #674 — rotation disposes without abandoning the entry: only release the
+        // shell lock when no submission is in flight, or the parent unlocks
+        // mid-submit until recomposition re-locks.
+        onDispose { if (!lockedNow) onSubmissionLockChanged(false) }
     }
-    SessionCreateBackHandler(isSubmissionLocked)
+    SessionCreateBackHandler(locked = isSubmissionLocked, onBack = onSystemBack)
 }
 
 /** The on-the-spot create-client dialog host (#348): dismiss stays blocked mid-flight. */
@@ -254,43 +399,42 @@ internal fun SessionCreateEffects(
     }
 }
 
-/** Shared form controls used by mobile and desktop layouts. */
+/**
+ * #674 — the intake workspace: prominent price beside the history-derived
+ * type/count, explicit Walk-in/Booked intent with its date, clinical concerns
+ * (including Other) in the main flow, and requested practitioner + remarks under
+ * a collapsed Additional details section. Submit lives in the persistent bottom
+ * bar — never inside this scrolling column.
+ */
 @Composable
+@Suppress("LongParameterList") // #674 declarative-UI form signature stays whole per #535.
 internal fun SessionFormFields(
     viewModel: SessionCreateFormApi,
     draft: SessionCreateDraft,
+    selectedClient: ClientResponse?,
     isSubmissionLocked: Boolean,
-    onSubmissionStarted: () -> Unit,
-    onContinueAfterConcernFailure: () -> Unit,
+    priceFocus: FocusRequester,
+    dateFocus: FocusRequester,
+    showValidation: Boolean,
 ) {
     val preview by viewModel.preview.collectAsState()
     val controlsEnabled = !isSubmissionLocked
-    PreviewCard(viewModel, preview, controlsEnabled)
 
-    // #405 — the mission price is not editable input; ₱0 is shown locked (server normalizes
-    // authoritatively regardless).
-    val previewData = (preview as? UiState.Success)?.data
-    val missionPrice = previewData != null && missionPriceLocked(previewData.sessionType)
-    OutlinedTextField(
-        value = draft.finalPrice,
-        onValueChange = viewModel::setFinalPrice,
-        label = { Text("Final price (₱)") },
-        supportingText =
-            if (missionPrice) {
-                { Text("Medical mission visit — always free") }
-            } else {
-                null
-            },
-        singleLine = true,
-        enabled = !missionPrice && controlsEnabled,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.fillMaxWidth(),
+    PriceAndTypeRow(
+        viewModel = viewModel,
+        preview = preview,
+        draft = draft,
+        selectedClient = selectedClient,
+        controlsEnabled = controlsEnabled,
+        priceFocus = priceFocus,
+        showValidation = showValidation,
     )
 
-    BookingSection(
+    IntentSection(
         draft = draft,
         onBookedChange = viewModel::setBooked,
         onDateChange = viewModel::setNextAppointmentDate,
+        dateFocus = dateFocus,
         enabled = controlsEnabled,
     )
 
@@ -298,43 +442,138 @@ internal fun SessionFormFields(
     val selectedConcernIds by viewModel.selectedConcernIds.collectAsState()
     ConcernsBlock(viewModel, concernsState, selectedConcernIds, controlsEnabled)
 
-    val membersState by viewModel.members.collectAsState()
-    val selectedPractitioner by viewModel.selectedPractitioner.collectAsState()
-    RequestedPractitionerPicker(
-        membersState = membersState,
-        selected = selectedPractitioner,
-        onSelect = viewModel::selectPractitioner,
-        onRetry = viewModel::retryMembers,
-        enabled = controlsEnabled,
-    )
-
     OutlinedTextField(
         value = draft.otherConcerns,
         onValueChange = viewModel::setOtherConcerns,
         label = { Text("Other concerns (optional)") },
         enabled = controlsEnabled,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    OutlinedTextField(
-        value = draft.remarks,
-        onValueChange = viewModel::setRemarks,
-        label = { Text("Remarks (optional)") },
-        enabled = controlsEnabled,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().operationalField(),
     )
 
-    SubmitArea(viewModel, draft, onSubmissionStarted, onContinueAfterConcernFailure)
+    AdditionalDetails(
+        viewModel = viewModel,
+        draft = draft,
+        enabled = controlsEnabled,
+    )
 }
 
+/**
+ * #674 — price prominent beside the history-derived type/count. Wide content
+ * keeps them side by side; narrow stacks the type card above the price so both
+ * stay reachable at 390dp.
+ */
 @Composable
-private fun PreviewCard(
+@Suppress("LongParameterList") // #674 declarative-UI row signature stays whole per #535.
+private fun PriceAndTypeRow(
     viewModel: SessionCreateFormApi,
     preview: UiState<SessionPreviewResponse>,
-    enabled: Boolean,
+    draft: SessionCreateDraft,
+    selectedClient: ClientResponse?,
+    controlsEnabled: Boolean,
+    priceFocus: FocusRequester,
+    showValidation: Boolean,
+) {
+    // #405 — the mission price is not editable input; ₱0 is shown locked (server normalizes
+    // authoritatively regardless).
+    val previewData = (preview as? UiState.Success)?.data
+    val missionPrice = previewData != null && missionPriceLocked(previewData.sessionType)
+    val priceInvalid = preview is UiState.Success && parseSessionPrice(draft.finalPrice) == null
+    val showPriceError = priceInvalid && (showValidation || draft.finalPriceEdited)
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        if (maxWidth >= WIDE_INTAKE_BREAKPOINT) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalAlignment = Alignment.Top,
+            ) {
+                PriceField(
+                    value = draft.finalPrice,
+                    onValueChange = viewModel::setFinalPrice,
+                    missionPrice = missionPrice,
+                    controlsEnabled = controlsEnabled,
+                    priceFocus = priceFocus,
+                    showPriceError = showPriceError,
+                    modifier = Modifier.weight(1f),
+                )
+                TypeCountCard(
+                    viewModel = viewModel,
+                    preview = preview,
+                    selectedClient = selectedClient,
+                    controlsEnabled = controlsEnabled,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                TypeCountCard(
+                    viewModel = viewModel,
+                    preview = preview,
+                    selectedClient = selectedClient,
+                    controlsEnabled = controlsEnabled,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                PriceField(
+                    value = draft.finalPrice,
+                    onValueChange = viewModel::setFinalPrice,
+                    missionPrice = missionPrice,
+                    controlsEnabled = controlsEnabled,
+                    priceFocus = priceFocus,
+                    showPriceError = showPriceError,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+private val WIDE_INTAKE_BREAKPOINT = 560.dp
+
+@Composable
+@Suppress("LongParameterList") // #674 declarative-UI field signature stays whole per #535.
+private fun PriceField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    missionPrice: Boolean,
+    controlsEnabled: Boolean,
+    priceFocus: FocusRequester,
+    showPriceError: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text("Final price (₱)") },
+        supportingText =
+            if (missionPrice) {
+                { Text("Medical mission visit — always free") }
+            } else if (showPriceError) {
+                { Text("Enter a valid price of 0 or more") }
+            } else {
+                null
+            },
+        isError = showPriceError,
+        singleLine = true,
+        enabled = !missionPrice && controlsEnabled,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = modifier.operationalField().focusRequester(priceFocus),
+    )
+}
+
+/**
+ * #674 — the history-derived type/count card shown beside the price: the
+ * server-previewed session type (never a client-side choice) plus the client's
+ * total session count for context.
+ */
+@Composable
+private fun TypeCountCard(
+    viewModel: SessionCreateFormApi,
+    preview: UiState<SessionPreviewResponse>,
+    selectedClient: ClientResponse?,
+    controlsEnabled: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     when (preview) {
         is UiState.Idle, is UiState.Loading -> {
-            Box(Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) {
+            Box(modifier.padding(Spacing.md), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
         }
@@ -343,7 +582,7 @@ private fun PreviewCard(
             ErrorCard(
                 message = preview.message,
                 onRetry = { viewModel.retryPreview() },
-                retryEnabled = enabled,
+                retryEnabled = controlsEnabled,
             )
         }
 
@@ -351,7 +590,7 @@ private fun PreviewCard(
             Surface(
                 shape = RoundedCornerShape(CornerRadius.md),
                 color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = modifier.fillMaxWidth(),
             ) {
                 Column(Modifier.padding(Spacing.md)) {
                     Text(
@@ -374,6 +613,13 @@ private fun PreviewCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = InkSubtle,
                     )
+                    if (selectedClient != null) {
+                        Text(
+                            text = "Total sessions: ${selectedClient.sessionCount}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = InkSubtle,
+                        )
+                    }
                 }
             }
         }
@@ -396,7 +642,8 @@ private fun RequestedPractitionerPicker(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val options = (membersState as? UiState.Success)?.data.orEmpty()
-    val isError = membersState is UiState.Error
+    val errorState = membersState as? UiState.Error
+    val isError = errorState != null
     val isLoading = membersState is UiState.Loading || membersState is UiState.Idle
 
     ExposedDropdownMenuBox(
@@ -448,6 +695,27 @@ private fun RequestedPractitionerPicker(
                     },
                 )
             }
+        }
+    }
+    // #674 — the failure stays local to this field with a real Retry button that
+    // survives even when selection itself is unavailable; the rest of the form
+    // keeps working and a previous explicit choice is never cleared by the error.
+    if (errorState != null) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
+        ) {
+            Text(
+                text = errorState.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.weight(1f),
+            )
+            TertiaryActionButton(
+                label = "Retry",
+                onClick = onRetry,
+                enabled = enabled,
+            )
         }
     }
 }
@@ -534,103 +802,48 @@ private fun ConcernOptions(
     }
 }
 
-@Composable
-private fun SubmitArea(
-    viewModel: SessionCreateFormApi,
-    draft: SessionCreateDraft,
-    onSubmissionStarted: () -> Unit,
-    onContinueAfterConcernFailure: () -> Unit,
-) {
-    val preview by viewModel.preview.collectAsState()
-    val createResult by viewModel.createResult.collectAsState()
-    val concernAddFailures by viewModel.concernAddFailures.collectAsState()
-    val concernRetryState by viewModel.concernRetryState.collectAsState()
-
-    val priceValue = draft.finalPrice.trim().toDoubleOrNull()
-    // #423 — a booked draft with an unparseable date shapes to null: submit disabled.
-    val booking = bookingFields(draft.isBooked, draft.nextAppointmentDate)
-    val canSubmit =
-        preview is UiState.Success && priceValue != null && priceValue >= 0 &&
-            booking != null && !isSessionCreateLocked(createResult)
-    Button(
-        onClick = {
-            onSubmissionStarted()
-            viewModel.createSession(
-                draft.finalPrice.trim(),
-                draft.remarks,
-                draft.otherConcerns,
-                requireNotNull(booking),
-            )
-        },
-        enabled = canSubmit,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(if (createResult is UiState.Loading) "Starting…" else "Start session")
-    }
-    (createResult as? UiState.Error)?.let { state ->
-        Text(
-            text = state.message,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
-        )
-    }
-    if (concernAddFailures > 0) {
-        ConcernAddFailureActions(
-            failureCount = concernAddFailures,
-            retryState = concernRetryState,
-            onRetry = viewModel::retryConcernAdds,
-            onContinue = onContinueAfterConcernFailure,
-        )
-    }
-}
-
-@Composable
-private fun ConcernAddFailureActions(
-    failureCount: Int,
-    retryState: UiState<Unit>,
-    onRetry: () -> Unit,
-    onContinue: () -> Unit,
-) {
-    Text(
-        text = "Session created, but $failureCount concern(s) could not be recorded.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.error,
-    )
-    val retryEnabled = retryState !is UiState.Loading
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        TextButton(onClick = onRetry, enabled = retryEnabled) {
-            Text(if (retryState is UiState.Loading) "Retrying…" else "Retry concerns")
-        }
-        TextButton(onClick = onContinue, enabled = retryEnabled) {
-            Text("Continue without concerns")
-        }
-    }
-    (retryState as? UiState.Error)?.let { state ->
-        Text(
-            text = state.message,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
-        )
-    }
-}
-
 /**
- * #423 — booked vs walk-in selection plus the booked-only next-appointment date field.
- * Switching back to Walk-in clears the date draft so a stale draft can't leak into a later
- * Booked submit.
+ * #674 — explicit Walk-in / Booked intent controls (#423 meanings preserved:
+ * walk-in sends no booking fields; booked carries the optional ISO
+ * next-appointment date with bookedAt server-owned). Switching back to Walk-in
+ * clears the date draft in the VM so a stale draft can't leak into a later
+ * Booked submit. No new appointment scheduler: date stays yyyy-MM-dd.
  */
 @Composable
-private fun BookingSection(
+private fun IntentSection(
     draft: SessionCreateDraft,
     onBookedChange: (Boolean) -> Unit,
     onDateChange: (String) -> Unit,
+    dateFocus: FocusRequester,
     enabled: Boolean,
 ) {
-    BookingTypePicker(
-        isBooked = draft.isBooked,
-        onSelect = onBookedChange,
-        enabled = enabled,
+    // #672 — filter chips meet the #670 48dp touch target + 2dp focus ring (raw M3
+    // chips default to ~32dp with no contract ring).
+    val chipModifier = Modifier.operationalTouchTarget().operationalFocusRing()
+    Text(
+        text = "Session start",
+        style = MaterialTheme.typography.labelSmall,
+        color = InkSubtle,
     )
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FilterChip(
+            selected = !draft.isBooked,
+            onClick = { onBookedChange(false) },
+            label = { Text("Walk-in") },
+            enabled = enabled,
+            modifier = chipModifier,
+        )
+        FilterChip(
+            selected = draft.isBooked,
+            onClick = { onBookedChange(true) },
+            label = { Text("Booked") },
+            enabled = enabled,
+            modifier = chipModifier,
+        )
+    }
     if (!draft.isBooked) return
     val dateInvalid =
         draft.nextAppointmentDate.isNotBlank() &&
@@ -649,56 +862,130 @@ private fun BookingSection(
         isError = dateInvalid,
         singleLine = true,
         enabled = enabled,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().operationalField().focusRequester(dateFocus),
     )
 }
 
 /**
- * #423 — booked vs walk-in selector (the readOnly-dropdown pattern, the
- * RequestedPractitionerPicker shape). Walk-in stays the default — today's shipped behavior.
+ * #674 — requested practitioner + remarks under a collapsed section with a
+ * populated summary ("Name · Remarks added"). Concerns stay in the main flow:
+ * they are essential intake, not advanced details.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BookingTypePicker(
-    isBooked: Boolean,
-    onSelect: (Boolean) -> Unit,
+private fun AdditionalDetails(
+    viewModel: SessionCreateFormApi,
+    draft: SessionCreateDraft,
     enabled: Boolean,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { if (enabled) expanded = !expanded },
+    val membersState by viewModel.members.collectAsState()
+    val selectedPractitioner by viewModel.selectedPractitioner.collectAsState()
+    val summary =
+        additionalDetailsSummary(selectedPractitioner?.displayName, draft.remarks)
+            // The practitioner failure lives inside this collapsed section: surface it
+            // on the header so it is discoverable without expanding.
+            ?: if (membersState is UiState.Error && !expanded) {
+                "Colleagues unavailable — expand to retry"
+            } else {
+                null
+            }
+    Surface(
+        onClick = { if (enabled) expanded = !expanded },
+        enabled = enabled,
+        shape = RoundedCornerShape(CornerRadius.md),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        OutlinedTextField(
-            value = if (isBooked) "Booked" else "Walk-in",
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Session start") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-            enabled = enabled,
-        )
-        ExposedDropdownMenu(
-            expanded = expanded && enabled,
-            onDismissRequest = { expanded = false },
+        Column(
+            modifier = Modifier.padding(Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            DropdownMenuItem(
-                text = { Text("Walk-in") },
-                enabled = enabled,
-                onClick = {
-                    onSelect(false)
-                    expanded = false
-                },
-            )
-            DropdownMenuItem(
-                text = { Text("Booked") },
-                enabled = enabled,
-                onClick = {
-                    onSelect(true)
-                    expanded = false
-                },
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Additional details",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = summary ?: "Optional",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = InkSubtle,
+                    )
+                }
+                Text(
+                    text = if (expanded) "▾" else "▸",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = InkSubtle,
+                )
+            }
+            if (expanded) {
+                RequestedPractitionerPicker(
+                    membersState = membersState,
+                    selected = selectedPractitioner,
+                    onSelect = viewModel::selectPractitioner,
+                    onRetry = viewModel::retryMembers,
+                    enabled = enabled,
+                )
+                OutlinedTextField(
+                    value = draft.remarks,
+                    onValueChange = viewModel::setRemarks,
+                    label = { Text("Remarks (optional)") },
+                    enabled = enabled,
+                    modifier = Modifier.fillMaxWidth().operationalField(),
+                )
+            }
         }
     }
+}
+
+/**
+ * #674 — abandoning a dirty draft offers Keep editing (safe default, initial
+ * focus) or Discard changes. Honors the #670 dialog rules (max 560dp, scrolling
+ * body, fixed actions, no entrance animation); Escape/Back stays editing.
+ */
+@Composable
+private fun DiscardDraftDialog(
+    onKeepEditing: () -> Unit,
+    onDiscard: () -> Unit,
+) {
+    val keepFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { keepFocus.requestFocus() }
+    AlertDialog(
+        onDismissRequest = onKeepEditing,
+        title = { Text("Discard unsent changes?", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 320.dp)
+                        .verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    text =
+                        "This clears the selected client and everything entered. " +
+                            "This cannot be undone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        },
+        confirmButton = {
+            SecondaryActionButton(label = "Discard changes", onClick = onDiscard)
+        },
+        dismissButton = {
+            PrimaryActionButton(
+                label = "Keep editing",
+                onClick = onKeepEditing,
+                modifier = Modifier.focusRequester(keepFocus),
+            )
+        },
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .widthIn(max = OperationalUiContract.dialogMaxWidth)
+                .padding(horizontal = Spacing.md),
+        shape = MaterialTheme.shapes.medium,
+    )
 }

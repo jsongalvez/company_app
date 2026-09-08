@@ -3,6 +3,7 @@ package com.companyb.companyapp.session.create
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -30,25 +31,41 @@ import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 
-private const val CLIENT_DIRECTORY_WIDTH = 320
+private const val CLIENT_DIRECTORY_WIDTH = 300
+private val WIDE_WORKSPACE_BREAKPOINT = 900.dp
 
-/** Desktop Variant C: persistent client directory beside the in-progress session workspace. */
+/**
+ * #674 — desktop Variant C at content width >= 900dp: a 300dp client directory
+ * beside the in-progress session workspace. Below 900dp the entry falls back to
+ * the stacked selection-then-form body (compact screens change grouping, they do
+ * not inherit shrunken desktop rails).
+ */
 @Composable
 internal actual fun SessionCreateBodyLayout(
     args: SessionCreateBodyArgs,
     onCreateNewClick: () -> Unit,
     modifier: Modifier,
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
-    ) {
-        ClientDirectoryPane(args, onCreateNewClick)
-        SessionWorkspacePane(
-            args = args,
-            onClientProfileClick = args.onClientProfileClick,
-            modifier = Modifier.weight(1f),
-        )
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        if (maxWidth >= WIDE_WORKSPACE_BREAKPOINT) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
+            ) {
+                ClientDirectoryPane(args, onCreateNewClick)
+                SessionWorkspacePane(
+                    args = args,
+                    onClientProfileClick = args.onClientProfileClick,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        } else {
+            SessionCreateMobileBody(
+                args = args,
+                onCreateNewClick = onCreateNewClick,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
@@ -92,10 +109,13 @@ private fun ClientDirectoryPane(
     }
 }
 
+// Desktop has no system back gesture: the screen-owned Back button and the
+// action-bar Cancel own exit through the same dirty-aware requestBack.
 @Composable
-internal actual fun SessionCreateBackHandler(enabled: Boolean) {
-    if (!enabled) return
-}
+internal actual fun SessionCreateBackHandler(
+    locked: Boolean,
+    onBack: () -> Unit,
+) = Unit
 
 @Composable
 private fun SessionWorkspacePane(
@@ -119,15 +139,17 @@ private fun SessionWorkspacePane(
                 DesktopSelectedClientSummary(
                     client = client,
                     onOpenProfile = { onClientProfileClick(client.id) },
-                    onChangeClient = args.viewModel::clearSelectedClient,
+                    onChangeClient = args.onChangeClient,
                     enabled = !args.isSubmissionLocked,
                 )
                 SessionFormFields(
                     viewModel = args.viewModel,
                     draft = args.draft,
+                    selectedClient = client,
                     isSubmissionLocked = args.isSubmissionLocked,
-                    onSubmissionStarted = args.onSubmissionStarted,
-                    onContinueAfterConcernFailure = args.onContinueAfterConcernFailure,
+                    priceFocus = args.priceFocus,
+                    dateFocus = args.dateFocus,
+                    showValidation = args.showValidation,
                 )
             }
         }

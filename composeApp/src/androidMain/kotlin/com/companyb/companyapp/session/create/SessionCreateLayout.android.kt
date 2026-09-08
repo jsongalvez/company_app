@@ -16,6 +16,13 @@ internal actual fun SessionCreateBodyLayout(
 )
 
 @Composable
-internal actual fun SessionCreateBackHandler(enabled: Boolean) {
-    BackHandler(enabled = enabled) {}
+internal actual fun SessionCreateBackHandler(
+    locked: Boolean,
+    onBack: () -> Unit,
+) {
+    // #674 — always intercepts: locked backs are swallowed mid-flight, unlocked
+    // backs run the screen's dirty-aware requestBack (discard dialog or pop).
+    BackHandler(enabled = true) {
+        if (!locked) onBack()
+    }
 }
