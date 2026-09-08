@@ -70,17 +70,20 @@ object RemittanceService {
                     val totalExpenses = RemittanceRepository.sumExpensesInTransaction(breakdownIds)
                     val netIncome = RemittancePolicy.netOf(grossIncome, totalCompensation, totalExpenses)
 
-                    if (RemittancePolicy.requiresSnapshot(before.type)) {
-                        RemittanceFinancialSnapshotRepository.insertInTransaction(
-                            RemittanceFinancialSnapshotCreateParams(
-                                remittanceId = remittanceId,
-                                grossIncome = grossIncome,
-                                totalCompensation = totalCompensation,
-                                totalExpenses = totalExpenses,
-                                netIncome = netIncome,
-                            ),
-                        )
-                    }
+                    val insertedSnapshot =
+                        if (RemittancePolicy.requiresSnapshot(before.type)) {
+                            RemittanceFinancialSnapshotRepository.insertInTransaction(
+                                RemittanceFinancialSnapshotCreateParams(
+                                    remittanceId = remittanceId,
+                                    grossIncome = grossIncome,
+                                    totalCompensation = totalCompensation,
+                                    totalExpenses = totalExpenses,
+                                    netIncome = netIncome,
+                                ),
+                            )
+                        } else {
+                            null
+                        }
 
                     RemittanceRepository.markSubmittedInTransaction(
                         remittanceId,
@@ -95,6 +98,9 @@ object RemittanceService {
                             ?: error("remittance not found after submit for $remittanceId")
 
                     RemittanceAudit.remittanceUpdated(callerId, before, after)
+                    insertedSnapshot?.let { snapshot ->
+                        RemittanceAudit.snapshotInserted(callerId, after.branchId, snapshot)
+                    }
 
                     RemittanceSubmissionResult(
                         remittance = after,

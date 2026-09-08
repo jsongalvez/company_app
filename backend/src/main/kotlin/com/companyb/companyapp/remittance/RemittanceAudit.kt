@@ -89,6 +89,18 @@ internal object RemittanceAudit {
         auditFields = RemittanceDayBreakdownTable::auditFields,
     )
 
+    fun snapshotInserted(
+        changedBy: UUID,
+        branchId: UUID,
+        snapshot: RemittanceFinancialSnapshot,
+    ) = AuditLog.recordInsert(
+        tableName = RemittanceFinancialSnapshotTable.tableName,
+        recordId = snapshot.remittanceId,
+        changedBy = changedBy,
+        branchId = branchId,
+        fields = RemittanceFinancialSnapshotTable.auditFields(snapshot),
+    )
+
     fun snapshotDeleted(
         changedBy: UUID,
         branchId: UUID,

@@ -393,6 +393,62 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `submit writes snapshot insert audit with frozen amounts`() {
+        val remittanceId = TestFixtures.uuid()
+        val lineId = TestFixtures.uuid()
+        val breakdownId = TestFixtures.uuid()
+
+        createDraftRemittance(remittanceId)
+        val branchDayId = resolveBranchDay()
+        addDayBreakdown(remittanceId, breakdownId, branchDayId)
+        addSessionLine(remittanceId, lineId, BigDecimal("300.00"))
+
+        val version = RemittanceService.getRemittance(remittanceId).remittance.version
+        RemittanceService.submit(callerId, remittanceId, version)
+
+        val snapshot = RemittanceService.getRemittance(remittanceId).snapshot
+        assertNotNull(snapshot)
+        val audit =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.changedBy eq callerId) and
+                            (AuditLogTable.action eq AuditAction.INSERT) and
+                            (AuditLogTable.auditTableName eq RemittanceFinancialSnapshotTable.tableName) and
+                            (AuditLogTable.recordId eq remittanceId)
+                    }.single()
+            }
+        val newValue = audit[AuditLogTable.newValue].orEmpty()
+        assertTrue(newValue.contains(snapshot.grossIncome.toPlainString()))
+        assertTrue(newValue.contains(snapshot.totalCompensation.toPlainString()))
+        assertTrue(newValue.contains(snapshot.totalExpenses.toPlainString()))
+        assertTrue(newValue.contains(snapshot.netIncome.toPlainString()))
+    }
+
+    @Test
+    fun `submit PRODUCT remittance writes no snapshot audit`() {
+        val remittanceId = TestFixtures.uuid()
+        createDraftProductRemittance(remittanceId)
+        val branchDayId = resolveBranchDay()
+        addDayBreakdown(remittanceId, TestFixtures.uuid(), branchDayId)
+
+        val version = RemittanceService.getRemittance(remittanceId).remittance.version
+        RemittanceService.submit(callerId, remittanceId, version)
+
+        val snapshotAudits =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq RemittanceFinancialSnapshotTable.tableName) and
+                            (AuditLogTable.recordId eq remittanceId)
+                    }.count()
+            }
+        assertEquals(0L, snapshotAudits)
+    }
+
+    @Test
     fun `submit branch day audit preserves lazy past before status`() {
         val remittanceId = TestFixtures.uuid()
         val breakdownId = TestFixtures.uuid()
