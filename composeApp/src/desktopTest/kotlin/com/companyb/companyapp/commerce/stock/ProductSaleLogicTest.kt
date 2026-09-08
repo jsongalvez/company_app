@@ -108,6 +108,7 @@ class ProductSaleLogicTest {
                     isWalkIn = true,
                     reason = " ",
                     branchDayId = dayId,
+                    operationId = "op-anon",
                 ),
             )
         assertTrue(anonymous.isWalkIn)
@@ -127,6 +128,7 @@ class ProductSaleLogicTest {
                     isWalkIn = true,
                     reason = " walk-in ",
                     branchDayId = dayId,
+                    operationId = "op-linked",
                 ),
             )
         assertTrue(linked.isWalkIn)
@@ -144,16 +146,18 @@ class ProductSaleLogicTest {
                     isWalkIn = false,
                     reason = null,
                     branchDayId = dayId,
+                    operationId = "op-session",
                 ),
             )
         assertFalse(sessionLinked.isWalkIn)
         assertEquals("session-5", sessionLinked.sessionId)
         assertNull(sessionLinked.clientId)
 
-        // Wire fields ride along unchanged; ids are fresh per request (idempotency keys).
+        // Wire fields ride along unchanged; ids are stable per dialog instance (#676).
         assertEquals("product-1", anonymous.productId)
         assertEquals(2, anonymous.quantity)
         assertEquals(dayId, anonymous.branchDayId)
-        assertNotEquals(anonymous.id, buildSaleRequest(SaleDraft(card(), 2, null, null, true, null, dayId)).id)
+        assertEquals("op-anon", anonymous.id)
+        assertNotEquals(anonymous.id, linked.id)
     }
 }

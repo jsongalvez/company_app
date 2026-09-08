@@ -98,6 +98,7 @@ class InventoryViewModel(
         branchId: String,
         request: AddInventoryCardRequest,
     ) {
+        if (_cardResult.value is UiState.Loading) return
         handler.launchUnit(
             state = _cardResult,
             operation = "ensureCard",
@@ -115,6 +116,7 @@ class InventoryViewModel(
         productId: String,
         request: RestockRequest,
     ) {
+        if (_restockResult.value is UiState.Loading) return
         handler.launch(
             state = _restockResult,
             operation = "restock",
@@ -135,6 +137,7 @@ class InventoryViewModel(
         productId: String,
         request: InventoryMovementRequest,
     ) {
+        if (_movementResult.value is UiState.Loading) return
         handler.launch(
             state = _movementResult,
             operation = "recordMovement",

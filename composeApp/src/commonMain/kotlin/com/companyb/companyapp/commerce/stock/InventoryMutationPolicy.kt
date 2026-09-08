@@ -18,7 +18,6 @@ import com.companyb.companyapp.contracts.commerce.InventoryMovementRequest
 import com.companyb.companyapp.contracts.commerce.ProductResponse
 import com.companyb.companyapp.contracts.commerce.RestockRequest
 import com.companyb.companyapp.util.logInfo
-import java.util.UUID
 
 /**
  * #458 — the one inventory-mutation policy seam: every inventory write (restock, movement,
@@ -169,24 +168,25 @@ internal fun saleQuantityError(
 /** Blank/whitespace-only text collapses to null (shared by the builders and history rows). */
 internal fun normalizeOptional(text: String?): String? = text?.trim()?.takeIf { it.isNotEmpty() }
 
-/** Everything [buildRestockRequest] needs; ids are generated fresh inside the builder. */
+/** Everything [buildRestockRequest] needs; ids are stable per dialog instance (#676). */
 internal data class RestockDraft(
     val card: BranchInventoryResponse,
     val units: Int,
     val editReason: String?,
     val branchDayId: String,
+    val operationId: String,
 )
 
 /** Caller supplies validated, parsed units (positive); sent as-is per the restock contract. */
 internal fun buildRestockRequest(draft: RestockDraft): RestockRequest =
     RestockRequest(
-        id = UUID.randomUUID().toString(),
+        id = draft.operationId,
         quantity = draft.units,
         branchDayId = draft.branchDayId,
         editReason = normalizeOptional(draft.editReason),
     )
 
-/** Everything [buildMovementRequest] needs; ids are generated fresh inside the builder. */
+/** Everything [buildMovementRequest] needs; ids are stable per dialog instance (#676). */
 internal data class MovementDraft(
     val card: BranchInventoryResponse,
     val reason: InventoryMovementReason,
@@ -194,6 +194,7 @@ internal data class MovementDraft(
     val notes: String?,
     val editReason: String?,
     val branchDayId: String,
+    val operationId: String,
 )
 
 /**
@@ -203,7 +204,7 @@ internal data class MovementDraft(
  */
 internal fun buildMovementRequest(draft: MovementDraft): InventoryMovementRequest =
     InventoryMovementRequest(
-        movementId = UUID.randomUUID().toString(),
+        movementId = draft.operationId,
         reason = draft.reason,
         quantityChange =
             if (draft.reason in NEGATIVE_MOVEMENT_REASONS) -draft.units else draft.units,
@@ -213,7 +214,7 @@ internal fun buildMovementRequest(draft: MovementDraft): InventoryMovementReques
         editReason = normalizeOptional(draft.editReason),
     )
 
-/** Everything [buildSaleRequest] needs; ids are generated fresh inside the builder. */
+/** Everything [buildSaleRequest] needs; ids are stable per dialog instance (#676). */
 internal data class SaleDraft(
     val card: BranchInventoryResponse,
     val quantity: Int,
@@ -222,6 +223,7 @@ internal data class SaleDraft(
     val isWalkIn: Boolean,
     val reason: String?,
     val branchDayId: String,
+    val operationId: String,
 )
 
 /**
@@ -232,7 +234,7 @@ internal data class SaleDraft(
  */
 internal fun buildSaleRequest(draft: SaleDraft): CreateProductSaleRequest =
     CreateProductSaleRequest(
-        id = UUID.randomUUID().toString(),
+        id = draft.operationId,
         branchDayId = draft.branchDayId,
         sessionId = draft.sessionId,
         clientId = draft.clientId,
@@ -320,9 +322,8 @@ internal fun consumeWriteSuccess(
     }
 }
 
-/** The restock arm's submit: save closes immediately at the call site (the ProfileScreen
- * precedent); ids are fresh client-generated UUIDs and branchDayId is the clocked-in day.
- * A null branch/day fails closed — the affordances already hide, this is the backstop.
+/** The restock arm's submit: retained dialog resubmits the same operationId (#676);
+ * a null branch/day fails closed — the affordances already hide, this is the backstop.
  *
  * #597: fail-closed arm shape shared with the sibling submits below; stays whole per #535.
  */
@@ -334,17 +335,18 @@ internal fun submitRestock(
     card: BranchInventoryResponse,
     units: Int,
     editReason: String?,
+    operationId: String,
 ) {
     if (branchId != null && branchDayId != null) {
         viewModel.restock(
             branchId = branchId,
             productId = card.productId,
-            request = buildRestockRequest(RestockDraft(card, units, editReason, branchDayId)),
+            request = buildRestockRequest(RestockDraft(card, units, editReason, branchDayId, operationId)),
         )
     }
 }
 
-/** The movement arm's submit: same close-first + fail-closed shape as [submitRestock].
+/** The movement arm's submit: same retained-ID + fail-closed shape as [submitRestock].
  *
  * #597: fail-closed arm shape shared with the sibling submits; stays whole per #535.
  */
@@ -358,17 +360,21 @@ internal fun submitMovement(
     units: Int,
     notes: String?,
     editReason: String?,
+    operationId: String,
 ) {
     if (branchId != null && branchDayId != null) {
         viewModel.recordMovement(
             branchId = branchId,
             productId = card.productId,
-            request = buildMovementRequest(MovementDraft(card, reason, units, notes, editReason, branchDayId)),
+            request =
+                buildMovementRequest(
+                    MovementDraft(card, reason, units, notes, editReason, branchDayId, operationId),
+                ),
         )
     }
 }
 
-/** The walk-in sale arm's submit (#419): same close-first + fail-closed shape as [submitRestock].
+/** The walk-in sale arm's submit (#419): same retained-ID + fail-closed shape as [submitRestock].
  *
  * #597: fail-closed arm shape shared with the sibling submits; stays whole per #535.
  */
@@ -381,6 +387,7 @@ internal fun submitWalkInSale(
     quantity: Int,
     clientId: String?,
     editReason: String?,
+    operationId: String,
 ) {
     if (branchId != null && branchDayId != null) {
         saleViewModel.sell(
@@ -393,8 +400,128 @@ internal fun submitWalkInSale(
                     isWalkIn = true,
                     reason = editReason,
                     branchDayId = branchDayId,
+                    operationId = operationId,
                 ),
             ),
         )
     }
+}
+
+/**
+ * #676 — list filtering for the header search + Low stock filter. Search matches product
+ * name case-insensitively (substring); the low-stock leg only narrows when enabled so the
+ * independent endpoint stays authoritative. Pure so the empty states stay testable:
+ * search-no-match vs low-stock-empty vs no-cards.
+ */
+internal fun filterInventoryCards(
+    cards: List<BranchInventoryResponse>,
+    query: String,
+    lowStockOnly: Boolean,
+    lowStockIds: Set<String>,
+): List<BranchInventoryResponse> {
+    val trimmed = query.trim()
+    return cards.filter { card ->
+        val matchesQuery = trimmed.isEmpty() || card.productName.contains(trimmed, ignoreCase = true)
+        val matchesStock = !lowStockOnly || card.productId in lowStockIds
+        matchesQuery && matchesStock
+    }
+}
+
+/** #676 — sale price lines from the card's authoritative unit charge (never a second formula). */
+internal data class SalePriceDisplay(
+    val unitLine: String,
+    val totalLine: String,
+    val commissionLine: String?,
+)
+
+/**
+ * #676 — unit charge is the customer charge (commission included per the ticket); total is
+ * unit × quantity (the backend's `unitPrice * quantity` insert). Commission rides secondary.
+ * Unparseable amounts read "Unavailable", never a fabricated zero (the #672 pattern).
+ */
+internal fun salePriceDisplay(
+    card: BranchInventoryResponse,
+    quantity: Int,
+): SalePriceDisplay {
+    val unit =
+        runCatching { java.math.BigDecimal(card.unitPrice) }.getOrNull()
+    val commission =
+        runCatching { java.math.BigDecimal(card.commissionAmount) }.getOrNull()
+    if (unit == null) {
+        return SalePriceDisplay(
+            unitLine = "Unit charge unavailable",
+            totalLine = "Total unavailable",
+            commissionLine = null,
+        )
+    }
+    val total = unit.multiply(java.math.BigDecimal.valueOf(quantity.toLong()))
+    return SalePriceDisplay(
+        unitLine = "₱${unit.toPlainString()} each",
+        totalLine = "Total ₱${total.toPlainString()} for $quantity",
+        commissionLine =
+            commission?.let { "Includes ₱${it.toPlainString()} commission" }
+                ?: "Commission unavailable",
+    )
+}
+
+/**
+ * #676 — retained-draft error guidance. Authoritative rejections (stock/capability/version)
+ * keep the draft for review; unknown-client 404 (#684, still open) maps to pick-another-client
+ * once that backend fix lands — the message match is forward-compatible, never a duplicate fix.
+ */
+internal fun writeErrorHint(message: String): String? =
+    when {
+        message.contains("404", ignoreCase = true) -> {
+            "Selected entry is no longer available — choose another and retry (your entries are kept)."
+        }
+
+        message.contains("409", ignoreCase = true) -> {
+            "Changed elsewhere — review the latest quantities, then retry (your entries are kept)."
+        }
+
+        message.contains("403", ignoreCase = true) -> {
+            "Not authorized for this change — your entries are kept."
+        }
+
+        else -> {
+            null
+        }
+    }
+
+/**
+ * #676 — ambiguous outcomes (transport/timeout, no status code to reconcile against) must
+ * not invite a fresh operation with a new identifier: state "could not confirm" and keep
+ * the same operationId for Retry. Status-bearing failures ("failed: 400/404/…") and
+ * authoritative domain messages are authoritative, not ambiguous — only transport-class
+ * signals count as ambiguous.
+ */
+internal fun isAmbiguousWriteError(message: String): Boolean {
+    val lower = message.lowercase()
+    return listOf(
+        "timeout",
+        "timed out",
+        "network",
+        "unreachable",
+        "unknown error",
+        "unable to resolve",
+        "connection",
+        "eof",
+        "socket",
+        "ssl",
+        "interrupted",
+        "could not confirm",
+    ).any { lower.contains(it) }
+}
+
+/** #676 — ambiguous-write copy: reconcile before enabling a fresh operation. */
+internal const val AMBIGUOUS_WRITE_MESSAGE = "Could not confirm whether this was saved — Retry to reconcile."
+
+/**
+ * #676 — version/stock reconcile trigger: a 409 or an insufficient-stock 400 means the
+ * dialog's snapshot is stale. The host refreshes the list legs (dialog draft stays
+ * retained) so Retry re-sends the same operationId against fresh versions.
+ */
+internal fun needsVersionReconcile(message: String): Boolean {
+    if (message.contains("409")) return true
+    return message.lowercase().contains("insufficient stock")
 }

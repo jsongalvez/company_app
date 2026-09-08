@@ -109,6 +109,7 @@ class InventoryWriteLogicTest {
                     notes = "  demo unit  ",
                     editReason = " ",
                     branchDayId = "day-1",
+                    operationId = "op-1",
                 ),
             )
         assertEquals(-2, request.quantityChange)
@@ -118,11 +119,13 @@ class InventoryWriteLogicTest {
 
         // Adjustment keeps its sign; blank notes normalize to null.
         val adjustment =
-            buildMovementRequest(MovementDraft(card(), InventoryMovementReason.ADJUSTMENT, 3, "", null, "day-1"))
+            buildMovementRequest(
+                MovementDraft(card(), InventoryMovementReason.ADJUSTMENT, 3, "", null, "day-1", "op-2"),
+            )
         assertEquals(3, adjustment.quantityChange)
         assertNull(adjustment.notes)
 
-        val restock = buildRestockRequest(RestockDraft(card(), 12, " box arrived ", "day-1"))
+        val restock = buildRestockRequest(RestockDraft(card(), 12, " box arrived ", "day-1", "op-3"))
         assertEquals(12, restock.quantity)
         assertEquals("box arrived", restock.editReason)
         assertEquals("day-1", restock.branchDayId)

@@ -67,7 +67,8 @@ internal fun MovementsHistoryDialog(
     onDismiss: () -> Unit,
 ) {
     val movements by viewModel.movements.collectAsState()
-    LaunchedEffect(Unit) { viewModel.loadMovements(branchId) }
+    // #676 — reload per branch so a branch switch under the open dialog never shows stale rows.
+    LaunchedEffect(branchId) { viewModel.loadMovements(branchId) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

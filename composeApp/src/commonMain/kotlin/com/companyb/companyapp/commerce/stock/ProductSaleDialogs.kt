@@ -11,7 +11,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +23,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,31 +43,38 @@ import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.contracts.commerce.BranchInventoryResponse
 import com.companyb.companyapp.contracts.commerce.ProductSaleResponse
 import com.companyb.companyapp.contracts.session.DashboardSessionResponse
+import com.companyb.companyapp.ui.contract.InlineStatus
+import com.companyb.companyapp.ui.contract.InlineStatusKind
+import com.companyb.companyapp.ui.contract.OperationalDialog
 import com.companyb.companyapp.ui.contract.operationalField
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
- * Buyer mode for a walk-in sale: anonymous (no record) or linked to a searched client.
+ * Buyer mode for a walk-in sale: find-client (the normal domain case, #676 default) or
+ * buyer-not-identified (the explicit secondary exception — no made-up client details).
  */
-private enum class SaleBuyerMode { ANONYMOUS, LINKED }
-
-/** Text-field state for the sale dialogs (the MovementForm shape). */
-private class SaleForm {
-    var quantityText by mutableStateOf("")
-    var quantityError by mutableStateOf<String?>(null)
-    var editReason by mutableStateOf("")
-}
+private enum class SaleBuyerMode { BUYER_NOT_IDENTIFIED, FIND_CLIENT }
 
 @Composable
 private fun SaleQuantityReasonFields(
-    form: SaleForm,
+    quantityText: String,
+    quantityError: String?,
+    onQuantityChange: (String) -> Unit,
+    editReason: String,
+    onEditReasonChange: (String) -> Unit,
     availableStock: Int?,
+    card: BranchInventoryResponse,
+    quantityFocus: FocusRequester? = null,
 ) {
-    UnitsField("Quantity", form.quantityText, form.quantityError) { form.quantityText = it }
+    UnitsField("Quantity", quantityText, quantityError, onQuantityChange, quantityFocus)
     Spacer(Modifier.size(Spacing.sm))
-    OptionalReasonField(form.editReason, { form.editReason = it })
+    SalePriceLines(card, quantityText)
+    Spacer(Modifier.size(Spacing.sm))
+    OptionalReasonField(editReason, onEditReasonChange)
     if (availableStock != null) {
         Spacer(Modifier.size(Spacing.xs))
         Text(
@@ -78,77 +85,166 @@ private fun SaleQuantityReasonFields(
     }
 }
 
+/** #676 — product name and quantity lead; unit/total clear, commission secondary. */
+@Composable
+private fun SalePriceLines(
+    card: BranchInventoryResponse,
+    quantityText: String,
+) {
+    val quantity = quantityText.trim().toIntOrNull()?.takeIf { it >= 1 }
+    val display = salePriceDisplay(card, quantity ?: 1)
+    Column {
+        Text(
+            text = display.unitLine,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = if (quantity != null) display.totalLine else "Total — enter quantity",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        display.commissionLine?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
 /**
  * #419 — the out-of-session sale dialog (the #392 dialog shape: client-side validation mirrors
- * the backend's 400s so an impossible sale never leaves the dialog; Save hands parsed values to
- * the caller and closes immediately — the screen refreshes on success and a failure surfaces in
- * its banner). Quantity, buyer chips (Anonymous default — BR marks linked as the rule, anonymous
- * rare), an optional reason. Save hands `(quantity, clientId?, reason)`; the walk-in flag is
- * implied by this dialog's shape.
+ * the backend's 400s so an impossible sale never leaves the dialog).
+ * #676 — retained lossless shape: Find client is the default with quantity 1 (known-client
+ * sales are the normal domain case); "Buyer not identified" is the explicit secondary
+ * exception. The form stays mounted through submission, Save keeps bounds with progress,
+ * close happens only on confirmed success, and failures render inline with Retry on the
+ * same operationId. Save hands `(quantity, clientId?, reason, operationId)`; the walk-in
+ * flag is implied by this dialog's shape.
  */
+@OptIn(ExperimentalUuidApi::class)
 @Composable
 internal fun WalkInSaleDialog(
     card: BranchInventoryResponse,
     clientSearch: ClientSearchApi,
+    saleResult: UiState<ProductSaleResponse>,
     onDismiss: () -> Unit,
-    onSave: (
+    onSubmit: (
         quantity: Int,
         clientId: String?,
         editReason: String?,
+        operationId: String,
     ) -> Unit,
 ) {
-    val form = remember { SaleForm() }
-    var buyerMode by remember { mutableStateOf(SaleBuyerMode.ANONYMOUS) }
-    var selectedClient by remember { mutableStateOf<ClientResponse?>(null) }
+    // #676 — text drafts survive rotation (saveable, keyed by card); the operationId is
+    // stable per open for same-ID Retry. The picked client is entry-local: anonymize-away
+    // selections clear below so a dead clientId never submits.
+    var quantityText by rememberSaveable(card.id) { mutableStateOf("1") }
+    var quantityError by remember(card.id) { mutableStateOf<String?>(null) }
+    var editReason by rememberSaveable(card.id) { mutableStateOf("") }
+    var buyerMode by remember(card.id) { mutableStateOf(SaleBuyerMode.FIND_CLIENT) }
+    var selectedClient by remember(card.id) { mutableStateOf<ClientResponse?>(null) }
+    val operationId = remember(card.id) { Uuid.random().toString() }
+    val quantityFocus = remember { FocusRequester() }
+    val isBusy = saleResult is UiState.Loading
+    val cachedClients by clientSearch.freshestResults.collectAsState()
+    // #676 — a picked client anonymized/removed while the picker is open clears the
+    // selection (forward-compatible with the #684 unknown-client 404: pick another).
+    LaunchedEffect(cachedClients, selectedClient?.id) {
+        val picked = selectedClient
+        val cached = cachedClients
+        if (picked != null && cached != null && cached.none { it.id == picked.id }) {
+            selectedClient = null
+        }
+    }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Sell — ${card.productName}") },
-        text = {
+    fun submit() {
+        val error = saleQuantityError(quantityText, card.currentStock)
+        if (buyerMode == SaleBuyerMode.FIND_CLIENT && selectedClient == null) {
+            quantityError = error
+            return
+        }
+        if (error == null) {
+            quantityError = null
+            val quantity = quantityText.trim().toInt()
+            val clientId = if (buyerMode == SaleBuyerMode.FIND_CLIENT) selectedClient?.id else null
+            onSubmit(quantity, clientId, editReason, operationId)
+        } else {
+            quantityError = error
+        }
+    }
+
+    OperationalDialog(
+        title = "Sell — ${card.productName}",
+        onDismiss = onDismiss,
+        confirmLabel = "Record sale",
+        onConfirm = ::submit,
+        isBusy = isBusy,
+        allowCancelWhenBusy = false,
+        confirmEnabled = !isBusy && (buyerMode == SaleBuyerMode.BUYER_NOT_IDENTIFIED || selectedClient != null),
+        contentFocus = quantityFocus,
+        content = {
             Column {
-                SaleQuantityReasonFields(form, card.currentStock)
+                SaleQuantityReasonFields(
+                    quantityText,
+                    quantityError,
+                    { quantityText = it },
+                    editReason,
+                    { editReason = it },
+                    card.currentStock,
+                    card,
+                    quantityFocus,
+                )
                 Spacer(Modifier.size(Spacing.sm))
                 Row {
                     FilterChip(
-                        selected = buyerMode == SaleBuyerMode.ANONYMOUS,
-                        onClick = {
-                            buyerMode = SaleBuyerMode.ANONYMOUS
-                            selectedClient = null
-                        },
-                        label = { Text("Anonymous") },
+                        selected = buyerMode == SaleBuyerMode.FIND_CLIENT,
+                        onClick = { buyerMode = SaleBuyerMode.FIND_CLIENT },
+                        label = { Text("Find client") },
                     )
                     Spacer(Modifier.size(Spacing.xs))
                     FilterChip(
-                        selected = buyerMode == SaleBuyerMode.LINKED,
-                        onClick = { buyerMode = SaleBuyerMode.LINKED },
-                        label = { Text("Linked client") },
+                        selected = buyerMode == SaleBuyerMode.BUYER_NOT_IDENTIFIED,
+                        onClick = {
+                            buyerMode = SaleBuyerMode.BUYER_NOT_IDENTIFIED
+                            selectedClient = null
+                        },
+                        label = { Text("Buyer not identified") },
                     )
                 }
-                if (buyerMode == SaleBuyerMode.LINKED) {
+                if (buyerMode == SaleBuyerMode.FIND_CLIENT) {
                     Spacer(Modifier.size(Spacing.xs))
-                    SaleClientPicker(clientSearch, selectedClient, onSelect = { selectedClient = it })
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = buyerMode == SaleBuyerMode.ANONYMOUS || selectedClient != null,
-                onClick = {
-                    val error = saleQuantityError(form.quantityText, card.currentStock)
-                    if (error == null) {
-                        val quantity = form.quantityText.trim().toInt()
-                        onSave(quantity, selectedClient?.id, form.editReason)
-                    } else {
-                        form.quantityError = error
+                    SaleClientPicker(
+                        clientSearch = clientSearch,
+                        selectedClient = selectedClient,
+                        onSelect = { selectedClient = it },
+                        // #676 — the dialog owns initial focus (quantity first field);
+                        // the picker stays keyboard-reachable without stealing it.
+                        autoFocusSearch = false,
+                    )
+                    if (selectedClient == null) {
+                        Text(
+                            text = "Select a client to continue, or choose “Buyer not identified”.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                },
-            ) {
-                Text("Record sale")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                }
+                val saleError = saleResult as? UiState.Error
+                if (saleError != null) {
+                    val hint = writeErrorHint(saleError.message)
+                    val message =
+                        if (isAmbiguousWriteError(saleError.message)) {
+                            AMBIGUOUS_WRITE_MESSAGE
+                        } else if (hint != null) {
+                            "${saleError.message} $hint"
+                        } else {
+                            saleError.message
+                        }
+                    InlineStatus(message = message, kind = InlineStatusKind.FAILURE, onRetry = ::submit)
+                }
             }
         },
     )
@@ -160,6 +256,9 @@ private fun SaleClientPicker(
     clientSearch: ClientSearchApi,
     selectedClient: ClientResponse?,
     onSelect: (ClientResponse) -> Unit,
+    // #676 — the walk-in dialog owns initial focus (quantity first); the picker only
+    // auto-focuses where no earlier field claims it.
+    autoFocusSearch: Boolean = true,
 ) {
     val query by clientSearch.query.collectAsState()
     val resultsState by clientSearch.searchResults.collectAsState()
@@ -173,9 +272,12 @@ private fun SaleClientPicker(
         }
     }
 
-    // #673 — search focuses on entry; stale rows stay visible but are not selectable.
+    // #673 — search focuses on entry where no earlier field claims it; stale rows stay
+    // visible but are not selectable.
     val searchFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { searchFocus.requestFocus() }
+    LaunchedEffect(autoFocusSearch) {
+        if (autoFocusSearch) searchFocus.requestFocus()
+    }
     OutlinedTextField(
         value = query,
         onValueChange = { clientSearch.onQueryChange(it) },
@@ -272,8 +374,12 @@ private fun SaleClientIdentityList(
 
                         Key.Enter, Key.NumPadEnter -> {
                             val target = results.getOrNull(focusedIndex)
-                            if (enabled && target != null) onSelect(target)
-                            true
+                            if (enabled && target != null) {
+                                onSelect(target)
+                                true
+                            } else {
+                                false
+                            }
                         }
 
                         else -> {
@@ -308,59 +414,90 @@ private fun SaleClientIdentityList(
 /**
  * #419 — the in-session sale dialog (the #392 dialog shape): session-linked structurally — no
  * buyer picker, `isWalkIn=false` — with the product picked from the branch's inventory cards so
- * stock and version ride along.
+ * stock and version ride along. The session binds its client; anonymous switching is
+ * structurally impossible here.
+ * #676 — retained lossless shape with quantity 1 default, price lines, and same-ID Retry.
  */
+@OptIn(ExperimentalUuidApi::class)
 @Composable
 internal fun SessionSaleDialog(
     inventoryState: UiState<List<BranchInventoryResponse>>,
     branchId: String,
+    sessionId: String,
     inventoryViewModel: InventoryViewModel,
+    saleResult: UiState<ProductSaleResponse>,
     onDismiss: () -> Unit,
-    onSave: (
+    onSubmit: (
         card: BranchInventoryResponse,
         quantity: Int,
         editReason: String?,
+        operationId: String,
     ) -> Unit,
 ) {
-    val form = remember { SaleForm() }
-    var selectedCard by remember { mutableStateOf<BranchInventoryResponse?>(null) }
+    // #676 — drafts are keyed by session (never leak across sessions); the idempotency key
+    // is per selected product (switching products after a failure starts a fresh operation
+    // instead of retrying product B under product A's key); text survives rotation.
+    var quantityText by rememberSaveable(branchId, sessionId) { mutableStateOf("1") }
+    var quantityError by remember(branchId, sessionId) { mutableStateOf<String?>(null) }
+    var editReason by rememberSaveable(branchId, sessionId) { mutableStateOf("") }
+    var selectedCard by remember(branchId, sessionId) { mutableStateOf<BranchInventoryResponse?>(null) }
+    val operationId = remember(branchId, sessionId, selectedCard?.id) { Uuid.random().toString() }
+    val quantityFocus = remember { FocusRequester() }
+    val isBusy = saleResult is UiState.Loading
 
     // On-demand leg: the pane loads the cards only when this dialog opens (the movements
     // history shape); the Retry affordance refires the same leg.
     LaunchedEffect(branchId) { inventoryViewModel.loadInventory(branchId) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Record product sale") },
-        text = {
+    fun submit() {
+        val card = selectedCard ?: return
+        val error = saleQuantityError(quantityText, card.currentStock)
+        if (error == null) {
+            quantityError = null
+            onSubmit(card, quantityText.trim().toInt(), editReason, operationId)
+        } else {
+            quantityError = error
+        }
+    }
+
+    OperationalDialog(
+        title = "Record product sale",
+        onDismiss = onDismiss,
+        confirmLabel = "Record sale",
+        onConfirm = ::submit,
+        isBusy = isBusy,
+        allowCancelWhenBusy = false,
+        confirmEnabled = selectedCard != null && !isBusy,
+        contentFocus = quantityFocus,
+        content = {
             SessionSaleDialogContent(inventoryState, branchId, inventoryViewModel, selectedCard) {
                 selectedCard = it
             }
             if (selectedCard != null) {
                 Spacer(Modifier.size(Spacing.sm))
-                SaleQuantityReasonFields(form, selectedCard?.currentStock)
+                SaleQuantityReasonFields(
+                    quantityText,
+                    quantityError,
+                    { quantityText = it },
+                    editReason,
+                    { editReason = it },
+                    selectedCard?.currentStock,
+                    selectedCard!!,
+                    quantityFocus,
+                )
             }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = selectedCard != null,
-                onClick = {
-                    val card = selectedCard
-                    if (card == null) return@TextButton
-                    val error = saleQuantityError(form.quantityText, card.currentStock)
-                    if (error == null) {
-                        onSave(card, form.quantityText.trim().toInt(), form.editReason)
+            val saleError = saleResult as? UiState.Error
+            if (saleError != null) {
+                val hint = writeErrorHint(saleError.message)
+                val message =
+                    if (isAmbiguousWriteError(saleError.message)) {
+                        AMBIGUOUS_WRITE_MESSAGE
+                    } else if (hint != null) {
+                        "${saleError.message} $hint"
                     } else {
-                        form.quantityError = error
+                        saleError.message
                     }
-                },
-            ) {
-                Text("Record sale")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                InlineStatus(message = message, kind = InlineStatusKind.FAILURE, onRetry = ::submit)
             }
         },
     )
@@ -479,8 +616,9 @@ internal class PaneSaleContext(
 
 /**
  * The pane-side host (#419): renders [SessionSaleDialog] while the pane's target slot is open,
- * loading nothing until then (the movements-history on-demand shape), and submits the
- * session-linked request through the shared VM before clearing the slot.
+ * loading nothing until then (the movements-history on-demand shape).
+ * #676 — retained: submit keeps the dialog mounted; close happens only on confirmed
+ * success with the same operationId reused for Retry (never a fresh identifier).
  */
 @Composable
 internal fun PaneSaleDialogHost(
@@ -491,13 +629,20 @@ internal fun PaneSaleDialogHost(
 ) {
     if (!visible) return
     val inventory by sale.inventoryViewModel.inventory.collectAsState()
+    val saleResult by sale.productSaleViewModel.saleResult.collectAsState()
+    LaunchedEffect(saleResult) {
+        if (saleResult is UiState.Success) onClose()
+    }
     SessionSaleDialog(
         inventoryState = inventory,
         branchId = session.branchId,
+        sessionId = session.id,
         inventoryViewModel = sale.inventoryViewModel,
-        onDismiss = onClose,
-        onSave = { card, quantity, editReason ->
-            onClose()
+        saleResult = saleResult,
+        onDismiss = {
+            if (saleResult !is UiState.Loading) onClose()
+        },
+        onSubmit = { card, quantity, editReason, operationId ->
             if (sale.branchDayId != null) {
                 sale.productSaleViewModel.sell(
                     buildSaleRequest(
@@ -509,6 +654,7 @@ internal fun PaneSaleDialogHost(
                             isWalkIn = false,
                             reason = editReason,
                             branchDayId = sale.branchDayId,
+                            operationId = operationId,
                         ),
                     ),
                 )
