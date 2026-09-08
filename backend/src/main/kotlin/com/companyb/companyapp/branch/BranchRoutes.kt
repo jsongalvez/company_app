@@ -81,6 +81,20 @@ object BranchRoutes {
             )
         }
 
+        // #656 (same class as #653): before(BRANCHES) is exact-segment (#114)
+        // and never fires on this 3-segment item path, which had no gate of its
+        // own — any authenticated caller could read any branch by UUID,
+        // bypassing the BranchReadScope window. Gate on the #131 read window
+        // (BRANCH or GLOBAL VIEW_BRANCH_DATA, mirroring the summary/browse reads).
+        config.routes.before(ApiRoutes.BRANCH_PATH) { context ->
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
+                context,
+                branchId,
+                CapabilityCodes.VIEW_BRANCH_DATA,
+            )
+        }
+
         // #131: the Reports picker data source — the caller's read window
         // (distinct BRANCH grants, or all branches for a GLOBAL
         // VIEW_BRANCH_DATA holder). No capability gate: zero-grant callers
