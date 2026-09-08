@@ -47,6 +47,7 @@ Full state machine: `docs/agents/wayfinder-lifecycle.md`. Load-bearing invariant
   continues the assigned child). Never skip an assigned child to claim a second.
 - Handoffs are compact pointer packets; park with `tools/wayfinder/wayfinder-park.sh` and
   record the stash ref before exiting on unfinished work.
+- Standing preference: empty frontier audits the codebase for bugs instead of exiting starved.
 
 ## Code review — risk-based graph
 
