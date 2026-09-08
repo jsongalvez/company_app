@@ -1,5 +1,6 @@
 package com.companyb.companyapp.workforce
 
+import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
 
@@ -41,6 +42,15 @@ object WorkforceReads {
         UserBranchAssignmentRepository
             .findActiveByBranchAndUserInTransaction(branchId, userId, forUpdate = false)
             ?.slot
+
+    /**
+     * #669 — the caller's open clock-in window on [date] for launch/login resume. Runs on
+     * the caller's transaction; null when no window stands open (absent or clocked out).
+     */
+    fun findActiveShiftInTransaction(
+        userId: UUID,
+        date: LocalDate,
+    ): ActiveShift? = AttendanceRepository.findActiveShiftInTransaction(userId, date)
 
     /**
      * Full-window attendance read for the shared commission aggregation (#497) — runs on the

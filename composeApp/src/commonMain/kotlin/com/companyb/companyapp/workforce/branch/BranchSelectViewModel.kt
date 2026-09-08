@@ -4,8 +4,11 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.ApiCallHandler
+import com.companyb.companyapp.async.LaunchRequest
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.branch.MeBranchResponse
+import com.companyb.companyapp.contracts.workforce.ActiveAttendanceResponse
+import com.companyb.companyapp.contracts.workforce.ActiveShiftResponse
 import com.companyb.companyapp.contracts.workforce.ClockInRequest
 import com.companyb.companyapp.contracts.workforce.ClockInResponse
 import com.companyb.companyapp.network.ApiClient
@@ -13,6 +16,7 @@ import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,6 +56,10 @@ class BranchSelectViewModel(
 
     private val _refreshState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val refreshState: StateFlow<UiState<Unit>> = _refreshState.asStateFlow()
+
+    private var restoreActive = false
+    private val _restoreState = MutableStateFlow<UiState<ActiveShiftResponse?>>(UiState.Idle)
+    val restoreState: StateFlow<UiState<ActiveShiftResponse?>> = _restoreState.asStateFlow()
 
     fun loadBranches() {
         handler.launch(
@@ -128,5 +136,57 @@ class BranchSelectViewModel(
                 Unit
             },
         )
+    }
+
+    /**
+     * #669 — Continue at [branch]: re-resolves the server-confirmed shift through the same
+     * read the launch/login resolver uses (never POSTs a clock-in), publishes it, then
+     * chains the ADR-0021 refresh — the existing refresh-success effect navigates.
+     */
+    fun restoreShift(): Job {
+        if (restoreActive) return Job().apply { complete() }
+        restoreActive = true
+        _restoreState.value = UiState.Loading
+        // Stale-publication guard: only publish onto the session that asked.
+        val expectedUserId =
+            AppSessionState.snapshot.value.user
+                ?.id
+        val restoreJob =
+            handler.launch(
+                LaunchRequest(
+                    state = _restoreState,
+                    operation = "restoreShift",
+                    endpoint = "GET /api/me/active-attendance",
+                    block = { apiClient.httpClient.get(ApiRoutes.ME_ACTIVE_ATTENDANCE) },
+                    transform = { response ->
+                        val shift = response.body<ActiveAttendanceResponse>().shift
+                        if (shift != null &&
+                            expectedUserId != null &&
+                            AppSessionState.snapshot.value.user
+                                ?.id == expectedUserId
+                        ) {
+                            // #498 — one atomic clock publication; the refresh lands separately.
+                            AppSessionState.setRestoredShift(shift)
+                            refreshCapabilities(shift.attendanceId).join()
+                        }
+                        shift
+                    },
+                    onNonSuccess = { response ->
+                        if (response.status == HttpStatusCode.Unauthorized) {
+                            _restoreState.value = UiState.Idle
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                ),
+            )
+        return viewModelScope.launch {
+            try {
+                restoreJob.join()
+            } finally {
+                restoreActive = false
+            }
+        }
     }
 }

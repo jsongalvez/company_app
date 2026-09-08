@@ -15,6 +15,7 @@ object ApiRoutes {
     const val ME = "$API_ROOT/me"
     const val ME_BRANCHES = "$ME/branches"
     const val ME_CAPABILITIES = "$ME/capabilities"
+    const val ME_ACTIVE_ATTENDANCE = "$ME/active-attendance"
     const val USERS = "$API_ROOT/users"
     const val INVITES = "$API_ROOT/invites"
     const val ROLES = "$API_ROOT/roles"

@@ -171,6 +171,7 @@ fun registerAllRoutes(config: io.javalin.config.JavalinConfig) {
     MeRoutes.getMe(config)
     MeRoutes.getCapabilities(config)
     MeRoutes.getBranches(config)
+    MeRoutes.getActiveAttendance(config)
     AttendanceRoutes.clockIn(config)
     AttendanceRoutes.clockOut(config)
     AttendanceRoutes.rosterToday(config)

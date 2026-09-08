@@ -14,6 +14,7 @@ import androidx.savedstate.read
 import androidx.savedstate.write
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.app.AuthViewModel
+import com.companyb.companyapp.app.ClockContext
 import com.companyb.companyapp.app.GLOBAL_CAPABILITY_CONTEXT_ID
 import com.companyb.companyapp.app.SessionBootstrapViewModel
 import com.companyb.companyapp.app.auth.AcceptInviteScreen
@@ -35,6 +36,7 @@ import com.companyb.companyapp.commerce.stock.InventoryViewModel
 import com.companyb.companyapp.commerce.stock.ProductSaleViewModel
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.identity.MeResponse
 import com.companyb.companyapp.contracts.session.DashboardSessionResponse
 import com.companyb.companyapp.finance.FinanceReportsScreen
 import com.companyb.companyapp.finance.FinanceReportsViewModel
@@ -63,11 +65,24 @@ import kotlin.reflect.typeOf
 
 // #456 — shared start destination (#94-grad: derives from the VALIDATED session,
 // not raw token presence).
-internal fun startDestination(): Route =
-    if (AppSessionState.snapshot.value.user != null) {
-        Route.BranchSelect
-    } else {
-        Route.Login
+internal fun startDestination(): Route {
+    val snapshot = AppSessionState.snapshot.value
+    return startDestinationFor(snapshot.user, snapshot.clock)
+}
+
+/**
+ * #669 — post-validation entry point: an already-restored clock opens Sessions at that
+ * branch/day directly (no second clock-in, no dead-end branch label); a validated
+ * session without a shift opens branch selection.
+ */
+internal fun startDestinationFor(
+    user: MeResponse?,
+    clock: ClockContext?,
+): Route =
+    when {
+        user != null && clock != null -> Route.Dashboard()
+        user != null -> Route.BranchSelect
+        else -> Route.Login
     }
 
 // #456 — shared shell boundary (#96 Q5: Login + BranchSelect render full-screen;
@@ -107,8 +122,16 @@ private fun NavGraphBuilder.authGraph(
                 LoginNavActions(
                     onLoginSuccess = {
                         // Per #91 — popUpTo(Login) inclusive on clock-in (foundation best-guess; #94-grad refines)
-                        navController.navigate(Route.BranchSelect) {
-                            popUpTo(Route.Login) { inclusive = true }
+                        if (AppSessionState.snapshot.value.clock != null) {
+                            // #669 — fresh login restored an active shift: open Sessions
+                            // at that branch/day directly instead of branch selection.
+                            navController.navigate(Route.Dashboard()) {
+                                popUpTo(Route.Login) { inclusive = true }
+                            }
+                        } else {
+                            navController.navigate(Route.BranchSelect) {
+                                popUpTo(Route.Login) { inclusive = true }
+                            }
                         }
                     },
                     // #350 — invite redemption entry point.

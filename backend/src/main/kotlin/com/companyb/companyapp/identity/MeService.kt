@@ -7,8 +7,11 @@ import com.companyb.companyapp.contracts.branch.BranchClockInStatus
 import com.companyb.companyapp.contracts.branch.MeBranchResponse
 import com.companyb.companyapp.contracts.identity.MeResponse
 import com.companyb.companyapp.contracts.identity.UserStatus
+import com.companyb.companyapp.contracts.workforce.ActiveAttendanceResponse
+import com.companyb.companyapp.contracts.workforce.ActiveShiftResponse
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.workforce.WorkforceReads
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.format.DateTimeFormatter
@@ -60,6 +63,33 @@ object MeService {
     }
 
     fun getCapabilities(userId: UUID): List<UserCapabilityResponse> = CapabilityService.getCapabilitiesForUser(userId)
+
+    /**
+     * #669 — the caller's authoritative active shift for the current operational day.
+     * Read-only: resolves the day find-only through the workforce seam (never creates
+     * days, never marks attendance, no audit row). A revoked assignment does not hide an
+     * open window — resume is an attendance fact; access stays capability-gated.
+     */
+    fun getActiveAttendance(userId: UUID): ActiveAttendanceResponse {
+        val today = BranchDayService.currentOperationalDate()
+        return transaction {
+            requireActiveUserInTransaction(userId)
+            val shift = WorkforceReads.findActiveShiftInTransaction(userId, today)
+            ActiveAttendanceResponse(
+                shift =
+                    shift?.let {
+                        ActiveShiftResponse(
+                            attendanceId = it.attendanceId.toString(),
+                            branchId = it.branchId.toString(),
+                            branchName = it.branchName,
+                            branchDayId = it.branchDayId.toString(),
+                            date = it.date.toString(),
+                            isRelief = it.isRelief,
+                        )
+                    },
+            )
+        }.also { logger.info { "[GET-ME-ACTIVE-ATTENDANCE] Fetched active shift for user $userId" } }
+    }
 
     private fun requireActiveUserInTransaction(userId: UUID): MeRepository.MeUser {
         val user =

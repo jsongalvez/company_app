@@ -3,6 +3,7 @@ package com.companyb.companyapp.app
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.contracts.identity.MeResponse
+import com.companyb.companyapp.contracts.workforce.ActiveShiftResponse
 import com.companyb.companyapp.contracts.workforce.ClockInResponse
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -68,6 +69,27 @@ object AppSessionState {
     /** Capability refresh for the current context; preserves user + clock. */
     fun setCapabilities(caps: List<UserCapabilityResponse>) {
         _snapshot.value = _snapshot.value.copy(capabilities = caps)
+    }
+
+    /**
+     * #669 — resume transition: publishes the server-confirmed shift as the full clock
+     * context at once (the same atomicity as [setClockedIn]), preserving user +
+     * capabilities; the ADR-0021 refresh lands separately via [setCapabilities].
+     * Callers guard the publication against logout/account replacement before invoking.
+     */
+    fun setRestoredShift(shift: ActiveShiftResponse) {
+        val current = _snapshot.value
+        _snapshot.value =
+            current.copy(
+                clock =
+                    ClockContext(
+                        branchId = shift.branchId,
+                        branchName = shift.branchName,
+                        attendanceId = shift.attendanceId,
+                        branchDayId = shift.branchDayId,
+                        isRelief = shift.isRelief,
+                    ),
+            )
     }
 
     /**

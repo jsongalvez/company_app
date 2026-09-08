@@ -1,5 +1,7 @@
 package com.companyb.companyapp.workforce
 
+import com.companyb.companyapp.branch.BranchTable
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.identity.AppUserTable
@@ -19,6 +21,7 @@ import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
+import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
 
@@ -45,6 +48,21 @@ data class RosterMember(
     val userId: UUID,
     val displayName: String,
     val slot: Short,
+)
+
+/**
+ * #669 — one open clock-in window on the operational day: the resume fact. Carries the
+ * branch identity the client needs to republish its clock context without a second
+ * clock-in. Most-recent clock-in wins when several windows stand open (cross-branch
+ * doubles are possible — ShiftGuard guards per branch day, not per user).
+ */
+data class ActiveShift(
+    val attendanceId: UUID,
+    val branchDayId: UUID,
+    val branchId: UUID,
+    val branchName: String,
+    val date: LocalDate,
+    val isRelief: Boolean,
 )
 
 /**
@@ -161,6 +179,51 @@ internal object AttendanceRepository {
                     (AttendanceTable.clockOut.isNull())
             }.singleOrNull()
             ?.toAttendance()
+
+    /**
+     * #669 — the caller's open clock-in window on [date], or null when absent/closed.
+     * Find-only store read for the launch/login resume: a missing day row matches nothing,
+     * so the read never creates days and writes no audit row. Most-recent clock-in wins.
+     */
+    fun findActiveShiftInTransaction(
+        userId: UUID,
+        date: LocalDate,
+    ): ActiveShift? {
+        val window =
+            AttendanceTable
+                .innerJoin(BranchDayTable, { AttendanceTable.branchDayId }, { BranchDayTable.id })
+                .selectAll()
+                .where {
+                    (AttendanceTable.userId eq userId) and
+                        (AttendanceTable.clockOut.isNull()) and
+                        (BranchDayTable.date eq date)
+                }.orderBy(AttendanceTable.clockIn to SortOrder.DESC, AttendanceTable.id to SortOrder.DESC)
+                .limit(1)
+                .singleOrNull() ?: return null
+        val branchDayId = window[AttendanceTable.branchDayId]
+        val branchId = window[BranchDayTable.branchId]
+        val branchName =
+            BranchTable
+                .selectAll()
+                .where { BranchTable.id eq branchId }
+                .single()[BranchTable.name]
+        val relief =
+            BranchDayAssignmentTable
+                .selectAll()
+                .where {
+                    (BranchDayAssignmentTable.branchDayId eq branchDayId) and
+                        (BranchDayAssignmentTable.userId eq userId)
+                }.singleOrNull()
+                ?.let { it[BranchDayAssignmentTable.isRelief] } ?: false
+        return ActiveShift(
+            attendanceId = window[AttendanceTable.id],
+            branchDayId = branchDayId,
+            branchId = branchId,
+            branchName = branchName,
+            date = window[BranchDayTable.date],
+            isRelief = relief,
+        )
+    }
 
     /** #404 — user ids with an open clock-in at the branch day (roster presence flags). */
     fun activeClockInUserIds(branchDayId: UUID): Set<UUID> =

@@ -158,6 +158,36 @@ internal fun BranchClockInButton(
     }
 }
 
+/**
+ * #669 — only an already-clocked-here row offers resume: the server read restores
+ * whatever shift stands open (always the HERE branch when one exists), so an ELSEWHERE
+ * row needs no action of its own and NOT_CLOCKED_IN keeps Clock In.
+ */
+internal fun showContinueFor(status: BranchClockInStatus): Boolean = status == BranchClockInStatus.CLOCKED_IN_HERE
+
+/** #669 — resume action for an already-clocked-here row: the launch/login resolver, never a second clock-in. */
+@Composable
+internal fun BranchContinueButton(
+    branchName: String,
+    busy: Boolean,
+    enabled: Boolean,
+    onContinue: () -> Unit,
+) {
+    Button(
+        onClick = onContinue,
+        enabled = enabled,
+    ) {
+        if (busy) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Text("Continue at $branchName")
+        }
+    }
+}
+
 /** Single candidate row: identity plus Invite affordance gated on a valid date. */
 @Composable
 internal fun CandidateRow(
@@ -229,7 +259,9 @@ internal fun BranchSelectHeader() {
 internal fun BranchErrorBanners(
     clockInError: String?,
     refreshError: String?,
+    restoreError: String?,
     onRetryRefresh: () -> Unit,
+    onRetryRestore: () -> Unit,
 ) {
     clockInError?.let { error ->
         Text(
@@ -247,6 +279,18 @@ internal fun BranchErrorBanners(
         )
         Spacer(modifier = Modifier.height(Spacing.xs))
         OutlinedButton(onClick = onRetryRefresh) {
+            Text("Retry")
+        }
+        Spacer(modifier = Modifier.height(Spacing.sm))
+    }
+    restoreError?.let { error ->
+        Text(
+            text = error,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        OutlinedButton(onClick = onRetryRestore) {
             Text("Retry")
         }
         Spacer(modifier = Modifier.height(Spacing.sm))

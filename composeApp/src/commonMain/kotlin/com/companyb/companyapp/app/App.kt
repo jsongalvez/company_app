@@ -48,6 +48,8 @@ fun App() {
     // (LoginScreen creates its own instance — same class, independent states).
     val bootstrapViewModel: SessionBootstrapViewModel = viewModel { SessionBootstrapViewModel(apiClient) }
     val validationState by bootstrapViewModel.validationState.collectAsState()
+    // #669 — the shift-resume leg (Loading = resolving, Error = "Could not restore…").
+    val restoreState by bootstrapViewModel.restoreState.collectAsState()
 
     // #94 Phase 1 — launch validation. A persisted token is cached evidence, not proof:
     // validate via GET /api/me → GET /api/me/capabilities before rendering the post-login
@@ -105,7 +107,13 @@ fun App() {
             // is a valid destination yet — #94 Q2's one-loading-state-per-phase principle.
             hasToken && validationState !is UiState.Success -> {
                 LaunchValidationSplash(
-                    errorMessage = (validationState as? UiState.Error)?.message,
+                    // The restore leg owns the user-facing copy once bootstrap resolved:
+                    // its failure keeps credentials and names the resume.
+                    errorMessage =
+                        (restoreState as? UiState.Error)?.message
+                            ?: (validationState as? UiState.Error)?.message,
+                    busyMessage =
+                        if (restoreState is UiState.Loading) "Resuming your shift…" else null,
                     onRetry = { bootstrapViewModel.validateSession() },
                     onGoToLogin = goToLogin,
                 )
@@ -193,6 +201,7 @@ private suspend fun handleSessionUnauthorized(
 @Composable
 private fun LaunchValidationSplash(
     errorMessage: String?,
+    busyMessage: String?,
     onRetry: () -> Unit,
     onGoToLogin: () -> Unit,
 ) {
@@ -206,7 +215,16 @@ private fun LaunchValidationSplash(
         contentAlignment = Alignment.Center,
     ) {
         if (errorMessage == null) {
-            CircularProgressIndicator()
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator()
+                if (busyMessage != null) {
+                    Spacer(modifier = Modifier.height(Spacing.md))
+                    Text(
+                        text = busyMessage,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+            }
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(

@@ -4,6 +4,7 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.contracts.branch.MeBranchResponse
 import com.companyb.companyapp.contracts.identity.MeResponse
+import com.companyb.companyapp.contracts.workforce.ActiveAttendanceResponse
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.identity.MeService
 import io.javalin.config.JavalinConfig
@@ -47,6 +48,18 @@ import java.util.UUID
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
+@OpenApi(
+    path = ApiRoutes.ME_ACTIVE_ATTENDANCE,
+    methods = [HttpMethod.GET],
+    operationId = "me_active_attendance",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = ActiveAttendanceResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
+)
 object MeRoutes {
     fun getMe(config: JavalinConfig) {
         config.routes.get(ApiRoutes.ME) { context ->
@@ -70,6 +83,16 @@ object MeRoutes {
         config.routes.get(ApiRoutes.ME_BRANCHES) { context ->
             val callerId = context.callerUuid()
             val response: List<MeBranchResponse> = MeService.getBranches(callerId)
+            context.status(HttpStatus.OK)
+            context.json(response)
+        }
+    }
+
+    /** #669 — caller-only active-shift read for launch/login resume (null shift = none). */
+    fun getActiveAttendance(config: JavalinConfig) {
+        config.routes.get(ApiRoutes.ME_ACTIVE_ATTENDANCE) { context ->
+            val callerId = context.callerUuid()
+            val response: ActiveAttendanceResponse = MeService.getActiveAttendance(callerId)
             context.status(HttpStatus.OK)
             context.json(response)
         }

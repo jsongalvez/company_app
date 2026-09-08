@@ -40,6 +40,27 @@ data class ClockOutResponse(
 )
 
 /**
+ * #669 — the caller's authoritative active shift for the current operational day
+ * (Asia/Manila): the exact identifiers AppSessionState needs to resume without another
+ * clock-in. A null shift means no active shift — the client opens branch selection.
+ */
+@Serializable
+data class ActiveShiftResponse(
+    val attendanceId: String,
+    val branchId: String,
+    val branchName: String,
+    val branchDayId: String,
+    /** ISO yyyy-MM-dd operational date owning the shift. */
+    val date: String,
+    val isRelief: Boolean,
+)
+
+@Serializable
+data class ActiveAttendanceResponse(
+    val shift: ActiveShiftResponse?,
+)
+
+/**
  * #404 — mark another home-branch member present or absent at one branch today.
  * `attendanceId` is the client-generated idempotency key and is required when
  * [present] is true; absent-marks close the target's open window and need no id.

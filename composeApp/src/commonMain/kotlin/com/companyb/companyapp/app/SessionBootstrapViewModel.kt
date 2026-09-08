@@ -8,6 +8,8 @@ import com.companyb.companyapp.async.LaunchRequest
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.contracts.identity.MeResponse
+import com.companyb.companyapp.contracts.workforce.ActiveAttendanceResponse
+import com.companyb.companyapp.contracts.workforce.ActiveShiftResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
@@ -41,12 +43,22 @@ class SessionBootstrapViewModel(
     private val _validationState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val validationState: StateFlow<UiState<Unit>> = _validationState.asStateFlow()
 
+    /**
+     * #669 — shift-resume outcome: Loading while GET /api/me/active-attendance (+ the
+     * post-restore capability refresh) is in flight, Success with the restored shift or
+     * null when no shift stands open, Error when the resume leg failed ("Could not
+     * restore your shift" — credentials survive, the splash offers Retry).
+     */
+    private val _restoreState = MutableStateFlow<UiState<ActiveShiftResponse?>>(UiState.Idle)
+    val restoreState: StateFlow<UiState<ActiveShiftResponse?>> = _restoreState.asStateFlow()
+
     private var validationJob: Job? = null
 
     /** Cancels an in-flight validation (the splash's "Go to Login" discards the attempt). */
     fun cancelValidation() {
         validationJob?.cancel()
         _validationState.value = UiState.Idle
+        _restoreState.value = UiState.Idle
     }
 
     fun validateSession(): Job {
@@ -55,6 +67,7 @@ class SessionBootstrapViewModel(
         // launched coroutine first runs (double-tap before any dispatch would otherwise
         // launch two validations).
         _validationState.value = UiState.Loading
+        _restoreState.value = UiState.Idle
         validationJob =
             handler.launch(
                 LaunchRequest(
@@ -91,6 +104,7 @@ class SessionBootstrapViewModel(
                                 )
                             }
                         }
+                        resolveRestoredShift(me)
                         Unit
                     },
                     onNonSuccess = { response ->
@@ -111,5 +125,66 @@ class SessionBootstrapViewModel(
                 ),
             )
         return validationJob!!
+    }
+
+    /**
+     * #669 — shift-resume leg shared by launch validation and fresh login (both flow
+     * through [validateSession]): GET /api/me/active-attendance (read-only — never POSTs
+     * a clock-in), then publishes the confirmed clock context plus the ADR-0021
+     * post-restore capability refresh. A null shift is the normal no-shift path.
+     */
+    private suspend fun resolveRestoredShift(me: MeResponse) {
+        _restoreState.value = UiState.Loading
+        logInfo("SessionBootstrapVM", "GET /api/me/active-attendance (shift-resume trigger)")
+        val activeResponse = apiClient.httpClient.get(ApiRoutes.ME_ACTIVE_ATTENDANCE)
+        if (activeResponse.status.isSuccess()) {
+            val shift = activeResponse.body<ActiveAttendanceResponse>().shift
+            publishRestoredShift(me, shift)
+            _restoreState.value = UiState.Success(shift)
+            return
+        }
+        if (activeResponse.status == HttpStatusCode.Unauthorized) {
+            AppSessionState.clear()
+            _validationState.value = UiState.Idle
+            _restoreState.value = UiState.Idle
+            throw CancellationException("Session invalidated during shift restore")
+        }
+        _restoreState.value = UiState.Error("Could not restore your shift")
+        error("active-attendance fetch failed: ${activeResponse.status.value}")
+    }
+
+    private suspend fun publishRestoredShift(
+        me: MeResponse,
+        shift: ActiveShiftResponse?,
+    ) {
+        if (shift == null) return
+        // Stale-publication guard: a logout/account replacement while the reads were in
+        // flight must not publish a dead session's clock.
+        if (AppSessionState.snapshot.value.user
+                ?.id != me.id
+        ) {
+            return
+        }
+        AppSessionState.setRestoredShift(shift)
+        logInfo("SessionBootstrapVM", "GET /api/me/capabilities (post-restore trigger)")
+        val refresh = apiClient.httpClient.get(ApiRoutes.ME_CAPABILITIES)
+        if (refresh.status.isSuccess()) {
+            if (AppSessionState.snapshot.value.clock
+                    ?.attendanceId == shift.attendanceId &&
+                AppSessionState.snapshot.value.user
+                    ?.id == me.id
+            ) {
+                AppSessionState.setCapabilities(refresh.body())
+            }
+            return
+        }
+        if (refresh.status == HttpStatusCode.Unauthorized) {
+            AppSessionState.clear()
+            _validationState.value = UiState.Idle
+            _restoreState.value = UiState.Idle
+            throw CancellationException("Session invalidated during post-restore refresh")
+        }
+        _restoreState.value = UiState.Error("Could not restore your shift")
+        error("post-restore capabilities fetch failed: ${refresh.status.value}")
     }
 }

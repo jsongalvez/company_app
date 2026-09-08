@@ -98,6 +98,8 @@ import com.companyb.companyapp.contracts.session.UpdatePractitionerRemarksReques
 import com.companyb.companyapp.contracts.session.UpdateSessionFinalPriceRequest
 import com.companyb.companyapp.contracts.session.UpdateSessionStatusRequest
 import com.companyb.companyapp.contracts.session.VoidSessionRequest
+import com.companyb.companyapp.contracts.workforce.ActiveAttendanceResponse
+import com.companyb.companyapp.contracts.workforce.ActiveShiftResponse
 import com.companyb.companyapp.contracts.workforce.AssignDelegateRequest
 import com.companyb.companyapp.contracts.workforce.AssignmentResponse
 import com.companyb.companyapp.contracts.workforce.AttendanceMarkResponse
@@ -142,6 +144,8 @@ internal object DtoSchemaProjector {
     val catalog: Map<String, KSerializer<*>> =
         mapOf(
             "AcceptInviteRequest" to AcceptInviteRequest.serializer(),
+            "ActiveAttendanceResponse" to ActiveAttendanceResponse.serializer(),
+            "ActiveShiftResponse" to ActiveShiftResponse.serializer(),
             "AddDayBreakdownRequest" to AddDayBreakdownRequest.serializer(),
             "AddInventoryCardRequest" to AddInventoryCardRequest.serializer(),
             "AddPractitionerRequest" to AddPractitionerRequest.serializer(),

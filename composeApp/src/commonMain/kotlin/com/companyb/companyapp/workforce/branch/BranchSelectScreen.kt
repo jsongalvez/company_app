@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.branch.BranchClockInStatus
 import com.companyb.companyapp.contracts.branch.MeBranchResponse
+import com.companyb.companyapp.contracts.workforce.ActiveShiftResponse
 import com.companyb.companyapp.contracts.workforce.ClockInResponse
 import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
 import com.companyb.companyapp.ui.theme.Spacing
@@ -72,6 +73,7 @@ fun BranchSelectScreen(
     val branchesState by viewModel.branches.collectAsState()
     val clockInState by viewModel.clockInState.collectAsState()
     val refreshState by viewModel.refreshState.collectAsState()
+    val restoreState by viewModel.restoreState.collectAsState()
 
     // #160 — the inviter side (placement per #106): an inline "Invite staff" panel per branch
     // card (candidate search + date pick + sent-invites list). Toggling is local composition
@@ -86,6 +88,7 @@ fun BranchSelectScreen(
     BranchSelectStatusEffects(
         clockInState = clockInState,
         refreshState = refreshState,
+        restoreState = restoreState,
         onClockInComplete = onClockInComplete,
         branchesState = branchesState,
         onLoadBranches = { viewModel.loadBranches() },
@@ -152,12 +155,17 @@ private fun BranchSuccessContent(
     // keeps this signature at 5 params and the Screen call site to one slim call.
     val clockInState by viewModel.clockInState.collectAsState()
     val refreshState by viewModel.refreshState.collectAsState()
-    val isPhase3Busy = clockInState is UiState.Loading || refreshState is UiState.Loading
+    val restoreState by viewModel.restoreState.collectAsState()
+    val isPhase3Busy =
+        clockInState is UiState.Loading || refreshState is UiState.Loading || restoreState is UiState.Loading
     // A failed refresh means the clock-in itself succeeded — the only legal retry is the
     // refresh (re-clock-in would hit ShiftGuard's single-active-clock-in 409).
     val refreshError = (refreshState as? UiState.Error)?.message
     val clockInError = (clockInState as? UiState.Error)?.message
+    // #669 — a failed resume retries the read-only resolve (never a clock-in POST).
+    val restoreError = (restoreState as? UiState.Error)?.message
     val canClockIn = refreshError == null && !isPhase3Busy
+    val canContinue = refreshError == null && !isPhase3Busy
     if (branches.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -173,7 +181,9 @@ private fun BranchSuccessContent(
         BranchErrorBanners(
             clockInError = clockInError,
             refreshError = refreshError,
+            restoreError = restoreError,
             onRetryRefresh = { viewModel.refreshCapabilities() },
+            onRetryRestore = { viewModel.restoreShift() },
         )
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -184,10 +194,12 @@ private fun BranchSuccessContent(
                     branch = branch,
                     isClockingIn = isPhase3Busy,
                     canClockIn = canClockIn,
+                    canContinue = canContinue,
                     inviteExpanded = inviteBranchId == branch.branchId,
                     actions =
                         BranchCardActions(
                             onClockIn = { viewModel.clockIn(branch) },
+                            onContinue = { viewModel.restoreShift() },
                             onToggleInvite = {
                                 val id = branch.branchId
                                 onToggleInvite(if (inviteBranchId == id) null else id)
@@ -209,6 +221,7 @@ private fun BranchSuccessContent(
 private fun BranchSelectStatusEffects(
     clockInState: UiState<ClockInResponse>,
     refreshState: UiState<Unit>,
+    restoreState: UiState<ActiveShiftResponse?>,
     onClockInComplete: () -> Unit,
     branchesState: UiState<List<MeBranchResponse>>,
     onLoadBranches: () -> Unit,
@@ -244,11 +257,32 @@ private fun BranchSelectStatusEffects(
             else -> {}
         }
     }
+
+    LaunchedEffect(restoreState) {
+        // #669 — server-reported absence (closed between reads): the HERE row is stale —
+        // reload so it falls back to Not clocked in. A restored shift navigates via the
+        // chained refresh-success effect above, never from here.
+        when (val state = restoreState) {
+            is UiState.Success -> {
+                if (state.data == null) {
+                    logInfo("BranchSelectScreen", "restoreState=Success(null), reloading branches")
+                    onLoadBranches()
+                }
+            }
+
+            is UiState.Error -> {
+                logWarn("BranchSelectScreen", "restoreState=Error: ${state.message}")
+            }
+
+            else -> {}
+        }
+    }
 }
 
 /** LPL-free carrier for [BranchCard] (#462 burn — 6 params → 5). */
 private data class BranchCardActions(
     val onClockIn: () -> Unit,
+    val onContinue: () -> Unit,
     val onToggleInvite: () -> Unit,
 )
 
@@ -257,6 +291,7 @@ private fun BranchCard(
     branch: MeBranchResponse,
     isClockingIn: Boolean,
     canClockIn: Boolean,
+    canContinue: Boolean,
     inviteExpanded: Boolean,
     actions: BranchCardActions,
 ) {
@@ -293,6 +328,15 @@ private fun BranchCard(
                     isClockingIn = isClockingIn,
                     canClockIn = canClockIn,
                     onClockIn = actions.onClockIn,
+                )
+            } else if (showContinueFor(branch.clockInStatus)) {
+                // #669 — an already-clocked row resumes through the launch/login
+                // resolver (read-only); no dead-end label and no second clock-in.
+                BranchContinueButton(
+                    branchName = branch.branchName,
+                    busy = isClockingIn,
+                    enabled = canContinue,
+                    onContinue = actions.onContinue,
                 )
             }
         }
