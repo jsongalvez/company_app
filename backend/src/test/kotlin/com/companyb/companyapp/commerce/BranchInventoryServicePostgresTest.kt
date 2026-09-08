@@ -32,7 +32,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
-@Suppress("LargeClass")
+// #597 scenario coverage stays whole (same precedent as SessionServicePostgresTest #593).
+@Suppress("LargeClass") // #597
 class BranchInventoryServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val sourceId = TestFixtures.uuid()
@@ -140,7 +141,6 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         }
     }
 
-    @Suppress("LongMethod")
     @Test
     fun `inactive product is hidden from inventory reads and preserves history`() {
         val activeProductId = TestFixtures.uuid()
@@ -153,17 +153,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         InventoryService.ensureCard(callerId, branchId, activeProductId)
         val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         val movementId = TestFixtures.uuid()
-        val firstMovement =
-            InventoryService.recordMovement(
-                callerId = callerId,
-                movementId = movementId,
-                branchId = branchId,
-                productId = productId,
-                movementType = MovementType.Restock,
-                quantityChange = 10,
-                notes = null,
-                branchDayId = branchDayId,
-            )
+        val firstMovement = restock(productId, branchDayId, 10, movementId)
         deactivateProduct()
 
         val stock = InventoryService.getStock(branchId)
@@ -178,61 +168,17 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         }
         assertEquals(
             firstMovement,
-            InventoryService.recordMovement(
-                callerId = callerId,
-                movementId = movementId,
-                branchId = branchId,
-                productId = productId,
-                movementType = MovementType.Restock,
-                quantityChange = 10,
-                notes = null,
-                branchDayId = branchDayId,
-            ),
+            restock(productId, branchDayId, 10, movementId),
         )
         assertFailsWith<NotFoundException> {
-            InventoryService.recordMovement(
-                callerId = callerId,
-                movementId = TestFixtures.uuid(),
-                branchId = branchId,
-                productId = productId,
-                movementType = MovementType.Restock,
-                quantityChange = 5,
-                notes = null,
-                branchDayId = branchDayId,
-            )
+            restock(productId, branchDayId, 5)
         }
 
-        val cardCount =
-            transaction {
-                BranchInventoryTable
-                    .selectAll()
-                    .where {
-                        (BranchInventoryTable.branchId eq branchId) and
-                            (BranchInventoryTable.productId eq productId)
-                    }.count()
-            }
-        val movementCount =
-            transaction {
-                InventoryMovementTable
-                    .selectAll()
-                    .where {
-                        (InventoryMovementTable.branchId eq branchId) and
-                            (InventoryMovementTable.productId eq productId)
-                    }.count()
-            }
-        assertEquals(1L, cardCount)
-        val card =
-            transaction {
-                BranchInventoryTable
-                    .selectAll()
-                    .where {
-                        (BranchInventoryTable.branchId eq branchId) and
-                            (BranchInventoryTable.productId eq productId)
-                    }.single()
-            }
+        assertEquals(1L, cardCount(productId))
+        val card = readCard(productId)
         assertEquals(10, card[BranchInventoryTable.currentStock])
         assertEquals(2, card[BranchInventoryTable.version])
-        assertEquals(1L, movementCount)
+        assertEquals(1L, movementCount(productId))
     }
 
     @Test
@@ -1132,7 +1078,6 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         assertEquals(3, lowStock[0].inventory.currentStock)
     }
 
-    @Suppress("LongMethod")
     @Test
     fun `getLowStockAlerts uses per-product reorder point`() {
         val highReorderProductId = TestFixtures.uuid()
@@ -1148,47 +1093,10 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         InventoryService.ensureCard(callerId, branchId, highReorderProductId)
         val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
-        InventoryService.recordMovement(
-            callerId = callerId,
-            movementId = TestFixtures.uuid(),
-            branchId = branchId,
-            productId = productId,
-            movementType = MovementType.Restock,
-            notes = null,
-            quantityChange = 10,
-            branchDayId = branchDayId,
-        )
-        InventoryService.recordMovement(
-            callerId = callerId,
-            movementId = TestFixtures.uuid(),
-            branchId = branchId,
-            productId = highReorderProductId,
-            movementType = MovementType.Restock,
-            notes = null,
-            quantityChange = 10,
-            branchDayId = branchDayId,
-        )
-
-        InventoryService.recordMovement(
-            callerId = callerId,
-            movementId = TestFixtures.uuid(),
-            branchId = branchId,
-            productId = productId,
-            movementType = MovementType.Tester,
-            quantityChange = -2,
-            notes = null,
-            branchDayId = branchDayId,
-        )
-        InventoryService.recordMovement(
-            callerId = callerId,
-            movementId = TestFixtures.uuid(),
-            branchId = branchId,
-            productId = highReorderProductId,
-            movementType = MovementType.Tester,
-            quantityChange = -2,
-            notes = null,
-            branchDayId = branchDayId,
-        )
+        restock(productId, branchDayId, 10)
+        restock(highReorderProductId, branchDayId, 10)
+        consume(productId, branchDayId, MovementType.Tester, -2)
+        consume(highReorderProductId, branchDayId, MovementType.Tester, -2)
 
         val lowStock = InventoryService.getLowStockAlerts(branchId)
 
@@ -1299,4 +1207,69 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
             }
         }
     }
+
+    private fun restock(
+        targetProductId: UUID,
+        branchDayId: UUID,
+        quantity: Int,
+        movementId: UUID = TestFixtures.uuid(),
+    ): InventoryMovement =
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = movementId,
+            branchId = branchId,
+            productId = targetProductId,
+            movementType = MovementType.Restock,
+            quantityChange = quantity,
+            notes = null,
+            branchDayId = branchDayId,
+        )
+
+    private fun consume(
+        targetProductId: UUID,
+        branchDayId: UUID,
+        movementType: MovementType,
+        quantityChange: Int,
+    ) {
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = TestFixtures.uuid(),
+            branchId = branchId,
+            productId = targetProductId,
+            movementType = movementType,
+            quantityChange = quantityChange,
+            notes = null,
+            branchDayId = branchDayId,
+        )
+    }
+
+    private fun cardCount(targetProductId: UUID): Long =
+        transaction {
+            BranchInventoryTable
+                .selectAll()
+                .where {
+                    (BranchInventoryTable.branchId eq branchId) and
+                        (BranchInventoryTable.productId eq targetProductId)
+                }.count()
+        }
+
+    private fun movementCount(targetProductId: UUID): Long =
+        transaction {
+            InventoryMovementTable
+                .selectAll()
+                .where {
+                    (InventoryMovementTable.branchId eq branchId) and
+                        (InventoryMovementTable.productId eq targetProductId)
+                }.count()
+        }
+
+    private fun readCard(targetProductId: UUID): org.jetbrains.exposed.v1.core.ResultRow =
+        transaction {
+            BranchInventoryTable
+                .selectAll()
+                .where {
+                    (BranchInventoryTable.branchId eq branchId) and
+                        (BranchInventoryTable.productId eq targetProductId)
+                }.single()
+        }
 }

@@ -42,7 +42,6 @@ data class EnsureCardResult(
     val created: Boolean,
 )
 
-@Suppress("TooManyFunctions")
 internal object BranchInventoryRepository {
     fun requireCardForUpdateInTransaction(
         oldCard: BranchInventory,
@@ -142,18 +141,27 @@ internal object BranchInventoryRepository {
             .singleOrNull()
             ?.toInventoryMovement()
 
-    @Suppress("ComplexCondition")
     private fun sameMovementRequest(
+        existing: InventoryMovement,
+        params: RecordMovementParams,
+    ): Boolean = sameMovementKeys(existing, params) && sameMovementValues(existing, params)
+
+    private fun sameMovementKeys(
         existing: InventoryMovement,
         params: RecordMovementParams,
     ): Boolean =
         existing.branchId == params.branchId &&
             existing.productId == params.productId &&
             existing.branchDayId == params.branchDayId &&
-            existing.reason == params.reason &&
-            existing.quantityChange == params.quantityChange &&
-            existing.notes == params.notes &&
             existing.movedBy == params.movedBy
+
+    private fun sameMovementValues(
+        existing: InventoryMovement,
+        params: RecordMovementParams,
+    ): Boolean =
+        existing.reason == params.reason &&
+            existing.quantityChange == params.quantityChange &&
+            existing.notes == params.notes
 
     fun findCardInTransaction(
         branchId: UUID,

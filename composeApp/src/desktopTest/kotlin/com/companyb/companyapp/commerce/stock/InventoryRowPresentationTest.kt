@@ -8,7 +8,8 @@ import kotlin.test.assertEquals
 // product name case-insensitively and render stock + peso price lines from the card DTO.
 // #442 — 5-value sheet: Available (live) · Stock · Sales · Tester/Sample · Missing.
 class InventoryRowPresentationTest {
-    @Suppress("LongParameterList")
+    // #597: 9-param card builder mirrors BranchInventoryResponse 1:1 for pure presentation pins; stays whole.
+    @Suppress("LongParameterList") // #597
     private fun card(
         id: String,
         productName: String,

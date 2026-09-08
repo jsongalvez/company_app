@@ -100,7 +100,6 @@ internal object ProductSaleRepository {
      * id belongs to another branch day's sale (404), any field mismatch means another request
      * (409). Pure comparison — no database access.
      */
-    @Suppress("ComplexCondition")
     internal fun validateRetryOwnership(
         existing: ProductSale,
         params: RetryProductSaleParams,
@@ -108,17 +107,24 @@ internal object ProductSaleRepository {
         if (existing.branchDayId != params.branchDayId) {
             throw NotFoundException("Product sale not found for this branch day")
         }
-        if (
-            existing.handledBy != params.handledBy ||
-            existing.sessionId != params.sessionId ||
-            existing.clientId != params.clientId ||
-            existing.isWalkIn != params.isWalkIn ||
-            existing.productId != params.productId ||
-            existing.quantity != params.quantity
-        ) {
+        if (!sameSaleParties(existing, params) || !sameSaleItems(existing, params)) {
             throw ConflictException("Product sale id already belongs to another create request")
         }
     }
+
+    private fun sameSaleParties(
+        existing: ProductSale,
+        params: RetryProductSaleParams,
+    ): Boolean =
+        existing.handledBy == params.handledBy &&
+            existing.sessionId == params.sessionId &&
+            existing.clientId == params.clientId &&
+            existing.isWalkIn == params.isWalkIn
+
+    private fun sameSaleItems(
+        existing: ProductSale,
+        params: RetryProductSaleParams,
+    ): Boolean = existing.productId == params.productId && existing.quantity == params.quantity
 
     fun findById(id: UUID): ProductSale? =
         transaction {

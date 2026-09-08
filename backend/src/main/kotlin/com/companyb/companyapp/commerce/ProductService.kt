@@ -17,7 +17,8 @@ import java.util.UUID
 object ProductService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("LongParameterList", "ThrowsCount")
+    // #597: 6-param creation command stays whole per #535; bundle only on a real ownership decision.
+    @Suppress("LongParameterList") // #597
     fun create(
         callerId: UUID,
         id: UUID,
@@ -58,7 +59,8 @@ object ProductService {
     fun findById(productId: UUID): Product =
         ProductRepository.findById(productId) ?: throw NotFoundException("Product not found")
 
-    @Suppress("LongParameterList", "ThrowsCount")
+    // #597: 7-param update command stays whole per #535; bundle only on a real ownership decision.
+    @Suppress("LongParameterList") // #597
     fun update(
         callerId: UUID,
         productId: UUID,

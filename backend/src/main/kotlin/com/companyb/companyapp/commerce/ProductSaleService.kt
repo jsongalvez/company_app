@@ -20,7 +20,10 @@ import java.util.UUID
 object ProductSaleService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("ReturnCount", "ThrowsCount", "LongParameterList", "CyclomaticComplexMethod", "LongMethod")
+    // #597: 10-param sale command stays whole per #535; the single command-owned transaction
+    // (ADR-0024) keeps day gate + stock guard + audit + commission recalc atomic — splitting
+    // the sequence would break atomicity (same precedent as RemittanceService.submit #595).
+    @Suppress("LongParameterList", "CyclomaticComplexMethod", "LongMethod") // #597
     fun sell(
         callerId: UUID,
         id: UUID,
@@ -65,22 +68,9 @@ object ProductSaleService {
                     throw NotFoundException("Branch not found")
                 }
 
-                val product =
-                    ProductRepository.findByIdForUpdateInTransaction(productId)
-                        ?: throw NotFoundException("Product not found")
+                val product = requireActiveProduct(productId)
 
-                if (!product.isActive) {
-                    throw ValidationException("Product is not active")
-                }
-
-                if (sessionId != null) {
-                    val session =
-                        SessionReads.findById(sessionId)
-                            ?: throw NotFoundException("Session not found")
-                    if (session.branchDayId != branchDayId) {
-                        throw NotFoundException("Session not found for this branch day")
-                    }
-                }
+                requireSessionInDay(sessionId, branchDayId)
 
                 val params =
                     SellProductParams(
@@ -145,6 +135,30 @@ object ProductSaleService {
             }
         }
         return result.sale
+    }
+
+    private fun requireActiveProduct(productId: UUID): Product {
+        val product =
+            ProductRepository.findByIdForUpdateInTransaction(productId)
+                ?: throw NotFoundException("Product not found")
+
+        if (!product.isActive) {
+            throw ValidationException("Product is not active")
+        }
+        return product
+    }
+
+    private fun requireSessionInDay(
+        sessionId: UUID?,
+        branchDayId: UUID,
+    ) {
+        if (sessionId == null) return
+        val session =
+            SessionReads.findById(sessionId)
+                ?: throw NotFoundException("Session not found")
+        if (session.branchDayId != branchDayId) {
+            throw NotFoundException("Session not found for this branch day")
+        }
     }
 }
 

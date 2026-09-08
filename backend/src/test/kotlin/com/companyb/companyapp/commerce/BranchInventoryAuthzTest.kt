@@ -1,4 +1,5 @@
-@file:Suppress("LargeClass")
+// #597 scenario coverage stays whole (same precedent as SessionServicePostgresTest #593).
+@file:Suppress("LargeClass") // #597
 
 package com.companyb.companyapp.commerce
 import com.companyb.companyapp.app.AppConfig

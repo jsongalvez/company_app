@@ -33,7 +33,6 @@ import java.util.UUID
     ],
 )
 object ProductSaleRoutes {
-    @Suppress("ThrowsCount", "CyclomaticComplexMethod")
     fun register(config: JavalinConfig) {
         config.routes.before(ApiRoutes.PRODUCT_SALES) { context ->
             if (context.method() != io.javalin.http.HandlerType.POST) return@before
@@ -58,18 +57,7 @@ object ProductSaleRoutes {
 
             if (request.quantity < 1) throw BadRequestResponse("Quantity must be at least 1")
 
-            if (sessionId != null && clientId != null) {
-                throw BadRequestResponse("Session-linked sale must not have a clientId")
-            }
-            if (sessionId != null && request.isWalkIn) {
-                throw BadRequestResponse("Session-linked sale must not be a walk-in")
-            }
-            if (sessionId == null && clientId != null && !request.isWalkIn) {
-                throw BadRequestResponse("Walk-in sale with known client must set isWalkIn=true")
-            }
-            if (sessionId == null && clientId == null && !request.isWalkIn) {
-                throw BadRequestResponse("Anonymous sale must set isWalkIn=true")
-            }
+            validateSaleLinks(sessionId, clientId, request.isWalkIn)
 
             val sale =
                 ProductSaleService.sell(
@@ -87,6 +75,25 @@ object ProductSaleRoutes {
 
             context.status(HttpStatus.CREATED)
             context.json(sale.toResponse())
+        }
+    }
+
+    private fun validateSaleLinks(
+        sessionId: UUID?,
+        clientId: UUID?,
+        isWalkIn: Boolean,
+    ) {
+        if (sessionId != null && clientId != null) {
+            throw BadRequestResponse("Session-linked sale must not have a clientId")
+        }
+        if (sessionId != null && isWalkIn) {
+            throw BadRequestResponse("Session-linked sale must not be a walk-in")
+        }
+        if (sessionId == null && clientId != null && !isWalkIn) {
+            throw BadRequestResponse("Walk-in sale with known client must set isWalkIn=true")
+        }
+        if (sessionId == null && clientId == null && !isWalkIn) {
+            throw BadRequestResponse("Anonymous sale must set isWalkIn=true")
         }
     }
 

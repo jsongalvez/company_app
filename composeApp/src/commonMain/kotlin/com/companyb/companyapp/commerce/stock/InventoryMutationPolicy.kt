@@ -1,7 +1,6 @@
-// #460 — one policy seam, intentionally co-located: 20 functions over the 11
+// #597 — one policy seam, intentionally co-located: 20 functions over the retired 11
 // file budget, kept whole deliberately (#458 locality — predicates, builders, and arms
 // must read as one contract mirror). Any further growth must split, not suppress again.
-@file:Suppress("TooManyFunctions")
 
 package com.companyb.companyapp.commerce.stock
 
@@ -323,8 +322,11 @@ internal fun consumeWriteSuccess(
 
 /** The restock arm's submit: save closes immediately at the call site (the ProfileScreen
  * precedent); ids are fresh client-generated UUIDs and branchDayId is the clocked-in day.
- * A null branch/day fails closed — the affordances already hide, this is the backstop. */
-@Suppress("LongParameterList") // #460 — same fail-closed arm shape as the sibling submits below.
+ * A null branch/day fails closed — the affordances already hide, this is the backstop.
+ *
+ * #597: fail-closed arm shape shared with the sibling submits below; stays whole per #535.
+ */
+@Suppress("LongParameterList") // #597
 internal fun submitRestock(
     viewModel: InventoryViewModel,
     branchId: String?,
@@ -342,8 +344,11 @@ internal fun submitRestock(
     }
 }
 
-/** The movement arm's submit: same close-first + fail-closed shape as [submitRestock]. */
-@Suppress("LongParameterList")
+/** The movement arm's submit: same close-first + fail-closed shape as [submitRestock].
+ *
+ * #597: fail-closed arm shape shared with the sibling submits; stays whole per #535.
+ */
+@Suppress("LongParameterList") // #597
 internal fun submitMovement(
     viewModel: InventoryViewModel,
     branchId: String?,
@@ -363,8 +368,11 @@ internal fun submitMovement(
     }
 }
 
-/** The walk-in sale arm's submit (#419): same close-first + fail-closed shape as [submitRestock]. */
-@Suppress("LongParameterList")
+/** The walk-in sale arm's submit (#419): same close-first + fail-closed shape as [submitRestock].
+ *
+ * #597: fail-closed arm shape shared with the sibling submits; stays whole per #535.
+ */
+@Suppress("LongParameterList") // #597
 internal fun submitWalkInSale(
     saleViewModel: ProductSaleViewModel,
     branchId: String?,

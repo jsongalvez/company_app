@@ -70,7 +70,6 @@ import kotlin.uuid.Uuid
  * ViewModel synchronous single-flight backstop).
  */
 @Composable
-@Suppress("LongMethod", "CyclomaticComplexMethod")
 fun ProductCatalogScreen(
     viewModel: ProductViewModel,
     modifier: Modifier = Modifier,
@@ -89,78 +88,18 @@ fun ProductCatalogScreen(
     var lastProducts by remember { mutableStateOf(emptyList<ProductResponse>()) }
     var lastCategories by remember { mutableStateOf(emptyList<ProductCategoryResponse>()) }
 
-    LaunchedEffect(Unit) {
-        logInfo("ProductCatalogScreen", "composable entered (first composition)")
-        viewModel.loadCategories()
-        viewModel.loadProducts(includeInactive = true)
-    }
-    LaunchedEffect(productsState) {
-        when (val state = productsState) {
-            is UiState.Success -> lastProducts = state.data
-            is UiState.Error -> logWarn("ProductCatalogScreen", "loadProducts failed: ${state.message}")
-            else -> Unit
-        }
-    }
-    LaunchedEffect(categoriesState) {
-        when (val state = categoriesState) {
-            is UiState.Success -> lastCategories = state.data
-            is UiState.Error -> logWarn("ProductCatalogScreen", "loadCategories failed: ${state.message}")
-            else -> Unit
-        }
-    }
-    LaunchedEffect(createCategoryState) {
-        when (val state = createCategoryState) {
-            is UiState.Success -> {
-                logInfo("ProductCatalogScreen", "createCategory succeeded")
-                viewModel.loadCategories()
-            }
-
-            is UiState.Error -> {
-                logWarn("ProductCatalogScreen", "createCategory failed: ${state.message}")
-                viewModel.loadCategories()
-            }
-
-            else -> {
-                Unit
-            }
-        }
-    }
-    LaunchedEffect(createProductState) {
-        when (val state = createProductState) {
-            is UiState.Success -> {
-                logInfo("ProductCatalogScreen", "createProduct succeeded")
-                creatingProduct = false
-                viewModel.loadProducts(includeInactive = true)
-            }
-
-            is UiState.Error -> {
-                logWarn("ProductCatalogScreen", "createProduct failed: ${state.message}")
-                viewModel.loadProducts(includeInactive = true)
-            }
-
-            else -> {
-                Unit
-            }
-        }
-    }
-    LaunchedEffect(updateProductState) {
-        when (val state = updateProductState) {
-            is UiState.Success -> {
-                logInfo("ProductCatalogScreen", "updateProduct succeeded")
-                editingProductId = null
-                viewModel.loadProducts(includeInactive = true)
-            }
-
-            is UiState.Error -> {
-                logWarn("ProductCatalogScreen", "updateProduct failed: ${state.message}")
-                viewModel.loadProducts(includeInactive = true)
-            }
-
-            else -> {
-                Unit
-            }
-        }
-    }
+    CatalogScreenEffects(
+        viewModel = viewModel,
+        productsState = productsState,
+        categoriesState = categoriesState,
+        createProductState = createProductState,
+        updateProductState = updateProductState,
+        createCategoryState = createCategoryState,
+        onProducts = { lastProducts = it },
+        onCategories = { lastCategories = it },
+        onProductMutated = { creatingProduct = false },
+        onProductUpdated = { editingProductId = null },
+    )
 
     val displayedProducts =
         remember(lastProducts, selectedCategoryId) {
@@ -210,6 +149,118 @@ fun ProductCatalogScreen(
         )
     }
 
+    CatalogScreenDialogs(
+        viewModel = viewModel,
+        creatingProduct = creatingProduct,
+        editingProduct = editingProduct,
+        lastCategories = lastCategories,
+        categoriesState = categoriesState,
+        createProductState = createProductState,
+        updateProductState = updateProductState,
+        onDismissCreate = { if (createProductState !is UiState.Loading) creatingProduct = false },
+        onDismissEdit = { if (updateProductState !is UiState.Loading) editingProductId = null },
+    )
+}
+
+@Composable
+private fun CatalogScreenEffects(
+    viewModel: ProductViewModel,
+    productsState: UiState<List<ProductResponse>>,
+    categoriesState: UiState<List<ProductCategoryResponse>>,
+    createProductState: UiState<ProductResponse>,
+    updateProductState: UiState<ProductResponse>,
+    createCategoryState: UiState<ProductCategoryResponse>,
+    onProducts: (List<ProductResponse>) -> Unit,
+    onCategories: (List<ProductCategoryResponse>) -> Unit,
+    onProductMutated: () -> Unit,
+    onProductUpdated: () -> Unit,
+) {
+    LaunchedEffect(Unit) {
+        logInfo("ProductCatalogScreen", "composable entered (first composition)")
+        viewModel.loadCategories()
+        viewModel.loadProducts(includeInactive = true)
+    }
+    LaunchedEffect(productsState) {
+        when (val state = productsState) {
+            is UiState.Success -> onProducts(state.data)
+            is UiState.Error -> logWarn("ProductCatalogScreen", "loadProducts failed: ${state.message}")
+            else -> Unit
+        }
+    }
+    LaunchedEffect(categoriesState) {
+        when (val state = categoriesState) {
+            is UiState.Success -> onCategories(state.data)
+            is UiState.Error -> logWarn("ProductCatalogScreen", "loadCategories failed: ${state.message}")
+            else -> Unit
+        }
+    }
+    LaunchedEffect(createCategoryState) {
+        when (val state = createCategoryState) {
+            is UiState.Success -> {
+                logInfo("ProductCatalogScreen", "createCategory succeeded")
+                viewModel.loadCategories()
+            }
+
+            is UiState.Error -> {
+                logWarn("ProductCatalogScreen", "createCategory failed: ${state.message}")
+                viewModel.loadCategories()
+            }
+
+            else -> {
+                Unit
+            }
+        }
+    }
+    LaunchedEffect(createProductState) {
+        when (val state = createProductState) {
+            is UiState.Success -> {
+                logInfo("ProductCatalogScreen", "createProduct succeeded")
+                onProductMutated()
+                viewModel.loadProducts(includeInactive = true)
+            }
+
+            is UiState.Error -> {
+                logWarn("ProductCatalogScreen", "createProduct failed: ${state.message}")
+                viewModel.loadProducts(includeInactive = true)
+            }
+
+            else -> {
+                Unit
+            }
+        }
+    }
+    LaunchedEffect(updateProductState) {
+        when (val state = updateProductState) {
+            is UiState.Success -> {
+                logInfo("ProductCatalogScreen", "updateProduct succeeded")
+                onProductUpdated()
+                viewModel.loadProducts(includeInactive = true)
+            }
+
+            is UiState.Error -> {
+                logWarn("ProductCatalogScreen", "updateProduct failed: ${state.message}")
+                viewModel.loadProducts(includeInactive = true)
+            }
+
+            else -> {
+                Unit
+            }
+        }
+    }
+}
+
+@Composable
+private fun CatalogScreenDialogs(
+    viewModel: ProductViewModel,
+    creatingProduct: Boolean,
+    editingProduct: ProductResponse?,
+    lastCategories: List<ProductCategoryResponse>,
+    categoriesState: UiState<List<ProductCategoryResponse>>,
+    createProductState: UiState<ProductResponse>,
+    updateProductState: UiState<ProductResponse>,
+    onDismissCreate: () -> Unit,
+    onDismissEdit: () -> Unit,
+) {
     if (creatingProduct) {
         ProductFormDialog(
             product = null,
@@ -218,7 +269,7 @@ fun ProductCatalogScreen(
             saving = createProductState is UiState.Loading,
             serverError = (createProductState as? UiState.Error)?.message,
             onRetryCategories = viewModel::loadCategories,
-            onDismiss = { if (createProductState !is UiState.Loading) creatingProduct = false },
+            onDismiss = onDismissCreate,
             onSave = { id, name, categoryId, unitPrice, commission ->
                 viewModel.createProduct(
                     CreateProductRequest(
@@ -240,7 +291,7 @@ fun ProductCatalogScreen(
             saving = updateProductState is UiState.Loading,
             serverError = (updateProductState as? UiState.Error)?.message,
             onRetryCategories = viewModel::loadCategories,
-            onDismiss = { if (updateProductState !is UiState.Loading) editingProductId = null },
+            onDismiss = onDismissEdit,
             // Field edits omit isActive (null = no change): the toggle owns the flag, so a
             // stale dialog snapshot can never overwrite a concurrent toggle.
             onSave = { _, name, categoryId, unitPrice, commission ->
@@ -259,7 +310,6 @@ fun ProductCatalogScreen(
 }
 
 @Composable
-@Suppress("LongMethod")
 private fun CatalogCategorySection(
     categoriesState: UiState<List<ProductCategoryResponse>>,
     createState: UiState<ProductCategoryResponse>,
@@ -284,52 +334,20 @@ private fun CatalogCategorySection(
 
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Text("Categories", style = MaterialTheme.typography.titleMedium)
-        when (val state = categoriesState) {
-            is UiState.Idle, is UiState.Loading -> {
-                CircularProgressIndicator()
-            }
-
-            is UiState.Error -> {
-                ErrorCard(message = state.message, onRetry = onRetry)
-            }
-
-            is UiState.Success -> {
-                if (state.data.isEmpty()) {
-                    EmptyState("No categories yet — create the first one below")
-                } else {
-                    state.data.sortedBy { it.name.lowercase() }.forEach { category ->
-                        Text(category.name, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-            }
-        }
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedTextField(
-                value = name,
-                onValueChange = {
-                    attempted = true
-                    name = it
-                },
-                label = { Text("New category name") },
-                singleLine = true,
-                enabled = !saving,
-                isError = nameError != null,
-                supportingText = nameError?.let { message -> { Text(message) } },
-                modifier = Modifier.weight(1f),
-            )
-            Button(
-                onClick = {
-                    attempted = true
-                    if (catalogCategoryNameError(name) == null) onCreate(requestId, name.trim())
-                },
-                enabled = !saving,
-            ) {
-                Text(if (saving) "Adding…" else "Add")
-            }
-        }
+        CategoryListContent(categoriesState = categoriesState, onRetry = onRetry)
+        CategoryCreateRow(
+            name = name,
+            nameError = nameError,
+            saving = saving,
+            onNameChange = {
+                attempted = true
+                name = it
+            },
+            onSubmit = {
+                attempted = true
+                if (catalogCategoryNameError(name) == null) onCreate(requestId, name.trim())
+            },
+        )
         (createState as? UiState.Error)?.let { error ->
             Text(error.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
@@ -337,7 +355,65 @@ private fun CatalogCategorySection(
 }
 
 @Composable
-@Suppress("LongParameterList")
+private fun CategoryListContent(
+    categoriesState: UiState<List<ProductCategoryResponse>>,
+    onRetry: () -> Unit,
+) {
+    when (val state = categoriesState) {
+        is UiState.Idle, is UiState.Loading -> {
+            CircularProgressIndicator()
+        }
+
+        is UiState.Error -> {
+            ErrorCard(message = state.message, onRetry = onRetry)
+        }
+
+        is UiState.Success -> {
+            if (state.data.isEmpty()) {
+                EmptyState("No categories yet — create the first one below")
+            } else {
+                state.data.sortedBy { it.name.lowercase() }.forEach { category ->
+                    Text(category.name, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryCreateRow(
+    name: String,
+    nameError: String?,
+    saving: Boolean,
+    onNameChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        OutlinedTextField(
+            value = name,
+            onValueChange = onNameChange,
+            label = { Text("New category name") },
+            singleLine = true,
+            enabled = !saving,
+            isError = nameError != null,
+            supportingText = nameError?.let { message -> { Text(message) } },
+            modifier = Modifier.weight(1f),
+        )
+        Button(
+            onClick = onSubmit,
+            enabled = !saving,
+        ) {
+            Text(if (saving) "Adding…" else "Add")
+        }
+    }
+}
+
+@Composable
+// #597: 11-param product section stays whole per #535 (declarative-UI signature; no arbitrary DTO).
+@Suppress("LongParameterList") // #597
 private fun CatalogProductSection(
     productsState: UiState<List<ProductResponse>>,
     categories: List<ProductCategoryResponse>,
@@ -500,7 +576,9 @@ private fun CatalogProductRow(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-@Suppress("LongMethod", "CyclomaticComplexMethod", "LongParameterList")
+// #597: 8-param dialog stays whole per #535 (declarative-UI signature); the single-dialog
+// field/validation contract splits would only move the params without clarity gain.
+@Suppress("LongMethod", "CyclomaticComplexMethod", "LongParameterList") // #597
 private fun ProductFormDialog(
     product: ProductResponse?,
     categories: List<ProductCategoryResponse>,

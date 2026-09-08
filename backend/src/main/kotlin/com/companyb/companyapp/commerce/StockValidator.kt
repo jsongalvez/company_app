@@ -10,8 +10,10 @@ internal object StockValidator {
      * inside the caller's command transaction: the day row is locked
      * ([checkBranchDayEditableInTransaction]) so the gate serializes with
      * remittance's REMITTED transition instead of racing it.
+     *
+     * #597: 6-param movement gate stays whole per #535; caller passes the command's day + delta through.
      */
-    @Suppress("ThrowsCount", "LongParameterList")
+    @Suppress("LongParameterList") // #597
     fun validateMovement(
         callerId: UUID,
         branchDayId: UUID,
@@ -22,6 +24,16 @@ internal object StockValidator {
     ): Boolean {
         val (_, isRemitted) = BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason)
 
+        requireSign(movementType, quantityChange)
+        requireMissingNotes(movementType, notes)
+
+        return isRemitted
+    }
+
+    private fun requireSign(
+        movementType: MovementType,
+        quantityChange: Int,
+    ) {
         val sign = quantityChange.compareTo(0)
         when (movementType.signRequired) {
             MovementType.Sign.POSITIVE -> {
@@ -34,11 +46,14 @@ internal object StockValidator {
 
             MovementType.Sign.ANY -> { /* either sign allowed */ }
         }
+    }
 
+    private fun requireMissingNotes(
+        movementType: MovementType,
+        notes: String?,
+    ) {
         if (movementType is MovementType.Missing && notes.isNullOrBlank()) {
             throw ValidationException("Notes are required for MISSING movements")
         }
-
-        return isRemitted
     }
 }

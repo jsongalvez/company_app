@@ -33,7 +33,9 @@ data class InventoryWithBreakdowns(
 object InventoryService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("LongParameterList", "ThrowsCount", "ReturnCount", "LongMethod")
+    // #597: 9-param movement command stays whole per #535; the single command-owned transaction
+    // (ADR-0024) keeps day gate + card lock + audit atomic — splitting would break atomicity.
+    @Suppress("LongParameterList", "LongMethod") // #597
     fun recordMovement(
         callerId: UUID,
         movementId: UUID,
@@ -186,7 +188,8 @@ object InventoryService {
         return InventoryWithBreakdowns(cards, breakdowns)
     }
 
-    @Suppress("ComplexCondition", "LongParameterList")
+    // #597: 8-param idempotency ownership check stays whole per #535; mirrors the insert params 1:1.
+    @Suppress("LongParameterList") // #597
     private fun ensureRequestOwnership(
         existingMovement: InventoryMovement,
         branchId: UUID,
@@ -197,20 +200,35 @@ object InventoryService {
         branchDayId: UUID,
         callerId: UUID,
     ) {
-        if (
-            existingMovement.branchId != branchId ||
-            existingMovement.productId != productId ||
-            existingMovement.reason != movementReason ||
-            existingMovement.quantityChange != quantityChange ||
-            existingMovement.notes != notes ||
-            existingMovement.branchDayId != branchDayId ||
-            existingMovement.movedBy != callerId
+        if (!sameMovementIdentity(existingMovement, branchId, productId, branchDayId, callerId) ||
+            !sameMovementPayload(existingMovement, movementReason, quantityChange, notes)
         ) {
             throw ConflictException("Movement ID already belongs to another request")
         }
     }
 
-    @Suppress("ThrowsCount")
+    private fun sameMovementIdentity(
+        existingMovement: InventoryMovement,
+        branchId: UUID,
+        productId: UUID,
+        branchDayId: UUID,
+        callerId: UUID,
+    ): Boolean =
+        existingMovement.branchId == branchId &&
+            existingMovement.productId == productId &&
+            existingMovement.branchDayId == branchDayId &&
+            existingMovement.movedBy == callerId
+
+    private fun sameMovementPayload(
+        existingMovement: InventoryMovement,
+        movementReason: InventoryMovementReason,
+        quantityChange: Int,
+        notes: String?,
+    ): Boolean =
+        existingMovement.reason == movementReason &&
+            existingMovement.quantityChange == quantityChange &&
+            existingMovement.notes == notes
+
     fun ensureCard(
         callerId: UUID,
         branchId: UUID,
@@ -255,7 +273,6 @@ internal object InventoryReadSupport {
             .groupBy { it.productId }
             .mapValues { (_, movements) -> breakdownFromMovements(movements) }
 
-    @Suppress("ReturnCount")
     fun filterLowStock(
         allInventory: List<BranchInventoryWithProduct>,
         thresholdOverride: Int?,

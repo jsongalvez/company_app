@@ -127,8 +127,12 @@ object BranchInventoryRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
     private const val PRODUCT_ID_PARAM = "productId"
 
-    @Suppress("LongMethod")
     fun register(config: JavalinConfig) {
+        registerGuards(config)
+        registerHandlers(config)
+    }
+
+    private fun registerGuards(config: JavalinConfig) {
         config.routes.before("/api/branches/{branchId}/inventory") { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val required =
@@ -191,7 +195,9 @@ object BranchInventoryRoutes {
                 required,
             )
         }
+    }
 
+    private fun registerHandlers(config: JavalinConfig) {
         config.routes.post(ApiRoutes.BRANCH_INVENTORY_PATH, ::handleEnsureCard)
         config.routes.post(ApiRoutes.BRANCH_INVENTORY_RESTOCK_PATH, ::handleRestock)
         config.routes.get(ApiRoutes.BRANCH_INVENTORY_PATH, ::handleGetInventory)
@@ -284,7 +290,6 @@ object BranchInventoryRoutes {
         return reason
     }
 
-    @Suppress("ThrowsCount")
     private fun handleRecordMovement(context: Context) {
         val callerId = context.callerUuid()
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
@@ -293,28 +298,9 @@ object BranchInventoryRoutes {
         val movementId = uuidOrThrow(request.movementId, "movement id")
         val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
         val reason = validateMovementReason(request.reason)
+        requireMovementPayload(reason, request.quantityChange, request.notes)
 
-        if (reason in NEGATIVE_QUANTITY_REASONS && request.quantityChange >= 0) {
-            throw BadRequestResponse("$reason movement must have a negative quantity change")
-        }
-        if (reason == InventoryMovementReason.MISSING && request.notes.isNullOrBlank()) {
-            throw BadRequestResponse("Notes are required for MISSING movements")
-        }
-
-        val movementType =
-            when (reason) {
-                InventoryMovementReason.TESTER -> MovementType.Tester
-
-                InventoryMovementReason.SAMPLE -> MovementType.Sample
-
-                InventoryMovementReason.MISSING -> MovementType.Missing
-
-                InventoryMovementReason.ADJUSTMENT -> MovementType.Adjustment
-
-                InventoryMovementReason.RESTOCK,
-                InventoryMovementReason.SALE,
-                -> throw BadRequestResponse("Invalid movement reason for this endpoint")
-            }
+        val movementType = resolveMovementType(reason)
 
         val movement =
             InventoryService.recordMovement(
@@ -332,6 +318,34 @@ object BranchInventoryRoutes {
         context.status(HttpStatus.CREATED)
         context.json(movement.toResponse())
     }
+
+    private fun requireMovementPayload(
+        reason: InventoryMovementReason,
+        quantityChange: Int,
+        notes: String?,
+    ) {
+        if (reason in NEGATIVE_QUANTITY_REASONS && quantityChange >= 0) {
+            throw BadRequestResponse("$reason movement must have a negative quantity change")
+        }
+        if (reason == InventoryMovementReason.MISSING && notes.isNullOrBlank()) {
+            throw BadRequestResponse("Notes are required for MISSING movements")
+        }
+    }
+
+    private fun resolveMovementType(reason: InventoryMovementReason): MovementType =
+        when (reason) {
+            InventoryMovementReason.TESTER -> MovementType.Tester
+
+            InventoryMovementReason.SAMPLE -> MovementType.Sample
+
+            InventoryMovementReason.MISSING -> MovementType.Missing
+
+            InventoryMovementReason.ADJUSTMENT -> MovementType.Adjustment
+
+            InventoryMovementReason.RESTOCK,
+            InventoryMovementReason.SALE,
+            -> throw BadRequestResponse("Invalid movement reason for this endpoint")
+        }
 
     private fun InventoryMovement.toResponse(): InventoryMovementResponse =
         InventoryMovementResponse(
