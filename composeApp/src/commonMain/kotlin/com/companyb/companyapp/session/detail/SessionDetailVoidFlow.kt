@@ -60,7 +60,7 @@ internal fun sessionVoidAffordance(
 
 /**
  * #406 — the void/unvoid client gate, mirroring the backend's
- * `requireBranchCapabilityForSession(VOID_SESSION)` exactly: a BRANCH-scoped
+ * `SessionAuthz.requireBranchCapabilityForSession(VOID_SESSION)` exactly: a BRANCH-scoped
  * `VOID_SESSION` grant at the session's branch. Deliberately NOT the edit gate — the
  * server has no branch-day leg on these routes (a relief day grant of EDIT_BRANCH_DATA
  * does not authorize voiding), so the mirror has none either.

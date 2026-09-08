@@ -64,7 +64,7 @@ import kotlin.uuid.Uuid
  * `EDIT_BRANCH_DATA` at the session's branch, OR an active day grant (the row carries no
  * day id, so that leg is context-type-wide; a wrong-context attempt gets the authoritative
  * 403 and vanishes on the next capability refresh). #406 — void/unvoid instead mirrors the
- * stricter `requireBranchCapabilityForSession(VOID_SESSION)`: BRANCH-scoped VOID_SESSION
+ * stricter `SessionAuthz.requireBranchCapabilityForSession(VOID_SESSION)`: BRANCH-scoped VOID_SESSION
  * only, no day-grant leg, desktop-only via [allowVoid] (ADR-0020).
  *
  * #419 — the session-linked product-sale entry ("Record sale"): side-loaded
@@ -205,7 +205,7 @@ private fun paneGates(
                 CapabilityContextType.BRANCH,
                 session.branchId,
             ) || capabilities.hasDayGrant(CapabilityCodes.EDIT_BRANCH_DATA),
-        // #406 — the void gate mirrors the backend's `requireBranchCapabilityForSession`:
+        // #406 — the void gate mirrors the backend's `SessionAuthz.requireBranchCapabilityForSession`:
         // branch-scoped VOID_SESSION only — no day-grant leg (see [canVoidSession]).
         canVoid = allowVoid && canVoidSession(capabilities, session.branchId),
         // #419 — the sale gate mirrors `requireBranchOrBranchDayCapability(EDIT_BRANCH_DATA)`

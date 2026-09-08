@@ -12,7 +12,7 @@ import kotlin.test.assertTrue
 
 /**
  * #406 — the void affordance: gate off renders nothing; a voided row flips to Unvoid; and
- * the client gate mirrors `requireBranchCapabilityForSession(VOID_SESSION)` — a BRANCH-scoped
+ * the client gate mirrors `SessionAuthz.requireBranchCapabilityForSession(VOID_SESSION)` — a BRANCH-scoped
  * VOID_SESSION grant at the session's branch, with NO day-grant leg.
  */
 class SessionVoidAffordanceTest {

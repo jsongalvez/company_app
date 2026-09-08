@@ -307,17 +307,17 @@ object SessionRoutes {
         config.routes.before(ApiRoutes.SESSION_STATUS_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
             val request = context.bodyAsClass<UpdateSessionStatusRequest>()
-            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
+            SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
             )
-            CapabilityFilter.requireStatusCorrectionCapability(context, sessionId, request.status)
+            SessionAuthz.requireStatusCorrectionCapability(context, sessionId, request.status)
         }
 
         config.routes.before(ApiRoutes.SESSION_FINAL_PRICE_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
+            SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
@@ -326,7 +326,7 @@ object SessionRoutes {
 
         config.routes.before(ApiRoutes.SESSION_VOID_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchCapabilityForSession(
+            SessionAuthz.requireBranchCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.VOID_SESSION,
@@ -335,7 +335,7 @@ object SessionRoutes {
 
         config.routes.before(ApiRoutes.SESSION_UNVOID_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchCapabilityForSession(
+            SessionAuthz.requireBranchCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.VOID_SESSION,
@@ -344,7 +344,7 @@ object SessionRoutes {
 
         config.routes.before(ApiRoutes.SESSION_PRACTITIONERS_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
+            SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
@@ -353,7 +353,7 @@ object SessionRoutes {
 
         config.routes.before("/api/sessions/{sessionId}/practitioners/{practitionerId}") { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
+            SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
@@ -362,7 +362,7 @@ object SessionRoutes {
 
         config.routes.before(ApiRoutes.SESSION_CONCERNS_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
+            SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
@@ -373,7 +373,7 @@ object SessionRoutes {
         // exact literals, so the parent /concerns filter never fires for /concerns/{concernId}.
         config.routes.before(ApiRoutes.SESSION_CONCERN_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
+            SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
@@ -390,7 +390,7 @@ object SessionRoutes {
 
         config.routes.before("/api/sessions/{sessionId}/promote-concern") { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
+            SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,

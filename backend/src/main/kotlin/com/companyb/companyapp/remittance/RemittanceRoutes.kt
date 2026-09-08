@@ -232,53 +232,53 @@ object RemittanceRoutes {
 
         config.routes.before(ApiRoutes.REMITTANCE_PATH) { context ->
             val remittanceId = context.pathParamAsUuid("remittanceId")
-            CapabilityFilter.requireBranchCapabilityForRemittance(context, remittanceId)
+            RemittanceAuthz.requireBranchCapabilityForRemittance(context, remittanceId)
         }
 
         config.routes.before(ApiRoutes.REMITTANCE_LINES_PATH) { context ->
-            CapabilityFilter.requireBranchCapabilityForRemittance(
+            RemittanceAuthz.requireBranchCapabilityForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
             )
         }
 
         config.routes.before(ApiRoutes.REMITTANCE_LINE_PATH) { context ->
-            CapabilityFilter.requireBranchCapabilityForRemittance(
+            RemittanceAuthz.requireBranchCapabilityForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
             )
         }
 
         config.routes.before(ApiRoutes.REMITTANCE_DAY_BREAKDOWNS_PATH) { context ->
-            CapabilityFilter.requireBranchCapabilityForRemittance(
+            RemittanceAuthz.requireBranchCapabilityForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
             )
         }
 
         config.routes.before(ApiRoutes.REMITTANCE_DAY_BREAKDOWN_PATH) { context ->
-            CapabilityFilter.requireBranchCapabilityForRemittance(
+            RemittanceAuthz.requireBranchCapabilityForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
             )
         }
 
         config.routes.before(ApiRoutes.REMITTANCE_SUBMIT_PATH) { context ->
-            CapabilityFilter.requireBranchCapabilityForRemittance(
+            RemittanceAuthz.requireBranchCapabilityForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
             )
         }
 
         config.routes.before(ApiRoutes.REMITTANCE_UNDO_PATH) { context ->
-            CapabilityFilter.requireBranchCapabilityForRemittance(
+            RemittanceAuthz.requireBranchCapabilityForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
             )
         }
 
         config.routes.before(ApiRoutes.REMITTANCE_DRIFT_PATH) { context ->
-            CapabilityFilter.requireBranchCapabilityForRemittance(
+            RemittanceAuthz.requireBranchCapabilityForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
             )

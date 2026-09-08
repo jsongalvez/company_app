@@ -129,6 +129,21 @@ multi-day browse (`/daily-summaries`) stays VIEW_BRANCH_DATA-only — a single-d
 authorize an unbounded list. The frontend ride (Finance day-detail gates resolving the day
 grant) landed in the same ticket.
 
+## Amendment (2026-09-08, #605) — feature-owned resource resolution
+
+The resource-specific composition moved out of the central filter: session, expense, and
+remittance record resolution plus the status-correction HTTP rule now live in feature-local
+policy helpers next to their routes (`SessionAuthz`, `ExpenseAuthz`, `RemittanceAuthz`),
+which delegate to the common resolved-scope checks on `CapabilityFilter`
+(`requireBranchCapability`, `requireBranchOrBranchDayCapability`,
+`requireBranchCapabilityForBranchId`, …). `CapabilityFilter` keeps capability-context
+evaluation (BRANCH/GLOBAL/BRANCH_DAY, the #131 strictness, the #157 OR shape) and the
+find-only operational-day entry (`requireBranchOrDayForBranch` → Branch Day); it no longer
+imports `SessionReads`, `FinanceReads`, `RemittanceService`, `SessionStatus`, or
+`isStatusCorrection` — pinned by `SemanticOwnershipArchitectureTest`. Route/method coverage,
+status codes, and the service-level exceptions above (including the locked correction
+recheck) are unchanged.
+
 **Negative:**
 - The DELETE filter looks up the expense and branch day to resolve the branch ID,
   duplicating the DB calls that the service handler already makes. This is acceptable

@@ -594,6 +594,79 @@ class SemanticOwnershipArchitectureTest {
         )
     }
 
+    // ---- Authorization direction (#605) ----
+
+    @Test
+    fun `authorization never resolves feature resources or status policy`() {
+        val offenders =
+            files
+                .filter { (path, _) -> owner(path) == "authorization" }
+                .flatMap { (path, file) ->
+                    BackendArchitectureOwners.authorizationFeatureLeaks(file).map { "$path: $it" }
+                }
+        assertTrue(
+            offenders.isEmpty(),
+            "authorization must not depend on feature resource/status-policy symbols:\n" +
+                offenders.joinToString("\n"),
+        )
+    }
+
+    @Test
+    fun `fixture - authorization feature leak rule flags exact symbols only`() {
+        val dirty =
+            """
+            package com.companyb.companyapp.authorization
+            import com.companyb.companyapp.session.SessionReads
+            import com.companyb.companyapp.contracts.session.isStatusCorrection
+
+            object CapabilityFilter
+            """.trimIndent()
+        assertEquals(
+            listOf(
+                "import com.companyb.companyapp.session.SessionReads",
+                "import com.companyb.companyapp.contracts.session.isStatusCorrection",
+            ),
+            BackendArchitectureOwners.authorizationFeatureLeaks(parse(dirty)),
+        )
+        val wildcardEvasion =
+            """
+            package com.companyb.companyapp.authorization
+            import com.companyb.companyapp.session.*
+
+            object CapabilityFilter {
+                fun gate() = SessionReads.findById(id)
+            }
+            """.trimIndent()
+        assertEquals(
+            listOf("use SessionReads"),
+            BackendArchitectureOwners.authorizationFeatureLeaks(parse(wildcardEvasion)),
+        )
+        val qualifiedEvasion =
+            """
+            package com.companyb.companyapp.authorization
+
+            object CapabilityFilter {
+                fun gate() = com.companyb.companyapp.finance.FinanceReads.findExpenseById(id)
+            }
+            """.trimIndent()
+        assertEquals(
+            listOf("use FinanceReads"),
+            BackendArchitectureOwners.authorizationFeatureLeaks(parse(qualifiedEvasion)),
+        )
+        val clean =
+            """
+            package com.companyb.companyapp.authorization
+            import com.companyb.companyapp.branchday.BranchDayService
+            import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+
+            object CapabilityFilter
+            """.trimIndent()
+        assertEquals(
+            emptyList(),
+            BackendArchitectureOwners.authorizationFeatureLeaks(parse(clean)),
+        )
+    }
+
     private companion object {
         val TARGET_FEATURE_DIRS =
             listOf(

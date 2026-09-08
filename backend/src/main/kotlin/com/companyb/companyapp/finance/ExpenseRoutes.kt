@@ -117,7 +117,7 @@ object ExpenseRoutes {
 
         config.routes.before(ApiRoutes.EXPENSE_PATH) { context ->
             val expenseId = context.pathParamAsUuid("expenseId")
-            CapabilityFilter.requireBranchOrBranchDayCapabilityForExpense(context, expenseId)
+            ExpenseAuthz.requireBranchOrBranchDayCapabilityForExpense(context, expenseId)
         }
 
         // #114 exact-segment lesson: before(ApiRoutes.EXPENSE_PATH) does NOT fire on the
@@ -126,7 +126,7 @@ object ExpenseRoutes {
         // handler against a phantom).
         config.routes.before(ApiRoutes.EXPENSE_RESTORE_PATH) { context ->
             val expenseId = context.pathParamAsUuid("expenseId")
-            CapabilityFilter.requireBranchOrBranchDayCapabilityForExpense(context, expenseId)
+            ExpenseAuthz.requireBranchOrBranchDayCapabilityForExpense(context, expenseId)
         }
 
         // --- Route handlers ---

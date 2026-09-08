@@ -1,17 +1,9 @@
 package com.companyb.companyapp.authorization
-import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
-import com.companyb.companyapp.contracts.session.SessionStatus
-import com.companyb.companyapp.contracts.session.isStatusCorrection
-import com.companyb.companyapp.finance.FinanceReads
-import com.companyb.companyapp.remittance.RemittanceService
-import com.companyb.companyapp.session.SessionReads
 import io.javalin.http.Context
-import io.javalin.http.NotFoundResponse
-import io.javalin.http.bodyAsClass
 import java.util.UUID
 
 /**
@@ -78,7 +70,7 @@ object CapabilityFilter {
      * Resolves the branch from the branch day and calls [CapabilityService.requireCapability].
      *
      * Throws [io.javalin.http.ForbiddenResponse] (403) if the caller lacks the capability.
-     * Throws [NotFoundResponse] (404) if the branch day does not exist.
+     * Throws NotFoundResponse (404) if the branch day does not exist.
      */
     fun requireBranchCapability(
         context: Context,
@@ -87,29 +79,6 @@ object CapabilityFilter {
     ) {
         val callerId = context.callerUuid()
         val branchId = resolveBranchIdFromBranchDay(branchDayId)
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = capabilityCode,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            message = "$capabilityCode capability required for this branch",
-        )
-    }
-
-    /**
-     * Enforces [capabilityCode] on [CapabilityContextType.BRANCH] by resolving the branch
-     * from a remittance record.
-     *
-     * Throws [io.javalin.http.ForbiddenResponse] (403) if the caller lacks the capability.
-     * Throws [NotFoundResponse] (404) if the remittance does not exist.
-     */
-    fun requireBranchCapabilityForRemittance(
-        context: Context,
-        remittanceId: UUID,
-        capabilityCode: String = CapabilityCodes.SUBMIT_REMITTANCE,
-    ) {
-        val branchId = RemittanceService.getBranchIdForRemittance(remittanceId)
-        val callerId = context.callerUuid()
         CapabilityService.requireCapability(
             userId = callerId,
             capabilityCode = capabilityCode,
@@ -176,24 +145,6 @@ object CapabilityFilter {
     }
 
     /**
-     * Enforces [capabilityCode] on [CapabilityContextType.BRANCH] by resolving the branch
-     * from a session record.
-     *
-     * Throws [io.javalin.http.ForbiddenResponse] (403) if the caller lacks the capability.
-     * Throws [NotFoundResponse] (404) if the session does not exist.
-     */
-    fun requireBranchCapabilityForSession(
-        context: Context,
-        sessionId: UUID,
-        capabilityCode: String,
-    ) {
-        val session =
-            SessionReads.findById(sessionId)
-                ?: throw NotFoundResponse("Session not found")
-        requireBranchCapability(context, session.branchDayId, capabilityCode)
-    }
-
-    /**
      * Today-scoped gate for branch-uuid routes (#452): the HTTP entry to
      * [BranchDayService.requireBranchOrDayForToday] — find-only today resolution plus the
      * BRANCH-or-BRANCH_DAY OR (GLOBAL excluded per #131). Returns today's branch-day id
@@ -222,7 +173,7 @@ object CapabilityFilter {
      * check (the #131 strictness: the OR adds only the narrower day-scoped form).
      *
      * Throws [com.companyb.companyapp.exception.ForbiddenException] (403) if the caller
-     * holds neither form. Throws [NotFoundResponse] (404) if the branch day does not exist.
+     * holds neither form. Throws NotFoundResponse (404) if the branch day does not exist.
      */
     fun requireBranchOrBranchDayCapability(
         context: Context,
@@ -237,26 +188,6 @@ object CapabilityFilter {
             branchId = branchId,
             branchDayId = branchDayId,
         )
-    }
-
-    /**
-     * Day-scoped variant of [requireBranchOrBranchDayCapability] for expenses (#157):
-     * accepts a BRANCH grant at the expense's branch OR a BRANCH_DAY grant for the
-     * expense's branch day.
-     *
-     * Throws [com.companyb.companyapp.exception.ForbiddenException] (403) if the caller
-     * holds neither form. Throws [NotFoundResponse] (404) if the expense or branch day
-     * does not exist.
-     */
-    fun requireBranchOrBranchDayCapabilityForExpense(
-        context: Context,
-        expenseId: UUID,
-        capabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
-    ) {
-        val expense =
-            FinanceReads.findExpenseById(expenseId)
-                ?: throw NotFoundResponse("Expense not found")
-        requireBranchOrBranchDayCapability(context, expense.branchDayId, capabilityCode)
     }
 
     /**
@@ -309,45 +240,8 @@ object CapabilityFilter {
     }
 
     /**
-     * Day-scoped variant of [requireBranchCapabilityForSession] (#157): accepts a BRANCH
-     * grant at the session's branch OR a BRANCH_DAY grant for the session's branch day.
-     *
-     * Throws [com.companyb.companyapp.exception.ForbiddenException] (403) if the caller
-     * holds neither form. Throws [NotFoundResponse] (404) if the session or branch day
-     * does not exist.
-     */
-    fun requireBranchOrBranchDayCapabilityForSession(
-        context: Context,
-        sessionId: UUID,
-        capabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
-    ) {
-        val session =
-            SessionReads.findById(sessionId)
-                ?: throw NotFoundResponse("Session not found")
-        requireBranchOrBranchDayCapability(context, session.branchDayId, capabilityCode)
-    }
-
-    /**
-     * Enforces Coordinator authority on status corrections at the HTTP boundary. The command
-     * repeats this check after locking the branch day so direct service callers and concurrent day
-     * transitions remain safe.
-     */
-    fun requireStatusCorrectionCapability(
-        context: Context,
-        sessionId: UUID,
-        newStatus: SessionStatus,
-    ) {
-        val session =
-            SessionReads.findById(sessionId)
-                ?: throw NotFoundResponse("Session not found")
-        if (isStatusCorrection(session.sessionStatus, newStatus)) {
-            requireBranchCapabilityForSession(context, sessionId, CapabilityCodes.EDIT_PAST_DAY)
-        }
-    }
-
-    /**
      * Resolves a [branchId] by looking up a branch day by [branchDayId].
-     * Throws [NotFoundResponse] (404) if the branch day does not exist.
+     * Throws NotFoundResponse (404) if the branch day does not exist.
      */
     fun resolveBranchIdFromBranchDay(branchDayId: UUID): UUID {
         val branchDay =

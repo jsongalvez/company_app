@@ -567,4 +567,49 @@ object BackendArchitectureOwners {
         callSites(file, "LocalDate", "now") + callSites(file, "OffsetDateTime", "now") > 0
 
     fun containsInstantNow(file: KtFile): Boolean = callSites(file, "Instant", "now") > 0
+
+    // ---- Authorization direction (#605) ----
+
+    /**
+     * Feature-specific symbols the authorization owner must never import (#605).
+     * Authorization owns capability-context evaluation and small HTTP adaptations
+     * for already-resolved scope; each feature's HTTP adapter owns how its
+     * resource resolves that scope and any operation-specific rule.
+     *
+     * Exact symbols only — never a package-wide ban: low-level capability-view
+     * inputs (e.g. `contracts.authorization.*`, the Branch Day operational-day
+     * seam) stay legitimate.
+     */
+    val authorizationBannedImports: Set<String> =
+        setOf(
+            "com.companyb.companyapp.session.SessionReads",
+            "com.companyb.companyapp.finance.FinanceReads",
+            "com.companyb.companyapp.remittance.RemittanceService",
+            "com.companyb.companyapp.contracts.session.SessionStatus",
+            "com.companyb.companyapp.contracts.session.isStatusCorrection",
+        )
+
+    /** Banned feature-specific imports used by an authorization-owned file. */
+    fun authorizationFeatureLeaks(file: KtFile): List<String> {
+        val importLeaks =
+            importMap(file)
+                .values
+                .filter { it in authorizationBannedImports }
+                .map { "import $it" }
+        // Symbol-exact usage check (no package-wide ban): every compilable evasion of
+        // the import rule — wildcard imports, fully-qualified references, same-package
+        // coincidences aside — still names one of these symbols outside an import
+        // directive, and the authorization owner has zero legitimate use for any of
+        // them. Comments/strings stay inert PSI, never leaks.
+        val usageLeaks =
+            file
+                .collect<KtSimpleNameExpression>()
+                .filter { !isInsideImport(it) }
+                .map { it.getReferencedName() }
+                .filter { name ->
+                    authorizationBannedImports.any { it.substringAfterLast('.') == name }
+                }.distinct()
+                .map { "use $it" }
+        return importLeaks + usageLeaks
+    }
 }
