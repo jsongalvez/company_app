@@ -19,6 +19,8 @@
 #   WAYFINDER_POLL_SECS    doc poll interval (default 15)
 #   WAYFINDER_TICK_SECS    session poll interval — form/permission/completion checks (default 5)
 #   WAYFINDER_STALL_SECS   no-progress zombie threshold in seconds (default 540 = old WAIT_SECS×STALL_SLICES)
+#   WAYFINDER_EXIT_CONFIRM_TICKS consecutive absent ticks before the exit-wait
+#                          declares a session exited (default 3; blip protection #657)
 #   WAYFINDER_DRY_RUN      non-empty = log transitions, never spawn
 #   WAYFINDER_CI_WATCH_SECS hosted check-runs poll interval (default 300)
 #   WAYFINDER_CI_REPAIR    hosted-CI repair-ticket watch on/off (default off;
@@ -37,6 +39,7 @@ NTFY_TOPIC="${WAYFINDER_NTFY_TOPIC:-}"
 POLL_SECS="${WAYFINDER_POLL_SECS:-15}"
 TICK_SECS="${WAYFINDER_TICK_SECS:-5}"
 STALL_SECS="${WAYFINDER_STALL_SECS:-540}"
+EXIT_CONFIRM_TICKS="${WAYFINDER_EXIT_CONFIRM_TICKS:-3}"
 GH_BIN="${WAYFINDER_GH_BIN:-$(command -v gh || true)}"
 MAP_ISSUE="${WAYFINDER_MAP_ISSUE:-533}"
 GH_REPO="${WAYFINDER_GH_REPO:-}"
@@ -575,12 +578,43 @@ ensure_ci_watch() {
 }
 
 wait_for_session_exit() {
-  local notified=0
-  while session_alive "$session_id" || active_children "$session_id"; do
-    if [ "$notified" -eq 0 ]; then
-      log "handoff $pending_doc detected; waiting for session $session_id to exit before spawning"
-      notify "wayfinder waiting" "handoff $pending_doc is ready; waiting for session $session_id to finish"
-      notified=1
+  # Exit-wait resilience (#657, the 2026-09-08 duplicate class): neither a
+  # failed /active fetch (transient API/rate-limit error yields empty output,
+  # which both helpers below read as absent) nor a single-tick absence may end
+  # the wait — that false completion spawned a second worker on a stale packet
+  # while the owner was still mid-ticket. Fetch failures hold the wait as an
+  # outage (never exit evidence); exit needs EXIT_CONFIRM_TICKS consecutive
+  # absent observations. A real exit costs ~15s; blips auto-heal.
+  local notified=0 absent_ticks=0 outages=0 snap alive
+  while :; do
+    snap="$(api get /api/session/active 2>/dev/null || true)"
+    if [ -z "$snap" ]; then
+      outages=$((outages + 1))
+      log "exit-wait for $session_id: /active unreachable (outage $outages) — holding, not exiting"
+      sleep "$TICK_SECS"
+      continue
+    fi
+    outages=0
+    alive=0
+    if printf '%s' "$snap" | jq -e --arg s "$session_id" '.data | has($s)' >/dev/null 2>&1; then
+      alive=1
+    elif active_children "$session_id"; then
+      alive=1
+    fi
+    if [ "$alive" -eq 1 ]; then
+      absent_ticks=0
+      if [ "$notified" -eq 0 ]; then
+        log "handoff $pending_doc detected; waiting for session $session_id to exit before spawning"
+        notify "wayfinder waiting" "handoff $pending_doc is ready; waiting for session $session_id to finish"
+        notified=1
+      fi
+    else
+      absent_ticks=$((absent_ticks + 1))
+      if [ "$absent_ticks" -ge "$EXIT_CONFIRM_TICKS" ]; then
+        log "session $session_id absent for $absent_ticks consecutive ticks — exit confirmed"
+        break
+      fi
+      log "exit-wait for $session_id: absent $absent_ticks/$EXIT_CONFIRM_TICKS — holding for confirmation"
     fi
     sleep "$TICK_SECS"
   done

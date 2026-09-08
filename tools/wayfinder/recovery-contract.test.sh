@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # recovery-contract.test.sh — focused checks for the #355 wayfinder lifecycle contract.
 # Structural assertions on tools/wayfinder/wayfinder-loop.sh (one canonical prompt, all three
-# in-place paths use it, --retry refuses a live session) plus one behavioral run of the
-# --retry guard against a stubbed opencode binary. No Gradle/DB/network.
+# in-place paths use it, --retry refuses a live session) plus behavioral runs of the
+# --retry guard, the transient-error nudge, the progress-budget reset, and the #657
+# exit-wait outage-hold against stubbed opencode binaries. No Gradle/DB/network.
 set -uo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -221,6 +222,67 @@ else
   bad "wrapper --retry failed differently: $(head -3 "$wwork/wrap.out")"
 fi
 rm -rf "$wstub" "$wwork"
+
+echo "9. exit-wait holds on API outage, still confirms a real exit (#657)"
+contains "$script" 'EXIT_CONFIRM_TICKS' "confirmation-tick config present"
+contains "$script" 'holding, not exiting' "outage-hold log present"
+
+# 9a behavioral: /active UNREACHABLE (rate-limit class) while a successor packet
+# waits must never read as session exit — no completion log, no fresh spawn.
+stubdir="$(mktemp -d)"
+cat > "$stubdir/opencode2" <<STUB
+#!/usr/bin/env bash
+exit 1
+STUB
+chmod +x "$stubdir/opencode2"
+
+worktree="$(mktemp -d)"
+mkdir -p "$worktree/.wayfinder/handoffs" "$worktree/tools/wayfinder"
+cp "$script" "$worktree/tools/wayfinder/wayfinder-loop.sh"
+touch "$worktree/.wayfinder/handoffs/wayfinder-test-handoff.md" "$worktree/.wayfinder/handoffs/wayfinder-second-handoff.md"
+fp="$(sha256sum "$worktree/.wayfinder/handoffs/wayfinder-test-handoff.md" | awk '{print $1}')"
+printf 'last_doc=wayfinder-test-handoff.md\nsession_id=ses_exitwait\npending_doc=\nretries=0\nseen_docs=wayfinder-test-handoff.md@%s\n' "$fp" \
+  > "$worktree/.wayfinder-loop.state"
+
+PATH="$stubdir:$PATH" OPENCODE_BIN="$stubdir/opencode2" WAYFINDER_TICK_SECS=1 WAYFINDER_STALL_SECS=9999 \
+  timeout -s TERM 6 bash "$worktree/tools/wayfinder/wayfinder-loop.sh" > "$worktree/hold.out" 2>&1
+if grep -q "holding, not exiting" "$worktree/hold.out" &&
+   ! grep -q "completed; next handoff" "$worktree/hold.out" &&
+   ! grep -q "created ses_" "$worktree/hold.out"; then
+  ok "sustained /active outage held the exit-wait with no spawn"
+else
+  bad "outage ended the wait: $(head -3 "$worktree/hold.out")"
+fi
+
+# 9b behavioral: /active reachable with the session persistently absent must
+# still confirm the exit (after consecutive ticks) and spawn the pending doc.
+cat > "$stubdir/opencode2" <<STUB
+#!/usr/bin/env bash
+cmd="\$*"
+case "\$cmd" in
+  *"post /api/session/"*"/prompt"*) exit 0 ;;
+  *"post /api/session"*) echo '{"data":{"id":"ses_new1"}}'; exit 0 ;;
+  *"get /api/session/active"*) echo '{"data":{}}'; exit 0 ;;
+  *"get /api/session/"*"message"*) echo '{"data":[{"id":"m1","type":"assistant","time":{},"finish":"tool-calls"}]}'; exit 0 ;;
+  *"get /api/session/"*"form"*) echo '{"data":[]}'; exit 0 ;;
+  *"get /api/session/"*"permission"*) echo '{"data":[]}'; exit 0 ;;
+  *"get /api/session/"*) echo '{"data":{"id":"ses_new1","tokens":{"input":10,"output":5,"reasoning":0},"time":{"updated":1755861480}}}'; exit 0 ;;
+esac
+exit 1
+STUB
+chmod +x "$stubdir/opencode2"
+printf 'last_doc=wayfinder-test-handoff.md\nsession_id=ses_exitgone\npending_doc=\nretries=0\nseen_docs=wayfinder-test-handoff.md@%s\n' "$fp" \
+  > "$worktree/.wayfinder-loop.state"
+
+PATH="$stubdir:$PATH" OPENCODE_BIN="$stubdir/opencode2" WAYFINDER_TICK_SECS=1 WAYFINDER_STALL_SECS=9999 \
+  timeout -s TERM 12 bash "$worktree/tools/wayfinder/wayfinder-loop.sh" > "$worktree/confirm.out" 2>&1
+if grep -q "exit confirmed" "$worktree/confirm.out" &&
+   grep -q "created ses_new1 for wayfinder-second-handoff.md" "$worktree/confirm.out"; then
+  ok "consecutive absence confirmed the exit and spawned the pending doc"
+else
+  bad "confirmed exit did not proceed: $(head -5 "$worktree/confirm.out")"
+fi
+rm -rf "$stubdir" "$worktree"
 
 echo
 if [ $fail -eq 0 ]; then echo "ALL PASS"; else echo "FAILURES PRESENT"; exit 1; fi
