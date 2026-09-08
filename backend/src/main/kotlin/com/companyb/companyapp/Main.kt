@@ -87,9 +87,19 @@ fun initializeJavalin(config: AppConfig) {
     logger.info { "[INITIALIZE-JAVALIN] Application started" }
 }
 
-@Suppress("LongMethod")
 private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     config.jsonMapper(KotlinxSerializationMapper())
+    configurePlugins(config)
+    config.http.maxRequestSize = MAX_REQUEST_SIZE_KB * KB
+    configureFilters(config)
+    configureEvents(config)
+    configureAuth(config)
+    registerExceptionHandlers(config)
+    registerServerErrorHandler(config)
+    registerAllRoutes(config)
+}
+
+private fun configurePlugins(config: io.javalin.config.JavalinConfig) {
     config.registerPlugin(
         OpenApiPlugin { openapi ->
             openapi.withDefinitionConfiguration { _, builder ->
@@ -105,7 +115,9 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
         },
     )
     config.registerPlugin(SwaggerPlugin())
-    config.http.maxRequestSize = MAX_REQUEST_SIZE_KB * KB
+}
+
+private fun configureFilters(config: io.javalin.config.JavalinConfig) {
     config.routes.before {
         // logback.xml %X{traceId} %X == %mdc
         RequestElapsedConverter.startRequest()
@@ -118,6 +130,9 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
         RequestMetrics.observe(it)
         RequestLog.complete(it)
     }
+}
+
+private fun configureEvents(config: io.javalin.config.JavalinConfig) {
     config.events.serverStartFailed {
         shutdownLifecycle()
     }
@@ -130,14 +145,14 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     config.events.serverStopFailed {
         shutdownLifecycle(stopScheduler = false)
     }
+}
+
+private fun configureAuth(config: io.javalin.config.JavalinConfig) {
     config.routes.before("${ApiRoutes.API_PREFIX}*") { context ->
         val token = context.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
         val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
         context.attribute("userId", userId)
     }
-    registerExceptionHandlers(config)
-    registerServerErrorHandler(config)
-    registerAllRoutes(config)
 }
 
 /**

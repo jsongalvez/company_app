@@ -1,4 +1,5 @@
-@file:Suppress("LargeClass")
+// #600 route-canonical coverage stays whole (same precedent as BranchInventoryAuthzTest #597).
+@file:Suppress("LargeClass") // #600
 
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.app.AppConfig

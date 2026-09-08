@@ -46,7 +46,6 @@ inline fun <reified T> Context.bodyIfPresent(): T? {
     return if (raw.isBlank()) null else this.bodyAsClass(T::class.java)
 }
 
-@Suppress("MagicNumber")
 fun parseNonNegativeBigDecimal(
     value: String,
     name: String,
@@ -60,7 +59,6 @@ fun parseNonNegativeBigDecimal(
     return result
 }
 
-@Suppress("MagicNumber")
 fun parsePositiveBigDecimal(
     value: String,
     name: String,

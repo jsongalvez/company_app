@@ -304,7 +304,6 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
 
     private fun twoDaysFromNow(): LocalDate = TestFixtures.today.plusDays(2)
 
-    @Suppress("ThrowsCount")
     private fun createCompletedSessionWithAppointment(appointmentDate: LocalDate): UUID {
         val sessionId = TestFixtures.uuid()
         SessionService.create(

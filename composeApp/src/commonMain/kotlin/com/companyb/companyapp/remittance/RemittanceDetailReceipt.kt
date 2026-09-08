@@ -411,7 +411,6 @@ private fun DriftRow(
 
 // D6 — lock glyph via Canvas (no material-icons dependency, #107 precedent): stroked shackle arc
 // + filled round-rect body reads as a closed padlock at icon size.
-@Suppress("MagicNumber") // padlock proportion literals — one-time drawing constants
 @Composable
 private fun LockIcon(
     tint: Color,
@@ -419,32 +418,50 @@ private fun LockIcon(
 ) {
     val keyholeColor = MaterialTheme.colorScheme.surface
     Canvas(
-        modifier = modifier.size(14.dp),
+        modifier = modifier.size(LOCK_SIZE),
     ) {
         val w = size.width
         val h = size.height
-        val stroke = 1.5.dp.toPx()
-        val bodyTop = h * 0.40f
-        val shackleTop = h * 0.06f
+        val stroke = LOCK_STROKE.toPx()
+        val bodyTop = h * LOCK_BODY_RATIO
+        val shackleTop = h * LOCK_SHACKLE_RATIO
         drawArc(
             color = tint,
-            startAngle = 180f,
-            sweepAngle = 180f,
+            startAngle = LOCK_ARC_START,
+            sweepAngle = LOCK_ARC_SWEEP,
             useCenter = false,
-            topLeft = Offset(w * 0.22f, shackleTop),
-            size = Size(w * 0.56f, (bodyTop - shackleTop) * 2f),
+            topLeft = Offset(w * LOCK_SHACKLE_X, shackleTop),
+            size = Size(w * LOCK_SHACKLE_WIDTH, (bodyTop - shackleTop) * LOCK_SHACKLE_HEIGHT_FACTOR),
             style = Stroke(width = stroke),
         )
         drawRoundRect(
             color = tint,
-            topLeft = Offset(w * 0.10f, bodyTop),
-            size = Size(w * 0.80f, h * 0.46f),
-            cornerRadius = GeometryCornerRadius(2.dp.toPx()),
+            topLeft = Offset(w * LOCK_BODY_X, bodyTop),
+            size = Size(w * LOCK_BODY_WIDTH, h * LOCK_BODY_HEIGHT_RATIO),
+            cornerRadius = GeometryCornerRadius(LOCK_CORNER.toPx()),
         )
         drawCircle(
             color = keyholeColor,
-            radius = 1.5.dp.toPx(),
-            center = Offset(w * 0.50f, bodyTop + h * 0.25f),
+            radius = LOCK_KEYHOLE_RADIUS.toPx(),
+            center = Offset(w * LOCK_KEYHOLE_X, bodyTop + h * LOCK_KEYHOLE_Y_RATIO),
         )
     }
 }
+
+// #600 lock-glyph geometry (MagicNumber burn-down: named proportions, not bare literals).
+private val LOCK_SIZE = 14.dp
+private val LOCK_STROKE = 1.5.dp
+private val LOCK_KEYHOLE_RADIUS = 1.5.dp
+private val LOCK_CORNER = 2.dp
+private const val LOCK_BODY_RATIO = 0.40f
+private const val LOCK_SHACKLE_RATIO = 0.06f
+private const val LOCK_ARC_START = 180f
+private const val LOCK_ARC_SWEEP = 180f
+private const val LOCK_SHACKLE_X = 0.22f
+private const val LOCK_SHACKLE_WIDTH = 0.56f
+private const val LOCK_SHACKLE_HEIGHT_FACTOR = 2f
+private const val LOCK_BODY_X = 0.10f
+private const val LOCK_BODY_WIDTH = 0.80f
+private const val LOCK_BODY_HEIGHT_RATIO = 0.46f
+private const val LOCK_KEYHOLE_X = 0.50f
+private const val LOCK_KEYHOLE_Y_RATIO = 0.25f

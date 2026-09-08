@@ -42,10 +42,11 @@ private val logger = KotlinLogging.logger {}
 /**
  * Audit persistence (#549): table/query internals behind the [AuditLog] append seam and
  * the [AuditLogService] scoped reads. Same-owner only — other owners cross [AuditLog].
+ * #600 record unanimity stays whole per #535; the append seam mirrors store signatures 1:1
+ * (#549) so bundling would fork the seam without removing a parameter.
  */
-@Suppress("TooManyFunctions")
 internal object AuditLogStore {
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList") // #600
     fun record(
         tableName: String,
         recordId: UUID,
@@ -71,7 +72,7 @@ internal object AuditLogStore {
         logger.info { "[AUDIT-LOG] Recorded $action on $tableName/$recordId isFlagged=$isFlagged" }
     }
 
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList") // #600
     fun recordInsert(
         tableName: String,
         recordId: UUID,
@@ -93,7 +94,7 @@ internal object AuditLogStore {
         )
     }
 
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList") // #600
     fun recordUpdate(
         tableName: String,
         recordId: UUID,
@@ -117,7 +118,7 @@ internal object AuditLogStore {
         )
     }
 
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList") // #600
     fun <T> recordUpdate(
         tableName: String,
         recordId: UUID,
@@ -150,7 +151,7 @@ internal object AuditLogStore {
         )
     }
 
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList") // #600
     fun <T> recordDelete(
         tableName: String,
         recordId: UUID,
@@ -174,7 +175,7 @@ internal object AuditLogStore {
         )
     }
 
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList") // #600
     fun recordDelete(
         tableName: String,
         recordId: UUID,
@@ -326,7 +327,7 @@ internal object AuditLogStore {
      * strictly-before position (exclusive). [limit] rows are returned; the
      * caller decides pagination via [AuditLogService.browse] encoding the last row.
      */
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList") // #600 10-param browse mirrors the service filter set 1:1 per #535
     fun browse(
         windowBranchIds: List<UUID>?,
         branchlessTables: Set<String>,
@@ -468,7 +469,7 @@ private class AuditILikeOp(
     expr2: Expression<*>,
 ) : ComparisonOp(expr1, expr2, "ILIKE")
 
-@Suppress("UNCHECKED_CAST")
+@Suppress("UNCHECKED_CAST") // #600 String-backed columns narrow to IColumnType<String> per #467
 private fun <T : String?> ilike(
     col: Column<T>,
     pattern: String,

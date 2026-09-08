@@ -29,7 +29,7 @@ class AndroidTokenStore(
     private var sessionToken: String? = null
 
     @SuppressLint("GetInstance")
-    @Suppress("TooGenericExceptionCaught")
+    @Suppress("TooGenericExceptionCaught") // #600 best-effort encrypted prefs fall back to memory, must not throw
     private fun createEncryptedPrefs(context: Context): SharedPreferences? =
         try {
             val masterKey =

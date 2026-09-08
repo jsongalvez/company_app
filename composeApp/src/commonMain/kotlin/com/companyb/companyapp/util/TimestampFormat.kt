@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.companyb.companyapp.util
 
 import kotlinx.datetime.LocalDateTime

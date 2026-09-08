@@ -1,4 +1,5 @@
-@file:Suppress("LargeClass")
+// #600 scenario coverage stays whole (same precedent as BranchInventoryAuthzTest #597).
+@file:Suppress("LargeClass") // #600
 
 package com.companyb.companyapp.audit
 import com.companyb.companyapp.app.AppConfig
@@ -65,8 +66,14 @@ class AuditLogAuthzTest : BasePostgresTest() {
     private val recordA = TestFixtures.uuid()
     private val recordB = TestFixtures.uuid()
 
-    @Suppress("LongMethod")
     override fun initTestData() {
+        seedUsers()
+        seedBranches()
+        seedGrants()
+        seedAuditRows()
+    }
+
+    private fun seedUsers() {
         listOf(
             editorA to "editor-a",
             editorB to "editor-b",
@@ -78,7 +85,9 @@ class AuditLogAuthzTest : BasePostgresTest() {
         ).forEach { (id, prefix) ->
             IdentityFixtures.insertTestUser(id, prefix)
         }
+    }
 
+    private fun seedBranches() {
         BranchWorkforceFixtures.insertTestBranch(branchA, "Audit Branch A $branchA")
         BranchWorkforceFixtures.insertTestBranch(branchB, "Audit Branch B $branchB")
 
@@ -89,7 +98,9 @@ class AuditLogAuthzTest : BasePostgresTest() {
             slot = 1,
             assignedBy = ownerUser,
         )
+    }
 
+    private fun seedGrants() {
         IdentityFixtures.grantCapability(
             userId = editorA,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
@@ -125,9 +136,9 @@ class AuditLogAuthzTest : BasePostgresTest() {
             contextId = com.companyb.companyapp.authorization.CapabilityService.GLOBAL_CONTEXT_ID,
             sourceId = sourceId,
         )
-        listOf(editorA, editorB, manageUsersUser, manageProductsUser, globalViewUser).forEach {
-        }
+    }
 
+    private fun seedAuditRows() {
         // Direct inserts with explicit changedAt for deterministic cursor tests.
         transaction {
             fun insert(

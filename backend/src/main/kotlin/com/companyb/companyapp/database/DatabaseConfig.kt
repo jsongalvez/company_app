@@ -68,7 +68,7 @@ object DatabaseConfig {
         return HikariDataSource(config)
     }
 
-    @Suppress("TooGenericExceptionCaught")
+    @Suppress("TooGenericExceptionCaught") // #600 startup must close the half-open pool before rethrowing
     fun initialize(config: AppConfig) {
         synchronized(lock) {
             configure(config)

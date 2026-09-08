@@ -114,40 +114,13 @@ import java.util.UUID
     ],
 )
 object AuditLogRoutes {
-    @Suppress("LongMethod", "ThrowsCount")
     fun register(config: JavalinConfig) {
         // No route gate (D9: always-visible; backend-authoritative read scoping
         // inside the service). The pre-#122 GLOBAL ASSIGN_COMPENSATION filter was
         // broken by construction (#104 F2) and is removed here.
 
         config.routes.get(ApiRoutes.AUDIT_LOG_ENTRIES_PATH) { context ->
-            val callerId = context.callerUuid()
-            val tableName = context.queryParam("tableName")
-            val action = parseAction(context.queryParam("action"))
-            val callerName = context.queryParam("callerName")
-            val dateFromRaw = context.queryParam("dateFrom")
-            val dateToRaw = context.queryParam("dateTo")
-            if (dateFromRaw != null && dateToRaw != null) {
-                val from = parseLocalDate(dateFromRaw)
-                val to = parseLocalDate(dateToRaw)
-                if (from.isAfter(to)) throw BadRequestResponse("dateFrom must be before dateTo")
-            }
-            val dateFrom = parseStartOfDay(dateFromRaw)
-            val dateTo = parseExclusiveEndOfDay(dateToRaw)
-            val cursor = parseCursor(context.queryParam("cursor"))
-            val limit = parseBrowseLimit(context.queryParam("limit"))
-
-            val response: AuditLogBrowseResponse =
-                AuditLogService.browse(
-                    callerId = callerId,
-                    tableName = tableName,
-                    action = action,
-                    callerName = callerName,
-                    dateFrom = dateFrom,
-                    dateTo = dateTo,
-                    cursor = cursor,
-                    limit = limit,
-                )
+            val response = handleBrowse(context)
             context.status(HttpStatus.OK)
             context.json(response)
         }
@@ -159,15 +132,7 @@ object AuditLogRoutes {
         }
 
         config.routes.get(ApiRoutes.AUDIT_LOG) { context ->
-            val callerId = context.callerUuid()
-            val tableName = context.queryParam("tableName") ?: throw BadRequestResponse("tableName is required")
-            val recordIdParam = context.queryParam("recordId") ?: throw BadRequestResponse("recordId is required")
-            val recordId = uuidOrThrow(recordIdParam, "recordId")
-
-            val entries = AuditLogService.findByTableAndRecord(callerId, tableName, recordId)
-
-            context.status(HttpStatus.OK)
-            context.json(entries.map { it.toResponse() })
+            context.json(handleHistory(context))
         }
 
         config.routes.get(ApiRoutes.AUDIT_LOG_FLAGGED_PATH) { context ->
@@ -180,15 +145,70 @@ object AuditLogRoutes {
         }
 
         config.routes.patch(ApiRoutes.AUDIT_LOG_ACKNOWLEDGE_PATH) { context ->
-            val callerId = context.callerUuid()
-            val entryId = context.pathParamAsUuid("entryId")
-
-            val entry: com.companyb.companyapp.audit.AuditLogEntry =
-                AuditLogService.acknowledge(callerId, entryId)
-
-            context.status(HttpStatus.OK)
-            context.json(entry.toResponse())
+            context.json(handleAcknowledge(context))
         }
+    }
+
+    private fun handleBrowse(context: io.javalin.http.Context): AuditLogBrowseResponse {
+        val callerId = context.callerUuid()
+        val tableName = context.queryParam("tableName")
+        val action = parseAction(context.queryParam("action"))
+        val callerName = context.queryParam("callerName")
+        val dateFromRaw = context.queryParam("dateFrom")
+        val dateToRaw = context.queryParam("dateTo")
+        requireValidDateRange(dateFromRaw, dateToRaw)
+        val dateFrom = parseStartOfDay(dateFromRaw)
+        val dateTo = parseExclusiveEndOfDay(dateToRaw)
+        val cursor = parseCursor(context.queryParam("cursor"))
+        val limit = parseBrowseLimit(context.queryParam("limit"))
+
+        return AuditLogService.browse(
+            callerId = callerId,
+            tableName = tableName,
+            action = action,
+            callerName = callerName,
+            dateFrom = dateFrom,
+            dateTo = dateTo,
+            cursor = cursor,
+            limit = limit,
+        )
+    }
+
+    private fun handleHistory(context: io.javalin.http.Context): List<AuditLogEntryResponse> {
+        val callerId = context.callerUuid()
+        val (tableName, recordId) = requireTableAndRecord(context)
+
+        val entries = AuditLogService.findByTableAndRecord(callerId, tableName, recordId)
+        context.status(HttpStatus.OK)
+        return entries.map { it.toResponse() }
+    }
+
+    private fun handleAcknowledge(context: io.javalin.http.Context): AuditLogEntryResponse {
+        val callerId = context.callerUuid()
+        val entryId = context.pathParamAsUuid("entryId")
+
+        val entry: com.companyb.companyapp.audit.AuditLogEntry =
+            AuditLogService.acknowledge(callerId, entryId)
+
+        context.status(HttpStatus.OK)
+        return entry.toResponse()
+    }
+
+    private fun requireValidDateRange(
+        dateFromRaw: String?,
+        dateToRaw: String?,
+    ) {
+        if (dateFromRaw != null && dateToRaw != null) {
+            val from = parseLocalDate(dateFromRaw)
+            val to = parseLocalDate(dateToRaw)
+            if (from.isAfter(to)) throw BadRequestResponse("dateFrom must be before dateTo")
+        }
+    }
+
+    private fun requireTableAndRecord(context: io.javalin.http.Context): Pair<String, UUID> {
+        val tableName = context.queryParam("tableName") ?: throw BadRequestResponse("tableName is required")
+        val recordIdParam = context.queryParam("recordId") ?: throw BadRequestResponse("recordId is required")
+        return tableName to uuidOrThrow(recordIdParam, "recordId")
     }
 
     private fun parseAction(raw: String?): AuditAction? {

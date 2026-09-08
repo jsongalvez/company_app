@@ -737,45 +737,40 @@ style:
     excludes:
       # #465 frozen grandfather: files holding pre-existing @Suppress sites.
       # Never grows; burndown removes lines. New excludes need a #<ticket>.
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/Main.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/authorization/CapabilityFilter.kt' #465 frozen #538 retarget
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogRoutes.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLog.kt' #549 seam mirrors store signatures
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/api/routes/RoutesUtil.kt' #465 frozen
       - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/PasswordResetDelivery.kt' #465 frozen #599 ticketed TooGenericExceptionCaught
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/http/KotlinxSerializationMapper.kt' #465 frozen #551 retarget
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/database/DatabaseConfig.kt' #465 frozen
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogStore.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/http/KotlinxSerializationMapper.kt' #465 frozen #551 retarget #600 ticketed UNCHECKED_CAST
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/database/DatabaseConfig.kt' #465 frozen #600 ticketed TooGenericExceptionCaught
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogStore.kt' #465 frozen #600 ticketed LongParameterList+UNCHECKED_CAST
       - '**/backend/src/main/kotlin/com/companyb/companyapp/client/ClientRepository.kt' #465 frozen #599 ticketed UNCHECKED_CAST
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/ReliefInviteRepository.kt' #465 frozen #598 ticketed UNCHECKED_CAST
       - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/AllowanceService.kt' #465 frozen #596 ticketed LongParameterList
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogService.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogService.kt' #465 frozen #600 ticketed LongParameterList
       - '**/backend/src/main/kotlin/com/companyb/companyapp/client/ClientService.kt' #465 frozen #599 ticketed LongParameterList
       - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/CompensationService.kt' #465 frozen #596 ticketed LongParameterList
       - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/ExpenseService.kt' #465 frozen #596 ticketed LongParameterList
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commerce/ProductSaleService.kt' #465 frozen #597 ticketed LongParameterList+CyclomaticComplexMethod+LongMethod
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commerce/ProductService.kt' #465 frozen #597 ticketed LongParameterList
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/app/SchedulerLifecycle.kt' #465 frozen #551 retarget
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/branchday/BranchDayService.kt' #465 frozen
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/app/SchedulerLifecycle.kt' #465 frozen #551 retarget #600 ticketed TooGenericExceptionCaught
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commission/CommissionService.kt' #465 frozen #596 ticketed LongParameterList
       - '**/backend/src/main/kotlin/com/companyb/companyapp/remittance/RemittanceService.kt' #465 frozen #595 ticketed LongMethod+LongParameterList
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commerce/InventoryService.kt' #465 frozen #597 ticketed LongParameterList+LongMethod
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commerce/StockValidator.kt' #465 frozen #597 ticketed LongParameterList
       - '**/backend/src/main/kotlin/com/companyb/companyapp/session/SessionPractitionerService.kt' #465 frozen #593 ticketed LongParameterList
       - '**/backend/src/main/kotlin/com/companyb/companyapp/session/SessionService.kt' #465 frozen #593 ticketed LongParameterList
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/audit/AuditLogAuthzTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/branchday/BranchDayAuthzTest.kt' #465 frozen
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/audit/AuditLogAuthzTest.kt' #465 frozen #600 ticketed LargeClass
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/branchday/BranchDayAuthzTest.kt' #465 frozen #600 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/commerce/BranchInventoryAuthzTest.kt' #465 frozen #597 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/FinanceReadBackAuthzTest.kt' #465 frozen #596 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/workforce/relief/ReliefDayGateAuthzTest.kt' #465 frozen #598 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/workforce/relief/ReliefInviteAuthzTest.kt' #465 frozen #598 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceAuthzTest.kt' #465 frozen #595 ticketed LargeClass
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/RouteValidationTest.kt' #465 frozen
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/RouteValidationTest.kt' #465 frozen #600 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/commerce/BranchInventoryServicePostgresTest.kt' #465 frozen #597 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/client/ClientServicePostgresTest.kt' #465 frozen #599 ticketed LongParameterList
       - '**/backend/src/test/kotlin/com/companyb/companyapp/session/ConcernServicePostgresTest.kt' #465 frozen #593 ticketed LongParameterList
       - '**/backend/src/test/kotlin/com/companyb/companyapp/finance/ExpenseServicePostgresTest.kt' #465 frozen #596 ticketed LargeClass
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/notification/NextAppointmentSchedulerPostgresTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/commerce/ProductSaleServicePostgresTest.kt' #465 frozen #597 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/workforce/relief/ReliefAccessServicePostgresTest.kt' #465 frozen #598 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceLineServicePostgresTest.kt' #465 frozen #595 ticketed LargeClass
@@ -783,19 +778,16 @@ style:
       - '**/backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceServicePostgresTest.kt' #465 frozen #595 ticketed LargeClass+SameParameterValue
       - '**/backend/src/test/kotlin/com/companyb/companyapp/session/SessionServicePostgresTest.kt' #465 frozen #593 ticketed LargeClass+LongParameterList
       - '**/backend/src/test/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentServicePostgresTest.kt' #465 frozen #598 ticketed LargeClass
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/database/BasePostgresTest.kt' #465 frozen
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/test/BasePostgresTestTeardownTest.kt' #465 frozen
       - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/IdentityFixtures.kt' #552 split from the retired mixed helper
       - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/BranchWorkforceFixtures.kt' #552 split from the retired mixed helper
       - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/SessionClientFixtures.kt' #552 split from the retired mixed helper
       - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/CommerceFinanceFixtures.kt' #552 split from the retired mixed helper
-      - '**/composeApp/src/androidMain/kotlin/com/companyb/companyapp/network/TokenStore.android.kt' #465 frozen
+      - '**/composeApp/src/androidMain/kotlin/com/companyb/companyapp/network/TokenStore.android.kt' #465 frozen #600 ticketed TooGenericExceptionCaught
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/App.kt' #465 frozen #555 retarget #585 repair
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/audit/AuditLogDiff.kt' #465 frozen #564 retarget (was ui/screen)
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/audit/AuditLogDiff.kt' #465 frozen #564 retarget (was ui/screen) #600 ticketed ReturnCount
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientPicker.kt' #465 frozen #558 retarget #599 ticketed MatchingDeclarationName
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt' #465 frozen #563 retarget #598 ticketed LongParameterList
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/catalog/ProductCatalogScreen.kt' #465 frozen #562 retarget (was ui/screen) #597 ticketed LongMethod+CyclomaticComplexMethod+LongParameterList
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailReceipt.kt' #465 frozen #561 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateLayout.kt' #465 frozen #557 retarget #594 ticketed MatchingDeclarationName
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateScreen.kt' #465 frozen #557 retarget #594 ticketed LongParameterList
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/dashboard/SessionDashboardScreen.kt' #465 frozen #556 retarget #594 ticketed LongParameterList+UnusedParameter
@@ -804,7 +796,6 @@ style:
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/finance/FinanceReportsViewModel.kt' #465 frozen #560 retarget (was FinanceReportDayEditOps) #596 ticketed LongParameterList
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/InventoryMutationPolicy.kt' #465 frozen #562 retarget (was viewmodel) #597 ticketed LongParameterList
       - '**/composeApp/src/desktopTest/kotlin/com/companyb/companyapp/commerce/stock/InventoryRowPresentationTest.kt' #465 frozen #562 retarget (was ui/screen) #597 ticketed LongParameterList
-      - '**/shared/src/commonMain/kotlin/com/companyb/companyapp/api/ApiRoutes.kt' #465 frozen
   ForbiddenVoid:
     active: true
     ignoreOverridden: false

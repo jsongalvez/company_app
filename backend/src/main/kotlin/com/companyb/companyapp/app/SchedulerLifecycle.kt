@@ -26,7 +26,7 @@ class SchedulerLifecycle(
 ) {
     private var executor: ScheduledExecutorService? = null
 
-    @Suppress("TooGenericExceptionCaught")
+    @Suppress("TooGenericExceptionCaught") // #600 best-effort sweep must not kill the scheduler
     private fun runTask(
         name: String,
         block: () -> Unit,
@@ -39,7 +39,7 @@ class SchedulerLifecycle(
     }
 
     @Synchronized
-    @Suppress("TooGenericExceptionCaught")
+    @Suppress("TooGenericExceptionCaught") // #600 executor leak guard must shut down the candidate before rethrowing
     fun start() {
         if (executor?.isShutdown == false) return
 

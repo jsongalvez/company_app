@@ -18,7 +18,7 @@ class KotlinxSerializationMapper : JsonMapper {
             ignoreUnknownKeys = true
         }
 
-    @Suppress("UNCHECKED_CAST")
+    @Suppress("UNCHECKED_CAST") // #600 runtime serializer resolved for targetType per #467
     override fun <T : Any> fromJsonString(
         json: String,
         targetType: java.lang.reflect.Type,

@@ -102,7 +102,7 @@ internal data class ChangedField(
     val new: String?,
 )
 
-@Suppress("ReturnCount") // guard-clause style: malformed-data and empty-diff exits are distinct answers
+@Suppress("ReturnCount") // #600 guard-clause style: malformed-data and empty-diff exits are distinct answers
 internal fun parseChangedFields(
     oldValue: String?,
     newValue: String?,
@@ -152,7 +152,7 @@ private sealed interface FieldMap {
     ) : FieldMap
 }
 
-@Suppress("ReturnCount") // guard-clause style: absent/malformed/valid are three terminal answers
+@Suppress("ReturnCount") // #600 guard-clause style: absent/malformed/valid are three terminal answers
 private fun parseFieldMap(raw: String?): FieldMap {
     if (raw == null) return FieldMap.Absent
     val element =

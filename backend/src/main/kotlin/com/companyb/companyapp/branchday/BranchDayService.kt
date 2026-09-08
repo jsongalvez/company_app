@@ -26,7 +26,6 @@ import java.util.UUID
  * over at [DAY_BOUNDARY_HOUR] 04:00 Asia/Manila, not at calendar midnight — this service is the
  * sole authority for that boundary; consumers must never derive it independently.
  */
-@Suppress("TooManyFunctions")
 object BranchDayService {
     private val logger = KotlinLogging.logger {}
 

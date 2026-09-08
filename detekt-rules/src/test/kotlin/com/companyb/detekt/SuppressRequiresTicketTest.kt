@@ -60,15 +60,20 @@ class SuppressRequiresTicketTest {
     }
 
     @Test
-    fun `grandfathered pair is covered`() {
+    fun `empty grandfather covers nothing`() {
+        // #600 burn-down complete (8/8): the grandfather file holds no entries, so every
+        // bare @Suppress needs a #<ticket> — nothing is covered by path anymore.
         val path = "backend/src/main/kotlin/com/companyb/companyapp/session/SessionRepository.kt"
-        assertTrue(rule.uncoveredIds(path, listOf("ThrowsCount")).isEmpty())
+        assertEquals(listOf("ThrowsCount"), rule.uncoveredIds(path, listOf("ThrowsCount")))
     }
 
     @Test
     fun `same file new id is not covered`() {
         val path = "backend/src/main/kotlin/com/companyb/companyapp/session/SessionRepository.kt"
-        assertEquals(listOf("MagicNumber"), rule.uncoveredIds(path, listOf("ThrowsCount", "MagicNumber")))
+        assertEquals(
+            listOf("ThrowsCount", "MagicNumber"),
+            rule.uncoveredIds(path, listOf("ThrowsCount", "MagicNumber")),
+        )
     }
 
     @Test

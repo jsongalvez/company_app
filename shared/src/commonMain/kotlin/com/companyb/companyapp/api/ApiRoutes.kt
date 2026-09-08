@@ -1,7 +1,6 @@
 package com.companyb.companyapp.api
 
 // Route catalog intentionally centralizes many tiny path builders.
-@Suppress("TooManyFunctions")
 object ApiRoutes {
     const val API_PREFIX = "/api/"
 

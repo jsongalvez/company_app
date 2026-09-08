@@ -1,4 +1,4 @@
-@file:Suppress("DEPRECATION")
+@file:Suppress("DEPRECATION") // #600 TabRow stays until PrimaryTabRow migration lands
 
 package com.companyb.companyapp.audit
 

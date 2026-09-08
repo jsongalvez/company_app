@@ -52,8 +52,21 @@ object AuditLogService {
      * Acknowledge within the read window, minus the editor (D2): the editor
      * cannot clear their own flag — self-acknowledge is a 409.
      */
-    @Suppress("ThrowsCount")
     fun acknowledge(
+        callerId: UUID,
+        entryId: UUID,
+    ): AuditLogEntry {
+        val entry = requireReadableEntry(callerId, entryId)
+        requireNotSelfAuthored(callerId, entry)
+
+        val updated = AuditLogStore.acknowledge(entryId, callerId)
+        if (!updated) throw NotFoundException("Audit entry not found or already acknowledged")
+
+        return AuditLogStore.findById(entryId)
+            ?: throw NotFoundException("Audit entry not found")
+    }
+
+    private fun requireReadableEntry(
         callerId: UUID,
         entryId: UUID,
     ): AuditLogEntry {
@@ -63,23 +76,23 @@ object AuditLogService {
         if (!AuditLogReadScope.canReadEntry(callerId, entry.tableName, entry.branchId)) {
             throw NotFoundException("Audit entry not found")
         }
+        return entry
+    }
 
+    private fun requireNotSelfAuthored(
+        callerId: UUID,
+        entry: AuditLogEntry,
+    ) {
         if (entry.changedBy == callerId) {
             throw ConflictException("Editor cannot acknowledge their own flagged entry")
         }
-
-        val updated = AuditLogStore.acknowledge(entryId, callerId)
-        if (!updated) throw NotFoundException("Audit entry not found or already acknowledged")
-
-        return AuditLogStore.findById(entryId)
-            ?: throw NotFoundException("Audit entry not found")
     }
 
     /**
      * Browse with filters + keyset pagination (D5). Returns one page; the
      * caller receives [AuditLogBrowseResponse.nextCursor] to fetch the next.
      */
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList") // #600 8-param browse mirrors the store filter set 1:1 per #535
     fun browse(
         callerId: UUID,
         tableName: String?,
