@@ -1,6 +1,0 @@
-# Dead-code grandfather baseline (map #529 Phase A, ref #530).
-# One concrete finding per line: <repo-relative path>|<kind>|<signature>.
-# No wildcards, no category suppressions. Cleanup children delete lines
-# as declarations die; the map deletes this file at zero debt.
-# Generated once via `./gradlew deadCodeCheck -PdeadCodeWriteBaseline=<this file>`;
-# every regeneration is a reviewed commit, never an ordinary feature-work step.

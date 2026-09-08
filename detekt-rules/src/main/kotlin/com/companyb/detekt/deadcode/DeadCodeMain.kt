@@ -6,8 +6,10 @@ private const val EXIT_OK = 0
 private const val EXIT_GATE_FAILURE = 1
 private const val EXIT_TOOL_ERROR = 2
 
-// CLI driver for #530: the same authoritative gate CI runs. Local reproduction
-// is `./gradlew deadCodeCheck`; CI invokes the identical task and baseline.
+// CLI driver for the zero-debt dead-code gate (map #529, ref #530): the same
+// authoritative gate CI runs. Local reproduction is `./gradlew deadCodeCheck`;
+// CI invokes the identical task. No baseline, no grandfathering — any finding
+// outside entry-points.txt fails.
 fun main(args: Array<String>) {
     kotlin.system.exitProcess(DeadCodeMain.run(args))
 }
@@ -38,18 +40,12 @@ object DeadCodeMain {
     ): Int {
         val result = DeadCodeAnalyzer.analyze(parsed.root, candidates, consumers, parsed.classpathOrDiscovered())
         reportHealth(result)
-        if (parsed.writeBaseline != null) {
-            parsed.writeBaseline.writeText(DeadCodeBaseline.format(result.findings))
-            println("deadcode: wrote ${result.findings.size} findings to ${parsed.writeBaseline}")
-            return EXIT_OK
-        }
         if (parsed.reportInventory) {
             printInventory(result.findings)
         }
-        val baselined = DeadCodeBaseline.load(parsed.baseline)
-        val exempt = parsed.entryPoints?.let { DeadCodeBaseline.load(it) } ?: emptySet()
-        println("deadcode: ${result.findings.size} findings (${baselined.size} baselined, ${exempt.size} exempt)")
-        val diff = DeadCodeBaseline.diff(result.findings, baselined + exempt)
+        val exempt = parsed.entryPoints?.let { DeadCodeExemptions.load(it) } ?: emptySet()
+        println("deadcode: ${result.findings.size} findings (${exempt.size} exempt)")
+        val diff = DeadCodeExemptions.diff(result.findings, exempt)
         val unanalyzed = result.failedFiles - parsed.knownUnanalyzed
         val analyzedNow = parsed.knownUnanalyzed - result.failedFiles.toSet()
         return reportGate(diff, unanalyzed, analyzedNow)
@@ -60,9 +56,7 @@ object DeadCodeMain {
         val candidateRoots: List<File>,
         val consumerRoots: List<File>,
         val targetClasspath: List<File>,
-        val baseline: File,
         val entryPoints: File?,
-        val writeBaseline: File?,
         val knownUnanalyzed: Set<String>,
         val reportInventory: Boolean,
     ) {
@@ -80,9 +74,7 @@ object DeadCodeMain {
     private class MutableParse {
         val roots = MutableRoots()
         var root: File = File(System.getProperty("user.dir"))
-        var baseline: String? = null
         var entryPoints: String? = null
-        var writeBaseline: String? = null
         var knownUnanalyzed: String? = null
         var reportInventory: Boolean = false
         var error: String? = null
@@ -94,9 +86,6 @@ object DeadCodeMain {
         while (index < args.size && state.error == null) {
             index = consumeFlag(args, index, state)
         }
-        if (state.error == null && state.baseline == null) {
-            state.error = "--baseline <file> is required"
-        }
         if (state.error != null) {
             System.err.println("deadcode: ${state.error}")
             return null
@@ -106,10 +95,8 @@ object DeadCodeMain {
             candidateRoots = state.roots.candidates.map { File(it).absoluteFile },
             consumerRoots = state.roots.consumers.map { File(it).absoluteFile },
             targetClasspath = state.roots.targetClasspath.map { File(it) },
-            baseline = File(requireNotNull(state.baseline) { "baseline missing" }),
             entryPoints = state.entryPoints?.let { File(it) },
-            writeBaseline = state.writeBaseline?.let { File(it) },
-            knownUnanalyzed = state.knownUnanalyzed?.let { DeadCodeBaseline.load(File(it)) } ?: emptySet(),
+            knownUnanalyzed = state.knownUnanalyzed?.let { DeadCodeExemptions.load(File(it)) } ?: emptySet(),
             reportInventory = state.reportInventory,
         )
     }
@@ -136,16 +123,8 @@ object DeadCodeMain {
                 state.root = File(flagValue(args, index))
             }
 
-            "--baseline" -> {
-                state.baseline = flagValue(args, index)
-            }
-
             "--entry-points" -> {
                 state.entryPoints = flagValue(args, index)
-            }
-
-            "--write-baseline" -> {
-                state.writeBaseline = flagValue(args, index)
             }
 
             "--known-unanalyzed" -> {
@@ -222,11 +201,11 @@ object DeadCodeMain {
     }
 
     private fun reportGate(
-        diff: BaselineDiff,
+        diff: ExemptionsDiff,
         unanalyzed: List<String>,
         analyzedNow: Set<String>,
     ): Int {
-        for (finding in diff.unbaselined) {
+        for (finding in diff.unexempted) {
             println("deadcode: NEW ${finding.key()} (line ${finding.line})")
         }
         for (stale in diff.stale) {

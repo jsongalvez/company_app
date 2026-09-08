@@ -66,9 +66,11 @@ subprojects {
     }
 }
 
-// Semantic dead-code gate (map #529 Phase A, ref #530): one whole-project
-// compiler analysis over the listed sources. CI runs this task verbatim;
-// local reproduction is the same command. Never wired into git hooks (#329).
+// Semantic dead-code gate (map #529, ref #530; zero-debt since Phase C):
+// one whole-project compiler analysis over the listed sources. CI runs this
+// task verbatim; local reproduction is the same command. Any finding outside
+// entry-points.txt fails — no baseline, no grandfathering. Never wired into
+// git hooks (#329).
 val deadCodeTool by configurations.creating {
     isCanBeResolved = true
     isCanBeConsumed = false
@@ -107,7 +109,7 @@ fun resolveDeadCodeTargetJars(): List<java.io.File> =
 
 tasks.register<JavaExec>("deadCodeCheck") {
     group = "verification"
-    description = "Semantic unused-declaration gate (map #529 Phase A, ref #530)."
+    description = "Semantic unused-declaration gate (map #529, ref #530)."
     // Cross-project classpath union resolves dynamically at execution time;
     // that is incompatible with the configuration cache by design. The task
     // runs in CI (cold cache) and on demand locally, so nothing is lost.
@@ -116,7 +118,6 @@ tasks.register<JavaExec>("deadCodeCheck") {
     mainClass.set("com.companyb.detekt.deadcode.DeadCodeMainKt")
     workingDir = rootDir
     inputs.files(deadCodeTargetFiles)
-    val writeBaseline = providers.gradleProperty("deadCodeWriteBaseline").orElse("")
     args(
         listOf(
             "--candidate", "shared/src/commonMain",
@@ -128,10 +129,9 @@ tasks.register<JavaExec>("deadCodeCheck") {
             "--consumer", "composeApp/src/commonTest",
             "--consumer", "composeApp/src/desktopTest",
             "--consumer", "shared/src/commonTest",
-            "--baseline", "config/deadcode/baseline.txt",
             "--entry-points", "config/deadcode/entry-points.txt",
             "--known-unanalyzed", "config/deadcode/known-unanalyzed.txt",
-        ) + (if (writeBaseline.get().isNotEmpty()) listOf("--write-baseline", writeBaseline.get()) else emptyList()),
+        ),
     )
     doFirst {
         args(resolveDeadCodeTargetJars().flatMap { listOf("--classpath", it.absolutePath) })

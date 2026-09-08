@@ -1,4 +1,4 @@
-# Dead-code gate (map #529 Phase A, ref #530)
+# Dead-code gate (map #529, ref #530; zero-debt since Phase C)
 
 One reproducible command runs the same authoritative analysis CI uses:
 
@@ -10,16 +10,19 @@ One reproducible command runs the same authoritative analysis CI uses:
 
 | File | Lifetime | Semantics |
 |---|---|---|
-| `baseline.txt` | Migration device — #529 deletes it at zero debt | Concrete accepted historical findings, one `path\|kind\|signature` per line. No wildcards, no categories. |
 | `entry-points.txt` | Permanent by design | Narrow implicit entry points the gate cannot see used, same key format plus ` # reason`. Each line names its verified reason. |
 | `known-unanalyzed.txt` | Permanent (usually empty) | Files the analyzer could not parse. The gate fails when the actual set differs. |
 
 ## Gate policy
 
-A finding passes iff its key is in `baseline.txt` or `entry-points.txt`.
-The gate fails on any unlisted finding, on any stale line in either file
+A finding passes iff its key is in `entry-points.txt`.
+The gate fails on any unlisted finding, on any stale line in `entry-points.txt`
 (the declaration was deleted or became visible — remove the line), and on any
 change to the unanalyzed-file set. Exit 0 clean, 1 gate failure, 2 tool error.
+
+There is no baseline and no grandfathering: a newly introduced dead
+declaration fails with no write-baseline path. The analyzer's former
+`--baseline` / `--write-baseline` flags are rejected as unknown arguments.
 
 ## Scope
 
@@ -52,26 +55,9 @@ usages. K1-frontend deprecation warnings are expected: the engine pins the
 repo's own `kotlin-compiler-embeddable` version and migrates only if binding
 breaks.
 
-## Cleanup-child contract (Phase B)
+## Zero-debt policy (Phase C)
 
-Each child owns a bounded finding set from `baseline.txt`:
-
-- revalidate every finding before deleting (platform mains, tests, stringly
-  references, serialization forms);
-- distinguish dead owners from live DTOs/types they reference;
-- delete the declarations plus newly orphaned implementation code;
-- delete exactly the resolved lines from `baseline.txt`;
-- run the affected focused tests/compiles plus `./gradlew deadCodeCheck`
-  (fails on leftovers and on stale lines);
-- graduate genuinely distinct architecture/product findings, never expand scope.
-
-## Regeneration (reviewed commits only)
-
-```bash
-./gradlew deadCodeCheck -PdeadCodeWriteBaseline=config/deadcode/baseline.txt
-```
-
-Regeneration writes every current finding and does not know the
-baseline/entry-points split: move platform-bridged lines back to
-`entry-points.txt` with reasons before committing. Never regenerate to
-grandfather new debt during ordinary feature work.
+The migration baseline is deleted and stays deleted. Adding an unused
+declaration fails the gate until the declaration is removed or a narrow
+`entry-points.txt` line with a verified reason is added in the same reviewed
+commit. Never grandfather new debt.

@@ -1,8 +1,8 @@
-# Narrow implicit entry points (map #529 Phase A, ref #530). PERMANENT BY DESIGN,
-# unlike baseline.txt: each line names one declaration the gate cannot see used,
-# with its verified reason after " # ". The gate still fails on stale lines, so a
-# removed exemption (deleted or newly visible declaration) must delete its line.
-# Format matches baseline.txt keys, plus " # <reason>".
+# Narrow implicit entry points (map #529, ref #530). PERMANENT BY DESIGN:
+# each line names one declaration the gate cannot see used, with its verified
+# reason after " # ". The gate still fails on stale lines, so a removed
+# exemption (deleted or newly visible declaration) must delete its line.
+# Format is "<repo-relative path>|<kind>|<signature> # <reason>".
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/navigation/MobileAppNavHost.kt|function|internal fun MobileAppNavHost(apiClient: com.companyb.companyapp.network.ApiClient, tokenStore: com.companyb.companyapp.network.TokenStore, navController: androidx.navigation.NavHostController, modifier: androidx.compose.ui.Modifier): kotlin.Unit defined in com.companyb.companyapp.app.navigation # platform: called only from AppNavHost.android.kt/AppNavHost.ios.kt (androidMain/iosMain excluded: no SDK locally, determinism)
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/audit/AuditLogEntryRows.kt|function|internal fun MobileAuditLogEntryList(args: com.companyb.companyapp.audit.AuditLogEntryListArgs, modifier: androidx.compose.ui.Modifier = ...): kotlin.Unit defined in com.companyb.companyapp.audit # platform: called only from AuditLogScreen.android.kt/AuditLogScreen.ios.kt (androidMain/iosMain excluded: no SDK locally, determinism)
 composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientScreenParts.kt|function|public fun MobileClientDetailLayout(identity: androidx.compose.foundation.layout.ColumnScope.() -> kotlin.Unit, contactHealth: androidx.compose.foundation.layout.ColumnScope.() -> kotlin.Unit, actions: androidx.compose.foundation.layout.ColumnScope.() -> kotlin.Unit): kotlin.Unit defined in com.companyb.companyapp.client # platform: called only from ClientScreenParts.android.kt/ClientScreenParts.ios.kt (androidMain/iosMain excluded: no SDK locally, determinism)

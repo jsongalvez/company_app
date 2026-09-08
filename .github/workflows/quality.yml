@@ -137,9 +137,9 @@ jobs:
       - name: Verify OpenAPI contract (#495 Gradle gate)
         run: ./gradlew :backend:verifyOpenApiContract -PwarningsAsErrors=true
 
-      # Semantic dead-code gate (map #529 Phase A, ref #530): fails on any
-      # finding outside config/deadcode/baseline.txt + entry-points.txt, and
-      # on stale entries in either file. No DB, no build duplication — the
+      # Semantic dead-code gate (map #529, ref #530; zero-debt Phase C): fails on any
+      # finding outside config/deadcode/entry-points.txt, and on stale entries
+      # in that file. No DB, no build duplication — the
       # analyzer binds sources directly. Hooks stay untouched (#329).
       - name: Dead-code gate (#530)
         run: ./gradlew deadCodeCheck
