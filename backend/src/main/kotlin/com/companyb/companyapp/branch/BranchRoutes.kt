@@ -86,7 +86,13 @@ object BranchRoutes {
         // own — any authenticated caller could read any branch by UUID,
         // bypassing the BranchReadScope window. Gate on the #131 read window
         // (BRANCH or GLOBAL VIEW_BRANCH_DATA, mirroring the summary/browse reads).
+        // Deliberately not a wildcard broadening of before(BRANCHES) —
+        // BRANCHES_ACCESSIBLE stays open per #131. Its static 3-segment path
+        // also matches this {branchId} filter, so skip that segment here;
+        // otherwise the picker 400s on UUID parsing for zero-grant callers.
         config.routes.before(ApiRoutes.BRANCH_PATH) { context ->
+            val rawSegment = context.pathParam(BRANCH_ID_PARAM)
+            if (rawSegment == ApiRoutes.BRANCHES_ACCESSIBLE.substringAfterLast("/")) return@before
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
                 context,

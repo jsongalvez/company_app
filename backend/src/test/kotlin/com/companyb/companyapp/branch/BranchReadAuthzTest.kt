@@ -146,4 +146,9 @@ class BranchReadAuthzTest : BasePostgresTest() {
     fun `global holder passes the gate on a missing branch`() {
         assertEquals(404, getStatus(globalViewUser, "/api/branches/${TestFixtures.uuid()}"))
     }
+
+    @Test
+    fun `accessible picker stays open beside the item gate`() {
+        assertEquals(200, getStatus(noneUser, "/api/branches/accessible"))
+    }
 }
