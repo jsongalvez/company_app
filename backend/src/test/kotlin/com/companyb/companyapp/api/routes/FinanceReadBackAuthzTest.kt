@@ -1,4 +1,5 @@
-@file:Suppress("LargeClass")
+// #596 600+-line finance read-back matrix stays whole (same precedent as SessionServicePostgresTest #593).
+@file:Suppress("LargeClass") // #596
 
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.app.AppConfig
@@ -48,8 +49,13 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     private lateinit var otherBranchDayId: UUID
     private lateinit var expenseId: UUID
 
-    @Suppress("LongMethod")
     override fun initTestData() {
+        seedUsersAndBranches()
+        seedDaysAndGrants()
+        seedCompensationsAndExpense()
+    }
+
+    private fun seedUsersAndBranches() {
         listOf(
             assignUser to "assign",
             editOnlyUser to "edit",
@@ -62,7 +68,9 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
         BranchWorkforceFixtures.insertTestBranch(branchId, "Finance Branch $branchId")
         BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Finance Branch $otherBranchId")
+    }
 
+    private fun seedDaysAndGrants() {
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         otherBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(otherBranchId)
 
@@ -80,7 +88,9 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             contextId = branchId,
             sourceId = sourceId,
         )
+    }
 
+    private fun seedCompensationsAndExpense() {
         CommerceFinanceFixtures.insertTestCompensation(branchDayId, targetUser1, BigDecimal("1500.00"), assignUser)
         CommerceFinanceFixtures.insertTestCompensation(branchDayId, targetUser2, BigDecimal("1200.00"), assignUser)
 

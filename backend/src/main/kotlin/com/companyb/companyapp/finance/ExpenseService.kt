@@ -21,7 +21,8 @@ import java.util.UUID
 object ExpenseService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("LongParameterList", "ThrowsCount")
+    // #596: 7-param creation command stays whole per #535; bundle only on a real ownership decision.
+    @Suppress("LongParameterList") // #596
     fun create(
         callerId: UUID,
         id: UUID,
@@ -68,7 +69,8 @@ object ExpenseService {
             result.expense
         }
 
-    @Suppress("ThrowsCount", "LongParameterList")
+    // #596: 7-param update command stays whole per #535; bundle only on a real ownership decision.
+    @Suppress("LongParameterList") // #596
     fun update(
         callerId: UUID,
         expenseId: UUID,
@@ -103,7 +105,6 @@ object ExpenseService {
             after
         }
 
-    @Suppress("ThrowsCount")
     fun softDelete(
         callerId: UUID,
         expenseId: UUID,
@@ -136,7 +137,6 @@ object ExpenseService {
      * @throws NotFoundException if the expense does not exist.
      * @throws ValidationException if the expense is not deleted (or the day is REMITTED without a reason).
      */
-    @Suppress("ThrowsCount")
     fun restore(
         callerId: UUID,
         expenseId: UUID,
@@ -166,11 +166,9 @@ object ExpenseService {
             after
         }
 
-    @Suppress("ThrowsCount", "UnusedParameter")
-    fun findByBranchDayId(
-        callerId: UUID,
-        branchDayId: UUID,
-    ): List<Expense> {
+    // #596: record-scoped read rides the route's before-filter gate (requireBranchOrBranchDayCapability);
+    // the service takes the resolved day only, so no caller param stays unused.
+    fun findByBranchDayId(branchDayId: UUID): List<Expense> {
         BranchDayService.requireBranchDayExists(branchDayId)
 
         return ExpenseRepository.findByBranchDayId(branchDayId)

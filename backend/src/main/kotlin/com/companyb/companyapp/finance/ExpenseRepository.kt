@@ -121,7 +121,6 @@ internal object ExpenseRepository {
                 ).map { it.toExpense() }
         }.also { logger.info { "[FIND-EXPENSES] Found ${it.size} expenses for branch_day $branchDayId" } }
 
-    @Suppress("LongParameterList")
     fun updateInTransaction(
         expenseId: UUID,
         amount: BigDecimal,

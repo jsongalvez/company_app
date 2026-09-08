@@ -777,7 +777,9 @@ class FinanceReportsViewModel(
         }
     }
 
-    @Suppress("LongParameterList")
+    // #596: 6-param section-load helper stays whole per #535; the endpoint/operation/params/error-prefix
+    // bundle is load-specific plumbing, not a real ownership decision.
+    @Suppress("LongParameterList") // #596
     private inline fun <reified T> loadSection(
         generation: Int,
         state: MutableStateFlow<UiState<List<T>>>,

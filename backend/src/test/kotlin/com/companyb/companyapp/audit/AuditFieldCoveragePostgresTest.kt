@@ -252,7 +252,7 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
             category = ExpenseCategory.MISCELLANEOUS,
             notes = null,
         )
-        val created = ExpenseService.findByBranchDayId(callerId, branchDayId).single { it.id == expenseId }
+        val created = ExpenseService.findByBranchDayId(branchDayId).single { it.id == expenseId }
         ExpenseService.update(
             callerId = callerId,
             expenseId = expenseId,

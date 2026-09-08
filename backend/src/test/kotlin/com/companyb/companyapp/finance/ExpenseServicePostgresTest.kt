@@ -1,4 +1,5 @@
-@file:Suppress("LargeClass")
+// #596 scenario coverage stays whole (same precedent as SessionServicePostgresTest #593).
+@file:Suppress("LargeClass") // #596
 
 package com.companyb.companyapp.finance
 import com.companyb.companyapp.audit.AuditLog
@@ -616,7 +617,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             notes = "Third",
         )
 
-        val expenses = ExpenseService.findByBranchDayId(callerId, branchDayId)
+        val expenses = ExpenseService.findByBranchDayId(branchDayId)
 
         assertEquals(3, expenses.size)
     }
@@ -652,7 +653,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         // #153 Q1 (CR-022 flip, commit f8b288a) — the GET includes soft-deleted rows: the
         // Finance screen renders them dimmed + "removed" + reason (an undo affordance); the
         // P&L totals still exclude them (the summary view filters).
-        val expenses = ExpenseService.findByBranchDayId(callerId, branchDayId)
+        val expenses = ExpenseService.findByBranchDayId(branchDayId)
 
         assertEquals(2, expenses.size)
         val deleted = expenses.first { it.id == deletedId }
@@ -827,7 +828,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     @Test
     fun `list expenses for non-existent branch day returns not found`() {
         assertFailsWith<NotFoundException> {
-            ExpenseService.findByBranchDayId(callerId, TestFixtures.uuid())
+            ExpenseService.findByBranchDayId(TestFixtures.uuid())
         }
     }
 

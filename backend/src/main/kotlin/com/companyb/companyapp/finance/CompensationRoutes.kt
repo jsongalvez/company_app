@@ -61,8 +61,13 @@ import java.util.UUID
     ],
 )
 object CompensationRoutes {
-    @Suppress("ThrowsCount", "LongMethod")
     fun register(config: JavalinConfig) {
+        registerGuards(config)
+        registerReads(config)
+        registerMutations(config)
+    }
+
+    private fun registerGuards(config: JavalinConfig) {
         config.routes.before(ApiRoutes.COMPENSATION) { context ->
             val branchDayId =
                 when (context.method()) {
@@ -105,7 +110,17 @@ object CompensationRoutes {
                 CapabilityCodes.ASSIGN_COMPENSATION,
             )
         }
+    }
 
+    private fun registerReads(config: JavalinConfig) {
+        config.routes.get(ApiRoutes.COMPENSATIONS) { context ->
+            val branchDayId = context.uuidFromQuery("branchDayId")
+            val compensations = CompensationService.findByPayingBranchDayId(branchDayId)
+            context.json(compensations.map { it.toResponse() })
+        }
+    }
+
+    private fun registerMutations(config: JavalinConfig) {
         config.routes.post(ApiRoutes.COMPENSATION) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateCompensationRequest>()
@@ -130,12 +145,6 @@ object CompensationRoutes {
 
             context.status(HttpStatus.CREATED)
             context.json(compensation.toResponse())
-        }
-
-        config.routes.get(ApiRoutes.COMPENSATIONS) { context ->
-            val branchDayId = context.uuidFromQuery("branchDayId")
-            val compensations = CompensationService.findByPayingBranchDayId(branchDayId)
-            context.json(compensations.map { it.toResponse() })
         }
 
         config.routes.patch(ApiRoutes.COMPENSATION_PATH) { context ->

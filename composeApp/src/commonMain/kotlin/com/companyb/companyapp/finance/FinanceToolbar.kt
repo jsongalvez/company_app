@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.companyb.companyapp.finance
 
 import androidx.compose.foundation.layout.Column
@@ -18,8 +16,8 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -190,8 +188,8 @@ private fun FinanceModeTabs(
     mode: ReportMode,
     onModeSelected: (ReportMode) -> Unit,
 ) {
-    // #105 D4 — mode tabs
-    TabRow(selectedTabIndex = mode.ordinal) {
+    // #105 D4 — mode tabs (#596: PrimaryTabRow replaces deprecated TabRow, same selected-index contract)
+    PrimaryTabRow(selectedTabIndex = mode.ordinal) {
         ReportMode.entries.forEachIndexed { index, reportMode ->
             Tab(
                 selected = index == mode.ordinal,

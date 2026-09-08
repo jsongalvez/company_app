@@ -96,7 +96,8 @@ object CommissionService {
         return CommissionSplitRepository.findByBranchDayId(branchDayId)
     }
 
-    @Suppress("ThrowsCount", "LongParameterList")
+    // #596: 6-param inclusion command stays whole per #535; bundle only on a real ownership decision.
+    @Suppress("LongParameterList") // #596
     fun createManualInclusion(
         callerId: UUID,
         id: UUID,
@@ -109,7 +110,8 @@ object CommissionService {
             createManualInclusionInTransaction(callerId, id, productSaleId, userId, isIncluded, reason)
         }
 
-    @Suppress("ThrowsCount", "LongParameterList")
+    // #596: private transaction body mirrors the public 6-param command per ADR-0024; stays whole with it.
+    @Suppress("LongParameterList") // #596
     private fun createManualInclusionInTransaction(
         callerId: UUID,
         id: UUID,
@@ -155,7 +157,6 @@ object CommissionService {
         return mutation.inclusion
     }
 
-    @Suppress("ReturnCount")
     fun recalculate(
         branchDayId: UUID,
         force: Boolean = false,
@@ -169,7 +170,6 @@ object CommissionService {
      * Acquires the branch-day row lock so concurrent recalcs serialize identically whether the
      * entry point is the standalone wrapper or an enclosing command.
      */
-    @Suppress("ReturnCount")
     internal fun recalculateInTransaction(
         branchDayId: UUID,
         force: Boolean = false,

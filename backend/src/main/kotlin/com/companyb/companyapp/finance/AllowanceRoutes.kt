@@ -45,7 +45,6 @@ import java.util.UUID
     ],
 )
 object AllowanceRoutes {
-    @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
         config.routes.before(ApiRoutes.ALLOWANCES) { context ->
             val branchDayId =

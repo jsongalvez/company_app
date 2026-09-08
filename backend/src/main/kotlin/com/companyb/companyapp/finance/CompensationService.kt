@@ -44,7 +44,8 @@ object CompensationService {
         }
     }
 
-    @Suppress("ThrowsCount", "ReturnCount", "LongParameterList")
+    // #596: 8-param creation command stays whole per #535; bundle only on a real ownership decision.
+    @Suppress("LongParameterList") // #596
     fun create(
         callerId: UUID,
         id: UUID,
@@ -103,7 +104,8 @@ object CompensationService {
         }
     }
 
-    @Suppress("ThrowsCount", "LongParameterList")
+    // #596: 6-param update command stays whole per #535; bundle only on a real ownership decision.
+    @Suppress("LongParameterList") // #596
     fun update(
         callerId: UUID,
         compensationId: UUID,

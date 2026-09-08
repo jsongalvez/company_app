@@ -84,7 +84,6 @@ object CommissionRoutes {
         config.routes.post(ApiRoutes.COMMISSION_RECALCULATE_PATH, ::handleRecalculate)
     }
 
-    @Suppress("ThrowsCount")
     private fun handleCreateInclusion(context: Context) {
         val callerId = context.callerUuid()
         val request = context.bodyAsClass<CreateCommissionInclusionRequest>()
