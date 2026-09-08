@@ -236,7 +236,7 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
         // capability on the frozen day.
         val failure =
             runCatching {
-                LockBarrier.withDayRemitBarrier(branchDayId) {
+                LockBarrier.withDayRemitBarrier(branchDayId, memberId) {
                     ReliefAccessService.grantAccess(requestId, memberId)
                 }
             }.exceptionOrNull()
@@ -255,7 +255,7 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
         val requestId = TestFixtures.uuid()
         val failure =
             runCatching {
-                LockBarrier.withDayRemitBarrier(branchDayId) {
+                LockBarrier.withDayRemitBarrier(branchDayId, memberId) {
                     ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, requesterId)
                 }
             }.exceptionOrNull()
@@ -269,7 +269,7 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
     fun `concurrent remittance day transition serializes with createInvite gate`() {
         val failure =
             runCatching {
-                LockBarrier.withDayRemitBarrier(branchDayId) {
+                LockBarrier.withDayRemitBarrier(branchDayId, memberId) {
                     ReliefInviteService.createInvite(memberId, branchId, inviteeId, TestFixtures.today)
                 }
             }.exceptionOrNull()
@@ -287,7 +287,7 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
         val invite = ReliefInviteService.createInvite(memberId, branchId, inviteeId, TestFixtures.today)
         val failure =
             runCatching {
-                LockBarrier.withDayRemitBarrier(branchDayId) {
+                LockBarrier.withDayRemitBarrier(branchDayId, memberId) {
                     ReliefInviteService.acceptInvite(inviteeId, invite.id)
                 }
             }.exceptionOrNull()

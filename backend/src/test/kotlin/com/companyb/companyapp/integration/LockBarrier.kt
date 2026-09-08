@@ -36,11 +36,12 @@ object LockBarrier {
 
     fun <T> withDayRemitBarrier(
         branchDayId: UUID,
+        changedBy: UUID,
         contender: () -> T,
     ): T =
         withHeldLock(
             lock = { BranchDayService.lockDaysInTransaction(listOf(branchDayId)) },
-            finish = { BranchDayService.markDaysRemittedInTransaction(listOf(branchDayId)) },
+            finish = { BranchDayService.markDaysRemittedInTransaction(listOf(branchDayId), changedBy = changedBy) },
             contender = contender,
         )
 

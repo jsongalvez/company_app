@@ -67,7 +67,7 @@ class RemittanceCommandOwnershipArchitectureTest {
         val remittanceSources =
             File("backend/src/main/kotlin/com/companyb/companyapp/remittance")
                 .walkTopDown()
-                .filter { it.extension == "kt" && !it.name.contains("Audit") }
+                .filter { it.extension == "kt" }
                 .map { it.readText() }
                 .toList()
 
@@ -86,6 +86,38 @@ class RemittanceCommandOwnershipArchitectureTest {
                 assertFalse(
                     source.contains(manipulation),
                     "remittance must not manipulate branch-day tables directly: $manipulation (#320)",
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `remittance cannot construct branch-day audit payloads`() {
+        val remittanceSources =
+            File("backend/src/main/kotlin/com/companyb/companyapp/remittance")
+                .walkTopDown()
+                .filter { it.extension == "kt" }
+                .map { it.name to it.readText() }
+                .toList()
+
+        remittanceSources.forEach { (name, source) ->
+            // #603 — the Branch Day transition writes its own audit; remittance supplies only
+            // actor/reason through the BranchDayService boundary. Picker/report reads stay allowed.
+            // BranchDayAudit pins the collaborating seam shut; the alias and raw-literal entries
+            // close the corresponding evasion shapes (the quoted literal excludes the legitimate
+            // "branch_day_id" FK column).
+            listOf(
+                "BranchDayTable.tableName",
+                "BranchDayTable::auditFields",
+                "BranchDayTable.auditFields",
+                "BranchDayTable as",
+                "BranchDayAudit",
+                "branchDayUpdated",
+                "\"branch_day\"",
+            ).forEach { payload ->
+                assertFalse(
+                    source.contains(payload),
+                    "$name: remittance must not construct branch-day audit payloads: $payload (#603)",
                 )
             }
         }

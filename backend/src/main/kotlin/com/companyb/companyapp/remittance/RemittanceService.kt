@@ -25,9 +25,10 @@ import java.util.UUID
  * Remittance feature commands (#320, ADR-0024). Each mutating command owns exactly one business
  * transaction — SERIALIZABLE for the financial submit/undo workflow — choosing its isolation
  * there. Persistence runs on that transaction via the internal `*InTransaction` stores, Branch
- * Day transitions go through the [BranchDayService] boundary, and the audit rows are inserted
- * directly into the same transaction ([RemittanceAudit]), so every mutation commits together
- * with its audit trail or not at all. Pure state/financial rules live in [RemittancePolicy].
+ * Day transitions go through the [BranchDayService] boundary (which writes its own domain audit
+ * on that same transaction, #603), and the remittance audit rows are inserted directly into
+ * the same transaction ([RemittanceAudit]), so every mutation commits together with its audit
+ * trail or not at all. Pure state/financial rules live in [RemittancePolicy].
  */
 @Suppress("TooManyFunctions")
 object RemittanceService {
@@ -85,17 +86,13 @@ object RemittanceService {
                         callerId,
                         submittedDate = BranchDayService.currentOperationalDate(),
                     )
-                    val branchDayPairs =
-                        BranchDayService.markDaysRemittedInTransaction(breakdownIds)
+                    BranchDayService.markDaysRemittedInTransaction(breakdownIds, changedBy = callerId)
 
                     val after =
                         RemittanceRepository.findByIdInTransaction(remittanceId)
                             ?: error("remittance not found after submit for $remittanceId")
 
                     RemittanceAudit.remittanceUpdated(callerId, before, after)
-                    branchDayPairs.forEach { (dayBefore, dayAfter) ->
-                        RemittanceAudit.branchDayUpdated(callerId, dayBefore, dayAfter)
-                    }
 
                     RemittanceSubmissionResult(
                         remittance = after,
@@ -215,21 +212,19 @@ object RemittanceService {
                         breakdownIds,
                         remittanceId,
                     )
-                val branchDayPairs =
-                    BranchDayService.releaseDaysFromRemittanceInTransaction(
-                        breakdownIds,
-                        today = BranchDayService.currentOperationalDate(),
-                        retainRemitted = retainRemitted,
-                    )
+                BranchDayService.releaseDaysFromRemittanceInTransaction(
+                    breakdownIds,
+                    today = BranchDayService.currentOperationalDate(),
+                    retainRemitted = retainRemitted,
+                    changedBy = callerId,
+                    reason = reason,
+                )
 
                 val after =
                     RemittanceRepository.findByIdInTransaction(remittanceId)
                         ?: error("remittance not found after undo for $remittanceId")
 
                 RemittanceAudit.remittanceUpdated(callerId, before, after, reason)
-                branchDayPairs.forEach { (dayBefore, dayAfter) ->
-                    RemittanceAudit.branchDayUpdated(callerId, dayBefore, dayAfter, reason)
-                }
                 snapshotBefore?.let { snapshot ->
                     RemittanceAudit.snapshotDeleted(callerId, after.branchId, snapshot, reason)
                 }

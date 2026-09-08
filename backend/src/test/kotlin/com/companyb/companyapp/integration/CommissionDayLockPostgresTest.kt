@@ -150,7 +150,7 @@ class CommissionDayLockPostgresTest : BasePostgresTest() {
         // row onto the frozen day.
         val failure =
             runCatching {
-                LockBarrier.withDayRemitBarrier(branchDayId) {
+                LockBarrier.withDayRemitBarrier(branchDayId, callerId) {
                     CommissionService.createManualInclusion(
                         callerId = callerId,
                         id = blockedId,

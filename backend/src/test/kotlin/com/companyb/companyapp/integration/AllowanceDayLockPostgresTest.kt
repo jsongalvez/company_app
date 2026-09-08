@@ -207,7 +207,7 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
         // read REMITTED and fail closed — never slipping an insert onto the frozen day.
         val failure =
             runCatching {
-                LockBarrier.withDayRemitBarrier(branchDayId) {
+                LockBarrier.withDayRemitBarrier(branchDayId, callerId) {
                     AllowanceService.create(
                         callerId = callerId,
                         id = blockedId,

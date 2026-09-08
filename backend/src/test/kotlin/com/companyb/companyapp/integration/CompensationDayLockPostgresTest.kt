@@ -255,7 +255,7 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
         // the frozen day.
         val failure =
             runCatching {
-                LockBarrier.withDayRemitBarrier(payingBranchDayId) {
+                LockBarrier.withDayRemitBarrier(payingBranchDayId, callerId) {
                     CompensationService.create(
                         callerId = callerId,
                         id = blockedId,

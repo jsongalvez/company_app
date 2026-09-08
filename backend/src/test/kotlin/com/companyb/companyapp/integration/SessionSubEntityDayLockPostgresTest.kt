@@ -160,7 +160,7 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
         // onto the frozen day.
         val failure =
             runCatching {
-                LockBarrier.withDayRemitBarrier(branchDayId) {
+                LockBarrier.withDayRemitBarrier(branchDayId, callerId) {
                     SessionPractitionerService.addPractitioner(
                         callerId = callerId,
                         id = TestFixtures.uuid(),
@@ -183,7 +183,7 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
     fun `concurrent remittance day transition serializes with concern add gate`() {
         val failure =
             runCatching {
-                LockBarrier.withDayRemitBarrier(branchDayId) {
+                LockBarrier.withDayRemitBarrier(branchDayId, callerId) {
                     SessionConcernService.addToSession(callerId, sessionId, systemConcernId)
                 }
             }.exceptionOrNull()

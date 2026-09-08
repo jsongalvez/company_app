@@ -327,7 +327,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         // the frozen day.
         val failure =
             runCatching {
-                LockBarrier.withDayRemitBarrier(dayId) {
+                LockBarrier.withDayRemitBarrier(dayId, callerId) {
                     createSession(callerId, blockedId)
                 }
             }.exceptionOrNull()

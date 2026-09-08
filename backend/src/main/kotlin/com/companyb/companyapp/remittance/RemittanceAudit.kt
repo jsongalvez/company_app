@@ -1,8 +1,6 @@
 package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.audit.AuditLog
-import com.companyb.companyapp.branchday.BranchDay
-import com.companyb.companyapp.branchday.BranchDayTable
 import java.util.UUID
 
 /**
@@ -37,22 +35,6 @@ internal object RemittanceAudit {
         branchId = after.branchId,
         reason = reason,
         auditFields = RemittanceTable::auditFields,
-    )
-
-    fun branchDayUpdated(
-        changedBy: UUID,
-        before: BranchDay,
-        after: BranchDay,
-        reason: String? = null,
-    ) = AuditLog.recordUpdate(
-        tableName = BranchDayTable.tableName,
-        recordId = after.id,
-        before = before,
-        after = after,
-        changedBy = changedBy,
-        branchId = before.branchId,
-        reason = reason,
-        auditFields = BranchDayTable::auditFields,
     )
 
     fun lineInserted(
