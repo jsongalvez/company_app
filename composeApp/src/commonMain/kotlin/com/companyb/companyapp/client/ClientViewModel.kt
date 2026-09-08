@@ -24,6 +24,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/** #673 — stable revoked-access contract for detail loads (see loadClient 403 branch). */
+internal const val CLIENT_DETAIL_UNAVAILABLE = "Unavailable"
+
 class ClientViewModel(
     private val apiClient: ApiClient,
 ) : ViewModel() {
@@ -102,8 +105,17 @@ class ClientViewModel(
                             client
                         },
                         onNonSuccess = {
-                            mutationLease?.let(ClientState::finishClientMutation)
-                            false
+                            if (it.status == HttpStatusCode.Forbidden) {
+                                // #673 + #653 — revoked GLOBAL access on detail load is a
+                                // stable Unavailable contract (not a message-substring
+                                // match downstream): no Retry, no cached protected profile.
+                                mutationLease?.let(ClientState::finishClientMutation)
+                                _clientDetail.value = UiState.Error(CLIENT_DETAIL_UNAVAILABLE)
+                                true
+                            } else {
+                                mutationLease?.let(ClientState::finishClientMutation)
+                                false
+                            }
                         },
                         onError = {
                             mutationLease?.let(ClientState::finishClientMutation)

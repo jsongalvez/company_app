@@ -23,7 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.client.ClientPickerArgs
 import com.companyb.companyapp.client.ClientPickerSection
-import com.companyb.companyapp.client.clientDisplayName
+import com.companyb.companyapp.client.clientPhoneLine
+import com.companyb.companyapp.client.clientPrimaryName
 import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
@@ -173,12 +174,14 @@ private fun DesktopSelectedClientSummary(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = clientDisplayName(client),
+                        // #673 — one identity presentation; missing phone reads as an
+                        // em dash, never clinical concerns or raw IDs.
+                        text = clientPrimaryName(client),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        text = client.phoneNumber?.takeIf { it.isNotBlank() } ?: "No phone number",
+                        text = clientPhoneLine(client),
                         style = MaterialTheme.typography.bodySmall,
                         color = InkSubtle,
                         modifier = Modifier.padding(top = Spacing.xxs),

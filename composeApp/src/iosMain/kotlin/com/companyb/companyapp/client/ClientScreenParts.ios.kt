@@ -12,7 +12,8 @@ import com.companyb.companyapp.contracts.client.ClientResponse
 actual fun ClientResultList(
     results: List<ClientResponse>,
     onClientClick: (ClientResponse) -> Unit,
-) = MobileClientResultList(results, onClientClick)
+    enabled: Boolean,
+) = MobileClientResultList(results, onClientClick, enabled)
 
 @Composable
 actual fun ClientDetailLayout(

@@ -29,6 +29,7 @@ import com.companyb.companyapp.ui.theme.Spacing
 fun MobileClientResultList(
     results: List<ClientResponse>,
     onClientClick: (ClientResponse) -> Unit,
+    enabled: Boolean = true,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -37,28 +38,28 @@ fun MobileClientResultList(
         items(results) { client ->
             Surface(
                 onClick = { onClientClick(client) },
+                enabled = enabled,
                 shape = RoundedCornerShape(CornerRadius.md),
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(modifier = Modifier.padding(Spacing.md)) {
-                    Text(text = clientDisplayName(client), style = MaterialTheme.typography.titleSmall)
-                    client.phoneNumber?.takeIf { it.isNotBlank() }?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    Text(text = clientPrimaryName(client), style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        text = clientSecondaryLine(client, results),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
     }
 }
 
-// #113 D4/D5 — detail layout split: desktop two-column (Identity | Contact+Health) + right-hand
-// actions column (anonymize button); mobile single column with the action at the bottom. Field
-// rows + the edit state machine stay commonMain; only the column arrangement diverges.
+// #113 D4/D5 — detail layout split: desktop two-column (Identity+Contact | Health) +
+// right-hand actions column (More menu per #673); mobile single column with the action
+// at the bottom. Field rows + the edit state machine stay commonMain; only the column
+// arrangement diverges.
 @Composable
 fun MobileClientDetailLayout(
     identity: @Composable ColumnScope.() -> Unit,
@@ -83,6 +84,7 @@ fun MobileClientDetailLayout(
 expect fun ClientResultList(
     results: List<ClientResponse>,
     onClientClick: (ClientResponse) -> Unit,
+    enabled: Boolean = true,
 )
 
 @Composable

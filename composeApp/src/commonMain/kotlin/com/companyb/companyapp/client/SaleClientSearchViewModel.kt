@@ -23,6 +23,7 @@ class SaleClientSearchViewModel(
 
     override val query: StateFlow<String> = clientSearcher.query
     override val searchResults: StateFlow<UiState<List<ClientResponse>>> = clientSearcher.state
+    override val freshestResults: StateFlow<List<ClientResponse>?> = clientSearcher.freshest
     override val onQueryChange: (String) -> Unit = clientSearcher::onQueryChange
     override val retrySearch: () -> Unit = clientSearcher::retrySearch
 

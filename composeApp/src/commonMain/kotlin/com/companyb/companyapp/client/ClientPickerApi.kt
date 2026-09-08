@@ -14,6 +14,13 @@ import kotlinx.coroutines.flow.StateFlow
 interface ClientSearchApi {
     val query: StateFlow<String>
     val searchResults: StateFlow<UiState<List<ClientResponse>>>
+
+    /**
+     * #673 — keep-last render payload: the freshest successful list, retained across
+     * Loading/Error so stale rows stay visible during refresh (but not selectable).
+     * Still search-only; never editing/privacy surface.
+     */
+    val freshestResults: StateFlow<List<ClientResponse>?>
     val onQueryChange: (String) -> Unit
     val retrySearch: () -> Unit
 

@@ -121,7 +121,7 @@ class SessionCreateViewModel(
     // --- Client picker: keep-last debounced search, entry-scoped. ---
     private val clientSearcher = ClientSearcher(apiClient, viewModelScope, "SessionCreateVM")
     override val searchResults: StateFlow<UiState<List<ClientResponse>>> = clientSearcher.state
-    val freshestResults: StateFlow<List<ClientResponse>?> = clientSearcher.freshest
+    override val freshestResults: StateFlow<List<ClientResponse>?> = clientSearcher.freshest
     override val query: StateFlow<String> = clientSearcher.query
 
     override val onQueryChange: (String) -> Unit = clientSearcher::onQueryChange

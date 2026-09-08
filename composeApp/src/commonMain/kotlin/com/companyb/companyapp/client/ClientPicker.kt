@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -21,14 +20,28 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.ui.ErrorCard
+import com.companyb.companyapp.ui.contract.SecondaryActionButton
+import com.companyb.companyapp.ui.contract.TertiaryActionButton
+import com.companyb.companyapp.ui.contract.operationalField
+import com.companyb.companyapp.ui.contract.operationalFocusRing
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 
@@ -38,6 +51,14 @@ import com.companyb.companyapp.ui.theme.Spacing
  * #558 — lives in the `client` owner as the single source, consumed via the client-owned
  * [ClientPickerApi] (session's `SessionClientPickerApi` extends it; never copied into session/).
  * Only the entry point is internal.
+ *
+ * #673 — one identity presentation (full name primary, phone secondary, age/address only
+ * to disambiguate same-name rows; em dash for missing, "Anonymized client" for husks;
+ * never clinical concerns or raw IDs). Search focuses on entry, keeps the existing
+ * minimum-query/debounce, exposes loading without collapsing results (keep-last), applies
+ * latest-query-wins behind [ClientSearcher], and disables stale rows during refresh.
+ * Arrow keys move focus, Enter selects, Tab reaches explicit Create client; no default
+ * selection on a response landing.
  */
 
 internal data class ClientPickerArgs(
@@ -55,6 +76,9 @@ internal fun ClientPickerSection(
     onCreateNewClick: () -> Unit,
     searchModifier: Modifier = Modifier.fillMaxSize(),
 ) {
+    // #673 — search focuses on entry; Tab order: field → results (Enter selects) → Create.
+    val searchFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { searchFocus.requestFocus() }
     OutlinedTextField(
         value = args.query,
         onValueChange = { args.viewModel.onQueryChange(it) },
@@ -75,7 +99,7 @@ internal fun ClientPickerSection(
             }
         },
         enabled = args.selectionEnabled,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.operationalField().focusRequester(searchFocus),
     )
 
     ClientSearchArea(
@@ -115,7 +139,7 @@ private fun ClientSearchArea(
             }
 
             else -> {
-                ClientSearchOutcome(args, cachedResults)
+                ClientSearchOutcome(args, cachedResults, onCreateNewClick)
             }
         }
         if (isLoading) {
@@ -143,9 +167,7 @@ private fun ClientSearchEmpty(
             color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(Modifier.size(Spacing.sm))
-        Button(onClick = onCreateNewClick, enabled = selectionEnabled) {
-            Text("Create new client")
-        }
+        SecondaryActionButton(label = "Create new client", onClick = onCreateNewClick, enabled = selectionEnabled)
     }
 }
 
@@ -153,6 +175,7 @@ private fun ClientSearchEmpty(
 private fun ClientSearchOutcome(
     args: ClientPickerArgs,
     cachedResults: List<ClientResponse>?,
+    onCreateNewClick: () -> Unit,
 ) {
     val results = cachedResults
     if (results == null) {
@@ -160,19 +183,60 @@ private fun ClientSearchOutcome(
             CircularProgressIndicator()
         }
     } else {
+        // #673 — stale rows stay visible during refresh but are not selectable as if
+        // they matched the new query; no default selection (focused = -1 on landing).
+        val stale = args.searchState is UiState.Loading
+        val rowsEnabled = args.selectionEnabled && !stale
+        var focusedIndex by remember(results) { mutableStateOf(-1) }
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .onPreviewKeyEvent { event ->
+                        when (event.key) {
+                            Key.DirectionDown -> {
+                                focusedIndex = movePickerFocus(focusedIndex, 1, results.size)
+                                true
+                            }
+
+                            Key.DirectionUp -> {
+                                focusedIndex = movePickerFocus(focusedIndex, -1, results.size)
+                                true
+                            }
+
+                            Key.Enter, Key.NumPadEnter -> {
+                                val target = results.getOrNull(focusedIndex)
+                                if (rowsEnabled && target != null) args.viewModel.selectClient(target)
+                                true
+                            }
+
+                            else -> {
+                                false
+                            }
+                        }
+                    },
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
-            results.forEach { client ->
+            results.forEachIndexed { index, client ->
                 SearchResultRow(
-                    client,
-                    client.id == args.selectedClientId,
-                    args.selectionEnabled,
+                    client = client,
+                    siblings = results,
+                    selected = client.id == args.selectedClientId,
+                    focused = index == focusedIndex,
+                    enabled = rowsEnabled,
+                    onFocus = { focusedIndex = index },
                 ) {
                     args.viewModel.selectClient(client)
                 }
             }
+            // Explicit Create stays reachable via Tab after the list (and via the
+            // empty state when there are no rows).
+            TertiaryActionButton(
+                label = "Create new client",
+                onClick = onCreateNewClick,
+                enabled = args.selectionEnabled,
+            )
         }
     }
 }
@@ -180,12 +244,22 @@ private fun ClientSearchOutcome(
 @Composable
 private fun SearchResultRow(
     client: ClientResponse,
+    siblings: List<ClientResponse>,
     selected: Boolean,
+    focused: Boolean,
     enabled: Boolean,
+    onFocus: () -> Unit,
     onClick: () -> Unit,
 ) {
+    // #670 — focus uses the shared 2dp PrimaryHover ring (distinct from hover/selection);
+    // selection keeps the fill wash. No hand-rolled border variant.
+    var rowModifier: Modifier = Modifier.fillMaxWidth()
+    if (focused) rowModifier = rowModifier.operationalFocusRing()
     Surface(
-        onClick = onClick,
+        onClick = {
+            onFocus()
+            onClick()
+        },
         enabled = enabled,
         shape = RoundedCornerShape(CornerRadius.sm),
         color =
@@ -194,14 +268,20 @@ private fun SearchResultRow(
             } else {
                 MaterialTheme.colorScheme.surfaceVariant
             },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = rowModifier,
     ) {
-        Text(
-            text = listOfNotNull(client.firstName, client.lastName).joinToString(" "),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(Spacing.sm),
-        )
+        Column(modifier = Modifier.padding(Spacing.sm)) {
+            Text(
+                text = clientPrimaryName(client),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = clientSecondaryLine(client, siblings),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

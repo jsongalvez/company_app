@@ -5,10 +5,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -23,22 +26,34 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.client.ClientResponse
+import com.companyb.companyapp.ui.contract.DestructiveConfirmDialog
+import com.companyb.companyapp.ui.contract.OperationalUiContract
+import com.companyb.companyapp.ui.contract.PrimaryActionButton
+import com.companyb.companyapp.ui.contract.SecondaryActionButton
+import com.companyb.companyapp.ui.contract.TertiaryActionButton
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 
 /**
- * #113 — Client detail screen per locked #99 D4/D5/D10.
+ * #113 — Client detail screen per locked #99 D4/D5/D10, reshaped by #673.
  *
- * - D4: two-column desktop / single-column mobile layout via the [ClientDetailLayout] expect
- *   (ClientScreenParts.kt); inline per-field edit, **pessimistic** (ADR-0022) — edit mode exits
- *   only on PATCH success; failure keeps the attempted value + inline error and stays in edit;
- *   403 silent-exits (Loading → Idle transition without Success); 409 reloads + shows the
- *   changed-elsewhere banner. Partial PATCH — one control, one field (BP pair commits both).
- * - D5: destructive anonymize confirm dialog (name shown, "cannot be undone" copy, no typing).
- * - D10: null-name detail = anonymized husk (gender + age only, no edit/anonymize affordances).
+ * - #673: Identity / Contact / Health sections with one labeled Edit each, deliberate
+ *   Save changes / Cancel, one section at a time, focus on first field, Tab/blur never
+ *   writes, Save emits one request ([ClientSectionSession.saveSection]), BP paired,
+ *   pending saves preserve drafts, failures stay editable with Retry, conflicts preserve
+ *   values with Reload latest, Anonymize lives in More with Save/Discard gating and no
+ *   incidental PATCH, revoked GLOBAL access reads as Unavailable + Back with no cached
+ *   profile (aligns with #653, never widens permissions).
+ * - D4 pessimistic axes preserved (ADR-0022): edit exits only on PATCH success; 403
+ *   silent-exits; 409 reloads + preserves drafts with a Reload-latest offer.
+ * - D5: destructive anonymize confirm names the client, irreversible effect, no typing.
+ * - D10: null-name detail = anonymized husk (gender + age only, no edit/anonymize).
  */
 @Composable
 fun ClientDetailScreen(
@@ -54,6 +69,16 @@ fun ClientDetailScreen(
     val navigationLocked by ClientState.clientMutationInFlight.collectAsState()
     ClientDetailBackHandler(navigationLocked)
 
+    // #673 — hoisted above the detail Loading branch so a 409/404 reload never
+    // discards entered values (canceling profile edits never touches intake either —
+    // section drafts are local to this entry).
+    val session = remember { ClientSectionSession() }
+    var showAnonymizeDialog by remember { mutableStateOf(false) }
+    var switchGate by remember { mutableStateOf<ClientSection?>(null) }
+    var autoSwitch by remember { mutableStateOf<ClientSection?>(null) }
+    var anonGate by remember { mutableStateOf(false) }
+    var autoAnon by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         logInfo("ClientDetailScreen", "composable entered: clientId=$clientId")
         viewModel.loadClient(clientId, publishMutation = true)
@@ -66,6 +91,15 @@ fun ClientDetailScreen(
         onAnonymized = onAnonymized,
     )
 
+    val detailClient = (detailState as? UiState.Success)?.data
+    if (detailClient != null) {
+        ClientSectionUpdateEffects(
+            updateState = updateState,
+            session = session,
+            changedNotice = changedNotice,
+        )
+    }
+
     Column(
         modifier =
             Modifier
@@ -76,6 +110,8 @@ fun ClientDetailScreen(
 
         when (val state = detailState) {
             is UiState.Idle, is UiState.Loading -> {
+                // Stale detail stays unmounted during reload; section drafts survive
+                // above in [session] and re-seed only on explicit Reload latest.
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
@@ -84,30 +120,170 @@ fun ClientDetailScreen(
             is UiState.Error -> {
                 ClientDetailLoadError(
                     message = state.message,
+                    isUnavailable = isUnavailableError(state.message),
                     onRetry = { viewModel.loadClient(clientId, publishMutation = true) },
                 )
             }
 
             is UiState.Success -> {
-                if (changedNotice) {
-                    Text(
-                        text = "Client was updated elsewhere — changes reloaded",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(bottom = Spacing.sm),
-                    )
-                }
                 ClientDetailContent(
                     client = state.data,
+                    session = session,
                     updateState = updateState,
                     anonymizeState = anonymizeState,
+                    changedNotice = changedNotice,
                     navigationLocked = navigationLocked,
                     viewModel = viewModel,
+                    onStartSection = { section ->
+                        val current = session.editingSection
+                        if (current == null || current == section) {
+                            session.startSection(section, state.data)
+                        } else if (navigationLocked || updateState is UiState.Loading) {
+                            // Mid-flight: sibling Edits are already disabled; ignore the
+                            // switch so a PATCH in flight can never be discarded by a gate.
+                        } else if (session.isDirty(state.data)) {
+                            switchGate = section
+                        } else {
+                            session.exitEdit()
+                            session.startSection(section, state.data)
+                        }
+                    },
+                    onAnonymizeClick = {
+                        // P3 HARD-4 — gate only on dirty edits; a clean opened section
+                        // exits silently. Opening Anonymize never PATCHes by itself.
+                        val editing = session.editingSection
+                        if (editing == null) {
+                            showAnonymizeDialog = true
+                        } else if (navigationLocked || updateState is UiState.Loading) {
+                            // Mid-flight: More is already disabled; ignore.
+                        } else if (session.isDirty(state.data)) {
+                            anonGate = true
+                        } else {
+                            session.exitEdit()
+                            showAnonymizeDialog = true
+                        }
+                    },
                 )
             }
         }
     }
+
+    // Auto-land after a gate Save dispatched: the gate closes immediately, the target
+    // waits here, and lands when the save's Success clears the edit (or immediately for
+    // an unchanged silent exit). Validation failure clears the wait (errors stay visible).
+    LaunchedEffect(session.editingSection, updateState) {
+        val switchTarget = autoSwitch
+        val detail = detailClient
+        if (switchTarget != null && detail != null &&
+            session.editingSection == null &&
+            updateState !is UiState.Loading && !navigationLocked
+        ) {
+            autoSwitch = null
+            session.startSection(switchTarget, detail)
+        }
+        if (autoAnon && session.editingSection == null && updateState !is UiState.Loading && !navigationLocked) {
+            autoAnon = false
+            showAnonymizeDialog = true
+        }
+    }
+
+    // Save/Discard gate for section switches (#673: only one section edits at a time).
+    // Discard/save stay disabled while a save is in flight (mirrors the section Cancel).
+    val switchTarget = switchGate
+    val switchClient = detailClient
+    val switchSaving = navigationLocked || updateState is UiState.Loading
+    if (switchTarget != null && switchClient != null) {
+        SaveDiscardDialog(
+            busy = switchSaving,
+            onSave = {
+                val deps = sectionDeps(viewModel, switchClient.id, navigationLocked, updateState, anonymizeState)
+                val ok = session.saveSection(switchClient, deps)
+                switchGate = null
+                if (!ok) {
+                    autoSwitch = null
+                } else if (session.editingSection == null) {
+                    autoSwitch = null
+                    session.startSection(switchTarget, switchClient)
+                } else {
+                    autoSwitch = switchTarget
+                }
+            },
+            onDiscard = {
+                if (!switchSaving) {
+                    switchGate = null
+                    autoSwitch = null
+                    session.exitEdit()
+                    session.startSection(switchTarget, switchClient)
+                }
+            },
+            onCancel = {
+                switchGate = null
+            },
+        )
+    }
+
+    // Save/Discard gate before anonymize (#673: resolve edits first, never incidental PATCH).
+    val anonClient = detailClient
+    val anonSaving = navigationLocked || updateState is UiState.Loading
+    if (anonGate && anonClient != null) {
+        SaveDiscardDialog(
+            busy = anonSaving,
+            onSave = {
+                val deps = sectionDeps(viewModel, anonClient.id, navigationLocked, updateState, anonymizeState)
+                val ok = session.saveSection(anonClient, deps)
+                anonGate = false
+                if (!ok) {
+                    autoAnon = false
+                } else if (session.editingSection == null) {
+                    autoAnon = false
+                    showAnonymizeDialog = true
+                } else {
+                    autoAnon = true
+                }
+            },
+            onDiscard = {
+                if (!anonSaving) {
+                    anonGate = false
+                    autoAnon = false
+                    session.exitEdit()
+                    showAnonymizeDialog = true
+                }
+            },
+            onCancel = { anonGate = false },
+        )
+    }
+
+    if (showAnonymizeDialog && anonClient != null) {
+        ClientDetailAnonymizeHost(
+            show = true,
+            client = anonClient,
+            editInFlight = navigationLocked || updateState is UiState.Loading,
+            onConfirm = {
+                showAnonymizeDialog = false
+                viewModel.anonymizeClient(anonClient.id)
+            },
+            onDismiss = { showAnonymizeDialog = false },
+        )
+    }
 }
+
+private fun sectionDeps(
+    viewModel: ClientViewModel,
+    clientId: String,
+    navigationLocked: Boolean,
+    updateState: UiState<ClientResponse>,
+    anonymizeState: UiState<Unit>,
+): ClientEditDeps =
+    ClientEditDeps(
+        navigationLocked = navigationLocked,
+        updateState = updateState,
+        anonymizeState = anonymizeState,
+        liveDetailState = viewModel.clientDetail::value,
+        liveUpdateState = viewModel.updateClientState::value,
+        onPatch = { viewModel.updateClient(clientId, it) },
+    )
+
+internal fun isUnavailableError(message: String): Boolean = message == CLIENT_DETAIL_UNAVAILABLE
 
 @Composable
 private fun ClientDetailBackRow(
@@ -160,18 +336,24 @@ private fun ClientDetailScreenStatusEffects(
 @Composable
 private fun ClientDetailLoadError(
     message: String,
+    isUnavailable: Boolean,
     onRetry: () -> Unit,
 ) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
             Column(modifier = Modifier.padding(Spacing.md)) {
                 Text(
-                    text = message,
+                    // #673 + #653 — revoked GLOBAL access reads as Unavailable + Back
+                    // (Back stays mounted above); no cached protected profile is shown
+                    // and no Retry is offered for revoked access.
+                    text = if (isUnavailable) "Unavailable" else message,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                TextButton(onClick = onRetry) {
-                    Text("Retry")
+                if (!isUnavailable) {
+                    TextButton(onClick = onRetry) {
+                        Text("Retry")
+                    }
                 }
             }
         }
@@ -179,32 +361,37 @@ private fun ClientDetailLoadError(
 }
 
 @Composable
-private fun ClientDetailUpdateEffects(
+private fun ClientSectionUpdateEffects(
     updateState: UiState<ClientResponse>,
-    editingField: ClientField?,
-    pendingEditField: ClientField?,
-    callbacks: ClientUpdateCallbacks,
+    session: ClientSectionSession,
+    changedNotice: Boolean,
 ) {
     var wasUpdateLoading by remember { mutableStateOf(false) }
-    // Whether a landing PATCH outcome concerns the field currently being edited. Both commit
-    // paths set the pending field synchronously before dispatching, so a non-null pending field
-    // always identifies the in-flight PATCH.
-    // D4 pessimistic axes — edit mode exits only on success; failure keeps the attempted value +
-    // inline error and stays in edit; Loading → Idle without Success in between = 403 silent exit.
-    // Per-field ownership: a resolved PATCH touches edit state only when it belongs to the
-    // currently-editing field.
+    // D4 pessimistic axes for sections — success exits, failure stays editable with
+    // Retry (pending kept so the banner + Retry stay mounted), Loading→Idle without
+    // Success is the 403 silent exit (changedNotice false) or the 409 conflict reload
+    // (changedNotice true — drafts preserved, Reload latest offered, never blind
+    // overwrites). Per-section ownership: only the pending section's outcome touches
+    // edit state.
     LaunchedEffect(updateState) {
-        val resolvesCurrentEdit = editingField == pendingEditField
-        when (val state = updateState) {
+        val resolvesCurrent = session.pendingSection != null && session.pendingSection == session.editingSection
+        when (updateState) {
             is UiState.Success -> {
-                if (resolvesCurrentEdit) callbacks.onEditClear()
-                callbacks.onClearPending()
+                if (resolvesCurrent) session.exitEdit()
+                session.clearPending()
                 wasUpdateLoading = false
             }
 
             is UiState.Idle -> {
-                if (wasUpdateLoading && resolvesCurrentEdit) callbacks.onEditClear()
-                callbacks.onClearPending()
+                if (wasUpdateLoading && resolvesCurrent) {
+                    if (changedNotice) {
+                        // 409 conflict reload: keep entered values for review.
+                        session.clearPending()
+                    } else {
+                        session.exitEdit()
+                        session.clearPending()
+                    }
+                }
                 wasUpdateLoading = false
             }
 
@@ -213,11 +400,8 @@ private fun ClientDetailUpdateEffects(
             }
 
             is UiState.Error -> {
-                // 409 exits silently via Idle (the VM reloads); a plain failure (400 validation,
-                // 5xx) keeps edit mode with the inline error — but only when the failing PATCH
-                // belongs to the field being edited.
-                if (resolvesCurrentEdit) callbacks.onFieldError(state.message)
-                callbacks.onClearPending()
+                // Plain failure (400 validation, 5xx) keeps edit mode with drafts +
+                // Retry — pending is kept so the section banner stays mounted.
                 wasUpdateLoading = false
             }
         }
@@ -227,20 +411,20 @@ private fun ClientDetailUpdateEffects(
 @Composable
 private fun ClientDetailContent(
     client: ClientResponse,
+    session: ClientSectionSession,
     updateState: UiState<ClientResponse>,
     anonymizeState: UiState<Unit>,
+    changedNotice: Boolean,
     navigationLocked: Boolean,
     viewModel: ClientViewModel,
+    onStartSection: (ClientSection) -> Unit,
+    onAnonymizeClick: () -> Unit,
 ) {
     if (client.firstName == null || client.lastName == null) {
         ClientDetailAnonymizedHusk(client)
         return
     }
 
-    // Edit ownership lives in the session (#476 Cyclomatic burn — the local commit helpers
-    // carried this composable to 35/15; members own their own budgets now).
-    val session = remember { ClientEditSession() }
-    var showAnonymizeDialog by remember { mutableStateOf(false) }
     val deps =
         ClientEditDeps(
             navigationLocked = navigationLocked,
@@ -251,37 +435,92 @@ private fun ClientDetailContent(
             onPatch = { viewModel.updateClient(client.id, it) },
         )
 
-    ClientDetailUpdateEffects(
-        updateState = updateState,
-        editingField = session.editingField,
-        pendingEditField = session.pendingEditField,
-        callbacks =
-            ClientUpdateCallbacks(
-                onEditClear = session::exitEdit,
-                onClearPending = { session.pendingEditField = null },
-                onFieldError = { session.fieldError = it },
-            ),
-    )
-
     Column(modifier = Modifier.fillMaxSize()) {
         ClientDetailContentBody(
             client = client,
-            edit = session.snapshot(navigationLocked),
-            draft = session.bpDraft,
+            session = session,
+            updateState = updateState,
             anonymizeState = anonymizeState,
-            callbacks = session.callbacks(client, deps) { showAnonymizeDialog = true },
+            changedNotice = changedNotice,
+            navigationLocked = navigationLocked,
+            callbacks =
+                SectionScreenCallbacks(
+                    onStartSection = onStartSection,
+                    onCancelSection = session::exitEdit,
+                    onSaveSection = { session.saveSection(client, deps) },
+                    onRetrySection = { session.retryPending(deps) },
+                    onReloadLatest = {
+                        session.reseed(client)
+                        session.clearPending()
+                    },
+                    onDraftChange = { field, value ->
+                        session.handleDraftChange(field, value)
+                    },
+                    onBpChange = { sys, value ->
+                        if (sys) {
+                            session.bpDraft.systolic = value
+                        } else {
+                            session.bpDraft.diastolic = value
+                        }
+                        session.fieldErrors.remove(ClientField.BP_PAIR)
+                    },
+                    onAnonymizeClick = onAnonymizeClick,
+                ),
         )
     }
+}
 
-    ClientDetailAnonymizeHost(
-        show = showAnonymizeDialog,
-        client = client,
-        editInFlight = navigationLocked || updateState is UiState.Loading,
-        onConfirm = {
-            showAnonymizeDialog = false
-            viewModel.anonymizeClient(client.id)
+@Composable
+private fun SaveDiscardDialog(
+    busy: Boolean,
+    onSave: () -> Unit,
+    onDiscard: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    // #673 — three-way gate (Save / Discard / Cancel) honoring the shared dialog rules
+    // (#670: max 560dp via widthIn, scrolling body, fixed actions, contract buttons with
+    // stable busy geometry, no entrance animation). Esc/Back cancels (stays editing);
+    // Discard drops section drafts; Save dispatches one request and stays in the section
+    // on validation failure. Save/Discard lock while a save is in flight.
+    val cancelFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { cancelFocus.requestFocus() }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { if (!busy) onCancel() },
+        title = { Text("Save or discard changes?", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 320.dp)
+                        .verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    "You have unsent changes. Save them, discard them, or stay editing.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
         },
-        onDismiss = { showAnonymizeDialog = false },
+        confirmButton = {
+            PrimaryActionButton(label = "Save changes", onClick = onSave, enabled = !busy, isBusy = false)
+        },
+        dismissButton = {
+            Row {
+                SecondaryActionButton(label = "Discard", onClick = onDiscard, enabled = !busy)
+                TertiaryActionButton(
+                    label = "Cancel",
+                    onClick = onCancel,
+                    enabled = !busy,
+                    modifier = Modifier.focusRequester(cancelFocus),
+                )
+            }
+        },
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .widthIn(max = OperationalUiContract.dialogMaxWidth)
+                .padding(horizontal = Spacing.md),
+        shape = MaterialTheme.shapes.medium,
     )
 }
 
@@ -294,16 +533,24 @@ private fun ClientDetailAnonymizeHost(
     onDismiss: () -> Unit,
 ) {
     if (!show) return
-    AnonymizeDialog(
-        clientName = clientDisplayName(client),
-        // H4 — clicking Anonymize blurs an editing field, which blur-commits a PATCH in
-        // flight; confirming while that PATCH is still saving would race it against the
-        // anonymize POST (a slow PATCH could land after the anonymize and re-populate PII on
-        // the soft-deleted row). Confirm stays disabled until the blur-committed PATCH
-        // resolves.
-        editInFlight = editInFlight,
+    // H4 — confirming while a PATCH is still saving would race it against the
+    // anonymize POST (a slow PATCH could land after the anonymize and re-populate
+    // PII on the soft-deleted row). Confirm stays disabled until the save resolves.
+    // With section editing there is no blur-commit, so opening Anonymize never
+    // incidentally PATCHes — the Save/Discard gate above owns the ordering.
+    DestructiveConfirmDialog(
+        title = "Anonymize client?",
+        body =
+            clientPrimaryName(client) +
+                "\n\nThis permanently removes the client's personal data " +
+                "(name, contact, health info). This cannot be undone. " +
+                "Gender and age are kept for reporting." +
+                if (editInFlight) "\n\nSaving your edit…" else "",
+        confirmLabel = "Confirm",
         onConfirm = onConfirm,
         onDismiss = onDismiss,
+        isBusy = false,
+        confirmEnabled = !editInFlight,
     )
 }
 
@@ -313,7 +560,7 @@ private fun ClientDetailAnonymizeHost(
 private fun ClientDetailAnonymizedHusk(client: ClientResponse) {
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
-            text = "Anonymized",
+            text = CLIENT_ANONYMIZED_LABEL,
             style = MaterialTheme.typography.titleLarge,
         )
         Spacer(Modifier.size(Spacing.sm))
@@ -326,59 +573,4 @@ private fun ClientDetailAnonymizedHusk(client: ClientResponse) {
             style = MaterialTheme.typography.bodyMedium,
         )
     }
-}
-
-/** D5 — destructive confirm: client name shown for verification, no typing-to-confirm. */
-@Composable
-private fun AnonymizeDialog(
-    clientName: String,
-    editInFlight: Boolean,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Anonymize client?") },
-        text = {
-            Column {
-                Text(
-                    text = clientName,
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                Spacer(Modifier.size(Spacing.xs))
-                Text(
-                    text =
-                        "This permanently removes the client's personal data " +
-                            "(name, contact, health info). This cannot be undone. " +
-                            "Gender and age are kept for reporting.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                if (editInFlight) {
-                    Spacer(Modifier.size(Spacing.xs))
-                    Text(
-                        text = "Saving your edit…",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onConfirm,
-                enabled = !editInFlight,
-                colors =
-                    ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error,
-                    ),
-            ) {
-                Text("Confirm")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        },
-    )
 }

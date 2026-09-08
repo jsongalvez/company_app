@@ -27,14 +27,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.client.ClientSearchApi
 import com.companyb.companyapp.client.ClientState
+import com.companyb.companyapp.client.clientPrimaryName
+import com.companyb.companyapp.client.clientSecondaryLine
+import com.companyb.companyapp.client.movePickerFocus
 import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.contracts.commerce.BranchInventoryResponse
 import com.companyb.companyapp.contracts.commerce.ProductSaleResponse
 import com.companyb.companyapp.contracts.session.DashboardSessionResponse
+import com.companyb.companyapp.ui.contract.operationalField
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
@@ -153,7 +162,8 @@ private fun SaleClientPicker(
     onSelect: (ClientResponse) -> Unit,
 ) {
     val query by clientSearch.query.collectAsState()
-    val results by clientSearch.searchResults.collectAsState()
+    val resultsState by clientSearch.searchResults.collectAsState()
+    val cached by clientSearch.freshestResults.collectAsState()
 
     // #610 — privacy reconciliation: anonymize/update mutations published while the picker is
     // open refresh this entry's searcher (the Clients/SessionCreate collect shape).
@@ -163,25 +173,38 @@ private fun SaleClientPicker(
         }
     }
 
+    // #673 — search focuses on entry; stale rows stay visible but are not selectable.
+    val searchFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { searchFocus.requestFocus() }
     OutlinedTextField(
         value = query,
         onValueChange = { clientSearch.onQueryChange(it) },
         label = { Text("Find client (name or phone)") },
         singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.operationalField().focusRequester(searchFocus),
     )
-    when (val state = results) {
-        is UiState.Loading -> {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                CircularProgressIndicator(Modifier.heightIn(max = 24.dp))
-            }
+    val isLoading = resultsState is UiState.Loading
+    if (isLoading && cached.isNullOrEmpty()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            CircularProgressIndicator(Modifier.heightIn(max = 24.dp))
         }
-
+        return
+    }
+    when (val state = resultsState) {
         is UiState.Error -> {
-            TextButton(onClick = { clientSearch.retrySearch() }) { Text("Retry search") }
+            if (cached.isNullOrEmpty()) {
+                TextButton(onClick = { clientSearch.retrySearch() }) { Text("Retry search") }
+            } else {
+                SaleClientIdentityList(
+                    results = cached.orEmpty(),
+                    selectedClient = selectedClient,
+                    enabled = false,
+                    onSelect = onSelect,
+                )
+            }
         }
 
         is UiState.Success -> {
@@ -192,26 +215,92 @@ private fun SaleClientPicker(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                Column(
-                    modifier =
-                        Modifier
-                            .heightIn(max = 200.dp)
-                            .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-                ) {
-                    state.data.forEach { client ->
-                        FilterChip(
-                            selected = selectedClient?.id == client.id,
-                            onClick = { onSelect(client) },
-                            label = { Text(listOfNotNull(client.firstName, client.lastName).joinToString(" ")) },
-                        )
-                    }
-                }
+                SaleClientIdentityList(
+                    results = cached ?: state.data,
+                    selectedClient = selectedClient,
+                    enabled = !isLoading,
+                    onSelect = onSelect,
+                )
             }
         }
 
+        is UiState.Loading -> {
+            // Keep-last: stale list stays visible with the spinner as the only busy signal.
+            SaleClientIdentityList(
+                results = cached.orEmpty(),
+                selectedClient = selectedClient,
+                enabled = false,
+                onSelect = onSelect,
+            )
+        }
+
         is UiState.Idle -> {
-            Unit
+            Text(
+                text = "Type at least 2 characters to search",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SaleClientIdentityList(
+    results: List<ClientResponse>,
+    selectedClient: ClientResponse?,
+    enabled: Boolean,
+    onSelect: (ClientResponse) -> Unit,
+) {
+    // #673 — no default selection; arrows move focus, Enter selects.
+    var focusedIndex by remember(results) { mutableStateOf(-1) }
+    Column(
+        modifier =
+            Modifier
+                .heightIn(max = 200.dp)
+                .verticalScroll(rememberScrollState())
+                .onPreviewKeyEvent { event ->
+                    when (event.key) {
+                        Key.DirectionDown -> {
+                            focusedIndex = movePickerFocus(focusedIndex, 1, results.size)
+                            true
+                        }
+
+                        Key.DirectionUp -> {
+                            focusedIndex = movePickerFocus(focusedIndex, -1, results.size)
+                            true
+                        }
+
+                        Key.Enter, Key.NumPadEnter -> {
+                            val target = results.getOrNull(focusedIndex)
+                            if (enabled && target != null) onSelect(target)
+                            true
+                        }
+
+                        else -> {
+                            false
+                        }
+                    }
+                },
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        results.forEachIndexed { index, client ->
+            FilterChip(
+                selected = selectedClient?.id == client.id,
+                enabled = enabled,
+                onClick = {
+                    focusedIndex = index
+                    onSelect(client)
+                },
+                label = {
+                    Text(
+                        // #673 — one identity presentation: primary + secondary, never
+                        // clinical concerns or raw IDs; missing reads as an em dash.
+                        text =
+                            clientPrimaryName(client) +
+                                " · " + clientSecondaryLine(client, results),
+                    )
+                },
+            )
         }
     }
 }

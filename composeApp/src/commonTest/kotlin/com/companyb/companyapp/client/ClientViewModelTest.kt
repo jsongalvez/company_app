@@ -431,6 +431,20 @@ class ClientViewModelTest {
         }
 
     @Test
+    fun loadClient_403_revoked_access_emits_stable_unavailable() =
+        runTest(testScheduler) {
+            val vm = ClientViewModel(mockApiClient(clientHandler(detailStatus = HttpStatusCode.Forbidden)))
+
+            vm.loadClient("c1")
+            runCurrent()
+
+            // #673 + #653 — revoked GLOBAL access is a stable Unavailable contract:
+            // no Retry downstream, no cached protected profile.
+            val state = assertIs<UiState.Error>(vm.clientDetail.value)
+            assertEquals(expected = CLIENT_DETAIL_UNAVAILABLE, actual = state.message)
+        }
+
+    @Test
     fun loadClient_can_publish_authoritative_snapshot_for_other_entries() =
         runTest(testScheduler) {
             val vm = ClientViewModel(mockApiClient(clientHandler()))
@@ -807,6 +821,7 @@ class ClientViewModelTest {
         searchQueries: MutableList<String>? = null,
         updateStatus: HttpStatusCode = HttpStatusCode.OK,
         detailBody: String = DETAIL_JSON,
+        detailStatus: HttpStatusCode = HttpStatusCode.OK,
         anonymizeStatus: HttpStatusCode = HttpStatusCode.NoContent,
     ): MockRequestHandler =
         { request ->
@@ -819,7 +834,7 @@ class ClientViewModelTest {
 
                 request.method == HttpMethod.Get &&
                     request.url.encodedPath.startsWith("/api/clients/") -> {
-                    jsonRespond(status = HttpStatusCode.OK, body = detailBody)
+                    jsonRespond(status = detailStatus, body = detailBody)
                 }
 
                 request.method == HttpMethod.Patch &&

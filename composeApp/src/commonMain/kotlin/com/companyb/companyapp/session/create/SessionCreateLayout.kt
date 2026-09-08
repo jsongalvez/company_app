@@ -17,6 +17,8 @@ import androidx.compose.ui.Modifier
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.client.ClientPickerArgs
 import com.companyb.companyapp.client.ClientPickerSection
+import com.companyb.companyapp.client.clientPrimaryName
+import com.companyb.companyapp.client.clientSecondaryLine
 import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.ui.theme.Spacing
 
@@ -70,13 +72,20 @@ internal fun SessionCreateMobileBody(
             // #620 — sole caller of the deleted SessionFormSection: the mobile form
             // header (client name + Change) lives with its exempt mobile body; the
             // shared SessionFormFields below stays (desktop workspace uses it too).
+            // #673 — one identity presentation (primary + secondary, never clinical/IDs).
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = listOfNotNull(client.firstName, client.lastName).joinToString(" "),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = clientPrimaryName(client),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = clientSecondaryLine(client),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 TextButton(onClick = args.viewModel::clearSelectedClient, enabled = !args.isSubmissionLocked) {
                     Text("Change")
                 }

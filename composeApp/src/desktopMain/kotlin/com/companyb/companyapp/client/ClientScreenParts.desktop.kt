@@ -21,10 +21,13 @@ import com.companyb.companyapp.ui.theme.Spacing
 
 // #113 D3 (desktop) — dense table: name/phone/gender/age. Search results are the scan persona
 // (the #95 re-scope justification); 20 rows max (backend limit), so a plain Column is fine.
+// #673 — missing values read as an em dash, anonymized rows read as "Anonymized client",
+// never clinical concerns or raw IDs.
 @Composable
 actual fun ClientResultList(
     results: List<ClientResponse>,
     onClientClick: (ClientResponse) -> Unit,
+    enabled: Boolean,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -46,13 +49,19 @@ actual fun ClientResultList(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .clickable { onClientClick(client) }
+                        .clickable(enabled = enabled) { onClientClick(client) }
                         .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
             ) {
-                TableCell(clientDisplayName(client), modifier = Modifier.weight(2f))
-                TableCell(client.phoneNumber.orEmpty(), modifier = Modifier.weight(2f))
-                TableCell(client.gender.displayName(), modifier = Modifier.weight(1f))
-                TableCell(client.age.toString(), modifier = Modifier.weight(1f))
+                TableCell(clientPrimaryName(client), modifier = Modifier.weight(2f))
+                TableCell(clientPhoneLine(client), modifier = Modifier.weight(2f))
+                TableCell(
+                    if (isAnonymizedClient(client)) CLIENT_MISSING_VALUE else client.gender.displayName(),
+                    modifier = Modifier.weight(1f),
+                )
+                TableCell(
+                    if (isAnonymizedClient(client)) CLIENT_MISSING_VALUE else client.age.toString(),
+                    modifier = Modifier.weight(1f),
+                )
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         }

@@ -29,10 +29,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.ui.ErrorCard
+import com.companyb.companyapp.ui.contract.operationalField
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
@@ -168,6 +171,10 @@ private fun ClientSearchHeader(
     onQueryChange: (String) -> Unit,
     onNewClient: () -> Unit,
 ) {
+    // #673 — search focuses on entry; Tab reaches explicit Create client via the
+    // New-client tertiary (no default selection lives in the result list).
+    val searchFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { searchFocus.requestFocus() }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth(),
@@ -193,7 +200,7 @@ private fun ClientSearchHeader(
                     )
                 }
             },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).operationalField().focusRequester(searchFocus),
         )
         if (isLoading) {
             Spacer(Modifier.width(Spacing.sm))
@@ -273,10 +280,12 @@ private fun ClientResultsArea(
                 } else {
                     // keep-last-results (D2 / #97 Q5 silent-refresh axis): Loading/Error with
                     // a cache keeps rendering the last list — the in-field spinner is the
-                    // only busy signal.
+                    // only busy signal. #673 — a stale list stays visible during refresh
+                    // but is not selectable as if it matched the new query.
                     ClientResultList(
                         results = results,
                         onClientClick = onClientClick,
+                        enabled = searchState !is UiState.Loading,
                     )
                 }
             }
