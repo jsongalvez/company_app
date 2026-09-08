@@ -126,7 +126,6 @@ import java.util.UUID
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
-@Suppress("TooManyFunctions")
 object ReliefAccessRoutes {
     /**
      * Shared response mapper — every command and read projects the same shape. Branch
@@ -165,39 +164,51 @@ object ReliefAccessRoutes {
         return map { it.toResponse(requesterName = names[it.requestedBy]) }
     }
 
-    @Suppress("ThrowsCount")
     fun listReliefAccess(config: JavalinConfig) {
         config.routes.get(ApiRoutes.RELIEF_ACCESS) { context ->
             context.status(HttpStatus.OK)
             // #358 — two addressing forms: branchDayId directly, or the notification
             // deep-link pair (branchId + date). Each leg keeps the single-val service-call
             // shape the OpenAPI response-inference pass resolves.
+            // #598: query parsing split into named guards (ThrowsCount budget is 2 per function).
             if (context.queryParam("branchDayId") != null) {
-                val callerId = context.callerUuid()
-                val branchDayId =
-                    runCatching { UUID.fromString(context.queryParam("branchDayId")) }.getOrElse {
-                        throw BadRequestResponse("Invalid branchDayId")
-                    }
-                val requests = ReliefAccessService.listForCaller(callerId, branchDayId)
-                context.json(requests.toNamedResponses())
+                context.json(listByBranchDayId(context).toNamedResponses())
             } else {
-                val callerId = context.callerUuid()
-                val branchParam =
-                    context.queryParam("branchId") ?: throw BadRequestResponse("branchDayId or branchId is required")
-                val dateParam = context.queryParam("date") ?: throw BadRequestResponse("date is required")
-                val branchId =
-                    runCatching {
-                        UUID.fromString(
-                            branchParam,
-                        )
-                    }.getOrElse { throw BadRequestResponse("Invalid branchId") }
-                val date =
-                    runCatching { LocalDate.parse(dateParam) }.getOrElse {
-                        throw BadRequestResponse("Invalid date (expected ISO yyyy-MM-dd)")
-                    }
-                val dayRequests = ReliefAccessService.listForCallerByDay(callerId, branchId, date)
-                context.json(dayRequests.toNamedResponses())
+                context.json(listByDeepLink(context).toNamedResponses())
             }
+        }
+    }
+
+    private fun listByBranchDayId(context: Context): List<ReliefAccess> {
+        val callerId = context.callerUuid()
+        val branchDayId =
+            runCatching { UUID.fromString(context.queryParam("branchDayId")) }.getOrElse {
+                throw BadRequestResponse("Invalid branchDayId")
+            }
+        return ReliefAccessService.listForCaller(callerId, branchDayId)
+    }
+
+    private fun listByDeepLink(context: Context): List<ReliefAccess> {
+        val callerId = context.callerUuid()
+        val branchId = resolveDeepLinkBranchId(context)
+        val date = resolveDeepLinkDate(context)
+        return ReliefAccessService.listForCallerByDay(callerId, branchId, date)
+    }
+
+    private fun resolveDeepLinkBranchId(context: Context): UUID {
+        val branchParam =
+            context.queryParam("branchId") ?: throw BadRequestResponse("branchDayId or branchId is required")
+        return runCatching {
+            UUID.fromString(
+                branchParam,
+            )
+        }.getOrElse { throw BadRequestResponse("Invalid branchId") }
+    }
+
+    private fun resolveDeepLinkDate(context: Context): LocalDate {
+        val dateParam = context.queryParam("date") ?: throw BadRequestResponse("date is required")
+        return runCatching { LocalDate.parse(dateParam) }.getOrElse {
+            throw BadRequestResponse("Invalid date (expected ISO yyyy-MM-dd)")
         }
     }
 
@@ -227,7 +238,6 @@ object ReliefAccessRoutes {
         }
     }
 
-    @Suppress("ThrowsCount")
     fun grantReliefAccess(config: JavalinConfig) {
         config.routes.patch(ApiRoutes.RELIEF_ACCESS_GRANT_PATH) { context ->
             val callerId = context.callerUuid()
@@ -243,7 +253,6 @@ object ReliefAccessRoutes {
         }
     }
 
-    @Suppress("ThrowsCount")
     fun denyReliefAccess(config: JavalinConfig) {
         config.routes.patch(ApiRoutes.RELIEF_ACCESS_DENY_PATH) { context ->
             val callerId = context.callerUuid()
@@ -257,7 +266,6 @@ object ReliefAccessRoutes {
         }
     }
 
-    @Suppress("ThrowsCount")
     fun cancelReliefAccess(config: JavalinConfig) {
         config.routes.patch(ApiRoutes.RELIEF_ACCESS_CANCEL_PATH) { context ->
             val callerId = context.callerUuid()
@@ -271,7 +279,6 @@ object ReliefAccessRoutes {
         }
     }
 
-    @Suppress("ThrowsCount")
     fun requestReliefAccess(config: JavalinConfig) {
         config.routes.post(ApiRoutes.RELIEF_ACCESS_REQUEST) { context ->
             val callerId = context.callerUuid()

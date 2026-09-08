@@ -56,7 +56,6 @@ object AttendanceService {
      * no-op. Day state stays ungated, matching self clock-in/out (attendance is the access
      * primitive; resolveOrCreate bootstraps the day).
      */
-    @Suppress("ThrowsCount")
     fun mark(
         callerId: UUID,
         branchId: UUID,
@@ -92,7 +91,6 @@ object AttendanceService {
      * active-clock-in guard, idempotent-retry contract, atomic commission recalculation —
      * with `userId` = target and `markedBy` = caller.
      */
-    @Suppress("ThrowsCount")
     private fun markPresent(
         callerId: UUID,
         branchId: UUID,
@@ -217,7 +215,6 @@ object AttendanceService {
             }
         }
 
-    @Suppress("ThrowsCount")
     fun clockOut(
         attendanceId: UUID,
         callerId: UUID,
@@ -260,7 +257,6 @@ object AttendanceService {
             AttendanceServiceResult(attendance, false, isRelief)
         }
 
-    @Suppress("ThrowsCount")
     fun clockIn(
         attendanceId: UUID,
         branchId: UUID,
@@ -323,7 +319,6 @@ object AttendanceService {
      * the id is free. A mismatch (another target, marker, branch, or day) still 409s — the
      * retry contract covers replaying your own request only.
      */
-    @Suppress("ThrowsCount")
     private fun retryOutcomeOrNull(
         attendanceId: UUID,
         branchId: UUID,

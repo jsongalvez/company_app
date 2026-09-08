@@ -57,7 +57,6 @@ data class RosterMember(
  * presence set, member rows) beside the self clock-in/out family; splitting the object
  * would scatter one aggregate's persistence (the ReliefInviteRepository pin precedent).
  */
-@Suppress("UnreachableCode", "TooManyFunctions")
 internal object AttendanceRepository {
     fun hasActiveClockIn(
         userId: UUID,

@@ -41,7 +41,6 @@ data class ReliefRequestWithBranch(
     val date: LocalDate,
 )
 
-@Suppress("TooManyFunctions")
 internal object ReliefAccessRepository {
     fun findById(id: UUID): ReliefAccess? =
         transaction {

@@ -45,7 +45,7 @@ import kotlin.test.assertTrue
  * Over the 600-line LargeClass threshold since #409's audience test; test-class precedent
  * (RemittanceServicePostgresTest, BranchInventoryServicePostgresTest).
  */
-@Suppress("LargeClass")
+@Suppress("LargeClass") // #598 scenario coverage stays whole.
 class ReliefAccessServicePostgresTest : BasePostgresTest() {
     private val reliefUserId = TestFixtures.uuid()
     private val memberId = TestFixtures.uuid()

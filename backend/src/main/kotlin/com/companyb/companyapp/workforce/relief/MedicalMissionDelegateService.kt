@@ -21,7 +21,6 @@ import java.util.UUID
 object MedicalMissionDelegateService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("ThrowsCount")
     fun assignDelegate(
         delegateId: UUID,
         targetUserId: UUID,

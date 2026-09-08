@@ -75,7 +75,6 @@ object ReliefAccessService {
      */
     fun listBranchOptions(): List<Branch> = BranchService.findAll()
 
-    @Suppress("ThrowsCount")
     fun grantAccess(
         requestId: UUID,
         callerId: UUID,
@@ -137,7 +136,6 @@ object ReliefAccessService {
         return result
     }
 
-    @Suppress("ThrowsCount")
     fun denyAccess(
         requestId: UUID,
         callerId: UUID,
@@ -198,7 +196,6 @@ object ReliefAccessService {
      * theirs, any active branch member cancels someone else's pending ask; both die once
      * the requester has clocked in at the branch day.
      */
-    @Suppress("ThrowsCount")
     fun cancelRequest(
         requestId: UUID,
         callerId: UUID,
@@ -260,7 +257,6 @@ object ReliefAccessService {
         return result
     }
 
-    @Suppress("ThrowsCount")
     fun requestReliefAccess(
         requestId: UUID,
         branchId: UUID,
@@ -269,17 +265,10 @@ object ReliefAccessService {
         reason: String? = null,
     ): ReliefAccess {
         val branch = BranchService.findById(branchId)
-        if (!ReliefAccessRepository.isActiveUser(callerId)) {
-            throw ForbiddenException("Inactive users cannot request relief duty")
-        }
-        if (UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId) != null) {
-            throw ValidationException("You are already assigned to this branch — relief duty does not apply")
-        }
+        requireRequesterEligible(callerId, branchId)
 
         val operationalDate = date ?: BranchDayService.currentOperationalDate()
-        if (operationalDate < BranchDayService.currentOperationalDate()) {
-            throw ValidationException("Relief duty cannot be requested for a past date")
-        }
+        requireOperationalDate(operationalDate)
 
         val (reliefAccess, wasCreated) =
             transaction {
@@ -292,12 +281,7 @@ object ReliefAccessService {
                 // retries landing after a day transition still ack; ownership matches the
                 // insert below (the #510/#514 class).
                 ReliefAccessRepository.findByIdInTransaction(requestId)?.let { existing ->
-                    if (existing.branchDayId != branchDay.id) {
-                        throw NotFoundException("Relief request not found for this branch day")
-                    }
-                    if (existing.requestedBy != callerId) {
-                        throw ConflictException("Relief request id already belongs to another request")
-                    }
+                    requireReplayOwnership(existing, branchDay.id, callerId)
                     return@transaction existing to false
                 }
 
@@ -360,6 +344,41 @@ object ReliefAccessService {
             UserBranchAssignmentRepository.findActiveByBranchAndUserInTransaction(branchId, callerId, forUpdate = true)
         if (assignment == null) {
             throw ForbiddenException("An active assignment at this branch is required")
+        }
+    }
+
+    /**
+     * #598: pre-transaction requester eligibility split from the command body
+     * (ThrowsCount budget is 2 per function).
+     */
+    private fun requireRequesterEligible(
+        callerId: UUID,
+        branchId: UUID,
+    ) {
+        if (!ReliefAccessRepository.isActiveUser(callerId)) {
+            throw ForbiddenException("Inactive users cannot request relief duty")
+        }
+        if (UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId) != null) {
+            throw ValidationException("You are already assigned to this branch — relief duty does not apply")
+        }
+    }
+
+    private fun requireOperationalDate(operationalDate: LocalDate) {
+        if (operationalDate < BranchDayService.currentOperationalDate()) {
+            throw ValidationException("Relief duty cannot be requested for a past date")
+        }
+    }
+
+    private fun requireReplayOwnership(
+        existing: ReliefAccess,
+        branchDayId: UUID,
+        callerId: UUID,
+    ) {
+        if (existing.branchDayId != branchDayId) {
+            throw NotFoundException("Relief request not found for this branch day")
+        }
+        if (existing.requestedBy != callerId) {
+            throw ConflictException("Relief request id already belongs to another request")
         }
     }
 }

@@ -31,7 +31,6 @@ import java.util.UUID
  * into the same transaction. Accept's day-open gate and expiration live inside its command
  * transaction so the expiry decision commits atomically with the grant it authorizes.
  */
-@Suppress("TooManyFunctions")
 object ReliefInviteService {
     private val logger = KotlinLogging.logger {}
 
@@ -51,7 +50,6 @@ object ReliefInviteService {
      * @throws ConflictException when the invitee already holds a PENDING/ACCEPTED invite or
      *   an active grant for the day (the per-person guard).
      */
-    @Suppress("ThrowsCount")
     fun createInvite(
         callerId: UUID,
         branchId: UUID,
@@ -60,22 +58,12 @@ object ReliefInviteService {
     ): ReliefInvite {
         // Advisory pre-transaction fast-path (unchanged): the insertIgnore swallow below
         // is the atomic per-person guard; these reads only fail fast.
+        // #598: eligibility + advisory guards split into named checks (ThrowsCount budget is 2).
         requireActiveAssignment(callerId, branchId)
-
-        if (inviteeUserId == callerId) {
-            throw ValidationException("You cannot invite yourself")
-        }
-        if (!ReliefInviteRepository.isActiveUser(inviteeUserId)) {
-            throw ValidationException("Invitee must be an active user")
-        }
+        requireInviteeEligible(inviteeUserId, callerId)
 
         val advisoryDay = BranchDayService.resolveOrCreate(branchId, date)
-        if (
-            ReliefInviteRepository.hasPendingOrAcceptedInvite(inviteeUserId, advisoryDay.id) ||
-            ReliefInviteRepository.hasActiveGrant(inviteeUserId, advisoryDay.id)
-        ) {
-            throw ConflictException("This user already has a pending invite or active grant for the day")
-        }
+        requireNoExistingInvite(inviteeUserId, advisoryDay.id)
 
         val (invite, isNew) =
             transaction {
@@ -167,7 +155,6 @@ object ReliefInviteService {
      *   (day-state is the expiry, #159 Q6; no cron).
      * @throws ConflictException when the invite was already responded to.
      */
-    @Suppress("ThrowsCount")
     fun acceptInvite(
         callerId: UUID,
         inviteId: UUID,
@@ -244,7 +231,6 @@ object ReliefInviteService {
     }
 
     /** Retracts a PENDING invite — same gate as create (active assignment at the branch). */
-    @Suppress("ThrowsCount")
     fun retractInvite(
         callerId: UUID,
         inviteId: UUID,
@@ -286,7 +272,6 @@ object ReliefInviteService {
      *   or the day is no longer OPEN.
      * @throws ConflictException when the invite was already responded to.
      */
-    @Suppress("ThrowsCount")
     fun revokeInvite(
         callerId: UUID,
         inviteId: UUID,
@@ -392,6 +377,33 @@ object ReliefInviteService {
     ) {
         UserBranchAssignmentRepository.findActiveByBranchAndUserInTransaction(branchId, callerId, forUpdate = true)
             ?: throw ForbiddenException("An active assignment at this branch is required")
+    }
+
+    /**
+     * #598: invitee eligibility split from createInvite (ThrowsCount budget is 2 per function).
+     */
+    private fun requireInviteeEligible(
+        inviteeUserId: UUID,
+        callerId: UUID,
+    ) {
+        if (inviteeUserId == callerId) {
+            throw ValidationException("You cannot invite yourself")
+        }
+        if (!ReliefInviteRepository.isActiveUser(inviteeUserId)) {
+            throw ValidationException("Invitee must be an active user")
+        }
+    }
+
+    private fun requireNoExistingInvite(
+        inviteeUserId: UUID,
+        branchDayId: UUID,
+    ) {
+        if (
+            ReliefInviteRepository.hasPendingOrAcceptedInvite(inviteeUserId, branchDayId) ||
+            ReliefInviteRepository.hasActiveGrant(inviteeUserId, branchDayId)
+        ) {
+            throw ConflictException("This user already has a pending invite or active grant for the day")
+        }
     }
 }
 

@@ -9,6 +9,7 @@ import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
+import io.javalin.http.Context
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
@@ -174,24 +175,20 @@ object ReliefInviteRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
     private const val INVITE_ID_PARAM = "inviteId"
 
-    @Suppress("LongMethod", "ThrowsCount")
     fun register(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.BRANCH_RELIEF_INVITES_PATH) { context ->
-            val callerId = context.callerUuid()
-            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            val request = context.bodyAsClass<CreateReliefInviteRequest>()
-            val inviteeUserId = uuidOrThrow(request.inviteeUserId, "inviteeUserId")
-            val date = parseRequiredDate(request.date, "date")
+        registerMutations(config)
+        registerReads(config)
+    }
 
-            val invite = ReliefInviteService.createInvite(callerId, branchId, inviteeUserId, date)
+    private fun registerMutations(config: JavalinConfig) {
+        config.routes.post(ApiRoutes.BRANCH_RELIEF_INVITES_PATH, ::handleCreate)
+        config.routes.post(ApiRoutes.RELIEF_INVITE_ACCEPT_PATH, ::handleAccept)
+        config.routes.post(ApiRoutes.RELIEF_INVITE_DECLINE_PATH, ::handleDecline)
+        config.routes.post(ApiRoutes.RELIEF_INVITE_RETRACT_PATH, ::handleRetract)
+        config.routes.post(ApiRoutes.RELIEF_INVITE_REVOKE_PATH, ::handleRevoke)
+    }
 
-            context.status(HttpStatus.CREATED)
-            context.json(
-                ReliefInviteService.viewFor(invite)?.toResponse()
-                    ?: throw BadRequestResponse("Invite not found"),
-            )
-        }
-
+    private fun registerReads(config: JavalinConfig) {
         config.routes.get(ApiRoutes.BRANCH_RELIEF_INVITES_PATH) { context ->
             val callerId = context.callerUuid()
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
@@ -245,54 +242,70 @@ object ReliefInviteRoutes {
             context.status(HttpStatus.OK)
             context.json(ReliefInviteService.listReceived(callerId).map { it.toResponse() })
         }
+    }
 
-        config.routes.post(ApiRoutes.RELIEF_INVITE_ACCEPT_PATH) { context ->
-            val callerId = context.callerUuid()
-            val inviteId = context.pathParamAsUuid(INVITE_ID_PARAM)
+    private fun handleCreate(context: Context) {
+        val callerId = context.callerUuid()
+        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+        val request = context.bodyAsClass<CreateReliefInviteRequest>()
+        val inviteeUserId = uuidOrThrow(request.inviteeUserId, "inviteeUserId")
+        val date = parseRequiredDate(request.date, "date")
 
-            val invite = ReliefInviteService.acceptInvite(callerId, inviteId)
-            context.status(HttpStatus.OK)
-            context.json(
-                ReliefInviteService.viewFor(invite)?.toResponse()
-                    ?: throw BadRequestResponse("Invite not found"),
-            )
-        }
+        val invite = ReliefInviteService.createInvite(callerId, branchId, inviteeUserId, date)
 
-        config.routes.post(ApiRoutes.RELIEF_INVITE_DECLINE_PATH) { context ->
-            val callerId = context.callerUuid()
-            val inviteId = context.pathParamAsUuid(INVITE_ID_PARAM)
+        context.status(HttpStatus.CREATED)
+        context.json(
+            ReliefInviteService.viewFor(invite)?.toResponse()
+                ?: throw BadRequestResponse("Invite not found"),
+        )
+    }
 
-            val invite = ReliefInviteService.declineInvite(callerId, inviteId)
-            context.status(HttpStatus.OK)
-            context.json(
-                ReliefInviteService.viewFor(invite)?.toResponse()
-                    ?: throw BadRequestResponse("Invite not found"),
-            )
-        }
+    private fun handleAccept(context: Context) {
+        val callerId = context.callerUuid()
+        val inviteId = context.pathParamAsUuid(INVITE_ID_PARAM)
 
-        config.routes.post(ApiRoutes.RELIEF_INVITE_RETRACT_PATH) { context ->
-            val callerId = context.callerUuid()
-            val inviteId = context.pathParamAsUuid(INVITE_ID_PARAM)
+        val invite = ReliefInviteService.acceptInvite(callerId, inviteId)
+        context.status(HttpStatus.OK)
+        context.json(
+            ReliefInviteService.viewFor(invite)?.toResponse()
+                ?: throw BadRequestResponse("Invite not found"),
+        )
+    }
 
-            val invite = ReliefInviteService.retractInvite(callerId, inviteId)
-            context.status(HttpStatus.OK)
-            context.json(
-                ReliefInviteService.viewFor(invite)?.toResponse()
-                    ?: throw BadRequestResponse("Invite not found"),
-            )
-        }
+    private fun handleDecline(context: Context) {
+        val callerId = context.callerUuid()
+        val inviteId = context.pathParamAsUuid(INVITE_ID_PARAM)
 
-        config.routes.post(ApiRoutes.RELIEF_INVITE_REVOKE_PATH) { context ->
-            val callerId = context.callerUuid()
-            val inviteId = context.pathParamAsUuid(INVITE_ID_PARAM)
+        val invite = ReliefInviteService.declineInvite(callerId, inviteId)
+        context.status(HttpStatus.OK)
+        context.json(
+            ReliefInviteService.viewFor(invite)?.toResponse()
+                ?: throw BadRequestResponse("Invite not found"),
+        )
+    }
 
-            val invite = ReliefInviteService.revokeInvite(callerId, inviteId)
-            context.status(HttpStatus.OK)
-            context.json(
-                ReliefInviteService.viewFor(invite)?.toResponse()
-                    ?: throw BadRequestResponse("Invite not found"),
-            )
-        }
+    private fun handleRetract(context: Context) {
+        val callerId = context.callerUuid()
+        val inviteId = context.pathParamAsUuid(INVITE_ID_PARAM)
+
+        val invite = ReliefInviteService.retractInvite(callerId, inviteId)
+        context.status(HttpStatus.OK)
+        context.json(
+            ReliefInviteService.viewFor(invite)?.toResponse()
+                ?: throw BadRequestResponse("Invite not found"),
+        )
+    }
+
+    private fun handleRevoke(context: Context) {
+        val callerId = context.callerUuid()
+        val inviteId = context.pathParamAsUuid(INVITE_ID_PARAM)
+
+        val invite = ReliefInviteService.revokeInvite(callerId, inviteId)
+        context.status(HttpStatus.OK)
+        context.json(
+            ReliefInviteService.viewFor(invite)?.toResponse()
+                ?: throw BadRequestResponse("Invite not found"),
+        )
     }
 
     private fun parseRequiredDate(

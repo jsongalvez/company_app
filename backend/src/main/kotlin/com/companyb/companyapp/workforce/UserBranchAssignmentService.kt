@@ -50,7 +50,6 @@ object UserBranchAssignmentService {
         val created: Boolean,
     )
 
-    @Suppress("LongParameterList", "ThrowsCount")
     fun create(
         callerId: UUID,
         id: UUID,
@@ -122,7 +121,6 @@ object UserBranchAssignmentService {
         logger.info { "[REMOVE-ASSIGNMENT] Ended assignment ${assignment.id} at branch $branchId" }
     }
 
-    @Suppress("ThrowsCount")
     fun updateSlot(
         callerId: UUID,
         branchId: UUID,
@@ -146,16 +144,14 @@ object UserBranchAssignmentService {
         logger.info { "[UPDATE-SLOT] Changed slot for assignment ${assignment.id} to $newSlot" }
     }
 
-    @Suppress("ReturnCount", "ThrowsCount")
     fun swapSlots(
         callerId: UUID,
         branchId: UUID,
         assignmentIdA: UUID,
         assignmentIdB: UUID,
     ) {
-        if (assignmentIdA == assignmentIdB) {
-            throw ValidationException("Cannot swap an assignment with itself")
-        }
+        // #598: swap guards split into named checks (ThrowsCount budget is 2 per function).
+        requireDistinctAssignments(assignmentIdA, assignmentIdB)
 
         val canManage = canManageUsers(callerId)
         transaction {
@@ -172,12 +168,8 @@ object UserBranchAssignmentService {
                 }
             val a = assignments.getValue(assignmentIdA)
             val b = assignments.getValue(assignmentIdB)
-            if (a.userId == b.userId) {
-                throw ValidationException("Cannot swap a user with themselves")
-            }
-            if (!canManage && callerId != a.userId && callerId != b.userId) {
-                throw ForbiddenException("MANAGE_USERS capability required to swap slots")
-            }
+            requireDistinctUsers(a, b)
+            requireSwapAuthority(callerId, canManage, a, b)
 
             UserBranchAssignmentRepository.swapSlotsInTransaction(a.id, a.slot, b.id, b.slot)
 
@@ -185,6 +177,35 @@ object UserBranchAssignmentService {
             UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), b, b.copy(slot = a.slot))
         }
         logger.info { "[SWAP-SLOTS] Swapped assignments at branch $branchId: $assignmentIdA <-> $assignmentIdB" }
+    }
+
+    private fun requireDistinctAssignments(
+        assignmentIdA: UUID,
+        assignmentIdB: UUID,
+    ) {
+        if (assignmentIdA == assignmentIdB) {
+            throw ValidationException("Cannot swap an assignment with itself")
+        }
+    }
+
+    private fun requireDistinctUsers(
+        a: UserBranchAssignment,
+        b: UserBranchAssignment,
+    ) {
+        if (a.userId == b.userId) {
+            throw ValidationException("Cannot swap a user with themselves")
+        }
+    }
+
+    private fun requireSwapAuthority(
+        callerId: UUID,
+        canManage: Boolean,
+        a: UserBranchAssignment,
+        b: UserBranchAssignment,
+    ) {
+        if (!canManage && callerId != a.userId && callerId != b.userId) {
+            throw ForbiddenException("MANAGE_USERS capability required to swap slots")
+        }
     }
 
     fun findActiveByBranch(

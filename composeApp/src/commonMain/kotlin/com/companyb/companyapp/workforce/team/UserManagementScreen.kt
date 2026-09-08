@@ -1,4 +1,3 @@
-@file:Suppress("DEPRECATION") // #563 workforce team owner, grandfather retarget
 
 package com.companyb.companyapp.workforce.team
 
@@ -309,7 +308,7 @@ data class SlotOrderCallbacks(
  * screen builds the edit target straight from it — no id lookup, no silent no-op).
  */
 @Composable
-@Suppress("UnusedParameter") // #135 android tap-to-edit — onSwap kept for UserSlotOrderList symmetry
+@Suppress("UnusedParameter") // #135 android tap-to-edit — onSwap kept for UserSlotOrderList symmetry; #598 keep
 fun MobileUserSlotOrderList(
     branchName: String,
     rows: List<UserSlotRow>,

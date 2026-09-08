@@ -33,7 +33,6 @@ data class ReliefInviteMutation(
     val after: ReliefInvite,
 )
 
-@Suppress("TooManyFunctions")
 internal object ReliefInviteRepository {
     /**
      * Inserts a PENDING invite. `insertIgnore` absorbs the partial-unique-index race
@@ -216,7 +215,8 @@ internal object ReliefInviteRepository {
         expr2: org.jetbrains.exposed.v1.core.Expression<*>,
     ) : org.jetbrains.exposed.v1.core.ComparisonOp(expr1, expr2, "ILIKE")
 
-    @Suppress("UNCHECKED_CAST")
+    // #598: String-backed ilike column narrows to IColumnType<String>; cast is the Exposed generic seam (#467).
+    @Suppress("UNCHECKED_CAST") // #598
     private fun <T : String?> ilike(
         col: org.jetbrains.exposed.v1.core.Column<T>,
         pattern: String,

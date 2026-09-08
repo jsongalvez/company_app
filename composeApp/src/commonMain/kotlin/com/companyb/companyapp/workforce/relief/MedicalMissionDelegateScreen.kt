@@ -76,7 +76,6 @@ fun eligibleDelegateUsers(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-@Suppress("LongMethod", "CyclomaticComplexMethod") // #563 workforce relief owner, grandfather retarget
 fun MedicalMissionDelegateScreen(
     delegateViewModel: DelegateViewModel,
     userViewModel: UserViewModel,
@@ -95,98 +94,42 @@ fun MedicalMissionDelegateScreen(
     var revokeTarget by remember { mutableStateOf<DelegateResponse?>(null) }
     var lastLoadedBranches by remember { mutableStateOf(emptyList<BranchResponse>()) }
 
-    LaunchedEffect(Unit) {
-        logInfo("MedicalMissionDelegateScreen", "composable entered (first composition)")
-        userViewModel.loadBranches()
-        userViewModel.loadUsers()
-    }
-
     val loadedBranches = (branchesState as? UiState.Success<List<BranchResponse>>)?.data
-    LaunchedEffect(loadedBranches) {
-        if (loadedBranches != null) lastLoadedBranches = loadedBranches
-    }
     val availableBranches = loadedBranches ?: lastLoadedBranches
     val missionBranches = remember(availableBranches) { medicalMissionBranches(availableBranches) }
-    LaunchedEffect(missionBranches, selectedBranchId) {
-        if (selectedBranchId !in missionBranches.map { it.id }) {
-            selectedBranchId = missionBranches.firstOrNull()?.id
-        }
-    }
-
     val selectedBranch = missionBranches.firstOrNull { it.id == selectedBranchId }
-    LaunchedEffect(selectedBranch?.id) {
-        selectedTargetId = null
-        assignmentRequestId = null
-        revokeTarget = null
-        delegateViewModel.clearMutationResults()
-        if (selectedBranch == null) {
-            delegateViewModel.clearDelegates()
-        } else {
-            delegateViewModel.loadDelegates(selectedBranch.id)
-        }
-    }
 
-    LaunchedEffect(assignState) {
-        when (val state = assignState) {
-            is UiState.Success -> {
-                logInfo("MedicalMissionDelegateScreen", "assignDelegate succeeded")
-                val assigned = state.data
-                if (assigned.branchId == selectedBranchId) {
-                    selectedTargetId = null
-                    assignmentRequestId = null
-                    delegateViewModel.loadDelegates(assigned.branchId, force = true)
-                }
-            }
-
-            is UiState.Error -> {
-                logWarn("MedicalMissionDelegateScreen", "assignDelegate failed: ${state.message}")
-            }
-
-            else -> {
-                Unit
-            }
-        }
-    }
-
-    LaunchedEffect(revokeState) {
-        when (val state = revokeState) {
-            is UiState.Success -> {
-                logInfo("MedicalMissionDelegateScreen", "revokeDelegate succeeded")
-                revokeTarget = null
-                selectedBranchId?.let { delegateViewModel.loadDelegates(it, force = true) }
-            }
-
-            is UiState.Error -> {
-                logWarn("MedicalMissionDelegateScreen", "revokeDelegate failed: ${state.message}")
-            }
-
-            else -> {
-                Unit
-            }
-        }
-    }
-
-    LaunchedEffect(branchesState) {
-        if (branchesState is UiState.Error) {
-            // SAFETY: `is` check above; delegated State value doesn't smart-cast #467
-            logWarn("MedicalMissionDelegateScreen", "branchesState failed: ${(branchesState as UiState.Error).message}")
-        }
-    }
-    LaunchedEffect(usersState) {
-        if (usersState is UiState.Error) {
-            // SAFETY: `is` check above; delegated State value doesn't smart-cast #467
-            logWarn("MedicalMissionDelegateScreen", "usersState failed: ${(usersState as UiState.Error).message}")
-        }
-    }
-    LaunchedEffect(delegatesState) {
-        if (delegatesState is UiState.Error) {
-            logWarn(
-                "MedicalMissionDelegateScreen",
-                // SAFETY: `is` check above; delegated State value doesn't smart-cast #467
-                "delegatesState failed: ${(delegatesState as UiState.Error).message}",
-            )
-        }
-    }
+    DelegateLoadEffects(
+        userViewModel = userViewModel,
+        delegateViewModel = delegateViewModel,
+        loadedBranches = loadedBranches,
+        missionBranches = missionBranches,
+        selectedBranchId = selectedBranchId,
+        selectedBranch = selectedBranch,
+        onBranchesLoaded = { lastLoadedBranches = it },
+        onAutoSelectBranch = { selectedBranchId = it },
+        onBranchChanged = {
+            selectedTargetId = null
+            assignmentRequestId = null
+            revokeTarget = null
+        },
+    )
+    DelegateOutcomeEffects(
+        delegateViewModel = delegateViewModel,
+        assignState = assignState,
+        revokeState = revokeState,
+        selectedBranchId = selectedBranchId,
+        onAssignLanded = {
+            selectedTargetId = null
+            assignmentRequestId = null
+        },
+        onRevokeLanded = { revokeTarget = null },
+    )
+    DelegateErrorEffects(
+        branchesState = branchesState,
+        usersState = usersState,
+        delegatesState = delegatesState,
+    )
 
     val delegates = (delegatesState as? UiState.Success<List<DelegateResponse>>)?.data.orEmpty()
     val users = heldUsers.orEmpty()
@@ -208,101 +151,57 @@ fun MedicalMissionDelegateScreen(
         modifier = modifier.fillMaxSize().padding(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("Medical mission delegates", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    "Assign active Manager users to manage mission attendance",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = InkSubtle,
-                )
-            }
-            TextButton(
-                onClick = {
-                    delegateViewModel.clearMutationResults()
-                    userViewModel.loadBranches()
-                    userViewModel.loadUsers()
-                    selectedBranch?.let { delegateViewModel.loadDelegates(it.id, force = true) }
-                },
-                enabled = !refreshDisabled,
-            ) {
-                Text("Refresh")
-            }
-        }
-
-        when {
-            branchesState is UiState.Error -> {
-                // SAFETY: `is` check in this `when` branch; delegated State value doesn't smart-cast #467
-                val error = branchesState as UiState.Error
-                Box(Modifier.fillMaxWidth().weight(1f)) {
-                    ErrorCard(error.message, userViewModel::loadBranches)
-                }
-            }
-
-            branchesState !is UiState.Success -> {
-                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            }
-
-            missionBranches.isEmpty() -> {
-                Box(Modifier.fillMaxWidth().weight(1f)) {
-                    EmptyState("No medical mission branches")
-                }
-            }
-
-            else -> {
-                MissionBranchPicker(
-                    branches = missionBranches,
-                    selectedBranchId = selectedBranchId,
-                    enabled = !refreshDisabled,
-                    onBranchSelected = {
-                        selectedBranchId = it
-                        revokeTarget = null
-                    },
-                )
-                if (selectedBranch != null) {
-                    DelegateAssignmentForm(
-                        usersState = usersState,
-                        eligibleUsers = eligibleUsers,
-                        selectedTargetId = selectedTargetId,
-                        mutationsDisabled = assignmentDisabled,
-                        assignState = assignState,
-                        onTargetSelected = {
-                            selectedTargetId = it
-                            assignmentRequestId = it?.let { Uuid.random().toString() }
-                        },
-                        onAssign = {
-                            val targetId = selectedTargetId
-                            if (targetId != null) {
-                                delegateViewModel.assignDelegate(
-                                    AssignDelegateRequest(
-                                        delegateId =
-                                            assignmentRequestId ?: Uuid.random().toString().also {
-                                                assignmentRequestId = it
-                                            },
-                                        targetUserId = targetId,
-                                        branchId = selectedBranch.id,
-                                    ),
-                                )
-                            }
-                        },
-                    )
-                    DelegateList(
-                        state = delegatesState,
-                        userNames = userNames,
-                        mutationsDisabled = mutationsDisabled,
-                        onRetry = { delegateViewModel.loadDelegates(selectedBranch.id, force = true) },
-                        onRevoke = { revokeTarget = it },
+        DelegateScreenHeader(
+            refreshDisabled = refreshDisabled,
+            onRefresh = {
+                delegateViewModel.clearMutationResults()
+                userViewModel.loadBranches()
+                userViewModel.loadUsers()
+                selectedBranch?.let { delegateViewModel.loadDelegates(it.id, force = true) }
+            },
+        )
+        DelegateScreenBody(
+            branchesState = branchesState,
+            missionBranches = missionBranches,
+            selectedBranchId = selectedBranchId,
+            selectedBranch = selectedBranch,
+            usersState = usersState,
+            eligibleUsers = eligibleUsers,
+            selectedTargetId = selectedTargetId,
+            assignmentDisabled = assignmentDisabled,
+            assignState = assignState,
+            delegatesState = delegatesState,
+            userNames = userNames,
+            mutationsDisabled = mutationsDisabled,
+            refreshDisabled = refreshDisabled,
+            revokeState = revokeState,
+            onBranchSelected = {
+                selectedBranchId = it
+                revokeTarget = null
+            },
+            onTargetSelected = {
+                selectedTargetId = it
+                assignmentRequestId = it?.let { Uuid.random().toString() }
+            },
+            onAssign = {
+                val targetId = selectedTargetId
+                if (targetId != null && selectedBranch != null) {
+                    delegateViewModel.assignDelegate(
+                        AssignDelegateRequest(
+                            delegateId =
+                                assignmentRequestId ?: Uuid.random().toString().also {
+                                    assignmentRequestId = it
+                                },
+                            targetUserId = targetId,
+                            branchId = selectedBranch.id,
+                        ),
                     )
                 }
-            }
-        }
-
+            },
+            onRetryBranches = userViewModel::loadBranches,
+            onRetryDelegates = { selectedBranch?.let { delegateViewModel.loadDelegates(it.id, force = true) } },
+            onRevoke = { revokeTarget = it },
+        )
         if (revokeState is UiState.Error) {
             Text(
                 // SAFETY: `is` check above; delegated State value doesn't smart-cast #467
@@ -313,10 +212,278 @@ fun MedicalMissionDelegateScreen(
         }
     }
 
+    DelegateRevokeDialog(
+        revokeTarget = revokeTarget,
+        userNames = userNames,
+        mutationsDisabled = mutationsDisabled,
+        revokeState = revokeState,
+        onDismiss = { revokeTarget = null },
+        onConfirm = { delegateViewModel.revokeDelegate(it) },
+    )
+}
+
+@Composable
+private fun DelegateLoadEffects(
+    userViewModel: UserViewModel,
+    delegateViewModel: DelegateViewModel,
+    loadedBranches: List<BranchResponse>?,
+    missionBranches: List<BranchResponse>,
+    selectedBranchId: String?,
+    selectedBranch: BranchResponse?,
+    onBranchesLoaded: (List<BranchResponse>) -> Unit,
+    onAutoSelectBranch: (String?) -> Unit,
+    onBranchChanged: () -> Unit,
+) {
+    LaunchedEffect(Unit) {
+        logInfo("MedicalMissionDelegateScreen", "composable entered (first composition)")
+        userViewModel.loadBranches()
+        userViewModel.loadUsers()
+    }
+    LaunchedEffect(loadedBranches) {
+        if (loadedBranches != null) onBranchesLoaded(loadedBranches)
+    }
+    LaunchedEffect(missionBranches, selectedBranchId) {
+        if (selectedBranchId !in missionBranches.map { it.id }) {
+            onAutoSelectBranch(missionBranches.firstOrNull()?.id)
+        }
+    }
+    LaunchedEffect(selectedBranch?.id) {
+        onBranchChanged()
+        delegateViewModel.clearMutationResults()
+        if (selectedBranch == null) {
+            delegateViewModel.clearDelegates()
+        } else {
+            delegateViewModel.loadDelegates(selectedBranch.id)
+        }
+    }
+}
+
+@Composable
+private fun DelegateOutcomeEffects(
+    delegateViewModel: DelegateViewModel,
+    assignState: UiState<DelegateResponse>,
+    revokeState: UiState<Unit>,
+    selectedBranchId: String?,
+    onAssignLanded: () -> Unit,
+    onRevokeLanded: () -> Unit,
+) {
+    LaunchedEffect(assignState) {
+        when (val state = assignState) {
+            is UiState.Success -> {
+                logInfo("MedicalMissionDelegateScreen", "assignDelegate succeeded")
+                val assigned = state.data
+                if (assigned.branchId == selectedBranchId) {
+                    onAssignLanded()
+                    delegateViewModel.loadDelegates(assigned.branchId, force = true)
+                }
+            }
+
+            is UiState.Error -> {
+                logWarn("MedicalMissionDelegateScreen", "assignDelegate failed: ${state.message}")
+            }
+
+            else -> {
+                Unit
+            }
+        }
+    }
+    LaunchedEffect(revokeState) {
+        when (val state = revokeState) {
+            is UiState.Success -> {
+                logInfo("MedicalMissionDelegateScreen", "revokeDelegate succeeded")
+                onRevokeLanded()
+                selectedBranchId?.let { delegateViewModel.loadDelegates(it, force = true) }
+            }
+
+            is UiState.Error -> {
+                logWarn("MedicalMissionDelegateScreen", "revokeDelegate failed: ${state.message}")
+            }
+
+            else -> {
+                Unit
+            }
+        }
+    }
+}
+
+@Composable
+private fun DelegateErrorEffects(
+    branchesState: UiState<List<BranchResponse>>,
+    usersState: UiState<List<UserSummaryResponse>>,
+    delegatesState: UiState<List<DelegateResponse>>,
+) {
+    LaunchedEffect(branchesState) {
+        if (branchesState is UiState.Error) {
+            logWarn("MedicalMissionDelegateScreen", "branchesState failed: ${branchesState.message}")
+        }
+    }
+    LaunchedEffect(usersState) {
+        if (usersState is UiState.Error) {
+            logWarn("MedicalMissionDelegateScreen", "usersState failed: ${usersState.message}")
+        }
+    }
+    LaunchedEffect(delegatesState) {
+        if (delegatesState is UiState.Error) {
+            logWarn(
+                "MedicalMissionDelegateScreen",
+                "delegatesState failed: ${delegatesState.message}",
+            )
+        }
+    }
+}
+
+@Composable
+private fun DelegateScreenHeader(
+    refreshDisabled: Boolean,
+    onRefresh: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Medical mission delegates", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Assign active Manager users to manage mission attendance",
+                style = MaterialTheme.typography.bodySmall,
+                color = InkSubtle,
+            )
+        }
+        TextButton(
+            onClick = onRefresh,
+            enabled = !refreshDisabled,
+        ) {
+            Text("Refresh")
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.DelegateScreenBody(
+    branchesState: UiState<List<BranchResponse>>,
+    missionBranches: List<BranchResponse>,
+    selectedBranchId: String?,
+    selectedBranch: BranchResponse?,
+    usersState: UiState<List<UserSummaryResponse>>,
+    eligibleUsers: List<UserSummaryResponse>,
+    selectedTargetId: String?,
+    assignmentDisabled: Boolean,
+    assignState: UiState<DelegateResponse>,
+    delegatesState: UiState<List<DelegateResponse>>,
+    userNames: Map<String, String>,
+    mutationsDisabled: Boolean,
+    refreshDisabled: Boolean,
+    revokeState: UiState<Unit>,
+    onBranchSelected: (String) -> Unit,
+    onTargetSelected: (String?) -> Unit,
+    onAssign: () -> Unit,
+    onRetryBranches: () -> Unit,
+    onRetryDelegates: () -> Unit,
+    onRevoke: (DelegateResponse) -> Unit,
+) {
+    when {
+        branchesState is UiState.Error -> {
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                ErrorCard(branchesState.message, onRetryBranches)
+            }
+        }
+
+        branchesState !is UiState.Success -> {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+
+        missionBranches.isEmpty() -> {
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                EmptyState("No medical mission branches")
+            }
+        }
+
+        else -> {
+            DelegateBranchContent(
+                missionBranches = missionBranches,
+                selectedBranchId = selectedBranchId,
+                selectedBranch = selectedBranch,
+                usersState = usersState,
+                eligibleUsers = eligibleUsers,
+                selectedTargetId = selectedTargetId,
+                assignmentDisabled = assignmentDisabled,
+                assignState = assignState,
+                delegatesState = delegatesState,
+                userNames = userNames,
+                mutationsDisabled = mutationsDisabled,
+                refreshDisabled = refreshDisabled,
+                onBranchSelected = onBranchSelected,
+                onTargetSelected = onTargetSelected,
+                onAssign = onAssign,
+                onRetryDelegates = onRetryDelegates,
+                onRevoke = onRevoke,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.DelegateBranchContent(
+    missionBranches: List<BranchResponse>,
+    selectedBranchId: String?,
+    selectedBranch: BranchResponse?,
+    usersState: UiState<List<UserSummaryResponse>>,
+    eligibleUsers: List<UserSummaryResponse>,
+    selectedTargetId: String?,
+    assignmentDisabled: Boolean,
+    assignState: UiState<DelegateResponse>,
+    delegatesState: UiState<List<DelegateResponse>>,
+    userNames: Map<String, String>,
+    mutationsDisabled: Boolean,
+    refreshDisabled: Boolean,
+    onBranchSelected: (String) -> Unit,
+    onTargetSelected: (String?) -> Unit,
+    onAssign: () -> Unit,
+    onRetryDelegates: () -> Unit,
+    onRevoke: (DelegateResponse) -> Unit,
+) {
+    MissionBranchPicker(
+        branches = missionBranches,
+        selectedBranchId = selectedBranchId,
+        enabled = !refreshDisabled,
+        onBranchSelected = onBranchSelected,
+    )
+    if (selectedBranch != null) {
+        DelegateAssignmentForm(
+            usersState = usersState,
+            eligibleUsers = eligibleUsers,
+            selectedTargetId = selectedTargetId,
+            mutationsDisabled = assignmentDisabled,
+            assignState = assignState,
+            onTargetSelected = onTargetSelected,
+            onAssign = onAssign,
+        )
+        DelegateList(
+            state = delegatesState,
+            userNames = userNames,
+            mutationsDisabled = mutationsDisabled,
+            onRetry = onRetryDelegates,
+            onRevoke = onRevoke,
+        )
+    }
+}
+
+@Composable
+private fun DelegateRevokeDialog(
+    revokeTarget: DelegateResponse?,
+    userNames: Map<String, String>,
+    mutationsDisabled: Boolean,
+    revokeState: UiState<Unit>,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
     revokeTarget?.let { target ->
         AlertDialog(
             onDismissRequest = {
-                if (revokeState !is UiState.Loading) revokeTarget = null
+                if (revokeState !is UiState.Loading) onDismiss()
             },
             title = { Text("Revoke delegate?") },
             text = {
@@ -324,16 +491,14 @@ fun MedicalMissionDelegateScreen(
             },
             confirmButton = {
                 TextButton(
-                    onClick = {
-                        delegateViewModel.revokeDelegate(target.id)
-                    },
+                    onClick = { onConfirm(target.id) },
                     enabled = !mutationsDisabled,
                 ) {
                     Text(if (revokeState is UiState.Loading) "Revoking..." else "Revoke")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { revokeTarget = null }, enabled = revokeState !is UiState.Loading) {
+                TextButton(onClick = onDismiss, enabled = revokeState !is UiState.Loading) {
                     Text("Cancel")
                 }
             },
@@ -343,7 +508,8 @@ fun MedicalMissionDelegateScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-@Suppress("LongMethod", "LongParameterList") // #563 workforce relief owner, grandfather retarget
+// #598 7-param entry stays whole (declarative-UI signature; #535 no arbitrary DTO).
+@Suppress("LongParameterList") // #598
 private fun DelegateAssignmentForm(
     usersState: UiState<List<UserSummaryResponse>>,
     eligibleUsers: List<UserSummaryResponse>,
@@ -353,7 +519,6 @@ private fun DelegateAssignmentForm(
     onTargetSelected: (String?) -> Unit,
     onAssign: () -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(false) }
     val selected = eligibleUsers.firstOrNull { it.id == selectedTargetId }
     Surface(
         shape =
@@ -364,56 +529,99 @@ private fun DelegateAssignmentForm(
     ) {
         Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text("Assign a Manager", style = MaterialTheme.typography.titleMedium)
-            ExposedDropdownMenuBox(
-                expanded = expanded,
-                onExpandedChange = { if (!mutationsDisabled && eligibleUsers.isNotEmpty()) expanded = !expanded },
-            ) {
-                OutlinedTextField(
-                    value = selected?.displayName ?: "No eligible Manager selected",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Eligible Manager") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                    modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-                    enabled = !mutationsDisabled && eligibleUsers.isNotEmpty(),
-                )
-                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    eligibleUsers.forEach { user ->
-                        DropdownMenuItem(
-                            text = { Text("${user.displayName} (${user.username})") },
-                            onClick = {
-                                onTargetSelected(user.id)
-                                expanded = false
-                            },
-                        )
-                    }
-                }
-            }
-            if (usersState is UiState.Error) {
-                Text(
-                    text = "Eligible users unavailable: ${usersState.message}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            } else if (usersState !is UiState.Success && eligibleUsers.isEmpty()) {
-                Text("Loading eligible users…", style = MaterialTheme.typography.bodySmall, color = InkSubtle)
-            } else if (eligibleUsers.isEmpty()) {
-                Text("No active Manager users available", style = MaterialTheme.typography.bodySmall, color = InkSubtle)
-            }
-            TextButton(
-                onClick = onAssign,
-                enabled = selected != null && !mutationsDisabled,
-            ) {
-                Text(if (assignState is UiState.Loading) "Assigning..." else "Assign delegate")
-            }
-            if (assignState is UiState.Error) {
-                Text(
-                    text = assignState.message,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
+            EligibleManagerDropdown(
+                eligibleUsers = eligibleUsers,
+                selected = selected,
+                mutationsDisabled = mutationsDisabled,
+                onTargetSelected = onTargetSelected,
+            )
+            AssignmentEligibilityStatus(
+                usersState = usersState,
+                eligibleUsers = eligibleUsers,
+            )
+            AssignmentActionRow(
+                selected = selected,
+                mutationsDisabled = mutationsDisabled,
+                assignState = assignState,
+                onAssign = onAssign,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EligibleManagerDropdown(
+    eligibleUsers: List<UserSummaryResponse>,
+    selected: UserSummaryResponse?,
+    mutationsDisabled: Boolean,
+    onTargetSelected: (String?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { if (!mutationsDisabled && eligibleUsers.isNotEmpty()) expanded = !expanded },
+    ) {
+        OutlinedTextField(
+            value = selected?.displayName ?: "No eligible Manager selected",
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Eligible Manager") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+            enabled = !mutationsDisabled && eligibleUsers.isNotEmpty(),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            eligibleUsers.forEach { user ->
+                DropdownMenuItem(
+                    text = { Text("${user.displayName} (${user.username})") },
+                    onClick = {
+                        onTargetSelected(user.id)
+                        expanded = false
+                    },
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun AssignmentEligibilityStatus(
+    usersState: UiState<List<UserSummaryResponse>>,
+    eligibleUsers: List<UserSummaryResponse>,
+) {
+    if (usersState is UiState.Error) {
+        Text(
+            text = "Eligible users unavailable: ${usersState.message}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+    } else if (usersState !is UiState.Success && eligibleUsers.isEmpty()) {
+        Text("Loading eligible users…", style = MaterialTheme.typography.bodySmall, color = InkSubtle)
+    } else if (eligibleUsers.isEmpty()) {
+        Text("No active Manager users available", style = MaterialTheme.typography.bodySmall, color = InkSubtle)
+    }
+}
+
+@Composable
+private fun AssignmentActionRow(
+    selected: UserSummaryResponse?,
+    mutationsDisabled: Boolean,
+    assignState: UiState<DelegateResponse>,
+    onAssign: () -> Unit,
+) {
+    TextButton(
+        onClick = onAssign,
+        enabled = selected != null && !mutationsDisabled,
+    ) {
+        Text(if (assignState is UiState.Loading) "Assigning..." else "Assign delegate")
+    }
+    if (assignState is UiState.Error) {
+        Text(
+            text = assignState.message,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
     }
 }
 

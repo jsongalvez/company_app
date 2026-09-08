@@ -75,7 +75,6 @@ import java.util.UUID
 object AttendanceRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
 
-    @Suppress("ThrowsCount")
     fun clockOut(config: JavalinConfig) {
         config.routes.post(ApiRoutes.ATTENDANCE_CLOCK_OUT) { context ->
             val callerId = context.callerUuid()
@@ -100,7 +99,6 @@ object AttendanceRoutes {
         }
     }
 
-    @Suppress("ThrowsCount")
     fun clockIn(config: JavalinConfig) {
         config.routes.post(ApiRoutes.ATTENDANCE_CLOCK_IN) { context ->
             val callerId = context.callerUuid()
@@ -147,7 +145,6 @@ object AttendanceRoutes {
     }
 
     /** #404 — member marks member present/absent at the branch today. */
-    @Suppress("ThrowsCount")
     fun mark(config: JavalinConfig) {
         config.routes.post(ApiRoutes.BRANCH_ATTENDANCE_MARKS_PATH) { context ->
             val callerId = context.callerUuid()
