@@ -28,6 +28,11 @@ import kotlin.test.assertTrue
  * BackendFeatureBoundaryArchitectureTest folder scopes and the BranchDay-only
  * store check are subsumed here; per-file transaction-count pins stay where
  * they guard exact wrapper budgets.
+ *
+ * #608: persistence covers Tables and read-only mapped Views. Foreign mapping
+ * reads need a recorded file-level projection grant even inside `internal`
+ * types; FK declarations and `tableName` metadata need none; view writes fail
+ * even for the owner; stale grants fail the tree.
  */
 class SemanticOwnershipArchitectureTest {
     private val sources: Map<String, String> by lazy { BackendArchitectureOwners.discover() }
@@ -237,6 +242,42 @@ class SemanticOwnershipArchitectureTest {
         val table = op.substringBefore('.')
         val tableOwner = tableOwners[table] ?: return false
         return tableOwner != importer
+    }
+
+    // ---- Cross-owner table/view projections (map #615 #608) ----
+
+    @Test
+    fun `cross-owner persistence reads require explicit projection grants`() {
+        val tableOwners = treeTableOwners()
+        val offenders =
+            files.flatMap { (path, file) ->
+                val importer = owner(path) ?: return@flatMap emptyList()
+                BackendArchitectureOwners
+                    .foreignTableReads(path, importer, file, tableOwners)
+                    .map { "$path: $it" }
+            }
+        assertTrue(
+            offenders.isEmpty(),
+            "unrecorded foreign persistence reads:\n${offenders.joinToString("\n")}",
+        )
+    }
+
+    @Test
+    fun `projection grants stay used with no stale entries`() {
+        val stale = BackendArchitectureOwners.unusedProjectionGrants(files, treeTableOwners())
+        assertTrue(
+            stale.isEmpty(),
+            "stale projection grants (remove with the projection):\n${stale.joinToString("\n")}",
+        )
+    }
+
+    @Test
+    fun `mapped views stay read-only even for the owning feature`() {
+        val offenders =
+            files.flatMap { (path, file) ->
+                BackendArchitectureOwners.viewWriteOps(file, treeTables).map { "$path: $it" }
+            }
+        assertTrue(offenders.isEmpty(), "view writes are never legal:\n${offenders.joinToString("\n")}")
     }
 
     // ---- Cross-feature stores (generic; internal grants nothing) ----
@@ -880,7 +921,10 @@ class SemanticOwnershipArchitectureTest {
     }
 
     private companion object {
-        /** Owners that may declare persistence tables (#607: no shared/mechanism tables). */
+        /**
+         * Owners that may declare persistence tables (#607: no shared/mechanism tables;
+         * #608: observability owns its `pg_stat_statements` view mapping for slow-query reads).
+         */
         val FEATURE_TABLE_OWNERS =
             setOf(
                 "identity",
@@ -897,6 +941,7 @@ class SemanticOwnershipArchitectureTest {
                 "reporting",
                 "audit",
                 "notification",
+                "observability",
             )
         val TARGET_FEATURE_DIRS =
             listOf(

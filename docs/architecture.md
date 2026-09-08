@@ -141,9 +141,12 @@ Kotlin `internal` does not stop sibling imports, so seams are protected
 executably, not by prose (see below). Cross-feature reads go through declared
 read seams (`SessionReads`, `CommerceReads`, `FinanceReads`, `WorkforceReads`,
 `NotificationReads`/`NotificationAppender`, `AuthorizationGrants`); direct
-store/table imports across owners stay banned. Read projections may perform
-intentional joins where the owner records them; command coordination stays in
-the owning command.
+store/table imports across owners stay banned. Read projections perform
+intentional batched joins only in files holding an explicit recorded grant
+(`BackendArchitectureOwners.allowedProjectionReads`, map #615 #608) —
+`internal` visibility alone permits nothing, FK `references()` edges and
+`tableName` metadata need no grant, and mapped Views stay read-only even for
+their owner; command coordination stays in the owning command.
 
 The pre-#533 Routes/Services/Repositories layer prose is superseded by the
 above and by [`docs/deep-modules.md`](deep-modules.md) — the authoritative

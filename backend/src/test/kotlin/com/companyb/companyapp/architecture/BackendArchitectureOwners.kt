@@ -36,6 +36,13 @@ import java.nio.file.Path
  * cursor codec lives at `utils/` under the mechanism owner like the other
  * stateless mechanism helper there.
  *
+ * #608: persistence means Tables and read-only mapped Views alike. Cross-owner
+ * persistence reads are allowed only in recorded projection files
+ * ([allowedProjectionReads]); `internal` visibility alone grants nothing.
+ * Schema edges (FK `references()` inside a `Table` mapping, `tableName`
+ * metadata) stay legal without a grant. Writes to mapped Views fail even for
+ * the owning feature.
+ *
  * #572: semantic owner (which feature) is separate from architectural role
  * (what shape: HTTP adapter, command, store). Moving a route beside its
  * feature changes owner, not role — role derives from file shape, so checks
@@ -230,15 +237,20 @@ object BackendArchitectureOwners {
         method: String,
     ): Int = file.collect<KtCallExpression>().count { isCallTo(it, method) && receiverText(it) == receiver }
 
-    // ---- Table knowledge (generic: any feature package, aliases, qualified) ----
+    // ---- Table and mapped-view knowledge (generic: any feature package, aliases, qualified) ----
+
+    private fun isPersistenceName(name: String): Boolean =
+        (name.endsWith("Table") || name.endsWith("View")) && name != "Table" && name != "View"
+
+    private fun isTableSubtype(declaration: KtClassOrObject): Boolean =
+        declaration.superTypeListEntries.any { it.text.trimStart().startsWith("Table(") }
 
     private fun isOurTablePath(path: String): Boolean {
         if (!path.startsWith("$BASE_PACKAGE.")) return false
-        val simple = path.substringAfterLast('.')
-        return simple.endsWith("Table") && simple != "Table"
+        return isPersistenceName(path.substringAfterLast('.'))
     }
 
-    /** Local name to table simple name for our-table imports, including `as` aliases. */
+    /** Local name to persistence simple name for our table/view imports, including `as` aliases. */
     fun ourTableImports(file: KtFile): Map<String, String> {
         val result = mutableMapOf<String, String>()
         for ((local, path) in importMap(file)) {
@@ -248,10 +260,10 @@ object BackendArchitectureOwners {
         return result
     }
 
-    /** Table simple names declared in this file (same-package tables need no import). */
+    /** Persistence-mapping simple names declared in this file (#608: `Table` subtypes and Table/View names). */
     fun declaredTableNames(file: KtFile): Set<String> =
         file.collect<KtClassOrObject>().mapNotNullTo(mutableSetOf()) {
-            it.name?.takeIf { name -> name.endsWith("Table") }
+            it.name?.takeIf { name -> it is KtObjectDeclaration && (isPersistenceName(name) || isTableSubtype(it)) }
         }
 
     private fun resolveTable(
@@ -261,7 +273,7 @@ object BackendArchitectureOwners {
         qualifiedRoot: String?,
     ): String? =
         imports[name] ?: visibleTables.takeIf { name in it }?.let { name }
-            ?: name.takeIf { it.endsWith("Table") && qualifiedRoot?.startsWith("$BASE_PACKAGE.") == true }
+            ?: name.takeIf { isPersistenceName(it) && qualifiedRoot?.startsWith("$BASE_PACKAGE.") == true }
 
     private fun outermostQualifiedText(element: PsiElement): String? {
         var current: PsiElement = element
@@ -288,11 +300,43 @@ object BackendArchitectureOwners {
             .distinct()
     }
 
-    private val TABLE_WRITE_OPS = setOf("insert", "insertIgnore", "update", "deleteWhere", "upsert")
+    /**
+     * Table-receiver DML entry points, closed against the Exposed 1.3.1
+     * `QueriesKt` surface (verified with `javap`; re-derive on version bumps):
+     * every function there taking a `Table` (or `Join`) receiver is listed.
+     * Join-receiver overloads (`update(Join, …)`, `delete(Join, …)`) resolve
+     * through the receiver-subtree fallback in [tableWriteOps].
+     */
+    private val TABLE_WRITE_OPS =
+        setOf(
+            "insert",
+            "insertIgnore",
+            "insertAndGetId",
+            "insertIgnoreAndGetId",
+            "insertReturning",
+            "batchInsert",
+            "replace",
+            "batchReplace",
+            "update",
+            "updateReturning",
+            "delete",
+            "deleteWhere",
+            "deleteIgnoreWhere",
+            "deleteAll",
+            "deleteReturning",
+            "upsert",
+            "upsertReturning",
+            "batchUpsert",
+            "mergeFrom",
+        )
 
     /**
      * `Table.writeOp(...)` sites as `Table.op`. Receiver resolves through
      * aliases, same-package declarations and qualified paths, like [tableLeaks].
+     * When the receiver is not a plain table reference (parenthesized tables,
+     * join expressions for the `update(Join, …)` / `delete(Join, …)` overloads),
+     * every table named inside the receiver subtree reports the op, so a join
+     * delete cannot hide its targets.
      */
     fun tableWriteOps(
         file: KtFile,
@@ -302,18 +346,32 @@ object BackendArchitectureOwners {
         return file
             .collect<KtCallExpression>()
             .filter { isCallTo(it, TABLE_WRITE_OPS) }
-            .mapNotNull { call ->
-                val receiver = (call.parent as? KtDotQualifiedExpression)?.receiverExpression ?: return@mapNotNull null
-                val base =
+            .flatMap { call ->
+                val receiver =
+                    (call.parent as? KtDotQualifiedExpression)?.receiverExpression ?: return@flatMap emptyList()
+                val direct =
                     when (receiver) {
                         is KtSimpleNameExpression -> receiver.getReferencedName()
                         is KtDotQualifiedExpression -> receiver.text.substringAfterLast('.').substringBefore('<')
-                        else -> return@mapNotNull null
-                    }
-                val table = resolveTable(base, imports, visibleTables, outermostQualifiedText(receiver))
-                table?.let { "$it.${calleeName(call)}" }
+                        else -> null
+                    }?.let { resolveTable(it, imports, visibleTables, outermostQualifiedText(receiver)) }
+                if (direct != null) {
+                    listOf("$direct.${calleeName(call)}")
+                } else {
+                    receiverTables(receiver, imports, visibleTables).map { "$it.${calleeName(call)}" }
+                }
             }.distinct()
     }
+
+    private fun receiverTables(
+        receiver: PsiElement,
+        imports: Map<String, String>,
+        visibleTables: Set<String>,
+    ): List<String> =
+        descendants(receiver, KtSimpleNameExpression::class.java)
+            .filter { !isInsideImport(it) }
+            .mapNotNull { resolveTable(it.getReferencedName(), imports, visibleTables, outermostQualifiedText(it)) }
+            .distinct()
 
     private fun isCallTo(
         call: KtCallExpression,
@@ -483,6 +541,162 @@ object BackendArchitectureOwners {
     /** Every table name declared tree-wide (import aliases resolve against these). */
     fun treeTableNames(files: Map<String, KtFile>): Set<String> =
         files.values.flatMapTo(mutableSetOf()) { declaredTableNames(it) }
+
+    // ---- Cross-owner table/view projections (map #615 #608) ----
+
+    /**
+     * One granted cross-owner persistence read: [importerFile] (relative to
+     * [mainRoot], e.g. `identity/MeRepository.kt`) may read [table] (simple
+     * persistence-mapping name, e.g. `BranchTable`). File-level granularity:
+     * the smallest unit that keeps one batched join attributable without
+     * splitting co-located store helpers.
+     */
+    data class ProjectionGrant(
+        val importerFile: String,
+        val table: String,
+    )
+
+    /**
+     * Recorded intentional projection reads (#608). Batched joins stay joins —
+     * no N+1 service-call rewrite — but each foreign mapping read lives in
+     * exactly one recorded file. Pure FK `references()` edges inside `Table`
+     * mappings and `tableName` metadata need no entry; command coordination
+     * crosses semantic seams (`SessionReads`, `WorkforceReads`, …) and needs
+     * no entry either. An unused entry fails the tree stale — remove the grant
+     * with the projection.
+     */
+    val allowedProjectionReads: Set<ProjectionGrant> =
+        setOf(
+            ProjectionGrant("audit/AuditLogStore.kt", "AppUserTable"),
+            ProjectionGrant("audit/AuditLogStore.kt", "BranchTable"),
+            ProjectionGrant("client/ClientRepository.kt", "SessionTable"),
+            ProjectionGrant("client/ClientRepository.kt", "ActiveSessionVoidsView"),
+            ProjectionGrant("commerce/BranchInventoryRepository.kt", "BranchDayTable"),
+            ProjectionGrant("commerce/ProductSaleRepository.kt", "SessionTable"),
+            ProjectionGrant("commerce/ProductSaleRepository.kt", "ActiveSessionVoidsView"),
+            ProjectionGrant("finance/CompensationRepository.kt", "AppUserTable"),
+            ProjectionGrant("identity/MeRepository.kt", "BranchTable"),
+            ProjectionGrant("identity/MeRepository.kt", "BranchDayTable"),
+            ProjectionGrant("identity/MeRepository.kt", "AttendanceTable"),
+            ProjectionGrant("identity/MeRepository.kt", "UserBranchAssignmentTable"),
+            ProjectionGrant("identity/RoleRepository.kt", "CapabilityTable"),
+            ProjectionGrant("identity/UserRepository.kt", "BranchTable"),
+            ProjectionGrant("identity/UserRepository.kt", "UserBranchAssignmentTable"),
+            ProjectionGrant("notification/NextAppointmentRepository.kt", "SessionTable"),
+            ProjectionGrant("notification/NextAppointmentRepository.kt", "ActiveSessionVoidsView"),
+            ProjectionGrant("notification/NextAppointmentRepository.kt", "BranchDayTable"),
+            ProjectionGrant("notification/NextAppointmentRepository.kt", "UserBranchAssignmentTable"),
+            ProjectionGrant("notification/NextAppointmentRepository.kt", "ActiveUserCapabilitiesView"),
+            ProjectionGrant("notification/NextAppointmentRepository.kt", "CapabilityTable"),
+            ProjectionGrant("remittance/RemittanceRepository.kt", "BranchDayTable"),
+            ProjectionGrant("remittance/RemittanceRepository.kt", "ClientTable"),
+            ProjectionGrant("remittance/RemittanceRepository.kt", "ProductSaleTable"),
+            ProjectionGrant("remittance/RemittanceRepository.kt", "CompensationTable"),
+            ProjectionGrant("remittance/RemittanceRepository.kt", "ExpenseTable"),
+            ProjectionGrant("remittance/RemittanceRepository.kt", "SessionTable"),
+            ProjectionGrant("remittance/RemittanceRepository.kt", "ActiveSessionVoidsView"),
+            ProjectionGrant("reporting/ExportRepository.kt", "BranchTable"),
+            ProjectionGrant("session/SessionBaseRateRepository.kt", "BranchTable"),
+            ProjectionGrant("session/SessionRepository.kt", "BranchTable"),
+            ProjectionGrant("session/SessionRepository.kt", "BranchDayTable"),
+            ProjectionGrant("session/dashboard/DashboardRepository.kt", "AppUserTable"),
+            ProjectionGrant("session/dashboard/DashboardRepository.kt", "ClientTable"),
+            ProjectionGrant("workforce/AttendanceRepository.kt", "AppUserTable"),
+            ProjectionGrant("workforce/BranchMemberRepository.kt", "AppUserTable"),
+            ProjectionGrant("workforce/relief/ReliefAccessRepository.kt", "BranchTable"),
+            ProjectionGrant("workforce/relief/ReliefAccessRepository.kt", "BranchDayTable"),
+            ProjectionGrant("workforce/relief/ReliefAccessRepository.kt", "AppUserTable"),
+            ProjectionGrant("workforce/relief/ReliefInviteRepository.kt", "BranchTable"),
+            ProjectionGrant("workforce/relief/ReliefInviteRepository.kt", "BranchDayTable"),
+            ProjectionGrant("workforce/relief/ReliefInviteRepository.kt", "AppUserTable"),
+            ProjectionGrant("workforce/relief/ReliefInviteRepository.kt", "ActiveUserCapabilitiesView"),
+            ProjectionGrant("workforce/relief/ReliefInviteRepository.kt", "CapabilityTable"),
+        )
+
+    /**
+     * True when [element] sits inside a `references(...)` call argument — the
+     * FK schema edge (`javaUUID("x").references(ForeignTable.id)`). Only such
+     * edges are exempt inside mapping bodies: a runtime query placed inside a
+     * `Table` object (or a fake mapping-named helper) stays a projection read
+     * and still needs a grant. The nearest enclosing call decides, so a
+     * `selectAll()` or any other wrapper around the reference is not an edge.
+     */
+    private fun isFkReference(element: PsiElement): Boolean =
+        generateSequence(element.parent) { it.parent }
+            .filterIsInstance<KtCallExpression>()
+            .firstOrNull()
+            ?.let { calleeName(it) == "references" } == true
+
+    /**
+     * True for `Table.tableName` metadata in any spelling (`T.tableName`,
+     * `com.pkg.T.tableName`, `T.tableName.length`): the mapping's name string,
+     * never a data read. Column reads (`T.col`, `row[T.col]`) keep their
+     * normal resolution — only a `.tableName` link in the chain exempts.
+     */
+    private fun isTableNameAccess(element: KtSimpleNameExpression): Boolean {
+        val direct = element.parent as? KtDotQualifiedExpression
+        if (direct?.selectorExpression?.text == "tableName") return true
+        val qualified = outermostQualifiedText(element) ?: return false
+        return qualified.substringBefore('(').substringBefore('<').endsWith(".tableName")
+    }
+
+    /**
+     * Foreign-owner persistence reads used for data: imports, aliases,
+     * same-package and qualified references resolving to a mapping owned by
+     * another feature. `internal` visibility grants nothing. Schema edges stay
+     * legal without a grant: FK `references()` arguments and `tableName`
+     * metadata. Comments/strings stay inert PSI, never reads. [tableOwners]
+     * maps mapping name to its owner and doubles as the visible set
+     * (same-package resolution); an unclassified path contributes no ownership
+     * (#607), so a resurrected shared location legalizes nothing. [allowed]
+     * carries the recorded file-level projection grants.
+     */
+    fun foreignTableReads(
+        importerFile: String,
+        importerOwner: String,
+        file: KtFile,
+        tableOwners: Map<String, String>,
+        allowed: Set<ProjectionGrant> = allowedProjectionReads,
+    ): List<String> {
+        if (tableOwners.isEmpty()) return emptyList()
+        val imports = ourTableImports(file)
+        val visibleTables = tableOwners.keys
+        return file
+            .collect<KtSimpleNameExpression>()
+            .filter { !isInsideImport(it) && !isFkReference(it) && !isTableNameAccess(it) }
+            .mapNotNull { resolveTable(it.getReferencedName(), imports, visibleTables, outermostQualifiedText(it)) }
+            .filter { table -> tableOwners[table]?.let { it != importerOwner } == true }
+            .filter { table -> ProjectionGrant(importerFile, table) !in allowed }
+            .distinct()
+    }
+
+    /**
+     * Recorded grants no live file uses: renamed/removed projections must take
+     * their grant with them. Reports `file: table` entries.
+     */
+    fun unusedProjectionGrants(
+        files: Map<String, KtFile>,
+        tableOwners: Map<String, String>,
+        allowed: Set<ProjectionGrant> = allowedProjectionReads,
+    ): List<String> {
+        val used = mutableSetOf<ProjectionGrant>()
+        for ((path, file) in files) {
+            val owner = ownerOf(path) ?: continue
+            for (table in foreignTableReads(path, owner, file, tableOwners, emptySet())) {
+                used.add(ProjectionGrant(path, table))
+            }
+        }
+        return allowed.filter { it !in used }.map { "${it.importerFile}: ${it.table}" }
+    }
+
+    /**
+     * `View.writeOp(...)` sites as `View.op`. Mapped views are read-only —
+     * even the owning feature never inserts/updates/deletes against them.
+     */
+    fun viewWriteOps(
+        file: KtFile,
+        visibleTables: Set<String>,
+    ): List<String> = tableWriteOps(file, visibleTables).filter { it.substringBefore('.').endsWith("View") }
 
     // ---- Clock ownership (PSI call shapes; prose never matches) ----
 

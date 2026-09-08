@@ -37,16 +37,20 @@ internal object MonthlyRemittanceSummaryView : Table("monthly_remittance_summary
 
 // #547 — single monthly row mapping shared by the summary and export stores;
 // the view owns net_income (SUM of snapshot nets), so readers take the column.
-internal fun ResultRow.toMonthlyRemittanceSummary(): MonthlyRemittanceSummary =
-    MonthlyRemittanceSummary(
-        branchId = this[MonthlyRemittanceSummaryView.branchId],
-        year = this[MonthlyRemittanceSummaryView.year],
-        month = this[MonthlyRemittanceSummaryView.month],
-        totalRemittances = this[MonthlyRemittanceSummaryView.totalRemittances],
-        sessionCount = this[MonthlyRemittanceSummaryView.sessionCount],
-        productCount = this[MonthlyRemittanceSummaryView.productCount],
-        grossIncome = this[MonthlyRemittanceSummaryView.grossIncome],
-        totalCompensation = this[MonthlyRemittanceSummaryView.totalCompensation],
-        totalExpenses = this[MonthlyRemittanceSummaryView.totalExpenses],
-        netIncome = this[MonthlyRemittanceSummaryView.netIncome],
-    )
+// Housed in an internal seam object: the mapping touches the view outside any
+// `Table` body, so a top-level function would read as a public surface.
+internal object MonthlyRemittanceSummaryMappers {
+    fun ResultRow.toMonthlyRemittanceSummary(): MonthlyRemittanceSummary =
+        MonthlyRemittanceSummary(
+            branchId = this[MonthlyRemittanceSummaryView.branchId],
+            year = this[MonthlyRemittanceSummaryView.year],
+            month = this[MonthlyRemittanceSummaryView.month],
+            totalRemittances = this[MonthlyRemittanceSummaryView.totalRemittances],
+            sessionCount = this[MonthlyRemittanceSummaryView.sessionCount],
+            productCount = this[MonthlyRemittanceSummaryView.productCount],
+            grossIncome = this[MonthlyRemittanceSummaryView.grossIncome],
+            totalCompensation = this[MonthlyRemittanceSummaryView.totalCompensation],
+            totalExpenses = this[MonthlyRemittanceSummaryView.totalExpenses],
+            netIncome = this[MonthlyRemittanceSummaryView.netIncome],
+        )
+}

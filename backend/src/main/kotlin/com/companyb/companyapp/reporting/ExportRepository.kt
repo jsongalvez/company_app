@@ -2,6 +2,7 @@ package com.companyb.companyapp.reporting
 
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.reporting.MonthlyRemittanceSummaryMappers.toMonthlyRemittanceSummary
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
