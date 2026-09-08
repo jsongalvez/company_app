@@ -90,4 +90,31 @@ class NavigationContextStoreTest {
         assertNull(NavigationContextStore.retained(null, "b1", Route.Dashboard()))
         assertNull(NavigationContextStore.retained("u1", "b1", Route.Dashboard()))
     }
+
+    @Test
+    fun `retained tab survives a section roundtrip`() {
+        NavigationContextStore.retain("u1", "b1", Route.Dashboard(), selectedId = "s1", tab = "COMPLETED")
+
+        val restored = NavigationContextStore.retained("u1", "b1", Route.Dashboard())
+        assertEquals("COMPLETED", restored?.tab)
+        assertEquals("s1", restored?.selectedId)
+    }
+
+    @Test
+    fun `null tab leaves the stored tab intact`() {
+        NavigationContextStore.retain("u1", "b1", Route.Dashboard(), selectedId = "s1", tab = "PENDING")
+
+        NavigationContextStore.retain("u1", "b1", Route.Dashboard(), selectedId = "s2")
+
+        val restored = NavigationContextStore.retained("u1", "b1", Route.Dashboard())
+        assertEquals("PENDING", restored?.tab)
+        assertEquals("s2", restored?.selectedId)
+    }
+
+    @Test
+    fun `tab is keyed per branch like the anchors`() {
+        NavigationContextStore.retain("u1", "b1", Route.Dashboard(), selectedId = "s1", tab = "COMPLETED")
+
+        assertNull(NavigationContextStore.retained("u1", "b2", Route.Dashboard()))
+    }
 }

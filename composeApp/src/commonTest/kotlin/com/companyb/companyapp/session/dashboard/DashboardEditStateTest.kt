@@ -243,4 +243,50 @@ class DashboardEditStateTest {
 
         assertEquals(incoming, mergeDashboardRows(null, incoming))
     }
+
+    @Test
+    fun merge_with_pinned_id_keeps_the_edited_row_at_its_index() {
+        val existing =
+            listOf(
+                row(id = "s1", version = 1),
+                row(id = "s2", version = 1),
+                row(id = "s3", version = 1),
+            )
+        // A landing that reorders s2 to the end (bookedAt moved elsewhere) must not
+        // move the row under its open editor.
+        val incoming =
+            listOf(
+                row(id = "s1", version = 1),
+                row(id = "s3", version = 1),
+                row(id = "s2", version = 1),
+            )
+
+        val merged = mergeDashboardRows(existing, incoming, pinnedId = "s2")
+
+        assertEquals(listOf("s1", "s2", "s3"), merged.map { it.id })
+    }
+
+    @Test
+    fun merge_without_pin_follows_incoming_order() {
+        val existing =
+            listOf(
+                row(id = "s1", version = 1),
+                row(id = "s2", version = 1),
+            )
+        val incoming =
+            listOf(
+                row(id = "s2", version = 1),
+                row(id = "s1", version = 1),
+            )
+
+        assertEquals(listOf("s2", "s1"), mergeDashboardRows(existing, incoming).map { it.id })
+    }
+
+    @Test
+    fun merge_with_unknown_pin_returns_incoming_order() {
+        val existing = listOf(row(id = "s1", version = 1))
+        val incoming = listOf(row(id = "s1", version = 1))
+
+        assertEquals(listOf("s1"), mergeDashboardRows(existing, incoming, pinnedId = "gone").map { it.id })
+    }
 }

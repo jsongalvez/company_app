@@ -14,7 +14,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
@@ -32,6 +35,7 @@ import com.companyb.companyapp.workforce.attendance.AttendanceRosterCard
 import com.companyb.companyapp.workforce.attendance.AttendanceRosterViewModel
 import com.companyb.companyapp.workforce.relief.ReliefAccessCard
 import com.companyb.companyapp.workforce.relief.ReliefAccessViewModel
+import com.companyb.companyapp.workforce.relief.incomingPending
 import kotlinx.coroutines.launch
 
 @Composable
@@ -191,13 +195,39 @@ private fun MobileDashboardLive(
     val currentUser = snapshot.user
     val currentUserId = currentUser
     val isRelief = snapshot.clock?.isRelief == true
+    // #672 — the selected row survives the pushed-detail roundtrip per user+branch
+    // (Back restores the highlighted row; the card-list anchor restores the scroll —
+    // both ride the section context, so a branch switch rekeys clean).
+    val userId = currentUser?.id
+    var mobileSelectedId by remember(userId, selectedBranchId) {
+        mutableStateOf(
+            NavigationContextStore.retained(userId, selectedBranchId, Route.Dashboard())?.selectedId,
+        )
+    }
+    // #672 — the relief rows load at the live-dashboard level (not inside the Team
+    // sheet slot) so the toolbar's actionable count is live before the sheet opens.
+    val reliefRows by reliefAccessViewModel.freshestRequests.collectAsState()
+    val dayId = branchDayId
+    if (dayId != null) {
+        LaunchedEffect(dayId) {
+            reliefAccessViewModel.resetActionStates()
+            reliefAccessViewModel.loadRequests(dayId)
+        }
+    }
     SessionDashboardScreen(
         viewModel = dashboardViewModel,
-        selection = DashboardSelection(branchName = selectedBranchName, sessionId = null),
+        selection =
+            DashboardSelection(
+                branchName = selectedBranchName,
+                sessionId = mobileSelectedId,
+                operationalDate = snapshot.clock?.operationalDate,
+            ),
         onSessionClick = { row ->
             // The dashboard path keeps passing the enriched row (zero extra
             // requests — the #152 session-detail GET exists now, but only the
             // notifications path fetches on null-row).
+            mobileSelectedId = row.id
+            NavigationContextStore.retain(userId, selectedBranchId, Route.Dashboard(), selectedId = row.id)
             navController.navigate(Route.SessionDetail(row.id, row))
         },
         // #348 — the dashboard's entry into the start-a-session flow.
@@ -205,13 +235,9 @@ private fun MobileDashboardLive(
             resetSessionCreateNavigationLock()
             navController.navigate(Route.SessionCreate)
         },
+        teamRequestCount = reliefRows?.incomingPending(currentUserId?.id)?.size,
         reliefAccessContent = {
-            val dayId = branchDayId
             if (dayId != null) {
-                LaunchedEffect(dayId) {
-                    reliefAccessViewModel.resetActionStates()
-                    reliefAccessViewModel.loadRequests(dayId)
-                }
                 ReliefAccessCard(
                     viewModel = reliefAccessViewModel,
                     branchDayId = dayId,

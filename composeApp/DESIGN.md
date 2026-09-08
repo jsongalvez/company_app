@@ -171,3 +171,25 @@ Supersedes ADR-0020's platform-only shell chrome (ownership/test rules stand).
   clears it; a branch switch rekeys so old-branch rows never surface as new data.
   The shell ships the mechanism wired for Sessions; per-section tab/filter/query
   adoption lands in the feature tickets (#672 and siblings).
+
+# Sessions workspace (#672)
+
+- Header: viewed branch/day heading (page size per #670) + one filled New session
+  (create-gated; the empty day carries it as the secondary action instead).
+- One quiet summary line: session count, gross, labeled personal commission.
+  Unparseable amounts read "Unavailable", never a fabricated zero; no new
+  financial calculations (gross and commission reuse the dashboard payload).
+- One stable toolbar: All / Pending / Completed (shared status vocabulary),
+  Hide voided (off initially, entry-local), Team (badged with the actionable
+  incoming-relief count when present), Refresh (disabled while refreshing).
+  The filter tab persists per user+branch; a reserved band carries Updating… /
+  last-updated / Could-not-update Retry without moving surrounding chrome.
+- Content width >=1000dp: list (>=600dp) + detail (360–440dp). Below it the list
+  opens a full-width detail and Back restores row/scroll (master stays mounted on
+  desktop narrow; mobile retains selection + scroll anchor per user+branch).
+  Below 600dp rows stack identity-first (client, status/type + time, price column).
+- Team (attendance, slot/swap, relief requests/invites) is an overlay sheet —
+  full-width on compact screens — never a third column. Close returns focus to
+  Team. Populated rows stay mounted across refreshes; revocation stays a
+  protected-data card, never a retry state. The edited row keeps its editor
+  mounted across filter changes and poll landings.

@@ -3,6 +3,7 @@ package com.companyb.companyapp.app.navigation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +15,7 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -26,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -35,14 +38,18 @@ import com.companyb.companyapp.client.ClientState
 import com.companyb.companyapp.contracts.session.DashboardSessionResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
+import com.companyb.companyapp.session.dashboard.DashboardLayoutPolicy
 import com.companyb.companyapp.session.dashboard.DashboardSelection
 import com.companyb.companyapp.session.dashboard.SessionDashboardScreen
 import com.companyb.companyapp.session.dashboard.SessionDashboardViewModel
 import com.companyb.companyapp.session.detail.SessionDetailPane
+import com.companyb.companyapp.ui.contract.TertiaryActionButton
+import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.workforce.attendance.AttendanceRosterCard
 import com.companyb.companyapp.workforce.attendance.AttendanceRosterViewModel
 import com.companyb.companyapp.workforce.relief.ReliefAccessCard
 import com.companyb.companyapp.workforce.relief.ReliefAccessViewModel
+import com.companyb.companyapp.workforce.relief.incomingPending
 import kotlinx.coroutines.launch
 
 @Composable
@@ -206,9 +213,6 @@ private fun DesktopShellNavHost(
     }
 }
 
-private const val DESKTOP_MASTER_WEIGHT = 0.6f
-private const val DESKTOP_DETAIL_WEIGHT = 0.4f
-
 @Composable
 private fun DashboardReliefContent(
     branchDayId: String?,
@@ -218,10 +222,6 @@ private fun DashboardReliefContent(
 ) {
     val dayId = branchDayId
     if (dayId != null) {
-        LaunchedEffect(dayId) {
-            viewModel.resetActionStates()
-            viewModel.loadRequests(dayId)
-        }
         ReliefAccessCard(
             viewModel = viewModel,
             branchDayId = dayId,
@@ -292,53 +292,97 @@ private fun DesktopDashboardLive(
 ) {
     val dashboardViewModel: SessionDashboardViewModel =
         viewModel { SessionDashboardViewModel(apiClient) }
-    val snapshot by AppSessionState.snapshot.collectAsState()
-    val lastData by dashboardViewModel.lastData.collectAsState()
     // #671 — section working context: the selected session survives section switches
     // (retained per user+branch; a branch switch rekeys and starts unselected, so
     // old-branch rows never present as new-branch data).
-    val masterContext =
-        DashboardMasterContext(
-            branchName = snapshot.clock?.branchName,
-            branchId = snapshot.clock?.branchId,
-            branchDayId = snapshot.clock?.branchDayId,
-            userId = snapshot.user?.id,
-            isReliefUser = snapshot.clock?.isRelief == true,
-            selectedSessionId =
-                NavigationContextStore
-                    .retained(
-                        snapshot.user?.id,
-                        snapshot.clock?.branchId,
-                        Route.Dashboard(),
-                    )?.selectedId,
-        )
+    val masterContext = rememberDashboardMasterContext()
     var selectedSessionId by remember(masterContext.userId, masterContext.branchId) {
         mutableStateOf(masterContext.selectedSessionId)
     }
-    Row(modifier = Modifier.fillMaxSize()) {
-        Box(modifier = Modifier.weight(DESKTOP_MASTER_WEIGHT).fillMaxSize()) {
-            DesktopMasterPane(
+    // #672 — narrow windows open the detail full-width over the mounted master (Back
+    // restores the selected row/scroll structurally); wide layouts keep side detail.
+    var narrowDetailOpen by remember(masterContext.userId, masterContext.branchId) {
+        mutableStateOf(false)
+    }
+    val paneWiring =
+        DashboardPaneWiring(
+            onSessionClick = { sessionId ->
+                selectedSessionId = sessionId
+                NavigationContextStore.retain(
+                    masterContext.userId,
+                    masterContext.branchId,
+                    Route.Dashboard(),
+                    selectedId = sessionId,
+                )
+            },
+            onSessionCreateClick = {
+                resetSessionCreateNavigationLock()
+                navController.navigate(Route.SessionCreate)
+            },
+            detailOpen = narrowDetailOpen,
+            onDetailOpenChange = { narrowDetailOpen = it },
+        )
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // Captured before the Row/Box scopes shadow the constraints receiver.
+        val contentWidth = maxWidth
+        if (DashboardLayoutPolicy.showSideDetail(contentWidth)) {
+            DesktopWideDashboard(
                 apiClient = apiClient,
                 dashboardViewModel = dashboardViewModel,
                 context = masterContext.copy(selectedSessionId = selectedSessionId),
-                onSessionClick = { sessionId ->
-                    selectedSessionId = sessionId
-                    NavigationContextStore.retain(
-                        masterContext.userId,
-                        masterContext.branchId,
-                        Route.Dashboard(),
-                        selectedId = sessionId,
-                    )
-                },
-                onSessionCreateClick = {
-                    resetSessionCreateNavigationLock()
-                    navController.navigate(Route.SessionCreate)
-                },
+                detailWidth = DashboardLayoutPolicy.detailWidthFor(contentWidth),
+                wiring = paneWiring,
+            )
+        } else {
+            DesktopNarrowDashboard(
+                apiClient = apiClient,
+                dashboardViewModel = dashboardViewModel,
+                context = masterContext.copy(selectedSessionId = selectedSessionId),
+                wiring = paneWiring,
             )
         }
-        Box(modifier = Modifier.weight(DESKTOP_DETAIL_WEIGHT).fillMaxSize()) {
+    }
+}
+
+/**
+ * #672 — the dashboard pane wiring as one object (the #477 carrier precedent): the
+ * row callbacks plus the narrow-detail open flag travel together to both width
+ * branches; wide layouts ignore the detail legs.
+ */
+private data class DashboardPaneWiring(
+    val onSessionClick: (String) -> Unit,
+    val onSessionCreateClick: () -> Unit,
+    val detailOpen: Boolean,
+    val onDetailOpenChange: (Boolean) -> Unit,
+)
+
+@Composable
+private fun DesktopWideDashboard(
+    apiClient: ApiClient,
+    dashboardViewModel: SessionDashboardViewModel,
+    context: DashboardMasterContext,
+    detailWidth: Dp,
+    wiring: DashboardPaneWiring,
+) {
+    val lastData by dashboardViewModel.lastData.collectAsState()
+    Row(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+            DesktopMasterPane(
+                apiClient = apiClient,
+                dashboardViewModel = dashboardViewModel,
+                context = context,
+                onSessionClick = wiring.onSessionClick,
+                onSessionCreateClick = wiring.onSessionCreateClick,
+            )
+        }
+        Box(
+            modifier =
+                Modifier
+                    .width(detailWidth)
+                    .fillMaxSize(),
+        ) {
             DesktopDetailPane(
-                session = lastData?.sessions?.firstOrNull { it.id == selectedSessionId },
+                session = lastData?.sessions?.firstOrNull { it.id == context.selectedSessionId },
                 apiClient = apiClient,
                 onRefresh = { dashboardViewModel.refreshAfterMutation() },
             )
@@ -346,16 +390,90 @@ private fun DesktopDashboardLive(
     }
 }
 
+@Composable
+private fun DesktopNarrowDashboard(
+    apiClient: ApiClient,
+    dashboardViewModel: SessionDashboardViewModel,
+    context: DashboardMasterContext,
+    wiring: DashboardPaneWiring,
+) {
+    val lastData by dashboardViewModel.lastData.collectAsState()
+    Box(modifier = Modifier.fillMaxSize()) {
+        DesktopMasterPane(
+            apiClient = apiClient,
+            dashboardViewModel = dashboardViewModel,
+            context = context,
+            onSessionClick = { sessionId ->
+                wiring.onSessionClick(sessionId)
+                wiring.onDetailOpenChange(true)
+            },
+            onSessionCreateClick = wiring.onSessionCreateClick,
+        )
+        if (wiring.detailOpen) {
+            val narrowSession = lastData?.sessions?.firstOrNull { it.id == context.selectedSessionId }
+            LaunchedEffect(narrowSession) {
+                if (narrowSession == null) wiring.onDetailOpenChange(false)
+            }
+            if (narrowSession != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.background,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        TertiaryActionButton(
+                            label = "Back",
+                            onClick = { wiring.onDetailOpenChange(false) },
+                            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+                        )
+                        DesktopDetailPane(
+                            session = narrowSession,
+                            apiClient = apiClient,
+                            onRefresh = { dashboardViewModel.refreshAfterMutation() },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * #671 — the dashboard's snapshot-derived view context, read once per composition from
+ * the single session snapshot.
+ * #672 — the viewed operational date names the day in the workspace header.
+ */
+@Composable
+private fun rememberDashboardMasterContext(): DashboardMasterContext {
+    val snapshot by AppSessionState.snapshot.collectAsState()
+    return DashboardMasterContext(
+        branchName = snapshot.clock?.branchName,
+        branchId = snapshot.clock?.branchId,
+        branchDayId = snapshot.clock?.branchDayId,
+        operationalDate = snapshot.clock?.operationalDate,
+        userId = snapshot.user?.id,
+        isReliefUser = snapshot.clock?.isRelief == true,
+        selectedSessionId =
+            NavigationContextStore
+                .retained(
+                    snapshot.user?.id,
+                    snapshot.clock?.branchId,
+                    Route.Dashboard(),
+                )?.selectedId,
+    )
+}
+
 /**
  * #671 — the dashboard's snapshot-derived view context: every ambient input the
  * master pane renders but never mutates, read once per composition from the single
  * session snapshot. One bundle because the six legs are always derived together;
  * the selected session itself stays in nav state (retained per user+branch).
+ * #672 — the viewed operational date names the day in the workspace header.
  */
 private data class DashboardMasterContext(
     val branchName: String?,
     val branchId: String?,
     val branchDayId: String?,
+    val operationalDate: String?,
     val userId: String?,
     val isReliefUser: Boolean,
     val selectedSessionId: String?,
@@ -375,16 +493,28 @@ private fun DesktopMasterPane(
         viewModel { ReliefAccessViewModel(apiClient) }
     val attendanceViewModel: AttendanceRosterViewModel =
         viewModel { AttendanceRosterViewModel(apiClient) }
+    // #672 — the relief rows load here (not inside the Team sheet slot) so the
+    // toolbar's actionable count is live before the sheet opens.
+    val reliefRows by reliefAccessViewModel.freshestRequests.collectAsState()
+    val dayId = context.branchDayId
+    if (dayId != null) {
+        LaunchedEffect(dayId) {
+            reliefAccessViewModel.resetActionStates()
+            reliefAccessViewModel.loadRequests(dayId)
+        }
+    }
     SessionDashboardScreen(
         viewModel = dashboardViewModel,
         selection =
             DashboardSelection(
                 branchName = context.branchName,
                 sessionId = context.selectedSessionId,
+                operationalDate = context.operationalDate,
             ),
         onSessionClick = { session -> onSessionClick(session.id) },
         // #348 — the dashboard's entry into the start-a-session flow.
         onSessionCreateClick = onSessionCreateClick,
+        teamRequestCount = reliefRows?.incomingPending(context.userId)?.size,
         reliefAccessContent = {
             DashboardReliefContent(
                 branchDayId = context.branchDayId,

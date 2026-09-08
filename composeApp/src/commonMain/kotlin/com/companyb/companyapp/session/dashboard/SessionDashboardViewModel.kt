@@ -277,9 +277,16 @@ class SessionDashboardViewModel(
                             // #149 — monotonic per-row version merge: a poll response that started
                             // before a successful inline edit landed carries an older version and
                             // must never regress the committed row (stale-poll-after-commit).
+                            // #672 — the actively edited row stays pinned at its index so a
+                            // landing never reorders it under the pointer.
                             lastDataCache.value =
                                 data.copy(
-                                    sessions = mergeDashboardRows(lastDataCache.value?.sessions, data.sessions),
+                                    sessions =
+                                        mergeDashboardRows(
+                                            lastDataCache.value?.sessions,
+                                            data.sessions,
+                                            currentEditState.value?.sessionId,
+                                        ),
                                 )
                             _lastUpdatedAt.value = Clock.System.now()
                         }

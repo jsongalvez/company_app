@@ -112,14 +112,30 @@ fun DashboardEditState.afterReload(row: DashboardSessionResponse): DashboardEdit
  * before a successful commit must never regress the committed row (it carries an older
  * version). Membership is backend-authoritative (incoming list wins for absent rows);
  * per-row version wins for present rows.
+ *
+ * #672 — [pinnedId] is the actively edited row: a poll landing while its editor is
+ * open keeps the row at its existing index instead of reordering it under the
+ * pointer (backend bookedAt/createdAt order never moves dashboard edits, but the pin
+ * makes the guarantee structural). Position reconciles naturally once the edit
+ * closes and the pin releases.
  */
 fun mergeDashboardRows(
     existing: List<DashboardSessionResponse>?,
     incoming: List<DashboardSessionResponse>,
+    pinnedId: String? = null,
 ): List<DashboardSessionResponse> {
     val previousById = existing?.associateBy { it.id } ?: emptyMap()
-    return incoming.map { row ->
-        val previous = previousById[row.id]
-        if (previous != null && previous.version > row.version) previous else row
+    val merged =
+        incoming.map { row ->
+            val previous = previousById[row.id]
+            if (previous != null && previous.version > row.version) previous else row
+        }
+    if (pinnedId == null || existing == null) return merged
+    val pinnedIndex = existing.indexOfFirst { it.id == pinnedId }
+    val mergedIndex = merged.indexOfFirst { it.id == pinnedId }
+    if (pinnedIndex < 0 || mergedIndex < 0 || pinnedIndex == mergedIndex) return merged
+    return merged.toMutableList().apply {
+        val pinned = removeAt(mergedIndex)
+        add(pinnedIndex.coerceIn(0, size), pinned)
     }
 }

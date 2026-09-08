@@ -4,18 +4,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
-// #150 — the #147 accepted-SOFT gap: the desktop empty state had no manual refresh
-// (auto-poll was the only recovery when a session appeared). The Refresh button sits in
-// the same top-right position as the table's Refresh row (the shared DashboardRefreshRow)
-// so the affordance position is stable between the empty and list states.
+// #150 — the desktop empty state keeps the manual Refresh in the same top-right
+// position as the table's Refresh row (affordance-position stability between the
+// empty and list states). #672 — the workspace toolbar now owns a persistent Refresh
+// too; this row stays so the empty surface keeps its own recovery without scrolling.
 @Composable
 internal actual fun DashboardEmptyState(
-    selectedBranchName: String?,
+    args: DashboardEmptyArgs,
     onRefresh: () -> Unit,
     modifier: Modifier,
 ) {
     Column(modifier = modifier) {
         DashboardRefreshRow(onRefresh)
-        EmptyStateContent(selectedBranchName)
+        EmptyStateContent(args)
     }
 }

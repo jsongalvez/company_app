@@ -3,6 +3,7 @@ package com.companyb.companyapp.session.dashboard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -35,8 +36,27 @@ import com.companyb.companyapp.ui.theme.Spacing
 // #97 Q1 — desktop table: 6 primary columns (booked time, client + walk-in dot, type, status,
 // final price, VOIDED slot right-aligned 22%); secondary fields live in the detail pane
 // (master-detail Row, #91). Practitioners demoted to the pane (Q1 pressure-test lock).
+// #672 — below the compact-rows breakpoint the window takes the shared stacked card
+// list instead of a shrunken table (the #671 width-driven precedent at feature level).
+// Deliberate mobile parity: inline editing stays a wide-table affordance (#149/#97 Q4
+// desktop-only) with the non-OPEN day warning beside it — narrow windows mutate
+// through the detail pane, which carries the same capability/day gates.
 @Composable
 internal actual fun SessionList(
+    args: SessionListArgs,
+    modifier: Modifier,
+) {
+    BoxWithConstraints(modifier = modifier) {
+        if (DashboardLayoutPolicy.useCompactRows(maxWidth)) {
+            MobileSessionList(args, Modifier.fillMaxSize())
+        } else {
+            DashboardTable(args, Modifier.fillMaxSize())
+        }
+    }
+}
+
+@Composable
+private fun DashboardTable(
     args: SessionListArgs,
     modifier: Modifier,
 ) {

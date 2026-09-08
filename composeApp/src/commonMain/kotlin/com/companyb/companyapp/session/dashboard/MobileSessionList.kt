@@ -6,12 +6,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -29,6 +29,7 @@ import com.companyb.companyapp.ui.screen.SessionTypeBadge
 import com.companyb.companyapp.ui.screen.VOIDED_ROW_ALPHA
 import com.companyb.companyapp.ui.screen.VoidedPill
 import com.companyb.companyapp.ui.screen.WalkInDot
+import com.companyb.companyapp.ui.screen.bookedTimeLabel
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
@@ -38,6 +39,8 @@ import com.companyb.companyapp.ui.theme.rowHover
 // badge, final price; VOIDED pill inline with the price (right-aligned, same row). Q3
 // voided card: Danger 22% tint + strikethrough client name. Pull-to-refresh (Q5c manual
 // refresh on mobile) wraps the list.
+// #672 — stacked identity rows: client first, status/type + booked time secondary,
+// price end-aligned in a consistent right column (the compact-rows contract).
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MobileSessionList(
@@ -50,6 +53,9 @@ internal fun MobileSessionList(
         modifier = modifier,
     ) {
         LazyColumn(
+            // #672 — the workspace-owned anchor when provided (Back/section-return
+            // restores the row); otherwise the list keeps its own remembered state.
+            state = args.lazyListState ?: rememberLazyListState(),
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             contentPadding = PaddingValues(Spacing.md),
@@ -57,6 +63,9 @@ internal fun MobileSessionList(
             items(args.sessions, key = { it.id }) { session ->
                 SessionCard(
                     session = session,
+                    // #672 — the retained selection highlights on return (Back restores
+                    // the row); the wide desktop table renders the same slot.
+                    isSelected = session.id == args.selectedSessionId,
                     onClick = { args.onSessionClick(session) },
                 )
             }
@@ -67,16 +76,26 @@ internal fun MobileSessionList(
 @Composable
 private fun SessionCard(
     session: DashboardSessionResponse,
+    isSelected: Boolean,
     onClick: () -> Unit,
 ) {
+    // Q3 voided priority + selection slot (the desktop table's dashboardRowBackground
+    // order): Danger 22% alpha over Surface1 when voided, surface-3 when selected.
     Surface(
         shape = RoundedCornerShape(CornerRadius.md),
         color =
-            if (session.isVoided) {
-                // Q3 — Danger 22% alpha over Surface1.
-                MaterialTheme.colorScheme.error.copy(alpha = VOIDED_ROW_ALPHA)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
+            when {
+                session.isVoided -> {
+                    MaterialTheme.colorScheme.error.copy(alpha = VOIDED_ROW_ALPHA)
+                }
+
+                isSelected -> {
+                    MaterialTheme.colorScheme.secondary
+                }
+
+                else -> {
+                    MaterialTheme.colorScheme.surfaceVariant
+                }
             },
         modifier =
             Modifier
@@ -84,31 +103,18 @@ private fun SessionCard(
                 .clickable(onClick = onClick)
                 .rowHover(shape = RoundedCornerShape(CornerRadius.md)),
     ) {
-        Column(Modifier.padding(Spacing.md)) {
+        Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                ClientNameText(session)
-                if (session.isWalkIn) {
-                    WalkInDot(voided = session.isVoided, modifier = Modifier.padding(start = Spacing.xs))
-                }
-                Spacer(Modifier.weight(1f))
-                SessionTypeBadge(session)
-                Box(Modifier.padding(start = Spacing.xs)) {
-                    SessionStatusBadge(session)
-                }
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
-            ) {
-                // Q3 — VOIDED pill inline with the price on mobile, right-aligned.
-                if (session.isVoided) {
-                    VoidedPill()
-                    Spacer(Modifier.weight(1f))
-                } else {
-                    Spacer(Modifier.weight(1f))
+                Box(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ClientNameText(session)
+                        if (session.isWalkIn) {
+                            WalkInDot(voided = session.isVoided, modifier = Modifier.padding(start = Spacing.xs))
+                        }
+                    }
                 }
                 Text(
                     text = "₱${session.finalPrice}",
@@ -117,6 +123,25 @@ private fun SessionCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                SessionTypeBadge(session)
+                SessionStatusBadge(session)
+                Text(
+                    text = bookedTimeLabel(session.bookedAt),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkSubtle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (session.isVoided) {
+                    VoidedPill()
+                }
             }
         }
     }

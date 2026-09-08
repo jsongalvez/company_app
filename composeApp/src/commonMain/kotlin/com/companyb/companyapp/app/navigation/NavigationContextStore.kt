@@ -18,12 +18,18 @@ package com.companyb.companyapp.app.navigation
  * session-scoped store is the minimal structure that outlives the entries. It is not
  * an all-purpose cache: section-keyed anchors only, memory-only (no disk persistence
  * of clinical drafts), keyed so a branch switch rekeys, cleared with the session.
+ *
+ * #672 — sections with toolbar tabs persist the selected tab here (Sessions owns
+ * All/Pending/Completed): the drawer collapses to the Dashboard root on
+ * section-switch, so a ViewModel/screen-held filter would reset on every return.
+ * The tab rides the same user+branch key and null-leg rules as the anchors.
  */
 object NavigationContextStore {
     /** What a section needs to restore its working position on return. */
     data class SectionContext(
         val selectedId: String? = null,
         val scrollAnchorId: String? = null,
+        val tab: String? = null,
     )
 
     private val contexts: MutableMap<String, SectionContext> = mutableMapOf()
@@ -74,6 +80,7 @@ object NavigationContextStore {
         section: Route,
         selectedId: String?,
         scrollAnchorId: String? = null,
+        tab: String? = null,
     ) {
         if (userId == null || branchId == null) return
         val k = key(userId, branchId, section)
@@ -82,6 +89,7 @@ object NavigationContextStore {
             previous.copy(
                 selectedId = selectedId ?: previous.selectedId,
                 scrollAnchorId = scrollAnchorId ?: previous.scrollAnchorId,
+                tab = tab ?: previous.tab,
             )
     }
 
