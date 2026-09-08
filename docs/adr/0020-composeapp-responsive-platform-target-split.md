@@ -1,7 +1,7 @@
 # ADR-0020: ComposeApp responsive strategy — compile-time platform-target split
 
-**Status:** Accepted
-**Date:** 2026-07-21
+**Status:** Accepted, partially superseded by #671 for shell chrome (2026-09-09)
+**Amended by:** #671 — adaptive task-grouped shell
 
 ## Context
 
@@ -112,6 +112,19 @@ silently. The decision rests on the scope argument (the spec excludes by
 default), not on the empirical headcount (zero of 13 non-dashboard routes
 currently want this) — "nobody wants it yet" could change; "the spec excludes it
 by default" governs until deliberately reopened.
+
+## Supersession (#671)
+
+#671 deliberately supersedes the layout choice (not the ViewModel/test ownership
+rules, which stand): shell chrome follows measured viewport width, not the build
+target — a 224dp sidebar at >=1200dp, a modal drawer with a labeled menu trigger
+below it — and the smallest-divergent-subtree / host-split / ViewModel-ownership
+mechanics now serve width branches inside each host actual instead of
+platform-only trees. The accepted narrow-desktop degradation (dense table +
+cramped 360dp rail) is retired with the 360dp rail; feature-level list/detail
+splits stay with their owners (#672 dashboard, #677 remittance). Pure shell
+decisions live in `ShellLayoutPolicy` (the #670 contract shape: composition-free
+and unit-tested).
 
 ## Alternatives considered
 

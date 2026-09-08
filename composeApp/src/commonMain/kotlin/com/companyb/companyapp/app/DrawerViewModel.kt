@@ -16,6 +16,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * #671 — task-grouped navigation model. The drawer renders Work, then Finance, then a
+ * collapsed-by-default Administration group; footer destinations ([section] == null)
+ * render in the shell footer instead of any group.
+ */
+enum class DrawerSection(
+    val heading: String,
+) {
+    WORK("Work"),
+    FINANCE("Finance"),
+    ADMINISTRATION("Administration"),
+}
+
 data class DrawerItem(
     val route: Route,
     val label: String,
@@ -26,6 +39,7 @@ data class DrawerItem(
     // Finance day-scoped surface without any BRANCH/VIEW grant).
     val dayGrantCode: String? = null,
     val globalCapabilityOnly: Boolean = false,
+    val section: DrawerSection? = null,
 )
 
 data class DrawerUiState(
@@ -37,12 +51,31 @@ class DrawerViewModel : ViewModel() {
         listOf(
             // #389 — the clocked-in home is a drawer item like any other section: without it,
             // top-level screens (no back affordance) strand desktop users away from Dashboard.
-            DrawerItem(Route.Dashboard(), "Dashboard", null, visible = true),
-            DrawerItem(Route.Clients, "Clients", CapabilityCodes.EDIT_BRANCH_DATA, visible = false),
-            DrawerItem(Route.Inventory, "Inventory", CapabilityCodes.EDIT_BRANCH_DATA, visible = false),
+            // #671 — labeled Sessions (the existing Dashboard route keeps its identifier).
+            DrawerItem(Route.Dashboard(), "Sessions", null, visible = true, section = DrawerSection.WORK),
+            DrawerItem(
+                Route.Clients,
+                "Clients",
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                visible = false,
+                section = DrawerSection.WORK,
+            ),
+            DrawerItem(
+                Route.Inventory,
+                "Inventory",
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                visible = false,
+                section = DrawerSection.WORK,
+            ),
             // #418 — rate admin: any-context MANAGE_PRODUCTS shows the item (drawer convention);
             // the screen itself re-checks exact scope against the clocked-in branch.
-            DrawerItem(Route.BaseRates, "Base Rates", CapabilityCodes.MANAGE_PRODUCTS, visible = false),
+            DrawerItem(
+                Route.BaseRates,
+                "Base Rates",
+                CapabilityCodes.MANAGE_PRODUCTS,
+                visible = false,
+                section = DrawerSection.ADMINISTRATION,
+            ),
             // #441 — shared catalog admin: exact GLOBAL MANAGE_CATALOG shows the item (the
             // Mission Delegates globalCapabilityOnly shape); backend gates authoritative.
             DrawerItem(
@@ -51,6 +84,7 @@ class DrawerViewModel : ViewModel() {
                 CapabilityCodes.MANAGE_CATALOG,
                 visible = false,
                 globalCapabilityOnly = true,
+                section = DrawerSection.ADMINISTRATION,
             ),
             // #105 D1 — Finance and Reports merge into one item, gate widened to the widest
             // read capability (VIEW_BRANCH_DATA): Accountant (GLOBAL view) sees the item.
@@ -62,19 +96,35 @@ class DrawerViewModel : ViewModel() {
                 CapabilityCodes.VIEW_BRANCH_DATA,
                 visible = false,
                 dayGrantCode = CapabilityCodes.EDIT_BRANCH_DATA,
+                section = DrawerSection.FINANCE,
             ),
-            DrawerItem(Route.RemittanceList, "Remittance", CapabilityCodes.SUBMIT_REMITTANCE, visible = false),
-            DrawerItem(Route.Notifications, "Notifications", null, visible = true),
-            DrawerItem(Route.AuditLog, "Audit Log", null, visible = true),
-            DrawerItem(Route.UserManagement, "User Management", CapabilityCodes.MANAGE_USERS, visible = false),
+            DrawerItem(
+                Route.RemittanceList,
+                "Remittance",
+                CapabilityCodes.SUBMIT_REMITTANCE,
+                visible = false,
+                section = DrawerSection.FINANCE,
+            ),
+            DrawerItem(Route.Notifications, "Notifications", null, visible = true, section = DrawerSection.WORK),
+            DrawerItem(Route.AuditLog, "Audit Log", null, visible = true, section = DrawerSection.ADMINISTRATION),
+            DrawerItem(
+                Route.UserManagement,
+                "Team & branches",
+                CapabilityCodes.MANAGE_USERS,
+                visible = false,
+                section = DrawerSection.ADMINISTRATION,
+            ),
             DrawerItem(
                 Route.MedicalMissionDelegates,
-                "Mission Delegates",
+                "Mission delegates",
                 CapabilityCodes.ASSIGN_DELEGATE,
                 visible = false,
                 globalCapabilityOnly = true,
+                section = DrawerSection.ADMINISTRATION,
             ),
             // #381 — own profile: reachable by every authenticated user, no capability gate.
+            // #671 — footer destination: the shell footer renders the signed-in display
+            // name as the Profile entry instead of a flat list row.
             DrawerItem(Route.Profile, "Profile", null, visible = true),
         )
 

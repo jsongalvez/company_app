@@ -2,6 +2,7 @@ package com.companyb.companyapp.app
 
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.contracts.identity.MeResponse
+import com.companyb.companyapp.contracts.workforce.ActiveShiftResponse
 import com.companyb.companyapp.contracts.workforce.ClockInResponse
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -117,5 +118,63 @@ class AppSessionStateTest {
         // The notice is consumed by LoginScreen, not the session surface.
         assertTrue(AppSessionState.expiredNotice.value)
         AppSessionState.setExpiredNotice(false)
+    }
+
+    // #671 — the shell's operational date is server/domain-authoritative: the restore
+    // path carries ActiveShiftResponse.date; the fresh clock-in path applies the 04:00
+    // Asia/Manila boundary to the server-stamped clock-in instant (never wall clock).
+    @Test
+    fun restored_shift_publishes_server_operational_date() {
+        AppSessionState.clear()
+        AppSessionState.setBootstrapState(user, emptyList())
+        AppSessionState.setRestoredShift(
+            ActiveShiftResponse(
+                attendanceId = "a1",
+                branchId = "b1",
+                branchName = "Main Branch",
+                branchDayId = "d1",
+                date = "2026-09-08",
+                isRelief = false,
+            ),
+        )
+
+        val clock = AppSessionState.snapshot.value.clock
+        assertEquals("2026-09-08", clock?.operationalDate)
+    }
+
+    @Test
+    fun clock_in_derives_operational_date_from_server_instant() {
+        AppSessionState.clear()
+        AppSessionState.setBootstrapState(user, emptyList())
+        AppSessionState.setClockedIn("b1", "Main Branch", clockIn)
+
+        // 08:00 Manila belongs to the same operational day.
+        val clock = AppSessionState.snapshot.value.clock
+        assertEquals("2026-08-10", clock?.operationalDate)
+    }
+
+    @Test
+    fun clock_in_before_day_boundary_belongs_to_previous_operational_day() {
+        AppSessionState.clear()
+        AppSessionState.setBootstrapState(user, emptyList())
+        AppSessionState.setClockedIn(
+            "b1",
+            "Main Branch",
+            clockIn.copy(clockIn = "2026-08-10T02:30:00+08:00"),
+        )
+
+        val clock = AppSessionState.snapshot.value.clock
+        assertEquals("2026-08-09", clock?.operationalDate)
+    }
+
+    @Test
+    fun clock_in_with_unparseable_instant_leaves_date_unknown() {
+        AppSessionState.clear()
+        AppSessionState.setBootstrapState(user, emptyList())
+        AppSessionState.setClockedIn("b1", "Main Branch", clockIn.copy(clockIn = "not-an-instant"))
+
+        // Fail-closed: the shell shows the branch without a date, never a guess.
+        val clock = AppSessionState.snapshot.value.clock
+        assertNull(clock?.operationalDate)
     }
 }

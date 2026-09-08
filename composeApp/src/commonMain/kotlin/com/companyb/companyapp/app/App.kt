@@ -20,6 +20,7 @@ import androidx.navigation.compose.rememberNavController
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.app.SessionBootstrapViewModel
 import com.companyb.companyapp.app.navigation.AppNavHost
+import com.companyb.companyapp.app.navigation.NavigationContextStore
 import com.companyb.companyapp.app.navigation.Route
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.client.ClientState
@@ -67,6 +68,7 @@ fun App() {
         AppSessionState.clear()
         NotificationState.clear()
         ClientState.clear()
+        NavigationContextStore.clear()
     }
 
     AppLaunchValidationEffects(
@@ -146,6 +148,7 @@ private fun AppLaunchValidationEffects(
             AppSessionState.clear()
             NotificationState.clear()
             ClientState.clear()
+            NavigationContextStore.clear()
         }
     }
 
@@ -187,6 +190,7 @@ private suspend fun handleSessionUnauthorized(
     AppSessionState.clear()
     NotificationState.clear()
     ClientState.clear()
+    NavigationContextStore.clear()
     // The token is gone: launch validation is over either way. Leaving the flag true
     // would silently swallow every later mid-session 401 (no notice, no navigate —
     // the user stuck on a screen whose every call 403s).

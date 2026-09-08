@@ -11,6 +11,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.notification.NotificationBadge
 
@@ -34,7 +36,12 @@ fun HamburgerWithBadge(
     modifier: Modifier = Modifier,
 ) {
     Box(modifier) {
-        IconButton(onClick = onClick) {
+        // #671 — the labeled menu trigger: the drawer/modal entry point carries a
+        // "Menu" content description for screen readers and keyboard traversal.
+        IconButton(
+            onClick = onClick,
+            modifier = Modifier.semantics { contentDescription = "Menu" },
+        ) {
             HamburgerIcon()
         }
         if (unreadCount != null && unreadCount > 0) {

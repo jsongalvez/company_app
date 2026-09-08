@@ -5,6 +5,7 @@ import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.contracts.identity.MeResponse
 import com.companyb.companyapp.contracts.workforce.ActiveShiftResponse
 import com.companyb.companyapp.contracts.workforce.ClockInResponse
+import com.companyb.companyapp.workforce.relief.currentOperationalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,6 +17,15 @@ data class ClockContext(
     val attendanceId: String,
     val branchDayId: String,
     val isRelief: Boolean,
+    /**
+     * #671 — ISO yyyy-MM-dd operational date owning the shift, shown by the shell next
+     * to the viewed branch. Server/domain-authoritative: the restore path carries it
+     * from `ActiveShiftResponse.date`; the fresh clock-in path derives it from the
+     * server-stamped clock-in instant through the shared 04:00 Asia/Manila boundary —
+     * never from the device wall clock. Null while unknown (fail-closed: shell shows
+     * the branch without a date rather than a guessed one).
+     */
+    val operationalDate: String? = null,
 )
 
 /** #498 — the single atomic session snapshot: user + full capability rows + nullable clock. */
@@ -62,6 +72,7 @@ object AppSessionState {
                         attendanceId = clockIn.id,
                         branchDayId = clockIn.branchDayId,
                         isRelief = clockIn.isRelief,
+                        operationalDate = operationalDateForServerInstant(clockIn.clockIn),
                     ),
             )
     }
@@ -88,6 +99,7 @@ object AppSessionState {
                         attendanceId = shift.attendanceId,
                         branchDayId = shift.branchDayId,
                         isRelief = shift.isRelief,
+                        operationalDate = shift.date,
                     ),
             )
     }
@@ -150,6 +162,17 @@ fun List<UserCapabilityResponse>.hasCapabilityAtContextType(
  */
 fun List<UserCapabilityResponse>.hasDayGrant(code: String): Boolean =
     hasCapabilityAtContextType(code, CapabilityContextType.BRANCH_DAY)
+
+/**
+ * #671 — operational date for a server-stamped ISO instant (fresh clock-in path).
+ * Applies the shared 04:00 Asia/Manila boundary to server data — never the device
+ * wall clock. Unparseable input yields null (shell shows branch-only) instead of a
+ * guessed date.
+ */
+fun operationalDateForServerInstant(serverInstant: String): String? =
+    runCatching {
+        currentOperationalDate(kotlin.time.Instant.parse(serverInstant)).toString()
+    }.getOrNull()
 
 /**
  * #158/P5 — the day-scoped gate shape shared by the Finance VM and DayEditor (the

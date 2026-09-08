@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -26,15 +28,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.app.AttendanceViewModel
 import com.companyb.companyapp.app.DrawerItem
+import com.companyb.companyapp.app.DrawerSection
 import com.companyb.companyapp.app.DrawerViewModel
 import com.companyb.companyapp.app.navigation.LocalNavHostController
+import com.companyb.companyapp.app.navigation.NavigationContextStore
 import com.companyb.companyapp.app.navigation.Route
+import com.companyb.companyapp.app.navigation.ShellLayoutPolicy
 import com.companyb.companyapp.app.navigation.currentRoute
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.workforce.ClockOutRequest
@@ -61,9 +68,17 @@ import com.companyb.companyapp.ui.theme.Spacing
  * navigation. `NotificationState.unreadCount` (live count — #96 Q6 wiring) drives the
  * Notification row badge iff `!= null && > 0` (closure of #96 Q3a gating).
  *
+ * #671 — task-grouped sections (Work / Finance / Administration, the last collapsed by
+ * default), parent-aware highlight (detail routes light their parent), no-op on the
+ * already-active destination, and a footer carrying the signed-in display name
+ * (→ Profile) plus the explicit clock-out in the current-shift area. The header shows
+ * the viewed branch + operational date with the clocked-in shift as a labeled
+ * secondary when different — viewing a branch never implies clocking into it.
+ *
  * Caller supplies background + sizing chrome via [modifier] (#96 Q7 follow-up):
- * `PermanentNavigationDrawer`'s bare Row slot applies nothing, so the desktop caller passes
- * `Modifier.fillMaxHeight().width(360.dp).background(MaterialTheme.colorScheme.surface)`.
+ * `PermanentNavigationDrawer`'s bare Row slot applies nothing, so the sidebar caller
+ * passes `Modifier.fillMaxHeight().width(224.dp).background(surface)`; the modal
+ * caller relies on `ModalDrawerSheet` defaults.
  *
  * DrawerContent remains stateless presentational per #96 Q1 — only modifiers + interaction
  * source for hover/focus tracking; no business state ownership. It does own the clock-out
@@ -85,109 +100,309 @@ fun DrawerContent(
     val navController = LocalNavHostController.current
     val snapshot by AppSessionState.snapshot.collectAsState()
     val currentUser = snapshot.user
-    val selectedBranchName = snapshot.clock?.branchName
-    val attendanceId = snapshot.clock?.attendanceId
+    val clock = snapshot.clock
+    val attendanceId = clock?.attendanceId
     val drawerViewModel: DrawerViewModel = viewModel { DrawerViewModel() }
     val drawerUiState by drawerViewModel.uiState.collectAsState()
+    val selectedRoute = navController.currentRoute()
+    // #671 — Administration stays collapsed until the user opens it; the drawer must
+    // not crowd working space at 1024-wide or compact viewports.
+    var adminExpanded by remember { mutableStateOf(false) }
+    val viewed =
+        ShellLayoutPolicy.viewedContext(
+            current = selectedRoute,
+            clockBranchId = clock?.branchId,
+            clockBranchName = clock?.branchName,
+            clockDate = clock?.operationalDate,
+        )
 
     Column(modifier = modifier) {
         DrawerHeader(
-            username = currentUser?.username,
-            branchName = selectedBranchName,
+            viewedBranchLabel = viewed.branchLabel,
+            viewedDateLabel = viewed.dateLabel,
+            shiftLabel = viewed.shiftLabel,
         )
         // Q4 — hairline divider below header (not above — separates header from items);
         // not boxed in a card (drawer is surface-1, card-in-a-card is the noise ADR-0020 avoids).
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-        Spacer(Modifier.height(Spacing.sm))
-        DrawerNavItems(
-            items = drawerUiState.drawerItems,
+        // #671 P4 — the section list scrolls under a pinned header/footer: an expanded
+        // Administration group at 200% text (or a short landscape window) must never
+        // clip the footer holding the only shell Clock-out affordance.
+        Column(
+            Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            Spacer(Modifier.height(Spacing.sm))
+            DrawerNavSections(
+                items = drawerUiState.drawerItems,
+                selectedRoute = selectedRoute,
+                navigationEnabled = navigationEnabled,
+                navController = navController,
+                adminExpanded = adminExpanded,
+                onAdminToggle = { adminExpanded = !adminExpanded },
+                onItemNavigated = onItemNavigated,
+            )
+        }
+        DrawerFooter(
+            apiClient = apiClient,
+            displayName = currentUser?.displayName ?: currentUser?.username,
+            selectedRoute = selectedRoute,
             navigationEnabled = navigationEnabled,
+            attendanceId = attendanceId,
+            branchName = clock?.branchName,
             navController = navController,
             onItemNavigated = onItemNavigated,
-        )
-        ClockOutSection(
-            apiClient = apiClient,
-            attendanceId = attendanceId,
-            branchName = selectedBranchName,
-            navigationEnabled = navigationEnabled,
-            onClockedOut = {
-                AppSessionState.clearClockState()
-                NotificationState.clear()
-                navController.navigate(Route.BranchSelect) {
-                    popUpTo(0) { inclusive = true }
-                }
-                onItemNavigated()
-            },
         )
     }
 }
 
 @Composable
-private fun DrawerNavItems(
+// #671 — 7-param section fan-out stays whole (declarative-UI signature per #535:
+// one leg per shell-owned input; bundling would manufacture a DTO).
+private fun DrawerNavSections(
     items: List<DrawerItem>,
+    selectedRoute: Route?,
     navigationEnabled: Boolean,
     navController: NavHostController,
+    adminExpanded: Boolean,
+    onAdminToggle: () -> Unit,
     onItemNavigated: () -> Unit,
 ) {
-    val selectedRoute = navController.currentRoute()
     val unreadCount: Int? by NotificationState.unreadCount.collectAsState()
     val inviteCount: Int? by NotificationState.inviteCount.collectAsState()
     val badgeCount = NotificationState.badgeSum(unreadCount, inviteCount)
-    items
-        .filter { it.visible }
-        .forEach { item ->
-            val isSelected = item.route == selectedRoute
-            val notificationBadge: (@Composable () -> Unit)? =
+    val navigate: (DrawerItem) -> Unit = { item ->
+        // #671 — selecting the already-active destination is a true no-op: no navigate,
+        // no drawer close, no state reset. Deep-linked variants (Dashboard(branchId,
+        // date) vs Dashboard()) are distinct destinations, so home-from-relief-day
+        // still navigates.
+        if (!ShellLayoutPolicy.isSameDestination(selectedRoute, item.route) && navigationEnabled) {
+            // #389 — section-switch semantics: collapse to the Dashboard root
+            // before pushing, so back from a section returns straight home and
+            // repeated taps never stack duplicates. The Dashboard item itself
+            // pops its existing instance (a relief deep-link panel included)
+            // and pushes a fresh home — popUpTo matches the destination pattern,
+            // not the entry args (SessionCreate landing precedent).
+            navController.navigate(item.route) {
+                popUpTo(Route.Dashboard()) { inclusive = item.route is Route.Dashboard }
+            }
+            onItemNavigated()
+        }
+    }
+    DrawerSectionGroup(
+        heading = DrawerSection.WORK.heading,
+        items = items.filter { it.visible && it.section == DrawerSection.WORK },
+        selectedRoute = selectedRoute,
+        navigationEnabled = navigationEnabled,
+        badgeCount = badgeCount,
+        onItemClicked = navigate,
+    )
+    DrawerSectionGroup(
+        heading = DrawerSection.FINANCE.heading,
+        items = items.filter { it.visible && it.section == DrawerSection.FINANCE },
+        selectedRoute = selectedRoute,
+        navigationEnabled = navigationEnabled,
+        badgeCount = badgeCount,
+        onItemClicked = navigate,
+    )
+    AdministrationGroup(
+        items = items.filter { it.visible && it.section == DrawerSection.ADMINISTRATION },
+        selectedRoute = selectedRoute,
+        navigationEnabled = navigationEnabled,
+        badgeCount = badgeCount,
+        expanded = adminExpanded,
+        onToggle = onAdminToggle,
+        onItemClicked = navigate,
+    )
+}
+
+@Composable
+private fun DrawerSectionGroup(
+    heading: String,
+    items: List<DrawerItem>,
+    selectedRoute: Route?,
+    navigationEnabled: Boolean,
+    badgeCount: Int?,
+    onItemClicked: (DrawerItem) -> Unit,
+) {
+    if (items.isEmpty()) return
+    SectionHeading(text = heading)
+    val activeParent = selectedRoute?.let { ShellLayoutPolicy.parentFor(it) }
+    items.forEach { item ->
+        DrawerRow(
+            item = item,
+            // #671 — parent-aware highlight: detail/pushed routes light their parent
+            // (exact route equality stranded deep-linked details with no selection).
+            isSelected = ShellLayoutPolicy.parentFor(item.route) == activeParent,
+            enabled = navigationEnabled,
+            onItemClicked = { onItemClicked(item) },
+            badge =
                 if (item.route is Route.Notifications && badgeCount != null && badgeCount > 0) {
                     { NotificationBadge(count = badgeCount) }
                 } else {
                     null
-                }
-            DrawerRow(
-                item = item,
-                isSelected = isSelected,
-                enabled = navigationEnabled,
-                onItemClicked = { route ->
-                    // #389 — section-switch semantics: collapse to the Dashboard root
-                    // before pushing, so back from a section returns straight home and
-                    // repeated taps never stack duplicates. The Dashboard item itself
-                    // pops its existing instance (a relief deep-link panel included)
-                    // and pushes a fresh home — popUpTo matches the destination pattern,
-                    // not the entry args (SessionCreate landing precedent).
-                    if (navigationEnabled) {
-                        navController.navigate(route) {
-                            popUpTo(Route.Dashboard()) { inclusive = route is Route.Dashboard }
-                        }
-                        onItemNavigated()
-                    }
                 },
-                badge = notificationBadge,
+        )
+    }
+}
+
+@Composable
+// #671 — 7-param admin group stays whole (same #535 declarative-UI rationale as above).
+private fun AdministrationGroup(
+    items: List<DrawerItem>,
+    selectedRoute: Route?,
+    navigationEnabled: Boolean,
+    badgeCount: Int?,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onItemClicked: (DrawerItem) -> Unit,
+) {
+    if (items.isEmpty()) return
+    // #671 — collapsed by default so low-frequency admin surfaces never crowd the
+    // daily workspace; a focusable toggle (keyboard traversal included).
+    TextButton(onClick = onToggle, modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = if (expanded) "Administration — hide" else "Administration — show",
+            style = MaterialTheme.typography.labelMedium,
+            color = InkSubtle,
+        )
+    }
+    if (expanded) {
+        DrawerSectionGroup(
+            heading = DrawerSection.ADMINISTRATION.heading,
+            items = items,
+            selectedRoute = selectedRoute,
+            navigationEnabled = navigationEnabled,
+            badgeCount = badgeCount,
+            onItemClicked = onItemClicked,
+        )
+    } else {
+        // A detail opened from history/deep link keeps its parent visible even while
+        // the group is collapsed — the highlight, not the row, carries orientation.
+        val activeParent = selectedRoute?.let { ShellLayoutPolicy.parentFor(it) }
+        items.firstOrNull { ShellLayoutPolicy.parentFor(it.route) == activeParent }?.let { active ->
+            DrawerRow(
+                item = active,
+                isSelected = true,
+                enabled = navigationEnabled,
+                onItemClicked = { onItemClicked(active) },
+                badge = null,
             )
         }
+    }
+}
+
+@Composable
+private fun SectionHeading(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = InkSubtle,
+        modifier = Modifier.semantics { heading() }.padding(horizontal = Spacing.lg, vertical = Spacing.xs),
+    )
 }
 
 @Composable
 private fun DrawerHeader(
-    username: String?,
-    branchName: String?,
+    viewedBranchLabel: String,
+    viewedDateLabel: String?,
+    shiftLabel: String?,
 ) {
-    // Q4 — header: username above branchName (who-then-where), no app name
-    // (identity-over-branding axis per Q4a; app name redundant with desktop window chrome
-    // + Android launcher label). Typography ladder encodes hierarchy: titleLarge = 22sp
-    // semibold (CardTitle slot per LinearTheme.kt:104) over bodyMedium = 14sp regular.
+    // #671 — who-then-where stays, but the subject is the VIEWED branch + operational
+    // date (server/domain-authoritative, never device midnight). The clocked-in shift
+    // appears only as an explicitly labeled secondary when it differs — viewing a
+    // branch never implies clocking into it.
     Column(Modifier.padding(Spacing.lg)) {
-        Text(
-            text = username ?: "",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        // ink-subtle — #96 Q4b; LinearTheme.kt exposes InkSubtle public for this slot.
-        Text(
-            text = branchName ?: "",
-            style = MaterialTheme.typography.bodyMedium,
-            color = InkSubtle,
-        )
+        // #671 P4 — long branch names (and 200% text on the 224dp rail) ellipsize
+        // instead of pushing the date/shift lines out; the header never blanks (the
+        // drawer only composes post-clock-in, but the clock-null recomposition window
+        // still passes through here).
+        if (viewedBranchLabel.isNotBlank()) {
+            Text(
+                text = viewedBranchLabel,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (viewedDateLabel != null) {
+            Text(
+                text = viewedDateLabel,
+                style = MaterialTheme.typography.bodyMedium,
+                color = InkSubtle,
+            )
+        }
+        if (shiftLabel != null) {
+            Text(
+                text = shiftLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = InkSubtle,
+            )
+        }
     }
+}
+
+@Composable
+// #671 — 8-param footer stays whole (same #535 declarative-UI rationale as above).
+private fun ColumnScope.DrawerFooter(
+    apiClient: ApiClient,
+    displayName: String?,
+    selectedRoute: Route?,
+    navigationEnabled: Boolean,
+    attendanceId: String?,
+    branchName: String?,
+    navController: NavHostController,
+    onItemNavigated: () -> Unit,
+) {
+    Spacer(Modifier.weight(1f))
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+    // #671 — footer identity: the signed-in display name opens Profile (no-op
+    // guarded like every other destination).
+    NavigationDrawerItem(
+        label = { Text(displayName?.ifBlank { null } ?: "") },
+        selected = selectedRoute?.let { ShellLayoutPolicy.parentFor(it) == Route.Profile } == true,
+        modifier =
+            Modifier
+                .alpha(if (navigationEnabled) 1f else 0.5f)
+                .semantics { if (!navigationEnabled) disabled() },
+        onClick = {
+            // #671 — same-destination taps are a true no-op (not even a drawer close).
+            if (!ShellLayoutPolicy.isSameDestination(selectedRoute, Route.Profile) && navigationEnabled) {
+                navController.navigate(Route.Profile) {
+                    popUpTo(Route.Dashboard()) { inclusive = false }
+                }
+                onItemNavigated()
+            }
+        },
+        colors =
+            NavigationDrawerItemDefaults.colors(
+                selectedContainerColor = MaterialTheme.colorScheme.secondary,
+                unselectedContainerColor = MaterialTheme.colorScheme.surface,
+                selectedTextColor = PrimaryHover,
+                unselectedTextColor = InkSubtle,
+                selectedBadgeColor = PrimaryHover,
+                unselectedBadgeColor = InkSubtle,
+            ),
+    )
+    ClockOutSection(
+        apiClient = apiClient,
+        attendanceId = attendanceId,
+        branchName = branchName,
+        navigationEnabled = navigationEnabled,
+        onClockedOut = {
+            AppSessionState.clearClockState()
+            NotificationState.clear()
+            // #671 — clock-out is access loss for branch data: retained section
+            // anchors leave with the shift (fresh key on next clock-in anyway).
+            NavigationContextStore.clear()
+            navController.navigate(Route.BranchSelect) {
+                popUpTo(0) { inclusive = true }
+            }
+            onItemNavigated()
+        },
+    )
 }
 
 @Composable
@@ -209,7 +424,6 @@ private fun ColumnScope.ClockOutSection(
 
     // Hide footer when attendance is absent; fail closed.
     if (attendanceId != null) {
-        Spacer(Modifier.weight(1f))
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         NavigationDrawerItem(
             label = { Text("Clock out") },

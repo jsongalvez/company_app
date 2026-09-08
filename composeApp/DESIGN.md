@@ -149,3 +149,25 @@ Authoritative over any contradictory token usage below. The shared owners live i
 - Proven on: Login, Accept invite, Forgot password, launch splash, BranchSelect chrome,
   Mission delegates. All other surfaces adopt in their own redesign tickets.
 
+
+# Adaptive shell (#671)
+
+Supersedes ADR-0020's platform-only shell chrome (ownership/test rules stand).
+
+- Chrome follows measured width: >=1200dp pins a 224dp task-grouped sidebar; below
+  it a labeled menu trigger opens a modal drawer. No permanent 360dp rail.
+- Groups: Work (Sessions, Clients, Inventory, Notifications), Finance (Finance &
+  Reports, Remittance), Administration collapsed by default (Team & branches,
+  Base Rates, Product Catalog, Mission delegates, Audit Log). Footer: signed-in
+  display name opens Profile; explicit Clock out in the current-shift area. Only
+  authorized destinations render; route identifiers unchanged.
+- Compact top bar: menu trigger + parent section title + viewed branch/date.
+  Pushed details keep their single screen-owned back; the shell adds no second one.
+- Header shows the viewed branch + operational date (server-authoritative, never
+  device midnight); the clocked-in shift appears as a labeled secondary only when
+  different. Viewing a branch never implies clocking into it.
+- Active destination selection is a no-op. Section working context (selected
+  object, list anchor) is retained per user+branch in memory; logout/access loss
+  clears it; a branch switch rekeys so old-branch rows never surface as new data.
+  The shell ships the mechanism wired for Sessions; per-section tab/filter/query
+  adoption lands in the feature tickets (#672 and siblings).

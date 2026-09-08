@@ -69,7 +69,7 @@ class DrawerViewModelTest {
 
         // #105 D1 — Finance & Reports collapsed into one item (8 total, was 8 with separate Reports);
         // #381 — Profile added as the always-visible self surface.
-        // #389 — Dashboard added as the always-visible home surface (9 total).
+        // #389 — Sessions added as the always-visible home surface (9 total).
         // #418 — Base Rates added as a MANAGE_PRODUCTS-gated item; #438 adds Mission Delegates.
         // #441 — Product Catalog added as a MANAGE_CATALOG-gated item.
         assertEquals(expected = 12, actual = items.size)
@@ -106,11 +106,11 @@ class DrawerViewModelTest {
                 .map { it.label }
 
         assertTrue("Remittance" in visibleLabels)
-        assertTrue("Dashboard" in visibleLabels)
+        assertTrue("Sessions" in visibleLabels)
         assertFalse("Clients" in visibleLabels)
         assertFalse("Inventory" in visibleLabels)
         assertFalse("Finance & Reports" in visibleLabels)
-        assertFalse("User Management" in visibleLabels)
+        assertFalse("Team & branches" in visibleLabels)
         assertTrue("Notifications" in visibleLabels)
         assertTrue("Audit Log" in visibleLabels)
     }
@@ -145,7 +145,7 @@ class DrawerViewModelTest {
         val vm = DrawerViewModel()
         val items = vm.uiState.value.drawerItems
 
-        assertEquals(expected = "Dashboard", actual = items.first().label)
+        assertEquals(expected = "Sessions", actual = items.first().label)
         assertEquals(expected = Route.Dashboard(), actual = items.first().route)
         assertTrue(items.first().visible)
 
@@ -154,7 +154,7 @@ class DrawerViewModelTest {
             vm.uiState.value.drawerItems
                 .first()
                 .visible,
-            "Dashboard stays visible with zero capabilities",
+            "Sessions stays visible with zero capabilities",
         )
     }
 
@@ -221,7 +221,7 @@ class DrawerViewModelTest {
                 .uiState.value.drawerItems
                 .filter { it.visible }
                 .map { it.label }
-        assertFalse("Mission Delegates" in branchScopedLabels)
+        assertFalse("Mission delegates" in branchScopedLabels)
 
         AppSessionState.setCapabilities(listOf(globalRow(CapabilityCodes.ASSIGN_DELEGATE)))
         val globalLabels =
@@ -229,7 +229,7 @@ class DrawerViewModelTest {
                 .uiState.value.drawerItems
                 .filter { it.visible }
                 .map { it.label }
-        assertTrue("Mission Delegates" in globalLabels)
+        assertTrue("Mission delegates" in globalLabels)
     }
 
     @Test
@@ -251,5 +251,27 @@ class DrawerViewModelTest {
                 .filter { it.visible }
                 .map { it.label }
         assertTrue("Product Catalog" in globalLabels)
+    }
+
+    @Test
+    fun taskGroups_matchProductDecisionSections() {
+        // #671 — Work: Sessions/Clients/Inventory/Notifications; Finance: Finance &
+        // Reports/Remittance; Administration: Team & branches/Base Rates/Product
+        // Catalog/Mission delegates/Audit Log; Profile is a footer destination.
+        val items = DrawerViewModel().uiState.value.drawerItems
+        val sectionOf = { route: Route -> items.first { it.route == route }.section }
+
+        assertEquals(DrawerSection.WORK, sectionOf(Route.Dashboard()))
+        assertEquals(DrawerSection.WORK, sectionOf(Route.Clients))
+        assertEquals(DrawerSection.WORK, sectionOf(Route.Inventory))
+        assertEquals(DrawerSection.WORK, sectionOf(Route.Notifications))
+        assertEquals(DrawerSection.FINANCE, sectionOf(Route.Finance))
+        assertEquals(DrawerSection.FINANCE, sectionOf(Route.RemittanceList))
+        assertEquals(DrawerSection.ADMINISTRATION, sectionOf(Route.UserManagement))
+        assertEquals(DrawerSection.ADMINISTRATION, sectionOf(Route.BaseRates))
+        assertEquals(DrawerSection.ADMINISTRATION, sectionOf(Route.ProductCatalog))
+        assertEquals(DrawerSection.ADMINISTRATION, sectionOf(Route.MedicalMissionDelegates))
+        assertEquals(DrawerSection.ADMINISTRATION, sectionOf(Route.AuditLog))
+        assertEquals(null, sectionOf(Route.Profile))
     }
 }

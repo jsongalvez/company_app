@@ -7,7 +7,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -23,11 +22,9 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.app.drawer.DrawerContent
-import com.companyb.companyapp.app.drawer.HamburgerWithBadge
 import com.companyb.companyapp.client.ClientState
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
-import com.companyb.companyapp.notification.NotificationState
 import com.companyb.companyapp.session.dashboard.DashboardSelection
 import com.companyb.companyapp.session.dashboard.SessionDashboardScreen
 import com.companyb.companyapp.session.dashboard.SessionDashboardViewModel
@@ -37,7 +34,6 @@ import com.companyb.companyapp.workforce.relief.ReliefAccessCard
 import com.companyb.companyapp.workforce.relief.ReliefAccessViewModel
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MobileAppNavHost(
     apiClient: ApiClient,
@@ -131,31 +127,16 @@ private fun MobileDrawerSheet(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MobileShellTopBar(
     postClockIn: Boolean,
     onHamburgerClick: () -> Unit,
 ) {
     if (postClockIn) {
-        // shell chrome only — pushed detail routes layer their own TopAppBar with
-        // back-chevron via nested-Scaffold per #96 Q5; shell's hamburger temporarily
-        // yields to that detail heading.
-        // HamburgerWithBadge.unreadCount live via NotificationState; null/0 ⟹ no badge
-        // (Q3a alert-not-status gating). #160 — the badge sums pending invites +
-        // unread reminders (#159 Q5): both slots feed the total.
-        val unreadCount: Int? by NotificationState.unreadCount.collectAsState()
-        val inviteCount: Int? by NotificationState.inviteCount.collectAsState()
-        val badgeCount = NotificationState.badgeSum(unreadCount, inviteCount)
-        TopAppBar(
-            title = {},
-            navigationIcon = {
-                HamburgerWithBadge(
-                    onClick = onHamburgerClick,
-                    unreadCount = badgeCount,
-                )
-            },
-        )
+        // #671 — the one compact top bar: menu trigger + parent section title +
+        // viewed branch/date (shared ShellTopBar; pushed detail routes keep their
+        // single screen-owned back via nested-Scaffold per #96 Q5 — no second back).
+        ShellTopBar(onMenuClick = onHamburgerClick)
     }
 }
 
