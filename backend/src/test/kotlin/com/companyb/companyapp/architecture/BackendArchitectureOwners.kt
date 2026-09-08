@@ -201,17 +201,11 @@ object BackendArchitectureOwners {
      * grant). Record projection grants here — distinctly from command
      * coordination, which flows service-to-service and needs no entry —
      * never as an all-to-all graph. An empty set stays legal and requires no
-     * dummy entry (#572).
+     * dummy entry (#572). Map #615 #604 retired the last three workforce grants:
+     * session/commission now read membership/slot/attendance facts through the
+     * workforce seam instead of importing its stores.
      */
-    val allowedStoreReads: Set<StoreSeam> =
-        setOf(
-            // Map #533: commission reads attendance facts without calling the attendance commands.
-            StoreSeam("commission", "$BASE_PACKAGE.workforce.AttendanceRepository"),
-            // #539: session reads workforce membership facts (member check, slot lookup) without
-            // calling the workforce commands; command coordination stays service-to-service.
-            StoreSeam("session", "$BASE_PACKAGE.workforce.UserBranchAssignmentRepository"),
-            StoreSeam("session", "$BASE_PACKAGE.workforce.BranchMemberRepository"),
-        )
+    val allowedStoreReads: Set<StoreSeam> = emptySet()
 
     /** One granted cross-owner store read: [importerOwner] may read [store] (fully qualified). */
     data class StoreSeam(

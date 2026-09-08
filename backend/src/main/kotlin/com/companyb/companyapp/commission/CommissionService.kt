@@ -7,8 +7,8 @@ import com.companyb.companyapp.commerce.CommerceReads
 import com.companyb.companyapp.commerce.ProductSale
 import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.workforce.Attendance
-import com.companyb.companyapp.workforce.AttendanceRepository
+import com.companyb.companyapp.workforce.AttendanceWindow
+import com.companyb.companyapp.workforce.WorkforceReads
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -31,7 +31,7 @@ data class CommissionShare(
  */
 internal fun aggregateShares(
     sales: List<ProductSale>,
-    attendance: List<Attendance>,
+    attendance: List<AttendanceWindow>,
     inclusions: List<CommissionManualInclusion>,
 ): Map<UUID, CommissionShare> {
     val inclusionsBySale = inclusions.groupBy { it.productSaleId }
@@ -52,7 +52,7 @@ internal fun aggregateShares(
 
 private fun eligibleUsersFor(
     sale: ProductSale,
-    attendance: List<Attendance>,
+    attendance: List<AttendanceWindow>,
     inclusionsBySale: Map<UUID, List<CommissionManualInclusion>>,
 ): Set<UUID> {
     val eligibleUsers = mutableSetOf<UUID>()
@@ -235,15 +235,15 @@ object CommissionService {
 }
 
 /**
- * Local batched read projection (map #533 #544): the day's commission facts in one pass —
- * non-voided sales through the commerce seam, attendance windows through the recorded
- * workforce read grant, manual inclusions from the internal store. Read-only on the caller's
+ * Local batched read projection (map #533 #544, #604): the day's commission facts in one pass —
+ * non-voided sales through the commerce seam, attendance windows through the workforce seam,
+ * manual inclusions from the internal store. Read-only on the caller's
  * transaction; it never calls attendance/commerce commands and never mutates their stores.
  * Batching is unchanged: one query per fact family, inclusions skipped when no sales exist.
  */
 internal data class CommissionDayFacts(
     val sales: List<ProductSale>,
-    val attendance: List<Attendance>,
+    val attendance: List<AttendanceWindow>,
     val inclusions: List<CommissionManualInclusion>,
 )
 
@@ -251,7 +251,7 @@ internal object CommissionFactReads {
     fun loadDayFactsInTransaction(branchDayId: UUID): CommissionDayFacts {
         val sales = CommerceReads.findNonVoidedSalesByBranchDayInTransaction(branchDayId)
         if (sales.isEmpty()) return CommissionDayFacts(emptyList(), emptyList(), emptyList())
-        val attendance = AttendanceRepository.findByBranchDayIdInTransaction(branchDayId)
+        val attendance = WorkforceReads.findAttendanceWindowsInTransaction(branchDayId)
         val inclusions = CommissionManualInclusionRepository.findBySaleIdsInTransaction(sales.map { it.id })
         return CommissionDayFacts(sales, attendance, inclusions)
     }

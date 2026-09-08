@@ -12,7 +12,7 @@ import com.companyb.companyapp.contracts.session.isStatusTransitionAllowed
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.workforce.BranchMemberRepository
+import com.companyb.companyapp.workforce.WorkforceReads
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -70,7 +70,7 @@ object SessionService {
         // #366 — the requested practitioner must be an ACTIVE member of the session's branch
         // (today any existing UUID is accepted). Optional field: null passes untouched.
         if (requestedPractitionerId != null &&
-            !BranchMemberRepository.hasActiveMember(branchId, requestedPractitionerId)
+            !WorkforceReads.hasActiveMember(branchId, requestedPractitionerId)
         ) {
             throw ValidationException("Requested practitioner is not an active member of this branch")
         }

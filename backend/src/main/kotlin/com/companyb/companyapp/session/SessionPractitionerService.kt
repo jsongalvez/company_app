@@ -5,7 +5,7 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.workforce.UserBranchAssignmentRepository
+import com.companyb.companyapp.workforce.WorkforceReads
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -58,12 +58,9 @@ internal object SessionPractitionerService {
                 return@transaction AddPractitionerResult(existing, false)
             }
 
-            val assignment =
-                UserBranchAssignmentRepository.findActiveByBranchAndUser(
-                    branchDay.branchId,
-                    practitionerId,
-                )
-            val slotAtTime = assignment?.slot ?: DEFAULT_SLOT
+            val slotAtTime =
+                WorkforceReads.findAssignmentSlotInTransaction(branchDay.branchId, practitionerId)
+                    ?: DEFAULT_SLOT
 
             val result =
                 SessionPractitionerRepository.addInTransaction(

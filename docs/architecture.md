@@ -137,7 +137,7 @@ adapters (parse → call one command; capability before-filters).
 Feature packages under `com.companyb.companyapp` are the semantic modules;
 Kotlin `internal` does not stop sibling imports, so seams are protected
 executably, not by prose (see below). Cross-feature reads go through declared
-read seams (`SessionReads`, `CommerceReads`, `FinanceReads`,
+read seams (`SessionReads`, `CommerceReads`, `FinanceReads`, `WorkforceReads`,
 `NotificationReads`/`NotificationAppender`, `AuthorizationGrants`); direct
 store/table imports across owners stay banned. Read projections may perform
 intentional joins where the owner records them; command coordination stays in
