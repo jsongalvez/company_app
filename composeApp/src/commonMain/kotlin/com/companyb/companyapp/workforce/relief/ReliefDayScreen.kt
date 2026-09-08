@@ -154,7 +154,13 @@ private fun DayRequestRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(text = row.requestedBy, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+        // #666 — label with the requester display name; the mine list ships null
+        // requesterName (the caller is the requester), so fall back to the id.
+        Text(
+            text = reliefRequestRowLabel(row),
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.weight(1f),
+        )
         val expired = dayPast && row.requestStatus == ReliefAccessStatus.PENDING
         Text(
             text = if (expired) "Expired" else row.requestStatus.name,

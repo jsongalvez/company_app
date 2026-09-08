@@ -71,6 +71,12 @@ fun isRequestExpired(
     return date < today
 }
 
+/**
+ * #666 — the deep-link panel's request-row label: the requester display name when the
+ * day read populated it, falling back to the raw id (mine list / legacy rows carry null).
+ */
+fun reliefRequestRowLabel(row: ReliefAccessResponse): String = row.requesterName ?: row.requestedBy
+
 /** One rendered row of the deep-link panel's invites section (#401). */
 data class ReliefDayInviteRow(
     val title: String,
