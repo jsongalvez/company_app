@@ -3,6 +3,7 @@ package com.companyb.companyapp.network
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.config.MAX_HTTP_RETRIES
 import com.companyb.companyapp.config.platformDefaultBaseUrl
+import com.companyb.companyapp.util.logError
 import com.companyb.companyapp.util.logInfo
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
@@ -134,7 +135,7 @@ class ApiClient(
                         } catch (e: IllegalArgumentException) {
                             // #581 — URL-shape failures only; token-store I/O is hardened at the
                             // source (DesktopTokenStore.getToken), so attach stays best-effort here.
-                            logInfo("ApiClient", "bearer attach skipped: ${e.message}")
+                            logError("ApiClient", "bearer attach skipped: ${e.message}", e)
                         }
                     }
                 },
