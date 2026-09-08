@@ -85,6 +85,14 @@ class AuthServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `logout writes no audit row`() {
+        AuthService.logout(userId)
+
+        assertEquals(0L, auditEntryCount(userId))
+        assertEquals(0L, credentialTokenAuditCount())
+    }
+
+    @Test
     fun `registration conflict writes no audit row`() {
         val conflictingUserId = TestFixtures.uuid()
 
@@ -111,6 +119,16 @@ class AuthServicePostgresTest : BasePostgresTest() {
                 .selectAll()
                 .where {
                     (AuditLogTable.auditTableName eq "app_user") and (AuditLogTable.recordId eq recordId)
+                }.count()
+        }
+
+    private fun credentialTokenAuditCount(): Long =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where {
+                    (AuditLogTable.auditTableName eq "credential_token") and
+                        (AuditLogTable.changedBy eq userId)
                 }.count()
         }
 }

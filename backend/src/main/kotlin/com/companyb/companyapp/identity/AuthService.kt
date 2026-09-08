@@ -272,6 +272,11 @@ object AuthService {
     /**
      * #492 — authenticated logout: persists the JWT revocation boundary before returning
      * success, so pre-logout tokens stay dead across restart and backend processes.
+     *
+     * #661 — intentionally unaudited: routine high-volume self-revocation, exempt from the
+     * every-mutation audit rule (backend/AGENTS.md). Durability is the boundary row itself;
+     * observability stays on the `[LOGOUT]` app log, avoiding one `app_user` UPDATE row
+     * per logout for no security signal.
      */
     fun logout(userId: UUID) {
         transaction {

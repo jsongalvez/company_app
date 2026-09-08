@@ -261,6 +261,8 @@ Immediate revocation is durable (#492): logout, password reset, and deactivation
 the persisted `app_user.jwt_revoked_at` boundary inside their command transaction, and
 `JwtService.verifyToken` accepts a token only through the single `UserRepository.authorize`
 read (ACTIVE status plus issuance strictly after the boundary). No process-local state.
+Logout is the sole exemption (#661): routine self-revocation writes no audit row — durability
+via the boundary row, observability via the `[LOGOUT]` app log (`AuthServicePostgresTest`).
 
 ## HTTP errors & day state
 
