@@ -369,8 +369,9 @@ internal object ReliefInviteRepository {
                 it[ReliefInviteTable.status] = status
                 it[ReliefInviteTable.respondedAt] = CurrentTimestampWithTimeZone
             }
-        if (updated == 0) return null
-        val after = findByIdInTransaction(id) ?: return null
+        // #601 max-2: lost-race and missing-readback nulls share one exit.
+        val after = if (updated == 0) null else findByIdInTransaction(id)
+        if (after == null) return null
         return ReliefInviteMutation(before, after)
     }
 
@@ -394,8 +395,9 @@ internal object ReliefInviteRepository {
                 it[ReliefInviteTable.status] = ReliefInviteStatus.ACCEPTED
                 it[ReliefInviteTable.respondedAt] = CurrentTimestampWithTimeZone
             }
-        if (updated == 0) return null
-        val after = findByIdInTransaction(id) ?: return null
+        // #601 max-2: lost-race and missing-readback nulls share one exit.
+        val after = if (updated == 0) null else findByIdInTransaction(id)
+        if (after == null) return null
         return ReliefInviteMutation(before, after)
     }
 
@@ -419,8 +421,9 @@ internal object ReliefInviteRepository {
                 it[ReliefInviteTable.status] = ReliefInviteStatus.REVOKED
                 it[ReliefInviteTable.respondedAt] = CurrentTimestampWithTimeZone
             }
-        if (updated == 0) return null
-        val after = findByIdInTransaction(id) ?: return null
+        // #601 max-2: lost-race and missing-readback nulls share one exit.
+        val after = if (updated == 0) null else findByIdInTransaction(id)
+        if (after == null) return null
         return ReliefInviteMutation(before, after)
     }
 

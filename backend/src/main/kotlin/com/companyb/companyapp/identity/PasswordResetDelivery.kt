@@ -62,26 +62,27 @@ internal object PasswordResetDelivery {
         validityHours: Long,
         senderOverride: PasswordResetSender? = null,
     ) {
+        // #601 max-2: log-relay, override-direct, and executor-queued legs share one if-else exit.
         val sender = senderOverride ?: configuredSender
         if (sender == null) {
             logRelay(identifier, rawCode, validityHours)
-            return
-        }
-        if (senderOverride != null) {
+        } else if (senderOverride != null) {
             sendSafely(sender, recipient, rawCode, validityHours)
-            return
-        }
-        val executor = synchronized(this) { senderExecutor }
-        if (executor == null) {
-            logger.error { "[PASSWORD-RESET] SMTP delivery is not active; reset code remains valid for retry" }
-            return
-        }
-        try {
-            executor.execute {
-                sendSafely(sender, recipient, rawCode, validityHours)
+        } else {
+            val executor = synchronized(this) { senderExecutor }
+            if (executor == null) {
+                logger.error { "[PASSWORD-RESET] SMTP delivery is not active; reset code remains valid for retry" }
+            } else {
+                try {
+                    executor.execute {
+                        sendSafely(sender, recipient, rawCode, validityHours)
+                    }
+                } catch (failure: RejectedExecutionException) {
+                    logger.error(failure) {
+                        "[PASSWORD-RESET] SMTP delivery was rejected; reset code remains valid for retry"
+                    }
+                }
             }
-        } catch (failure: RejectedExecutionException) {
-            logger.error(failure) { "[PASSWORD-RESET] SMTP delivery was rejected; reset code remains valid for retry" }
         }
     }
 

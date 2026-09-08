@@ -441,8 +441,8 @@ private val CLIENT_IDENTIFYING_KEYS =
  */
 private fun redactClientNames(raw: String?): String? {
     if (raw == null) return null
-    val element = runCatching { Json.parseToJsonElement(raw) }.getOrElse { return raw }
-    if (element !is JsonObject) return raw
+    // #601 max-2: unparseable and non-object sides share one passthrough exit.
+    val element = runCatching { Json.parseToJsonElement(raw) }.getOrNull() as? JsonObject ?: return raw
     var changed = false
     val scrubbed =
         buildJsonObject {

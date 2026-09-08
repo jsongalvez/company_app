@@ -33,7 +33,7 @@ class SaleClientSearchSeamTest {
                 java.io.File("../composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock"),
                 java.io.File("../../composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock"),
             )
-        candidates.firstOrNull { it.isDirectory }?.let { return it }
+        // #601 max-2: marker-walk and candidate-fallback share one exit (same stock dir either way).
         var current = java.io.File(".").absoluteFile
         repeat(6) {
             val marker = java.io.File(current, "settings.gradle.kts")
@@ -45,7 +45,7 @@ class SaleClientSearchSeamTest {
             if (marker.exists() && stock.isDirectory) return stock
             current = current.parentFile ?: return@repeat
         }
-        return candidates.first()
+        return candidates.firstOrNull { it.isDirectory } ?: candidates.first()
     }
 
     @Test

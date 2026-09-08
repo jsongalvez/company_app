@@ -176,13 +176,15 @@ internal object RemittanceRepository {
         if (created.branchId != params.branchId) {
             throw ConflictException("Remittance UUID belongs to another branch")
         }
-        if (!inserted) {
-            return RemittanceCreateResult(created, created = false)
+        // #601 max-2: raced-replay and fresh-draft share one exit.
+        return if (!inserted) {
+            RemittanceCreateResult(created, created = false)
+        } else {
+            logger.info {
+                "[CREATE-REMITTANCE-DRAFT] Remittance ${created.id.toString().maskUUID()} created=true"
+            }
+            RemittanceCreateResult(created, created = true)
         }
-        logger.info {
-            "[CREATE-REMITTANCE-DRAFT] Remittance ${created.id.toString().maskUUID()} created=true"
-        }
-        return RemittanceCreateResult(created, created = true)
     }
 
     /**

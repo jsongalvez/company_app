@@ -893,12 +893,11 @@ style:
     active: false
   ReturnCount:
     active: true
-    # #532 decided policy (Phase A freeze): max 3, guard clauses excluded. This
-    # is the de-facto enforced standard — 24 existing guard-clause functions
-    # across 10 features predate this ticket and pass CI under it. Tightening
-    # to max 2 is future per-function refactor work (Phase B), never a silent
-    # config flip: this test pins the values.
-    max: 3
+    # #601 Phase B: max 2, guard clauses excluded. Tightened from the #532 Phase-A
+    # freeze (max 3) after per-function refactor of the 20 max-3-only functions;
+    # the 24 guard-clause functions pass under either value (guards excluded).
+    # Never a silent config flip: DetektConfigParityTest pins the values.
+    max: 2
     excludedFunctions:
       - 'equals'
     excludeLabeled: false

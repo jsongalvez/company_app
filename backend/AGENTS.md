@@ -113,8 +113,8 @@ Auto-fix formatting: `./gradlew :backend:ktlintFormat`.
 Run the app: `./gradlew :backend:run` (requires Postgres at `DB_HOST:DB_PORT`).
 
 - **detekt `MagicNumber` is strict.** Extract every literal (column widths, pool sizes,
-  durations, lengths) into a `private const val`; constants are exempt. `ReturnCount` max is 3
-  with guard clauses excluded (Phase-A freeze, #532 — config/detekt/*.yml, pinned by
+  durations, lengths) into a `private const val`; constants are exempt. `ReturnCount` max is 2
+  with guard clauses excluded (Phase B, #601 — config/detekt/*.yml, pinned by
   `DetektConfigParityTest`); use a narrow `@Suppress("ReturnCount")` with a `#<ticket>` link
   when a guard-clause style is clearer (precedents: `InventoryService`, `RemittanceService`).
 - **Comment hygiene (#460, scoped — never a blanket ban).** Delete redundant what-comments;

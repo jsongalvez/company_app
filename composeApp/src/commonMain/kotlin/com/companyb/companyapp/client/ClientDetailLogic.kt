@@ -189,11 +189,15 @@ internal class ClientEditSession {
             return true
         }
         val patch = patchFor(field, trimmed) { fieldError = it }
-        if (patch == null) return false
-        recordDispatchedDraft(field, trimmed, cleared = patch.clearFields.isNotEmpty())
-        pendingEditField = field
-        deps.onPatch(patch)
-        return true
+        // #601 max-2: invalid-patch and dispatch legs share one exit.
+        return if (patch == null) {
+            false
+        } else {
+            recordDispatchedDraft(field, trimmed, cleared = patch.clearFields.isNotEmpty())
+            pendingEditField = field
+            deps.onPatch(patch)
+            true
+        }
     }
 
     // D4 — BP pair commit: validates the hoisted drafts, builds the request; unchanged pair →

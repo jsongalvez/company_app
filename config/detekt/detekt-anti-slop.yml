@@ -467,8 +467,8 @@ style:
 
   ReturnCount:
     active: true
-    # #532 decided policy (Phase A freeze): max 3, guard clauses excluded (mirrors detekt.yml).
-    max: 3
+    # #601 Phase B: max 2, guard clauses excluded (mirrors detekt.yml).
+    max: 2
     excludedFunctions:
       - 'equals'
     excludeLabeled: false

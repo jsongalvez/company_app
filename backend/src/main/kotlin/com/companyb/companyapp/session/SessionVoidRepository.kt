@@ -69,28 +69,29 @@ internal object SessionVoidRepository {
             findBySessionIdInTransaction(sessionId)
                 ?: byId
                 ?: error("session_void row not found after idempotent insert for $id")
-        if (existing.unvoidedAt == null) {
-            return VoidResult(existing, created = false)
+        // #601 max-2: idempotent ack and re-arm share one exit.
+        return if (existing.unvoidedAt == null) {
+            VoidResult(existing, created = false)
+        } else {
+            // Re-void after unvoid: re-arm the single per-session row (fresh caller id is
+            // discarded — the row id is stable). The conditional update joins the losers of a
+            // concurrent re-void race into an idempotent ack instead of a second audit row.
+            val rearmed =
+                SessionVoidTable.update({
+                    (SessionVoidTable.id eq existing.id) and (SessionVoidTable.unvoidedAt.isNotNull())
+                }) {
+                    it[SessionVoidTable.voidedAt] = CurrentTimestampWithTimeZone
+                    it[SessionVoidTable.voidedBy] = voidedBy
+                    it[SessionVoidTable.voidReason] = voidReason
+                    it[SessionVoidTable.unvoidedAt] = null
+                    it[SessionVoidTable.unvoidedBy] = null
+                    it[SessionVoidTable.unvoidedReason] = null
+                }
+            val row =
+                findBySessionIdInTransaction(sessionId)
+                    ?: error("session_void row not found after re-void for $sessionId")
+            VoidResult(row, created = rearmed > 0)
         }
-
-        // Re-void after unvoid: re-arm the single per-session row (fresh caller id is
-        // discarded — the row id is stable). The conditional update joins the losers of a
-        // concurrent re-void race into an idempotent ack instead of a second audit row.
-        val rearmed =
-            SessionVoidTable.update({
-                (SessionVoidTable.id eq existing.id) and (SessionVoidTable.unvoidedAt.isNotNull())
-            }) {
-                it[SessionVoidTable.voidedAt] = CurrentTimestampWithTimeZone
-                it[SessionVoidTable.voidedBy] = voidedBy
-                it[SessionVoidTable.voidReason] = voidReason
-                it[SessionVoidTable.unvoidedAt] = null
-                it[SessionVoidTable.unvoidedBy] = null
-                it[SessionVoidTable.unvoidedReason] = null
-            }
-        val row =
-            findBySessionIdInTransaction(sessionId)
-                ?: error("session_void row not found after re-void for $sessionId")
-        return VoidResult(row, created = rearmed > 0)
     }
 
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */

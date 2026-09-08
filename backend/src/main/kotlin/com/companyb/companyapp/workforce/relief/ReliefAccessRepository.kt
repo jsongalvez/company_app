@@ -126,33 +126,31 @@ internal object ReliefAccessRepository {
                 .where { GrantReliefAccessTable.id eq params.requestId }
                 .forUpdate(ForUpdateOption.ForUpdate)
                 .singleOrNull()
-                ?.toReliefAccess()
+                ?.toReliefAccess() ?: return null
 
-        if (before == null) {
-            return null
-        }
-        if (before.requestStatus != ReliefAccessStatus.PENDING) {
-            return ReliefAccessMutation(before, before, updated = false)
-        }
-
-        GrantReliefAccessTable
-            .update({
-                (GrantReliefAccessTable.id eq params.requestId) and
-                    (GrantReliefAccessTable.requestStatus eq ReliefAccessStatus.PENDING)
-            }) {
-                it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.GRANTED
-                it[GrantReliefAccessTable.grantedBy] = params.grantedBy
-                it[GrantReliefAccessTable.grantedAt] = CurrentTimestampWithTimeZone
-            }
-
-        val after =
+        // #601 max-2: idempotent replay and fresh grant share one exit.
+        return if (before.requestStatus != ReliefAccessStatus.PENDING) {
+            ReliefAccessMutation(before, before, updated = false)
+        } else {
             GrantReliefAccessTable
-                .selectAll()
-                .where { GrantReliefAccessTable.id eq params.requestId }
-                .single()
-                .toReliefAccess()
+                .update({
+                    (GrantReliefAccessTable.id eq params.requestId) and
+                        (GrantReliefAccessTable.requestStatus eq ReliefAccessStatus.PENDING)
+                }) {
+                    it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.GRANTED
+                    it[GrantReliefAccessTable.grantedBy] = params.grantedBy
+                    it[GrantReliefAccessTable.grantedAt] = CurrentTimestampWithTimeZone
+                }
 
-        return ReliefAccessMutation(before, after, updated = true)
+            val after =
+                GrantReliefAccessTable
+                    .selectAll()
+                    .where { GrantReliefAccessTable.id eq params.requestId }
+                    .single()
+                    .toReliefAccess()
+
+            ReliefAccessMutation(before, after, updated = true)
+        }
     }
 
     /**

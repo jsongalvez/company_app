@@ -110,9 +110,12 @@ internal fun parseDateInput(raw: String): LocalDate? = runCatching { LocalDate.p
 internal fun compensationAmountError(raw: String): String? {
     if (raw.isBlank()) return "Amount is required"
     val cents = moneyToCents(raw)
-    if (cents < 0) return "Amount must be non-negative"
-    if (raw.any { it.isLetter() }) return "Enter a valid amount"
-    return null
+    // #601 max-2: range and format legs share one when-exit.
+    return when {
+        cents < 0 -> "Amount must be non-negative"
+        raw.any { it.isLetter() } -> "Enter a valid amount"
+        else -> null
+    }
 }
 
 /** #101 D6 — expense amount: strictly positive. */

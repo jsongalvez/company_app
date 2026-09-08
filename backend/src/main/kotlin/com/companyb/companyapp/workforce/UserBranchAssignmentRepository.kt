@@ -55,17 +55,17 @@ internal object UserBranchAssignmentRepository {
                 }.insertedCount
         val created = insertedCount > 0
 
-        if (created) {
+        return if (created) {
             val assignment =
                 UserBranchAssignmentTable
                     .selectAll()
                     .where { UserBranchAssignmentTable.id eq params.id }
                     .single()
                     .toAssignment()
-            return AssignmentCreateResult(assignment, created = true)
+            AssignmentCreateResult(assignment, created = true)
+        } else {
+            resolveInsertRace(params)
         }
-
-        return resolveInsertRace(params)
     }
 
     private fun ensureSameRequestOwnership(

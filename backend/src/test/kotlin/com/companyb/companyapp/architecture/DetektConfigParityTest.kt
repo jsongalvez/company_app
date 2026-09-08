@@ -23,7 +23,7 @@ class DetektConfigParityTest {
     fun `shared scalar policies agree across both configs`() {
         val driftSet =
             listOf(
-                Triple("style", "ReturnCount", "max") to "3",
+                Triple("style", "ReturnCount", "max") to "2",
                 Triple("style", "ReturnCount", "excludeGuardClauses") to "true",
                 Triple("style", "ThrowsCount", "excludeGuardClauses") to "true",
                 Triple("complexity", "CyclomaticComplexMethod", "ignoreSingleWhenExpression") to "true",

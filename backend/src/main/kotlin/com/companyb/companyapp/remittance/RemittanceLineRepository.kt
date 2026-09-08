@@ -87,35 +87,36 @@ internal object RemittanceLineRepository {
                 it[RemittanceLineTable.amount] = params.amount
                 it[RemittanceLineTable.createdBy] = params.createdBy
             }
-        if (inserted.insertedCount == 0) {
-            return AddLineResult(racedRetryOrFail(params), created = false)
-        }
+        // #601 max-2: raced-retry and fresh-insert share one exit.
+        return if (inserted.insertedCount == 0) {
+            AddLineResult(racedRetryOrFail(params), created = false)
+        } else {
+            val versionUpdated =
+                RemittanceTable.update({
+                    (RemittanceTable.id eq params.remittanceId) and (RemittanceTable.version eq params.expectedVersion)
+                }) {
+                    it[RemittanceTable.version] = params.expectedVersion + 1
+                }
 
-        val versionUpdated =
-            RemittanceTable.update({
-                (RemittanceTable.id eq params.remittanceId) and (RemittanceTable.version eq params.expectedVersion)
-            }) {
-                it[RemittanceTable.version] = params.expectedVersion + 1
+            if (versionUpdated == 0) {
+                throw remittanceVersionMismatch(params.remittanceId)
             }
 
-        if (versionUpdated == 0) {
-            throw remittanceVersionMismatch(params.remittanceId)
-        }
+            val created =
+                RemittanceLineTable
+                    .selectAll()
+                    .where {
+                        (RemittanceLineTable.id eq params.id) and
+                            (RemittanceLineTable.remittanceId eq params.remittanceId)
+                    }.single()
+                    .toRemittanceLine()
 
-        val created =
-            RemittanceLineTable
-                .selectAll()
-                .where {
-                    (RemittanceLineTable.id eq params.id) and
-                        (RemittanceLineTable.remittanceId eq params.remittanceId)
-                }.single()
-                .toRemittanceLine()
-
-        logger.info {
-            "[ADD-REMITTANCE-LINE] Line ${created.id.toString().maskUUID()} added to " +
-                "remittance ${created.remittanceId.toString().maskUUID()}"
+            logger.info {
+                "[ADD-REMITTANCE-LINE] Line ${created.id.toString().maskUUID()} added to " +
+                    "remittance ${created.remittanceId.toString().maskUUID()}"
+            }
+            AddLineResult(created, created = true)
         }
-        return AddLineResult(created, created = true)
     }
 
     /**

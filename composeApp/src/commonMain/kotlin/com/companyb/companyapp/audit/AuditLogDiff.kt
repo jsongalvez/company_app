@@ -129,17 +129,21 @@ internal fun parseDiff(
     if (old is FieldMap.Malformed || new is FieldMap.Malformed) return emptyList<ChangedField>() to true
     val oldFields = (old as? FieldMap.Valid)?.fields
     val newFields = (new as? FieldMap.Valid)?.fields
-    if (oldFields == null && newFields == null) return emptyList<ChangedField>() to false
-    val keys = (oldFields?.keys ?: emptySet()) + (newFields?.keys ?: emptySet())
-    return keys.sorted().map { key ->
-        ChangedField(
-            field = key,
-            // A side that is absent entirely (INSERT/DELETE shape) stays null; a key missing on
-            // one side of an UPDATE renders "—" for that side.
-            old = oldFields?.let { it[key]?.toDisplayValue() ?: "—" },
-            new = newFields?.let { it[key]?.toDisplayValue() ?: "—" },
-        )
-    } to false
+    // #601 max-2: empty-diff and key-diff share one exit.
+    return if (oldFields == null && newFields == null) {
+        emptyList<ChangedField>() to false
+    } else {
+        val keys = (oldFields?.keys ?: emptySet()) + (newFields?.keys ?: emptySet())
+        keys.sorted().map { key ->
+            ChangedField(
+                field = key,
+                // A side that is absent entirely (INSERT/DELETE shape) stays null; a key missing on
+                // one side of an UPDATE renders "—" for that side.
+                old = oldFields?.let { it[key]?.toDisplayValue() ?: "—" },
+                new = newFields?.let { it[key]?.toDisplayValue() ?: "—" },
+            )
+        } to false
+    }
 }
 
 private sealed interface FieldMap {

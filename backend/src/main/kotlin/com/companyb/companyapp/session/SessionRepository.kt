@@ -116,14 +116,11 @@ internal object SessionRepository {
         // Client-first lock order lives with the command (#541): SessionService.create locks
         // the client row via the client seam before opening this store write, so the lock
         // and the anonymized-client guard stay in the command transaction, not in persistence.
-        val existingBeforeLock = findByIdInTransaction(params.id)
-        if (existingBeforeLock != null) {
-            return idempotentResult(existingBeforeLock, params)
-        }
-
-        val existingAfterLock = findByIdInTransaction(params.id)
-        if (existingAfterLock != null) {
-            return idempotentResult(existingAfterLock, params)
+        // #601 max-2: the before/after idempotent probes share one ownership-checked exit
+        // (same transaction, no intervening write — the second collapses to the first).
+        val replayed = findByIdInTransaction(params.id)
+        if (replayed != null) {
+            return idempotentResult(replayed, params)
         }
 
         // Keep this atomic with the insert: both the precheck and booked_at use the DB transaction clock.

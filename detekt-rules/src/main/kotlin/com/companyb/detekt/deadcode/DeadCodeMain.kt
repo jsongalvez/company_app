@@ -101,48 +101,53 @@ object DeadCodeMain {
         )
     }
 
+    // #601 max-2: flag arms share one when-expression exit (no early returns).
     private fun consumeFlag(
         args: Array<String>,
         index: Int,
         state: MutableParse,
-    ): Int {
+    ): Int =
         when (args[index]) {
             "--candidate" -> {
                 state.roots.candidates.add(flagValue(args, index))
+                index + 2
             }
 
             "--consumer" -> {
                 state.roots.consumers.add(flagValue(args, index))
+                index + 2
             }
 
             "--classpath" -> {
                 state.roots.targetClasspath.add(flagValue(args, index))
+                index + 2
             }
 
             "--root" -> {
                 state.root = File(flagValue(args, index))
+                index + 2
             }
 
             "--entry-points" -> {
                 state.entryPoints = flagValue(args, index)
+                index + 2
             }
 
             "--known-unanalyzed" -> {
                 state.knownUnanalyzed = flagValue(args, index)
+                index + 2
             }
 
             "--report-inventory" -> {
                 state.reportInventory = true
-                return index + 1
+                index + 1
             }
 
             else -> {
                 state.error = "unknown argument ${args[index]}"
-                return index + 1
+                index + 1
             }
         }
-        return index + 2
-    }
 
     private fun flagValue(
         args: Array<String>,

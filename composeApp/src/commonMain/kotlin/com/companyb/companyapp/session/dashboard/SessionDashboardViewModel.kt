@@ -224,18 +224,16 @@ class SessionDashboardViewModel(
         val branchId =
             AppSessionState.snapshot.value.clock
                 ?.branchId
-        if (branchId == null) {
+        // #601 max-2: missing-branch and in-flight legs share one cancelled-Job exit.
+        if (branchId == null || _dashboardState.value is UiState.Loading) {
             // Unreachable post-clock-in (the dashboard is only composed with a selected
             // branch); fail closed rather than fetch a malformed path. A CANCELLED job is
-            // returned so the poll loop's join() returns immediately.
-            return Job().also { it.cancel() }
-        }
-        // In-flight guard (manual refresh overlapping a poll): a cancelled job keeps the
-        // poll loop's join() from hanging — a bare `Job()` never completes. The synchronous
-        // Loading pre-set below makes the guard hold from the CALLER's frame (the #135
-        // double-tap pattern — handler.launch pre-sets Loading only inside its coroutine,
-        // so two back-to-back refresh() calls would both pass the guard otherwise).
-        if (_dashboardState.value is UiState.Loading) {
+            // returned so the poll loop's join() returns immediately. In-flight guard
+            // (manual refresh overlapping a poll): a cancelled job keeps the poll loop's
+            // join() from hanging — a bare `Job()` never completes. The synchronous
+            // Loading pre-set below makes the guard hold from the CALLER's frame (the #135
+            // double-tap pattern — handler.launch pre-sets Loading only inside its coroutine,
+            // so two back-to-back refresh() calls would both pass the guard otherwise).
             return Job().also { it.cancel() }
         }
         loadDayStatus()
@@ -353,16 +351,24 @@ class SessionDashboardViewModel(
         val current = currentEditState.value
         if (!canEditState.value || !canReplaceEdit(current)) return
         val row = lastDataCache.value?.sessions?.firstOrNull { it.id == sessionId }
-        if (row == null) {
-            if (current != null && lastDataCache.value?.sessions?.none { it.id == current.sessionId } == true) {
-                clearEdit()
+        // #601 max-2: vanished-row, disallowed-field, and fresh-edit legs share one when-exit.
+        when {
+            row == null -> {
+                if (current != null && lastDataCache.value?.sessions?.none { it.id == current.sessionId } == true) {
+                    clearEdit()
+                }
             }
-            return
+
+            !fieldEditAllowed(row, field) -> {
+                Unit
+            }
+
+            else -> {
+                if (current?.error != null) clearEdit()
+                editGeneration++
+                currentEditState.value = beginEdit(row, field)
+            }
         }
-        if (!fieldEditAllowed(row, field)) return
-        if (current?.error != null) clearEdit()
-        editGeneration++
-        currentEditState.value = beginEdit(row, field)
     }
 
     fun updateDraft(draft: String) {

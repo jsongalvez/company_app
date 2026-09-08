@@ -792,8 +792,9 @@ object BackendArchitectureOwners {
     private fun isTableNameAccess(element: KtSimpleNameExpression): Boolean {
         val direct = element.parent as? KtDotQualifiedExpression
         if (direct?.selectorExpression?.text == "tableName") return true
-        val qualified = outermostQualifiedText(element) ?: return false
-        return qualified.substringBefore('(').substringBefore('<').endsWith(".tableName")
+        // #601 max-2: missing-qualifier and suffix-check share one exit.
+        val qualified = outermostQualifiedText(element)
+        return qualified?.substringBefore('(')?.substringBefore('<')?.endsWith(".tableName") == true
     }
 
     /**

@@ -53,44 +53,50 @@ object MedicalMissionDelegateService {
         branchId: UUID,
         callerId: UUID,
     ): MedicalMissionDelegate {
-        val existing = MedicalMissionDelegateRepository.findByIdInTransaction(delegateId)
-        if (existing != null) {
-            requireRequestOwnership(existing, targetUserId, branchId, callerId)
-            return existing
+        val existingBeforeLock = MedicalMissionDelegateRepository.findByIdInTransaction(delegateId)
+        if (existingBeforeLock != null) {
+            requireRequestOwnership(existingBeforeLock, targetUserId, branchId, callerId)
+            return existingBeforeLock
         }
 
         val activeManager = AccountReads.isActiveManagerInTransaction(targetUserId)
         val existingAfterTargetLock = MedicalMissionDelegateRepository.findByIdInTransaction(delegateId)
-        if (existingAfterTargetLock != null) {
+        return if (existingAfterTargetLock != null) {
             requireRequestOwnership(existingAfterTargetLock, targetUserId, branchId, callerId)
-            return existingAfterTargetLock
-        }
-        if (!activeManager) {
-            throw ValidationException("Delegate target must be an active MANAGER")
-        }
-        if (MedicalMissionDelegateRepository.findActiveByTargetAndBranchInTransaction(targetUserId, branchId) != null) {
-            throw ConflictException("User already has an active medical mission delegate at this branch")
-        }
+            existingAfterTargetLock
+        } else {
+            if (!activeManager) {
+                throw ValidationException("Delegate target must be an active MANAGER")
+            }
+            val alreadyDelegated =
+                MedicalMissionDelegateRepository.findActiveByTargetAndBranchInTransaction(
+                    targetUserId,
+                    branchId,
+                ) != null
+            if (alreadyDelegated) {
+                throw ConflictException("User already has an active medical mission delegate at this branch")
+            }
 
-        val result =
-            MedicalMissionDelegateRepository.assignInTransaction(
-                delegateId = delegateId,
-                targetUserId = targetUserId,
-                assignedBy = callerId,
-                branchId = branchId,
-            )
-        if (!result.inserted) {
-            requireRequestOwnership(result.delegate, targetUserId, branchId, callerId)
+            val result =
+                MedicalMissionDelegateRepository.assignInTransaction(
+                    delegateId = delegateId,
+                    targetUserId = targetUserId,
+                    assignedBy = callerId,
+                    branchId = branchId,
+                )
+            if (!result.inserted) {
+                requireRequestOwnership(result.delegate, targetUserId, branchId, callerId)
+            }
+            if (result.inserted) {
+                AuthorizationGrants.grantDelegateCapabilityInTransaction(
+                    targetUserId = targetUserId,
+                    branchId = branchId,
+                    delegateId = delegateId,
+                )
+                MedicalMissionDelegateAudit.inserted(AuditContext(callerId, branchId), result.delegate)
+            }
+            result.delegate
         }
-        if (result.inserted) {
-            AuthorizationGrants.grantDelegateCapabilityInTransaction(
-                targetUserId = targetUserId,
-                branchId = branchId,
-                delegateId = delegateId,
-            )
-            MedicalMissionDelegateAudit.inserted(AuditContext(callerId, branchId), result.delegate)
-        }
-        return result.delegate
     }
 
     private fun requireRequestOwnership(
