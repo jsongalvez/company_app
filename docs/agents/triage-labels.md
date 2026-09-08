@@ -12,4 +12,12 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
+## Priority labels
+
+Orthogonal to the roles above: `priority:P0` (do first), `priority:P1`
+(valuable, no rush), `priority:P2` (backlog). Absent means P2. Set once at
+triage or ticket creation with the reasoning recorded on the ticket; the
+wayfinder frontier query (`docs/agents/issue-tracker.md`) picks the
+highest-ranked claimable child and never re-derives priority per session.
+
 Edit the right-hand column to match whatever vocabulary you actually use.
