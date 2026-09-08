@@ -545,13 +545,6 @@ object RemittanceService {
         )
     }
 
-    fun getBranchIdForRemittance(remittanceId: UUID): UUID {
-        val remittance =
-            RemittanceRepository.findById(remittanceId)
-                ?: throw NotFoundException("Remittance not found")
-        return remittance.branchId
-    }
-
     @Suppress("ThrowsCount")
     fun listRemittances(
         branchId: UUID,
