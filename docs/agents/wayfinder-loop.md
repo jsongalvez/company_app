@@ -7,11 +7,8 @@ fresh zero-context opencode2 session to execute each one, supervises the
 session (questions, permissions, stalls), and chains to the next packet.
 
 Runtime files (gitignored): `.wayfinder-loop.state` (last doc, session id,
-seen-doc fingerprints, retries, local-CI queue/verdict/repair mappings),
-`.wayfinder-loop.log`, `.wayfinder-loop.lock`, and `logs/local-ci/` (`run.log`,
-`status.txt`, `result.txt`, `pid`, `head.sha`, `run.id`). `head.sha` and `run.id`
-are the immutable run-to-HEAD pin: they describe the detached run whose result
-is in `result.txt`, not whatever HEAD happens to be when the gates finish.
+seen-doc fingerprints, retries, hosted-CI verdict/repair mappings),
+`.wayfinder-loop.log`, and `.wayfinder-loop.lock`.
 
 ## Rules
 
@@ -33,25 +30,26 @@ is in `result.txt`, not whatever HEAD happens to be when the gates finish.
 - The daemon never stages, commits, or stashes — worktree hygiene belongs to
   the sessions.
 
-## Detached local-CI watchdog (#577)
+## Hosted-CI repair watch (ref #627; replaces the retired local-CI watchdog #577)
 
-The daemon owns the local verification watch. It polls `logs/local-ci/` on its
-normal session/doc ticks; active workers never run `--status`, poll a detached
-process, or poll hosted CI. `tools/quality/local-ci.sh` captures the current commit
-before starting any gate, writes `head.sha`/`run.id`, clears the previous
-verdict, and passes that pin into the detached runner. A push during a run
-therefore cannot make the old result claim the new tree.
+The daemon owns the hosted verification watch. On its normal session/doc ticks
+— at most every `WAYFINDER_CI_WATCH_SECS` (default 300s) — it reconciles
+current HEAD against hosted check-runs; active workers never poll hosted CI
+themselves, and nothing is ever launched locally. The verdict predicate
+mirrors session-start reconciliation exactly: RED is any concluded run that is
+not success. A HEAD with runs still in flight is PENDING; a HEAD hosted CI
+never ran (path-scoped-out pushes) records no verdict at all.
 
 Each poll applies this table:
 
 | State | Daemon action | Frontier effect |
 |---|---|---|
-| active run covers current HEAD | keep supervising | none |
-| active run covers an older HEAD | remember the newest HEAD as pending | none; never relabel the active run |
-| completed `result.txt` has current `head.sha` | consume `PASS` or `FAIL` once per SHA | PASS is silent; FAIL enters the repair gate |
-| missing, incomplete, or stale run | launch `tools/quality/local-ci.sh` for current HEAD | never blocks on missing evidence |
+| HEAD already has a recorded PASS/FAIL | nothing (dedupe) | none |
+| hosted verdict GREEN | record PASS | none |
+| hosted verdict PENDING, UNKNOWN, or gh unusable | nothing; retry next poll | none; never blocks on missing evidence |
+| hosted verdict RED, first time for this SHA | create exactly one marker-bearing `wayfinder:task` repair issue | frontier gated until repair closes |
 
-On a red result, the daemon first verifies `gh auth status` in its own
+On a red verdict, the daemon first verifies `gh auth status` in its own
 environment. With valid auth it finds or creates exactly one marker-bearing
 `wayfinder:task` repair issue for that SHA, attaches it to this map as a native
 child, and adds the repair issue's database ID as a native `blocked_by`
@@ -64,7 +62,7 @@ green verdict. A green result creates no tracker issue and does not close an
 older red repair ticket. When there is no claimable child, the repair issue is
 left as an unblocked map child for the next frontier query.
 
-This watchdog is host-local like `local-ci.sh`; it adds no hosted workflow,
+This watch launches no local workload; it adds no hosted workflow,
 schedule, hook gate, or cross-machine claim. The existing `flock` remains the
 single-daemon guard. The implementation lives in the canonical
 `tools/wayfinder/wayfinder-loop.sh`; `scripts/wayfinder-loop.sh` stays as the

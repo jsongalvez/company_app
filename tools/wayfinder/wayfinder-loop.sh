@@ -20,8 +20,7 @@
 #   WAYFINDER_TICK_SECS    session poll interval — form/permission/completion checks (default 5)
 #   WAYFINDER_STALL_SECS   no-progress zombie threshold in seconds (default 540 = old WAIT_SECS×STALL_SLICES)
 #   WAYFINDER_DRY_RUN      non-empty = log transitions, never spawn
-#   WAYFINDER_LOCAL_CI_DIR  local-ci state directory (default logs/local-ci)
-#   WAYFINDER_LOCAL_CI_SCRIPT local-ci launcher (default tools/quality/local-ci.sh)
+#   WAYFINDER_CI_WATCH_SECS hosted check-runs poll interval (default 300)
 #   WAYFINDER_GH_BIN       gh executable used for red-verdict tracker writes
 #   WAYFINDER_GH_REPO      repository for tracker writes (default from origin)
 #   WAYFINDER_MAP_ISSUE    map whose frontier the repair ticket blocks (default 533)
@@ -36,17 +35,15 @@ NTFY_TOPIC="${WAYFINDER_NTFY_TOPIC:-}"
 POLL_SECS="${WAYFINDER_POLL_SECS:-15}"
 TICK_SECS="${WAYFINDER_TICK_SECS:-5}"
 STALL_SECS="${WAYFINDER_STALL_SECS:-540}"
-LOCAL_CI_DIR="${WAYFINDER_LOCAL_CI_DIR:-$REPO/logs/local-ci}"
-LOCAL_CI_SCRIPT="${WAYFINDER_LOCAL_CI_SCRIPT:-$REPO/tools/quality/local-ci.sh}"
 GH_BIN="${WAYFINDER_GH_BIN:-$(command -v gh || true)}"
 MAP_ISSUE="${WAYFINDER_MAP_ISSUE:-533}"
 GH_REPO="${WAYFINDER_GH_REPO:-}"
-REPAIR_MARKER="wayfinder-local-ci-repair"
-[[ "$LOCAL_CI_DIR" = /* ]] || LOCAL_CI_DIR="$REPO/$LOCAL_CI_DIR"
-[[ "$LOCAL_CI_SCRIPT" = /* ]] || LOCAL_CI_SCRIPT="$REPO/$LOCAL_CI_SCRIPT"
-LOCAL_CI_PID_FILE="$LOCAL_CI_DIR/pid"
-LOCAL_CI_HEAD_FILE="$LOCAL_CI_DIR/head.sha"
-LOCAL_CI_RESULT_FILE="$LOCAL_CI_DIR/result.txt"
+# Hosted-CI repair watch (ref #627): the daemon reconciles HEAD against hosted
+# check-runs — no local sweep is ever launched. Throttle keeps the 5s supervise
+# tick from hammering the API; the one-shot probe bypasses it.
+CI_WATCH_SECS="${WAYFINDER_CI_WATCH_SECS:-300}"
+ci_last_poll=0
+REPAIR_MARKER="wayfinder-ci-repair"
 # Free-disk floor in GiB — below it the chain pings instead of silently wedging
 # (the session-176 class: bun .so extractions filled /tmp, builds started dying
 # with no signal). The daily tmp-bun-so-clean.timer + manual build-dir cleanup
@@ -174,7 +171,7 @@ api() { "$OC_BIN" api "$@"; }
 
 load_state() {
   last_doc=""; session_id=""; pending_doc=""
-  local_ci_pending_sha=""; local_ci_verdicts=""; local_ci_repair_issues=""
+  ci_verdicts=""; ci_repair_issues=""
   [ -f "$STATE_FILE" ] || return 0
   # shellcheck disable=SC1090
   source "$STATE_FILE"
@@ -187,9 +184,8 @@ save_state() {
     echo "pending_doc=${pending_doc:-}"
     echo "retries=${retries:-0}"
     echo "seen_docs=$seen_docs"
-    echo "local_ci_pending_sha=${local_ci_pending_sha:-}"
-    echo "local_ci_verdicts=${local_ci_verdicts:-}"
-    echo "local_ci_repair_issues=${local_ci_repair_issues:-}"
+    echo "ci_verdicts=${ci_verdicts:-}"
+    echo "ci_repair_issues=${ci_repair_issues:-}"
   } > "$STATE_FILE"
 }
 
@@ -197,47 +193,14 @@ valid_sha() {
   [[ "$1" =~ ^[[:xdigit:]]{40,64}$ ]]
 }
 
-read_first_line() {
-  local file="$1" line=""
-  [ -s "$file" ] || return 0
-  IFS= read -r line < "$file" || true
-  printf '%s' "${line%$'\r'}"
-}
-
-local_ci_current_head() {
+ci_current_head() {
   git -C "$REPO" rev-parse HEAD 2>/dev/null || true
 }
 
-local_ci_run_sha() {
-  read_first_line "$LOCAL_CI_HEAD_FILE"
-}
-
-local_ci_run_result() {
-  local result
-  result="$(read_first_line "$LOCAL_CI_RESULT_FILE")"
-  case "$result" in
-    PASS|FAIL) printf '%s' "$result" ;;
-    *) return 1 ;;
-  esac
-}
-
-local_ci_run_pid() {
-  local pid
-  pid="$(read_first_line "$LOCAL_CI_PID_FILE")"
-  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
-  printf '%s' "$pid"
-}
-
-local_ci_run_active() {
-  local pid
-  pid="$(local_ci_run_pid || true)"
-  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
-}
-
-local_ci_verdict_for() {
+ci_verdict_for() {
   local sha="$1" entry
   local -a entries=()
-  IFS=',' read -ra entries <<< "${local_ci_verdicts:-}"
+  IFS=',' read -ra entries <<< "${ci_verdicts:-}"
   for entry in "${entries[@]}"; do
     [[ "$entry" == "$sha="* ]] && {
       printf '%s' "${entry#*=}"
@@ -247,23 +210,23 @@ local_ci_verdict_for() {
   return 1
 }
 
-local_ci_record_verdict() {
+ci_record_verdict() {
   local sha="$1" verdict="$2" entry updated=""
   local -a entries=()
-  IFS=',' read -ra entries <<< "${local_ci_verdicts:-}"
+  IFS=',' read -ra entries <<< "${ci_verdicts:-}"
   for entry in "${entries[@]}"; do
     [ -n "$entry" ] || continue
     [[ "$entry" == "$sha="* ]] && continue
     [ -n "$updated" ] && updated="$updated,$entry" || updated="$entry"
   done
   [ -n "$updated" ] && updated="$updated,$sha=$verdict" || updated="$sha=$verdict"
-  local_ci_verdicts="$updated"
+  ci_verdicts="$updated"
 }
 
-local_ci_repair_for() {
+ci_repair_for() {
   local sha="$1" entry
   local -a entries=()
-  IFS=',' read -ra entries <<< "${local_ci_repair_issues:-}"
+  IFS=',' read -ra entries <<< "${ci_repair_issues:-}"
   for entry in "${entries[@]}"; do
     [[ "$entry" == "$sha:"* ]] && {
       printf '%s' "${entry#*:}"
@@ -273,17 +236,48 @@ local_ci_repair_for() {
   return 1
 }
 
-local_ci_record_repair() {
+ci_record_repair() {
   local sha="$1" issue="$2" entry updated=""
   local -a entries=()
-  IFS=',' read -ra entries <<< "${local_ci_repair_issues:-}"
+  IFS=',' read -ra entries <<< "${ci_repair_issues:-}"
   for entry in "${entries[@]}"; do
     [ -n "$entry" ] || continue
     [[ "$entry" == "$sha:"* ]] && continue
     [ -n "$updated" ] && updated="$updated,$entry" || updated="$entry"
   done
   [ -n "$updated" ] && updated="$updated,$sha:$issue" || updated="$sha:$issue"
-  local_ci_repair_issues="$updated"
+  ci_repair_issues="$updated"
+}
+
+# Hosted check-runs verdict for a SHA: RED[+TAB+failing-names] | GREEN |
+# PENDING | UNKNOWN. The RED predicate mirrors session-start reconciliation
+# exactly (root AGENTS.md): any concluded run that is not success. A HEAD with
+# runs still in flight is PENDING; a HEAD hosted CI never ran (path-scoped-out
+# pushes) is UNKNOWN — neither ever mints a repair ticket. Exit 1 when gh is
+# unusable; the caller stays quiet and retries on the next poll.
+ci_hosted_verdict() {
+  local sha="$1" repo="$2" runs total failing pending
+  [ -n "$GH_BIN" ] || return 1
+  runs="$("$GH_BIN" api "repos/$repo/commits/$sha/check-runs?per_page=100" 2>/dev/null || true)"
+  [ -n "$runs" ] || return 1
+  total="$(printf '%s' "$runs" | jq -r '.total_count // 0' 2>/dev/null || echo 0)"
+  [[ "$total" =~ ^[0-9]+$ ]] || total=0
+  [ "$total" -gt 0 ] || {
+    printf 'UNKNOWN'
+    return 0
+  }
+  failing="$(printf '%s' "$runs" | jq -r '[.check_runs[] | select(.conclusion != null and .conclusion != "success") | .name] | join(",")' 2>/dev/null || true)"
+  if [ -n "$failing" ]; then
+    printf 'RED\t%s' "$failing"
+    return 0
+  fi
+  pending="$(printf '%s' "$runs" | jq -r '[.check_runs[] | select(.conclusion == null) | .name] | length' 2>/dev/null || echo 1)"
+  [[ "$pending" =~ ^[0-9]+$ ]] || pending=1
+  if [ "$pending" -gt 0 ]; then
+    printf 'PENDING'
+    return 0
+  fi
+  printf 'GREEN'
 }
 
 tracker_repo() {
@@ -302,29 +296,12 @@ tracker_repo() {
   [ -n "$path" ] && printf '%s' "$path" || printf '%s' 'jsongalvez/company_app'
 }
 
-local_ci_launch() {
-  local sha="$1"
-  if [ -n "$DRY_RUN" ]; then
-    log "DRY-RUN: would launch local-ci for HEAD $sha"
-    return 0
-  fi
-  if [ ! -f "$LOCAL_CI_SCRIPT" ]; then
-    log "local-ci launcher missing: $LOCAL_CI_SCRIPT"
-    return 1
-  fi
-  if (cd "$REPO" && LOCAL_CI_STATE_DIR="$LOCAL_CI_DIR" bash "$LOCAL_CI_SCRIPT") >>"$LOG_FILE" 2>&1; then
-    return 0
-  fi
-  log "local-ci launch failed for HEAD $sha — will retry without blocking"
-  return 1
-}
-
 # Return every currently claimable child in the map's ordered section. A red
 # verification must stop the normal frontier rather than merely blocking its
 # first row: otherwise the next unblocked row would bypass the repair ticket.
 # The ordered body remains authority for preference; live issue JSON supplies
 # state, assignee, labels, and native dependency counts.
-local_ci_frontier_issue() {
+ci_frontier_issue() {
   local repo candidate state assignees blocked labels
   local map_file issue_file
   local -a candidates=()
@@ -380,7 +357,7 @@ local_ci_frontier_issue() {
   return 0
 }
 
-local_ci_ensure_map_child() {
+ci_ensure_map_child() {
   local repo="$1" issue_number="$2" issue_id="$3" expected actual
   expected="https://api.github.com/repos/$repo/issues/$MAP_ISSUE"
   actual="$("$GH_BIN" api "repos/$repo/issues/$issue_number" --jq '.parent_issue_url // ""' 2>/dev/null || true)"
@@ -401,10 +378,10 @@ local_ci_ensure_map_child() {
   }
 }
 
-local_ci_ensure_frontier_block() {
+ci_ensure_frontier_block() {
   local repo="$1" frontier="$2" repair_id="$3" deps_file
   [ -n "$frontier" ] || {
-    log "local-ci red verdict has no claimable frontier; repair ticket remains unblocked"
+    log "hosted-CI red verdict has no claimable frontier; repair ticket remains unblocked"
     return 0
   }
   [ "$frontier" != "$repair_id" ] || return 0
@@ -427,27 +404,27 @@ local_ci_ensure_frontier_block() {
   log "repair issue #$repair_id now blocks frontier #$frontier"
 }
 
-local_ci_repair_ticket() {
-  local sha="$1" repo issue_number issue_id issue_state issue_url body title
+ci_repair_ticket() {
+  local sha="$1" failing="$2" repo issue_number issue_id issue_state issue_url body title
   local issue_file found frontiers frontier failed=0 cached=""
 
   [ -n "$GH_BIN" ] || {
-    log "local-ci red verdict for $sha — gh is unavailable; no frontier block"
+    log "hosted-CI red verdict for $sha — gh is unavailable; no frontier block"
     return 1
   }
   if ! "$GH_BIN" auth status >/dev/null 2>&1; then
-    log "local-ci red verdict for $sha — gh auth is unavailable in daemon environment; no frontier block"
+    log "hosted-CI red verdict for $sha — gh auth is unavailable in daemon environment; no frontier block"
     return 1
   fi
   repo="$(tracker_repo)"
-  cached="$(local_ci_repair_for "$sha" || true)"
+  cached="$(ci_repair_for "$sha" || true)"
   if [ -n "$cached" ]; then
     issue_number="$cached"
   else
     issue_file="$(mktemp)"
     if ! "$GH_BIN" api "repos/$repo/issues?state=all&per_page=100" >"$issue_file" 2>/dev/null; then
       rm -f "$issue_file"
-      log "could not search repair issues for local-ci red HEAD $sha"
+      log "could not search repair issues for hosted-CI red HEAD $sha"
       return 1
     fi
     found="$(jq -r --arg marker "$REPAIR_MARKER" --arg sha "$sha" '
@@ -461,24 +438,24 @@ local_ci_repair_ticket() {
     if [ -n "$found" ]; then
       issue_number="${found%%$'\t'*}"
     else
-      title="[local-ci] repair red detached verification for $sha"
+      title="[ci] repair red hosted verification for $sha"
       body="Part of #$MAP_ISSUE.
 Blocked by: none.
 
 <!-- $REPAIR_MARKER -->
 Covered HEAD: \`$sha\`
-Verdict: FAIL
+Verdict: FAIL (failing checks: $failing)
 
-This repair ticket was created by the Wayfinder daemon after the detached local-CI
-run for the pinned HEAD returned FAIL. Repair the failing local gate before normal
-frontier work proceeds. The daemon does not poll hosted CI."
+This repair ticket was created by the Wayfinder daemon after hosted CI
+reported red for this HEAD. Repair the failing gate before normal frontier
+work proceeds. The daemon never launches local verification."
       # Use --body, not --body-file: a tracker body is never sourced from an
       # unchecked/possibly empty temporary file.
       issue_url="$("$GH_BIN" issue create --repo "$repo" --title "$title" --body "$body" \
         --label wayfinder:task --label ready-for-agent 2>/dev/null || true)"
       issue_number="$(printf '%s\n' "$issue_url" | sed -n 's#.*issues/\([0-9][0-9]*\).*#\1#p' | tail -1)"
       [ -n "$issue_number" ] || {
-        log "could not create repair issue for local-ci red HEAD $sha"
+        log "could not create repair issue for hosted-CI red HEAD $sha"
         return 1
       }
     fi
@@ -503,30 +480,30 @@ frontier work proceeds. The daemon does not poll hosted CI."
       return 1
     fi
   fi
-  if ! local_ci_ensure_map_child "$repo" "$issue_number" "$issue_id"; then
+  if ! ci_ensure_map_child "$repo" "$issue_number" "$issue_id"; then
     return 1
   fi
-  local_ci_record_repair "$sha" "$issue_number"
-  if ! frontiers="$(local_ci_frontier_issue)"; then
-    log "could not reconcile the map frontier for local-ci red HEAD $sha"
+  ci_record_repair "$sha" "$issue_number"
+  if ! frontiers="$(ci_frontier_issue)"; then
+    log "could not reconcile the map frontier for hosted-CI red HEAD $sha"
     return 1
   fi
   while IFS= read -r frontier; do
     [ -n "$frontier" ] || continue
-    if ! local_ci_ensure_frontier_block "$repo" "$frontier" "$issue_id"; then
+    if ! ci_ensure_frontier_block "$repo" "$frontier" "$issue_id"; then
       failed=1
     fi
   done <<< "$frontiers"
   [ "$failed" -eq 0 ]
 }
 
-local_ci_process_verdict() {
+ci_process_verdict() {
   local sha="$1" verdict="$2" seen
-  seen="$(local_ci_verdict_for "$sha" || true)"
+  seen="$(ci_verdict_for "$sha" || true)"
   if [ "$verdict" = PASS ]; then
     if [ "$seen" != PASS ]; then
-      log "local-ci verdict PASS for HEAD $sha"
-      local_ci_record_verdict "$sha" PASS
+      log "hosted-CI verdict PASS for HEAD $sha"
+      ci_record_verdict "$sha" PASS
       save_state
     fi
     return 0
@@ -534,52 +511,58 @@ local_ci_process_verdict() {
   [ "$verdict" = FAIL ] || return 1
   [ "$seen" != FAIL ] || return 0
   if [ -n "$DRY_RUN" ]; then
-    log "DRY-RUN: local-ci verdict FAIL for HEAD $sha — would create/update one repair ticket"
-    local_ci_record_verdict "$sha" FAIL
-    save_state
+    log "DRY-RUN: hosted-CI verdict FAIL for HEAD $sha — would create/update one repair ticket"
     return 0
   fi
-  if local_ci_repair_ticket "$sha"; then
-    local_ci_record_verdict "$sha" FAIL
+  if ci_repair_ticket "$sha" "$3"; then
+    ci_record_verdict "$sha" FAIL
     save_state
     return 0
   fi
   return 1
 }
 
-ensure_local_ci_run() {
-  local head covered result
-  head="$(local_ci_current_head)"
+# Hosted-CI repair watch: reconcile current HEAD against hosted check-runs.
+# Nothing is ever launched locally. A recorded PASS/FAIL per SHA dedupes
+# repeat polls; PENDING (runs in flight), UNKNOWN (CI never ran this HEAD),
+# and unavailable gh all stay quiet until the next poll. The one-shot probe
+# used by the script-level contract test bypasses the throttle.
+ensure_ci_watch() {
+  local head seen now repo verdict failing
+  head="$(ci_current_head)"
   valid_sha "$head" || {
-    [ -n "$head" ] && log "local-ci watcher could not use non-SHA HEAD: $head"
+    [ -n "$head" ] && log "CI watcher could not use non-SHA HEAD: $head"
     return 0
   }
-  covered="$(local_ci_run_sha)"
-  if local_ci_run_active; then
-    if [ "$covered" != "$head" ] && [ "${local_ci_pending_sha:-}" != "$head" ]; then
-      local_ci_pending_sha="$head"
-      save_state
-      log "HEAD moved to $head while local-ci run covers ${covered:-unknown}; queued a fresh run"
-    fi
+  seen="$(ci_verdict_for "$head" || true)"
+  if [ "$seen" = PASS ] || [ "$seen" = FAIL ]; then
     return 0
   fi
-  if [ "$covered" = "$head" ]; then
-    result="$(local_ci_run_result || true)"
-    if [ "$result" = PASS ] || [ "$result" = FAIL ]; then
-      local_ci_pending_sha=""
-      local_ci_process_verdict "$head" "$result" || true
+  if [ "${1:-}" != "--once" ]; then
+    now="$(date +%s)"
+    if [ "$((now - ci_last_poll))" -lt "$CI_WATCH_SECS" ]; then
       return 0
     fi
+    ci_last_poll="$now"
   fi
-  if [ -n "$DRY_RUN" ] && [ "${local_ci_pending_sha:-}" = "$head" ]; then
-    log "DRY-RUN: local-ci launch for HEAD $head already planned"
+  repo="$(tracker_repo)"
+  if ! verdict="$(ci_hosted_verdict "$head" "$repo")"; then
+    log "hosted-CI verdict unavailable for HEAD $head (gh/auth) — retrying next poll"
     return 0
   fi
-  log "local-ci has no completed run for HEAD $head (covered=${covered:-none}) — launching"
-  if local_ci_launch "$head"; then
-    local_ci_pending_sha="$head"
-    save_state
-  fi
+  case "$verdict" in
+    GREEN)
+      ci_process_verdict "$head" PASS || true
+      ;;
+    PENDING | UNKNOWN)
+      return 0
+      ;;
+    RED*)
+      failing="${verdict#*$'\t'}"
+      ci_process_verdict "$head" FAIL "$failing" || true
+      ;;
+  esac
+  return 0
 }
 
 wait_for_session_exit() {
@@ -867,10 +850,10 @@ supervise_session() {
   local work_msg_id=""
   while :; do
     sleep "$TICK_SECS"
-    # Detached verification belongs to the daemon, not the supervised worker.
-    # Poll before handoff/session handling so a pushed HEAD is queued even while
-    # the worker is still doing implementation work.
-    ensure_local_ci_run
+    # Hosted verification belongs to the daemon, not the supervised worker.
+    # Poll before handoff/session handling so a pushed HEAD is reconciled even
+    # while the worker is still doing implementation work.
+    ensure_ci_watch
     # completion first: a finished session signals via handoff activity — either
     # a new packet file or an in-place revision of its own packet
     d="$(newest_unprocessed || true)"
@@ -1134,7 +1117,7 @@ session_dead() {
 wait_for_doc() {
   local d
   while :; do
-    ensure_local_ci_run
+    ensure_ci_watch
     d="$(newest_unprocessed || true)"
     if [ -n "$d" ]; then
       # settle: the file may still be mid-write
@@ -1162,13 +1145,13 @@ normalize_seen_docs
 # One-shot fixture probe used by the script-level watcher tests. It exercises
 # the same poll path without creating a session or asking an active agent to
 # inspect CI state.
-if [ "${1:-}" = "--local-ci-once" ]; then
-  ensure_local_ci_run
+if [ "${1:-}" = "--ci-watch-once" ]; then
+  ensure_ci_watch --once
   save_state
   exit 0
 fi
 
-ensure_local_ci_run
+ensure_ci_watch
 
 if [ "${1:-}" = "--bootstrap" ]; then
   [ $# -ge 2 ] || die "--bootstrap requires <doc> (a .wayfinder/handoffs/ packet filename)"

@@ -12,14 +12,13 @@ relevant self-test whenever you edit its sibling.
 
 ## Validation and diagnostics
 
-Canonical owner: `tools/quality/`. `scripts/validate.sh`, `scripts/local-ci.sh`,
+Canonical owner: `tools/quality/`. `scripts/validate.sh`,
 `scripts/inspect.sh`, and `scripts/setup-hooks.sh` are thin exec wrappers for
 human/external callers; new invocations should prefer the canonical path.
 
 | Script | Purpose |
 |---|---|
 | `tools/quality/validate.sh` | Targeted-validation entry point (see AGENTS.md Commands). Auto mode classifies changed files into the narrowest warm Gradle set (focused `--tests` filters for changed test files; shell/tool-only changes run `bash -n` plus the families' DB-free self-tests; docs-only changes skip builds entirely). `detekt-rules/*` and module `*/build.gradle.kts` classify as build logic. Passthrough mode runs any gradle args given. Agent-invoked only — hooks never call it. |
-| `tools/quality/local-ci.sh` | Replicates the hosted `quality.yml` gate set locally, detached: quality tasks verbatim, then OpenAPI and the compose-compile matrix (Android leg skips without an SDK). `--status` prints per-gate PASS/FAIL/SKIP/RUNNING; state under gitignored `logs/local-ci/`. Opt-in diagnostic, never a gate. |
 | `tools/quality/run-k6-contract-suites.sh` | Boots the backend on the **test** DB (never the app DB; port 8180 default, refuses a busy port) with DevSeeder provisioning both the GLOBAL owner and — when `SCOPED_USERNAME`/`SCOPED_PASSWORD` are set (#411) — the branch-scoped principal that drives the authz 403 contract and full-suite's scoped leg group, then runs every k6 suite — remittance-race first (it needs a fresh clock-in; strict 201 vs the others' 409 tolerance). Failure-safe cleanup always restores test-DB cleanliness. Manual diagnostic when load/contract behavior is the ticket's actual question. |
 | `tools/quality/inspect.sh` | Static-analysis reproduction commands (#532, map #531 Phase A): `detekt`, `compiler`, `parity`, `ide-profile`, `all` — same committed config/profile CI uses. Full multi-platform Detekt/test coverage stays asynchronous CI work (#329). |
 | `tools/quality/wrapper-contract.test.sh` | Proves every `scripts/*` compat wrapper exec-delegates with arg/status propagation and reaches the same endpoints from any cwd (map #533 #569). |
@@ -101,7 +100,7 @@ prefer the canonical path.
 | `tools/wayfinder/wayfinder-park.sh` | Parks uncommitted mid-ticket work (`git stash -u`, canonical message, prints the stash line to record in the handoff packet). The chain's spawn gate requires a clean worktree; parking beats a silent forever-pause. |
 | `tools/wayfinder/wayfinder-loop.sh` | Unattended chain daemon: watches `.wayfinder/handoffs/` (content-hash tracked), spawns each successor session with `/wayfinder <packet>`, supervises it (question/permission pings, immediate-stop + zombie resume, bounded 2-retry pause-and-page, unbounded recovery only for truncated-provider errors), gates spawns on a clean worktree and a free-disk floor. Never stages or commits (`test-wayfinder-loop-no-git-writes.sh` guards that). Modes: `--bootstrap <doc>` first start, plain restart, `--resume <sid>` in-place, `--retry` fresh respawn of a confirmed-gone session. |
 | `tools/wayfinder/test-wayfinder-loop-no-git-writes.sh` | Recording git shim proves the daemon bootstrap/spawn paths issue no `add`/`commit`/stash-like commands; dirty tree pauses instead of auto-committing. Covers both canonical and wrapper entrypoints. |
-| `tools/wayfinder/test-wayfinder-local-ci-watch.sh` | Contract for the detached local-CI pin/watch path: HEAD pin stability, queued relaunch, verdict dedupe, dry-run planning, and red-verdict repair gating. |
+| `tools/wayfinder/test-wayfinder-ci-watch.sh` | Contract for the hosted-CI repair watch: pending/unknown silence, green verdict dedupe, red-verdict single repair ticket + frontier block, dry-run side-effect freedom. |
 | `tools/wayfinder/recovery-contract.test.sh` | Structural + behavioral contract for the recovery prompt, retry guard, transient-error nudges, and progress-budget reset; also proves the loop wrapper delegates. |
 | `tools/wayfinder/wrapper-contract.test.sh` | Proves every `scripts/wayfinder-*` wrapper exec-delegates with arg/status/signal propagation and reaches the same endpoints from any cwd. |
 

@@ -118,10 +118,9 @@ Before any exit the worktree is clean: commit coherent slices normally
 `tools/wayfinder/wayfinder-park.sh <note>` and record the exact stash ref. Successors
 pop only the stash their packet names — no unrelated stash is touched.
 
-After the packet is recorded and the worktree is clean, launch
-`bash tools/quality/local-ci.sh` detached as the final exit action and leave
-without waiting: the run pins HEAD, the daemon watchdog consumes
-`result.txt`, and the sweep never gates exit.
+After the packet is recorded and the worktree is clean, stop: hosted CI owns
+broad verification asynchronously and the daemon's repair watch consumes its
+verdict — no local exit sweep exists (the local-CI runner is retired, ref #627).
 
 ## Negative controls
 

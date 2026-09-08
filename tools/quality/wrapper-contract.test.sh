@@ -15,7 +15,6 @@ bad() { echo "  FAIL: $1"; fail=1; }
 # wrapper path -> canonical path
 pairs=(
   "scripts/validate.sh:tools/quality/validate.sh"
-  "scripts/local-ci.sh:tools/quality/local-ci.sh"
   "scripts/inspect.sh:tools/quality/inspect.sh"
   "scripts/setup-hooks.sh:tools/quality/setup-hooks.sh"
   "scripts/check-test-cleanliness.sh:tools/database/check-test-cleanliness.sh"
@@ -61,15 +60,6 @@ if [ "$canon_rc" -eq 2 ] && [ "$wrap_rc" -eq 2 ]; then
   ok "check-baselines missing-log exits 2 via both paths (cwd-independent)"
 else
   bad "check-baselines status mismatch (canonical=$canon_rc wrapper=$wrap_rc, want 2)"
-fi
-
-# local-ci --status with no state reports the same endpoint via both paths.
-canon_out="$(bash "$ROOT/tools/quality/local-ci.sh" --status 2>&1 || true)"
-wrap_out="$(cd /tmp && bash "$ROOT/scripts/local-ci.sh" --status 2>&1 || true)"
-if [ "$canon_out" = "$wrap_out" ]; then
-  ok "local-ci wrapper resolves canonically from any cwd (same endpoint)"
-else
-  bad "local-ci cwd-independence check failed"
 fi
 
 echo

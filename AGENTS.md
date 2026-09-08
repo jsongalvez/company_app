@@ -121,12 +121,8 @@ docker compose -f docker/docker-compose.yml down -v   # teardown + wipe data
 
 # Targeted local validation (map #329) — auto-selects the narrowest warm Gradle
 # tasks for the current change; pass gradle args to override. No broad gates.
+# Broad verification is hosted CI's job (uncapped minutes); no local sweep exists.
 bash tools/quality/validate.sh
-
-# Local full-CI replication (#341) — runs the hosted quality.yml gate set detached
-# (non-blocking) when CI minutes are unavailable; opt-in diagnostic, never a gate.
-bash tools/quality/local-ci.sh            # launch detached
-bash tools/quality/local-ci.sh --status   # per-gate PASS/FAIL/SKIP/RUNNING
 
 # Format (auto-fix all subprojects)
 ./gradlew ktlintFormat
@@ -202,16 +198,15 @@ never recalibrate from a single run; after any CI-runner baseline shift, dispatc
 several times and recompute the medians. See `backend/AGENTS.md` for the full performance
 workflow (measureTimedValue, JFR profiling, k6 load testing, threshold tuning procedure).
 
-CI is asynchronous and budgeted (#333): the active agent never polls it, and a failed run is
+CI is asynchronous and uncapped: the active agent never polls it, and a failed run is
 the durable repair signal — next-session corrective priority, not a synchronous gate.
 **Next-session reconciliation** is the session-start check: one `gh api
 repos/jsongalvez/company_app/commits/<latest-master-sha>/check-runs --jq '[.check_runs[] |
 select(.conclusion != "success" and .conclusion != null) | .name]'` call (unbilled, no hosted
-compute); red = repair first, green/pending = continue under the map. GitHub-hosted Actions
-minutes are a constrained monthly budget: the hosted set is capped at **≤300 minutes/month**
-(quality ≤240, jmh ≤55 manual-dispatch diagnostics), and hosted schedules beyond this
-set need a measured reserved slice of that cap before existing. Ordinary successful tickets
-consume near-zero hosted minutes.
+compute); red = repair first, green/pending = continue under the map. Hosted Actions
+minutes are uncapped, so ordinary pushes verify remotely with no local sweep (the
+local-CI runner is retired, ref #627). Keep pushes batched (one per ticket) so CI
+queues and history stay clean.
 
 ## Ticket tracking
 
