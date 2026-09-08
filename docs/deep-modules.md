@@ -24,7 +24,7 @@ routes (thin: parse → call one service command; capability before-filters)
 ```
 
 **Where depth lives:** Branch Day hides day-state semantics behind a handful of
-functions; Finance hides the commission engine and the serializable remittance
+functions; Commission hides the commission engine and Remittance the serializable
 workflow; Capability is narrow by design; Audit looks trivial but hides JSONB diffing,
 flagging, and read scoping. The remaining top-level services (users, clients,
 products/categories) are shallow CRUD-style
@@ -46,7 +46,7 @@ intentionally shallow.
 
 ## Capability (Authorization)
 
-**Owns:** the grant model (GLOBAL/BRANCH/BRANCH_DAY contexts, validity windows, sources/priorities), the central check over `active_user_capabilities`, route-level enforcement helpers, branch read-window scoping.
+**Owns:** the grant model (GLOBAL/BRANCH/BRANCH_DAY contexts, validity windows, sources/priorities), the central check over `active_user_capabilities`, resolved-scope route checks, branch read-window scoping. Resource-specific resolution lives in feature-owned helpers (`SessionAuthz`, `ExpenseAuthz`, `RemittanceAuthz`), not the central filter (#605).
 **Anchors:** `authorization/CapabilityService.kt`, `authorization/CapabilityFilter.kt`, `authorization/CapabilityRepository.kt` (internal).
 **Public seam:** `hasCapability` / `requireCapability` (+ `ForBranchDay` / `AnyContext` variants) · `GLOBAL_CONTEXT_ID` (nil UUID) · `CapabilityFilter.require*` family · `BranchReadScope.windowBranchIds` · grant seams on `AuthorizationGrants` (`grantReliefCapabilityInTransaction` / `deleteReliefGrantBySourceIdInTransaction` / `grantDelegateCapabilityInTransaction` / `closeDelegateCapabilityInTransaction` — workforce commands write grants only through these, supplying target user/branch/day and source identity while the fixed capability/source/context/priority stay authorization-owned (#606); the table and `GrantStore` stay internal to the owner). GLOBAL grants never satisfy day-scoped gates (#131 strictness); inventory is not relief-eligible (#157).
 **Depends on:** nothing upstream semantically; consumed by nearly everything.
@@ -76,7 +76,7 @@ intentionally shallow.
 ## Session
 
 **Owns:** session aggregate — type ladder (`computeSessionType`: REGULAR→SECOND→SUBSEQUENT, mission/provincial variants), base-rate snapshot at create, optimistic-versioned updates, void/unvoid records, practitioner management (slot snapshots + parent version bumps), concerns + promotion, base-rate rotation, create preview.
-**Anchors:** `session/SessionService.kt` (+ internal `SessionRepository` in same package) · `session/SessionRoutes.kt` · `session/SessionBaseRateService.kt`.
+**Anchors:** `session/SessionService.kt` (+ internal `SessionRepository` in same package) · `session/SessionRoutes.kt` · `session/SessionAuthz.kt` (feature-owned route gate, #605) · `session/SessionBaseRateService.kt`.
 **Public seam:** `SessionService` commands (`create` / `updateStatus` / `updateFinalPrice` / `voidSession` / `unvoidSession`) · `computeSessionType` (pure) · `previewSession` · practitioner ops via `SessionPractitionerService` · concern ops via `SessionConcernService` (catalog `ConcernService.listAll` stays distinct) · rate ops via `SessionBaseRateService` · `SessionReads.findById` / `findByIdInTransaction` / `hasActivePendingSessionInTransaction` (commerce/remittance/dashboard/authz/client reads).
 **Depends on:** Branch Day (gates + find-only gated-day handoff #157), Client (row lock + existence reads via the `ClientReads` seam; one-PENDING guard stays session-owned), Workforce membership/slot facts via the `WorkforceReads` seam (ACTIVE member check #366, unended slot lookup).
 **Expansion triggers:** version-bump mechanics (`incrementSessionVersion` count-0 rule); walk-in status CHECK constraint; `idx_client_one_pending_session` backstop; `active_session_voids` view consumers (commission, remittance pickers, scheduler, dashboard).
@@ -110,15 +110,35 @@ intentionally shallow.
 **Expansion triggers:** idempotent-retry ownership classification (day mismatch = 404 vs field mismatch = 409); stock guard ordering.
 **Search:** `insertSaleInTransaction`, `commissionAmountAtTime`.
 
-## Finance (Day entries · Commission · Remittance)
+## Finance (Day entries)
 
-**Owns:** day-entry mutation policy — expenses (soft-delete/restore + reason), compensations (paying/work branch authority + uniqueness), allowances (excluded from P&L) — each with idempotent commands, day locks and audit atomicity · the commission engine (eligible set = clocked-in-at-sale ∓ manual inclusions; split at scale 4; replace-per-day splits; `recalculateInTransaction` store-side entry for enclosing commands) · the remittance workflow (DRAFT→SUBMITTED under SERIALIZABLE isolation, immutable SESSION financial snapshot, 48h undo window on the DB clock, day transitions via the Branch Day boundary, overlap-exclusion mapping).
-**Anchors:** `finance/ExpenseService.kt` (+ internal `ExpenseRepository`, record + internal `ExpenseTable` in same package) · `finance/CompensationService.kt` (+ internal `CompensationRepository`) · `finance/AllowanceService.kt` (+ internal `AllowanceRepository`) · `finance/FinanceReads.kt` · `remittance/RemittanceService.kt` (pure rules in `remittance/RemittancePolicy.kt`).
-**Public seam:** finance `FinanceReads.findExpenseById(InTransaction)` / `findCompensationById(InTransaction)` (authz + compensation-gate reads; service-to-service, no allowlist) · remittance `submit` / `undoAt` / `createDraft` / `updateHeader` / `addLine` / `removeLine` / `addDayBreakdown` / `getDrift` / list+picker reads · commission `recalculate(InTransaction)` / `splitCommission` / `liveCommissions` / `createManualInclusion` / `getByBranchDayId`.
-**Depends on:** Branch Day (locks, mark/release days), Session + Product Sales (line-source validation, gross sums), Workforce attendance windows via the `WorkforceReads` seam (commission eligibility); finance day-entry rows feed remittance sums via direct table reads inside the remittance internal store (deliberate; #546 owns the finance move, no new seam), capability/compensation gates via the `FinanceReads` seam.
-**Expansion triggers:** V13 trigger carve-out for snapshot deletion; `no_remittance_overlap` exclusion constraint; BigDecimal no-rounding rule (remittance sums) vs scale-4 splits; drift read semantics.
+**Owns:** day-entry mutation policy — expenses (soft-delete/restore + reason), compensations (paying/work branch authority + uniqueness), allowances (excluded from P&L) — each with idempotent commands, day locks and audit atomicity.
+**Anchors:** `finance/ExpenseService.kt` · `finance/CompensationService.kt` · `finance/AllowanceService.kt` · `finance/FinanceReads.kt` · `finance/ExpenseAuthz.kt` (feature-owned route gate, #605).
+**Public seam:** `FinanceReads.findExpenseById(InTransaction)` / `findCompensationById(InTransaction)` (authz + compensation-gate reads; service-to-service, no allowlist).
+**Depends on:** Branch Day (locks), Capability (route gates via `ExpenseAuthz` over `CapabilityFilter`).
+**Expansion triggers:** expense soft-delete/restore + reason vocabulary; compensation paying/work-branch authority + uniqueness; allowance P&L exclusion.
+**Tests/authority:** `docs/business-requirements.md` (Finance and Compensation); backend `AGENTS.md` "Authorization".
+**Search:** `FinanceReads`, `ExpenseAuthz`.
+
+## Commission
+
+**Owns:** the commission engine — eligible set = clocked-in-at-sale ∓ manual inclusions; split at scale 4; replace-per-day splits; `recalculateInTransaction` store-side entry for enclosing commands.
+**Anchors:** `commission/CommissionService.kt` · `commission/CommissionSplit.kt` · `commission/CommissionRoutes.kt`.
+**Public seam:** `recalculate(InTransaction)` / `splitCommission` / `liveCommissions` / `createManualInclusion` / `getByBranchDayId`.
+**Depends on:** Workforce attendance windows via the `WorkforceReads` seam (eligibility); recalc joins the clock-in/out transaction; consumed live by the session dashboard (never read from `commission_split` rows for display).
+**Expansion triggers:** BigDecimal scale-4 splits (vs remittance no-rounding sums); replace-per-day split semantics.
+**Tests/authority:** `docs/engines.md` (exact pseudocode).
+**Search:** `recalculateInTransaction`, `splitCommission`.
+
+## Remittance
+
+**Owns:** the remittance workflow — DRAFT→SUBMITTED under SERIALIZABLE isolation, immutable SESSION financial snapshot, 48h undo window on the DB clock, day transitions via the Branch Day boundary, overlap-exclusion mapping.
+**Anchors:** `remittance/RemittanceService.kt` (pure rules in `remittance/RemittancePolicy.kt`) · `remittance/RemittanceAuthz.kt` (feature-owned route gate, #605) · `remittance/RemittanceRoutes.kt`.
+**Public seam:** `submit` / `undoAt` / `createDraft` / `updateHeader` / `addLine` / `removeLine` / `addDayBreakdown` / `getDrift` / list+picker reads.
+**Depends on:** Branch Day (mark/release days), Session + Product Sales (line-source validation, gross sums); finance day-entry rows feed remittance sums via direct table reads inside the remittance internal store (deliberate; #546 owns the finance move, no new seam).
+**Expansion triggers:** V13 trigger carve-out for snapshot deletion; `no_remittance_overlap` exclusion constraint; BigDecimal no-rounding rule (remittance sums); drift read semantics.
 **Tests/authority:** `docs/engines.md` (exact pseudocode); `RemittancePolicy` is DB-free unit-tested; k6 `remittance-race-test.js` covers the serializable race.
-**Search:** `recalculateInTransaction`, `assertWithinUndoWindow`, `remittance_financial_snapshot`.
+**Search:** `assertWithinUndoWindow`, `remittance_financial_snapshot`.
 
 ## Relief
 
@@ -140,15 +160,25 @@ intentionally shallow.
 **Tests/authority:** ADR-0014 (audit field mapping), ADR-0019 (before-state capture); backend `AGENTS.md` "Audit logging".
 **Search:** `AuditLogTableRegistry`, `auditFields`, `recordUpdate(`.
 
-## Dashboard & Notifications
+## Session Dashboard
 
-**Owns:** universal post-clock-in dashboard read (enrichment aggregation + live commission replication mirroring the engine), notification-as-authorization session detail (#152), the notification store (occurrence-keyed uniqueness via `(dedup_key, user_id)`), appointment reminder sweep, scheduler lifecycle.
-**Anchors:** `session/dashboard/DashboardService.kt` (+ internal `DashboardRepository`, records + `mapDashboardSession` in same package) · `session/dashboard/DashboardRoutes.kt` · `notification/NotificationService.kt` (+ internal `NotificationRepository`, record + internal `NotificationTable` in same package) · `notification/NextAppointmentScheduler.kt` (+ internal `NextAppointmentRepository`) · `notification/NotificationRoutes.kt` · `app/SchedulerLifecycle.kt` (#551 composition-supplied jobs).
-**Public seam:** `DashboardService.getToday` / `getSessionDetail` · `NotificationService.listUnread` / `browseHistory` / `countUnread` / `markRead` / `markAllRead` · `NotificationReads.existsForSessionAndUser` / `findUsersBySource` + `NotificationAppender.append` (relief/session-detail reads + broadcasts; service-to-service, no allowlist).
-**Depends on:** Attendance (dashboard gate), Commission (live eligibility replication), Sessions (detail + reminders), Branch Day (scheduler operational dates).
-**Expansion triggers:** occurrence-identity dedup keys (appointment session+target date, relief event+source, revocation `:direct` audience split) under UNIQUE `(dedup_key, user_id)` (#508); ownership-in-WHERE read-state rule (#141).
+**Owns:** universal post-clock-in today read (enrichment aggregation + live commission replication mirroring the engine) and the notification-as-authorization session detail (#152).
+**Anchors:** `session/dashboard/DashboardService.kt` (+ internal `DashboardRepository`, records + `mapDashboardSession` in same package) · `session/dashboard/DashboardRoutes.kt`.
+**Public seam:** `DashboardService.getToday` / `getSessionDetail`.
+**Depends on:** Attendance (post-clock-in gate), Commission (live eligibility replication), Notification (bearer check via `NotificationReads.existsForSessionAndUser`).
+**Expansion triggers:** enrichment shape (`mapDashboardSession`); bearer rule (#141 ownership-in-WHERE).
 **Tests/authority:** backend `AGENTS.md` "Sessions" (dashboard + detail gate exceptions).
-**Search:** `mapDashboardSession`, `existsForSessionAndUser`, `insertBatch`.
+**Search:** `mapDashboardSession`, `getSessionDetail`.
+
+## Notification Mailbox
+
+**Owns:** the notification store (occurrence-keyed uniqueness via `(dedup_key, user_id)`), mailbox reads, appointment reminder sweep.
+**Anchors:** `notification/NotificationService.kt` (+ internal `NotificationRepository`, record + internal `NotificationTable` in same package) · `notification/NotificationRoutes.kt` · `notification/NextAppointmentScheduler.kt` (+ internal `NextAppointmentRepository`).
+**Public seam:** `NotificationService.listUnread` / `browseHistory` / `countUnread` / `markRead` / `markAllRead` · `NotificationReads.existsForSessionAndUser` / `findUsersBySource` + `NotificationAppender.append` (relief/session-detail reads + broadcasts; service-to-service, no allowlist).
+**Depends on:** Sessions (detail + reminders), Branch Day (scheduler operational dates); scheduled by the app composition (`app/SchedulerLifecycle`, see Platform).
+**Expansion triggers:** occurrence-identity dedup keys (appointment session+target date, relief event+source, revocation `:direct` audience split) under UNIQUE `(dedup_key, user_id)` (#508); producer-owned occurrence identity (#614, blocked on #602).
+**Tests/authority:** `NotificationIdempotencyPostgresTest`, `NextAppointmentSchedulerPostgresTest`.
+**Search:** `existsForSessionAndUser`, `NotificationAppender.append`, `insertBatch`.
 
 ## Client
 
@@ -162,7 +192,7 @@ intentionally shallow.
 ## Reporting
 
 **Owns:** summary projections, cursors, report assembly and CSV/PDF rendering — daily/monthly/all-time/branch-type reads over `daily_sales_summary` / `monthly_remittance_summary` views; results never stored. Monthly row mapping is single-sourced (`toMonthlyRemittanceSummary`).
-**Anchors:** `reporting/DailySalesSummaryService.kt` (+ internal `DailySalesSummaryRepository`, record + internal `DailySalesSummaryView` in same package) · `reporting/MonthlyRemittanceSummaryService.kt` (+ internal `MonthlyRemittanceSummaryRepository`, shared monthly mapper) · `reporting/ExportService.kt` (+ internal `ExportRepository`, `BranchTypeMonthlySummary`) · `reporting/CsvExporter.kt` · `reporting/PdfExporter.kt` · `reporting/ExportContract.kt` · `reporting/DailySalesSummaryRoutes.kt` · `reporting/MonthlyRemittanceSummaryRoutes.kt` · `reporting/ExportRoutes.kt`.
+**Anchors:** `reporting/DailySalesSummaryService.kt` · `reporting/MonthlyRemittanceSummaryService.kt` (shared monthly mapper) · `reporting/ExportService.kt` · `reporting/ExportContract.kt` · `reporting/ExportRoutes.kt`.
 **Public seam:** `getDailySummary` / `browseDailySummaries` · `getMonthlySummary` · `exportDaily` / `exportRange` / `exportMonthly` / `exportAllTime` / `exportByBranchType` → `ExportResult(bytes, contentType, fileName)`.
 **Depends on:** Branch Day (existence + day reads via `BranchService`/`BranchDayService`), Branch existence, Capability read windows; export branch-type summaries join `branch` rows inside the internal store (recorded projection grant, #608).
 **Expansion triggers:** route-gate shape — the wildcard before-filter `/api/branches/{branchId}/export/*` is load-bearing (#114 lesson, fourth occurrence); new summary source; cursor format (`date|branchDayId` opaque).
@@ -175,7 +205,7 @@ intentionally shallow.
 Not a semantic module — read only when the ticket touches it directly:
 `Main.kt` (explicit composition root: Javalin wiring, `/api/*` JWT filter, exception→status mapping, scheduler job wiring — #551),
 `exception/ServiceExceptions.kt`, `api/routes/RoutesUtil.kt` (parsing/keyset limits),
-`database/DatabaseConfig.kt` + `DatabaseHealth.kt`, `app/AppConfig.kt` (#551 startup composition),
+`database/DatabaseConfig.kt` + `DatabaseHealth.kt`, `app/AppConfig.kt` + `app/SchedulerLifecycle.kt` (#551 startup composition: composition-supplied jobs),
 `http/KotlinxSerializationMapper.kt` + `http/openapi/*` (canonical contract, projector, export — #551),
 `observability/*` (incident packets/delivery, metrics, feedback/metrics adapters, slow-query reads — #551),
 `logging/*` converters (tracing stays distinguishable from observability — #551),

@@ -14,6 +14,11 @@ Before coding, read the relevant doc(s):
 | `docs/javalin-framework.md` (at `backend/docs/javalin-framework.md`) | Before writing Javalin routes, handlers, or tests — Javalin 7.x API reference |
 | `CONTEXT.md` | Domain glossary and precise terminology |
 
+Most behavior is **shallow**: follow `docs/agents/context-discovery.md` — skip module cards,
+search the obvious service/entity, and follow the direct service → repository → route/test path.
+Deep-module cards exist for deep machinery only; cross Branch Day or Audit only where actual
+calls or invariants require it.
+
 ## Schema
 
 `V1__full_schema.sql` (structural baseline: #370 squash, #461 refold, #548 refold
@@ -272,7 +277,9 @@ Route handlers may still throw Javalin HTTP exceptions for request-validation co
 
 Before any operational/financial write, resolve the owning day with
 `BranchDayService.resolveOrCreate(branchId, date)` and gate it with
-`BranchDayService.assertEditable(branchDayId, userId, reason?)`. Day state is **lazy**: an OPEN day
+`BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason?)` — or
+`checkBranchDayEditableInTransaction` inside the command's transaction when the day
+status must not change between the check and the write. Day state is **lazy**: an OPEN day
 whose calendar date precedes today (Asia/Manila) is treated as PAST without a DB write — reuse
 `BranchDayService.evaluateStatus` instead of re-deriving. `EDIT_PAST_DAY` is scoped to `BRANCH`
 context (contextId = `branch_day.branch_id`).
@@ -381,40 +388,36 @@ val myJsonCol = registerColumn("my_json_col", JsonBColumnType()).nullable()
 
 ## Sessions
 
-Session create (`POST /api/sessions`) uses an idempotent PK lookup first (`SessionRepository.findById`) to handle retries with the same UUID before checking the PENDING guard (`hasActivePendingSession`). This prevents `ConflictException` for idempotent retries.
+Behavioral rules (type ladder, pricing, concerns, void policy) live in
+`docs/business-requirements.md` (Sessions); the owner is `session/`
+([router](deep-modules.md)). Gate-critical rules kept here:
 
-Dashboard read (`GET /api/branches/{branchId}/dashboard/today`, `DashboardService`/`DashboardRoutes`) returns today's enriched session rows (client name, practitioner names, voided-ness via `active_session_voids`, structured concerns) plus the caller's own commission — computed live by `CommissionService`'s shared batched aggregation (clocked-in-at-sale-time + manual inclusions), NOT read from `commission_split` rows (a forced recalc on a PAST day could otherwise serve stale splits). The gate is the caller's own active clock-in at the branch today (`AttendanceService.hasActiveClockIn`) — the dashboard is universal post-clock-in and deliberately NOT capability-gated; a caller clocked in elsewhere gets 403 (no cross-branch window).
+Session create uses an idempotent PK lookup first (`SessionRepository.findById`) before the
+PENDING guard (`hasActivePendingSession`) — retries with the same UUID must not 409.
 
-Session detail read (`GET /api/sessions/{sessionId}`, #152/#151) is a deliberate exception to the "read endpoints gate on capabilities" rule: the gate is **bearer-only** — the caller may fetch iff a notification row exists for `(sessionId, caller)`, any read state (the notification IS the authorization; the #141 ownership shape). 404 for both non-bearer and missing sessions; no day-state gate (the #138 `checkBranchDayReadable` rule governs capability-gated browsing, and notified sessions' branch days are today-or-past — an `EDIT_PAST_DAY` requirement would 403 the primary case). Response reuses `DashboardSessionResponse` via the shared `mapDashboardSession` mapper.
+Dashboard read (`GET /api/branches/{branchId}/dashboard/today`) is universal post-clock-in
+(`AttendanceService.hasActiveClockIn`) and deliberately NOT capability-gated; commission is
+computed live, never read from `commission_split` rows (a forced recalc on a PAST day would
+serve stale splits). Session detail read (`GET /api/sessions/{sessionId}`, #152) is bearer-only:
+a notification row for `(sessionId, caller)` IS the authorization (404 for non-bearer and
+missing alike; no day-state gate).
 
-The `computeSessionType` pure function is extracted from the service so it can be unit-tested without a database. The prior session count excludes MEDICAL_MISSION sessions and voided sessions (via `active_session_voids` view LEFT JOIN).
-
-For concurrency, the partial unique index `idx_client_one_pending_session` is the database-level backstop against duplicate PENDING sessions for the same client — the service pre-check (`hasActivePendingSession`) is the first line of defense, followed by the unique index. Row locks via Exposed `Query.forUpdate()` ARE available and execute only with a terminal op (`.singleOrNull()`) — `SessionRepository.acquireClientLock` / `ProductSaleRepository.acquireInventoryLock` / the RemittanceRepository lock helpers materialize them this way; a `forUpdate()` without a terminal op silently no-ops (the #136 lazy-lock bug class).
-
-Session status update (`PATCH /api/sessions/{sessionId}/status`) uses Exposed DSL `SessionTable.update({ (id eq sessionId) and (version eq expectedVersion) })` for atomic optimistic locking — if the version doesn't match, no rows are updated and the service throws 409 Conflict. The version is incremented by setting `it[SessionTable.version] = expectedVersion + 1`. Call `AuditLog.record` inside the same `transaction {}` block. The DB has `CONSTRAINT walk_in_status CHECK (NOT (is_walk_in = true AND session_status IN ('NO_SHOW', 'CANCELLED')))` — always validate this at the service layer for a cleaner 400 error before hitting the DB constraint.
-
-Session practitioner management (`POST/PATCH/DELETE /api/sessions/{sessionId}/practitioners`) uses the `session_practitioner` table (UNIQUE on session_id + practitioner_id) with `insertIgnore` for idempotent adds. When adding a practitioner, `slot_at_time` is snapshotted from the user's active `user_branch_assignment` at the session's branch (defaults to 999 if no assignment exists). Each practitioner mutation (add, update remarks, remove) atomically increments `session.version` using a read-then-write pattern (`select version then update to version + 1`). All mutations gate on `EDIT_BRANCH_DATA` capability and call `BranchDayService.assertEditable`.
+Concurrency gotchas: the partial unique index `idx_client_one_pending_session` backstops the
+PENDING pre-check; `Query.forUpdate()` executes only with a terminal op (`.singleOrNull()`) —
+a `forUpdate()` without one silently no-ops (the #136 lazy-lock bug); validate the walk-in
+status CHECK at the service layer for a clean 400 before hitting the DB constraint. Status and
+practitioner mutations use optimistic versioning with 409 on mismatch and gate on
+`EDIT_BRANCH_DATA` + `checkBranchDayEditable` (or the `InTransaction` variant).
 
 ## Clock-in / Attendance
 
-Clock-in (`POST /api/attendance/clock-in`) is open to all authenticated users (no capability gate).
-The service determines `is_relief` by checking for an active `user_branch_assignment` at the target
-branch: if no assignment exists, the user clocks in as relief.
+Behavioral rules live in `docs/business-requirements.md` (Attendance & Presence, Relief Duty);
+the owner is `workforce/` ([router](deep-modules.md)). Gate-critical rules kept here:
 
-Before inserting, check for an existing active clock-in via `AttendanceRepository.hasActiveClockIn`
-and throw `ConflictException` (409) if found — this prevents the unique index
-violation on `idx_one_active_clock_in`.
-
-The attendance insert and `branch_day_assignment` upsert happen in a single transaction using
-`insertIgnore` for idempotency. `insertIgnore` with `insertedCount` detects whether the row was
-newly inserted; if the row already exists (count = 0), the existing row is read back with a
-follow-up `selectAll`.
-
-Clock-out (`POST /api/attendance/clock-out`) is a non-mutating lookup for idempotency: if the
-attendance record already has `clock_out` set, return the existing row with HTTP 200. Otherwise,
-update `clock_out = now()` where `clock_out IS NULL` (using `Table.update` with `and` condition),
-write an audit log entry for the UPDATE, and return the updated record. `isRelief` is fetched from
-`branch_day_assignment` via `AttendanceRepository.branchDayAssignmentIsRelief`.
+Clock-in is open to all authenticated users (no capability gate). `is_relief` derives from the
+active home assignment at clock-in (no assignment at the target branch = relief). Pre-check
+`hasActiveClockIn` and throw 409 before inserting (the `idx_one_active_clock_in` backstop).
+Clock-out is idempotent: an already-closed record returns HTTP 200 with the existing row.
 
 ## Testing
 
@@ -442,6 +445,8 @@ dotenv-kotlin can load the root `.env`.
 ## Performance & benchmarking
 
 Adding a feature that touches a hot path? You **must** verify it didn't regress performance.
+JMH/k6 policy (manual diagnostics, median baselines, no local gates) lives in "Targeted
+validation" above and root `AGENTS.md` "Performance".
 
 ### Quick regression check — `measureTimedValue`
 
@@ -466,137 +471,23 @@ Use generous thresholds initially; tighten them after a few runs establish a bas
 These are the most performance-sensitive call paths — always add a timing assertion when
 modifying code in these areas:
 
-1. **`computeSessionType`** (`SessionTypeAlgorithm`) — pure function, fast, unit-testable
+1. **`SessionService.computeSessionType`** — pure function, fast, unit-testable
 2. **`CommissionService`** calculations — run per-session, high call volume
 3. **`BranchDayService.resolveOrCreate` / `evaluateStatus`** — called on every write
 4. **`RemittanceService`** — aggregation queries over large line sets
-5. **`HasCapability`** / `active_user_capabilities` view — checked on every API call
+5. **`CapabilityService.hasCapability`** / `active_user_capabilities` view — checked on every API call
 
-### JMH microbenchmarks
+### Manual diagnostics (only when performance is the ticket's question)
 
-JMH is wired into the backend module via the `me.champeau.jmh` Gradle plugin. Benchmarks live
-under `backend/src/jmh/java/` (Java source set — JMH annotation processing is Java-only).
-
-Run all benchmarks:
-```bash
-./gradlew :backend:jmh
-```
-
-**Writing a new benchmark** — add a Java file under
-`backend/src/jmh/java/com/companyb/companyapp/benchmark/`. Kotlin `object` singletons and
-top-level functions are accessible from Java as `ClassName.INSTANCE` or `ClassNameKt`:
-
-```java
-package com.companyb.companyapp.benchmark;
-
-import com.companyb.companyapp.session.SessionService;
-import org.openjdk.jmh.annotations.*;
-import org.openjdk.jmh.infra.Blackhole;
-
-@State(Scope.Thread)
-@Fork(1)
-@Warmup(iterations = 3, time = 1)
-@Measurement(iterations = 5, time = 1)
-public class SomeBenchmark {
-
-    @Benchmark
-    public void myHotPath(Blackhole bh) {
-        bh.consume(SessionService.INSTANCE.someMethod(input));
-    }
-}
-```
-
-The Gradle config (warmup, iterations, fork, threads) is in `backend/build.gradle.kts` under
-the `jmh { }` block. Override per-benchmark with `@Warmup` / `@Measurement` annotations.
-
-### JFR (JDK Flight Recorder) — zero-instrumentation profiling
-
-No extra dependencies — JFR is built into the JVM (>= 11). Two Gradle tasks are wired in
-`backend/build.gradle.kts`:
-
-```bash
-# Standard recording (CPU, lock contention, I/O)
-./gradlew :backend:runWithJfr
-
-# Allocation-profiling recording (also captures object allocations)
-./gradlew :backend:runWithJfrAllocation
-```
-
-Both write the recording to `logs/recording.jfr` / `logs/recording-alloc.jfr`.
-
-Analyze recordings with:
-- **JDK Mission Control** (`jmc`) — install separately (OpenJDK or Azul builds)
-- **`jfr view`** — built into JDK 21+: `jfr view logs/recording.jfr`
-- **Async Profiler converter**: `java -jar converter.jar jfr2flame recording.jfr flamegraph.html`
-
-Key things to look for in JFR:
-- **Hot Methods** tab → CPU-bound methods (sort by self time)
-- **Allocations** tab (only with `allocation` profile) → object creation hotspots
-- **Java Monitor Blocked** events → lock contention
-- **Socket I/O** events → database/network bottlenecks
-
-### HTTP-level load testing (k6)
-
-All k6 scripts live in `tools/performance/k6/`. `helpers.js` is the single source of truth for metrics,
-thresholds, and auth utilities.
-
-k6 tests MUST run against the **test database** (`company_app_test`), not the main DB.
-The test DB is designed for throwaway use; clean it after each run with
-`bash tools/database/clean-test-db.sh` to preserve the cleanliness invariant that
-`tools/database/check-test-cleanliness.sh` verifies.
-
-**Quick start — two terminals:**
-
-Terminal 1 — start the app on the test DB with dev-user seeding:
-```bash
-POSTGRES_DB=company_app_test TEST_USERNAME=owner TEST_PASSWORD=pass ./gradlew :backend:run
-```
-
-Terminal 2 — once the app is ready, run any k6 script:
-```bash
-# Baseline load test (branches, clients search, products — staged ramp-up)
-TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tools/performance/k6/baseline.js
-
-# Full load test (all endpoints, 5 VUs ramp-up)
-TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tools/performance/k6/full-suite.js
-
-# Concurrency edge cases (pending guard, version mismatch, idempotency)
-TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tools/performance/k6/concurrency-test.js
-
-# Authz edge cases (invalid token, expired token, insufficient capability —
-# the 403 principal is the DevSeeder branch-scoped user, #411; full-suite also
-# runs branch-scoped leg group when SCOPED_USERNAME/SCOPED_PASSWORD are set)
-SCOPED_USERNAME=scoped SCOPED_PASSWORD=scopepass k6 run tools/performance/k6/authz-test.js
-
-# Concurrent remittance submission (serializable isolation race)
-TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tools/performance/k6/remittance-race-test.js
-```
-
-After the k6 run, clean the test DB to preserve the cleanliness invariant:
-```bash
-bash tools/database/clean-test-db.sh
-```
-
-Run this workflow manually when load-testing is the ticket's question; hooks and CI do
-not start the backend or run k6 for you (#333/#335 — the hosted k6 workflow was removed, and
-broad/load suites are manual diagnostics).
-
-The baseline uses `thresholdProfiles.baseline` from `tools/performance/k6/helpers.js`. Edit the named profile
-there to adjust thresholds; suites consume profiles and do not own threshold values:
-- `branches_latency`: p95 < 500ms
-- `clients_search_latency`: p95 < 1000ms
-- `product_latency`: p95 < 1000ms
-- `errors`: rate < 5%
-
-**Adding a new endpoint to the baseline** — edit `tools/performance/k6/baseline.js` and
-`tools/performance/k6/helpers.js`:
-1. Use an existing metric from `helpers.js` or add a new `Trend` to `metrics` in `helpers.js`
-2. Add the metric threshold to the appropriate named `thresholdProfiles` entry in `helpers.js`
-3. Add the `http.get`/`http.post` call in the `default` function
-4. Run `k6 run` to establish a baseline p95, then tighten the threshold
-
-Remember: k6 tests the full HTTP stack — serialization, Javalin routing, JDBC, connection
-pooling, and auth middleware. Regressions here won't show up in JMH benchmarks.
+- **JMH** — benchmarks live under `backend/src/jmh/java/` (Java source set); run
+  `./gradlew :backend:jmh` and compare against `backend/jmh-baselines.md`.
+- **JFR** — `./gradlew :backend:runWithJfr` (or `runWithJfrAllocation`); recordings land in
+  `logs/`; analyze with `jmc` or `jfr view`.
+- **k6** — scripts live in `tools/performance/k6/`; `helpers.js` owns metrics and threshold
+  profiles. Run against the **test database** (`company_app_test`), then clean it with
+  `bash tools/database/clean-test-db.sh`. Run instructions and threshold history live in
+  `tools/performance/k6/results/baseline-results.md`. k6 tests the full HTTP stack —
+  regressions here won't show up in JMH benchmarks.
 
 ### Threshold tuning — when and how to adjust limits
 

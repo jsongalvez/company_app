@@ -207,7 +207,17 @@ fun hasCapability(
 ): Boolean
 ```
 
-Called at the top of every mutating service method — not in routes, not in repositories.
+Capability gates live at the route layer as Javalin before-filters ([ADR-0007](adr/0007-route-level-capability-gates.md)):
+each route declares its required capability, with resource-specific resolution in
+feature-local policy helpers (`SessionAuthz`, `ExpenseAuthz`, `RemittanceAuthz` —
+#605) over the shared resolved-scope checks on `CapabilityFilter`. The service
+layer retains day-state assertions (`BranchDayService.checkBranchDayEditable`),
+not capability checks. Documented exceptions keep service/bearer-level enforcement:
+user assignment/slot self-service rules (#134), the bearer-only session-detail read
+(#152), and the universal post-clock-in dashboard read (backend `AGENTS.md`
+"Sessions"). Day-scoped relief edits additionally accept a `BRANCH_DAY` grant for
+the day (the #157 OR shape; GLOBAL never satisfies those gates); single-day reads
+gained day legs under the same strictness (#158).
 
 ### 9.3 Capability Codes
 
