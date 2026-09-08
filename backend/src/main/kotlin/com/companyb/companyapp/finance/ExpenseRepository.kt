@@ -67,12 +67,23 @@ internal object ExpenseRepository {
         expenseId: UUID,
         deletedBy: UUID,
         deletedReason: String,
+        expectedVersion: Int,
     ): Expense {
-        ExpenseTable.update({ ExpenseTable.id eq expenseId }) {
-            it[ExpenseTable.deletedBy] = deletedBy
-            it[ExpenseTable.deletedAt] =
-                CurrentTimestampWithTimeZone
-            it[ExpenseTable.deletedReason] = deletedReason
+        val updatedCount =
+            ExpenseTable.update({
+                (ExpenseTable.id eq expenseId) and
+                    (ExpenseTable.version eq expectedVersion) and
+                    ExpenseTable.deletedAt.isNull()
+            }) {
+                it[ExpenseTable.deletedBy] = deletedBy
+                it[ExpenseTable.deletedAt] =
+                    CurrentTimestampWithTimeZone
+                it[ExpenseTable.deletedReason] = deletedReason
+                it[ExpenseTable.version] = expectedVersion + 1
+            }
+
+        if (updatedCount == 0) {
+            throw VersionMismatchException(ExpenseTable.tableName, expenseId)
         }
 
         val result =

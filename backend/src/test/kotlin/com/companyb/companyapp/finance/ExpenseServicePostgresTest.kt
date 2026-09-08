@@ -393,18 +393,20 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     @Test
     fun `update soft-deleted expense is rejected`() {
         val expenseId = TestFixtures.uuid()
-        ExpenseService.create(
-            callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("500.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = null,
-        )
+        val created =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = null,
+            )
         ExpenseService.softDelete(
             callerId = callerId,
             expenseId = expenseId,
             reason = "Incorrect entry",
+            expectedVersion = created.version,
         )
 
         assertFailsWith<ValidationException> {
@@ -436,6 +438,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             callerId = callerId,
             expenseId = expenseId,
             reason = "Incorrect entry",
+            expectedVersion = created.version,
         )
 
         assertFailsWith<VersionMismatchException> {
@@ -452,7 +455,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
         val after = ExpenseRepository.findById(expenseId)
         assertNotNull(after)
-        assertEquals(created.version, after.version)
+        assertEquals(created.version + 1, after.version)
         assertEquals("Incorrect entry", after.deletedReason)
         assertEquals(BigDecimal("500.00"), after.amount)
     }
@@ -495,20 +498,22 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     @Test
     fun `soft delete expense succeeds and records the reason`() {
         val expenseId = TestFixtures.uuid()
-        ExpenseService.create(
-            callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("500.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = "Test",
-        )
+        val created =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = "Test",
+            )
 
         val deleted =
             ExpenseService.softDelete(
                 callerId = callerId,
                 expenseId = expenseId,
                 reason = "Incorrect entry",
+                expectedVersion = created.version,
             )
 
         assertNotNull(deleted)
@@ -518,6 +523,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         // #153 Q2 — the reason is denormalized on the row (written in the same UPDATE as the
         // soft delete) so the GET stays single-query; the audit row remains the history record.
         assertEquals("Incorrect entry", deleted.deletedReason)
+        assertEquals(created.version + 1, deleted.version, "#663 — delete bumps version mirroring update")
     }
 
     @Test
@@ -527,6 +533,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 callerId = callerId,
                 expenseId = TestFixtures.uuid(),
                 reason = "Wrong entry",
+                expectedVersion = 1,
             )
         }
     }
@@ -534,14 +541,15 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     @Test
     fun `soft delete without EDIT_BRANCH_DATA is allowed at service layer`() {
         val expenseId = TestFixtures.uuid()
-        ExpenseService.create(
-            callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("500.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = "Test",
-        )
+        val created =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = "Test",
+            )
 
         IdentityFixtures.revokeAllCapabilities(callerId)
 
@@ -550,6 +558,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 callerId = callerId,
                 expenseId = expenseId,
                 reason = "Test reason",
+                expectedVersion = created.version,
             )
 
         assertNotNull(deleted)
@@ -558,19 +567,21 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     @Test
     fun `soft delete writes audit log entry`() {
         val expenseId = TestFixtures.uuid()
-        ExpenseService.create(
-            callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("500.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = "Test",
-        )
+        val created =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = "Test",
+            )
 
         ExpenseService.softDelete(
             callerId = callerId,
             expenseId = expenseId,
             reason = "Incorrect entry",
+            expectedVersion = created.version,
         )
 
         val deleteAuditCount =
@@ -584,6 +595,99 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                     }.count()
             }
         assertTrue(deleteAuditCount > 0)
+    }
+
+    @Test
+    fun `soft delete with stale version returns conflict and writes no audit`() {
+        val expenseId = TestFixtures.uuid()
+        ExpenseService.create(
+            callerId = callerId,
+            id = expenseId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("500.00"),
+            category = ExpenseCategory.PANTRY,
+            notes = null,
+        )
+
+        val auditsBefore = callerAuditCount()
+
+        assertFailsWith<ConflictException> {
+            ExpenseService.softDelete(
+                callerId = callerId,
+                expenseId = expenseId,
+                reason = "Stale delete",
+                expectedVersion = 999,
+            )
+        }
+        assertEquals(auditsBefore, callerAuditCount(), "conflicted delete writes no audit rows")
+    }
+
+    @Test
+    fun `stale delete after concurrent update is rejected`() {
+        val expenseId = TestFixtures.uuid()
+        val created =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = "Original",
+            )
+
+        ExpenseService.update(
+            callerId = callerId,
+            expenseId = expenseId,
+            amount = BigDecimal("750.00"),
+            category = ExpenseCategory.WATER,
+            notes = "Concurrent edit",
+            expectedVersion = created.version,
+        )
+
+        assertFailsWith<ConflictException> {
+            ExpenseService.softDelete(
+                callerId = callerId,
+                expenseId = expenseId,
+                reason = "Stale delete over fresh edit",
+                expectedVersion = created.version,
+            )
+        }
+
+        val after = ExpenseRepository.findById(expenseId)
+        assertNotNull(after)
+        assertNull(after.deletedAt, "failed delete leaves the row live")
+        assertEquals(created.version + 1, after.version)
+        assertEquals(0, BigDecimal("750.00").compareTo(after.amount))
+    }
+
+    @Test
+    fun `second soft delete is rejected`() {
+        val expenseId = TestFixtures.uuid()
+        val created =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = null,
+            )
+        val deleted =
+            ExpenseService.softDelete(
+                callerId = callerId,
+                expenseId = expenseId,
+                reason = "First delete",
+                expectedVersion = created.version,
+            )
+
+        assertFailsWith<ValidationException> {
+            ExpenseService.softDelete(
+                callerId = callerId,
+                expenseId = expenseId,
+                reason = "Second delete",
+                expectedVersion = deleted.version,
+            )
+        }
     }
 
     @Test
@@ -635,19 +739,21 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             category = ExpenseCategory.PANTRY,
             notes = "Active expense",
         )
-        ExpenseService.create(
-            callerId = callerId,
-            id = deletedId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("200.00"),
-            category = ExpenseCategory.WATER,
-            notes = "Will be deleted",
-        )
+        val toDelete =
+            ExpenseService.create(
+                callerId = callerId,
+                id = deletedId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("200.00"),
+                category = ExpenseCategory.WATER,
+                notes = "Will be deleted",
+            )
 
         ExpenseService.softDelete(
             callerId = callerId,
             expenseId = deletedId,
             reason = "Incorrect entry",
+            expectedVersion = toDelete.version,
         )
 
         // #153 Q1 (CR-022 flip, commit f8b288a) — the GET includes soft-deleted rows: the
@@ -673,11 +779,13 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 category = ExpenseCategory.WATER,
                 notes = "Will be restored",
             )
-        ExpenseService.softDelete(
-            callerId = callerId,
-            expenseId = expenseId,
-            reason = "Incorrect entry",
-        )
+        val deleted =
+            ExpenseService.softDelete(
+                callerId = callerId,
+                expenseId = expenseId,
+                reason = "Incorrect entry",
+                expectedVersion = created.version,
+            )
 
         val restored =
             ExpenseService.restore(
@@ -689,7 +797,12 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         assertNull(restored.deletedBy)
         assertNull(restored.deletedAt)
         assertNull(restored.deletedReason)
-        assertEquals(created.version, restored.version, "#153 Q6 — no version bump on restore")
+        assertEquals(
+            deleted.version,
+            restored.version,
+            "#153 Q6 — no version bump on restore (#663: delete bumps, restore keeps)",
+        )
+        assertEquals(created.version + 1, restored.version, "#663 — delete bumps version once")
         assertEquals(ExpenseCategory.WATER, restored.category)
     }
 
@@ -732,19 +845,21 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             )
         BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val expenseId = TestFixtures.uuid()
-        ExpenseService.create(
-            callerId = callerId,
-            id = expenseId,
-            branchDayId = remittedDayId,
-            amount = BigDecimal("200.00"),
-            category = ExpenseCategory.WATER,
-            notes = null,
-            reason = "Recorded late",
-        )
+        val createdRemitted =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = remittedDayId,
+                amount = BigDecimal("200.00"),
+                category = ExpenseCategory.WATER,
+                notes = null,
+                reason = "Recorded late",
+            )
         ExpenseService.softDelete(
             callerId = callerId,
             expenseId = expenseId,
             reason = "Incorrect entry",
+            expectedVersion = createdRemitted.version,
         )
 
         assertFailsWith<ValidationException> {
@@ -764,19 +879,21 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             )
         BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         val expenseId = TestFixtures.uuid()
-        ExpenseService.create(
-            callerId = callerId,
-            id = expenseId,
-            branchDayId = remittedDayId,
-            amount = BigDecimal("200.00"),
-            category = ExpenseCategory.WATER,
-            notes = null,
-            reason = "Recorded late",
-        )
+        val createdRemittedWithReason =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = remittedDayId,
+                amount = BigDecimal("200.00"),
+                category = ExpenseCategory.WATER,
+                notes = null,
+                reason = "Recorded late",
+            )
         ExpenseService.softDelete(
             callerId = callerId,
             expenseId = expenseId,
             reason = "Incorrect entry",
+            expectedVersion = createdRemittedWithReason.version,
         )
 
         val restored =
@@ -793,18 +910,20 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     @Test
     fun `restore writes an audit update row`() {
         val expenseId = TestFixtures.uuid()
-        ExpenseService.create(
-            callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("200.00"),
-            category = ExpenseCategory.WATER,
-            notes = "Will be restored",
-        )
+        val createdForAudit =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("200.00"),
+                category = ExpenseCategory.WATER,
+                notes = "Will be restored",
+            )
         ExpenseService.softDelete(
             callerId = callerId,
             expenseId = expenseId,
             reason = "Incorrect entry",
+            expectedVersion = createdForAudit.version,
         )
 
         ExpenseService.restore(

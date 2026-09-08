@@ -28,6 +28,7 @@ data class CreateExpenseRequest(
 @Serializable
 data class DeleteExpenseRequest(
     val reason: String,
+    val expectedVersion: Int,
 )
 
 // #153 — restore body carries only the optional day-state reason (required iff the owning

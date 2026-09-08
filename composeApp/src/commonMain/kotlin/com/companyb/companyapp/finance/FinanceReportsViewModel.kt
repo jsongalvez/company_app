@@ -1128,7 +1128,7 @@ class FinanceReportsViewModel(
             endpoint = "DELETE /api/expenses/${expense.id}",
             block = {
                 apiClient.httpClient.delete(ApiRoutes.expense(expense.id)) {
-                    setBody(DeleteExpenseRequest(reason = reason))
+                    setBody(DeleteExpenseRequest(reason = reason, expectedVersion = expense.version))
                 }
             },
             guarded =
@@ -1140,7 +1140,14 @@ class FinanceReportsViewModel(
                     },
                     stale = { generation != editDataGeneration },
                     onNonSuccess = { response ->
-                        failActionOrSilent403(key, "expense:delete", response)
+                        failActionOrSilent403(
+                            key,
+                            "expense:delete",
+                            response,
+                            conflictMessage = "Expense changed elsewhere — reloaded",
+                        ) {
+                            reloadSection(EditSection.EXPENSES)
+                        }
                     },
                     onError = { e ->
                         actionTracker.fail(key, "expense:delete failed: ${e.message ?: "network error"}")

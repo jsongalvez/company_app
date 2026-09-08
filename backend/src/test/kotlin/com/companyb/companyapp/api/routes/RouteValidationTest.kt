@@ -1246,7 +1246,10 @@ class RouteValidationTest : BasePostgresTest() {
             }
         }
         testServer.client.let { client ->
-            assertEquals(400, client.delete("/api/expenses/$expenseId", mapOf("reason" to "  ")).code)
+            assertEquals(
+                400,
+                client.delete("/api/expenses/$expenseId", mapOf("reason" to "  ", "expectedVersion" to 1)).code,
+            )
         }
     }
 }

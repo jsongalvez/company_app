@@ -215,6 +215,7 @@ object ExpenseRoutes {
                 callerId = callerId,
                 expenseId = expenseId,
                 reason = request.reason,
+                expectedVersion = request.expectedVersion,
             )
 
         context.status(HttpStatus.OK)

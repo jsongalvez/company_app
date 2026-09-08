@@ -422,6 +422,46 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     }
 
     @Test
+    fun `DELETE expense returns 409 on stale version`() {
+        testServer.client.let { client ->
+            val body =
+                mapOf(
+                    "reason" to "Stale delete",
+                    "expectedVersion" to 999,
+                )
+            assertEquals(
+                409,
+                client.delete("/api/expenses/$expenseId", body, asUser(editOnlyUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `DELETE expense succeeds with fresh version and bumps version`() {
+        val deleteId = TestFixtures.uuid()
+        ExpenseService.create(
+            callerId = editOnlyUser,
+            id = deleteId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("120.00"),
+            category = ExpenseCategory.PANTRY,
+            notes = null,
+        )
+        testServer.client.let { client ->
+            val response =
+                client.delete(
+                    "/api/expenses/$deleteId",
+                    mapOf("reason" to "Incorrect entry", "expectedVersion" to 1),
+                    asUser(editOnlyUser),
+                )
+            assertEquals(200, response.code)
+            val body = response.body.string().orEmpty()
+            assertTrue(body.contains("\"version\":2"), "#663 — delete bumps version 1→2")
+            assertTrue(body.contains("\"deletedReason\":\"Incorrect entry\""))
+        }
+    }
+
+    @Test
     fun `PATCH expense returns 400 on invalid amount`() {
         testServer.client.let { client ->
             val body =
@@ -462,18 +502,20 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     @Test
     fun `POST restore soft-deleted expense succeeds and clears deletion fields`() {
         val deletedId = TestFixtures.uuid()
-        ExpenseService.create(
-            callerId = editOnlyUser,
-            id = deletedId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("200.00"),
-            category = ExpenseCategory.WATER,
-            notes = "To delete",
-        )
+        val createdForRestore =
+            ExpenseService.create(
+                callerId = editOnlyUser,
+                id = deletedId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("200.00"),
+                category = ExpenseCategory.WATER,
+                notes = "To delete",
+            )
         ExpenseService.softDelete(
             callerId = editOnlyUser,
             expenseId = deletedId,
             reason = "Incorrect entry",
+            expectedVersion = createdForRestore.version,
         )
         testServer.client.let { client ->
             val response =
@@ -488,25 +530,30 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             // The backend mapper encodes defaults only when non-null — a null defaulted field
             // is omitted from the JSON entirely (assert the field's absence, not `:null`).
             assertTrue(!body.contains("\"deletedReason\""))
-            assertTrue(body.contains("\"version\":1"), "#153 Q6 — no version bump on restore")
+            assertTrue(
+                body.contains("\"version\":2"),
+                "#153 Q6 — no version bump on restore (#663: delete bumps 1→2, restore keeps 2)",
+            )
         }
     }
 
     @Test
     fun `POST restore forbidden for ASSIGN_COMPENSATION-only user`() {
         val deletedId = TestFixtures.uuid()
-        ExpenseService.create(
-            callerId = editOnlyUser,
-            id = deletedId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("200.00"),
-            category = ExpenseCategory.WATER,
-            notes = null,
-        )
+        val createdForbiddenAssign =
+            ExpenseService.create(
+                callerId = editOnlyUser,
+                id = deletedId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("200.00"),
+                category = ExpenseCategory.WATER,
+                notes = null,
+            )
         ExpenseService.softDelete(
             callerId = editOnlyUser,
             expenseId = deletedId,
             reason = "Incorrect entry",
+            expectedVersion = createdForbiddenAssign.version,
         )
         testServer.client.let { client ->
             assertEquals(
@@ -524,18 +571,20 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     @Test
     fun `POST restore forbidden for no-capability user`() {
         val deletedId = TestFixtures.uuid()
-        ExpenseService.create(
-            callerId = editOnlyUser,
-            id = deletedId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("200.00"),
-            category = ExpenseCategory.WATER,
-            notes = null,
-        )
+        val createdNoCaps =
+            ExpenseService.create(
+                callerId = editOnlyUser,
+                id = deletedId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("200.00"),
+                category = ExpenseCategory.WATER,
+                notes = null,
+            )
         ExpenseService.softDelete(
             callerId = editOnlyUser,
             expenseId = deletedId,
             reason = "Incorrect entry",
+            expectedVersion = createdNoCaps.version,
         )
         testServer.client.let { client ->
             assertEquals(
@@ -553,18 +602,20 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     @Test
     fun `POST restore forbidden on other branch`() {
         val otherDeletedId = TestFixtures.uuid()
-        ExpenseService.create(
-            callerId = editOnlyUser,
-            id = otherDeletedId,
-            branchDayId = otherBranchDayId,
-            amount = BigDecimal("200.00"),
-            category = ExpenseCategory.WATER,
-            notes = null,
-        )
+        val createdOtherBranch =
+            ExpenseService.create(
+                callerId = editOnlyUser,
+                id = otherDeletedId,
+                branchDayId = otherBranchDayId,
+                amount = BigDecimal("200.00"),
+                category = ExpenseCategory.WATER,
+                notes = null,
+            )
         ExpenseService.softDelete(
             callerId = editOnlyUser,
             expenseId = otherDeletedId,
             reason = "Incorrect entry",
+            expectedVersion = createdOtherBranch.version,
         )
         testServer.client.let { client ->
             assertEquals(
@@ -612,18 +663,20 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     @Test
     fun `POST restore returns 400 on second restore - double-restore race window`() {
         val deletedId = TestFixtures.uuid()
-        ExpenseService.create(
-            callerId = editOnlyUser,
-            id = deletedId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("200.00"),
-            category = ExpenseCategory.WATER,
-            notes = null,
-        )
+        val createdDoubleRestore =
+            ExpenseService.create(
+                callerId = editOnlyUser,
+                id = deletedId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("200.00"),
+                category = ExpenseCategory.WATER,
+                notes = null,
+            )
         ExpenseService.softDelete(
             callerId = editOnlyUser,
             expenseId = deletedId,
             reason = "Incorrect entry",
+            expectedVersion = createdDoubleRestore.version,
         )
         testServer.client.let { client ->
             val first =
@@ -646,18 +699,20 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     @Test
     fun `GET expenses includes soft-deleted rows with reason`() {
         val deletedId = TestFixtures.uuid()
-        ExpenseService.create(
-            callerId = editOnlyUser,
-            id = deletedId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("200.00"),
-            category = ExpenseCategory.WATER,
-            notes = null,
-        )
+        val createdForGet =
+            ExpenseService.create(
+                callerId = editOnlyUser,
+                id = deletedId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("200.00"),
+                category = ExpenseCategory.WATER,
+                notes = null,
+            )
         ExpenseService.softDelete(
             callerId = editOnlyUser,
             expenseId = deletedId,
             reason = "Incorrect entry",
+            expectedVersion = createdForGet.version,
         )
         testServer.client.let { client ->
             val response =

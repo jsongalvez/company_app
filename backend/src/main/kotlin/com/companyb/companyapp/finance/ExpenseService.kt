@@ -109,17 +109,22 @@ object ExpenseService {
         callerId: UUID,
         expenseId: UUID,
         reason: String,
+        expectedVersion: Int,
     ): Expense =
         transaction {
             val before =
                 ExpenseRepository.findByIdInTransaction(expenseId)
                     ?: throw NotFoundException("Expense not found")
 
+            if (before.deletedAt != null) {
+                throw ValidationException("Cannot delete an already-deleted expense")
+            }
+
             val (branchDay, isRemitted) =
                 BranchDayService.checkBranchDayEditableInTransaction(callerId, before.branchDayId, reason)
 
             val after =
-                ExpenseRepository.softDeleteInTransaction(expenseId, callerId, reason)
+                ExpenseRepository.softDeleteInTransaction(expenseId, callerId, reason, expectedVersion)
 
             ExpenseAudit.deleted(
                 AuditContext(callerId, branchDay.branchId, isRemitted, reason),
