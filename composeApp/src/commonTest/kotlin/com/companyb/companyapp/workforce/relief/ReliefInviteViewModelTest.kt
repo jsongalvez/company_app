@@ -29,6 +29,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -107,7 +108,7 @@ class ReliefInviteViewModelTest {
         }
 
     @Test
-    fun `accept_removes_row_and_decrements_the_badge`() =
+    fun `accept_keeps_row_with_accepted_overlay_and_decrements_the_badge`() =
         runTest(testScheduler) {
             NotificationState.setInviteCount(1)
             val apiClient =
@@ -127,12 +128,17 @@ class ReliefInviteViewModelTest {
             vm.acceptInvite("i1")
             runCurrent()
             assertIs<UiState.Success<Unit>>(vm.acceptResult.value)
-            assertEquals(0, vm.freshestReceived.value!!.size, "resolved rows leave the list")
+            // #679 — the resolved row stays in place with its outcome for the visit.
+            assertEquals(1, vm.freshestReceived.value!!.size)
+            val resolved = vm.resolvedThisVisit.value["i1"]
+            assertNotNull(resolved)
+            assertEquals(ReliefInviteStatus.ACCEPTED, resolved.outcome)
+            assertEquals("i1", resolved.invite.id)
             assertEquals(0, NotificationState.inviteCount.value)
         }
 
     @Test
-    fun `decline_removes_row_and_decrements_the_badge`() =
+    fun `decline_keeps_row_with_declined_overlay_and_decrements_the_badge`() =
         runTest(testScheduler) {
             NotificationState.setInviteCount(2)
             val apiClient =
@@ -159,13 +165,12 @@ class ReliefInviteViewModelTest {
 
             vm.declineInvite("i1")
             runCurrent()
-            assertEquals(1, vm.freshestReceived.value!!.size)
-            assertEquals(
-                "i2",
-                vm.freshestReceived.value!!
-                    .single()
-                    .id,
-            )
+            // #679 — i1 stays at its position showing Declined; i2 keeps its actions.
+            assertEquals(2, vm.freshestReceived.value!!.size)
+            val declined = vm.resolvedThisVisit.value["i1"]
+            assertNotNull(declined)
+            assertEquals(ReliefInviteStatus.DECLINED, declined.outcome)
+            assertNull(vm.resolvedThisVisit.value["i2"])
             assertEquals(1, NotificationState.inviteCount.value)
         }
 
@@ -204,6 +209,7 @@ class ReliefInviteViewModelTest {
             runCurrent()
             assertIs<UiState.Error>(vm.acceptResult.value)
             assertEquals(1, vm.freshestReceived.value!!.size, "a failed accept keeps the row")
+            assertTrue(vm.resolvedThisVisit.value.isEmpty(), "no outcome is claimed on failure")
         }
 
     @Test
@@ -545,7 +551,7 @@ class ReliefInviteViewModelTest {
             runCurrent()
             vm.acceptInvite("i1")
             runCurrent()
-            assertEquals(1, vm.freshestReceived.value!!.size, "i1 left in-session")
+            assertEquals(2, vm.freshestReceived.value!!.size, "i1 stays with its Accepted overlay")
 
             // The stale load lands AFTER the accept — its stamp mismatch must retain the
             // post-action list, not resurrect i1; the re-issued load then converges server
@@ -840,6 +846,139 @@ class ReliefInviteViewModelTest {
             assertIs<UiState.Idle>(vm.revokeResult.value)
             assertEquals(1, acceptedCalls, "the conflict reload converges server truth")
         }
+
+    @Test
+    fun `accept_twice_decrements_the_badge_once`() =
+        runTest(testScheduler) {
+            NotificationState.setInviteCount(2)
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/relief-invites" -> ok("[${inviteJson("i1", "PENDING")}]")
+                            it.url.encodedPath == "/api/relief-invites/i1/accept" -> ok(inviteJson("i1", "ACCEPTED"))
+                            else -> ok("[]")
+                        }
+                    },
+                )
+            val vm = ReliefInviteViewModel(apiClient)
+            vm.loadReceived()
+            runCurrent()
+
+            // Double-tap fires two POSTs; the overlay dedupes the second resolution.
+            vm.acceptInvite("i1")
+            vm.acceptInvite("i1")
+            runCurrent()
+            assertEquals(1, vm.resolvedThisVisit.value.size)
+            val accepted = vm.resolvedThisVisit.value["i1"]
+            assertNotNull(accepted)
+            assertEquals(ReliefInviteStatus.ACCEPTED, accepted.outcome)
+            assertEquals(1, NotificationState.inviteCount.value)
+        }
+
+    @Test
+    fun `duplicate_accept_after_success_keeps_overlay_and_single_decrement`() =
+        runTest(testScheduler) {
+            NotificationState.setInviteCount(2)
+            var acceptCalls = 0
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/relief-invites" -> {
+                                ok("[${inviteJson("i1", "PENDING")}]")
+                            }
+
+                            it.url.encodedPath == "/api/relief-invites/i1/accept" -> {
+                                acceptCalls++
+                                if (acceptCalls == 1) {
+                                    ok(inviteJson("i1", "ACCEPTED"))
+                                } else {
+                                    respond(
+                                        content = ByteReadChannel("""{"error":"already responded"}"""),
+                                        status = HttpStatusCode.Conflict,
+                                        headers =
+                                            headersOf(
+                                                HttpHeaders.ContentType,
+                                                ContentType.Application.Json.toString(),
+                                            ),
+                                    )
+                                }
+                            }
+
+                            else -> {
+                                ok("[]")
+                            }
+                        }
+                    },
+                )
+            val vm = ReliefInviteViewModel(apiClient)
+            vm.loadReceived()
+            runCurrent()
+
+            vm.acceptInvite("i1")
+            runCurrent()
+            val accepted = vm.resolvedThisVisit.value["i1"]
+            assertNotNull(accepted)
+            assertEquals(ReliefInviteStatus.ACCEPTED, accepted.outcome)
+
+            // The duplicate POST 409s: our confirmed resolution stands — the overlay and the
+            // single badge decrement survive, with no reload wiping the in-place outcome.
+            vm.acceptInvite("i1")
+            runCurrent()
+            assertIs<UiState.Idle>(vm.acceptResult.value)
+            val retained = vm.resolvedThisVisit.value["i1"]
+            assertNotNull(retained)
+            assertEquals(ReliefInviteStatus.ACCEPTED, retained.outcome)
+            assertEquals(1, vm.freshestReceived.value!!.size)
+            assertEquals(1, NotificationState.inviteCount.value)
+        }
+
+    @Test
+    fun `mergeReceivedRows_keeps_live_positions_and_appends_retained_snapshots`() {
+        val pending =
+            ReliefInviteResponse(
+                id = "i1",
+                branchId = "b1",
+                branchName = "Branch A",
+                branchDayId = "bd1",
+                date = "2026-08-16",
+                invitedBy = "inviter",
+                inviterName = "Inviter",
+                invitee = "invitee",
+                inviteeName = "Invitee",
+                status = ReliefInviteStatus.PENDING,
+                createdAt = "2026-08-01T00:00:00Z",
+            )
+        val retained =
+            ReliefInviteResponse(
+                id = "i0",
+                branchId = "b1",
+                branchName = "Branch A",
+                branchDayId = "bd0",
+                date = "2026-08-15",
+                invitedBy = "inviter",
+                inviterName = "Inviter",
+                invitee = "invitee",
+                inviteeName = "Invitee",
+                status = ReliefInviteStatus.PENDING,
+                createdAt = "2026-08-01T00:00:00Z",
+            )
+        val resolved =
+            mapOf(
+                "i1" to ResolvedInvite(pending, ReliefInviteStatus.ACCEPTED),
+                "i0" to ResolvedInvite(retained, ReliefInviteStatus.DECLINED),
+            )
+
+        // The live row keeps its position with the outcome applied; the reloaded-away row
+        // renders from its retained snapshot after the live rows.
+        val merged = mergeReceivedRows(listOf(pending), resolved)
+        assertEquals(listOf("i1", "i0"), merged.map { it.invite.id })
+        assertEquals(
+            listOf(ReliefInviteStatus.ACCEPTED, ReliefInviteStatus.DECLINED),
+            merged.map { it.outcome },
+        )
+    }
 
     private fun handler(block: MockRequestHandler): MockRequestHandler = block
 }

@@ -19,7 +19,9 @@ import com.companyb.companyapp.contracts.notification.NotificationResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
+import com.companyb.companyapp.workforce.relief.ReceivedRow
 import com.companyb.companyapp.workforce.relief.ReliefInviteViewModel
+import com.companyb.companyapp.workforce.relief.mergeReceivedRows
 
 /**
  * Queue derivations hoisted out of [NotificationsScreen] for the #462 LongMethod burn-down.
@@ -60,6 +62,13 @@ internal fun rememberNotificationsDerived(viewModel: NotificationViewModel): Not
     // empty-list reload case (All caught up → re-entry → reload) still flashes the spinner —
     // nothing is on screen, so D5's "nothing to show → spinner" clause covers it.
     val unread = freshestUnread.orEmpty()
+    // #679 — converging a refresh: once the history reload lands, visit-local read marks
+    // re-home to server groups (no-op unless refreshQueue armed it).
+    LaunchedEffect(historyState) {
+        if (historyState is UiState.Success) {
+            viewModel.onRefreshLanded()
+        }
+    }
     // #356 — server-backed history: every past row, read + unread, newest first. Rows the live
     // sections already render are filtered out so nothing appears twice; what remains is
     // display-only (tap-to-read stays the unread queue's job).
@@ -83,18 +92,69 @@ internal fun rememberNotificationsDerived(viewModel: NotificationViewModel): Not
 }
 
 /**
+ * Needs-your-response derivations (#679): the live received feed merged with the
+ * visit-local resolution overlay, plus the invite error lines. Self-sufficient host —
+ * collects the six received-surface flows so the Screen keeps one slim call.
+ *
+ * 1 param so it stays LongParameterList-clean outside the LPL-excluded Screen file.
+ * FunctionNaming ignores @Composable so the camelCase value-returning host is lint-clean.
+ */
+@Composable
+internal fun rememberNeedsResponse(reliefInviteViewModel: ReliefInviteViewModel): NeedsDerived {
+    val receivedState by reliefInviteViewModel.received.collectAsState()
+    val freshestReceived by reliefInviteViewModel.freshestReceived.collectAsState()
+    val resolvedThisVisit by reliefInviteViewModel.resolvedThisVisit.collectAsState()
+    val acceptState by reliefInviteViewModel.acceptResult.collectAsState()
+    val declineState by reliefInviteViewModel.declineResult.collectAsState()
+    val receivedError = receivedInvitesErrorLine(receivedState)
+    LaunchedEffect(receivedError) {
+        receivedError?.let { logWarn("NotificationsScreen", "receivedInvites=Error: $it") }
+    }
+    // Invite action failures surface inline (a failed accept/decline stays visible, and the
+    // next attempt's Loading pre-set clears the line automatically).
+    val acceptError = (acceptState as? UiState.Error)?.message
+    val declineError = (declineState as? UiState.Error)?.message
+    LaunchedEffect(acceptError) {
+        acceptError?.let { logWarn("NotificationsScreen", "inviteAccept=Error: $it") }
+    }
+    LaunchedEffect(declineError) {
+        declineError?.let { logWarn("NotificationsScreen", "inviteDecline=Error: $it") }
+    }
+    return NeedsDerived(
+        rows = mergeReceivedRows(freshestReceived.orEmpty(), resolvedThisVisit),
+        receivedError = receivedError,
+        acceptError = acceptError,
+        declineError = declineError,
+        actionsBusy = acceptState is UiState.Loading || declineState is UiState.Loading,
+    )
+}
+
+internal data class NeedsDerived(
+    val rows: List<ReceivedRow>,
+    val receivedError: String?,
+    val acceptError: String?,
+    val declineError: String?,
+    val actionsBusy: Boolean,
+)
+
+/**
  * Header + inline error strips hoisted out of [NotificationsScreen] for the #462 LongMethod
  * burn-down. Self-sufficient host: drives markAllRead/loadHistory on the viewModel directly
  * so the Screen keeps one slim call. Plain @Composable (no ColumnScope — the moved block
  * uses no weight/scope members; DrawerHeader precedent). History error re-localed so the
  * non-null smart-cast reaches inside the Row lambda.
  *
- * 2 params so it stays LongParameterList-clean outside the LPL-excluded Screen file.
+ * #679 — the header actions are stable: Refresh and "Mark all as read" always render, so
+ * the toolbar never shifts. "Mark all as read" disables when no unread rows remain (its
+ * scope is the server's mark-all — every unread row for the user, not a page — so the
+ * label names the scope accurately). Refresh reconciles visit-local marks to server groups.
  */
 @Composable
 internal fun NotificationsHeaderHost(
     viewModel: NotificationViewModel,
+    reliefInviteViewModel: ReliefInviteViewModel,
     derived: NotificationsDerived,
+    onRefresh: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -105,13 +165,15 @@ internal fun NotificationsHeaderHost(
             text = "Notifications",
             style = MaterialTheme.typography.titleLarge,
         )
-        // D3: Mark all visible iff unread > 0; disabled while in-flight.
-        if (derived.unread.isNotEmpty()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onRefresh) {
+                Text("Refresh")
+            }
             TextButton(
                 onClick = { viewModel.markAllRead() },
-                enabled = !derived.markAllBusy,
+                enabled = derived.unread.isNotEmpty() && !derived.markAllBusy,
             ) {
-                Text("Mark all")
+                Text("Mark all as read")
             }
         }
     }
@@ -184,27 +246,4 @@ internal fun NotificationsEntryEffects(
     LaunchedEffect(derived.historyError) {
         derived.historyError?.let { logWarn("NotificationsScreen", "history=Error: $it") }
     }
-}
-
-/**
- * Queue-list call collapse hoisted out of [NotificationsScreen] for the #462 LongMethod
- * burn-down: the three multi-line NotificationList call args count toward the caller, so
- * they collapse to single-line host calls here (multi-decl Overlays file hosts it —
- * Screen.kt sits at the file-function wall). Success still passes state.data (fresh data,
- * not keep-last derived) at the Screen call site.
- *
- * 3 params so it stays LongParameterList-clean outside the LPL-excluded Screen file.
- */
-@Composable
-internal fun NotificationsQueueList(
-    unread: List<NotificationResponse>,
-    derived: NotificationsDerived,
-    onNotificationClick: (NotificationResponse) -> Unit,
-) {
-    NotificationList(
-        unread = unread,
-        readThisSession = derived.readThisSession,
-        history = derived.visibleHistory,
-        onNotificationClick = onNotificationClick,
-    )
 }

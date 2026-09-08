@@ -312,6 +312,49 @@ class NotificationViewModelTest {
         }
 
     @Test
+    fun refreshQueue_arms_convergence_and_onRefreshLanded_clears_visit_marks() =
+        runTest(testScheduler) {
+            NotificationState.setUnreadCount(2)
+            val vm = NotificationViewModel(mockApiClient(notificationsHandler()))
+
+            vm.loadUnreadNotifications()
+            runCurrent()
+
+            vm.markRead("n1")
+            runCurrent()
+            assertEquals(expected = listOf("n1"), actual = vm.readThisSession.value.map { it.id })
+
+            // #679 — the marks survive the reloads themselves (a failed refresh must never
+            // vaporize visit-read rows); the screen effect converges them via onRefreshLanded
+            // once the history leg lands.
+            vm.refreshQueue()
+            runCurrent()
+
+            assertEquals(expected = listOf("n1"), actual = vm.readThisSession.value.map { it.id })
+            assertEquals(expected = listOf("n3"), actual = vm.freshestNotifications.value?.map { it.id })
+
+            vm.onRefreshLanded()
+            assertEquals(expected = emptyList<String>(), actual = vm.readThisSession.value.map { it.id })
+        }
+
+    @Test
+    fun onRefreshLanded_without_arm_keeps_visit_marks() =
+        runTest(testScheduler) {
+            NotificationState.setUnreadCount(2)
+            val vm = NotificationViewModel(mockApiClient(notificationsHandler()))
+
+            vm.loadUnreadNotifications()
+            runCurrent()
+
+            vm.markRead("n1")
+            runCurrent()
+
+            // Entry/history loads landing without an armed refresh never clear marks.
+            vm.onRefreshLanded()
+            assertEquals(expected = listOf("n1"), actual = vm.readThisSession.value.map { it.id })
+        }
+
+    @Test
     fun markRead_success_twice_does_not_duplicate_row_in_read_section() =
         runTest(testScheduler) {
             NotificationState.setUnreadCount(2)

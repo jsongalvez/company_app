@@ -108,6 +108,10 @@ internal fun NotificationsContent(
         viewModel { NotificationViewModel(apiClient) }
     val reliefInviteViewModel: ReliefInviteViewModel =
         viewModel { ReliefInviteViewModel(apiClient) }
+    // #679 — read/navigation separation: read rows (server-read or marked this visit) never
+    // re-send mark-read; unread rows fire it separately without gating navigation, so a
+    // failed acknowledgment leaves navigation usable and the row honestly unread.
+    val readThisSession by notificationsViewModel.readThisSession.collectAsState()
     NotificationsScreen(
         viewModel = notificationsViewModel,
         reliefInviteViewModel = reliefInviteViewModel,
@@ -116,7 +120,9 @@ internal fun NotificationsContent(
             // the sessionId — row = null → the detail screen fetches once via
             // GET /api/sessions/{sessionId} (#152). #358: relief rows deep-link to
             // the dashboard scoped to their branch+date (the ReliefDayScreen panel).
-            notificationsViewModel.markRead(notification.id)
+            if (!notification.isRead && readThisSession.none { it.id == notification.id }) {
+                notificationsViewModel.markRead(notification.id)
+            }
             val sessionId = notification.sessionId
             when {
                 sessionId != null -> {

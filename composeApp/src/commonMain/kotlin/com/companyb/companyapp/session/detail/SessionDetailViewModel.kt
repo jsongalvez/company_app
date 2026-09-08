@@ -47,7 +47,7 @@ class SessionDetailViewModel(
 
     // #675 — a refresh that 404/403s AFTER a network load proved the row exists means the
     // session was deleted or access was revoked: protected content clears and the screen
-    // offers Back to sessions. Seeded-only rows (never network-loaded) keep the #382
+    // offers Back (origin-agnostic per #679). Seeded-only rows (never network-loaded) keep the #382
     // keep-row behavior — the bearer-only read 404s for dashboard pushes without a
     // notification, which is "no fresh data", not "the session is gone".
     private val _gone = MutableStateFlow(false)

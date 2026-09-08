@@ -57,6 +57,10 @@ class NotificationViewModel(
     // mismatched capture predates the action — see loadUnreadNotifications.
     private val actionStamp = ActionStamp()
 
+    // #679 — armed by refreshQueue, consumed by onRefreshLanded: plain flag (not a flow —
+    // only the screen effect reads it via the call, never composition).
+    private var refreshArmed = false
+
     // #611 retain-and-reload: a load that lands after an action (markRead/markAll) moved the
     // list must not commit its pre-action snapshot (audit #141 pass-6/7) — the handler
     // reissues instead, and the substitution is race-free (the action's assignment is
@@ -170,6 +174,32 @@ class NotificationViewModel(
                 body
             },
         )
+
+    // #679 — explicit refresh reconciles the visit-local read marks to server groups: rows
+    // read this visit leave the in-place queue and reappear under Earlier via the history
+    // reload, while the unread reload converges the queue. User-initiated, so the
+    // resulting shift is not a reorder under the pointer. The marks clear only once the
+    // history leg lands (see onRefreshLanded) — clearing upfront would vaporize rows read
+    // this visit if both reloads failed, since markRead already removed them from the feed.
+    fun refreshQueue() {
+        refreshArmed = true
+        loadUnreadNotifications()
+        loadHistory()
+    }
+
+    /**
+     * Converges a refresh: drops the visit-local read marks once the history reload lands,
+     * re-homing those rows under Earlier from server truth. No-op unless a refresh armed it
+     * (entry loads, markAll-triggered reloads and history retries never arm). A markRead that
+     * lands between arm and history Success is cleared with the rest — it reconverges on the
+     * next refresh.
+     */
+    fun onRefreshLanded() {
+        if (refreshArmed) {
+            refreshArmed = false
+            _readThisSession.value = emptyList()
+        }
+    }
 
     private fun moveToReadThisSession(notification: NotificationResponse): Boolean {
         // Read-section dedupe: a row already marked this session can never move or decrement

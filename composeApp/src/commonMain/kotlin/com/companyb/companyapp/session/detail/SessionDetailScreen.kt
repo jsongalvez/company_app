@@ -41,7 +41,7 @@ import com.companyb.companyapp.util.logWarn
  * already rendered keeps that row on screen (the VM's keep-row guard covers status legs; this
  * covers transport exceptions) — a stale-but-real detail beats a dead-end error pane.
  * #675 — once a network load has proven the row, a 404/403 refresh instead marks it gone:
- * protected content clears and the error chrome offers Back to sessions.
+ * protected content clears and the error chrome offers Back (origin-agnostic per #679).
  */
 @Composable
 fun SessionDetailScreen(
@@ -82,7 +82,7 @@ fun SessionDetailScreen(
 
             is UiState.Error -> {
                 // #675 — a deleted/inaccessible session clears protected content (no
-                // stale-row fallback) and offers Back to sessions.
+                // stale-row fallback) and offers Back (origin-agnostic per #679).
                 if (gone) {
                     GonePane(onBack)
                 } else {
@@ -128,16 +128,18 @@ private fun DetailErrorPane(
                     Text("Retry")
                 }
                 // #675 — a failed detail always offers the way back (compact Back
-                // restores the #672-retained list selection and scroll).
+                // restores the #672-retained list selection and scroll). #679 — the label
+                // stays origin-agnostic: this pane is also the denied deep-link landing
+                // for notification rows, where Back returns to notifications.
                 TextButton(onClick = onBack) {
-                    Text("Back to sessions")
+                    Text("Back")
                 }
             }
         }
     }
 }
 
-/** #675 — the deleted/inaccessible terminal: no protected content, one way back. */
+/** #675 — the deleted/inaccessible terminal: no protected content, one way back (#679: origin-agnostic label). */
 @Composable
 private fun GonePane(onBack: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -149,7 +151,7 @@ private fun GonePane(onBack: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 TextButton(onClick = onBack) {
-                    Text("Back to sessions")
+                    Text("Back")
                 }
             }
         }

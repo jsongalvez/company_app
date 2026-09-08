@@ -14,6 +14,7 @@ import com.companyb.companyapp.async.mutateRemoved
 import com.companyb.companyapp.contracts.workforce.CreateReliefInviteRequest
 import com.companyb.companyapp.contracts.workforce.ReliefCandidateResponse
 import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
+import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.extractApiErrorMessage
 import com.companyb.companyapp.notification.NotificationState
@@ -59,6 +60,9 @@ class ReliefInviteViewModel(
     val loadReceived: () -> Job = receivedInvites::loadReceived
     val acceptInvite: (String) -> Job = receivedInvites::acceptInvite
     val declineInvite: (String) -> Job = receivedInvites::declineInvite
+
+    // #679 — visit-local resolution overlay for the Needs-your-response section.
+    val resolvedThisVisit: StateFlow<Map<String, ResolvedInvite>> = receivedInvites.resolvedThisVisit
 
     private val _candidates = MutableStateFlow<UiState<List<ReliefCandidateResponse>>>(UiState.Idle)
     val candidates: StateFlow<UiState<List<ReliefCandidateResponse>>> = _candidates.asStateFlow()
@@ -257,6 +261,39 @@ class ReliefInviteViewModel(
 }
 
 /**
+ * A confirmed invite resolution retained for the visit (#679): the last-seen row plus the
+ * outcome to render in place. The outcome is only ever a confirmed local resolution —
+ * never inferred from a 409 (resolved elsewhere, outcome unknown).
+ */
+data class ResolvedInvite(
+    val invite: ReliefInviteResponse,
+    val outcome: ReliefInviteStatus,
+)
+
+/** One Needs-your-response row: the live invite plus its visit-local outcome, if any. */
+data class ReceivedRow(
+    val invite: ReliefInviteResponse,
+    val outcome: ReliefInviteStatus?,
+)
+
+/**
+ * Merges the live received feed with the visit-local resolution overlay (#679): live rows
+ * keep their positions with the outcome applied; rows the server already dropped (resolved
+ * + reloaded) render from the retained snapshots after the live rows.
+ */
+fun mergeReceivedRows(
+    freshest: List<ReliefInviteResponse>,
+    resolved: Map<String, ResolvedInvite>,
+): List<ReceivedRow> {
+    val live = freshest.map { ReceivedRow(it, resolved[it.id]?.outcome) }
+    val retained =
+        resolved.values
+            .filterNot { kept -> freshest.any { it.id == kept.invite.id } }
+            .map { ReceivedRow(it.invite, it.outcome) }
+    return live + retained
+}
+
+/**
  * The received-invites surface (#160 Notifications section): the keep-last list (the #143
  * shape), accept/decline actions, and the #611 ActionStamp resurrection guard. Extracted
  * from [ReliefInviteViewModel] for the detekt function budget (the ConcernPoster shape); the
@@ -280,6 +317,13 @@ private class ReceivedInvites(
 
     private val _declineResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val declineResult: StateFlow<UiState<Unit>> = _declineResult.asStateFlow()
+
+    // #679 — visit-local resolution overlay: a confirmed accept/decline keeps its row in
+    // place showing Accepted/Declined for this visit (the VM is entry-scoped, so a new
+    // visit starts clean). The server serves PENDING rows only, so a reload drops the row
+    // from the freshest list — the retained snapshot keeps it rendered with its outcome.
+    private val _resolvedThisVisit = MutableStateFlow<Map<String, ResolvedInvite>>(emptyMap())
+    val resolvedThisVisit: StateFlow<Map<String, ResolvedInvite>> = _resolvedThisVisit.asStateFlow()
 
     // Bumped on every successful action: a load that lands with a mismatched capture predates
     // the action and must not resurrect the resolved row (the #141 stamp pattern).
@@ -313,7 +357,7 @@ private class ReceivedInvites(
                 onNonSuccess = onConflictReload(_acceptResult, inviteId),
                 transform = {
                     actionStamp.bump()
-                    removeReceived(inviteId)
+                    markResolved(inviteId, ReliefInviteStatus.ACCEPTED)
                     Unit
                 },
             ),
@@ -329,7 +373,7 @@ private class ReceivedInvites(
                 onNonSuccess = onConflictReload(_declineResult, inviteId),
                 transform = {
                     actionStamp.bump()
-                    removeReceived(inviteId)
+                    markResolved(inviteId, ReliefInviteStatus.DECLINED)
                     Unit
                 },
             ),
@@ -338,11 +382,13 @@ private class ReceivedInvites(
     /**
      * Shared 409-handling for accept/decline: the 409 is authoritative server confirmation that
      * the invite is resolved, so the row leaves locally (Idle-reset — the #140 stuck-Loading
-     * class — + removal + reload). The stamp bump BEFORE the reload is load-bearing: a pre-409
-     * in-flight load would otherwise commit its pre-resolution snapshot with a matching capture
-     * and resurrect the row (the #141 resurrect class, 4-lens review finding). The reload may
-     * be gated by the in-flight guard — the local removal already converged the list, and a
-     * gated reissue keeps the retained list while the next reload converges.
+     * class — + removal + reload). The outcome is unknown (resolved elsewhere), so no
+     * visit-local status is claimed: any overlay entry is dropped. The stamp bump BEFORE the
+     * reload is load-bearing: a pre-409 in-flight load would otherwise commit its
+     * pre-resolution snapshot with a matching capture and resurrect the row (the #141
+     * resurrect class, 4-lens review finding). The reload may be gated by the in-flight
+     * guard — the local removal already converged the list, and a gated reissue keeps the
+     * retained list while the next reload converges.
      */
     private fun onConflictReload(
         state: MutableStateFlow<UiState<Unit>>,
@@ -351,14 +397,52 @@ private class ReceivedInvites(
         { response ->
             if (response.status == HttpStatusCode.Conflict) {
                 state.value = UiState.Idle
-                actionStamp.bump()
-                removeReceived(inviteId)
-                loadReceived()
-                true
+                if (_resolvedThisVisit.value.containsKey(inviteId)) {
+                    // Duplicate of our own confirmed resolution (a double-tap beating the busy
+                    // gate): the overlay already is the truth — claim nothing new, write
+                    // nothing, decrement nothing. Exactly one resolution stands (#679: no
+                    // duplicate responses, in-place outcome survives).
+                    true
+                } else {
+                    actionStamp.bump()
+                    dropResolved(inviteId)
+                    removeReceived(inviteId)
+                    loadReceived()
+                    true
+                }
             } else {
                 false
             }
         }
+
+    /**
+     * Records a confirmed resolution (#679 overlay): the row keeps its position with the
+     * outcome rendered in place. Decrements only on a real first resolution of a KNOWN row
+     * (the removeReceived guard shape — no list / unknown row / repeat tap never touches
+     * the badge; the 60s poll overwrite self-corrects drift).
+     */
+    private fun markResolved(
+        inviteId: String,
+        outcome: ReliefInviteStatus,
+    ) {
+        if (_resolvedThisVisit.value.containsKey(inviteId)) return
+        val snapshot = keptReceived.freshest.value?.firstOrNull { it.id == inviteId } ?: return
+        _resolvedThisVisit.value += (inviteId to ResolvedInvite(snapshot, outcome))
+        NotificationState.decrementInvites()
+        // Converge a mid-reload surface (the reissue guard reads this state): an accept that
+        // lands while a load is in flight must not leave the surface Loading — the stale
+        // snapshot reissues on landing instead of committing, and the re-issue only launches
+        // off a non-Loading surface. Error surfaces are left alone (the strip stays truthful).
+        if (keptReceived.state.value is UiState.Loading) {
+            keptReceived.mutate { it }
+        }
+    }
+
+    private fun dropResolved(inviteId: String) {
+        if (_resolvedThisVisit.value.containsKey(inviteId)) {
+            _resolvedThisVisit.value -= inviteId
+        }
+    }
 
     private fun removeReceived(inviteId: String) {
         // Decrement only when the row actually left a KNOWN list: with no list loaded the badge
