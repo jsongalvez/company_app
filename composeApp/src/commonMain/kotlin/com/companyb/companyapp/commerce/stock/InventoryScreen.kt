@@ -30,7 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.client.ClientViewModel
+import com.companyb.companyapp.client.ClientSearchApi
 import com.companyb.companyapp.commerce.catalog.ProductViewModel
 import com.companyb.companyapp.contracts.commerce.AddInventoryCardRequest
 import com.companyb.companyapp.contracts.commerce.BranchInventoryResponse
@@ -88,10 +88,11 @@ internal sealed interface InventoryOverlay {
 internal class InventorySectionContext(
     val viewModel: InventoryViewModel,
     val productViewModel: ProductViewModel,
-    // #419 — the sale pair and the client search ride the shared section context so the
-    // overlay/dialog hosts stay low-arity.
+    // #419 — the sale pair rides the shared section context so the overlay/dialog hosts stay
+    // low-arity. #610 — the buyer search is the narrow client-owned [ClientSearchApi], never
+    // the full edit/anonymize surface.
     val productSaleViewModel: ProductSaleViewModel,
-    val clientViewModel: ClientViewModel,
+    val clientSearch: ClientSearchApi,
     val branchId: String?,
 )
 
@@ -133,7 +134,7 @@ fun InventoryScreen(
     viewModel: InventoryViewModel,
     productViewModel: ProductViewModel,
     productSaleViewModel: ProductSaleViewModel,
-    clientViewModel: ClientViewModel,
+    clientSearch: ClientSearchApi,
     branchId: String?,
 ) {
     val inventoryState by viewModel.inventory.collectAsState()
@@ -147,7 +148,7 @@ fun InventoryScreen(
     val branchDayId = snapshot.clock?.branchDayId
     var overlay by remember { mutableStateOf<InventoryOverlay?>(null) }
     val context =
-        InventorySectionContext(viewModel, productViewModel, productSaleViewModel, clientViewModel, branchId)
+        InventorySectionContext(viewModel, productViewModel, productSaleViewModel, clientSearch, branchId)
     val writeResults = InventoryWriteResults(restockResult, movementResult, cardResult, saleResult)
     val writesDisabled = writesDisabled(restockResult, movementResult, saleResult)
 

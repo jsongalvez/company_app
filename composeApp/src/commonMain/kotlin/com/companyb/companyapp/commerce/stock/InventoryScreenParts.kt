@@ -168,7 +168,7 @@ internal fun WalkInWriteDialog(
 ) {
     WalkInSaleDialog(
         card = card,
-        clientViewModel = context.clientViewModel,
+        clientSearch = context.clientSearch,
         onDismiss = onDone,
         onSave = { quantity, clientId, editReason ->
             // Save closes immediately (the #392 shape); the policy owns the fail-closed

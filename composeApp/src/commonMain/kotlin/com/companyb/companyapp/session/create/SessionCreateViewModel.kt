@@ -122,9 +122,9 @@ class SessionCreateViewModel(
 
     // --- Client picker: keep-last debounced search, entry-scoped. ---
     private val clientSearcher = ClientSearcher(apiClient, viewModelScope, "SessionCreateVM")
-    val searchResults: StateFlow<UiState<List<ClientResponse>>> = clientSearcher.state
+    override val searchResults: StateFlow<UiState<List<ClientResponse>>> = clientSearcher.state
     val freshestResults: StateFlow<List<ClientResponse>?> = clientSearcher.freshest
-    val query: StateFlow<String> = clientSearcher.query
+    override val query: StateFlow<String> = clientSearcher.query
 
     override val onQueryChange: (String) -> Unit = clientSearcher::onQueryChange
     override val retrySearch: () -> Unit = clientSearcher::retrySearch
@@ -163,7 +163,7 @@ class SessionCreateViewModel(
         clientSearcher.include(client)
     }
 
-    fun applyClientMutation(mutation: ClientMutation) {
+    override fun applyClientMutation(mutation: ClientMutation) {
         if (_selectedClient.value?.id != mutation.clientId || isSubmissionLocked()) return
         if (lastAppliedMutation == mutation) return
         val client = mutation.client

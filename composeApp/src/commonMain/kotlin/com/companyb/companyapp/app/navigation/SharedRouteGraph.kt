@@ -28,6 +28,7 @@ import com.companyb.companyapp.audit.AuditLogScreen
 import com.companyb.companyapp.audit.AuditLogViewModel
 import com.companyb.companyapp.client.ClientViewModel
 import com.companyb.companyapp.client.ClientsScreen
+import com.companyb.companyapp.client.SaleClientSearchViewModel
 import com.companyb.companyapp.commerce.catalog.ProductViewModel
 import com.companyb.companyapp.commerce.stock.InventoryScreen
 import com.companyb.companyapp.commerce.stock.InventoryViewModel
@@ -231,12 +232,15 @@ private fun NavGraphBuilder.inventoryGraph(apiClient: ApiClient) {
             // #419 — walk-in product-sale entry rides this screen.
             val productSaleViewModel: ProductSaleViewModel =
                 viewModel { ProductSaleViewModel(apiClient) }
-            val clientViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
+            // #610 — entry-scoped buyer search behind the narrow client-owned seam (never the
+            // full ClientViewModel edit/anonymize surface).
+            val saleClientSearch: SaleClientSearchViewModel =
+                viewModel { SaleClientSearchViewModel(apiClient) }
             InventoryScreen(
                 viewModel = inventoryViewModel,
                 productViewModel = productViewModel,
                 productSaleViewModel = productSaleViewModel,
-                clientViewModel = clientViewModel,
+                clientSearch = saleClientSearch,
                 branchId = selectedBranchId,
             )
         } else {

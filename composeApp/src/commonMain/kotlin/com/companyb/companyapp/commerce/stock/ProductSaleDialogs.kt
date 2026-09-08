@@ -29,7 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.client.ClientViewModel
+import com.companyb.companyapp.client.ClientSearchApi
+import com.companyb.companyapp.client.ClientState
 import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.contracts.commerce.BranchInventoryResponse
 import com.companyb.companyapp.contracts.commerce.ProductSaleResponse
@@ -79,7 +80,7 @@ private fun SaleQuantityReasonFields(
 @Composable
 internal fun WalkInSaleDialog(
     card: BranchInventoryResponse,
-    clientViewModel: ClientViewModel,
+    clientSearch: ClientSearchApi,
     onDismiss: () -> Unit,
     onSave: (
         quantity: Int,
@@ -116,7 +117,7 @@ internal fun WalkInSaleDialog(
                 }
                 if (buyerMode == SaleBuyerMode.LINKED) {
                     Spacer(Modifier.size(Spacing.xs))
-                    SaleClientPicker(clientViewModel, selectedClient, onSelect = { selectedClient = it })
+                    SaleClientPicker(clientSearch, selectedClient, onSelect = { selectedClient = it })
                 }
             }
         },
@@ -147,16 +148,24 @@ internal fun WalkInSaleDialog(
 /** The linked-client search: query field + single-select result list (the EnsureCardPicker shape). */
 @Composable
 private fun SaleClientPicker(
-    clientViewModel: ClientViewModel,
+    clientSearch: ClientSearchApi,
     selectedClient: ClientResponse?,
     onSelect: (ClientResponse) -> Unit,
 ) {
-    val query by clientViewModel.query.collectAsState()
-    val results by clientViewModel.searchResults.collectAsState()
+    val query by clientSearch.query.collectAsState()
+    val results by clientSearch.searchResults.collectAsState()
+
+    // #610 — privacy reconciliation: anonymize/update mutations published while the picker is
+    // open refresh this entry's searcher (the Clients/SessionCreate collect shape).
+    LaunchedEffect(Unit) {
+        ClientState.clientMutation.collect { mutation ->
+            mutation?.let(clientSearch::applyClientMutation)
+        }
+    }
 
     OutlinedTextField(
         value = query,
-        onValueChange = clientViewModel::onQueryChange,
+        onValueChange = { clientSearch.onQueryChange(it) },
         label = { Text("Find client (name or phone)") },
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
@@ -172,7 +181,7 @@ private fun SaleClientPicker(
         }
 
         is UiState.Error -> {
-            TextButton(onClick = clientViewModel::retrySearch) { Text("Retry search") }
+            TextButton(onClick = { clientSearch.retrySearch() }) { Text("Retry search") }
         }
 
         is UiState.Success -> {
