@@ -60,6 +60,7 @@ class NotificationIdempotencyPostgresTest : BasePostgresTest() {
 
     @Test
     fun `concurrent appointment batches deliver once per recipient with exact counts`() {
+        val targetDate = TestFixtures.today.plusDays(2)
         val params =
             listOf(recipientA, recipientB).map { recipient ->
                 NotificationCreateParams(
@@ -69,7 +70,8 @@ class NotificationIdempotencyPostgresTest : BasePostgresTest() {
                     message = "You have an upcoming appointment on ${TestFixtures.today.plusDays(2)}",
                     eventType = NextAppointmentScheduler.APPOINTMENT_REMINDER,
                     sourceId = sessionId,
-                    targetDate = TestFixtures.today.plusDays(2),
+                    targetDate = targetDate,
+                    dedupKey = "APPT:$sessionId:$targetDate",
                 )
             }
 
@@ -92,6 +94,7 @@ class NotificationIdempotencyPostgresTest : BasePostgresTest() {
                     eventType = ReliefNotifications.EXPIRED,
                     sourceId = sourceId,
                     targetDate = TestFixtures.today,
+                    dedupKey = "${ReliefNotifications.EXPIRED}:$sourceId",
                 )
             }
 
@@ -115,6 +118,7 @@ class NotificationIdempotencyPostgresTest : BasePostgresTest() {
                 eventType = NextAppointmentScheduler.APPOINTMENT_REMINDER,
                 sourceId = sessionId,
                 targetDate = date,
+                dedupKey = "APPT:$sessionId:$date",
             )
 
         assertEquals(1, NotificationRepository.insertBatch(listOf(appointmentOn(firstDate))))
@@ -135,6 +139,7 @@ class NotificationIdempotencyPostgresTest : BasePostgresTest() {
                 eventType = ReliefNotifications.EXPIRED,
                 sourceId = sourceId,
                 targetDate = TestFixtures.today,
+                dedupKey = "${ReliefNotifications.EXPIRED}:$sourceId",
             )
 
         val firstSource = TestFixtures.uuid()
@@ -163,6 +168,7 @@ class NotificationIdempotencyPostgresTest : BasePostgresTest() {
                         eventType = ReliefNotifications.INVITE_REVOKED,
                         sourceId = inviteId,
                         targetDate = TestFixtures.today,
+                        dedupKey = "${ReliefNotifications.INVITE_REVOKED}:$inviteId",
                     ),
                     NotificationCreateParams(
                         sessionId = null,

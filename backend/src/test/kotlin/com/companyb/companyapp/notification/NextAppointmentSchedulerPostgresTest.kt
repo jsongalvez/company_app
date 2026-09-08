@@ -143,12 +143,17 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
     @Test
     fun `notification batch count matches rows inserted when input repeats a pair`() {
         val sessionId = createCompletedSessionWithAppointment(twoDaysFromNow())
+        val targetDate = twoDaysFromNow()
         val params =
             NotificationCreateParams(
                 sessionId = sessionId,
                 userId = coordinatorId,
                 branchId = branchId,
                 message = "Upcoming appointment",
+                eventType = NextAppointmentScheduler.APPOINTMENT_REMINDER,
+                sourceId = sessionId,
+                targetDate = targetDate,
+                dedupKey = "APPT:$sessionId:$targetDate",
             )
 
         val count = NotificationRepository.insertBatch(listOf(params, params))

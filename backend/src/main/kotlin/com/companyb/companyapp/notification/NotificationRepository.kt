@@ -44,12 +44,10 @@ fun decodeNotificationCursor(raw: String): NotificationHistoryCursor {
 }
 
 internal object NotificationRepository {
-    // #508 — the write path no longer pre-reads: every occurrence carries a stable key and
-    // UNIQUE (dedup_key, user_id) is the dedup guarantee, so concurrent batches and job
-    // re-runs collapse to one delivery per recipient atomically (insertIgnore = ON CONFLICT
-    // DO NOTHING). Appointment identity is session + target appointment date — a same-sweep
-    // retry reuses the key while a genuinely later appointment gets a new one (#356: distinct
-    // repeat events survive). Relief identity is event + source. Returns rows actually created.
+    // #508 — the write path no longer pre-reads: every occurrence carries a stable
+    // producer-owned key (#614) and UNIQUE (dedup_key, user_id) is the dedup guarantee,
+    // so concurrent batches and job re-runs collapse to one delivery per recipient
+    // atomically (insertIgnore = ON CONFLICT DO NOTHING). Returns rows actually created.
     fun insertBatch(params: List<NotificationCreateParams>): Int =
         transaction {
             insertBatchInTransaction(params)
@@ -62,12 +60,18 @@ internal object NotificationRepository {
     fun insertBatchInTransaction(params: List<NotificationCreateParams>): Int {
         if (params.isEmpty()) return 0
 
+        // #614 — fail clearly before any row lands: blank occurrence identity never
+        // partially inserts.
+        params.forEach { candidate ->
+            require(candidate.dedupKey.isNotBlank()) { "dedupKey must be nonblank" }
+        }
+
         // In-batch event identity: one command's broadcast writes one message per
         // (occurrence, recipient) even when several events share the batch.
         val seen = HashSet<Pair<String, UUID>>()
         val fresh =
             params.filter { candidate ->
-                seen.add(dedupKeyFor(candidate) to candidate.userId)
+                seen.add(candidate.dedupKey to candidate.userId)
             }
         if (fresh.isEmpty()) {
             return 0
@@ -88,30 +92,9 @@ internal object NotificationRepository {
             statement[NotificationTable.eventType] = candidate.eventType
             statement[NotificationTable.sourceId] = candidate.sourceId
             statement[NotificationTable.targetDate] = candidate.targetDate
-            statement[NotificationTable.dedupKey] = dedupKeyFor(candidate)
+            statement[NotificationTable.dedupKey] = candidate.dedupKey
         }
         return BatchInsertBlockingExecutable(statement).execute(TransactionManager.current()) ?: 0
-    }
-
-    /**
-     * Stable occurrence identity for one delivery. Explicit [NotificationCreateParams.dedupKey]
-     * wins (the revocation direct notice); otherwise appointment rows key on session + target
-     * appointment date and event rows on event + source. The legacy fallback (no session, no
-     * event identity) keys on branch + message hash — reachable only by writers that predate
-     * occurrence identity, never by production broadcasts.
-     */
-    fun dedupKeyFor(params: NotificationCreateParams): String {
-        val sessionId = params.sessionId
-        val eventType = params.eventType
-        val sourceId = params.sourceId
-        return params.dedupKey
-            ?: if (sessionId != null) {
-                "$APPOINTMENT_KEY_PREFIX$sessionId:${params.targetDate}"
-            } else if (eventType != null && sourceId != null) {
-                "$eventType:$sourceId"
-            } else {
-                "$LEGACY_KEY_PREFIX${params.branchId}:${params.message.hashCode()}"
-            }
     }
 
     fun findUnreadByUserId(userId: UUID): List<Notification> =
@@ -255,7 +238,4 @@ internal object NotificationRepository {
             .single()
             .toNotification()
     }
-
-    private const val APPOINTMENT_KEY_PREFIX = "APPT:"
-    private const val LEGACY_KEY_PREFIX = "MISC:"
 }

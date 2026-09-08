@@ -45,16 +45,21 @@ data class NotificationCreateParams(
     val userId: UUID,
     val branchId: UUID,
     val message: String,
-    // #358 — event rows (sessionId == null). Defaults keep the appointment-reminder
-    // call sites byte-identical.
-    val eventType: String? = null,
-    val sourceId: UUID? = null,
-    val targetDate: LocalDate? = null,
-    // #508 — explicit occurrence-key override. Only the revocation direct notice uses
-    // it (same event + source as the branch broadcast, distinct audience message);
-    // every other writer derives the key from the identity columns above.
-    val dedupKey: String? = null,
-)
+    // #358 — event rows (sessionId == null) carry navigation metadata for tap-through,
+    // source lookup and bearer access. #614 — metadata is distinct from dedup identity:
+    // every producer supplies both explicitly, the store never derives one from the other.
+    val eventType: String,
+    val sourceId: UUID,
+    val targetDate: LocalDate,
+    // #614 — producer-owned stable occurrence key (appointment: session + target date,
+    // relief: event + source, revocation direct notice: event + source + ":direct").
+    // Nonblank, preserved exactly across retries so old/new producer runs dedup.
+    val dedupKey: String,
+) {
+    init {
+        require(dedupKey.isNotBlank()) { "dedupKey must be nonblank" }
+    }
+}
 
 internal object NotificationTable : Table("notification") {
     val id = javaUUID("id").autoGenerate()

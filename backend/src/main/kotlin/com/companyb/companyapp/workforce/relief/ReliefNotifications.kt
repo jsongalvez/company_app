@@ -67,6 +67,7 @@ internal object ReliefNotifications {
                 recipients = members(context.branchId),
                 message = "$requesterName requested relief duty at ${context.branchName} ${dayPhrase(context.date)}",
                 context = context,
+                dedupKey = reliefOccurrenceKey(REQUESTED, requestId),
             ),
         )
     }
@@ -92,6 +93,7 @@ internal object ReliefNotifications {
                     "$actorName $verb $requesterName's relief duty request " +
                         "at ${context.branchName} ${dayPhrase(context.date)}",
                 context = context,
+                dedupKey = reliefOccurrenceKey(eventType, requestId),
             ),
         )
     }
@@ -112,6 +114,7 @@ internal object ReliefNotifications {
                 recipients = members(context.branchId),
                 message = "$inviteeName $verb the relief invite at ${context.branchName} ${dayPhrase(context.date)}",
                 context = context,
+                dedupKey = reliefOccurrenceKey(eventType, inviteId),
             ),
         )
     }
@@ -140,6 +143,7 @@ internal object ReliefNotifications {
                     "$actorName revoked $inviteeName's relief duty at ${context.branchName} " +
                         dayPhrase(context.date),
                 context = context,
+                dedupKey = reliefOccurrenceKey(INVITE_REVOKED, inviteId),
             ),
         )
         // #508 — the invitee's explicit notice shares the event + source but carries its own
@@ -153,7 +157,7 @@ internal object ReliefNotifications {
                 message =
                     "Your relief duty at ${context.branchName} ${dayPhrase(context.date)} was revoked",
                 context = context,
-                dedupKey = "$INVITE_REVOKED:$inviteId:direct",
+                dedupKey = reliefDirectOccurrenceKey(INVITE_REVOKED, inviteId),
             ),
         )
     }
@@ -177,6 +181,7 @@ internal object ReliefNotifications {
                 recipients = listOf(inviteeId),
                 message = "You have relief duty at ${context.branchName} $phrase",
                 context = context,
+                dedupKey = reliefOccurrenceKey(eventType, inviteId),
             ),
         )
     }
@@ -203,6 +208,7 @@ internal object ReliefNotifications {
                     "$requesterName's relief duty request at ${context.branchName} on ${context.date} " +
                         "expired unanswered",
                 context = context,
+                dedupKey = reliefOccurrenceKey(EXPIRED, requestId),
             ),
         )
     }
@@ -216,16 +222,27 @@ internal object ReliefNotifications {
     private fun dayPhrase(date: LocalDate): String =
         if (date == BranchDayService.currentOperationalDate()) "for today" else "on $date"
 
-    // #508 — one broadcast param object: the revocation direct notice adds an occurrence-key
-    // override to the shared event + source identity, which a sixth function parameter would
-    // push past LongParameterList.
+    // #614 — producer-owned occurrence keys: the mailbox store persists the supplied
+    // key verbatim and never derives identity from payload fields.
+    private fun reliefOccurrenceKey(
+        eventType: String,
+        sourceId: UUID,
+    ): String = "$eventType:$sourceId"
+
+    private fun reliefDirectOccurrenceKey(
+        eventType: String,
+        sourceId: UUID,
+    ): String = "$eventType:$sourceId:direct"
+
+    // #508 — one broadcast param object: the revocation direct notice carries its own
+    // occurrence key alongside the shared event + source identity.
     private data class ReliefBroadcast(
         val eventType: String,
         val sourceId: UUID,
         val recipients: Collection<UUID>,
         val message: String,
         val context: ReliefEventContext,
-        val dedupKey: String? = null,
+        val dedupKey: String,
     )
 
     private fun broadcast(broadcast: ReliefBroadcast): Int =

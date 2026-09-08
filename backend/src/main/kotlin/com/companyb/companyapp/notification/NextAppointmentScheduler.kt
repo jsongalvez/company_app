@@ -28,7 +28,13 @@ object NextAppointmentScheduler {
     // #508 — the sweep's occurrence identity: one delivery per (session, target date,
     // recipient). A same-sweep retry reuses the key and inserts nothing; a genuinely later
     // appointment date is a new occurrence and survives alongside the earlier row (#356).
+    // #614 — the key is producer-owned: built here, persisted verbatim by the mailbox store.
     const val APPOINTMENT_REMINDER = "APPOINTMENT_REMINDER"
+
+    private fun appointmentOccurrenceKey(
+        sessionId: java.util.UUID,
+        targetDate: LocalDate,
+    ): String = "APPT:$sessionId:$targetDate"
 
     fun targetDate(now: LocalDate): LocalDate = now.plusDays(DAYS_AHEAD)
 
@@ -73,6 +79,7 @@ object NextAppointmentScheduler {
                                 eventType = APPOINTMENT_REMINDER,
                                 sourceId = session.sessionId,
                                 targetDate = target,
+                                dedupKey = appointmentOccurrenceKey(session.sessionId, target),
                             )
                         }
                     }

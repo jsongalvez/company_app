@@ -246,6 +246,8 @@ class NotificationServicePostgresTest : BasePostgresTest() {
     // must both land; a repeated identical event must not.
     @Test
     fun `insertBatch keeps distinct event rows per person and drops in-batch event duplicates`() {
+        val firstSource = TestFixtures.uuid()
+        val secondSource = TestFixtures.uuid()
         val created =
             NotificationRepository.insertBatch(
                 listOf(
@@ -255,8 +257,9 @@ class NotificationServicePostgresTest : BasePostgresTest() {
                         branchId = branchId,
                         message = "requested",
                         eventType = "RELIEF_REQUESTED",
-                        sourceId = TestFixtures.uuid(),
+                        sourceId = firstSource,
                         targetDate = TestFixtures.today,
+                        dedupKey = "RELIEF_REQUESTED:$firstSource",
                     ),
                     NotificationCreateParams(
                         sessionId = null,
@@ -264,8 +267,9 @@ class NotificationServicePostgresTest : BasePostgresTest() {
                         branchId = branchId,
                         message = "granted",
                         eventType = "RELIEF_REQUEST_GRANTED",
-                        sourceId = TestFixtures.uuid(),
+                        sourceId = secondSource,
                         targetDate = TestFixtures.today,
+                        dedupKey = "RELIEF_REQUEST_GRANTED:$secondSource",
                     ),
                 ),
             )
@@ -283,6 +287,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
                         eventType = "RELIEF_INVITE_ACCEPTED",
                         sourceId = repeatSource,
                         targetDate = TestFixtures.today,
+                        dedupKey = "RELIEF_INVITE_ACCEPTED:$repeatSource",
                     ),
                     NotificationCreateParams(
                         sessionId = null,
@@ -292,6 +297,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
                         eventType = "RELIEF_INVITE_ACCEPTED",
                         sourceId = repeatSource,
                         targetDate = TestFixtures.today,
+                        dedupKey = "RELIEF_INVITE_ACCEPTED:$repeatSource",
                     ),
                 ),
             )
@@ -312,6 +318,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
                 eventType = NextAppointmentScheduler.APPOINTMENT_REMINDER,
                 sourceId = sessionId,
                 targetDate = targetDate,
+                dedupKey = "APPT:$sessionId:$targetDate",
             )
 
         assertEquals(1, NotificationRepository.insertBatch(listOf(duplicate)))

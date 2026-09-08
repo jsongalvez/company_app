@@ -176,7 +176,7 @@ intentionally shallow.
 **Anchors:** `notification/NotificationService.kt` (+ internal `NotificationRepository`, record + internal `NotificationTable` in same package) · `notification/NotificationRoutes.kt` · `notification/NextAppointmentScheduler.kt` (+ internal `NextAppointmentRepository`).
 **Public seam:** `NotificationService.listUnread` / `browseHistory` / `countUnread` / `markRead` / `markAllRead` · `NotificationReads.existsForSessionAndUser` / `findUsersBySource` + `NotificationAppender.append` (relief/session-detail reads + broadcasts; service-to-service, no allowlist).
 **Depends on:** Sessions (detail + reminders), Branch Day (scheduler operational dates); scheduled by the app composition (`app/SchedulerLifecycle`, see Platform).
-**Expansion triggers:** occurrence-identity dedup keys (appointment session+target date, relief event+source, revocation `:direct` audience split) under UNIQUE `(dedup_key, user_id)` (#508); producer-owned occurrence identity (#614, blocked on #602).
+**Expansion triggers:** producer-owned occurrence keys (appointment session+target date, relief event+source, revocation `:direct` audience split) under UNIQUE `(dedup_key, user_id)` (#508 #614); the mailbox store persists the supplied key verbatim and never derives identity.
 **Tests/authority:** `NotificationIdempotencyPostgresTest`, `NextAppointmentSchedulerPostgresTest`.
 **Search:** `existsForSessionAndUser`, `NotificationAppender.append`, `insertBatch`.
 
