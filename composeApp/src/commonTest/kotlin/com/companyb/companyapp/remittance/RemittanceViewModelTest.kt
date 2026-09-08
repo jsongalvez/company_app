@@ -268,6 +268,131 @@ class RemittanceViewModelTest {
         }
 
     @Test
+    fun loadRemittance_success_commits_last_good_mirror() =
+        runTest(testScheduler) {
+            val vm = RemittanceViewModel(mockApiClient(remittanceHandler()))
+
+            assertEquals(expected = null, actual = vm.lastDetail.value)
+            vm.loadRemittance("r1")
+            runCurrent()
+
+            assertEquals(expected = "r1", actual = vm.lastDetail.value?.id)
+            assertEquals(expected = 3, actual = vm.lastDetail.value?.version)
+        }
+
+    @Test
+    fun loadRemittance_403_clears_protected_state_and_marks_forbidden() =
+        runTest(testScheduler) {
+            var detailStatus = HttpStatusCode.OK
+            val base = remittanceHandler()
+            val vm =
+                RemittanceViewModel(
+                    mockApiClient { request ->
+                        if (request.method == HttpMethod.Get &&
+                            request.url.encodedPath == "/api/remittances/r1"
+                        ) {
+                            if (detailStatus == HttpStatusCode.OK) {
+                                jsonRespond(status = HttpStatusCode.OK, body = DETAIL_JSON)
+                            } else {
+                                jsonRespond(status = HttpStatusCode.Forbidden, body = "{}")
+                            }
+                        } else {
+                            base(request)
+                        }
+                    },
+                )
+
+            vm.loadRemittance("r1")
+            runCurrent()
+            vm.loadSessionPicker("b1", "2026-08-01", "2026-08-09")
+            runCurrent()
+            vm.loadRemittances("b1", "DRAFT")
+            runCurrent()
+            assertEquals(expected = "r1", actual = vm.lastDetail.value?.id)
+            assertEquals(expected = false, actual = vm.detailForbidden.value)
+
+            // #677 — access loss clears protected content: no Error, no stale detail,
+            // picker caches (client names), drift, or queue mirrors behind the gate.
+            detailStatus = HttpStatusCode.Forbidden
+            vm.loadRemittance("r1")
+            runCurrent()
+
+            assertEquals(expected = null, actual = vm.lastDetail.value)
+            assertIs<UiState.Idle>(vm.remittanceDetail.value)
+            assertIs<UiState.Idle>(vm.sessionPicker.value)
+            assertEquals(expected = null, actual = vm.pickerLoadedRange.value)
+            assertEquals(expected = true, actual = vm.detailForbidden.value)
+            assertEquals(expected = emptyMap(), actual = vm.lastByTab.value)
+        }
+
+    @Test
+    fun loadRemittance_attempt_clears_forbidden_flag() =
+        runTest(testScheduler) {
+            var detailStatus = HttpStatusCode.Forbidden
+            val base = remittanceHandler()
+            val vm =
+                RemittanceViewModel(
+                    mockApiClient { request ->
+                        if (request.method == HttpMethod.Get &&
+                            request.url.encodedPath == "/api/remittances/r1"
+                        ) {
+                            if (detailStatus == HttpStatusCode.OK) {
+                                jsonRespond(status = HttpStatusCode.OK, body = DETAIL_JSON)
+                            } else {
+                                jsonRespond(status = HttpStatusCode.Forbidden, body = "{}")
+                            }
+                        } else {
+                            base(request)
+                        }
+                    },
+                )
+
+            vm.loadRemittance("r1")
+            runCurrent()
+            assertEquals(expected = true, actual = vm.detailForbidden.value)
+
+            detailStatus = HttpStatusCode.OK
+            vm.loadRemittance("r1")
+            runCurrent()
+            assertEquals(expected = false, actual = vm.detailForbidden.value)
+            assertEquals(expected = "r1", actual = vm.lastDetail.value?.id)
+        }
+
+    @Test
+    fun loadRemittance_non403_failure_keeps_last_good_mirror() =
+        runTest(testScheduler) {
+            var detailStatus = HttpStatusCode.OK
+            val base = remittanceHandler()
+            val vm =
+                RemittanceViewModel(
+                    mockApiClient { request ->
+                        if (request.method == HttpMethod.Get &&
+                            request.url.encodedPath == "/api/remittances/r1"
+                        ) {
+                            if (detailStatus == HttpStatusCode.OK) {
+                                jsonRespond(status = HttpStatusCode.OK, body = DETAIL_JSON)
+                            } else {
+                                jsonRespond(status = HttpStatusCode.BadRequest, body = "{}")
+                            }
+                        } else {
+                            base(request)
+                        }
+                    },
+                )
+
+            vm.loadRemittance("r1")
+            runCurrent()
+            detailStatus = HttpStatusCode.BadRequest
+            vm.loadRemittance("r1")
+            runCurrent()
+
+            // A transport/client failure is not access loss: the last-good workspace
+            // stays for retry while the state carries the Error.
+            assertIs<UiState.Error>(vm.remittanceDetail.value)
+            assertEquals(expected = "r1", actual = vm.lastDetail.value?.id)
+        }
+
+    @Test
     fun loadRemittance_resetNotice_false_preserves_notice_default_resets() =
         runTest(testScheduler) {
             val vm =

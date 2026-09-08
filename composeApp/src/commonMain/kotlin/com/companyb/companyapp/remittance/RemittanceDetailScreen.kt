@@ -103,7 +103,7 @@ fun RemittanceDetailScreen(
     // the window is wide enough for queue + editor + brief side by side.
     deskEnabled: Boolean = false,
 ) {
-    LaunchedEffect(Unit) {
+    LaunchedEffect(args.remittanceId) {
         logInfo("RemittanceDetailScreen", "composable entered: remittanceId=${args.remittanceId}")
         args.viewModel.loadRemittance(args.remittanceId)
     }
@@ -122,7 +122,7 @@ fun RemittanceDetailScreen(
         // #447 — Variant B control desk renders on opted-in hosts (desktop) with a wide
         // window only; everywhere else keeps the classic single column. The queue
         // prefetch is desk-gated so other surfaces issue no extra reads.
-        val wideDesk = deskEnabled && maxWidth >= CONTROL_DESK_MIN_WIDTH
+        val wideDesk = deskEnabled && maxWidth >= RemittanceLayoutPolicy.queueBreakpoint
         RemittanceDetailDeskPrefetchEffects(
             wideDesk = wideDesk,
             branchId = args.branchId,
@@ -148,6 +148,10 @@ private fun RemittanceDetailScreenBody(
     onRefreshQueue: () -> Unit,
 ) {
     val detailState by args.viewModel.remittanceDetail.collectAsState()
+    val lastDetail by args.viewModel.lastDetail.collectAsState()
+    val forbidden by args.viewModel.detailForbidden.collectAsState()
+    // #677 — dialog flags live above the detail state branch: a post-mutation detail
+    // reload must not unmount the working picker (selection/scroll/queue survive).
     val dialogs = remember { RemittanceDetailDialogState() }
 
     // #447 — the range the picker caches were loaded for; a header range edit invalidates
@@ -171,6 +175,11 @@ private fun RemittanceDetailScreenBody(
         onRefreshQueue = onRefreshQueue,
     )
 
+    // #677 — last-good workspace: the freshest Success payload renders through reloads
+    // (lines/days/footer retained, no spinner flash); dialogs mount below on it.
+    val liveDetail = (detailState as? UiState.Success)?.data
+    val effectiveDetail = liveDetail ?: lastDetail
+
     Column(
         modifier =
             Modifier
@@ -178,33 +187,56 @@ private fun RemittanceDetailScreenBody(
                 .padding(Spacing.md),
     ) {
         RemittanceDetailBackRow(onBack = onBack)
+        RemittanceChangedNotice(viewModel = args.viewModel)
 
-        when (val state = detailState) {
-            is UiState.Idle, is UiState.Loading -> {
-                RemittanceDetailLoadingBox()
-            }
-
-            is UiState.Error -> {
-                RemittanceDetailLoadError(
-                    message = state.message,
+        // #677 — access loss owns the surface: no stale workspace, no spinner, no
+        // retry into another 403 — just the way back.
+        if (forbidden) {
+            RemittanceAccessLost(onBack = onBack)
+        } else {
+            // #677 — a failed reload over a retained workspace surfaces a compact retry
+            // instead of silently presenting stale-as-fresh.
+            if (detailState is UiState.Error && effectiveDetail != null) {
+                RemittanceStaleRetry(
+                    message = (detailState as UiState.Error).message,
                     onRetry = { args.viewModel.loadRemittance(args.remittanceId) },
                 )
             }
 
-            is UiState.Success -> {
-                RemittanceDetailSuccessHost(
-                    args = args,
-                    detail = state.data,
-                    wideDesk = wideDesk,
-                    actions =
-                        RemittanceDeskActions(
-                            onQueueClick = onRemittanceClick,
-                            onRetryQueue = { onRefreshQueue() },
-                        ),
-                    center = { RemittanceDetailContent(detail = state.data, args = args, dialogs = dialogs) },
-                )
+            when {
+                effectiveDetail != null -> {
+                    RemittanceDetailWorkspaceHost(
+                        args = args,
+                        detail = effectiveDetail,
+                        wideDesk = wideDesk,
+                        onRemittanceClick = onRemittanceClick,
+                        onRefreshQueue = onRefreshQueue,
+                        dialogs = dialogs,
+                    )
+                }
+
+                detailState is UiState.Error -> {
+                    RemittanceDetailLoadError(
+                        message = (detailState as UiState.Error).message,
+                        onRetry = { args.viewModel.loadRemittance(args.remittanceId) },
+                    )
+                }
+
+                else -> {
+                    RemittanceDetailLoadingBox()
+                }
             }
         }
+    }
+
+    // #677 — picker/review/undo dialogs mount independently of detail reloads on the
+    // last-good payload: adding entries never dismisses the working picker.
+    effectiveDetail?.let { detail ->
+        RemittanceDetailMountedDialogs(
+            args = args,
+            detail = detail,
+            dialogs = dialogs,
+        )
     }
 }
 
@@ -232,23 +264,56 @@ private fun RemittanceDetailLoadError(
     ErrorCard(message = message, onRetry = onRetry)
 }
 
+/** #677 — access-loss terminal: the grant is gone, so the workspace (and its picker
+ * caches) is cleared and this card replaces it. No retry — it would 403 again. */
 @Composable
-private fun RemittanceDetailSuccessHost(
-    args: RemittanceDetailArgs,
-    detail: RemittanceDetailResponse,
-    wideDesk: Boolean,
-    actions: RemittanceDeskActions,
-    center: @Composable () -> Unit,
+private fun RemittanceAccessLost(onBack: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Text(
+            text = "No longer available",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = "Access to this remittance changed. Your unsent edits were discarded.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = onBack) {
+            Text("Back")
+        }
+    }
+}
+
+/** #677 — compact retry over a retained workspace: the reload failed, the data is stale. */
+@Composable
+private fun RemittanceStaleRetry(
+    message: String,
+    onRetry: () -> Unit,
 ) {
-    val changedNotice by args.viewModel.detailChangedNotice.collectAsState()
-    val queueState by args.viewModel.remittanceList.collectAsState()
-    val queueMirrors by args.viewModel.lastByTab.collectAsState()
-    val dayPickerState by args.viewModel.dayPicker.collectAsState()
-    val pickerLoadedRange by args.viewModel.pickerLoadedRange.collectAsState()
-    // #490 — desk rail day labels go through the range gate: old-range entries stay hidden
-    // until the current range's load lands (an empty map renders no stale day names).
-    val range = detail.dateRangeStart to detail.dateRangeEnd
-    val dayStale = pickerLoadedRange != null && pickerLoadedRange != range
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Text(
+            text = "Couldn't refresh — showing last loaded data. $message",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onRetry) {
+            Text("Retry")
+        }
+    }
+}
+
+@Composable
+private fun RemittanceChangedNotice(viewModel: RemittanceViewModel) {
+    val changedNotice by viewModel.detailChangedNotice.collectAsState()
     if (changedNotice) {
         Text(
             text = "Remittance was changed elsewhere — changes reloaded",
@@ -257,31 +322,37 @@ private fun RemittanceDetailSuccessHost(
             modifier = Modifier.padding(bottom = Spacing.sm),
         )
     }
+}
+
+@Composable
+private fun RemittanceDetailWorkspaceHost(
+    args: RemittanceDetailArgs,
+    detail: RemittanceDetailResponse,
+    wideDesk: Boolean,
+    onRemittanceClick: (String) -> Unit,
+    onRefreshQueue: () -> Unit,
+    dialogs: RemittanceDetailDialogState,
+) {
+    // #677 — queue + one workspace side by side on wide desks; the full-width
+    // workspace alone below the breakpoint (the list route is the queue there —
+    // Back restores its tab/scroll structurally via the back stack).
     if (wideDesk && args.branchId != null) {
-        RemittanceControlDesk(
-            detail = detail,
+        val queueState by args.viewModel.remittanceList.collectAsState()
+        val queueMirrors by args.viewModel.lastByTab.collectAsState()
+        RemittanceQueueWorkspace(
             desk =
                 RemittanceDeskState(
                     branchId = args.branchId,
                     currentId = args.remittanceId,
                     mirrors = queueMirrors,
                     queueState = queueState,
-                    dayEntries =
-                        if (dayStale) {
-                            emptyMap()
-                        } else {
-                            (dayPickerState as? UiState.Success)
-                                ?.data
-                                ?.associate { it.id to it }
-                                .orEmpty()
-                        },
-                    onQueueClick = actions.onQueueClick,
-                    onRetryQueue = { actions.onRetryQueue() },
+                    onQueueClick = onRemittanceClick,
+                    onRetryQueue = onRefreshQueue,
                 ),
-            center = center,
+            workspace = { RemittanceDetailWorkspace(args = args, detail = detail, dialogs = dialogs) },
         )
     } else {
-        center()
+        RemittanceDetailWorkspace(args = args, detail = detail, dialogs = dialogs)
     }
 }
 

@@ -266,15 +266,18 @@ private fun DesktopDetailPane(
     )
 }
 
-// #447 — desk queue selection: re-clicking the open draft is a no-op, anything else
-// pushes the existing detail route (no re-routing; the branch keeps its own decision).
+// #677 — desk queue selection replaces the active detail selection instead of growing
+// a history of sibling remittances: pop back to the list, then push the one detail.
 private fun navigateDeskQueue(
     navController: NavHostController,
     currentId: String,
     id: String,
 ) {
     if (id != currentId) {
-        navController.navigate(Route.RemittanceDetail(id))
+        navController.navigate(Route.RemittanceDetail(id)) {
+            popUpTo(Route.RemittanceList) { inclusive = false }
+            launchSingleTop = true
+        }
     }
 }
 

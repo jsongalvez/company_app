@@ -356,7 +356,10 @@ private fun SubmitSnapshotReview(detail: RemittanceDetailResponse) {
                     )
                 }
                 Text(
-                    text = "Compensation and expenses freeze from the branch-day records at submit.",
+                    text =
+                        "Final financial snapshot is calculated at submission: compensation " +
+                            "and expenses freeze from the branch-day records then — " +
+                            "this review shows the amounts that freeze, not a net preview.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -466,19 +469,5 @@ private fun UndoReasonFields(
             color = MaterialTheme.colorScheme.error,
             style = MaterialTheme.typography.bodySmall,
         )
-    }
-}
-
-/** Shared picker/dialog cancel button: disabled while the owning mutation is in flight. */
-@Composable
-internal fun IncomePickerDismissButton(
-    mutationState: UiState<*>,
-    onDismiss: () -> Unit,
-) {
-    TextButton(
-        onClick = onDismiss,
-        enabled = mutationState !is UiState.Loading,
-    ) {
-        Text("Cancel")
     }
 }

@@ -91,12 +91,14 @@ internal fun lineLabel(
 internal fun DayPickerDayRow(
     entry: RemittanceDayPickerEntryResponse,
     includedIds: Set<String>,
+    addingIds: Set<String> = emptySet(),
     selectedIds: Set<String>,
     onToggle: (id: String) -> Unit,
 ) {
     val included = entry.id in includedIds
+    val adding = entry.id in addingIds
     val remitted = entry.status == com.companyb.companyapp.contracts.branchday.DayStatus.REMITTED
-    val selectable = !included && !remitted
+    val selectable = !included && !remitted && !adding
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier =
@@ -130,6 +132,7 @@ internal fun DayPickerDayRow(
         Text(
             text =
                 when {
+                    adding -> "Adding…"
                     included -> "Added"
                     remitted -> "Already remitted"
                     else -> entry.status.name

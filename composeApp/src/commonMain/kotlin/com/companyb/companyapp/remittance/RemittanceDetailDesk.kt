@@ -48,23 +48,16 @@ import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.remittance.AddDayBreakdownRequest
 import com.companyb.companyapp.contracts.remittance.CreateRemittanceLineRequest
 import com.companyb.companyapp.contracts.remittance.RemittanceDayBreakdownResponse
-import com.companyb.companyapp.contracts.remittance.RemittanceDayPickerEntryResponse
-import com.companyb.companyapp.contracts.remittance.RemittanceDetailResponse
 import com.companyb.companyapp.contracts.remittance.RemittanceDriftResponse
 import com.companyb.companyapp.contracts.remittance.RemittanceFinancialSnapshotResponse
 import com.companyb.companyapp.contracts.remittance.RemittanceLineResponse
 import com.companyb.companyapp.contracts.remittance.RemittanceProductSalePickerEntryResponse
 import com.companyb.companyapp.contracts.remittance.RemittanceResponse
-import com.companyb.companyapp.contracts.remittance.RemittanceSessionPickerEntryResponse
 import com.companyb.companyapp.contracts.remittance.RemittanceStatus
 import com.companyb.companyapp.contracts.remittance.RemittanceSubmitResponse
 import com.companyb.companyapp.contracts.remittance.SubmitRemittanceRequest
 import com.companyb.companyapp.contracts.remittance.UndoRemittanceRequest
 import com.companyb.companyapp.contracts.remittance.UpdateRemittanceHeaderRequest
-import com.companyb.companyapp.ui.screen.centsToMoney
-import com.companyb.companyapp.ui.screen.moneyToCents
-import com.companyb.companyapp.ui.screen.peso
-import com.companyb.companyapp.ui.screen.sessionLinesGrossCents
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.ui.theme.rowHover
@@ -76,36 +69,29 @@ import kotlin.uuid.Uuid
 import androidx.compose.ui.geometry.CornerRadius as GeometryCornerRadius
 
 /**
- * #447 — shared desk bundle built by the success host: the queue mirrors + shared list
- * state, day labels, rail callbacks, and the desk selection context (branch + selected id).
+ * #677 — shared desk bundle built by the success host: the queue mirrors + shared list
+ * state, rail callbacks, and the desk selection context (branch + selected id).
  */
 internal data class RemittanceDeskState(
     val branchId: String,
     val currentId: String,
     val mirrors: Map<String, List<RemittanceResponse>>,
     val queueState: UiState<List<RemittanceResponse>>,
-    val dayEntries: Map<String, RemittanceDayPickerEntryResponse>,
-    val onQueueClick: (String) -> Unit,
-    val onRetryQueue: () -> Unit,
-)
-
-/** #447 — queue navigation actions handed down from the screen body (selection + refresh). */
-internal class RemittanceDeskActions(
     val onQueueClick: (String) -> Unit,
     val onRetryQueue: () -> Unit,
 )
 
 /**
- * #447 — Variant B control desk (owner verdict on #429): draft queue | editable center
- * column | persistent submission brief. Wide layouts only; the center is the unchanged
- * detail content (every flow and state preserved), the rails are read-only
- * rearrangements of existing sources — no new endpoints, DTOs, or routes.
+ * #677 — queue + one workspace (the #447 Variant B desk minus its third summary rail:
+ * the evolving draft and its review live in the one workspace, never duplicated into
+ * a side brief). Wide layouts only; the workspace is the detail content with its
+ * #677 footer/sections, the queue is a read-only rearrangement of the existing list
+ * source — no new endpoints, DTOs, or routes.
  */
 @Composable
-internal fun RemittanceControlDesk(
-    detail: RemittanceDetailResponse,
+internal fun RemittanceQueueWorkspace(
     desk: RemittanceDeskState,
-    center: @Composable () -> Unit,
+    workspace: @Composable () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxSize(),
@@ -115,20 +101,12 @@ internal fun RemittanceControlDesk(
             shape = RoundedCornerShape(CornerRadius.md),
             border = BorderStroke(width = 1.dp, color = MaterialTheme.colorScheme.outline),
             color = MaterialTheme.colorScheme.surface,
-            modifier = Modifier.width(CONTROL_DESK_RAIL_WIDTH).fillMaxHeight(),
+            modifier = Modifier.width(RemittanceLayoutPolicy.queueWidth).fillMaxHeight(),
         ) {
             DraftQueueRail(desk = desk)
         }
         Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-            center()
-        }
-        Surface(
-            shape = RoundedCornerShape(CornerRadius.md),
-            border = BorderStroke(width = 1.dp, color = MaterialTheme.colorScheme.outline),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.width(CONTROL_DESK_RAIL_WIDTH).fillMaxHeight(),
-        ) {
-            SubmissionBriefRail(detail = detail, dayEntries = desk.dayEntries)
+            workspace()
         }
     }
 }
@@ -289,109 +267,7 @@ private fun QueueRow(
     }
 }
 
-/**
- * #447 — desk right rail: the covered range, line items, day states, and frozen-snapshot
- * review at a glance. Read-only; every number comes from the loaded detail (rearranged,
- * not re-sourced).
- */
-@Composable
-private fun SubmissionBriefRail(
-    detail: RemittanceDetailResponse,
-    dayEntries: Map<String, RemittanceDayPickerEntryResponse>,
-) {
-    Column(
-        modifier =
-            Modifier
-                .verticalScroll(rememberScrollState())
-                .padding(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        Text(
-            text = "Submission brief",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = remittanceTypeLabel(detail.type.name),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Text(
-            text = "${detail.dateRangeStart} – ${detail.dateRangeEnd}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = "Method: ${remittanceMethodLabel(detail.method.name)}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-        SnapshotRow("Lines", detail.lines.size.toString())
-        SnapshotRow("Line total", peso(detail.totalAmount))
-        SnapshotRow("Days covered", detail.dayBreakdowns.size.toString())
-        detail.dayBreakdowns.forEach { breakdown ->
-            val day = dayEntries[breakdown.branchDayId]
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = day?.date ?: breakdown.branchDayId,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = day?.status?.name.orEmpty(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-        SubmissionBriefSnapshot(detail)
-    }
-}
-
-@Composable
-private fun SubmissionBriefSnapshot(detail: RemittanceDetailResponse) {
-    val snapshot = detail.snapshot
-    if (snapshot != null) {
-        Text(
-            text = "Frozen at submission",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        SnapshotRow("Gross", peso(snapshot.grossIncome))
-        SnapshotRow("Compensation", peso(snapshot.totalCompensation))
-        SnapshotRow("Expenses", peso(snapshot.totalExpenses))
-        SnapshotRow("Net", peso(snapshot.netIncome))
-    } else if (detail.type == com.companyb.companyapp.contracts.remittance.RemittanceType.SESSION) {
-        Text(
-            text = "Freezes on submit",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        val sessionGrossCents = sessionLinesGrossCents(detail.lines)
-        SnapshotRow("Gross to freeze", peso(centsToMoney(sessionGrossCents)))
-        if (moneyToCents(detail.totalAmount) != sessionGrossCents) {
-            SnapshotRow("Line total (incl. product lines)", peso(detail.totalAmount))
-        }
-    } else {
-        SnapshotRow("Product total", peso(detail.totalAmount))
-        Text(
-            text = "Product flows write no SESSION snapshot; commission is excluded.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-// #447 — control-desk geometry + queue statuses (backend enum names, mirroring the list tabs).
-// The editor column needs room for the money-review rows: rails stay narrow so the desk
-// engages from ~1220px desktop windows (drawer + rails + editor).
-internal val CONTROL_DESK_MIN_WIDTH = 860.dp
-
-private val CONTROL_DESK_RAIL_WIDTH = 210.dp
-
+// #677 — queue statuses (backend enum names, mirroring the list tabs).
 internal val DESK_QUEUE_DRAFTS_STATUS = RemittanceStatus.DRAFT.name
 
 internal val DESK_QUEUE_SUBMITTED_STATUS = RemittanceStatus.SUBMITTED.name

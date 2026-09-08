@@ -101,9 +101,17 @@ internal class IncomePickerFlow(
     val onDismiss: () -> Unit,
 )
 
+/** #677 — the picker-entry id behind one queued line write (never the write id). */
+internal fun incomeRequestEntryId(request: CreateRemittanceLineRequest): String =
+    request.sessionId ?: request.productSaleId ?: request.id
+
 /**
  * D3 — per-open picker session: tick selection + editable amounts + the one-POST-per-row
  * add queue. Owns the mutation interaction so the dialog composables stay thin.
+ *
+ * #677 — confirmed/failed batch lifecycle: a confirmed row is labeled Added and never
+ * re-adds; a failed batch returns its unconfirmed queue to ticked selection for retry
+ * (the dialog closes only on explicit Done/Cancel, never on batch completion).
  */
 internal class IncomePickerSession<T>(
     val spec: IncomePickerSpec<T>,
@@ -111,6 +119,8 @@ internal class IncomePickerSession<T>(
     var selectedIds by mutableStateOf(emptySet<String>())
     var amounts by mutableStateOf(emptyMap<String, String>())
     var pending by mutableStateOf(emptyList<CreateRemittanceLineRequest>())
+    var confirmedIds by mutableStateOf(emptySet<String>())
+    var batchError by mutableStateOf<String?>(null)
 
     fun toggle(
         entry: T,
@@ -119,6 +129,9 @@ internal class IncomePickerSession<T>(
     ) {
         if (included) return
         val id = spec.idOf(entry)
+        // #677 — the in-flight head cannot be re-ticked mid-batch (its POST owns it;
+        // re-ticking would paint a bogus failed label via statusText).
+        if (pending.any { incomeRequestEntryId(it) == id }) return
         selectedIds = if (selected) selectedIds - id else selectedIds + id
         amounts = amounts + (id to spec.amountOf(entry))
     }
@@ -138,16 +151,52 @@ internal class IncomePickerSession<T>(
         }
         // #490 — a selected id missing from a reloaded same-range cache must not throw in the
         // click handler: fall back to the amount captured at toggle time, drop only ids with
-        // neither.
+        // neither. #677 — confirmed rows never re-add.
         val requests =
-            selectedIds.mapNotNull { id ->
+            (selectedIds - confirmedIds).mapNotNull { id ->
                 val amount = amounts[id] ?: entries.find { spec.idOf(it) == id }?.let { spec.amountOf(it) }
                 amount?.let { spec.toRequest(id, it) }
             }
         if (requests.isEmpty()) return null
+        batchError = null
         pending = requests
         selectedIds = emptySet()
         return requests
+    }
+
+    /** Marks the in-flight head confirmed and drops it (the queue effect sends the rest). */
+    fun confirmFirst() {
+        pending.firstOrNull()?.let { confirmedIds = confirmedIds + incomeRequestEntryId(it) }
+        pending = pending.drop(1)
+    }
+
+    /**
+     * Returns the unconfirmed queue to ticked selection for retry. An Idle abort is the
+     * VM's 403/409 terminal reset (the draft reloaded underneath) — say so; an Error
+     * abort already renders the mutation message in the dialog body.
+     */
+    fun restorePending(terminal: UiState<*>) {
+        selectedIds = selectedIds + pending.map(::incomeRequestEntryId)
+        pending = emptyList()
+        batchError =
+            if (terminal is UiState.Idle) {
+                "The draft changed elsewhere — failed rows stayed selected for retry."
+            } else {
+                null
+            }
+    }
+
+    /** One-line batch status: partial success is labeled, failures stay actionable. */
+    fun statusText(): String? {
+        if (confirmedIds.isEmpty() && batchError == null) return null
+        val added = if (confirmedIds.isNotEmpty()) "Added ${confirmedIds.size}" else null
+        val failed =
+            if (selectedIds.isNotEmpty() && confirmedIds.isNotEmpty()) {
+                "${selectedIds.size} failed — still selected for retry"
+            } else {
+                null
+            }
+        return listOfNotNull(added, failed, batchError).joinToString(" · ")
     }
 }
 
@@ -219,6 +268,8 @@ internal fun ProductSalePickerDialog(
 /**
  * D3 — shared tick-to-include income picker (sessions + product sales): per-row selection
  * with prefilled editable amounts, one mutation POST per selected row via [PendingQueueEffect].
+ * #677 — the dialog closes only on explicit Done/Cancel: batch completion labels the
+ * outcome (partial success included) and leaves the dialog open.
  */
 @Composable
 private fun <T> IncomePickerDialog(
@@ -226,16 +277,20 @@ private fun <T> IncomePickerDialog(
     data: IncomePickerData<T>,
     flow: IncomePickerFlow,
 ) {
+    // #677 — Done/Cancel are the only exits: completion confirms rows in place (no
+    // auto-dismiss), failure restores the unconfirmed queue to selection for retry.
+    val dismissible = data.mutationState !is UiState.Loading && session.pending.isEmpty()
     PickerPendingHost(
         pending = session.pending,
         mutationState = data.mutationState,
         onAdd = flow.onAdd,
-        onDismiss = flow.onDismiss,
         onPendingChange = { session.pending = it },
+        onAdvanced = { session.confirmFirst() },
+        onAborted = { session.restorePending(data.mutationState) },
     )
     AlertDialog(
         onDismissRequest = {
-            if (data.mutationState !is UiState.Loading && session.pending.isEmpty()) flow.onDismiss()
+            if (dismissible) flow.onDismiss()
         },
         title = { Text(session.spec.title) },
         text = {
@@ -252,7 +307,13 @@ private fun <T> IncomePickerDialog(
                 flow = flow,
             )
         },
-        dismissButton = { IncomePickerDismissButton(mutationState = data.mutationState, onDismiss = flow.onDismiss) },
+        dismissButton = {
+            IncomePickerDoneButton(
+                session = session,
+                mutationState = data.mutationState,
+                onDismiss = flow.onDismiss,
+            )
+        },
     )
 }
 
@@ -261,23 +322,29 @@ private fun <T> PickerPendingHost(
     pending: List<T>,
     mutationState: UiState<*>,
     onAdd: (List<T>) -> Unit,
-    onDismiss: () -> Unit,
     onPendingChange: (List<T>) -> Unit,
+    onAdvanced: () -> Unit = {},
+    onAborted: () -> Unit = {},
 ) {
-    // One POST per selected row, advanced on each success; a failure or the VM's 403/409 Idle
-    // reset clears the queue (the dialog stays open showing the error / the reloaded state).
+    // One POST per selected row, advanced on each success; completion confirms the batch
+    // in place (Done/Cancel are the only exits — never auto-dismiss). A failure or the
+    // VM's 403/409 Idle reset restores the unconfirmed queue to selection for retry.
     PendingQueueEffect(
         pending = pending,
         mutationState = mutationState,
         onNext = { remaining ->
+            onAdvanced()
             onPendingChange(remaining)
             onAdd(remaining)
         },
         onFinished = {
+            onAdvanced()
             onPendingChange(emptyList())
-            onDismiss()
         },
-        onAborted = { onPendingChange(emptyList()) },
+        onAborted = {
+            onAborted()
+            onPendingChange(emptyList())
+        },
     )
 }
 
@@ -294,6 +361,21 @@ private fun <T> IncomePickerConfirmButton(
                 session.selectedIds.isNotEmpty(),
     ) {
         Text("Add")
+    }
+}
+
+@Composable
+private fun <T> IncomePickerDoneButton(
+    session: IncomePickerSession<T>,
+    mutationState: UiState<*>,
+    onDismiss: () -> Unit,
+) {
+    // #677 — Done/Cancel are the only exits: Done once rows confirmed, Cancel before.
+    TextButton(
+        onClick = onDismiss,
+        enabled = mutationState !is UiState.Loading && session.pending.isEmpty(),
+    ) {
+        Text(if (session.confirmedIds.isEmpty()) "Cancel" else "Done")
     }
 }
 
@@ -327,16 +409,19 @@ private fun <T> IncomePickerBody(
                 } else {
                     s.data.forEach { entry ->
                         val id = spec.idOf(entry)
-                        val included = id in data.includedIds
+                        // #677 — server-confirmed and batch-confirmed rows alike render
+                        // Added and never re-add; the in-flight head renders Adding.
+                        val included = id in data.includedIds || id in session.confirmedIds
+                        val adding = session.pending.any { incomeRequestEntryId(it) == id }
                         val selected = id in session.selectedIds
                         PickerEntryRow(
                             model =
                                 PickerEntryRowModel(
                                     label = spec.mainLabel(entry),
-                                    secondary = spec.secondaryLabel(entry),
+                                    secondary = if (adding) "Adding…" else spec.secondaryLabel(entry),
                                     amountText = peso(spec.amountOf(entry)),
                                     selected = selected,
-                                    enabled = !included,
+                                    enabled = !included && !adding,
                                     amount = session.amounts[id],
                                 ),
                             onAmountChange = { value -> session.setAmount(id, value) },
@@ -354,14 +439,26 @@ private fun <T> IncomePickerBody(
                 style = MaterialTheme.typography.bodySmall,
             )
         }
+        // #677 — partial success is labeled in place; failures stay selected for retry.
+        session.statusText()?.let {
+            Spacer(Modifier.size(Spacing.xs))
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
 /**
  * Shared add-queue driver for the tick-to-include pickers (D3/D4): one mutation per selected
- * row, advanced on each success; an Error or the VM's 403/409 Idle reset aborts the batch
- * (the dialog stays open — the error / reloaded state is visible — and the queue clears, so
- * dismissal is never blocked by a stalled batch).
+ * row, advanced on each success with the batch confirmed in place; an Error or the VM's
+ * 403/409 Idle reset restores the unconfirmed queue to selection for retry (the dialog
+ * stays open — the error / reloaded state is visible — and Done/Cancel are the only exits).
+ *
+ * #677 — the dialog wiring stays whole (pending + mutation + advance + abort travel
+ * together per picker); no DTO wrapper — the hooks are the ownership decision.
  */
 @Composable
 private fun <T> PendingQueueEffect(
@@ -413,23 +510,39 @@ internal fun DayPickerDialog(
     // #483 — selections key on the loaded range: a header range edit resets ticked days
     // instead of silently keeping out-of-range selections. #490 — the in-flight add queue
     // keys the same way: old-range requests never survive a range change with the dialog
-    // composed.
+    // composed. #677 — batch-confirmed days render Added and never re-add; failures
+    // return to selection for retry; the dialog closes only on Done/Cancel.
     var selectedIds by remember(rangeKey) { mutableStateOf(emptySet<String>()) }
     var pending by remember(rangeKey) { mutableStateOf<List<AddDayBreakdownRequest>>(emptyList()) }
+    var confirmedIds by remember(rangeKey) { mutableStateOf(emptySet<String>()) }
+    var batchError by remember(rangeKey) { mutableStateOf<String?>(null) }
 
-    // One POST per selected day, advanced on each success; a failure or the VM's 403/409 Idle
-    // reset clears the queue (the dialog stays open showing the error / the reloaded state).
+    // One POST per selected day, advanced on each success; completion confirms in place
+    // (no auto-dismiss) and failure restores the unconfirmed queue to selection.
     PickerPendingHost(
         pending = pending,
         mutationState = data.mutationState,
         onAdd = onAdd,
-        onDismiss = onDismiss,
         onPendingChange = { pending = it },
+        onAdvanced = {
+            pending.firstOrNull()?.let { confirmedIds = confirmedIds + it.branchDayId }
+        },
+        onAborted = {
+            selectedIds = selectedIds + pending.map { it.branchDayId }
+            pending = emptyList()
+            batchError =
+                if (data.mutationState is UiState.Idle) {
+                    "The draft changed elsewhere — failed days stayed selected for retry."
+                } else {
+                    null
+                }
+        },
     )
 
+    val dismissible = data.mutationState !is UiState.Loading && pending.isEmpty()
     AlertDialog(
         onDismissRequest = {
-            if (data.mutationState !is UiState.Loading && pending.isEmpty()) {
+            if (dismissible) {
                 onDismiss()
             }
         },
@@ -438,16 +551,25 @@ internal fun DayPickerDialog(
             DayPickerBody(
                 data = data,
                 selectedIds = selectedIds,
+                confirmedIds = confirmedIds,
+                addingIds = pending.map { it.branchDayId }.toSet(),
+                batchError = batchError,
                 onLoad = onLoad,
-                onToggle = { id -> selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id },
+                onToggle = { id ->
+                    // #677 — the in-flight head cannot be re-ticked mid-batch.
+                    if (pending.none { it.branchDayId == id }) {
+                        selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+                    }
+                },
             )
         },
         confirmButton = {
             DayPickerConfirmButton(
                 data = data,
                 pending = pending,
-                selectedIds = selectedIds,
+                selectedIds = selectedIds - confirmedIds,
                 onConfirm = { requests ->
+                    batchError = null
                     pending = requests
                     selectedIds = emptySet()
                     onAdd(requests)
@@ -455,16 +577,26 @@ internal fun DayPickerDialog(
             )
         },
         dismissButton = {
-            IncomePickerDismissButton(mutationState = data.mutationState, onDismiss = onDismiss)
+            TextButton(
+                onClick = onDismiss,
+                enabled = dismissible,
+            ) {
+                Text(if (confirmedIds.isEmpty()) "Cancel" else "Done")
+            }
         },
     )
 }
 
-/** D4 — day-picker text column: load/error/empty/day rows + mutation error. */
+/** D4 — day-picker text column: load/error/empty/day rows + mutation error.
+ * #677 — the seven legs (cached load, selection, confirmed/adding sets, batch error,
+ * load + toggle) travel together per open; kept whole per the coherent-owner rule. */
 @Composable
 private fun DayPickerBody(
     data: DayPickerData,
     selectedIds: Set<String>,
+    confirmedIds: Set<String>,
+    addingIds: Set<String>,
+    batchError: String?,
     onLoad: () -> Unit,
     onToggle: (id: String) -> Unit,
 ) {
@@ -489,10 +621,14 @@ private fun DayPickerBody(
                 if (s.data.isEmpty()) {
                     EmptyState("No days in this date range")
                 } else {
+                    // #677 — batch-confirmed days render Added alongside server-included ones;
+                    // the in-flight head renders Adding.
+                    val includedIds = data.includedIds + confirmedIds
                     s.data.forEach { entry ->
                         DayPickerDayRow(
                             entry = entry,
-                            includedIds = data.includedIds,
+                            includedIds = includedIds,
+                            addingIds = addingIds,
                             selectedIds = selectedIds,
                             onToggle = onToggle,
                         )
@@ -506,6 +642,22 @@ private fun DayPickerBody(
                 text = it.message,
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        // #677 — partial success is labeled in place; failures stay selected for retry.
+        val status =
+            listOfNotNull(
+                "Added ${confirmedIds.size}".takeIf { confirmedIds.isNotEmpty() },
+                "${selectedIds.size} failed — still selected for retry"
+                    .takeIf { selectedIds.isNotEmpty() && confirmedIds.isNotEmpty() },
+                batchError,
+            ).joinToString(" · ").takeIf { it.isNotEmpty() }
+        status?.let {
+            Spacer(Modifier.size(Spacing.xs))
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

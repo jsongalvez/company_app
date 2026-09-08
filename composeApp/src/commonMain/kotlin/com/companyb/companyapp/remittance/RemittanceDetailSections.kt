@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -121,12 +122,13 @@ internal fun rememberRemittanceDetailCollected(viewModel: RemittanceViewModel): 
 }
 
 /**
- * #142 — dialog-flag state holder: the six detail-surface dialogs (header edit, the three
- * pickers, submit, undo) as direct-assignment flags. Callers open/close with flag writes;
- * no callback threading through the host chain.
+ * #142 — dialog-flag state holder: the detail-surface dialogs (header edit, income
+ * chooser, the three pickers, submit, undo) as direct-assignment flags. Callers
+ * open/close with flag writes; no callback threading through the host chain.
  */
 internal class RemittanceDetailDialogState {
     var header by mutableStateOf(false)
+    var incomeChooser by mutableStateOf(false)
     var sessionPicker by mutableStateOf(false)
     var productSalePicker by mutableStateOf(false)
     var dayPicker by mutableStateOf(false)
@@ -134,77 +136,102 @@ internal class RemittanceDetailDialogState {
     var undo by mutableStateOf(false)
 }
 
+/**
+ * #677 — the one workspace: scrollable draft/review content plus the fixed review
+ * footer (drafts). Renders on the last-good payload so post-mutation reloads retain
+ * lines/days/footer instead of flashing a spinner.
+ */
 @Composable
-internal fun RemittanceDetailContent(
-    detail: RemittanceDetailResponse,
+internal fun RemittanceDetailWorkspace(
     args: RemittanceDetailArgs,
+    detail: RemittanceDetailResponse,
     dialogs: RemittanceDetailDialogState,
 ) {
     val collected = rememberRemittanceDetailCollected(args.viewModel)
-    RemittanceDetailContentBody(
-        detail = detail,
-        collected = collected,
-        args = args,
-        dialogs = dialogs,
-    )
-    RemittanceDetailContentDialogs(
-        detail = detail,
-        collected = collected,
-        args = args,
-        dialogs = dialogs,
-    )
-}
-
-@Composable
-private fun RemittanceDetailContentBody(
-    detail: RemittanceDetailResponse,
-    collected: RemittanceDetailCollected,
-    args: RemittanceDetailArgs,
-    dialogs: RemittanceDetailDialogState,
-) {
+    // #677 — a submit in flight disables conflicting edits (geometry kept — buttons
+    // stay mounted, disabled — with local errors surfacing in the review dialog).
+    val editsEnabled = collected.submitState !is UiState.Loading
     val isDraft = detail.status == com.companyb.companyapp.contracts.remittance.RemittanceStatus.DRAFT
-    Column(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
-    ) {
-        RemittanceDetailHeaderSummary(
-            detail = detail,
-            isDraft = isDraft,
-            dialogs = dialogs,
-        )
-        RemittanceDetailLinesSection(
-            detail = detail,
-            collected = collected,
-            args = args,
-            dialogs = dialogs,
-        )
-        RemittanceDetailDaysSection(
-            detail = detail,
-            collected = collected,
-            args = args,
-            dialogs = dialogs,
-        )
-        RemittanceDetailReceiptSection(
-            detail = detail,
-            collected = collected,
-            args = args,
-            dialogs = dialogs,
-        )
+    Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+        ) {
+            RemittanceDetailHeaderSummary(
+                detail = detail,
+                branchId = args.branchId,
+                isDraft = isDraft,
+                editsEnabled = editsEnabled,
+                dialogs = dialogs,
+            )
+            if (isDraft) {
+                RemittanceDetailLinesSection(
+                    detail = detail,
+                    collected = collected,
+                    args = args,
+                    dialogs = dialogs,
+                    editsEnabled = editsEnabled,
+                )
+                RemittanceDetailDaysSection(
+                    detail = detail,
+                    collected = collected,
+                    args = args,
+                    dialogs = dialogs,
+                    editsEnabled = editsEnabled,
+                )
+            } else {
+                RemittanceDetailReceiptSection(
+                    detail = detail,
+                    collected = collected,
+                    args = args,
+                    dialogs = dialogs,
+                )
+                RemittanceDetailLinesSection(
+                    detail = detail,
+                    collected = collected,
+                    args = args,
+                    dialogs = dialogs,
+                    editsEnabled = false,
+                )
+                RemittanceDetailDaysSection(
+                    detail = detail,
+                    collected = collected,
+                    args = args,
+                    dialogs = dialogs,
+                    editsEnabled = false,
+                )
+            }
+        }
+        if (isDraft) {
+            RemittanceReviewFooter(
+                detail = detail,
+                busy = !editsEnabled,
+                onReview = { dialogs.submit = true },
+            )
+        }
     }
 }
 
+/**
+ * #677 — dialogs mounted independently of detail reloads on the last-good payload:
+ * the working picker survives the refresh its own adds trigger.
+ */
 @Composable
-private fun RemittanceDetailContentDialogs(
-    detail: RemittanceDetailResponse,
-    collected: RemittanceDetailCollected,
+internal fun RemittanceDetailMountedDialogs(
     args: RemittanceDetailArgs,
+    detail: RemittanceDetailResponse,
     dialogs: RemittanceDetailDialogState,
 ) {
+    val collected = rememberRemittanceDetailCollected(args.viewModel)
     RemittanceDetailHeaderEditHost(
         detail = detail,
         collected = collected,
+        args = args,
+        dialogs = dialogs,
+    )
+    RemittanceIncomeChooserHost(
         args = args,
         dialogs = dialogs,
     )
@@ -228,10 +255,78 @@ private fun RemittanceDetailContentDialogs(
     )
 }
 
+/**
+ * #677 — the fixed review footer: the required deliberate review step stays visible
+ * below the evolving draft. Draft snapshot net is never previewed — the final
+ * financial snapshot is calculated at submission.
+ */
+@Composable
+private fun RemittanceReviewFooter(
+    detail: RemittanceDetailResponse,
+    busy: Boolean,
+    onReview: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        Spacer(Modifier.size(Spacing.xs))
+        Text(
+            text =
+                "Final financial snapshot is calculated at submission — " +
+                    "review the lines and days before submitting.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.size(Spacing.xs))
+        Button(
+            onClick = onReview,
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(if (busy) "Submitting…" else "Review submission")
+        }
+    }
+}
+
+@Composable
+private fun RemittanceIncomeChooserHost(
+    args: RemittanceDetailArgs,
+    dialogs: RemittanceDetailDialogState,
+) {
+    if (dialogs.incomeChooser && args.branchId != null) {
+        AlertDialog(
+            onDismissRequest = { dialogs.incomeChooser = false },
+            title = { Text("Add income") },
+            text = { Text("Choose which income to add to this draft.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        dialogs.incomeChooser = false
+                        dialogs.sessionPicker = true
+                    },
+                ) {
+                    Text("Session income")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        dialogs.incomeChooser = false
+                        dialogs.productSalePicker = true
+                    },
+                ) {
+                    Text("Product sales")
+                }
+            },
+        )
+    }
+}
+
 @Composable
 private fun RemittanceDetailHeaderSummary(
     detail: RemittanceDetailResponse,
+    branchId: String?,
     isDraft: Boolean,
+    editsEnabled: Boolean,
     dialogs: RemittanceDetailDialogState,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -247,11 +342,17 @@ private fun RemittanceDetailHeaderSummary(
         )
         Spacer(Modifier.weight(1f))
         if (isDraft) {
-            TextButton(onClick = { dialogs.header = true }) {
+            TextButton(
+                onClick = { dialogs.header = true },
+                enabled = editsEnabled,
+            ) {
                 Text("Edit")
             }
         }
     }
+    // #677 — the header names the branch alongside the state: the workspace identity
+    // is remittance + branch + Draft/Submitted, never a bare status chip.
+    RemittanceDetailRow("Branch", remittanceBranchLabel(branchId ?: detail.branchId))
     RemittanceDetailRow("Type", remittanceTypeLabel(detail.type.name))
     RemittanceDetailRow("Method", remittanceMethodLabel(detail.method.name))
     RemittanceDetailRow("Date range", "${detail.dateRangeStart} – ${detail.dateRangeEnd}")

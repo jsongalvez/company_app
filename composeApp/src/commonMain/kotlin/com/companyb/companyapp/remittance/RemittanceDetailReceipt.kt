@@ -113,7 +113,8 @@ private fun LineRow(
                 onClick = onDelete,
                 enabled = !deleting,
             ) {
-                Text("×")
+                // #677 — explicit Remove labels, never tiny × controls.
+                Text("Remove")
             }
         }
     }
@@ -134,6 +135,27 @@ internal fun RemittanceDetailRow(
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+/** #677 — secondary section total: recedes behind the draft/review action. */
+@Composable
+internal fun RemittanceDetailTotalRow(
+    label: String,
+    value: String,
+) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -221,6 +243,7 @@ internal fun RemittanceDetailLinesSection(
     collected: RemittanceDetailCollected,
     args: RemittanceDetailArgs,
     dialogs: RemittanceDetailDialogState,
+    editsEnabled: Boolean,
 ) {
     val sessionLabels =
         (collected.sessionPickerState as? UiState.Success)
@@ -234,12 +257,12 @@ internal fun RemittanceDetailLinesSection(
             .orEmpty()
     val isDraft = detail.status == com.companyb.companyapp.contracts.remittance.RemittanceStatus.DRAFT
     Spacer(Modifier.size(Spacing.sm))
-    SectionLabel("Lines")
+    SectionLabel("Income lines")
     detail.lines.forEach { line ->
         LineRow(
             line = line,
             label = lineLabel(line, sessionLabels, productSaleLabels),
-            deletable = isDraft,
+            deletable = isDraft && editsEnabled,
             deleting = collected.deleteLineState is UiState.Loading,
             onDelete = {
                 if (collected.deleteLineState !is UiState.Loading) {
@@ -248,11 +271,17 @@ internal fun RemittanceDetailLinesSection(
             },
         )
     }
-    RemittanceDetailRow("Total", peso(detail.totalAmount))
+    // #677 — section totals stay secondary to the draft/review action in the footer.
+    RemittanceDetailTotalRow("Total", peso(detail.totalAmount))
     if (isDraft) {
-        Row {
-            TextButton(onClick = { dialogs.sessionPicker = true }) { Text("Add session income") }
-            TextButton(onClick = { dialogs.productSalePicker = true }) { Text("Add product sales income") }
+        // #677 — one Add action per section: the chooser routes to the session or
+        // product-sale picker instead of two competing buttons. Gated on the branch
+        // context: without it the picker has no range source and would dead-tap.
+        TextButton(
+            onClick = { dialogs.incomeChooser = true },
+            enabled = editsEnabled && args.branchId != null,
+        ) {
+            Text("Add income")
         }
     }
 }
@@ -263,6 +292,7 @@ internal fun RemittanceDetailDaysSection(
     collected: RemittanceDetailCollected,
     args: RemittanceDetailArgs,
     dialogs: RemittanceDetailDialogState,
+    editsEnabled: Boolean,
 ) {
     val dayLabels =
         (collected.dayPickerState as? UiState.Success)
@@ -271,7 +301,7 @@ internal fun RemittanceDetailDaysSection(
             .orEmpty()
     val isDraft = detail.status == com.companyb.companyapp.contracts.remittance.RemittanceStatus.DRAFT
     Spacer(Modifier.size(Spacing.sm))
-    SectionLabel("Days covered")
+    SectionLabel("Branch days")
     detail.dayBreakdowns.forEach { breakdown ->
         val day = dayLabels[breakdown.branchDayId]
         Row(
@@ -295,22 +325,24 @@ internal fun RemittanceDetailDaysSection(
                             args.viewModel.deleteDayBreakdown(args.remittanceId, breakdown.id)
                         }
                     },
-                    enabled = collected.deleteDayBreakdownState !is UiState.Loading,
+                    enabled = collected.deleteDayBreakdownState !is UiState.Loading && editsEnabled,
                 ) {
-                    Text("×")
+                    // #677 — explicit Remove labels, never tiny × controls.
+                    Text("Remove")
                 }
             }
         }
     }
     if (isDraft) {
-        TextButton(onClick = { dialogs.dayPicker = true }) { Text("Add days") }
-        Spacer(Modifier.size(Spacing.sm))
-        OutlinedButton(
-            onClick = { dialogs.submit = true },
-            modifier = Modifier.fillMaxWidth(),
+        // #677 — one Add action; the review/submit action lives in the fixed footer.
+        // Gated on the branch context like the income picker (no dead taps).
+        TextButton(
+            onClick = { dialogs.dayPicker = true },
+            enabled = editsEnabled && args.branchId != null,
         ) {
-            Text("Submit")
+            Text("Add days")
         }
+        Spacer(Modifier.size(Spacing.sm))
     }
 }
 
@@ -321,21 +353,54 @@ internal fun RemittanceDetailReceiptSection(
     args: RemittanceDetailArgs,
     dialogs: RemittanceDetailDialogState,
 ) {
+    // #677 — the submitted view is an immutable receipt first: submitted total/date/
+    // method and the frozen snapshot lead; the live-data comparison hides under
+    // disclosure; eligible Undo sits next to the receipt state with its deadline.
+    val isSubmitted = detail.status == com.companyb.companyapp.contracts.remittance.RemittanceStatus.SUBMITTED
+    if (!isSubmitted) return
     val isSubmittedSession =
-        detail.status == com.companyb.companyapp.contracts.remittance.RemittanceStatus.SUBMITTED &&
-            detail.type == com.companyb.companyapp.contracts.remittance.RemittanceType.SESSION
+        detail.type == com.companyb.companyapp.contracts.remittance.RemittanceType.SESSION
+    Spacer(Modifier.size(Spacing.md))
+    SectionLabel("Receipt")
+    RemittanceDetailRow("Submitted total", peso(detail.totalAmount))
+    if (detail.submittedDate.isNotBlank()) {
+        RemittanceDetailRow("Submitted date", detail.submittedDate)
+    }
+    RemittanceDetailRow("Method", remittanceMethodLabel(detail.method.name))
+    Spacer(Modifier.size(Spacing.sm))
     val snapshot = detail.snapshot
     if (isSubmittedSession && snapshot != null) {
-        Spacer(Modifier.size(Spacing.md))
         FrozenReceiptBlock(
             snapshot = snapshot,
             driftState = collected.driftState,
             onShowDrift = { args.viewModel.loadDrift(args.remittanceId) },
         )
+    } else if (!isSubmittedSession) {
+        Text(
+            text = "Product flows write no SESSION snapshot; commission is excluded.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    } else {
+        // Submitted SESSION rows always freeze a snapshot at submit; a missing one
+        // means the receipt predates the freeze — say so instead of product copy.
+        Text(
+            text = "Snapshot unavailable for this submission.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 
     if (remittanceCanUndo(detail)) {
         Spacer(Modifier.size(Spacing.sm))
+        remittanceUndoDeadline(detail)?.let { deadline ->
+            Text(
+                text = "Undo available until $deadline (Manila). A reason is required.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.size(Spacing.xs))
         OutlinedButton(
             onClick = { dialogs.undo = true },
             colors =

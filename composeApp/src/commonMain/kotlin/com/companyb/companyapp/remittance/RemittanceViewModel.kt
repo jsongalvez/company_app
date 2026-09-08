@@ -127,6 +127,19 @@ class RemittanceViewModel(
     private val _remittanceDetail = MutableStateFlow<UiState<RemittanceDetailResponse>>(UiState.Idle)
     val remittanceDetail: StateFlow<UiState<RemittanceDetailResponse>> = _remittanceDetail.asStateFlow()
 
+    // #677 — last-good detail mirror: the freshest Success payload, retained through
+    // reloads so the workspace (lines/days/footer) and the mounted pickers never flash
+    // to a spinner on a post-mutation refresh. Written only by a current detail commit;
+    // cleared on detail 403 (access loss clears protected content).
+    private val _lastDetail = MutableStateFlow<RemittanceDetailResponse?>(null)
+    val lastDetail: StateFlow<RemittanceDetailResponse?> = _lastDetail.asStateFlow()
+
+    // #677 — detail-access terminal: a 403 on the detail load means the grant is gone.
+    // The screen renders the access-loss card instead of the workspace while set;
+    // every load attempt re-arms it.
+    private val _detailForbidden = MutableStateFlow(false)
+    val detailForbidden: StateFlow<Boolean> = _detailForbidden.asStateFlow()
+
     // #484 — latest-wins guard for the detail surface (#611 LoadGeneration owner, keptByTab
     // shape): a landing superseded by a newer load never commits. A double-initial overlap
     // whose stale landing arrives first simply holds Loading until the superseding load lands.
@@ -236,6 +249,7 @@ class RemittanceViewModel(
         if (resetNotice) {
             detailChangedNoticeState.value = false
         }
+        _detailForbidden.value = false
         handler.launchLatest(
             LatestLoad(
                 state = _remittanceDetail,
@@ -245,6 +259,27 @@ class RemittanceViewModel(
                 block = { apiClient.httpClient.get(ApiRoutes.remittance(remittanceId)) },
                 decode = { it.body() },
                 guard = detailGuard,
+                onCommit = { _lastDetail.value = it },
+                // #677 — access loss clears protected content: a 403 settles to Idle
+                // with no Error and drops the last-good detail, the picker caches
+                // (client names are PII), drift, and queue mirrors behind the
+                // forbidden-render gate. Other statuses keep the generic Error.
+                onNonSuccess = { response ->
+                    if (response.status == HttpStatusCode.Forbidden) {
+                        _lastDetail.value = null
+                        _sessionPicker.value = UiState.Idle
+                        _productSalePicker.value = UiState.Idle
+                        _dayPicker.value = UiState.Idle
+                        _pickerLoadedRange.value = null
+                        driftState.value = UiState.Idle
+                        keptByTab.clearRetained()
+                        _remittanceDetail.value = UiState.Idle
+                        _detailForbidden.value = true
+                        true
+                    } else {
+                        false
+                    }
+                },
             ),
         )
     }

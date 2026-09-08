@@ -56,12 +56,16 @@ internal fun submittedSessionNet(raw: RemittanceResponse): String? =
 // #561 — peso() lives shared in ui/screen/SessionMoney (finance + remittance consumers);
 // this owner keeps only remittance-specific display vocabulary.
 
+// #677 — single Manila-zone source for the remittance date helpers below
+// (the picker speaks Manila calendar dates; the Undo window is Manila-anchored).
+internal val ManilaZone: TimeZone = TimeZone.of("Asia/Manila")
+
 // D2 — create popup defaults the range to today (Manila business day, matching the backend's
 // branch-day calendar).
 internal fun todayIso(): String =
     Clock.System
         .now()
-        .toLocalDateTime(TimeZone.of("Asia/Manila"))
+        .toLocalDateTime(ManilaZone)
         .date
         .toString()
 
@@ -79,6 +83,28 @@ internal fun remittanceCanUndo(detail: RemittanceDetailResponse): Boolean {
             ?: return false
     return Clock.System.now() - submittedAt <= UNDO_WINDOW_HOURS.hours
 }
+
+// #677 — the eligible-Undo deadline affordance: the exact instant the 48h server window
+// closes, rendered as a Manila calendar date for the receipt-adjacent Undo action.
+// Null when the detail carries no parseable submission instant (button stays hidden).
+internal fun remittanceUndoDeadline(detail: RemittanceDetailResponse): String? {
+    val submittedAt =
+        detail.submittedAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
+            ?: return null
+    val deadline =
+        submittedAt
+            .plus(UNDO_WINDOW_HOURS.hours)
+            .toLocalDateTime(ManilaZone)
+    return "${deadline.date} ${deadline.hour.toString().padStart(2, '0')}:" +
+        deadline.minute.toString().padStart(2, '0')
+}
+
+// #677 — header branch label without inventing a name the client was not given
+// (the shell-context #671 precedent): the branch id prefix.
+internal fun remittanceBranchLabel(branchId: String?): String =
+    if (branchId.isNullOrBlank()) "Branch unknown" else "Branch ${branchId.take(BRANCH_ID_PREFIX)}"
+
+private const val BRANCH_ID_PREFIX = 8
 
 internal const val UNDO_WINDOW_HOURS = 48L
 

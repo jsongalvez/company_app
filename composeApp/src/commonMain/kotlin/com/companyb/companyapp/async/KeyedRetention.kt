@@ -26,6 +26,11 @@ class KeyedMirror<K, T> {
     ) {
         _lastByKey.value = _lastByKey.value + (key to data)
     }
+
+    /** Drop every retained payload (for revoked access — no stale protected rows). */
+    fun clear() {
+        _lastByKey.value = emptyMap()
+    }
 }
 
 /**
@@ -77,4 +82,14 @@ class KeepLastByKey<K, T> {
 
     /** The last successful payload for [key], or null when that key never loaded. */
     fun freshest(key: K): T? = mirror.lastByKey.value[key]
+
+    /**
+     * #677 — drop every retained payload (for revoked access). The in-flight markers
+     * stay intact: clearing them would let a superseded landing's unconditional
+     * finish remove a re-armed marker (InFlightGuard.clear's cross-wire) — the
+     * forbidden-render gate owns visibility, not the guard.
+     */
+    fun clearRetained() {
+        mirror.clear()
+    }
 }
