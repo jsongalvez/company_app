@@ -11,8 +11,4 @@ import java.util.UUID
 object RemittanceReads {
     /** Existence read for the remittance branch gate — runs on its own transaction. */
     fun findById(remittanceId: UUID): Remittance? = RemittanceRepository.findById(remittanceId)
-
-    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
-    fun findByIdInTransaction(remittanceId: UUID): Remittance? =
-        RemittanceRepository.findByIdInTransaction(remittanceId)
 }
