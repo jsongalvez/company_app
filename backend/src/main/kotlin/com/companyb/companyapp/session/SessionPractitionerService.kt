@@ -34,7 +34,8 @@ internal object SessionPractitionerService {
         return SessionPractitionerRepository.findBySessionId(sessionId)
     }
 
-    @Suppress("ReturnCount", "ThrowsCount", "LongParameterList")
+    // #593 six-param add stays whole (coherent assignment inputs; #535 no arbitrary DTO).
+    @Suppress("LongParameterList") // #593
     fun addPractitioner(
         callerId: UUID,
         id: UUID,
@@ -84,7 +85,6 @@ internal object SessionPractitionerService {
             result
         }
 
-    @Suppress("ReturnCount", "ThrowsCount")
     fun updatePractitionerRemarks(
         callerId: UUID,
         sessionId: UUID,
@@ -121,7 +121,6 @@ internal object SessionPractitionerService {
             after
         }
 
-    @Suppress("ReturnCount", "ThrowsCount")
     fun removePractitioner(
         callerId: UUID,
         sessionId: UUID,

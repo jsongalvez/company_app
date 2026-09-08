@@ -68,7 +68,6 @@ data class SetRateResult(
     val previousAfter: SessionBaseRate? = null,
 )
 
-@Suppress("UnreachableCode")
 internal object SessionBaseRateRepository {
     /**
      * In-transaction store operation (#323, ADR-0024) — seeds the BR-documented default base
@@ -190,7 +189,6 @@ internal object SessionBaseRateRepository {
         return previous
     }
 
-    @Suppress("ComplexCondition")
     private fun validateRetryOwnership(
         existing: SessionBaseRate,
         params: SessionBaseRateCreateParams,

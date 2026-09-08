@@ -338,7 +338,8 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         assertEquals(1, allConcerns.count { it.id == concernId })
     }
 
-    @Suppress("LongParameterList")
+    // #593 helper mirrors SessionService.create signature (fixture parity, #552 precedent).
+    @Suppress("LongParameterList") // #593
     private fun createSession(
         callerId: UUID,
         id: UUID,

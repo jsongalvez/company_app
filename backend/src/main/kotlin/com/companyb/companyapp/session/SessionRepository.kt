@@ -49,7 +49,6 @@ data class SessionCreateResult(
     val created: Boolean,
 )
 
-@Suppress("TooManyFunctions")
 internal object SessionRepository {
     fun countPriorNonMedicalMissionSessions(clientId: UUID): Long =
         transaction {
@@ -113,7 +112,6 @@ internal object SessionRepository {
         }
 
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
-    @Suppress("ThrowsCount")
     fun createInTransaction(params: SessionCreateParams): SessionCreateResult {
         // Client-first lock order lives with the command (#541): SessionService.create locks
         // the client row via the client seam before opening this store write, so the lock

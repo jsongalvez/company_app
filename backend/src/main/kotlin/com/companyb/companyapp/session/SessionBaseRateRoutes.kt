@@ -50,7 +50,6 @@ import java.util.UUID
 object SessionBaseRateRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
 
-    @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
         config.routes.before("/api/branches/{branchId}/rates") { context ->
             CapabilityFilter.requireBranchCapabilityForBranchId(

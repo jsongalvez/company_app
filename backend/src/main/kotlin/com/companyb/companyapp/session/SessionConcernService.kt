@@ -27,7 +27,6 @@ internal object SessionConcernService {
         return ConcernRepository.getConcernsForSession(sessionId)
     }
 
-    @Suppress("ReturnCount", "ThrowsCount")
     fun addToSession(
         callerId: UUID,
         sessionId: UUID,
@@ -53,7 +52,6 @@ internal object SessionConcernService {
         }
     }
 
-    @Suppress("ReturnCount", "ThrowsCount")
     fun removeFromSession(
         callerId: UUID,
         sessionId: UUID,
@@ -79,7 +77,6 @@ internal object SessionConcernService {
         }
     }
 
-    @Suppress("ReturnCount", "ThrowsCount")
     fun promoteConcern(
         callerId: UUID,
         sessionId: UUID,

@@ -55,7 +55,8 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
-@Suppress("LargeClass")
+// #593 1335-line scenario coverage stays whole (test-class precedent: RemittanceServicePostgresTest).
+@Suppress("LargeClass") // #593
 class SessionServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
@@ -1198,7 +1199,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
         }
     }
 
-    @Suppress("LongParameterList")
+    // #593 helper mirrors SessionService.create signature (fixture parity, #552 precedent).
+    @Suppress("LongParameterList") // #593
     private fun createSession(
         callerId: UUID,
         id: UUID,

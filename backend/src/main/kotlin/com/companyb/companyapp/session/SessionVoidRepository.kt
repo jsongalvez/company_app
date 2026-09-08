@@ -40,7 +40,6 @@ internal object SessionVoidRepository {
      * historical unvoided row for this session is re-armed in place (the single
      * per-session row invariant), and an active row for this session is an idempotent ack.
      */
-    @Suppress("ReturnCount")
     fun voidInTransaction(
         id: UUID,
         sessionId: UUID,
@@ -118,7 +117,6 @@ internal object SessionVoidRepository {
             .singleOrNull()
             ?.toSessionVoid()
 
-    @Suppress("ReturnCount")
     private fun org.jetbrains.exposed.v1.core.ResultRow.toSessionVoid(): SessionVoid {
         val unvoidedAt = this[SessionVoidTable.unvoidedAt]
         val unvoidedBy = this[SessionVoidTable.unvoidedBy]

@@ -32,6 +32,7 @@ import com.companyb.companyapp.session.dashboard.DashboardService
 import com.companyb.companyapp.session.dashboard.DashboardSessionEnrichment
 import com.companyb.companyapp.session.dashboard.mapDashboardSession
 import com.companyb.companyapp.session.dashboard.toResponse
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
@@ -48,7 +49,14 @@ import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.util.UUID
 
-@Suppress("TooManyFunctions")
+/**
+ * Request-scoped attribute: the branch day the create gate resolved (#157). The handler
+ * hands it to `SessionService.create` so the gate and the write share one day resolution
+ * (no Manila-midnight divergence). Absent when the gate ran the plain branch check
+ * (no day row existed — no BRANCH_DAY grant possible).
+ */
+private const val GATED_BRANCH_DAY_ATTR = "gatedBranchDayId"
+
 @OpenApi(
     path = ApiRoutes.CONCERNS,
     methods = [HttpMethod.GET],
@@ -280,123 +288,18 @@ import java.util.UUID
     ],
 )
 object SessionRoutes {
-    /**
-     * Request-scoped attribute: the branch day the create gate resolved (#157). The handler
-     * hands it to [SessionService.create] so the gate
-     * and the write share one day resolution (no Manila-midnight divergence). Absent when the
-     * gate ran the plain branch check (no day row existed — no BRANCH_DAY grant possible).
-     */
-    private const val GATED_BRANCH_DAY_ATTR = "gatedBranchDayId"
+    private val logger = KotlinLogging.logger {}
 
-    @Suppress("LongMethod")
     fun register(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.SESSIONS) { context ->
-            if (context.method() != HandlerType.POST) return@before
-            val request = context.bodyAsClass<CreateSessionRequest>()
-            val branchId = uuidOrThrow(request.branchId, "branch id")
-            // Day-scoped (#157) via the shared today gate (#452): a BRANCH_DAY relief
-            // grant for today satisfies the create gate. The resolved day is handed to
-            // the handler so the gate and the write share one resolution (no
-            // midnight-boundary divergence); a 403'd attempt leaves no day row behind.
-            val gatedDayId = CapabilityFilter.requireBranchOrDayForBranch(context, branchId)
-            if (gatedDayId != null) {
-                context.attribute(GATED_BRANCH_DAY_ATTR, gatedDayId)
-            }
-        }
+        registerCreateGate(config)
+        registerStatusPriceVoidGates(config)
+        registerPractitionerGates(config)
+        registerConcernGates(config)
+        registerHandlers(config)
+        registerPreview(config)
+    }
 
-        config.routes.before(ApiRoutes.SESSION_STATUS_PATH) { context ->
-            val sessionId = context.pathParamAsUuid("sessionId")
-            val request = context.bodyAsClass<UpdateSessionStatusRequest>()
-            SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
-                context,
-                sessionId,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-            )
-            SessionAuthz.requireStatusCorrectionCapability(context, sessionId, request.status)
-        }
-
-        config.routes.before(ApiRoutes.SESSION_FINAL_PRICE_PATH) { context ->
-            val sessionId = context.pathParamAsUuid("sessionId")
-            SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
-                context,
-                sessionId,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-            )
-        }
-
-        config.routes.before(ApiRoutes.SESSION_VOID_PATH) { context ->
-            val sessionId = context.pathParamAsUuid("sessionId")
-            SessionAuthz.requireBranchCapabilityForSession(
-                context,
-                sessionId,
-                CapabilityCodes.VOID_SESSION,
-            )
-        }
-
-        config.routes.before(ApiRoutes.SESSION_UNVOID_PATH) { context ->
-            val sessionId = context.pathParamAsUuid("sessionId")
-            SessionAuthz.requireBranchCapabilityForSession(
-                context,
-                sessionId,
-                CapabilityCodes.VOID_SESSION,
-            )
-        }
-
-        config.routes.before(ApiRoutes.SESSION_PRACTITIONERS_PATH) { context ->
-            val sessionId = context.pathParamAsUuid("sessionId")
-            SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
-                context,
-                sessionId,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-            )
-        }
-
-        config.routes.before("/api/sessions/{sessionId}/practitioners/{practitionerId}") { context ->
-            val sessionId = context.pathParamAsUuid("sessionId")
-            SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
-                context,
-                sessionId,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-            )
-        }
-
-        config.routes.before(ApiRoutes.SESSION_CONCERNS_PATH) { context ->
-            val sessionId = context.pathParamAsUuid("sessionId")
-            SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
-                context,
-                sessionId,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-            )
-        }
-
-        // #304 — the DELETE child path needs its own gate: Javalin path filters match
-        // exact literals, so the parent /concerns filter never fires for /concerns/{concernId}.
-        config.routes.before(ApiRoutes.SESSION_CONCERN_PATH) { context ->
-            val sessionId = context.pathParamAsUuid("sessionId")
-            SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
-                context,
-                sessionId,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-            )
-        }
-
-        config.routes.before(ApiRoutes.CONCERNS) { context ->
-            CapabilityFilter.requireGlobalCapability(
-                context,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                "EDIT_BRANCH_DATA capability required to manage concerns",
-            )
-        }
-
-        config.routes.before("/api/sessions/{sessionId}/promote-concern") { context ->
-            val sessionId = context.pathParamAsUuid("sessionId")
-            SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
-                context,
-                sessionId,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-            )
-        }
-
+    private fun registerHandlers(config: JavalinConfig) {
         config.routes.get(ApiRoutes.SESSION_PATH, ::handleGetSession)
         config.routes.post(ApiRoutes.SESSIONS, ::handleCreateSession)
         // #348 — the practitioners list read (add-self refresh); the existing
@@ -421,6 +324,9 @@ object SessionRoutes {
         config.routes.post(ApiRoutes.SESSION_CONCERNS_PATH, ::handleAddSessionConcern)
         config.routes.delete(ApiRoutes.SESSION_CONCERN_PATH, ::handleRemoveSessionConcern)
         config.routes.post(ApiRoutes.SESSION_PROMOTE_CONCERN_PATH, ::handlePromoteConcern)
+    }
+
+    private fun registerPreview(config: JavalinConfig) {
         config.routes.before(ApiRoutes.BRANCH_SESSION_PREVIEW_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             // Same gate as the create it previews (#452): the preview passes exactly
@@ -476,7 +382,6 @@ object SessionRoutes {
     }
 
     // #509 — replay-path 403 fallback is deliberate handling (empty concerns), not swallowing.
-    @Suppress("ThrowsCount", "SwallowedException")
     private fun handleCreateSession(context: Context) {
         val callerId = context.callerUuid()
         val request = context.bodyAsClass<CreateSessionRequest>()
@@ -519,7 +424,10 @@ object SessionRoutes {
                 // acknowledge the write with an empty list instead of failing the retry.
                 try {
                     SessionConcernService.getForSession(callerId, sessionId).map { it.toResponse() }
-                } catch (_: ForbiddenException) {
+                } catch (e: ForbiddenException) {
+                    logger.info {
+                        "[CREATE-SESSION] replay forbidden for $sessionId, acking empty: ${e.message}"
+                    }
                     emptyList()
                 }
             }
@@ -729,4 +637,119 @@ object SessionRoutes {
             remarks = remarks,
             slotAtTime = slotAtTime.toInt(),
         )
+}
+
+private fun registerCreateGate(config: JavalinConfig) {
+    config.routes.before(ApiRoutes.SESSIONS) { context ->
+        if (context.method() != HandlerType.POST) return@before
+        val request = context.bodyAsClass<CreateSessionRequest>()
+        val branchId = uuidOrThrow(request.branchId, "branch id")
+        // Day-scoped (#157) via the shared today gate (#452): a BRANCH_DAY relief
+        // grant for today satisfies the create gate. The resolved day is handed to
+        // the handler so the gate and the write share one resolution (no
+        // midnight-boundary divergence); a 403'd attempt leaves no day row behind.
+        val gatedDayId = CapabilityFilter.requireBranchOrDayForBranch(context, branchId)
+        if (gatedDayId != null) {
+            context.attribute(GATED_BRANCH_DAY_ATTR, gatedDayId)
+        }
+    }
+}
+
+private fun registerStatusPriceVoidGates(config: JavalinConfig) {
+    config.routes.before(ApiRoutes.SESSION_STATUS_PATH) { context ->
+        val sessionId = context.pathParamAsUuid("sessionId")
+        val request = context.bodyAsClass<UpdateSessionStatusRequest>()
+        SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
+            context,
+            sessionId,
+            CapabilityCodes.EDIT_BRANCH_DATA,
+        )
+        SessionAuthz.requireStatusCorrectionCapability(context, sessionId, request.status)
+    }
+
+    config.routes.before(ApiRoutes.SESSION_FINAL_PRICE_PATH) { context ->
+        val sessionId = context.pathParamAsUuid("sessionId")
+        SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
+            context,
+            sessionId,
+            CapabilityCodes.EDIT_BRANCH_DATA,
+        )
+    }
+
+    config.routes.before(ApiRoutes.SESSION_VOID_PATH) { context ->
+        val sessionId = context.pathParamAsUuid("sessionId")
+        SessionAuthz.requireBranchCapabilityForSession(
+            context,
+            sessionId,
+            CapabilityCodes.VOID_SESSION,
+        )
+    }
+
+    config.routes.before(ApiRoutes.SESSION_UNVOID_PATH) { context ->
+        val sessionId = context.pathParamAsUuid("sessionId")
+        SessionAuthz.requireBranchCapabilityForSession(
+            context,
+            sessionId,
+            CapabilityCodes.VOID_SESSION,
+        )
+    }
+}
+
+private fun registerPractitionerGates(config: JavalinConfig) {
+    config.routes.before(ApiRoutes.SESSION_PRACTITIONERS_PATH) { context ->
+        val sessionId = context.pathParamAsUuid("sessionId")
+        SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
+            context,
+            sessionId,
+            CapabilityCodes.EDIT_BRANCH_DATA,
+        )
+    }
+
+    config.routes.before("/api/sessions/{sessionId}/practitioners/{practitionerId}") { context ->
+        val sessionId = context.pathParamAsUuid("sessionId")
+        SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
+            context,
+            sessionId,
+            CapabilityCodes.EDIT_BRANCH_DATA,
+        )
+    }
+}
+
+private fun registerConcernGates(config: JavalinConfig) {
+    config.routes.before(ApiRoutes.SESSION_CONCERNS_PATH) { context ->
+        val sessionId = context.pathParamAsUuid("sessionId")
+        SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
+            context,
+            sessionId,
+            CapabilityCodes.EDIT_BRANCH_DATA,
+        )
+    }
+
+    // #304 — the DELETE child path needs its own gate: Javalin path filters match
+    // exact literals, so the parent /concerns filter never fires for /concerns/{concernId}.
+    config.routes.before(ApiRoutes.SESSION_CONCERN_PATH) { context ->
+        val sessionId = context.pathParamAsUuid("sessionId")
+        SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
+            context,
+            sessionId,
+            CapabilityCodes.EDIT_BRANCH_DATA,
+        )
+    }
+
+    config.routes.before(ApiRoutes.CONCERNS) { context ->
+        CapabilityFilter.requireGlobalCapability(
+            context,
+            CapabilityCodes.EDIT_BRANCH_DATA,
+            "EDIT_BRANCH_DATA capability required to manage concerns",
+        )
+    }
+
+    config.routes.before("/api/sessions/{sessionId}/promote-concern") { context ->
+        val sessionId = context.pathParamAsUuid("sessionId")
+        SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
+            context,
+            sessionId,
+            CapabilityCodes.EDIT_BRANCH_DATA,
+        )
+    }
 }

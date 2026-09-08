@@ -19,11 +19,9 @@ import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
 
-@Suppress("TooManyFunctions")
 object SessionService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("ReturnCount", "ThrowsCount")
     fun computeSessionType(
         branchType: BranchType,
         priorNonMedicalMissionCount: Long,
@@ -39,7 +37,8 @@ object SessionService {
         return SessionType.SUBSEQUENT
     }
 
-    @Suppress("ComplexCondition", "LongParameterList", "ReturnCount", "ThrowsCount", "LongMethod")
+    // #593 twelve-param creation command stays whole (coherent session inputs; #535 no arbitrary DTO).
+    @Suppress("LongParameterList") // #593
     fun create(
         callerId: UUID,
         id: UUID,
@@ -223,7 +222,6 @@ object SessionService {
             computeBasePrice(branchId, sessionType)
         }
 
-    @Suppress("ReturnCount", "ThrowsCount")
     fun updateStatus(
         callerId: UUID,
         sessionId: UUID,
@@ -288,7 +286,6 @@ object SessionService {
             updated
         }
 
-    @Suppress("ReturnCount", "ThrowsCount")
     fun updateFinalPrice(
         callerId: UUID,
         sessionId: UUID,
@@ -338,7 +335,6 @@ object SessionService {
             updated
         }
 
-    @Suppress("ReturnCount", "ThrowsCount")
     fun voidSession(
         callerId: UUID,
         sessionId: UUID,
@@ -392,7 +388,6 @@ object SessionService {
         }
     }
 
-    @Suppress("ReturnCount", "ThrowsCount")
     fun unvoidSession(
         callerId: UUID,
         sessionId: UUID,
