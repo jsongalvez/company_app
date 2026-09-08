@@ -264,6 +264,7 @@ class ApiCallHandler(
     // failure — and never surfaces as an error hook). Callers map the outcome onto their
     // landing policy; block exceptions arrive as [Outcome.Threw] (already logged), while
     // decode/commit exceptions stay the caller's try/catch below.
+    @Suppress("TooGenericExceptionCaught") // #637 generic catch, CancellationException rethrows (#585 precedent)
     private suspend fun execute(
         operation: String,
         endpoint: String,
@@ -530,6 +531,19 @@ class ApiCallHandler(
     // immediately after the second stale read with no suspension gap, on this scope. The
     // first stale read skips already-stale bodies before the wasted parse; the failure legs
     // are non-suspending commits closed by a single pre-commit stale read.
+    // Success leg extracted to keep launchStatelessGuarded under CognitiveComplexMethod
+    // threshold (the #499 precedent, #637 repair): pre-decode stale bodies skip the parse,
+    // mid-decode staleness drops the parsed body before the non-suspending commit.
+    private suspend fun <D> commitGuardedSuccess(
+        guarded: GuardedStateless<D>,
+        response: HttpResponse,
+    ) {
+        if (guarded.stale()) return
+        val decoded = guarded.decode(response)
+        if (guarded.stale()) return
+        guarded.commit(decoded)
+    }
+
     @Suppress("TooGenericExceptionCaught") // #585 generic catch, CancellationException rethrows (moved #554)
     fun <D> launchStatelessGuarded(
         operation: String,
@@ -542,10 +556,7 @@ class ApiCallHandler(
             try {
                 when (val outcome = execute(operation, endpoint, block)) {
                     is Outcome.Ok -> {
-                        if (guarded.stale()) return@launch
-                        val decoded = guarded.decode(outcome.response)
-                        if (guarded.stale()) return@launch
-                        guarded.commit(decoded)
+                        commitGuardedSuccess(guarded, outcome.response)
                     }
 
                     is Outcome.NonSuccess -> {
