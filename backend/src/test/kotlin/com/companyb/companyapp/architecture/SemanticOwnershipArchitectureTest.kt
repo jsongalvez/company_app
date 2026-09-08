@@ -618,7 +618,7 @@ class SemanticOwnershipArchitectureTest {
     }
 
     @Test
-    fun `fixture - target-layout counterparts keep their standing`() {
+    fun `fixture - target-layout store counterpart keeps its standing`() {
         val widgetStore =
             """
             package com.companyb.companyapp.commerce
@@ -668,6 +668,10 @@ class SemanticOwnershipArchitectureTest {
                 emptySet(),
             ),
         )
+    }
+
+    @Test
+    fun `fixture - target-layout table counterpart keeps its standing`() {
         val widgetTable =
             """
             package com.companyb.companyapp.commerce
@@ -683,6 +687,41 @@ class SemanticOwnershipArchitectureTest {
         val tableOwners = mapOf("WidgetTable" to "commerce")
         assertTrue(isForeignTableWrite("WidgetTable.insert", "session", tableOwners))
         assertTrue(!isForeignTableWrite("WidgetTable.insert", "commerce", tableOwners))
+    }
+
+    @Test
+    fun `tables are declared only inside feature owners`() {
+        val offenders =
+            files.flatMap { (path, file) ->
+                val tableOwner = owner(path)
+                if (tableOwner == null || tableOwner in FEATURE_TABLE_OWNERS) {
+                    emptyList()
+                } else {
+                    BackendArchitectureOwners.declaredTableNames(file).map { "$it in $path (owner $tableOwner)" }
+                }
+            }
+        assertTrue(offenders.isEmpty(), "tables must live with their feature owner:\n${offenders.joinToString("\n")}")
+    }
+
+    @Test
+    fun `fixture - mechanism-owned table fails the declaration gate`() {
+        val facade =
+            """
+            package com.companyb.companyapp.utils
+
+            object SharedTable
+
+            object Persistence {
+                fun write() = SharedTable.insert { }
+            }
+            """.trimIndent()
+        val tree = mapOf("utils/Persistence.kt" to parse(facade))
+        assertEquals("mechanism", BackendArchitectureOwners.ownerOf("utils/Persistence.kt"))
+        val offenders =
+            tree.flatMap { (path, file) ->
+                BackendArchitectureOwners.declaredTableNames(file).map { "$it in $path" }
+            }
+        assertEquals(listOf("SharedTable in utils/Persistence.kt"), offenders)
     }
 
     @Test
@@ -841,6 +880,24 @@ class SemanticOwnershipArchitectureTest {
     }
 
     private companion object {
+        /** Owners that may declare persistence tables (#607: no shared/mechanism tables). */
+        val FEATURE_TABLE_OWNERS =
+            setOf(
+                "identity",
+                "authorization",
+                "branch",
+                "branchday",
+                "workforce",
+                "client",
+                "session",
+                "commerce",
+                "finance",
+                "commission",
+                "remittance",
+                "reporting",
+                "audit",
+                "notification",
+            )
         val TARGET_FEATURE_DIRS =
             listOf(
                 "branch/",
