@@ -4,7 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ApiCallHandler
-import com.companyb.companyapp.async.LaunchRequest
+import com.companyb.companyapp.async.LatestLoad
+import com.companyb.companyapp.async.LoadGeneration
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.session.AddPractitionerRequest
 import com.companyb.companyapp.contracts.session.PromoteConcernRequest
@@ -60,10 +61,10 @@ class SessionViewModel(
 
     // #382 — post-create practitioner adds need the branch member directory (the same read
     // SessionCreate uses); loaded lazily when the picker dialog opens.
-    // #382 — generation counters for the superseded-landing guards in the roster/members
-    // loaders (one VM serves one selection since #486; the guards cover same-scope races).
-    private var rosterGeneration = 0L
-    private var membersGeneration = 0L
+    // #382 — latest-wins guards for the roster/members loaders (#611 LoadGeneration owners:
+    // one VM serves one selection since #486; the guards cover same-scope races).
+    private val rosterGuard = LoadGeneration()
+    private val membersGuard = LoadGeneration()
 
     private val branchMembersState = MutableStateFlow<UiState<List<BranchMemberResponse>>>(UiState.Idle)
     val branchMembers: StateFlow<UiState<List<BranchMemberResponse>>> = branchMembersState.asStateFlow()
@@ -158,19 +159,16 @@ class SessionViewModel(
     // superseded roster or member GET must not commit over the newer request (stale body never
     // deserialized — the committed value stands).
     fun loadSessionPractitioners(sessionId: String) {
-        // #382 — generation guard: the desktop pane reuses one VM per selection, so a
-        // superseded roster GET (a newer load dispatched mid-flight) must not commit over the
-        // newer request — a stale body is never deserialized; the committed value stands.
-        ++rosterGeneration
-        handler.launch(
-            LaunchRequest(
+        // #382 — latest-wins (#611): a superseded roster GET commits nothing — a stale body is
+        // never deserialized and the committed value stands (no fallback data is invented).
+        handler.launchLatest(
+            LatestLoad(
                 state = practitionersState,
                 operation = "loadSessionPractitioners",
                 endpoint = "GET /api/sessions/$sessionId/practitioners",
                 block = { apiClient.httpClient.get(ApiRoutes.sessionPractitioners(sessionId)) },
-                transform = { it.body() },
-                stamp = { rosterGeneration },
-                fallback = { (practitionersState.value as? UiState.Success)?.data ?: emptyList() },
+                decode = { it.body() },
+                guard = rosterGuard,
             ),
         )
     }
@@ -241,17 +239,15 @@ class SessionViewModel(
     fun loadBranchMembers(branchId: String) {
         if (branchMembersState.value is UiState.Loading) return
         branchMembersState.value = UiState.Loading
-        // Same generation discipline as the roster: only the newest branch request commits.
-        ++membersGeneration
-        handler.launch(
-            LaunchRequest(
+        // Same latest-wins discipline as the roster: only the newest branch request commits.
+        handler.launchLatest(
+            LatestLoad(
                 state = branchMembersState,
                 operation = "loadBranchMembers",
                 endpoint = "GET /api/branches/$branchId/members",
                 block = { apiClient.httpClient.get(ApiRoutes.branchMembers(branchId)) },
-                transform = { it.body() },
-                stamp = { membersGeneration },
-                fallback = { (branchMembersState.value as? UiState.Success)?.data ?: emptyList() },
+                decode = { it.body() },
+                guard = membersGuard,
             ),
         )
     }

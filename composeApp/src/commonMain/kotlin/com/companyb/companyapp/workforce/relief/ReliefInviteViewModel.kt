@@ -2,11 +2,13 @@ package com.companyb.companyapp.workforce.relief
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.async.ActionStamp
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.GuardedStateless
 import com.companyb.companyapp.async.KeepLast
 import com.companyb.companyapp.async.KeyedMirror
 import com.companyb.companyapp.async.LaunchRequest
+import com.companyb.companyapp.async.ReconcilingLoad
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.async.mutateRemoved
 import com.companyb.companyapp.contracts.workforce.CreateReliefInviteRequest
@@ -255,7 +257,7 @@ class ReliefInviteViewModel(
 
 /**
  * The received-invites surface (#160 Notifications section): the keep-last list (the #143
- * shape), accept/decline actions, and the #165 stamp/fallback resurrection guard. Extracted
+ * shape), accept/decline actions, and the #611 ActionStamp resurrection guard. Extracted
  * from [ReliefInviteViewModel] for the detekt function budget (the ConcernPoster shape); the
  * `actionStamp` interplay is internal to this cluster.
  */
@@ -278,33 +280,21 @@ private class ReceivedInvites(
     private val _declineResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val declineResult: StateFlow<UiState<Unit>> = _declineResult.asStateFlow()
 
-    // Bumped on every successful action: a load that lands with a mismatched stamp predates
+    // Bumped on every successful action: a load that lands with a mismatched capture predates
     // the action and must not resurrect the resolved row (the #141 stamp pattern).
-    private var actionStamp = 0L
+    private val actionStamp = ActionStamp()
 
     fun loadReceived(): Job {
         if (keptReceived.state.value is UiState.Loading) return Job()
-        return handler.launch(
-            LaunchRequest(
+        return handler.launchReconciling(
+            ReconcilingLoad(
                 state = keptReceived.stateFlow,
                 operation = "loadReceived",
                 endpoint = "GET /api/relief-invites",
                 block = { apiClient.httpClient.get(ApiRoutes.RELIEF_INVITES) },
-                transform = { it.body<List<ReliefInviteResponse>>() },
-                // #165 stale-substitution guard (concentrated from the former in-transform block): an
-                // accept/decline landing while the load was in flight must not resurrect the resolved
-                // row (the #141 resurrect class). The stamp read at landing disagrees with the
-                // launch-captured read, so the handler substitutes the fallback: currentReceivedList
-                // reads the exact post-action list (removeReceived assigns Success synchronously,
-                // and at fallback time the stale landing's own Loading write is current — the read
-                // resolves to the freshest mirror, exact on Main.immediate); the re-issue converges
-                // server truth — rows the action couldn't know (cross-device accepts, new invites)
-                // land from the fresh GET. Both paths are pinned by tests.
-                stamp = { actionStamp },
-                fallback = {
-                    loadReceived()
-                    currentReceivedList() ?: emptyList()
-                },
+                decode = { it.body<List<ReliefInviteResponse>>() },
+                stamp = actionStamp,
+                reissue = ::loadReceived,
             ),
         )
     }
@@ -321,7 +311,7 @@ private class ReceivedInvites(
                 // surfacing an error on a stale row (the markRead absent-row defense precedent).
                 onNonSuccess = onConflictReload(_acceptResult, inviteId),
                 transform = {
-                    actionStamp++
+                    actionStamp.bump()
                     removeReceived(inviteId)
                     Unit
                 },
@@ -337,7 +327,7 @@ private class ReceivedInvites(
                 block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "decline")) },
                 onNonSuccess = onConflictReload(_declineResult, inviteId),
                 transform = {
-                    actionStamp++
+                    actionStamp.bump()
                     removeReceived(inviteId)
                     Unit
                 },
@@ -348,10 +338,10 @@ private class ReceivedInvites(
      * Shared 409-handling for accept/decline: the 409 is authoritative server confirmation that
      * the invite is resolved, so the row leaves locally (Idle-reset — the #140 stuck-Loading
      * class — + removal + reload). The stamp bump BEFORE the reload is load-bearing: a pre-409
-     * in-flight load would otherwise commit its pre-resolution snapshot with a matching stamp
+     * in-flight load would otherwise commit its pre-resolution snapshot with a matching capture
      * and resurrect the row (the #141 resurrect class, 4-lens review finding). The reload may
-     * be gated by the in-flight guard — the local removal already converged the list, and the
-     * gated load's landing goes down the stamp-mismatch substitution path.
+     * be gated by the in-flight guard — the local removal already converged the list, and a
+     * gated reissue keeps the retained list while the next reload converges.
      */
     private fun onConflictReload(
         state: MutableStateFlow<UiState<Unit>>,
@@ -360,7 +350,7 @@ private class ReceivedInvites(
         { response ->
             if (response.status == HttpStatusCode.Conflict) {
                 state.value = UiState.Idle
-                actionStamp++
+                actionStamp.bump()
                 removeReceived(inviteId)
                 loadReceived()
                 true
@@ -368,8 +358,6 @@ private class ReceivedInvites(
                 false
             }
         }
-
-    private fun currentReceivedList(): List<ReliefInviteResponse>? = keptReceived.freshestValue()
 
     private fun removeReceived(inviteId: String) {
         // Decrement only when the row actually left a KNOWN list: with no list loaded the badge

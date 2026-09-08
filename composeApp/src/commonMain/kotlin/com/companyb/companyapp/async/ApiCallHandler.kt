@@ -33,27 +33,11 @@ import kotlinx.coroutines.launch
  *   through a per-query Job so a newer keystroke cancels the in-flight request (D2 current-query
  *   guard): the stale response then dies at the cancellation instead of committing. `null`
  *   (the default) resolves to the handler's construction scope.
- * - [stamp]/[fallback] — the #165 stale-substitution guard, the resurrect-invariant (#141) at
- *   handler level. The identical `if (stamp != actionStamp) { reissue(); freshest() ?:
- *   emptyList() } else body` substitution block was hand-rolled at
- *   NotificationVM.loadUnreadNotifications + ReliefInviteVM.loadReceived; a load that lands
- *   after an action moved the state it was launched against must not commit its pre-action
- *   snapshot. [stamp] is a value-source read twice — once synchronously at launch invocation
- *   (captured; exact at launch, not at coroutine start), once at landing. A SUCCESS landing
- *   commits transform(response) only when the two reads agree; a mismatched success-compatible
- *   landing commits [fallback]() instead — the caller's substitution (a freshest-value read) +
- *   re-issue (a new launch carrying the post-action stamp). The stamp is rechecked AGAIN
- *   after the suspend [transform] returns (#490 — a generation bump mid-deserialization must
- *   not commit the stale body); callers must also guard side effects inside [transform]
- *   itself with the same comparison, since the handler cannot retract those. The FAILURE legs (#176 — the guard
- *   is no longer success-only): a non-success or exception landing may run its hooks but writes
- *   UiState.Error only when the reads agree — a superseded failure writes nothing onto the
- *   moved-on surface. A stale body is never deserialized — its content is irrelevant to the
- *   invariant, and skipping the parse means a malformed stale body can no longer surface an
- *   Error for a response the caller would discard. (A body that goes stale MID-transform is
- *   parsed, then dropped by the post-transform recheck — #490.) Defaults are a no-op: a constant stamp
- *   always agrees, keeping every existing caller behavior-identical (the fallback default is
- *   unreachable then — a guard enabled without one fails loudly, not silently).
+ *
+ * Freshness guards live outside this class (#611): latest-request-wins loads use
+ * [LatestLoad] + [ApiCallHandler.launchLatest], post-mutation retain-and-reload loads use
+ * [ReconcilingLoad] + [ApiCallHandler.launchReconciling]. This request stays the plain
+ * one-shot shape — every landing is current, no generation is read.
  */
 data class LaunchRequest<T>(
     val state: MutableStateFlow<UiState<T>>,
@@ -66,15 +50,12 @@ data class LaunchRequest<T>(
     val onNonSuccess: suspend (HttpResponse) -> Boolean = { false },
     val onError: (Throwable) -> Unit = {},
     val scope: CoroutineScope? = null,
-    val stamp: () -> Long = { 0L },
-    val fallback: () -> T = { error("stale-guard fallback invoked without a fallback param") },
 )
 
 /**
  * Tail-bundle for [ApiCallHandler.launchUnit] (#462 LPL burn: 8 params; data classes are
  * LPL-free). The plain launchUnit shape (state/operation/endpoint/block) is untouched —
- * only sites that pass a hook below wrap those hooks in this class. The #165 stamp/fallback
- * guard belongs to [LaunchRequest] alone: launchUnit callers never gated a stale landing.
+ * only sites that pass a hook below wrap those hooks in this class.
  */
 data class LaunchHooks(
     // Optional entry-log override; null resolves to "$operation called".
@@ -135,10 +116,176 @@ data class GuardedStateless<D>(
     val scope: CoroutineScope? = null,
 )
 
+/**
+ * Latest-request generation owner (#611): advanced once per LOAD, inside
+ * [ApiCallHandler.launchLatest] at launch invocation (synchronous — exact at launch, not at
+ * coroutine start). A landing whose captured generation disagrees was superseded by a newer
+ * load — it commits nothing and reissues nothing (the superseding load is already in flight).
+ *
+ * Distinct from [ActionStamp] (advanced per ACTION, retain-and-reload policy): do not
+ * interchange them — a latest load carrying an action stamp (or vice versa) silently picks
+ * the wrong stale policy. The compiler enforces the split: [LatestLoad] takes this type,
+ * [ReconcilingLoad] takes [ActionStamp].
+ */
+class LoadGeneration {
+    private var current = 0L
+
+    fun next(): Long = ++current
+
+    fun isStale(captured: Long): Boolean = captured != current
+}
+
+/**
+ * Post-mutation reconciliation stamp owner (#611): advanced by ACTIONS ([bump],
+ * synchronously in the action's transform alongside the KeepLast in-place mutation),
+ * captured per load ([capture], synchronously at launch invocation inside
+ * [ApiCallHandler.launchReconciling]). A landing with a mismatched capture predates the
+ * action — its pre-action snapshot must not commit (the #141 resurrect class);
+ * [ApiCallHandler.launchReconciling] reissues instead so server truth converges. The
+ * post-action list itself is retained by the action's synchronous KeepLast write, never by
+ * the stale landing.
+ *
+ * Distinct from [LoadGeneration] (advanced per load, discard policy): do not interchange them.
+ */
+class ActionStamp {
+    private var current = 0L
+
+    fun bump() {
+        current++
+    }
+
+    fun capture(): Long = current
+
+    fun isStale(captured: Long): Boolean = captured != current
+}
+
+/**
+ * Latest-request-wins stateful load (#611): the session-roster / remittance-detail shape.
+ * A stale landing commits nothing — no fallback data is invented, no control-flow exception
+ * is thrown to hold Loading, no reissue fires. A double-initial overlap whose stale landing
+ * arrives first simply holds Loading until the superseding load lands.
+ *
+ * - [decode] suspends (body parse, pure — no state writes: the handler cannot retract them).
+ *   Already-stale bodies skip the parse, so a malformed stale body can never surface; a bump
+ *   mid-decode drops the parsed body after it.
+ * - [onCommit] runs atomically with the Success write when current (non-suspending — no
+ *   suspension gap for a bump to slip through): marker writes that used to hide inside the
+ *   suspend transform (remittance picker range) belong here.
+ * - Failure legs are non-suspending commits on purpose: a suspending failure-body read would
+ *   need its own post-decode recheck, which this bundle cannot retract — suspending failure
+ *   detail (bodyAsText error extraction) lives on unguarded [LaunchRequest] paths instead
+ *   (the Delegate assign/revoke precedent). [onNonSuccess] returning true skips the generic
+ *   Error; stale failures still run their hooks (#176 preserved) but never write Error.
+ */
+data class LatestLoad<T>(
+    val state: MutableStateFlow<UiState<T>>,
+    val operation: String,
+    val endpoint: String,
+    val block: suspend () -> HttpResponse,
+    val decode: suspend (HttpResponse) -> T,
+    val guard: LoadGeneration,
+    val onCommit: (T) -> Unit = {},
+    val onNonSuccess: (HttpResponse) -> Boolean = { false },
+    val onError: (Throwable) -> Unit = {},
+    // Optional entry-log override; null resolves to "$operation called".
+    val entryMessage: String? = null,
+    // Job-scoping override (the #113 debounced-search shape); null resolves to the handler's
+    // construction scope.
+    val scope: CoroutineScope? = null,
+)
+
+/**
+ * Post-mutation retain-and-reload stateful load (#611): the notification / invite /
+ * attendance-roster shape. A stale pre-action snapshot commits nothing (no resurrect);
+ * instead [reissue] fires — a fresh load carrying the post-action stamp — so server truth
+ * converges. The post-action list is retained by the action's synchronous KeepLast
+ * mutation, never by recommitting the freshest mirror here (it is already the state).
+ *
+ * Decode/commit/failure contracts match [LatestLoad] (pure suspending decode, non-suspending
+ * guarded commits, #176 stale-failure hook semantics preserved). The two bundles differ
+ * only in stale-success handling — discard vs reissue — and the compiler keeps them apart
+ * via [LoadGeneration] vs [ActionStamp].
+ */
+data class ReconcilingLoad<T>(
+    val state: MutableStateFlow<UiState<T>>,
+    val operation: String,
+    val endpoint: String,
+    val block: suspend () -> HttpResponse,
+    val decode: suspend (HttpResponse) -> T,
+    val stamp: ActionStamp,
+    val reissue: () -> Unit,
+    val onCommit: (T) -> Unit = {},
+    val onNonSuccess: (HttpResponse) -> Boolean = { false },
+    val onError: (Throwable) -> Unit = {},
+    // Optional entry-log override; null resolves to "$operation called".
+    val entryMessage: String? = null,
+    // Job-scoping override (the #113 debounced-search shape); null resolves to the handler's
+    // construction scope.
+    val scope: CoroutineScope? = null,
+)
+
+/**
+ * Concise contract (#611 — the full per-policy details live on the bundle types above):
+ *
+ * - One-shot loads: [launch] / [launchUnit] (stateful) and [launchStateless] (side-effect
+ *   only). Every landing is current; no generation is read. Suspending failure-body reads
+ *   (bodyAsText error extraction) live here — guarded commits below stay non-suspending.
+ * - Latest-request-wins stateful loads: [launchLatest] + [LatestLoad] (session roster,
+ *   remittance detail/pickers). Stale landings commit nothing and reissue nothing.
+ * - Post-mutation retain-and-reload stateful loads: [launchReconciling] + [ReconcilingLoad]
+ *   (notification / invite / attendance rosters). Stale snapshots commit nothing and reissue.
+ * - Stateless latest-wins surfaces: [launchStatelessGuarded] + [GuardedStateless] (feed,
+ *   browse, keyed mirrors, search). Stale landings are inert — decode/commit split.
+ *
+ * All five paths share the single [Outcome]-producing block lifecycle below
+ * (endpoint/success/failure logging, CancellationException rethrow); only the landing
+ * policy differs per path.
+ */
 class ApiCallHandler(
     private val scope: CoroutineScope,
     private val tag: String,
 ) {
+    private sealed interface Outcome {
+        data class Ok(
+            val response: HttpResponse,
+        ) : Outcome
+
+        data class NonSuccess(
+            val response: HttpResponse,
+        ) : Outcome
+
+        data class Threw(
+            val e: Exception,
+        ) : Outcome
+    }
+
+    // Single block lifecycle (#611): endpoint/success/failure logging plus the #113
+    // cancellation discipline (a cancelled launch rethrows — cancellation isn't a request
+    // failure — and never surfaces as an error hook). Callers map the outcome onto their
+    // landing policy; block exceptions arrive as [Outcome.Threw] (already logged), while
+    // decode/commit exceptions stay the caller's try/catch below.
+    private suspend fun execute(
+        operation: String,
+        endpoint: String,
+        block: suspend () -> HttpResponse,
+    ): Outcome =
+        try {
+            logInfo(tag, endpoint)
+            val response = block()
+            if (response.status.isSuccess()) {
+                logInfo(tag, "$operation success")
+                Outcome.Ok(response)
+            } else {
+                logWarn(tag, "$operation failed: status=${response.status.value}")
+                Outcome.NonSuccess(response)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logError(tag, "$operation exception on $endpoint", e)
+            Outcome.Threw(e)
+        }
+
     fun <T> launch(
         state: MutableStateFlow<UiState<T>>,
         operation: String,
@@ -159,60 +306,161 @@ class ApiCallHandler(
     @Suppress("TooGenericExceptionCaught") // #585 generic catch, CancellationException rethrows (moved #554)
     fun <T> launch(request: LaunchRequest<T>): Job {
         logInfo(tag, request.entryMessage ?: "${request.operation} called")
-        val captured = request.stamp()
         return (request.scope ?: scope).launch {
             request.state.value = UiState.Loading
             try {
-                logInfo(tag, request.endpoint)
-                val response = request.block()
-                if (response.status.isSuccess()) {
-                    logInfo(tag, "${request.operation} success")
-                    handleSuccess(request, response, captured)
-                } else {
-                    logWarn(tag, "${request.operation} failed: status=${response.status.value}")
-                    if (!request.onNonSuccess(response)) {
-                        // #176 stateful stale-failure leg: a superseded failure writes nothing
-                        // onto the moved-on surface (the guard is no longer success-only).
-                        if (request.stamp() == captured) {
+                when (val outcome = execute(request.operation, request.endpoint, request.block)) {
+                    is Outcome.Ok -> {
+                        request.state.value = UiState.Success(request.transform(outcome.response))
+                    }
+
+                    is Outcome.NonSuccess -> {
+                        if (!request.onNonSuccess(outcome.response)) {
                             request.state.value =
-                                UiState.Error("${request.operation} failed: ${response.status.value}")
+                                UiState.Error("${request.operation} failed: ${outcome.response.status.value}")
                         }
+                    }
+
+                    is Outcome.Threw -> {
+                        request.onError(outcome.e)
+                        request.state.value = UiState.Error(outcome.e.message ?: "Unknown error")
                     }
                 }
             } catch (e: CancellationException) {
-                // Re-throw: a cancelled launch (e.g. #113's debounce job cancelled by a newer
-                // keystroke) must not surface as Error — cancellation isn't a request failure.
                 throw e
             } catch (e: Exception) {
                 logError(tag, "${request.operation} exception on ${request.endpoint}", e)
                 request.onError(e)
-                // #176 stateful stale-failure leg: the hook keeps running, but a superseded
-                // failure's Error must not clobber the moved-on surface's newer write.
-                if (request.stamp() == captured) {
-                    request.state.value = UiState.Error(e.message ?: "Unknown error")
+                request.state.value = UiState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    /**
+     * Latest-request-wins stateful load (#611 — [LatestLoad]): every launch advances
+     * [LatestLoad.guard] synchronously at invocation; a landing whose capture disagrees is
+     * superseded and commits nothing (see [commitLatestSuccess] for the success path;
+     * failure legs keep the #176 hook semantics — hooks run, Error writes are gated).
+     */
+    @Suppress("TooGenericExceptionCaught") // #585 generic catch, CancellationException rethrows (moved #554)
+    fun <T> launchLatest(load: LatestLoad<T>): Job {
+        logInfo(tag, load.entryMessage ?: "${load.operation} called")
+        val captured = load.guard.next()
+        return (load.scope ?: scope).launch {
+            load.state.value = UiState.Loading
+            try {
+                when (val outcome = execute(load.operation, load.endpoint, load.block)) {
+                    is Outcome.Ok -> {
+                        commitLatestSuccess(load, outcome.response, captured)
+                    }
+
+                    is Outcome.NonSuccess -> {
+                        if (!load.onNonSuccess(outcome.response) && !load.guard.isStale(captured)) {
+                            load.state.value =
+                                UiState.Error("${load.operation} failed: ${outcome.response.status.value}")
+                        }
+                    }
+
+                    is Outcome.Threw -> {
+                        load.onError(outcome.e)
+                        if (!load.guard.isStale(captured)) {
+                            load.state.value = UiState.Error(outcome.e.message ?: "Unknown error")
+                        }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logError(tag, "${load.operation} exception on ${load.endpoint}", e)
+                load.onError(e)
+                if (!load.guard.isStale(captured)) {
+                    load.state.value = UiState.Error(e.message ?: "Unknown error")
                 }
             }
         }
     }
 
-    // #499 — success-leg extracted to keep launch under CognitiveComplexMethod threshold.
-    private suspend fun <T> handleSuccess(
-        request: LaunchRequest<T>,
+    // Success leg extracted to keep launchLatest under CognitiveComplexMethod threshold
+    // (the #499 precedent): pre-decode stale bodies skip the parse, mid-decode bumps drop
+    // the parsed body, current landings commit Success plus the non-suspending markers.
+    private suspend fun <T> commitLatestSuccess(
+        load: LatestLoad<T>,
         response: HttpResponse,
         captured: Long,
     ) {
-        if (request.stamp() == captured) {
-            val parsed = request.transform(response)
-            // #490 — recheck after the suspend transform: a bump mid-deserialization
-            // still drops the stale body (its content is irrelevant to the invariant).
-            if (request.stamp() == captured) {
-                request.state.value = UiState.Success(parsed)
-            } else {
-                request.state.value = UiState.Success(request.fallback())
+        if (load.guard.isStale(captured)) return
+        val decoded = load.decode(response)
+        // #490 — recheck after the suspend decode: a bump mid-deserialization still drops
+        // the stale body (its content is irrelevant to the invariant).
+        if (load.guard.isStale(captured)) return
+        load.state.value = UiState.Success(decoded)
+        load.onCommit(decoded)
+    }
+
+    /**
+     * Post-mutation retain-and-reload stateful load (#611 — [ReconcilingLoad]): the load
+     * captures [ReconcilingLoad.stamp] synchronously at invocation (actions [ActionStamp.bump]
+     * it alongside their synchronous KeepLast mutation). A stale pre-action snapshot commits
+     * nothing and reissues instead (see [reconcileSuccess]); failure legs keep the #176 hook
+     * semantics — hooks run, Error writes are gated.
+     */
+    @Suppress("TooGenericExceptionCaught") // #585 generic catch, CancellationException rethrows (moved #554)
+    fun <T> launchReconciling(load: ReconcilingLoad<T>): Job {
+        logInfo(tag, load.entryMessage ?: "${load.operation} called")
+        val captured = load.stamp.capture()
+        return (load.scope ?: scope).launch {
+            load.state.value = UiState.Loading
+            try {
+                when (val outcome = execute(load.operation, load.endpoint, load.block)) {
+                    is Outcome.Ok -> {
+                        reconcileSuccess(load, outcome.response, captured)
+                    }
+
+                    is Outcome.NonSuccess -> {
+                        if (!load.onNonSuccess(outcome.response) && !load.stamp.isStale(captured)) {
+                            load.state.value =
+                                UiState.Error("${load.operation} failed: ${outcome.response.status.value}")
+                        }
+                    }
+
+                    is Outcome.Threw -> {
+                        load.onError(outcome.e)
+                        if (!load.stamp.isStale(captured)) {
+                            load.state.value = UiState.Error(outcome.e.message ?: "Unknown error")
+                        }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logError(tag, "${load.operation} exception on ${load.endpoint}", e)
+                load.onError(e)
+                if (!load.stamp.isStale(captured)) {
+                    load.state.value = UiState.Error(e.message ?: "Unknown error")
+                }
             }
-        } else {
-            request.state.value = UiState.Success(request.fallback())
         }
+    }
+
+    // Success leg extracted like [commitLatestSuccess]: stale pre-action snapshots retain the
+    // action's synchronous KeepLast write and reissue for server truth — no Success commit
+    // here, not even the freshest mirror (it is already the state).
+    private suspend fun <T> reconcileSuccess(
+        load: ReconcilingLoad<T>,
+        response: HttpResponse,
+        captured: Long,
+    ) {
+        if (load.stamp.isStale(captured)) {
+            load.reissue()
+            return
+        }
+        val decoded = load.decode(response)
+        if (load.stamp.isStale(captured)) {
+            load.reissue()
+            return
+        }
+        load.state.value = UiState.Success(decoded)
+        load.onCommit(decoded)
     }
 
     fun launchUnit(
@@ -261,14 +509,10 @@ class ApiCallHandler(
         logInfo(tag, hooks.entryMessage ?: "$operation called")
         return (hooks.scope ?: scope).launch {
             try {
-                logInfo(tag, endpoint)
-                val response = block()
-                if (response.status.isSuccess()) {
-                    logInfo(tag, "$operation success")
-                    transform(response)
-                } else {
-                    logWarn(tag, "$operation failed: status=${response.status.value}")
-                    hooks.onNonSuccess(response)
+                when (val outcome = execute(operation, endpoint, block)) {
+                    is Outcome.Ok -> transform(outcome.response)
+                    is Outcome.NonSuccess -> hooks.onNonSuccess(outcome.response)
+                    is Outcome.Threw -> hooks.onError(outcome.e)
                 }
             } catch (e: CancellationException) {
                 // Re-throw: a cancelled launch (e.g. #113's debounce job cancelled by a newer
@@ -296,18 +540,23 @@ class ApiCallHandler(
         logInfo(tag, guarded.entryMessage ?: "$operation called")
         return (guarded.scope ?: scope).launch {
             try {
-                logInfo(tag, endpoint)
-                val response = block()
-                if (response.status.isSuccess()) {
-                    logInfo(tag, "$operation success")
-                    if (guarded.stale()) return@launch
-                    val decoded = guarded.decode(response)
-                    if (guarded.stale()) return@launch
-                    guarded.commit(decoded)
-                } else {
-                    logWarn(tag, "$operation failed: status=${response.status.value}")
-                    if (guarded.stale()) return@launch
-                    guarded.onNonSuccess(response)
+                when (val outcome = execute(operation, endpoint, block)) {
+                    is Outcome.Ok -> {
+                        if (guarded.stale()) return@launch
+                        val decoded = guarded.decode(outcome.response)
+                        if (guarded.stale()) return@launch
+                        guarded.commit(decoded)
+                    }
+
+                    is Outcome.NonSuccess -> {
+                        if (guarded.stale()) return@launch
+                        guarded.onNonSuccess(outcome.response)
+                    }
+
+                    is Outcome.Threw -> {
+                        if (guarded.stale()) return@launch
+                        guarded.onError(outcome.e)
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e

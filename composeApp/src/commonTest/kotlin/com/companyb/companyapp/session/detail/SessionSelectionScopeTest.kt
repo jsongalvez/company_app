@@ -36,7 +36,7 @@ import kotlin.test.assertTrue
  * every new selection starts from a fresh scope: raw roster/member state is Idle (nothing
  * stale for `mergeRosterNames` to map) and no sticky result replays into the new pane.
  * A revisit reuses the cached keyed VM — retained terminals refresh on re-entry (#489)
- * instead of replaying silently. Within a scope the #382 stamp/fallback guard keeps
+ * instead of replaying silently. Within a scope the #382/#611 LoadGeneration guard keeps
  * latest-wins: a superseded roster GET never deserializes over the newer commit.
  */
 @OptIn(ExperimentalCoroutinesApi::class)

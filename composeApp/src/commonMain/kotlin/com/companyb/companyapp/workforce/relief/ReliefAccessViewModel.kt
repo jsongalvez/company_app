@@ -3,9 +3,11 @@ package com.companyb.companyapp.workforce.relief
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.async.ActionStamp
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.KeepLast
 import com.companyb.companyapp.async.LaunchRequest
+import com.companyb.companyapp.async.ReconcilingLoad
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.workforce.ReliefAccessRequest
 import com.companyb.companyapp.contracts.workforce.ReliefAccessResponse
@@ -64,9 +66,9 @@ class ReliefAccessViewModel(
     private val _cancelResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val cancelResult: StateFlow<UiState<Unit>> = _cancelResult.asStateFlow()
 
-    // Bumped on every successful action: a load landing with a mismatched stamp predates the
-    // action and must not commit its pre-action snapshot (the #141/#165 stamp pattern).
-    private var actionStamp = 0L
+    // Bumped on every successful action: a load landing with a mismatched capture predates the
+    // action and must not commit its pre-action snapshot (the #141/#611 retain-and-reload shape).
+    private val actionStamp = ActionStamp()
 
     fun loadRequests(branchDayId: String): Job {
         if (keptRequests.stateFlow.value is UiState.Loading) return Job()
@@ -74,43 +76,34 @@ class ReliefAccessViewModel(
     }
 
     /**
-     * Unconditional reload for action follow-ups (and the #165 fallback): an action landing
+     * Unconditional reload for action follow-ups (and the #611 reissue): an action landing
      * while a load was in flight must converge server truth even though the surface is
      * Loading — the public [loadRequests] guard would swallow it (the loadSent precedent).
      */
     private fun refreshRequests(branchDayId: String): Job =
-        handler.launch(
-            LaunchRequest(
+        handler.launchReconciling(
+            ReconcilingLoad(
                 state = keptRequests.stateFlow,
                 operation = "loadRequests",
                 endpoint = "GET /api/relief-access?branchDayId=$branchDayId",
                 block = { apiClient.httpClient.get(ApiRoutes.reliefAccessList(branchDayId)) },
-                transform = { it.body<List<ReliefAccessResponse>>() },
-                // #165 stale-substitution guard: an action landing while a load was in flight
-                // must not commit its pre-action snapshot — substitute the freshest mirror and
-                // re-issue so server truth converges.
-                stamp = { actionStamp },
-                fallback = {
-                    refreshRequests(branchDayId)
-                    keptRequests.freshestValue() ?: emptyList()
-                },
+                decode = { it.body<List<ReliefAccessResponse>>() },
+                stamp = actionStamp,
+                reissue = { refreshRequests(branchDayId) },
             ),
         )
 
     /** The caller's own asks across branches/days — the pre-clock-in outcome view (#357). */
     fun loadMine(): Job =
-        handler.launch(
-            LaunchRequest(
+        handler.launchReconciling(
+            ReconcilingLoad(
                 state = keptMine.stateFlow,
                 operation = "loadMine",
                 endpoint = "GET ${ApiRoutes.RELIEF_ACCESS_MINE}",
                 block = { apiClient.httpClient.get(ApiRoutes.RELIEF_ACCESS_MINE) },
-                transform = { it.body<List<ReliefAccessResponse>>() },
-                stamp = { actionStamp },
-                fallback = {
-                    loadMine()
-                    keptMine.freshestValue() ?: emptyList()
-                },
+                decode = { it.body<List<ReliefAccessResponse>>() },
+                stamp = actionStamp,
+                reissue = ::loadMine,
             ),
         )
 
@@ -137,7 +130,7 @@ class ReliefAccessViewModel(
                 }
             },
             transform = {
-                actionStamp++
+                actionStamp.bump()
                 loadMine()
                 Unit
             },
@@ -153,7 +146,7 @@ class ReliefAccessViewModel(
             endpoint = "PATCH ${ApiRoutes.reliefAccessGrant(requestId)}",
             block = { apiClient.httpClient.patch(ApiRoutes.reliefAccessGrant(requestId)) },
             transform = {
-                actionStamp++
+                actionStamp.bump()
                 refreshRequests(branchDayId)
                 Unit
             },
@@ -169,7 +162,7 @@ class ReliefAccessViewModel(
             endpoint = "PATCH ${ApiRoutes.reliefAccessDeny(requestId)}",
             block = { apiClient.httpClient.patch(ApiRoutes.reliefAccessDeny(requestId)) },
             transform = {
-                actionStamp++
+                actionStamp.bump()
                 refreshRequests(branchDayId)
                 Unit
             },
@@ -186,7 +179,7 @@ class ReliefAccessViewModel(
             endpoint = "PATCH ${ApiRoutes.reliefAccessCancel(requestId)}",
             block = { apiClient.httpClient.patch(ApiRoutes.reliefAccessCancel(requestId)) },
             transform = {
-                actionStamp++
+                actionStamp.bump()
                 loadMine()
                 branchDayId?.let(::refreshRequests)
                 Unit

@@ -370,7 +370,7 @@ class NotificationViewModelTest {
             assertEquals(expected = listOf("n1"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 1, actual = NotificationState.unreadCount.value)
 
-            // The stale pre-action snapshot lands: the stamp substitutes the post-action list —
+            // The stale pre-action snapshot lands: the stamp retains the post-action list —
             // n1 must NOT resurrect (a resurrect would re-render it unread under the decremented
             // badge and let a re-tap double-decrement).
             advanceTimeBy(HOLD_MS.milliseconds)
@@ -418,7 +418,7 @@ class NotificationViewModelTest {
             assertEquals(expected = listOf("n1", "n2"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
 
-            // The stale pre-markAll snapshot lands: the stamp substitutes the post-action list —
+            // The stale pre-markAll snapshot lands: the stamp retains the post-action list —
             // rows must NOT resurrect under the zero badge (they would re-render unread with the
             // Mark-all button back, unreachable by any in-screen refresh); Read stays
             // duplicate-free.

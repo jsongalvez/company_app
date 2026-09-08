@@ -547,7 +547,7 @@ class ReliefInviteViewModelTest {
             runCurrent()
             assertEquals(1, vm.freshestReceived.value!!.size, "i1 left in-session")
 
-            // The stale load lands AFTER the accept — its stamp mismatch must substitute the
+            // The stale load lands AFTER the accept — its stamp mismatch must retain the
             // post-action list, not resurrect i1; the re-issued load then converges server
             // truth (i3 lands, i1 stays gone).
             advanceTimeBy(20_000)

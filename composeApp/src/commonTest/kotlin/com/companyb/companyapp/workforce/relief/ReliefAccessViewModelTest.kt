@@ -351,7 +351,7 @@ class ReliefAccessViewModelTest {
             vm.grantAccess("r1", "day-1")
             runCurrent()
 
-            // The stale load lands AFTER the grant — its stamp mismatch must substitute the
+            // The stale load lands AFTER the grant — its stamp mismatch must retain the
             // post-action mirror, not resurrect r1 as PENDING; the re-issue converges truth (r3).
             advanceTimeBy(20_000)
             runCurrent()

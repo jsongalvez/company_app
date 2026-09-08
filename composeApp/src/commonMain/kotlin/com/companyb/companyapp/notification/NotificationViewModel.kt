@@ -2,9 +2,11 @@ package com.companyb.companyapp.notification
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.async.ActionStamp
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.KeepLast
 import com.companyb.companyapp.async.LaunchRequest
+import com.companyb.companyapp.async.ReconcilingLoad
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.async.mutateRemoved
 import com.companyb.companyapp.contracts.notification.NotificationHistoryResponse
@@ -51,33 +53,26 @@ class NotificationViewModel(
     private val _history = MutableStateFlow<UiState<List<NotificationResponse>>>(UiState.Idle)
     val history: StateFlow<UiState<List<NotificationResponse>>> = _history.asStateFlow()
 
-    // Bumped on every successful action (markRead/markAll): loads capture it at launch, and a
-    // landing with a mismatched stamp is a stale pre-action snapshot — see loadUnreadNotifications.
-    private var actionStamp = 0L
+    // Bumped on every successful action (markRead/markAll): a load that lands with a
+    // mismatched capture predates the action — see loadUnreadNotifications.
+    private val actionStamp = ActionStamp()
 
+    // #611 retain-and-reload: a load that lands after an action (markRead/markAll) moved the
+    // list must not commit its pre-action snapshot (audit #141 pass-6/7) — the handler
+    // reissues instead, and the substitution is race-free (the action's assignment is
+    // synchronous same-thread, and the re-issue — a new load carrying the post-action stamp —
+    // converges server truth: post-action arrivals surface, and the resurrect frame is
+    // eliminated even if the re-issue GET fails).
     fun loadUnreadNotifications(): Job =
-        handler.launch(
-            LaunchRequest(
+        handler.launchReconciling(
+            ReconcilingLoad(
                 state = keptNotifications.stateFlow,
                 operation = "loadUnreadNotifications",
                 endpoint = "GET /api/notifications",
                 block = { apiClient.httpClient.get(ApiRoutes.NOTIFICATIONS) },
-                transform = { it.body<List<NotificationResponse>>() },
-                // #165 stale-substitution guard (concentrated from the former in-transform block): a
-                // load that lands after an action (markRead/markAll) moved the list must not commit
-                // its pre-action snapshot (audit #141 pass-6/7) — the stamp read at landing disagrees
-                // with the launch-captured read, and the handler substitutes the fallback instead.
-                // The substitution is race-free (the action's assignment is synchronous
-                // same-thread, and freshestValue reads the exact post-action Success — the stale
-                // landing's own Loading write is current at fallback time, so the read resolves to
-                // the mirror, exact on Main.immediate); the re-issue (a new load carrying the
-                // post-action stamp) converges server truth — post-action arrivals surface, and the
-                // resurrect frame is eliminated even if the re-issue GET fails.
-                stamp = { actionStamp },
-                fallback = {
-                    loadUnreadNotifications()
-                    currentUnreadList() ?: emptyList()
-                },
+                decode = { it.body<List<NotificationResponse>>() },
+                stamp = actionStamp,
+                reissue = ::loadUnreadNotifications,
             ),
         )
 
@@ -126,7 +121,7 @@ class NotificationViewModel(
                         // forever (#140 stuck-Loading class). The stamp bump keeps any pre-404 load
                         // in flight from committing its snapshot as if nothing happened.
                         _markReadResult.value = UiState.Idle
-                        actionStamp++
+                        actionStamp.bump()
                         loadUnreadNotifications()
                         true
                     } else {
@@ -141,7 +136,7 @@ class NotificationViewModel(
                     // The Read-section dedupe also blocks the stale-re-render class: a row the
                     // reload resurrected after an action must not decrement again (#112 decision 4).
                     if (moveToReadThisSession(body)) {
-                        actionStamp++
+                        actionStamp.bump()
                         NotificationState.decrementUnread()
                     }
                     body
@@ -164,7 +159,7 @@ class NotificationViewModel(
                 // Stamp BEFORE the reload launch: the markAll-triggered reload must carry the
                 // post-action stamp, and any pre-markAll load still in flight re-issues on
                 // landing instead of resurrecting the rows (audit #141 pass-6).
-                actionStamp++
+                actionStamp.bump()
                 moveAllToReadThisSession()
                 // Reload iff the authoritative count shows arrivals since this screen's fetch —
                 // the screen has no in-screen polling (D5), so a fresh fetch is the only way the
@@ -200,8 +195,6 @@ class NotificationViewModel(
             emptyList()
         }
     }
-
-    private fun currentUnreadList(): List<NotificationResponse>? = keptNotifications.freshestValue()
 
     private companion object {
         // #508 — matches the server's max browse page: fewest round-trips per history load.

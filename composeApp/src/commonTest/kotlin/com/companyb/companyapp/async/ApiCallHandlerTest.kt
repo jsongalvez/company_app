@@ -5,6 +5,7 @@ import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -17,6 +18,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -28,17 +30,20 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
 /**
- * Tests for the #165 handler-level stale-substitution guard ([ApiCallHandler.launch]'s
- * stamp/fallback params): a load that lands after the state it was launched against moved on
- * must not commit its pre-action snapshot (the #141 resurrect class) — the resurrect-invariant
- * formerly hand-rolled at NotificationVM.loadUnreadNotifications + ReliefInviteVM.loadReceived.
- * The handler reads [ApiCallHandler.launch]'s stamp() twice — at launch invocation (captured)
- * and at landing — and commits transform(response) only when the two reads agree, else
- * fallback().
+ * Tests for the #611 freshness seams ([ApiCallHandler.launchLatest]'s [LoadGeneration] discard
+ * policy and [ApiCallHandler.launchReconciling]'s [ActionStamp] retain-and-reload policy): a
+ * load that lands after the state it was launched against moved on must not commit its
+ * pre-action snapshot (the #141 resurrect class).
  *
- * The default-param cases pin that every existing handler caller (which passes no guard
- * params) keeps the exact pre-#165 behavior: the guard never diverges — a constant stamp
- * always agrees, so transform always commits and the fallback is never invoked.
+ * - Latest (load-bumped): stale landings commit nothing and reissue nothing — no fallback
+ *   data is invented, no control-flow throw holds Loading, no reissue fires. A double-initial
+ *   overlap whose stale landing arrives first simply holds Loading.
+ * - Reconciling (action-bumped): stale snapshots commit nothing and reissue instead; the
+ *   post-action list is retained by the action's synchronous KeepLast write, never recommitted
+ *   here. Stale failures keep the #176 hook semantics (hooks run, Error writes gated).
+ *
+ * The default-param cases pin that plain one-shot [ApiCallHandler.launch] callers keep exact
+ * behavior with no guard params.
  *
  * The stateless section covers [ApiCallHandler.launchStateless]'s hooks + the #173
  * stale-gate (`stale` skips all three hooks on a superseded landing — the #165 class's
@@ -66,110 +71,195 @@ class ApiCallHandlerTest {
             headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
         )
 
+    // ── #611 latest-request-wins (LoadGeneration discard) ───────────────────────────
+    // A superseded landing commits nothing and reissues nothing: no invented fallback data,
+    // no control-flow throw, no reissue. Stale bodies skip the parse, so a malformed stale
+    // body can never surface.
+
     @Test
-    fun stale_landing_commits_fallback_not_transform() =
+    fun latest_stale_landing_skips_decode_and_commits_nothing() =
         runTest(testScheduler) {
             val apiClient = mockApiClient { respond200() }
             val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
             val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
-            var stamp = 0L
-            var transformCalls = 0
+            val guard = LoadGeneration()
+            var decodeCalls = 0
 
-            // Launch with the guard: stamp() is read at launch invocation, then again when the
-            // response lands.
-            handler.launch(
-                LaunchRequest(
+            handler.launchLatest(
+                LatestLoad(
                     state = state,
                     operation = "load",
                     endpoint = "GET /api/items",
                     block = { apiClient.httpClient.get("/api/items") },
-                    transform = { response: HttpResponse ->
-                        transformCalls++
+                    decode = { response: HttpResponse ->
+                        decodeCalls++
                         emptyList()
                     },
-                    stamp = { stamp },
-                    fallback = { listOf(9) },
+                    guard = guard,
                 ),
             )
 
-            // A concurrent action bumps the stamp while the load is in flight: the landing is
-            // stale, so the handler must commit the fallback, never the (undeserialized)
-            // response's transform.
-            stamp = 1
+            // A newer load supersedes the in-flight one before it lands.
+            guard.next()
             runCurrent()
 
-            val committed = assertIs<UiState.Success<List<Int>>>(state.value)
-            assertEquals(listOf(9), committed.data)
             assertEquals(
                 0,
-                transformCalls,
-                "a stale landing must not call transform — its body is never deserialized",
+                decodeCalls,
+                "a stale landing must not decode — its body is never parsed",
+            )
+            assertIs<UiState.Loading>(
+                state.value,
+                "a stale landing commits nothing — Loading stands, no fallback invented",
             )
         }
 
     @Test
-    fun current_landing_commits_transform_not_fallback() =
+    fun latest_current_landing_commits_decode_and_markers() =
         runTest(testScheduler) {
             val apiClient = mockApiClient { respond200() }
             val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
             val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
-            val stamp = 0L
-            var fallbackCalls = 0
+            var commitCalls = 0
+            var committed: List<Int>? = null
 
-            handler.launch(
-                LaunchRequest(
+            handler.launchLatest(
+                LatestLoad(
                     state = state,
                     operation = "load",
                     endpoint = "GET /api/items",
                     block = { apiClient.httpClient.get("/api/items") },
-                    transform = { listOf(1, 2, 3) },
-                    stamp = { stamp },
-                    fallback = {
-                        fallbackCalls++
-                        emptyList()
+                    decode = { listOf(1, 2, 3) },
+                    guard = LoadGeneration(),
+                    onCommit = {
+                        commitCalls++
+                        committed = it
                     },
                 ),
             )
 
             runCurrent()
 
-            val committed = assertIs<UiState.Success<List<Int>>>(state.value)
-            assertEquals(listOf(1, 2, 3), committed.data)
-            assertEquals(0, fallbackCalls, "a current landing must commit the transform")
+            val landed = assertIs<UiState.Success<List<Int>>>(state.value)
+            assertEquals(listOf(1, 2, 3), landed.data)
+            assertEquals(1, commitCalls, "a current landing runs the marker commit once")
+            assertEquals(listOf(1, 2, 3), committed)
         }
 
     @Test
-    fun stamp_bump_mid_transform_drops_stale_body() =
+    fun latest_bump_mid_decode_drops_stale_body() =
         runTest(testScheduler) {
-            // #490 — the stamp is rechecked AFTER the suspend transform returns: a generation
-            // bump mid-deserialization must still drop the stale body for the fallback.
+            // #490 — the guard is rechecked AFTER the suspend decode returns: a newer load
+            // starting mid-deserialization must still drop the stale body.
             val apiClient = mockApiClient { respond200() }
             val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
             val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
-            var stamp = 0L
+            val guard = LoadGeneration()
+            var commitCalls = 0
 
-            handler.launch(
-                LaunchRequest(
+            handler.launchLatest(
+                LatestLoad(
                     state = state,
                     operation = "load",
                     endpoint = "GET /api/items",
                     block = { apiClient.httpClient.get("/api/items") },
-                    transform = {
-                        stamp = 1
+                    decode = {
+                        guard.next()
                         listOf(1, 2, 3)
                     },
-                    stamp = { stamp },
-                    fallback = { listOf(9) },
+                    guard = guard,
+                    onCommit = { commitCalls++ },
                 ),
             )
 
             runCurrent()
 
-            val committed = assertIs<UiState.Success<List<Int>>>(state.value)
+            assertIs<UiState.Loading>(
+                state.value,
+                "a body that went stale mid-decode must not commit",
+            )
+            assertEquals(0, commitCalls, "a stale body must not run the marker commit")
+        }
+
+    @Test
+    fun latest_malformed_stale_body_never_surfaces() =
+        runTest(testScheduler) {
+            // A stale 2xx whose body would fail parsing: skipped before the parse, so no Error
+            // may surface for a response the caller discards.
+            val apiClient = mockApiClient { respond200() }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
+            val guard = LoadGeneration()
+
+            handler.launchLatest(
+                LatestLoad(
+                    state = state,
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { apiClient.httpClient.get("/api/items") },
+                    decode = { error("must not parse a stale body") },
+                    guard = guard,
+                ),
+            )
+
+            guard.next()
+            runCurrent()
+
+            assertIs<UiState.Loading>(
+                state.value,
+                "a malformed stale body must leave Loading, never Error",
+            )
+        }
+
+    @Test
+    fun latest_opposite_completion_orders_newest_wins() =
+        runTest(testScheduler) {
+            // Two overlapping loads; the FIRST launched lands LAST with divergent data.
+            val releaseFirst = CompletableDeferred<Unit>()
+            var gets = 0
+            val apiClient =
+                mockApiClient { _ ->
+                    gets++
+                    if (gets == 1) {
+                        releaseFirst.await()
+                    }
+                    respond(
+                        content = ByteReadChannel("[$gets]"),
+                        status = HttpStatusCode.OK,
+                        headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                    )
+                }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            val state = MutableStateFlow<UiState<String>>(UiState.Idle)
+            val guard = LoadGeneration()
+
+            fun latestLoad(): LatestLoad<String> =
+                LatestLoad(
+                    state = state,
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { apiClient.httpClient.get("/api/items") },
+                    decode = { it.bodyAsText() },
+                    guard = guard,
+                )
+
+            handler.launchLatest(latestLoad())
+            runCurrent()
+            handler.launchLatest(latestLoad())
+            runCurrent()
             assertEquals(
-                listOf(9),
-                committed.data,
-                "a body deserialized after a mid-transform stamp bump must not commit",
+                UiState.Success("[2]"),
+                state.value,
+                "the newer load lands first and commits",
+            )
+
+            releaseFirst.complete(Unit)
+            runCurrent()
+
+            assertEquals(
+                UiState.Success("[2]"),
+                state.value,
+                "the stale first landing must not overwrite the newer commit",
             )
         }
 
@@ -195,7 +285,7 @@ class ApiCallHandlerTest {
         }
 
     @Test
-    fun stale_non_success_response_does_not_commit_error() =
+    fun latest_stale_non_success_response_does_not_commit_error() =
         runTest(testScheduler) {
             val requestStarted = CompletableDeferred<Unit>()
             val releaseResponse = CompletableDeferred<Unit>()
@@ -212,24 +302,24 @@ class ApiCallHandlerTest {
                 }
             val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
             val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
+            val guard = LoadGeneration()
+            var hookCalls = 0
 
-            // Hold the first non-success response in flight, then move the stamp and write the
-            // newer action Success before releasing it. #176 gates the Error WRITE only — a
-            // superseded failure writes NO Error over that moved-on state (and never fallback).
-            var stamp = 0L
-            var fallbackCalls = 0
+            // Hold the first non-success response in flight, then supersede it and write the
+            // newer Success before releasing it. #176: hooks still run, but a superseded
+            // failure writes NO Error over the moved-on Success.
             val job =
-                handler.launch(
-                    LaunchRequest(
+                handler.launchLatest(
+                    LatestLoad(
                         state = state,
                         operation = "load",
                         endpoint = "GET /api/items",
                         block = { apiClient.httpClient.get("/api/items") },
-                        transform = { emptyList() },
-                        stamp = { stamp },
-                        fallback = {
-                            fallbackCalls++
-                            emptyList()
+                        decode = { emptyList() },
+                        guard = guard,
+                        onNonSuccess = {
+                            hookCalls++
+                            false
                         },
                     ),
                 )
@@ -237,15 +327,15 @@ class ApiCallHandlerTest {
             assertEquals(
                 true,
                 requestStarted.isCompleted,
-                "the non-success response must be in flight before the stamp flip",
+                "the non-success response must be in flight before the newer load",
             )
-            stamp = 1
+            guard.next()
             state.value = UiState.Success(listOf(7))
             releaseResponse.complete(Unit)
             runCurrent()
             job.join()
 
-            assertEquals(0, fallbackCalls, "a failure carries no data — fallback substitutes nothing")
+            assertEquals(1, hookCalls, "the onNonSuccess hook still runs on a stale failure")
             val staleState =
                 assertIs<UiState.Success<List<Int>>>(
                     state.value,
@@ -255,21 +345,21 @@ class ApiCallHandlerTest {
         }
 
     @Test
-    fun stale_exception_does_not_commit_error_but_runs_onError() =
+    fun latest_stale_exception_does_not_commit_error_but_runs_onError() =
         runTest(testScheduler) {
             val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
             val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
+            val guard = LoadGeneration()
             var onErrorCalls = 0
-            var transformCalls = 0
-            var stamp = 0L
+            var decodeCalls = 0
             val requestStarted = CompletableDeferred<Unit>()
             val releaseFailure = CompletableDeferred<Unit>()
 
-            // Hold the exception in flight, then move the stamp before releasing it. #176 gates
-            // the Error WRITE only — the hook still runs after the real ordering flip.
+            // Hold the exception in flight, then supersede it before releasing it. #176 gates
+            // the Error WRITE only — the hook still runs.
             val job =
-                handler.launch(
-                    LaunchRequest(
+                handler.launchLatest(
+                    LatestLoad(
                         state = state,
                         operation = "load",
                         endpoint = "GET /api/items",
@@ -278,24 +368,23 @@ class ApiCallHandlerTest {
                             releaseFailure.await()
                             error("boom")
                         },
-                        transform = {
-                            transformCalls++
+                        decode = {
+                            decodeCalls++
                             emptyList()
                         },
                         onError = { onErrorCalls++ },
-                        stamp = { stamp },
-                        fallback = { emptyList() },
+                        guard = guard,
                     ),
                 )
             runCurrent()
-            assertEquals(true, requestStarted.isCompleted, "the failure must be in flight before the stamp flip")
-            stamp = 1
+            assertEquals(true, requestStarted.isCompleted, "the failure must be in flight before superseding")
+            guard.next()
             releaseFailure.complete(Unit)
             runCurrent()
             job.join()
 
             assertEquals(1, onErrorCalls, "the onError hook must still run on a stale failure")
-            assertEquals(0, transformCalls, "a throwing block must not run transform")
+            assertEquals(0, decodeCalls, "a throwing block must not run decode")
             assertIs<UiState.Loading>(
                 state.value,
                 "a stale exception must not write Error onto the moved-on surface",
@@ -316,8 +405,8 @@ class ApiCallHandlerTest {
             val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
             val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
 
-            // Default (constant) stamp — always agrees, so the non-success landing is CURRENT:
-            // the gate must not swallow a genuine failure (the #176 negative of the new pin).
+            // Plain one-shot — no guard exists, so the non-success landing is CURRENT:
+            // a genuine failure must surface (the negative pin).
             val job =
                 handler.launch(
                     state = state,
@@ -338,8 +427,8 @@ class ApiCallHandlerTest {
             val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
             var onErrorCalls = 0
 
-            // Default (constant) stamp — always agrees, so the exception is CURRENT: the gate
-            // must not swallow a genuine failure.
+            // Plain one-shot — no guard exists, so the exception is CURRENT: a genuine
+            // failure must surface.
             handler.launch(
                 LaunchRequest(
                     state = state,
@@ -354,6 +443,256 @@ class ApiCallHandlerTest {
 
             assertEquals(1, onErrorCalls)
             assertIs<UiState.Error>(state.value)
+        }
+
+    // ── #611 post-mutation retain-and-reload (ActionStamp reconciliation) ──────────────
+    // A stale pre-action snapshot commits nothing and reissues instead; the post-action list
+    // stays retained (the action's synchronous KeepLast write — simulated here by direct
+    // state writes). Stale failures keep the #176 hook semantics.
+
+    @Test
+    fun reconciling_current_success_commits_without_reissue() =
+        runTest(testScheduler) {
+            val apiClient = mockApiClient { respond200() }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
+            var reissues = 0
+
+            handler.launchReconciling(
+                ReconcilingLoad(
+                    state = state,
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { apiClient.httpClient.get("/api/items") },
+                    decode = { listOf(1, 2, 3) },
+                    stamp = ActionStamp(),
+                    reissue = { reissues++ },
+                ),
+            )
+            runCurrent()
+
+            val landed = assertIs<UiState.Success<List<Int>>>(state.value)
+            assertEquals(listOf(1, 2, 3), landed.data)
+            assertEquals(0, reissues, "a current landing must not reissue")
+        }
+
+    @Test
+    fun reconciling_stale_success_reissues_without_committing() =
+        runTest(testScheduler) {
+            val requestStarted = CompletableDeferred<Unit>()
+            val releaseResponse = CompletableDeferred<Unit>()
+            val apiClient =
+                mockApiClient { _ ->
+                    requestStarted.complete(Unit)
+                    releaseResponse.await()
+                    respond(
+                        content = ByteReadChannel("""[]"""),
+                        status = HttpStatusCode.OK,
+                        headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                    )
+                }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
+            val stamp = ActionStamp()
+            var decodeCalls = 0
+            var reissues = 0
+
+            val job =
+                handler.launchReconciling(
+                    ReconcilingLoad(
+                        state = state,
+                        operation = "load",
+                        endpoint = "GET /api/items",
+                        block = { apiClient.httpClient.get("/api/items") },
+                        decode = { _: HttpResponse ->
+                            decodeCalls++
+                            listOf(9)
+                        },
+                        stamp = stamp,
+                        reissue = { reissues++ },
+                    ),
+                )
+            runCurrent()
+            assertEquals(true, requestStarted.isCompleted, "the load must be in flight before the action")
+
+            // An action lands while the load is in flight: synchronous post-action write plus
+            // the stamp bump (the KeepLast mutation shape).
+            stamp.bump()
+            state.value = UiState.Success(listOf(7))
+            releaseResponse.complete(Unit)
+            runCurrent()
+            job.join()
+
+            assertEquals(0, decodeCalls, "an already-stale body must never be parsed")
+            assertEquals(1, reissues, "a stale pre-action snapshot must reissue for server truth")
+            val retained = assertIs<UiState.Success<List<Int>>>(state.value)
+            assertEquals(
+                listOf(7),
+                retained.data,
+                "the post-action list is retained — never recommitted, never resurrected",
+            )
+        }
+
+    @Test
+    fun reconciling_action_mid_decode_reissues_and_drops_body() =
+        runTest(testScheduler) {
+            val apiClient = mockApiClient { respond200() }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
+            val stamp = ActionStamp()
+            var reissues = 0
+
+            handler.launchReconciling(
+                ReconcilingLoad(
+                    state = state,
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { apiClient.httpClient.get("/api/items") },
+                    decode = {
+                        stamp.bump()
+                        listOf(1, 2, 3)
+                    },
+                    stamp = stamp,
+                    reissue = { reissues++ },
+                ),
+            )
+            runCurrent()
+
+            assertEquals(1, reissues, "an action mid-decode must reissue instead of committing")
+            assertIs<UiState.Loading>(
+                state.value,
+                "the mid-decode pre-action body must not commit over the moved-on surface",
+            )
+        }
+
+    @Test
+    fun reconciling_stale_failure_runs_hook_without_error_or_reissue() =
+        runTest(testScheduler) {
+            val requestStarted = CompletableDeferred<Unit>()
+            val releaseResponse = CompletableDeferred<Unit>()
+            val apiClient =
+                mockApiClient { _ ->
+                    if (requestStarted.complete(Unit)) {
+                        releaseResponse.await()
+                    }
+                    respond(
+                        content = ByteReadChannel(""),
+                        status = HttpStatusCode.InternalServerError,
+                        headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                    )
+                }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
+            val stamp = ActionStamp()
+            var hookCalls = 0
+            var reissues = 0
+
+            val job =
+                handler.launchReconciling(
+                    ReconcilingLoad(
+                        state = state,
+                        operation = "load",
+                        endpoint = "GET /api/items",
+                        block = { apiClient.httpClient.get("/api/items") },
+                        decode = { emptyList() },
+                        stamp = stamp,
+                        reissue = { reissues++ },
+                        onNonSuccess = {
+                            hookCalls++
+                            false
+                        },
+                    ),
+                )
+            runCurrent()
+            assertEquals(
+                true,
+                requestStarted.isCompleted,
+                "the non-success response must be in flight before the action",
+            )
+            stamp.bump()
+            state.value = UiState.Success(listOf(7))
+            releaseResponse.complete(Unit)
+            runCurrent()
+            job.join()
+
+            assertEquals(1, hookCalls, "the onNonSuccess hook still runs on a stale failure")
+            assertEquals(0, reissues, "a stale failure carries no snapshot — nothing to reconverge")
+            val retained = assertIs<UiState.Success<List<Int>>>(state.value)
+            assertEquals(listOf(7), retained.data)
+        }
+
+    @Test
+    fun reconciling_failed_reissue_surfaces_error() =
+        runTest(testScheduler) {
+            // Failed reconciliation: the stale landing reissues, and the reissued GET fails
+            // while current — the reissue's Error stands (the stale snapshot itself committed
+            // nothing at either step).
+            val releaseStale = CompletableDeferred<Unit>()
+            var gets = 0
+            val apiClient =
+                mockApiClient { _ ->
+                    gets++
+                    if (gets == 1) {
+                        releaseStale.await()
+                        respond(
+                            content = ByteReadChannel("""[]"""),
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                        )
+                    } else {
+                        // 400, not 500: the client's HttpRequestRetry re-issues 5xx inside the
+                        // same landing (a retry is not a newer load) and would inflate the count.
+                        respond(
+                            content = ByteReadChannel(""),
+                            status = HttpStatusCode.BadRequest,
+                            headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                        )
+                    }
+                }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
+            val stamp = ActionStamp()
+            var reissues = 0
+
+            fun reissueLoad() {
+                reissues++
+                handler.launchReconciling(
+                    ReconcilingLoad(
+                        state = state,
+                        operation = "load",
+                        endpoint = "GET /api/items",
+                        block = { apiClient.httpClient.get("/api/items") },
+                        decode = { emptyList() },
+                        stamp = stamp,
+                        reissue = {},
+                    ),
+                )
+            }
+
+            handler.launchReconciling(
+                ReconcilingLoad(
+                    state = state,
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { apiClient.httpClient.get("/api/items") },
+                    decode = { emptyList() },
+                    stamp = stamp,
+                    reissue = ::reissueLoad,
+                ),
+            )
+            runCurrent()
+
+            stamp.bump()
+            state.value = UiState.Success(listOf(7))
+            releaseStale.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(1, reissues, "the stale snapshot must trigger exactly one reissue")
+            assertEquals(2, gets, "stale GET plus reissued GET")
+            assertIs<UiState.Error>(
+                state.value,
+                "the failed reissue lands current — its Error stands",
+            )
         }
 
     // ── #168 state-less launch ────────────────────────────────────────────────────────

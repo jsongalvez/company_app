@@ -3,9 +3,11 @@ package com.companyb.companyapp.workforce.attendance
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.async.ActionStamp
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.KeepLast
 import com.companyb.companyapp.async.LaunchRequest
+import com.companyb.companyapp.async.ReconcilingLoad
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.workforce.MarkAttendanceRequest
 import com.companyb.companyapp.contracts.workforce.MemberAttendanceResponse
@@ -55,9 +57,9 @@ class AttendanceRosterViewModel(
     private val _swapUpdate = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val swapUpdate: StateFlow<UiState<Unit>> = _swapUpdate.asStateFlow()
 
-    // Bumped on every successful mark: a roster reload landing with a mismatched stamp
-    // predates the mark and must not commit its pre-action snapshot (the #165 stamp shape).
-    private var actionStamp = 0L
+    // Bumped on every successful mark: a roster reload landing with a mismatched capture
+    // predates the mark and must not commit its pre-action snapshot (the #611 ActionStamp shape).
+    private val actionStamp = ActionStamp()
 
     // #416 — one mutation at a time across all three legs (mark/slot/swap): a second dispatch
     // while one runs could serialize two swaps of the same pair and undo the first. Tracked by
@@ -90,13 +92,15 @@ class AttendanceRosterViewModel(
     private fun refreshRoster(branchId: String): Job {
         // Set synchronously so retry and mutation controls cannot dispatch twice in one frame.
         keptRoster.stateFlow.value = UiState.Loading
-        return handler.launch(
-            LaunchRequest(
+        return handler.launchReconciling(
+            ReconcilingLoad(
                 state = keptRoster.stateFlow,
                 operation = "loadRoster",
                 endpoint = "GET /api/branches/{branchId}/attendance/today",
                 block = { apiClient.httpClient.get(ApiRoutes.branchAttendanceToday(branchId)) },
-                transform = { it.body() },
+                decode = { it.body() },
+                stamp = actionStamp,
+                reissue = { refreshRoster(branchId) },
                 onNonSuccess = { response ->
                     if (response.status == HttpStatusCode.Forbidden) {
                         keptRoster.clear()
@@ -104,11 +108,6 @@ class AttendanceRosterViewModel(
                     } else {
                         false
                     }
-                },
-                stamp = { actionStamp },
-                fallback = {
-                    refreshRoster(branchId)
-                    keptRoster.freshestValue() ?: emptyList()
                 },
             ),
         )
@@ -141,7 +140,7 @@ class AttendanceRosterViewModel(
                     }
                 },
                 transform = {
-                    actionStamp++
+                    actionStamp.bump()
                     refreshRoster(branchId)
                     Unit
                 },
@@ -173,7 +172,7 @@ class AttendanceRosterViewModel(
                         AssignmentSlotOperations.updateSlot(apiClient, branchId, assignmentId, slot)
                     },
                     transform = {
-                        actionStamp++
+                        actionStamp.bump()
                         refreshRoster(branchId)
                         Unit
                     },
@@ -208,7 +207,7 @@ class AttendanceRosterViewModel(
                         AssignmentSlotOperations.swapSlots(apiClient, branchId, assignmentIdA, assignmentIdB)
                     },
                     transform = {
-                        actionStamp++
+                        actionStamp.bump()
                         refreshRoster(branchId)
                         Unit
                     },

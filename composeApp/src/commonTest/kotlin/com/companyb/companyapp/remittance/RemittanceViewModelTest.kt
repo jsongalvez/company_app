@@ -587,8 +587,8 @@ class RemittanceViewModelTest {
     fun loadRemittance_staleFirstLanding_holdsLoadingUntilNewerLands() =
         runTest(testScheduler) {
             // #490 — double-initial overlap whose stale landing arrives FIRST: no committed
-            // detail exists, so the fallback throws and the stale leg holds Loading (logged,
-            // never rendered) until the superseding load commits.
+            // detail exists, and the stale leg commits nothing (#611 — no throw, no fallback),
+            // so Loading holds until the superseding load commits.
             val releaseFirst = CompletableDeferred<Unit>()
             val releaseSecond = CompletableDeferred<Unit>()
             var detailGets = 0

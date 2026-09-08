@@ -4,8 +4,10 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.KeepLastByKey
+import com.companyb.companyapp.async.LatestLoad
 import com.companyb.companyapp.async.LaunchHooks
 import com.companyb.companyapp.async.LaunchRequest
+import com.companyb.companyapp.async.LoadGeneration
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.remittance.AddDayBreakdownRequest
 import com.companyb.companyapp.contracts.remittance.CreateRemittanceDraftRequest
@@ -125,21 +127,18 @@ class RemittanceViewModel(
     private val _remittanceDetail = MutableStateFlow<UiState<RemittanceDetailResponse>>(UiState.Idle)
     val remittanceDetail: StateFlow<UiState<RemittanceDetailResponse>> = _remittanceDetail.asStateFlow()
 
-    // #484 — latest-wins generation for the detail surface (the per-remittance guard, keptByTab
-    // shape): every loadRemittance bumps detailGeneration; a landing superseded by a newer load
-    // never commits. #490 — the fallback re-reads the current Success (a re-commit of identical
-    // data, harmless); over Loading/Idle/Error it throws, which the handler's stale leg swallows
-    // so the spinner / fresh Error stands. In particular a double-initial overlap whose stale
-    // landing arrives first holds Loading until the superseding load lands — pinned by test.
-    private var detailGeneration = 0L
+    // #484 — latest-wins guard for the detail surface (#611 LoadGeneration owner, keptByTab
+    // shape): a landing superseded by a newer load never commits. A double-initial overlap
+    // whose stale landing arrives first simply holds Loading until the superseding load lands.
+    private val detailGuard = LoadGeneration()
 
-    // #490 — per-source picker generations + range capture: the three picker caches share one
-    // range marker, so a stale landing must commit neither entries nor marker. Each loader bumps
-    // its own counter (same-range sibling loads never invalidate each other) and captures its
-    // range; the transform commits the marker only when both still agree post-deserialization.
-    private var sessionPickerGeneration = 0L
-    private var productSalePickerGeneration = 0L
-    private var dayPickerGeneration = 0L
+    // #490 — per-source picker guards + range capture (#611): the three picker caches share one
+    // range marker, so a stale landing must commit neither entries nor marker. The guard closes
+    // same-source ordering (same-range sibling loads never invalidate each other); the range
+    // half of the commit check stays in onCommit below.
+    private val sessionPickerGuard = LoadGeneration()
+    private val productSalePickerGuard = LoadGeneration()
+    private val dayPickerGuard = LoadGeneration()
 
     // Current detail range for the range half of the picker commit check.
     private fun currentDetailRange(): Pair<String, String>? =
@@ -224,18 +223,12 @@ class RemittanceViewModel(
     // D6 — detail load; the 409 conflict-reload passes resetNotice = false so the notice it just
     // raised survives the re-fetch.
     //
-    // #484 — latest-wins: every launch bumps detailGeneration and the landing is gated on it
-    // (the #165 stamp/fallback shape — the stateful stale class, per the ApiCallHandler
-    // contract). A landing superseded by a newer load — an overlapping success-path reload —
-    // drops its body without committing it, and a superseded failure writes no Error
-    // (#176). The fallback re-reads the current Success (identical data — a harmless re-commit);
-    // with no committed detail yet it throws and the stale leg holds Loading until the newer
-    // load lands (#490 — no re-issue: the superseding load is already in flight — unlike
-    // ReceivedInvites, where an action supersedes). No coalescing guard by design: a
-    // mutation-triggered reload must always dispatch — skipping it would let the in-flight
-    // pre-mutation snapshot win (the loadSent precedent). The transform stays pure (#490 —
-    // no lastDetail write inside the suspend window, so a bump mid-deserialization pollutes
-    // nothing; the handler's post-transform recheck owns the commit).
+    // #484 — latest-wins: a landing superseded by a newer load — an overlapping success-path
+    // reload — drops its body without committing it, and a superseded failure writes no Error
+    // (#176). No coalescing guard by design: a mutation-triggered reload must always dispatch
+    // — skipping it would let the in-flight pre-mutation snapshot win (the loadSent precedent).
+    // The decode stays pure (#490 — no marker write inside the suspend window, so a bump
+    // mid-deserialization pollutes nothing; the handler's post-decode recheck owns the commit).
     fun loadRemittance(
         remittanceId: String,
         resetNotice: Boolean = true,
@@ -243,24 +236,15 @@ class RemittanceViewModel(
         if (resetNotice) {
             detailChangedNoticeState.value = false
         }
-        detailGeneration++
-        handler.launch(
-            LaunchRequest(
+        handler.launchLatest(
+            LatestLoad(
                 state = _remittanceDetail,
                 operation = "loadRemittance",
                 endpoint = "GET /api/remittances/$remittanceId",
                 entryMessage = "loadRemittance called: remittanceId=$remittanceId",
                 block = { apiClient.httpClient.get(ApiRoutes.remittance(remittanceId)) },
-                transform = { it.body() },
-                stamp = { detailGeneration },
-                fallback = {
-                    // Holds the last committed detail; fail loud when none exists yet (the
-                    // double-initial stale-first ordering — the handler's stale leg keeps
-                    // Loading, and the throw is logged, never rendered).
-                    checkNotNull(
-                        (remittanceDetail.value as? UiState.Success)?.data,
-                    ) { "stale detail landing with no committed detail" }
-                },
+                decode = { it.body() },
+                guard = detailGuard,
             ),
         )
     }
@@ -276,21 +260,17 @@ class RemittanceViewModel(
     }
 
     // D3 — sessions-in-range picker (#118 G2; voided sessions excluded server-side).
-    // #490 — per-source (generation, range) commit: a landing from another range (or superseded
+    // #490 — per-source (guard, range) commit: a landing from another range (or superseded
     // by a newer load of the same source) commits neither entries nor the shared marker; a
-    // superseded failure writes no Error over the current Success (#176). The fallback re-reads
-    // the current Success (identical data); over Loading/Error it throws so the fresh state
-    // stands (a stale Success must never clobber a fresh Error's Retry).
+    // superseded failure writes no Error over the current Success (#176).
     fun loadSessionPicker(
         branchId: String,
         from: String,
         to: String,
     ) {
-        sessionPickerGeneration++
-        val capturedGeneration = sessionPickerGeneration
         val capturedRange = from to to
-        handler.launch(
-            LaunchRequest(
+        handler.launchLatest(
+            LatestLoad(
                 state = _sessionPicker,
                 operation = "loadSessionPicker",
                 endpoint = "GET /api/branches/$branchId/remittance-sessions",
@@ -301,20 +281,12 @@ class RemittanceViewModel(
                         parameter("to", to)
                     }
                 },
-                transform = { response ->
-                    val body = response.body<List<RemittanceSessionPickerEntryResponse>>()
-                    if (sessionPickerGeneration == capturedGeneration &&
-                        capturedRange == currentDetailRange()
-                    ) {
+                decode = { response -> response.body<List<RemittanceSessionPickerEntryResponse>>() },
+                guard = sessionPickerGuard,
+                onCommit = {
+                    if (capturedRange == currentDetailRange()) {
                         _pickerLoadedRange.value = capturedRange
                     }
-                    body
-                },
-                stamp = { sessionPickerGeneration },
-                fallback = {
-                    checkNotNull(
-                        (sessionPicker.value as? UiState.Success)?.data,
-                    ) { "stale session-picker landing with no committed entries" }
                 },
             ),
         )
@@ -326,11 +298,9 @@ class RemittanceViewModel(
         from: String,
         to: String,
     ) {
-        productSalePickerGeneration++
-        val capturedGeneration = productSalePickerGeneration
         val capturedRange = from to to
-        handler.launch(
-            LaunchRequest(
+        handler.launchLatest(
+            LatestLoad(
                 state = _productSalePicker,
                 operation = "loadProductSalePicker",
                 endpoint = "GET /api/branches/$branchId/remittance-product-sales",
@@ -341,20 +311,12 @@ class RemittanceViewModel(
                         parameter("to", to)
                     }
                 },
-                transform = { response ->
-                    val body = response.body<List<RemittanceProductSalePickerEntryResponse>>()
-                    if (productSalePickerGeneration == capturedGeneration &&
-                        capturedRange == currentDetailRange()
-                    ) {
+                decode = { response -> response.body<List<RemittanceProductSalePickerEntryResponse>>() },
+                guard = productSalePickerGuard,
+                onCommit = {
+                    if (capturedRange == currentDetailRange()) {
                         _pickerLoadedRange.value = capturedRange
                     }
-                    body
-                },
-                stamp = { productSalePickerGeneration },
-                fallback = {
-                    checkNotNull(
-                        (productSalePicker.value as? UiState.Success)?.data,
-                    ) { "stale product-picker landing with no committed entries" }
                 },
             ),
         )
@@ -366,11 +328,9 @@ class RemittanceViewModel(
         from: String,
         to: String,
     ) {
-        dayPickerGeneration++
-        val capturedGeneration = dayPickerGeneration
         val capturedRange = from to to
-        handler.launch(
-            LaunchRequest(
+        handler.launchLatest(
+            LatestLoad(
                 state = _dayPicker,
                 operation = "loadDayPicker",
                 endpoint = "GET /api/branches/$branchId/remittance-days",
@@ -381,20 +341,12 @@ class RemittanceViewModel(
                         parameter("to", to)
                     }
                 },
-                transform = { response ->
-                    val body = response.body<List<RemittanceDayPickerEntryResponse>>()
-                    if (dayPickerGeneration == capturedGeneration &&
-                        capturedRange == currentDetailRange()
-                    ) {
+                decode = { response -> response.body<List<RemittanceDayPickerEntryResponse>>() },
+                guard = dayPickerGuard,
+                onCommit = {
+                    if (capturedRange == currentDetailRange()) {
                         _pickerLoadedRange.value = capturedRange
                     }
-                    body
-                },
-                stamp = { dayPickerGeneration },
-                fallback = {
-                    checkNotNull(
-                        (dayPicker.value as? UiState.Success)?.data,
-                    ) { "stale day-picker landing with no committed entries" }
                 },
             ),
         )
