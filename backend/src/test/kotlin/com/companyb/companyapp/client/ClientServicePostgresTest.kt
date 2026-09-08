@@ -62,14 +62,24 @@ class ClientServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `duplicate client generated id returns existing client without extra audit`() {
+    fun `duplicate client same payload returns existing client without extra audit`() {
         val first = createClient(callerId, clientAId, firstName = "Original")
-        val duplicate = createClient(callerId, clientAId, firstName = "Changed", lastName = "Different")
+        val duplicate = createClient(callerId, clientAId, firstName = "Original")
 
         assertTrue(first.created)
         assertFalse(duplicate.created)
         assertEquals("Original", duplicate.client.firstName)
         assertEquals("Doe", duplicate.client.lastName)
+        assertEquals(1L, auditEntryCount(clientAId))
+    }
+
+    @Test
+    fun `duplicate client different payload rejects with conflict`() {
+        createClient(callerId, clientAId, firstName = "Original")
+
+        assertFailsWith<ConflictException> {
+            createClient(callerId, clientAId, firstName = "Changed", lastName = "Different")
+        }
         assertEquals(1L, auditEntryCount(clientAId))
     }
 

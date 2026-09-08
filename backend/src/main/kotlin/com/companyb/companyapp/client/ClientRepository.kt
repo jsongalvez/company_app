@@ -2,6 +2,7 @@ package com.companyb.companyapp.client
 
 import com.companyb.companyapp.contracts.client.Gender
 import com.companyb.companyapp.contracts.session.SessionType
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.session.ActiveSessionVoidsView
 import com.companyb.companyapp.session.SessionTable
@@ -112,7 +113,38 @@ internal object ClientRepository {
         val client =
             findByIdInTransaction(params.id)
                 ?: error("client row not found after idempotent insert for ${params.id}")
+        // #662 — ownership-validated replay (mirrors expense #510 / allowance #511): a same-id
+        // row only acks the caller's own identical person payload; a foreign payload fails
+        // closed so a UUID reuse across different persons cannot silently return the wrong person.
+        validateReplayOwnership(client, params)
         return ClientCreateResult(client, created = insertedCount > 0)
+    }
+
+    /**
+     * Ownership-validated replay (#662): every person payload field must match the stored row.
+     * Pure comparison — no database access. The client has no createdBy column, so payload
+     * equality is the whole ownership signal.
+     */
+    private fun validateReplayOwnership(
+        existing: Client,
+        params: ClientCreateParams,
+    ): Client {
+        val samePayload =
+            existing.firstName == params.firstName &&
+                existing.lastName == params.lastName &&
+                existing.middleName == params.middleName &&
+                existing.suffix == params.suffix &&
+                existing.phoneNumber == params.phoneNumber &&
+                existing.address == params.address &&
+                existing.gender == params.gender &&
+                existing.age == params.age &&
+                existing.systolicBp == params.systolicBp &&
+                existing.diastolicBp == params.diastolicBp &&
+                existing.medicalConditions == params.medicalConditions
+        if (!samePayload) {
+            throw ConflictException("Client id already belongs to another create request")
+        }
+        return existing
     }
 
     fun findById(id: UUID): Client? =
