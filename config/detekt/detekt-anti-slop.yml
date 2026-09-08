@@ -544,7 +544,8 @@ style:
 # in public signatures) and NoWeakMapContract (Map<String, Any?> equivalents).
 # Landed ref #467: NoWidenThenCast (same-function val widened to Any then
 # as / as? back) and RequireSafetyComment (unsafe `as` needs a preceding
-# SAFETY: comment; `as?` safe-casts exempt as null-safe by construction).
+# SAFETY: comment with a #<ticket> link; `as?` safe-casts exempt as null-safe
+# by construction).
 # Landed ref #468: NoRuntimeTypeCheck (`is`/`as` on Any/Map/MutableMap plus
 # instance `::class`/`javaClass` narrowing; api/ boundary, the JSON mapper,
 # and named *Parser.kt files allowlisted via detekt-custom.yml excludes).

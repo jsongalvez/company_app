@@ -44,4 +44,31 @@ class NoWidenThenCastTest {
         val findings = rule.lint("fun foo(y: Any) { val x: Any = \"hi\"\nval z = y as String }")
         assertTrue(findings.isEmpty(), "expected no findings, got $findings")
     }
+
+    @Test
+    fun `nested local fun widen and cast reports once`() {
+        val findings =
+            rule.lint("fun outer() { fun inner() { val x: Any = \"hi\"\nval y = x as String } }")
+        assertEquals(1, findings.size, "expected one finding, got $findings")
+    }
+
+    @Test
+    fun `outer widened val cast inside nested fun stays out of scope`() {
+        val findings = rule.lint("fun outer() { val x: Any = \"hi\"\nfun inner() = x as String }")
+        assertTrue(findings.isEmpty(), "expected no findings, got $findings")
+    }
+
+    @Test
+    fun `shadowed lambda param passes`() {
+        val findings =
+            rule.lint("fun foo() { val x: Any = \"hi\"\nval ys = listOf(\"a\").map { x -> x as String } }")
+        assertTrue(findings.isEmpty(), "expected no findings, got $findings")
+    }
+
+    @Test
+    fun `inner val shadows outer widened passes`() {
+        val findings =
+            rule.lint("fun foo() { val x: Any = \"hi\"\nrun { val x: String = \"hi\"\nval y = x as String } }")
+        assertTrue(findings.isEmpty(), "expected no findings, got $findings")
+    }
 }

@@ -45,4 +45,30 @@ class RequireSafetyCommentTest {
         val findings = rule.lint(code)
         assertTrue(findings.isEmpty(), "expected no findings, got $findings")
     }
+
+    @Test
+    fun `ticketless SAFETY comment fails`() {
+        val findings = rule.lint("// SAFETY: narrowed boundary check\nfun foo(x: Any) = x as String")
+        assertEquals(1, findings.size, "expected one finding, got $findings")
+    }
+
+    @Test
+    fun `ticketless same-line SAFETY fails`() {
+        val findings = rule.lint("fun foo(x: Any) = x as String // SAFETY: test")
+        assertEquals(1, findings.size, "expected one finding, got $findings")
+    }
+
+    @Test
+    fun `SAFETY inside string literal does not suppress`() {
+        val code = "fun foo(x: Any): String { val s = \"SAFETY: test #467\"\nreturn x as String }"
+        val findings = rule.lint(code)
+        assertEquals(1, findings.size, "expected one finding, got $findings")
+    }
+
+    @Test
+    fun `KDoc SAFETY counts as comment node`() {
+        val code = "/** SAFETY: test #467 */\nfun foo(x: Any) = x as String"
+        val findings = rule.lint(code)
+        assertTrue(findings.isEmpty(), "expected no findings, got $findings")
+    }
 }
