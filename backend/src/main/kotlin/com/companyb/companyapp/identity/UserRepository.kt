@@ -301,6 +301,7 @@ internal object UserRepository {
             AppUserTable
                 .selectAll()
                 .where { AppUserTable.id eq userId }
+                .forUpdate(ForUpdateOption.ForUpdate)
                 .singleOrNull() ?: return null
 
         if (beforeRow[AppUserTable.status] == UserStatus.ACTIVE) {

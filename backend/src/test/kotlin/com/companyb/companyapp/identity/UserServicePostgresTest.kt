@@ -170,6 +170,17 @@ class UserServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `second reactivate after deactivate is a no-op without a second audit row`() {
+        UserService.deactivate(callerId, targetUserId)
+        UserService.reactivate(callerId, targetUserId)
+
+        UserService.reactivate(callerId, targetUserId)
+
+        assertEquals(UserStatus.ACTIVE, userStatus(targetUserId))
+        assertEquals(2L, auditEntryCount(targetUserId))
+    }
+
+    @Test
     fun `reactivate of missing user throws not found`() {
         assertFailsWith<NotFoundException> { UserService.reactivate(callerId, TestFixtures.uuid()) }
     }
