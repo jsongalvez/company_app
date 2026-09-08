@@ -39,8 +39,10 @@ internal data class FinanceToolbarUi(
     val selectedBranchId: String?,
     val mode: ReportMode,
     val editMode: Boolean,
-    val canEdit: Boolean,
     val appliedRange: Pair<String, String>?,
+    val isRefreshing: Boolean,
+    val feedLoading: Boolean,
+    val canRefresh: Boolean,
 )
 
 /** #479 LPL burn — the toolbar's write-side (callbacks + export-note state) as one object. */
@@ -48,7 +50,7 @@ internal data class FinanceToolbarActions(
     val onBranchSelected: (String) -> Unit,
     val onRetryBranches: () -> Unit,
     val onModeSelected: (ReportMode) -> Unit,
-    val onEditToggle: () -> Unit,
+    val onRefresh: () -> Unit,
     val onExportMode: (String) -> Unit,
     val downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
     val exportErrors: Map<String, String>,
@@ -72,26 +74,41 @@ internal fun FinanceToolbar(
                 onRetryBranches = actions.onRetryBranches,
             )
             Spacer(Modifier.weight(1f))
+            // #678 — the stable header owns Refresh: always mounted (never hidden with
+            // the feed), disabled while any feed fetch is in flight or no refreshable
+            // scope is selected.
+            TextButton(
+                onClick = actions.onRefresh,
+                enabled = ui.canRefresh && !ui.isRefreshing && !ui.feedLoading,
+            ) {
+                if (ui.isRefreshing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.width(Spacing.sm).height(Spacing.sm),
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text("Refresh")
+                }
+            }
             // #105 D4 — toolbar export = the mode's export (Daily has none — per-day only, in
-            // detail). D6: every export point is CSV + PDF.
+            // detail). D6: every export point is CSV + PDF via the shared menu.
             val showModeExport =
                 !ui.editMode && ui.mode != ReportMode.DAILY && ui.selectedBranchId != null &&
                     (ui.mode != ReportMode.DATE_RANGE || ui.appliedRange != null)
             if (showModeExport) {
                 // #105 D4 — DATE_RANGE has no export until a window is applied (rendered only
                 // when enabled: a disabled button would still eat 360dp toolbar width). The
-                // key carries the branch (a superseded branch's late landing stays inert).
-                ExportButtons(
+                // key carries the branch (a superseded branch's export neither blocks nor
+                // mislabels the current branch's — the landing still saves under its own key).
+                // #678 — the day editor lives behind the selected-day header's Edit action;
+                // the toolbar never edits, so the branch/date being edited is always named
+                // beside its Edit button in the selected-day header.
+                ExportMenu(
                     baseKey = "mode:${ui.selectedBranchId}:${ui.mode.name}",
                     onExport = actions.onExportMode,
                     errors = actions.exportErrors,
                     downloads = actions.downloads,
                 )
-            }
-            if (ui.canEdit) {
-                TextButton(onClick = actions.onEditToggle) {
-                    Text(if (ui.editMode) "Done editing" else "Edit this day")
-                }
             }
         }
         FinanceModeTabs(mode = ui.mode, onModeSelected = actions.onModeSelected)
@@ -225,36 +242,42 @@ internal fun DateRangeParamRow(
     onClear: () -> Unit,
     paramError: String?,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        OutlinedTextField(
-            value = ui.fromInput,
-            onValueChange = ui.onFromChange,
-            label = { Text("From (yyyy-MM-dd)") },
-            singleLine = true,
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(Modifier.width(Spacing.xs))
-        OutlinedTextField(
-            value = ui.toInput,
-            onValueChange = ui.onToChange,
-            label = { Text("To (yyyy-MM-dd)") },
-            singleLine = true,
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(Modifier.width(Spacing.sm))
-        TextButton(onClick = onApply) { Text(if (ui.applied) "Apply" else "Go") }
-        if (ui.applied) {
-            TextButton(onClick = onClear) { Text("Clear") }
+    // #678 — Start/End labeled pickers with typed entry and inline validation: the draft
+    // never fires a request (Apply validates first), so the last valid report stays
+    // mounted until Apply. The error stacks below the fields — never inside the row —
+    // so the row holds at 390dp with no horizontal scroll.
+    Column(modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = ui.fromInput,
+                onValueChange = ui.onFromChange,
+                label = { Text("Start (yyyy-MM-dd)") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(Spacing.xs))
+            OutlinedTextField(
+                value = ui.toInput,
+                onValueChange = ui.onToChange,
+                label = { Text("End (yyyy-MM-dd)") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(Spacing.sm))
+            TextButton(onClick = onApply) { Text("Apply") }
+            if (ui.applied) {
+                TextButton(onClick = onClear) { Text("Clear") }
+            }
         }
         if (paramError != null) {
-            Spacer(Modifier.width(Spacing.sm))
             Text(
                 text = paramError,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = Spacing.xxs),
             )
         }
     }
@@ -267,25 +290,28 @@ internal fun MonthParamRow(
     onApply: () -> Unit,
     paramError: String?,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        OutlinedTextField(
-            value = monthInput,
-            onValueChange = onMonthInputChange,
-            label = { Text("Month (yyyy-MM)") },
-            singleLine = true,
-            modifier = Modifier.width(200.dp),
-        )
-        Spacer(Modifier.width(Spacing.sm))
-        TextButton(onClick = onApply) { Text("Go") }
-        if (paramError != null) {
+    // #678 — the error stacks below the row so the month picker holds at 390dp.
+    Column(modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = monthInput,
+                onValueChange = onMonthInputChange,
+                label = { Text("Month (yyyy-MM)") },
+                singleLine = true,
+                modifier = Modifier.width(200.dp),
+            )
             Spacer(Modifier.width(Spacing.sm))
+            TextButton(onClick = onApply) { Text("Apply") }
+        }
+        if (paramError != null) {
             Text(
                 text = paramError,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = Spacing.xxs),
             )
         }
     }
@@ -299,26 +325,29 @@ internal fun JumpParamRow(
     onClear: () -> Unit,
     paramError: String?,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        OutlinedTextField(
-            value = monthInput,
-            onValueChange = onJumpInputChange,
-            label = { Text("Jump to month (yyyy-MM)") },
-            singleLine = true,
-            modifier = Modifier.width(220.dp),
-        )
-        Spacer(Modifier.width(Spacing.sm))
-        TextButton(onClick = onApply) { Text("Jump") }
-        TextButton(onClick = onClear) { Text("All-time") }
-        if (paramError != null) {
+    // #678 — the error stacks below the row so the jump picker holds at 390dp.
+    Column(modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = monthInput,
+                onValueChange = onJumpInputChange,
+                label = { Text("Jump to month (yyyy-MM)") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
             Spacer(Modifier.width(Spacing.sm))
+            TextButton(onClick = onApply) { Text("Jump") }
+            TextButton(onClick = onClear) { Text("All-time") }
+        }
+        if (paramError != null) {
             Text(
                 text = paramError,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = Spacing.xxs),
             )
         }
     }

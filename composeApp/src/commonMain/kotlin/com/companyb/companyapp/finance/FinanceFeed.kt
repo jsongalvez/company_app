@@ -2,6 +2,7 @@ package com.companyb.companyapp.finance
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -12,10 +13,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -33,7 +37,6 @@ import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.reporting.DailySalesSummaryResponse
 import com.companyb.companyapp.contracts.reporting.MonthlyRemittanceSummaryResponse
 import com.companyb.companyapp.ui.ErrorCard
-import com.companyb.companyapp.ui.screen.peso
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
@@ -45,21 +48,35 @@ internal fun FeedSection(
     collected: FinanceReportsCollected,
     modifier: Modifier = Modifier,
 ) {
+    // #678 — the list state + Rows/Cards choice hoist above the status branch, so Back
+    // from a detail and Cold reloads restore the period list, scroll position and view.
+    // (Rotation still resets them — no rememberSaveable anywhere on this surface.)
+    var showCards by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
     Column(modifier = modifier.fillMaxWidth().padding(top = Spacing.sm)) {
-        FeedSectionHeader(collected = collected)
+        FeedSectionHeader(viewModel = viewModel, collected = collected)
         FeedSectionStatus(feed = collected.feed, onRetry = viewModel::retryFeed)
         if (collected.feed is UiState.Success) {
             FeedSuccessContent(
                 viewModel = viewModel,
                 days = collected.feed.data,
                 collected = collected,
+                chrome =
+                    FeedListChrome(
+                        showCards = showCards,
+                        onShowCards = { showCards = it },
+                        listState = listState,
+                    ),
             )
         }
     }
 }
 
 @Composable
-private fun FeedSectionHeader(collected: FinanceReportsCollected) {
+private fun FeedSectionHeader(
+    viewModel: FinanceReportsViewModel,
+    collected: FinanceReportsCollected,
+) {
     if (collected.mode == ReportMode.DATE_RANGE && collected.appliedRange == null) {
         // #105 D4 — the DATE_RANGE feed is window-scoped; before a window exists there is
         // no feed (the unbounded all-time view would mislead — pass-4).
@@ -78,7 +95,18 @@ private fun FeedSectionHeader(collected: FinanceReportsCollected) {
         MonthlyRollupCard(rollup = collected.monthlyRollup.data)
     }
     if (collected.mode == ReportMode.MONTHLY && collected.monthlyRollup is UiState.Error) {
+        // #678 — an independently failed breakdown stays visibly unavailable with a retry
+        // while the day feed below stays usable.
         logWarn("FinanceReportsScreen", "monthlyRollup=Error: ${collected.monthlyRollup.message}")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Month rollup unavailable: ${collected.monthlyRollup.message}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            TextButton(onClick = viewModel::loadMonthlyRollup) { Text("Retry") }
+        }
     }
 }
 
@@ -110,6 +138,7 @@ private fun ColumnScope.FeedSuccessContent(
     viewModel: FinanceReportsViewModel,
     days: List<DailySalesSummaryResponse>,
     collected: FinanceReportsCollected,
+    chrome: FeedListChrome,
 ) {
     if (days.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -122,26 +151,52 @@ private fun ColumnScope.FeedSuccessContent(
             )
         }
     } else {
-        // #105 D5 — compact day rows by default, toggle to full-day cards.
-        var showCards by remember { mutableStateOf(false) }
-        FeedSuccessToolbar(viewModel = viewModel, showCards = showCards, onShowCards = { showCards = it })
-        val refreshError by viewModel.refreshError.collectAsState()
-        val refreshErrorValue = refreshError
-        if (refreshErrorValue != null) {
-            logWarn("FinanceReportsScreen", "refresh=Error: $refreshErrorValue")
-            Text(
-                text = refreshErrorValue,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(bottom = Spacing.xs),
-            )
-        }
-        FeedSuccessList(
+        // #105 D5 — compact day rows by default; Cards sits behind the View menu (#678),
+        // never as a competing main task.
+        FeedSuccessToolbar(
             viewModel = viewModel,
-            days = days,
-            collected = collected,
-            showCards = showCards,
+            showCards = chrome.showCards,
+            onShowCards = chrome.onShowCards,
         )
+        BoxWithConstraints(modifier = Modifier.weight(1f)) {
+            // #678 — at >= 1000dp the report list keeps >= 480dp beside a >= 480dp
+            // selected-day region (even weight split clears both floors past the
+            // breakpoint); below it a selection opens the existing full-width inline /
+            // dialog detail and collapsing it restores the list.
+            val sideBySide = FinanceLayoutPolicy.showSideDetail(maxWidth)
+            val selected = collected.selectedDay
+            if (sideBySide && selected != null) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                ) {
+                    Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                        FeedDayList(
+                            viewModel = viewModel,
+                            days = days,
+                            collected = collected,
+                            display = FeedListDisplay(showCards = chrome.showCards, sideBySide = true),
+                            listState = chrome.listState,
+                        )
+                    }
+                    Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                        SelectedDayRegion(
+                            viewModel = viewModel,
+                            collected = collected,
+                            selected = selected,
+                        )
+                    }
+                }
+            } else {
+                FeedDayList(
+                    viewModel = viewModel,
+                    days = days,
+                    collected = collected,
+                    display = FeedListDisplay(showCards = chrome.showCards, sideBySide = false),
+                    listState = chrome.listState,
+                )
+            }
+        }
     }
 }
 
@@ -155,39 +210,89 @@ private fun FeedSuccessToolbar(
         modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        FilterChip(selected = !showCards, onClick = { onShowCards(false) }, label = { Text("Rows") })
-        Spacer(Modifier.width(Spacing.xs))
-        FilterChip(selected = showCards, onClick = { onShowCards(true) }, label = { Text("Cards") })
+        // #678 — Cards sits behind the View menu; Rows stays the default overview.
+        FeedViewMenu(showCards = showCards, onShowCards = onShowCards)
         Spacer(Modifier.weight(1f))
-        val isRefreshing by viewModel.isRefreshing.collectAsState()
-        val isLoadingMore by viewModel.isLoadingMore.collectAsState()
-        TextButton(onClick = viewModel::refreshFeed, enabled = !isRefreshing && !isLoadingMore) {
-            if (isRefreshing) {
-                CircularProgressIndicator(
-                    modifier = Modifier.width(Spacing.sm).height(Spacing.sm),
-                    strokeWidth = 2.dp,
-                )
-            } else {
-                Text("Refresh")
-            }
+    }
+    // The header owns Refresh (#678 stable header); its failure surfaces here above the
+    // retained list with an explicit retry — the report underneath is never replaced.
+    val refreshError by viewModel.refreshError.collectAsState()
+    val refreshErrorValue = refreshError
+    if (refreshErrorValue != null) {
+        logWarn("FinanceReportsScreen", "refresh=Error: $refreshErrorValue")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = refreshErrorValue,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            TextButton(onClick = viewModel::refreshFeed) { Text("Retry") }
         }
     }
 }
 
 @Composable
-private fun ColumnScope.FeedSuccessList(
+private fun FeedViewMenu(
+    showCards: Boolean,
+    onShowCards: (Boolean) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        TextButton(onClick = { open = true }) {
+            Text(if (showCards) "View: Cards" else "View: Rows")
+        }
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("Rows") },
+                onClick = {
+                    open = false
+                    onShowCards(false)
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Cards") },
+                onClick = {
+                    open = false
+                    onShowCards(true)
+                },
+            )
+        }
+    }
+}
+
+/** #678 LPL burn — the day-list display flags as one object (Rows/Cards + adaptive). */
+internal data class FeedListDisplay(
+    val showCards: Boolean,
+    val sideBySide: Boolean,
+)
+
+/** #678 LPL burn — the hoisted day-list chrome: view choice, its writer, and scroll state. */
+internal data class FeedListChrome(
+    val showCards: Boolean,
+    val onShowCards: (Boolean) -> Unit,
+    val listState: LazyListState,
+)
+
+@Composable
+private fun FeedDayList(
     viewModel: FinanceReportsViewModel,
     days: List<DailySalesSummaryResponse>,
     collected: FinanceReportsCollected,
-    showCards: Boolean,
+    display: FeedListDisplay,
+    listState: LazyListState,
 ) {
-    LazyColumn(modifier = Modifier.weight(1f)) {
+    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
         items(days, key = { it.branchDayId }) { day ->
             FeedDayItem(
                 day = day,
                 viewModel = viewModel,
                 collected = collected,
-                showCards = showCards,
+                showCards = display.showCards,
+                sideBySide = display.sideBySide,
             )
         }
         item(key = "load-more") {
@@ -196,22 +301,90 @@ private fun ColumnScope.FeedSuccessList(
     }
 }
 
+/** #678 — the wide selected-day region beside the report list (kept whole so the feed body stays short). */
+@Composable
+private fun SelectedDayRegion(
+    viewModel: FinanceReportsViewModel,
+    collected: FinanceReportsCollected,
+    selected: DailySalesSummaryResponse,
+) {
+    val canEditSelected =
+        dayEditAllowed(
+            collected.capabilities,
+            collected.selectedBranchId,
+            selected,
+            collected.today,
+        )
+    SelectedDayPane(
+        ui =
+            SelectedDayPaneUi(
+                day = selected,
+                branchName = selectedBranchName(collected),
+                today = collected.today,
+                edit =
+                    if (canEditSelected) {
+                        DayEditAction(true) { viewModel.setEditMode(true) }
+                    } else {
+                        null
+                    },
+                export = selectedDayExport(viewModel, collected, selected),
+                // Wide selections collapse back to the full report list.
+                onBack = { viewModel.selectDay(null) },
+            ),
+    )
+}
+
+private fun selectedBranchName(collected: FinanceReportsCollected): String =
+    (collected.branches as? UiState.Success)?.data.orEmpty().branchName(collected.selectedBranchId)
+
+private fun selectedDayExport(
+    viewModel: FinanceReportsViewModel,
+    collected: FinanceReportsCollected,
+    selected: DailySalesSummaryResponse,
+): DayExport {
+    val branchId = collected.selectedBranchId
+    return DayExport(
+        onExportDay = { format ->
+            if (branchId != null) viewModel.exportDay(selected, branchId, format)
+        },
+        downloadStates = collected.downloads,
+        exportErrors = collected.exportErrors,
+    )
+}
+
 @Composable
 private fun FeedDayItem(
     day: DailySalesSummaryResponse,
     viewModel: FinanceReportsViewModel,
     collected: FinanceReportsCollected,
     showCards: Boolean,
+    sideBySide: Boolean,
 ) {
     val isSelected = day.branchDayId == collected.selectedDay?.branchDayId
     val onExportDay: (String) -> Unit = { format ->
         collected.selectedBranchId?.let { branch -> viewModel.exportDay(day, branch, format) }
     }
+    // #678 — the Edit-day entry names this day's branch/date/state beside the action (in
+    // the pane header wide, in the inline/dialog detail compact); entering edit keeps the
+    // selection so the editor opens on this day. The closure arms only when allowed —
+    // no read-only row carries a hidden edit entry.
+    val canEditDay = dayEditAllowed(collected.capabilities, collected.selectedBranchId, day, collected.today)
     val export =
         DayExport(
             onExportDay = onExportDay,
             downloadStates = collected.downloads,
             exportErrors = collected.exportErrors,
+            branchName = selectedBranchName(collected),
+            onEditDay =
+                if (canEditDay) {
+                    {
+                        viewModel.selectDay(day)
+                        viewModel.setEditMode(true)
+                    }
+                } else {
+                    null
+                },
+            canEditDay = canEditDay,
         )
     // Pass-2 HARD — re-tapping the selected day deselects (selectDay with the SAME
     // instance never re-emits — the mobile dialog was unclosable). selectDay(null)
@@ -228,7 +401,8 @@ private fun FeedDayItem(
         DayRow(
             day = day,
             today = collected.today,
-            selected = isSelected,
+            // #678 — wide selections render once, in the side pane; the row stays collapsed.
+            selected = isSelected && !sideBySide,
             onSelect = onSelect,
             export = export,
         )
@@ -236,7 +410,7 @@ private fun FeedDayItem(
 }
 
 @Composable
-private fun ColumnScope.FeedLoadMoreItem(viewModel: FinanceReportsViewModel) {
+private fun FeedLoadMoreItem(viewModel: FinanceReportsViewModel) {
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val loadMoreError by viewModel.loadMoreError.collectAsState()
     val loadMoreErrorValue = loadMoreError
@@ -254,7 +428,7 @@ private fun ColumnScope.FeedLoadMoreItem(viewModel: FinanceReportsViewModel) {
         TextButton(
             onClick = viewModel::loadMore,
             enabled = !isLoadingMore,
-            modifier = Modifier.align(Alignment.CenterHorizontally).fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
         ) {
             if (isLoadingMore) {
                 CircularProgressIndicator(
@@ -275,19 +449,27 @@ private fun MonthlyRollupCard(rollup: MonthlyRemittanceSummaryResponse) {
         color = MaterialTheme.colorScheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.sm),
     ) {
-        Row(
-            modifier = Modifier.padding(Spacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
-        ) {
+        Column(modifier = Modifier.padding(Spacing.sm)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
+            ) {
+                Text(
+                    text = "Month rollup",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text("Gross ${financeAmount(rollup.grossIncome)}", style = MaterialTheme.typography.bodySmall)
+                Text("Comp ${financeAmount(rollup.totalCompensation)}", style = MaterialTheme.typography.bodySmall)
+                Text("Exp ${financeAmount(rollup.totalExpenses)}", style = MaterialTheme.typography.bodySmall)
+                Text("Net ${financeAmount(rollup.netIncome)}", style = MaterialTheme.typography.bodySmall)
+            }
+            // #678 — month/all-time aggregates never pretend to be editable days.
             Text(
-                text = "Month rollup",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = "Aggregate totals — select a day below to edit",
+                style = MaterialTheme.typography.bodySmall,
+                color = InkSubtle,
             )
-            Text("Gross ${peso(rollup.grossIncome)}", style = MaterialTheme.typography.bodySmall)
-            Text("Comp ${peso(rollup.totalCompensation)}", style = MaterialTheme.typography.bodySmall)
-            Text("Exp ${peso(rollup.totalExpenses)}", style = MaterialTheme.typography.bodySmall)
-            Text("Net ${peso(rollup.netIncome)}", style = MaterialTheme.typography.bodySmall)
         }
     }
 }

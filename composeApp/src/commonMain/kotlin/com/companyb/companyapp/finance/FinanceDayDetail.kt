@@ -18,10 +18,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import com.companyb.companyapp.async.UiState
+import com.companyb.companyapp.app.hasBranchOrDayCapability
+import com.companyb.companyapp.app.hasCapability
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.contracts.reporting.DailySalesSummaryResponse
-import com.companyb.companyapp.ui.screen.peso
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
@@ -67,12 +69,12 @@ internal fun DayRow(
             )
             Spacer(Modifier.weight(1f))
             Text(
-                text = "Net ${peso(day.netIncome)}",
+                text = "Net ${financeAmount(day.netIncome)}",
                 style = MaterialTheme.typography.bodyMedium,
             )
             Spacer(Modifier.width(Spacing.md))
             Text(
-                text = "Gross ${peso(day.grossIncome)}",
+                text = "Gross ${financeAmount(day.grossIncome)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = InkSubtle,
             )
@@ -83,6 +85,112 @@ internal fun DayRow(
             expanded = selected,
             onClose = onSelect,
             export = export,
+        )
+    }
+}
+
+/**
+ * #678 — per-day Edit gate: the backend 403 stays authoritative; the affordance resolves
+ * the same branches as the toolbar gate did (EDIT_BRANCH_DATA at the branch or a
+ * BRANCH_DAY grant for this day, plus the ASSIGN/EDIT_PAST_DAY legs), failing closed
+ * on past days without EDIT_PAST_DAY and on malformed server dates.
+ */
+internal fun dayEditAllowed(
+    capabilities: List<UserCapabilityResponse>,
+    branchId: String?,
+    day: DailySalesSummaryResponse,
+    today: LocalDate,
+): Boolean {
+    if (branchId == null) return false
+    if ((derivedDayStateFromIso(day.date, today) ?: DerivedDayState.PAST) == DerivedDayState.PAST &&
+        !capabilities.hasCapability(
+            CapabilityCodes.EDIT_PAST_DAY,
+            CapabilityContextType.BRANCH,
+            branchId,
+        )
+    ) {
+        return false
+    }
+    return capabilities.hasBranchOrDayCapability(
+        CapabilityCodes.EDIT_BRANCH_DATA,
+        branchId,
+        day.branchDayId,
+    ) ||
+        capabilities.hasCapability(
+            CapabilityCodes.ASSIGN_COMPENSATION,
+            CapabilityContextType.BRANCH,
+            branchId,
+        ) ||
+        capabilities.hasCapability(
+            CapabilityCodes.EDIT_PAST_DAY,
+            CapabilityContextType.BRANCH,
+            branchId,
+        )
+}
+
+/**
+ * #678 — the selected-day region: an explicitly named branch/date/state header whose
+ * primary number is the authoritative net amount (gross/expenses secondary), the Edit-day
+ * action beside the identity it edits, then the shared breakdown + export menu.
+ * The wide feed mounts it beside the report list; compact detail entries reuse the
+ * shared content below.
+ *
+ * #678 LPL burn — the pane's identity + edit/export cluster travels as one object
+ * (data-class constructors are LPL-free, the #479 precedent).
+ */
+internal data class SelectedDayPaneUi(
+    val day: DailySalesSummaryResponse,
+    val branchName: String,
+    val today: LocalDate,
+    val edit: DayEditAction?,
+    val export: DayExport,
+    val onBack: (() -> Unit)? = null,
+)
+
+@Composable
+internal fun SelectedDayPane(
+    ui: SelectedDayPaneUi,
+    modifier: Modifier = Modifier,
+) {
+    val day = ui.day
+    Column(modifier = modifier.fillMaxWidth()) {
+        if (ui.onBack != null) {
+            TextButton(onClick = ui.onBack) { Text("← Back to report") }
+        }
+        Text(
+            text = "${day.date} · ${ui.branchName}",
+            style = MaterialTheme.typography.titleLarge,
+        )
+        Text(
+            text = dayStateBannerTextFromIso(day.date, ui.today),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = Spacing.xxs, bottom = Spacing.xs),
+        )
+        Text(
+            text = financeAmount(day.netIncome),
+            style = MaterialTheme.typography.headlineSmall,
+        )
+        Text(
+            text =
+                "Net ${financeAmount(day.netIncome)} · " +
+                    "Gross ${financeAmount(day.grossIncome)} · " +
+                    "Expenses ${financeAmount(day.totalExpenses)}",
+            style = MaterialTheme.typography.bodySmall,
+            color = InkSubtle,
+            modifier = Modifier.padding(top = Spacing.xxs, bottom = Spacing.xs),
+        )
+        val edit = ui.edit
+        if (edit != null && edit.canEdit) {
+            TextButton(onClick = edit.onEditDay) { Text("Edit day") }
+        }
+        FinanceDayDetailContent(
+            day = day,
+            today = ui.today,
+            // The pane header above owns the Edit-day action — passing ui.edit here too
+            // would render it twice. Compact entries (card/dialog/inline) have no pane
+            // header, so they carry edit inside their content instead.
+            chrome = DayDetailChrome(export = ui.export),
         )
     }
 }
@@ -111,15 +219,13 @@ internal fun FinanceDayCard(
     ) {
         Column(modifier = Modifier.padding(Spacing.sm)) {
             Text(
-                text = day.date,
+                text = dayTitle(day.date, export.branchName),
                 style = MaterialTheme.typography.titleMedium,
             )
             FinanceDayDetailContent(
                 day = day,
                 today = today,
-                onExportDay = export.onExportDay,
-                downloadStates = export.downloadStates,
-                exportErrors = export.exportErrors,
+                chrome = DayDetailChrome(export = export, edit = export.editAction()),
             )
         }
     }
@@ -140,18 +246,17 @@ internal fun MobileFinanceDayDetail(
     if (expanded) {
         AlertDialog(
             onDismissRequest = onClose,
-            title = { Text(day.date) },
+            title = { Text(dayTitle(day.date, export.branchName)) },
             text = {
                 FinanceDayDetailContent(
                     day = day,
                     today = today,
-                    onExportDay = export.onExportDay,
-                    downloadStates = export.downloadStates,
-                    exportErrors = export.exportErrors,
+                    chrome = DayDetailChrome(export = export, edit = export.editAction()),
                 )
             },
             confirmButton = {
-                TextButton(onClick = onClose) { Text("Close") }
+                // #678 — compact detail closes back to the period list (scroll preserved).
+                TextButton(onClick = onClose) { Text("Back") }
             },
             modifier = Modifier,
         )
@@ -167,13 +272,37 @@ internal expect fun FinanceDayDetail(
     export: DayExport,
 )
 
+/** #678 — the selected-day Edit entry as one object: null hides it (relief/read-only). */
+internal data class DayEditAction(
+    val canEdit: Boolean,
+    val onEditDay: () -> Unit,
+)
+
+internal fun DayExport.editAction(): DayEditAction? = onEditDay?.let { DayEditAction(canEditDay, it) }
+
+/** #678 — compact detail titles name the day's branch beside its date (wide pane headers do the same). */
+internal fun dayTitle(
+    date: String,
+    branchName: String,
+): String =
+    if (branchName.isBlank()) {
+        date
+    } else {
+        "$date · $branchName"
+    }
+
+/** #678 — the day-detail chrome (export + edit entries) as one object: null hides both
+ * (relief/read-only surfaces). Data-class constructors are LPL-free (#479 precedent). */
+internal data class DayDetailChrome(
+    val export: DayExport? = null,
+    val edit: DayEditAction? = null,
+)
+
 @Composable
 internal fun FinanceDayDetailContent(
     day: DailySalesSummaryResponse,
     today: LocalDate,
-    onExportDay: ((String) -> Unit)? = null,
-    downloadStates: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>> = emptyMap(),
-    exportErrors: Map<String, String> = emptyMap(),
+    chrome: DayDetailChrome = DayDetailChrome(),
 ) {
     // #654 — malformed server date shows the invalid-date banner instead of crashing.
     val state = derivedDayStateFromIso(day.date, today)
@@ -187,10 +316,17 @@ internal fun FinanceDayDetailContent(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = Spacing.xs),
         )
+        // #678 — the Edit-day action sits in the day detail beside the identity it edits
+        // (compact inline/dialog entries included); the toolbar never edits.
+        val edit = chrome.edit
+        if (edit != null && edit.canEdit) {
+            TextButton(onClick = edit.onEditDay) { Text("Edit day") }
+        }
         // #105 D5 — per-day Download CSV/PDF lives in the day detail; the editor embeds the
         // SAME row (the toolbar export is hidden in edit mode — the embedded row is the
         // editor's only export surface).
-        if (onExportDay != null) {
+        val export = chrome.export
+        if (export != null) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
@@ -201,21 +337,21 @@ internal fun FinanceDayDetailContent(
                     color = InkSubtle,
                     modifier = Modifier.weight(1f),
                 )
-                ExportButtons(
+                ExportMenu(
                     baseKey = "day:${day.branchDayId}",
-                    onExport = onExportDay,
-                    errors = exportErrors,
-                    downloads = downloadStates,
+                    onExport = export.onExportDay,
+                    errors = export.exportErrors,
+                    downloads = export.downloadStates,
                 )
             }
         }
-        BreakdownRow("Gross income (sessions)", day.grossIncome)
-        BreakdownRow("Product sales", day.totalProductSales)
-        BreakdownRow("Commission", day.totalCommission)
-        BreakdownRow("Compensation", day.totalCompensation)
-        BreakdownRow("Expenses", day.totalExpenses)
+        BreakdownRow("Gross income (sessions)", financeAmount(day.grossIncome))
+        BreakdownRow("Product sales", financeAmount(day.totalProductSales))
+        BreakdownRow("Commission", financeAmount(day.totalCommission))
+        BreakdownRow("Compensation", financeAmount(day.totalCompensation))
+        BreakdownRow("Expenses", financeAmount(day.totalExpenses))
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-        BreakdownRow("Net", day.netIncome, strong = true)
+        BreakdownRow("Net", financeAmount(day.netIncome), strong = true)
     }
 }
 
@@ -233,7 +369,7 @@ private fun BreakdownRow(
         )
         Spacer(Modifier.weight(1f))
         Text(
-            text = peso(value),
+            text = value,
             style = if (strong) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodySmall,
             color = if (strong) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
         )

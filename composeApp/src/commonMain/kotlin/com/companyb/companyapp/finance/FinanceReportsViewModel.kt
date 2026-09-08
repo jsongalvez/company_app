@@ -367,6 +367,10 @@ class FinanceReportsViewModel(
         // pre-refresh figures (pass-9 SOFT).
         selectedDayState.value = null
         editModeState.value = false
+        // #678 — refresh runs behind the always-mounted stable header, so it can fire
+        // mid-edit: disarm the old day's sections with the selection (the pass-3 HARD
+        // class — stale rows rendering under a new day's header with live row actions).
+        clearEditData()
         refreshErrorState.value = null
         loadMoreErrorState.value = null
         fetchPage(FeedFetchMode.Refresh, cursor = null, branchId = branchId)

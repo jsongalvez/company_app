@@ -30,7 +30,6 @@ import com.companyb.companyapp.contracts.finance.AllowanceResponse
 import com.companyb.companyapp.contracts.finance.CompensationResponse
 import com.companyb.companyapp.contracts.finance.ExpenseResponse
 import com.companyb.companyapp.contracts.reporting.DailySalesSummaryResponse
-import com.companyb.companyapp.ui.screen.peso
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
@@ -181,9 +180,17 @@ private fun DayEditorSummary(
             FinanceDayDetailContent(
                 day = day,
                 today = edit.today,
-                onExportDay = edit.onExportDayEditor,
-                downloadStates = edit.downloadStates,
-                exportErrors = edit.exportErrors,
+                chrome =
+                    DayDetailChrome(
+                        export =
+                            edit.onExportDayEditor?.let { onExportDay ->
+                                DayExport(
+                                    onExportDay = onExportDay,
+                                    downloadStates = edit.downloadStates,
+                                    exportErrors = edit.exportErrors,
+                                )
+                            },
+                    ),
             )
         }
     }
@@ -273,7 +280,7 @@ private fun SummaryCard(
                 color = InkSubtle,
             )
             Text(
-                text = peso(value),
+                text = financeAmount(value),
                 style = MaterialTheme.typography.titleLarge,
             )
         }

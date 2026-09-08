@@ -33,9 +33,7 @@ internal actual fun FinanceDayDetail(
                 FinanceDayDetailContent(
                     day = day,
                     today = today,
-                    onExportDay = export.onExportDay,
-                    downloadStates = export.downloadStates,
-                    exportErrors = export.exportErrors,
+                    chrome = DayDetailChrome(export = export, edit = export.editAction()),
                 )
             }
         }

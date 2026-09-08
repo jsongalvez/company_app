@@ -31,7 +31,6 @@ import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.branchday.BranchDayUserResponse
 import com.companyb.companyapp.contracts.finance.CompensationResponse
-import com.companyb.companyapp.ui.screen.peso
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.formatRelativeTimestamp
@@ -185,7 +184,8 @@ private fun CompensationSuccessList(
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = peso(compensation.amount),
+                // #678 — missing amounts read unavailable, never zero (or a bare ₱).
+                text = financeAmount(compensation.amount),
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.width(Spacing.sm))

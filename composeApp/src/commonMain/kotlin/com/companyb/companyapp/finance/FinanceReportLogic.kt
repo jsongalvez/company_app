@@ -1,6 +1,7 @@
 package com.companyb.companyapp.finance
 
 import com.companyb.companyapp.ui.screen.moneyToCents
+import com.companyb.companyapp.ui.screen.peso
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.YearMonth
@@ -102,6 +103,17 @@ internal fun parseYearMonthInput(raw: String): YearMonth? =
         require(parts.size == 2)
         YearMonth(parts[0].toInt(), parts[1].toInt())
     }.getOrNull()
+
+/**
+ * #678 — honest money display: a blank or unparseable backend amount renders as
+ * unavailable, never as zero (zero is a real value and keeps its ₱ prefix — the
+ * #654 fail-closed shape applied at the display edge).
+ */
+internal fun financeAmount(raw: String): String {
+    val trimmed = raw.trim()
+    if (trimmed.isEmpty() || moneyToCents(trimmed) == null) return "Unavailable"
+    return peso(trimmed)
+}
 
 /** `yyyy-MM-dd` parse (ISO). */
 internal fun parseDateInput(raw: String): LocalDate? = runCatching { LocalDate.parse(raw.trim()) }.getOrNull()

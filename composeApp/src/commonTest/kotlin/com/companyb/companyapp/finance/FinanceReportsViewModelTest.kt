@@ -2174,4 +2174,55 @@ class FinanceReportsViewModelTest {
             assertTrue(vm.inFlightActions.value.isEmpty(), "no tracker terminal may fire for the stale load")
             assertTrue(vm.editErrors.value.isEmpty(), "no stale error surface may appear")
         }
+
+    @Test
+    fun refreshFeed_clearsArmedEditSections() =
+        runTest(testScheduler) {
+            // #678 — the header Refresh stays mounted in edit mode, so a mid-edit refresh
+            // must disarm the old day's sections with the selection (the pass-3 HARD
+            // class: stale rows rendering under a new day's header with live row actions).
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    request.url.encodedPath == "/api/expenses" && request.method.value == "GET" -> {
+                        respondJson("[${expenseJson("e1")}]")
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+            val day = (vm.feedEntries.value as UiState.Success).data.single()
+            vm.selectDay(day)
+            vm.setEditMode(true)
+            advanceUntilIdle()
+            assertIs<UiState.Success<List<ExpenseResponse>>>(
+                vm.editExpenses.value,
+                "the old day's expense rows are armed before the refresh",
+            )
+
+            vm.refreshFeed()
+            advanceUntilIdle()
+
+            assertNull(vm.selectedDay.value, "refresh drops the stale selection")
+            assertFalse(vm.editMode.value, "refresh exits edit mode")
+            assertEquals(UiState.Idle, vm.editExpenses.value, "refresh disarms the old day's sections")
+            assertTrue(vm.editErrors.value.isEmpty(), "refresh clears the action tracker")
+            assertTrue(vm.conflicts.value.isEmpty(), "refresh clears conflict keys")
+            assertIs<UiState.Success<List<DailySalesSummaryResponse>>>(
+                vm.feedEntries.value,
+                "the refreshed report still lands",
+            )
+        }
 }

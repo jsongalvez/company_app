@@ -1,5 +1,6 @@
 package com.companyb.companyapp.finance
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,6 +10,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -31,6 +34,15 @@ internal data class DayExport(
     val onExportDay: (String) -> Unit,
     val downloadStates: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
     val exportErrors: Map<String, String>,
+    /**
+     * #678 — the Edit-day entry lives in the selected-day header (branch/date/state named
+     * beside the action), never as a global toolbar toggle. Null hides it (relief and
+     * read-only surfaces).
+     */
+    val onEditDay: (() -> Unit)? = null,
+    val canEditDay: Boolean = false,
+    /** #678 — the viewed branch name, so compact card/dialog titles name the day's branch. */
+    val branchName: String = "",
 )
 
 /** #479 LPL burn — the export-note pair as one object ([DayExport] is the +callback shape). */
@@ -166,7 +178,7 @@ internal fun PublicReportsSection(
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f),
                 )
-                ExportButtons(
+                ExportMenu(
                     baseKey = "public:$kind",
                     onExport = { format -> onExport(kind, format) },
                     errors = export.exportErrors,
@@ -178,39 +190,65 @@ internal fun PublicReportsSection(
 }
 
 @Composable
-internal fun ExportButtons(
+internal fun ExportMenu(
     baseKey: String,
     onExport: (String) -> Unit,
     errors: Map<String, String>,
     downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>> = emptyMap(),
     enabled: Boolean = true,
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        listOf("csv" to "CSV", "pdf" to "PDF").forEach { (format, label) ->
-            val key = "$baseKey:$format"
-            val state = downloads[key]
+    var open by remember { mutableStateOf(false) }
+    // #678 — export is a menu of the existing formats: one trigger keeps the stable
+    // header narrow at 390dp; the download itself still flows through saveDownload
+    // (no fake completion before the native result).
+    val busy = exportFormats.any { (format, _) -> downloads["$baseKey:$format"] is UiState.Loading }
+    Column {
+        Box {
             TextButton(
-                onClick = { onExport(format) },
-                enabled = enabled && state !is UiState.Loading,
+                onClick = { open = true },
+                enabled = enabled && !busy,
             ) {
-                if (state is UiState.Loading) {
+                if (busy) {
                     CircularProgressIndicator(
                         modifier = Modifier.width(Spacing.sm).height(Spacing.sm),
                         strokeWidth = 2.dp,
                     )
                 } else {
-                    Text(label)
+                    Text("Export")
                 }
             }
-            val error = errors[key]
+            DropdownMenu(
+                expanded = open,
+                onDismissRequest = { open = false },
+            ) {
+                exportFormats.forEach { (format, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = {
+                            open = false
+                            onExport(format)
+                        },
+                    )
+                }
+            }
+        }
+        // #678 — a local failure explains itself beside the trigger with an explicit retry —
+        // the report underneath is never replaced.
+        exportFormats.forEach { (format, label) ->
+            val error = errors["$baseKey:$format"]
             if (error != null) {
-                Text(
-                    text = error,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(start = Spacing.xs),
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "$label: $error",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    TextButton(onClick = { onExport(format) }) { Text("Retry") }
+                }
             }
         }
     }
 }
+
+private val exportFormats = listOf("csv" to "CSV", "pdf" to "PDF")

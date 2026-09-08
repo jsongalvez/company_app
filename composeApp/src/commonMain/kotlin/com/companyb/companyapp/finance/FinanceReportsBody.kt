@@ -124,19 +124,9 @@ internal fun ColumnScope.FinanceReportsMainContent(
     collected: FinanceReportsCollected,
     relief: FinanceReliefVisibility,
 ) {
-    val day = collected.selectedDay
-    // #101 D1/D3 — a past day the user cannot edit (no EDIT_PAST_DAY) offers nothing to
-    // toggle into: the Edit toggle stays hidden (the backend 403 stays authoritative).
-    // #654 — malformed server date fails closed to read-only (never crashes composition).
-    val pastDayReadOnlySelection =
-        day != null &&
-            collected.selectedBranchId != null &&
-            (derivedDayStateFromIso(day.date, collected.today) ?: DerivedDayState.PAST) == DerivedDayState.PAST &&
-            !collected.capabilities.hasCapability(
-                CapabilityCodes.EDIT_PAST_DAY,
-                CapabilityContextType.BRANCH,
-                collected.selectedBranchId,
-            )
+    // #678 — Edit lives in the selected-day header/detail (FinanceDayDetail's DayExport
+    // entry + the wide side pane), gated per day by dayEditAllowed; the toolbar never
+    // edits, so the branch/date being edited is always named beside its Edit action.
     // #158 — hybrid holders (day grant + VIEW at a picker-listed branch): the relief
     // day lives at a branch the #98 window never lists, so the picker can't reach it —
     // the chip switches the surface to the day-scoped entry. Pass-2 HARD — entering
@@ -164,15 +154,20 @@ internal fun ColumnScope.FinanceReportsMainContent(
                 selectedBranchId = collected.selectedBranchId,
                 mode = collected.mode,
                 editMode = collected.editMode,
-                canEdit = viewModel.hasEditCapabilities() && collected.selectedDay != null && !pastDayReadOnlySelection,
                 appliedRange = collected.appliedRange,
+                isRefreshing = collected.isRefreshing,
+                feedLoading = collected.feed is UiState.Loading,
+                // DATE_RANGE has no refreshable scope before Apply (the VM early-returns).
+                canRefresh =
+                    collected.selectedBranchId != null &&
+                        !(collected.mode == ReportMode.DATE_RANGE && collected.appliedRange == null),
             ),
         actions =
             FinanceToolbarActions(
                 onBranchSelected = viewModel::selectBranch,
                 onRetryBranches = viewModel::loadBranches,
                 onModeSelected = viewModel::setMode,
-                onEditToggle = { viewModel.setEditMode(!collected.editMode) },
+                onRefresh = viewModel::refreshFeed,
                 onExportMode = { format -> viewModel.exportModeCurrent(format) },
                 downloads = collected.downloads,
                 exportErrors = collected.exportErrors,
@@ -435,7 +430,6 @@ private fun ReliefDayResultContent(
                     FinanceDayDetailContent(
                         day = day,
                         today = ui.today,
-                        onExportDay = null,
                     )
                 }
             }

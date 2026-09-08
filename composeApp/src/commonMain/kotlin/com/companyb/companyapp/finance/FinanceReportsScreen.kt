@@ -94,6 +94,7 @@ private fun rememberFinanceReportsCollected(viewModel: FinanceReportsViewModel):
     val feed by viewModel.feedEntries.collectAsState()
     val selectedDay by viewModel.selectedDay.collectAsState()
     val editMode by viewModel.editMode.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     val downloads by viewModel.downloads.collectAsState()
     val exportErrors by viewModel.exportErrors.collectAsState()
     val snapshot by AppSessionState.snapshot.collectAsState()
@@ -122,6 +123,7 @@ private fun rememberFinanceReportsCollected(viewModel: FinanceReportsViewModel):
         feed = feed,
         selectedDay = selectedDay,
         editMode = editMode,
+        isRefreshing = isRefreshing,
         downloads = downloads,
         exportErrors = exportErrors,
         export = FinanceExportUi(downloads = downloads, exportErrors = exportErrors),
@@ -147,6 +149,7 @@ internal data class FinanceReportsCollected(
     val feed: UiState<List<DailySalesSummaryResponse>>,
     val selectedDay: DailySalesSummaryResponse?,
     val editMode: Boolean,
+    val isRefreshing: Boolean,
     val downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
     val exportErrors: Map<String, String>,
     val export: FinanceExportUi,

@@ -227,4 +227,16 @@ class FinanceReportLogicTest {
             dayStateBannerTextFromIso("", today),
         )
     }
+
+    @Test
+    fun financeAmount_showsUnavailableInsteadOfZeroForMissing() {
+        assertEquals("₱1000.00", financeAmount("1000.00"))
+        assertEquals("₱0.00", financeAmount("0.00"))
+        assertEquals("₱0", financeAmount("0"))
+        assertEquals("₱10.0000", financeAmount("10.0000"))
+        assertEquals("Unavailable", financeAmount(""))
+        assertEquals("Unavailable", financeAmount("   "))
+        assertEquals("Unavailable", financeAmount("garbage"))
+        assertEquals("Unavailable", financeAmount("12.34.56"))
+    }
 }
