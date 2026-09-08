@@ -306,7 +306,8 @@ private class ILikeOp(
     expr2: Expression<*>,
 ) : ComparisonOp(expr1, expr2, "ILIKE")
 
-@Suppress("UNCHECKED_CAST")
+// #599: String-backed ilike column narrows to IColumnType<String>; cast is the Exposed generic seam (#467).
+@Suppress("UNCHECKED_CAST") // #599
 private fun <T : String?> ilike(
     col: Column<T>,
     pattern: String,

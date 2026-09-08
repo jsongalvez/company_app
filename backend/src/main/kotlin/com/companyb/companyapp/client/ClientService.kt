@@ -24,7 +24,10 @@ import java.util.UUID
 object ClientService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("LongParameterList", "ReturnCount", "ThrowsCount")
+    // #599 13-param client creation stays whole per #535; the single command-owned transaction
+    // (ADR-0024) keeps persistence + audit atomic — splitting would break atomicity
+    // (same precedent as SessionService.create #593, ProductSaleService.sell #597).
+    @Suppress("LongParameterList") // #599
     fun create(
         callerId: UUID,
         id: UUID,
@@ -74,7 +77,9 @@ object ClientService {
     fun findById(clientId: UUID): Client =
         ClientRepository.findById(clientId) ?: throw NotFoundException("Client not found")
 
-    @Suppress("LongParameterList", "ReturnCount", "ThrowsCount", "CyclomaticComplexMethod")
+    // #599 14-param client update stays whole per #535; the single command-owned transaction
+    // (ADR-0024) keeps lock + patch + audit atomic — splitting would break atomicity.
+    @Suppress("LongParameterList") // #599
     fun update(
         callerId: UUID,
         clientId: UUID,
@@ -142,7 +147,6 @@ object ClientService {
             after ?: throw NotFoundException("Client not found")
         }
 
-    @Suppress("ThrowsCount")
     fun anonymize(
         callerId: UUID,
         clientId: UUID,
@@ -275,7 +279,8 @@ internal fun checkClearShape(clearFields: Set<String>) {
     }
 }
 
-@Suppress("LongParameterList")
+// #599 10-param patch resolution stays whole per #535; mirrors the update command 1:1.
+@Suppress("LongParameterList") // #599
 internal fun resolveClientPatch(
     firstName: String?,
     lastName: String?,

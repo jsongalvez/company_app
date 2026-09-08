@@ -1,4 +1,4 @@
-@file:Suppress("MatchingDeclarationName")
+@file:Suppress("MatchingDeclarationName") // #599 multi-decl client owner, stays cohesive
 
 package com.companyb.companyapp.client
 
@@ -86,7 +86,6 @@ internal fun ClientPickerSection(
 }
 
 @Composable
-@Suppress("LongMethod")
 private fun ClientSearchArea(
     args: ClientPickerArgs,
     onCreateNewClick: () -> Unit,
@@ -104,21 +103,7 @@ private fun ClientSearchArea(
             }
 
             searchState is UiState.Success && cachedResults?.isEmpty() == true -> {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Text(
-                        text = "No clients found",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Spacer(Modifier.size(Spacing.sm))
-                    Button(onClick = onCreateNewClick, enabled = args.selectionEnabled) {
-                        Text("Create new client")
-                    }
-                }
+                ClientSearchEmpty(args.selectionEnabled, onCreateNewClick)
             }
 
             errorMessage != null && cachedResults.isNullOrEmpty() -> {
@@ -130,25 +115,7 @@ private fun ClientSearchArea(
             }
 
             else -> {
-                val results = cachedResults
-                if (results == null) {
-                    CircularProgressIndicator(Modifier.align(Alignment.Center))
-                } else {
-                    Column(
-                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    ) {
-                        results.forEach { client ->
-                            SearchResultRow(
-                                client,
-                                client.id == args.selectedClientId,
-                                args.selectionEnabled,
-                            ) {
-                                args.viewModel.selectClient(client)
-                            }
-                        }
-                    }
-                }
+                ClientSearchOutcome(args, cachedResults)
             }
         }
         if (isLoading) {
@@ -156,6 +123,56 @@ private fun ClientSearchArea(
                 modifier = Modifier.align(Alignment.TopCenter).size(18.dp),
                 strokeWidth = 2.dp,
             )
+        }
+    }
+}
+
+@Composable
+private fun ClientSearchEmpty(
+    selectionEnabled: Boolean,
+    onCreateNewClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = "No clients found",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.size(Spacing.sm))
+        Button(onClick = onCreateNewClick, enabled = selectionEnabled) {
+            Text("Create new client")
+        }
+    }
+}
+
+@Composable
+private fun ClientSearchOutcome(
+    args: ClientPickerArgs,
+    cachedResults: List<ClientResponse>?,
+) {
+    val results = cachedResults
+    if (results == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else {
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            results.forEach { client ->
+                SearchResultRow(
+                    client,
+                    client.id == args.selectedClientId,
+                    args.selectionEnabled,
+                ) {
+                    args.viewModel.selectClient(client)
+                }
+            }
         }
     }
 }

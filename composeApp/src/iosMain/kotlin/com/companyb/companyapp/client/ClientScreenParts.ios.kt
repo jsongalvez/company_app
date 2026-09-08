@@ -1,4 +1,4 @@
-@file:Suppress("DEPRECATION")
+@file:Suppress("DEPRECATION") // #599 ios uses ui.backhandler (no activity-compose alternative)
 
 package com.companyb.companyapp.client
 

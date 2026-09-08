@@ -58,7 +58,6 @@ data class UserStatusTransition(
     val changed: Boolean,
 )
 
-@Suppress("UnreachableCode", "TooManyFunctions")
 internal object UserRepository {
     private val clockTimestamp = CustomFunction("clock_timestamp", CurrentTimestampWithTimeZone.columnType)
 

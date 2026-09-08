@@ -85,7 +85,8 @@ internal object PasswordResetDelivery {
         }
     }
 
-    @Suppress("TooGenericExceptionCaught")
+    // #599 best-effort delivery must not invalidate the token — failures stay logged.
+    @Suppress("TooGenericExceptionCaught") // #599
     private fun sendSafely(
         sender: PasswordResetSender,
         recipient: String,

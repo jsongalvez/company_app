@@ -79,7 +79,6 @@ object JwtService {
         return token
     }
 
-    @Suppress("ReturnCount", "UnreachableCode")
     fun verifyToken(token: String): String? =
         try {
             val configured = runtime ?: error("JwtService.init() must be called before verifyToken()")

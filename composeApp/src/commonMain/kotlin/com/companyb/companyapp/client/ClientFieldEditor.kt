@@ -374,7 +374,6 @@ private fun BpPairDisplayRow(
 
 // Pencil glyph drawn via Canvas — the project has no material-icons dependency (only the #107
 // hamburger precedent exists); a compact 45°-rotated body + tip triangle reads as a pencil.
-@Suppress("MagicNumber") // geometry literals for the pencil proportions — one-time drawing constants
 @Composable
 private fun PencilIcon(
     tint: Color,
@@ -383,15 +382,15 @@ private fun PencilIcon(
     Canvas(
         modifier =
             modifier
-                .size(14.dp)
-                .rotate(-45f),
+                .size(PENCIL_SIZE)
+                .rotate(PENCIL_TILT_DEGREES),
     ) {
         val w = size.width
         val h = size.height
-        val bodyH = h * 0.30f
+        val bodyH = h * PENCIL_BODY_RATIO
         val bodyTop = (h - bodyH) / 2f
-        val tipLen = w * 0.25f
-        val eraserLen = w * 0.15f
+        val tipLen = w * PENCIL_TIP_RATIO
+        val eraserLen = w * PENCIL_ERASER_RATIO
 
         // eraser
         drawRect(
@@ -431,3 +430,10 @@ private fun Modifier.escapeCancels(onCancel: () -> Unit): Modifier =
             false
         }
     }
+
+// #599 pencil-glyph geometry (MagicNumber burn-down: named proportions, not bare literals).
+private val PENCIL_SIZE = 14.dp
+private const val PENCIL_TILT_DEGREES = -45f
+private const val PENCIL_BODY_RATIO = 0.30f
+private const val PENCIL_TIP_RATIO = 0.25f
+private const val PENCIL_ERASER_RATIO = 0.15f

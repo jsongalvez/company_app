@@ -20,7 +20,6 @@ data class SmtpConfig(
         private const val MAX_PORT = 65_535
 
         /** Returns null for absent, incomplete, or invalid SMTP configuration. */
-        @Suppress("ReturnCount")
         internal fun fromEnvironment(environment: Map<String, String?>): SmtpConfig? {
             val host = environment[HOST_ENV]?.trim()?.takeIf { it.isNotEmpty() } ?: return null
             val port =

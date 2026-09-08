@@ -19,7 +19,6 @@ object Password {
         return BCrypt.withDefaults().hashToString(BCRYPT_COST, raw.toCharArray())
     }
 
-    @Suppress("ReturnCount", "UnreachableCode")
     fun verify(
         raw: String,
         hash: String?,

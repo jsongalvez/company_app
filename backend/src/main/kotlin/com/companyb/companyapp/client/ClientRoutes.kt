@@ -109,23 +109,16 @@ object ClientRoutes {
         config.routes.post(ApiRoutes.CLIENT_ANONYMIZE_PATH, ::handleAnonymize)
     }
 
-    @Suppress("ThrowsCount")
     private fun handleCreate(context: Context) {
         val callerId = context.callerUuid()
         val request = context.bodyAsClass<CreateClientRequest>()
         val clientId = uuidOrThrow(request.id, "client id")
 
         val firstName = request.firstName.trim()
-        if (firstName.isBlank()) throw BadRequestResponse("First name is required")
         val lastName = request.lastName.trim()
-        if (lastName.isBlank()) throw BadRequestResponse("Last name is required")
-        val hasBothBp = request.systolicBp != null && request.diastolicBp != null
-        val hasNone = request.systolicBp == null && request.diastolicBp == null
-        if (!hasBothBp && !hasNone) {
-            throw BadRequestResponse(
-                "Both systolic and diastolic blood pressure must be provided together or not at all",
-            )
-        }
+        // #599: create guards split into named checks (ThrowsCount budget is 2 per function).
+        requireCreateNames(firstName, lastName)
+        requireCreateBpPair(request.systolicBp, request.diastolicBp)
 
         val result =
             ClientService.create(
@@ -163,7 +156,6 @@ object ClientRoutes {
         context.json(client.toResponse())
     }
 
-    @Suppress("ThrowsCount")
     private fun handleUpdate(context: Context) {
         val callerId = context.callerUuid()
         val clientId = context.pathParamAsUuid(CLIENT_ID_PARAM)
@@ -245,6 +237,33 @@ object ClientRoutes {
     }
 
     private fun Client.toResponse(): ClientResponse = toResponse(ClientService.countSessions(listOf(id))[id] ?: 0)
+
+    /**
+     * #599: create name guards split from handleCreate (ThrowsCount budget is 2 per function).
+     */
+    private fun requireCreateNames(
+        firstName: String,
+        lastName: String,
+    ) {
+        if (firstName.isBlank()) throw BadRequestResponse("First name is required")
+        if (lastName.isBlank()) throw BadRequestResponse("Last name is required")
+    }
+
+    /**
+     * #599: create BP-pair guard split from handleCreate (ThrowsCount budget is 2 per function).
+     */
+    private fun requireCreateBpPair(
+        systolicBp: Short?,
+        diastolicBp: Short?,
+    ) {
+        val hasBothBp = systolicBp != null && diastolicBp != null
+        val hasNone = systolicBp == null && diastolicBp == null
+        if (!hasBothBp && !hasNone) {
+            throw BadRequestResponse(
+                "Both systolic and diastolic blood pressure must be provided together or not at all",
+            )
+        }
+    }
 
     private fun Client.toResponse(sessionCount: Int): ClientResponse =
         ClientResponse(
