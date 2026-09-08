@@ -176,6 +176,11 @@ class FinanceReportLogicTest {
         assertEquals("Amount must be positive", expenseAmountError("0.00"))
         assertEquals("Amount must be positive", expenseAmountError("-5.00"))
         assertEquals("Enter a valid amount", expenseAmountError("abc"))
+        // #654 — strict shapes route through the single invalid leg.
+        assertEquals("Enter a valid amount", expenseAmountError("12.34.56"))
+        assertEquals("Enter a valid amount", expenseAmountError(".50"))
+        assertEquals("Enter a valid amount", expenseAmountError("5."))
+        assertEquals("Amount must be positive", expenseAmountError("-0.50"))
     }
 
     @Test
@@ -186,5 +191,40 @@ class FinanceReportLogicTest {
         assertEquals("Amount is required", compensationAmountError(""))
         assertEquals("Amount must be non-negative", compensationAmountError("-1.00"))
         assertEquals("Enter a valid amount", compensationAmountError("abc"))
+        // #654 — strict shapes route through the single invalid leg.
+        assertEquals("Enter a valid amount", compensationAmountError("12.34.56"))
+        assertEquals("Amount must be non-negative", compensationAmountError("-0.50"))
+    }
+
+    @Test
+    fun derivedDayStateFromIso_mapsValidAndNullsGarbage() {
+        assertEquals(DerivedDayState.OPEN, derivedDayStateFromIso("2026-08-14", today))
+        assertEquals(DerivedDayState.OPEN, derivedDayStateFromIso("2026-08-15", today))
+        assertEquals(DerivedDayState.PAST, derivedDayStateFromIso("2026-08-13", today))
+        // #654 — malformed server dates never throw: null fails closed upstream to PAST.
+        assertNull(derivedDayStateFromIso("not-a-date", today))
+        assertNull(derivedDayStateFromIso("", today))
+        assertNull(derivedDayStateFromIso("2026-13-40", today))
+        assertNull(derivedDayStateFromIso("14/08/2026", today))
+    }
+
+    @Test
+    fun dayStateBannerTextFromIso_showsInvalidDatePlaceholder() {
+        assertEquals(
+            "Today's data — edits apply immediately",
+            dayStateBannerTextFromIso("2026-08-14", today),
+        )
+        assertEquals(
+            "Warning: past day — writes require the EDIT_PAST_DAY capability",
+            dayStateBannerTextFromIso("2026-08-13", today),
+        )
+        assertEquals(
+            "Invalid date — showing read-only",
+            dayStateBannerTextFromIso("garbage", today),
+        )
+        assertEquals(
+            "Invalid date — showing read-only",
+            dayStateBannerTextFromIso("", today),
+        )
     }
 }

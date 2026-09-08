@@ -37,6 +37,7 @@ import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.formatTimeOfDay
+import com.companyb.companyapp.util.logWarn
 import kotlin.time.Instant
 
 data class SessionListArgs(
@@ -265,9 +266,15 @@ private fun DashboardLoadedContent(
     // Today's-flow list (wide) beside the team-context column
     // (narrow roster + relief slots, #351 pattern — rearranged only).
     Column(modifier = Modifier.fillMaxSize()) {
+        // #654 — unparseable commission fails closed to 0 with a warn (backend authoritative).
+        val commissionCents =
+            moneyToCents(data.commission.amount) ?: run {
+                logWarn("SessionDashboardScreen", "unparseable commission amount=${data.commission.amount}")
+                0L
+            }
         SummaryCardsRow(
             grossCents = grossIncomeCents(data.sessions),
-            commissionCents = moneyToCents(data.commission.amount),
+            commissionCents = commissionCents,
             productSalesCount = data.commission.productSalesCount,
             sessionCount = data.sessions.size,
         )

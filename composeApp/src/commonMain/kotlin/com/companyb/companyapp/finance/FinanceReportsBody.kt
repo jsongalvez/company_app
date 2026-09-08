@@ -127,10 +127,11 @@ internal fun ColumnScope.FinanceReportsMainContent(
     val day = collected.selectedDay
     // #101 D1/D3 — a past day the user cannot edit (no EDIT_PAST_DAY) offers nothing to
     // toggle into: the Edit toggle stays hidden (the backend 403 stays authoritative).
+    // #654 — malformed server date fails closed to read-only (never crashes composition).
     val pastDayReadOnlySelection =
         day != null &&
             collected.selectedBranchId != null &&
-            derivedDayState(LocalDate.parse(day.date), collected.today) == DerivedDayState.PAST &&
+            (derivedDayStateFromIso(day.date, collected.today) ?: DerivedDayState.PAST) == DerivedDayState.PAST &&
             !collected.capabilities.hasCapability(
                 CapabilityCodes.EDIT_PAST_DAY,
                 CapabilityContextType.BRANCH,
@@ -356,8 +357,11 @@ private fun ReliefDayInputRow(
             }
         }
         if (ui.selectedDay != null && reliefDay is UiState.Success) {
+            // #654 — malformed server date fails closed to read-only (never crashes composition).
+            val reliefDayState =
+                derivedDayStateFromIso(ui.selectedDay.date, ui.today) ?: DerivedDayState.PAST
             val pastDayReadOnly =
-                derivedDayState(LocalDate.parse(ui.selectedDay.date), ui.today) == DerivedDayState.PAST &&
+                reliefDayState == DerivedDayState.PAST &&
                     !ui.capabilities.hasCapability(
                         CapabilityCodes.EDIT_PAST_DAY,
                         CapabilityContextType.BRANCH,

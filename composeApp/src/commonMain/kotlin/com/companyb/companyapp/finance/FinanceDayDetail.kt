@@ -26,6 +26,7 @@ import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.ui.theme.rowHover
+import com.companyb.companyapp.util.logWarn
 import kotlinx.datetime.LocalDate
 
 @Composable
@@ -36,7 +37,12 @@ internal fun DayRow(
     onSelect: () -> Unit,
     export: DayExport,
 ) {
-    val state = derivedDayState(LocalDate.parse(day.date), today)
+    // #654 — malformed server date fails closed to PAST display (no composition crash).
+    val parsed = derivedDayStateFromIso(day.date, today)
+    if (parsed == null) {
+        logWarn("FinanceReportsScreen", "DayRow unparseable date=${day.date}")
+    }
+    val state = parsed ?: DerivedDayState.PAST
     Column(
         modifier =
             Modifier
@@ -169,10 +175,14 @@ internal fun FinanceDayDetailContent(
     downloadStates: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>> = emptyMap(),
     exportErrors: Map<String, String> = emptyMap(),
 ) {
-    val state = derivedDayState(LocalDate.parse(day.date), today)
+    // #654 — malformed server date shows the invalid-date banner instead of crashing.
+    val state = derivedDayStateFromIso(day.date, today)
+    if (state == null) {
+        logWarn("FinanceReportsScreen", "FinanceDayDetailContent unparseable date=${day.date}")
+    }
     Column(modifier = Modifier.padding(horizontal = Spacing.xs)) {
         Text(
-            text = dayStateBannerText(state),
+            text = dayStateBannerTextFromIso(day.date, today),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = Spacing.xs),

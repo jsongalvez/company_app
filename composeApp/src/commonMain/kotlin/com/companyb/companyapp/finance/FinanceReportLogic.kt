@@ -106,14 +106,34 @@ internal fun parseYearMonthInput(raw: String): YearMonth? =
 /** `yyyy-MM-dd` parse (ISO). */
 internal fun parseDateInput(raw: String): LocalDate? = runCatching { LocalDate.parse(raw.trim()) }.getOrNull()
 
+/**
+ * #654 — fail-closed day-state from a server date string: null when the date is malformed
+ * instead of throwing out of composition. Callers treat null as PAST (read-only, no Edit
+ * affordance) and show the invalid-date banner.
+ */
+internal fun derivedDayStateFromIso(
+    dateString: String,
+    today: LocalDate,
+): DerivedDayState? = parseDateInput(dateString)?.let { derivedDayState(it, today) }
+
+/** #654 — banner for the fail-closed path: malformed server dates never crash the feed. */
+internal fun dayStateBannerTextFromIso(
+    dateString: String,
+    today: LocalDate,
+): String {
+    val state = derivedDayStateFromIso(dateString, today) ?: return "Invalid date — showing read-only"
+    return dayStateBannerText(state)
+}
+
 /** #101 D4 — compensation amount: non-negative (zero permitted, BR:302). */
 internal fun compensationAmountError(raw: String): String? {
     if (raw.isBlank()) return "Amount is required"
-    val cents = moneyToCents(raw)
+    // #654 — strict parse: null covers every unparseable shape (letters, multi-dot,
+    // missing digits); the old isLetter guard is subsumed.
+    val cents = moneyToCents(raw) ?: return "Enter a valid amount"
     // #601 max-2: range and format legs share one when-exit.
     return when {
         cents < 0 -> "Amount must be non-negative"
-        raw.any { it.isLetter() } -> "Enter a valid amount"
         else -> null
     }
 }
@@ -121,8 +141,8 @@ internal fun compensationAmountError(raw: String): String? {
 /** #101 D6 — expense amount: strictly positive. */
 internal fun expenseAmountError(raw: String): String? {
     if (raw.isBlank()) return "Amount is required"
-    if (raw.any { it.isLetter() }) return "Enter a valid amount"
-    val cents = moneyToCents(raw)
+    // #654 — strict parse first: null is the single invalid-amount leg.
+    val cents = moneyToCents(raw) ?: return "Enter a valid amount"
     if (cents <= 0) return "Amount must be positive"
     return null
 }

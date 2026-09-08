@@ -1629,10 +1629,33 @@ class SessionDashboardViewModelTest {
         assertEquals(20_000L, moneyToCents("200.0000"))
         assertEquals(133_333L, moneyToCents("1333.3333"))
         assertEquals(250_000L, moneyToCents("2500"))
-        assertEquals(0L, moneyToCents("garbage"))
+        assertNull(moneyToCents("garbage"))
         assertEquals("2500.00", centsToMoney(250_000L))
         assertEquals("0.00", centsToMoney(0L))
         assertEquals("-1.25", centsToMoney(-125L))
+    }
+
+    @Test
+    fun money_helpers_strict_parse_rounds_and_rejects_garbage() {
+        // #654 — HALF_UP rounding at the second decimal (was truncate).
+        assertEquals(20_001L, moneyToCents("200.0055"))
+        assertEquals(20_000L, moneyToCents("200.0049"))
+        assertEquals(200L, moneyToCents("1.995"))
+        assertEquals(133_334L, moneyToCents("1333.3355"))
+        // Sign applies to the total: "-0.xx" stays negative.
+        assertEquals(-50L, moneyToCents("-0.50"))
+        assertEquals(-500L, moneyToCents("-5.00"))
+        // Trim + explicit plus.
+        assertEquals(250_000L, moneyToCents("  2500.00  "))
+        assertEquals(500L, moneyToCents("+5.00"))
+        // Fail-closed: every unparseable shape is null, never silent 0.
+        assertNull(moneyToCents(""))
+        assertNull(moneyToCents("   "))
+        assertNull(moneyToCents("12.34.56"))
+        assertNull(moneyToCents(".50"))
+        assertNull(moneyToCents("5."))
+        assertNull(moneyToCents("--5"))
+        assertNull(moneyToCents("12a.00"))
     }
 
     @Test

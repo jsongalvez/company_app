@@ -124,7 +124,9 @@ private fun dayEditorGates(
     dateString: String,
     today: LocalDate,
 ): DayEditorGates {
-    val state = derivedDayState(LocalDate.parse(dateString), today)
+    // #654 — malformed server date never crashes composition: null fails closed to PAST
+    // (read-only unless EDIT_PAST_DAY), matching the past-day banner path.
+    val state = derivedDayStateFromIso(dateString, today) ?: DerivedDayState.PAST
     // #156 — per-element gates are branch-scoped triples (matching the backend
     // `requireBranchCapability` gates; #101 D1 matrix). #158 — the expense leg ORs the
     // BRANCH_DAY relief grant for this day.
