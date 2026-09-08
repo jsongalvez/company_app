@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import com.companyb.companyapp.app.hasCapability
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -23,6 +24,7 @@ import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.contracts.session.ConcernResponse
 import com.companyb.companyapp.contracts.session.DashboardPractitionerResponse
 import com.companyb.companyapp.contracts.session.DashboardSessionResponse
+import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.UnvoidSessionRequest
 import com.companyb.companyapp.contracts.session.VoidSessionRequest
 import com.companyb.companyapp.ui.theme.InkSubtle
@@ -41,11 +43,19 @@ internal class PaneDialogTargets {
     var showVoid by mutableStateOf(false)
     var showUnvoid by mutableStateOf(false)
 
+    // #675 — the REMITTED-day audit-reason target for a status transition (null dispatches
+    // directly); per-selection like the rest, so dialog drafts never leak across sessions.
+    var pendingStatus by mutableStateOf<SessionStatus?>(null)
+
+    // #675 — the last dispatched status target, so a sticky failure row can offer Retry
+    // with the freshly refreshed version. Per-selection; cleared by the next dispatch.
+    var lastStatusTarget by mutableStateOf<SessionStatus?>(null)
+
     // #419 — the session-linked product-sale dialog slot (per-selection, like the rest).
     var showSell by mutableStateOf(false)
 }
 
-/** #406 — which void affordance an editable row offers, or none when the gate is closed. */
+/** #406 — which void affordance an editable row offers, or none when the gate is closed. #675 renders it as a Session-actions menu item (never the primary slot). */
 internal enum class SessionVoidAffordance { VOID, UNVOID }
 
 internal fun sessionVoidAffordance(
@@ -69,29 +79,6 @@ internal fun canVoidSession(
     capabilities: List<UserCapabilityResponse>,
     branchId: String?,
 ): Boolean = capabilities.hasCapability(CapabilityCodes.VOID_SESSION, CapabilityContextType.BRANCH, branchId)
-
-/** #406 — the desktop-only Void/Unvoid affordance under the detail content. */
-@Composable
-internal fun VoidActionSection(
-    affordance: SessionVoidAffordance?,
-    mutating: Boolean,
-    onVoid: () -> Unit,
-    onUnvoid: () -> Unit,
-) {
-    if (affordance == null) return
-    TextButton(onClick = if (affordance == SessionVoidAffordance.VOID) onVoid else onUnvoid, enabled = !mutating) {
-        val voiding = affordance == SessionVoidAffordance.VOID
-        Text(
-            if (voiding) "Void session…" else "Unvoid session…",
-            color =
-                if (voiding) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-        )
-    }
-}
 
 /**
  * #406 — void/unvoid landings: any terminal result drains exactly once and refreshes
@@ -155,6 +142,9 @@ internal fun PaneVoidDialogs(
     session: DashboardSessionResponse,
     mutating: Boolean,
     targets: PaneDialogTargets,
+    // #675 — menu-originated dialogs return focus to the menu trigger on plain
+    // dismissal (the confirm path lands in the action region via the terminal effect).
+    dismissFocus: FocusRequester,
 ) {
     VoidSessionDialogHost(
         visible = targets.showVoid,
@@ -162,7 +152,10 @@ internal fun PaneVoidDialogs(
         onConfirmed = { request ->
             sessionVm.voidSession(session.id, request)
         },
-        onDismissed = { targets.showVoid = false },
+        onDismissed = {
+            targets.showVoid = false
+            dismissFocus.requestFocus()
+        },
     )
     UnvoidSessionDialogHost(
         visible = targets.showUnvoid,
@@ -170,7 +163,10 @@ internal fun PaneVoidDialogs(
         onConfirmed = { request ->
             sessionVm.unvoidSession(session.id, request)
         },
-        onDismissed = { targets.showUnvoid = false },
+        onDismissed = {
+            targets.showUnvoid = false
+            dismissFocus.requestFocus()
+        },
     )
 }
 
@@ -231,16 +227,19 @@ private fun UnvoidSessionDialogHost(
 }
 
 /** Static copy for a confirm-with-required-reason dialog (#412 arity fix). */
-private data class ReasonPrompt(
+internal data class ReasonPrompt(
     val title: String,
     val caption: String,
     val confirmLabel: String,
     val destructive: Boolean,
 )
 
-/** #406 — shared confirm-with-required-reason dialog (server rejects blank reasons). */
+/**
+ * #406 — shared confirm-with-required-reason dialog (server rejects blank reasons).
+ * #675 reuses it for REMITTED-day status changes (same server reason requirement).
+ */
 @Composable
-private fun ReasonConfirmDialog(
+internal fun ReasonConfirmDialog(
     prompt: ReasonPrompt,
     inFlight: Boolean,
     onConfirm: (String) -> Unit,

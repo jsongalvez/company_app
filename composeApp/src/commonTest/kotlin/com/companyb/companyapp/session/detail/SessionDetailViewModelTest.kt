@@ -24,6 +24,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -329,5 +330,87 @@ class SessionDetailViewModelTest {
             val state = vm.detail.value
             assertIs<UiState.Success<DashboardSessionResponse>>(state)
             assertEquals(testRow(), state.data)
+            assertFalse(vm.gone.value, "seeded-only rows are never network-proven — not gone")
+        }
+
+    @Test
+    fun network_proven_row_then_refresh_not_found_marks_gone() =
+        runTest(testScheduler) {
+            var requestCount = 0
+            val handler: MockRequestHandler = {
+                requestCount++
+                if (requestCount == 1) {
+                    respondOk(SESSION_DETAIL_JSON)
+                } else {
+                    // The session was deleted (or access revoked) after the load proved it.
+                    respondError(HttpStatusCode.NotFound)
+                }
+            }
+            val vm =
+                SessionDetailViewModel(
+                    mockApiClient(handler),
+                    SESSION_ID,
+                    initialRow = null,
+                )
+            vm.loadIfNeeded()
+            runCurrent()
+            assertIs<UiState.Success<DashboardSessionResponse>>(vm.detail.value)
+
+            vm.refresh()
+            runCurrent()
+
+            assertEquals(2, requestCount)
+            assertTrue(vm.gone.value)
+            assertTrue(vm.detail.value is UiState.Error, "protected content clears — no stale row")
+        }
+
+    @Test
+    fun network_proven_row_then_refresh_forbidden_marks_gone() =
+        runTest(testScheduler) {
+            var requestCount = 0
+            val handler: MockRequestHandler = {
+                requestCount++
+                if (requestCount == 1) {
+                    respondOk(SESSION_DETAIL_JSON)
+                } else {
+                    respondError(HttpStatusCode.Forbidden)
+                }
+            }
+            val vm =
+                SessionDetailViewModel(
+                    mockApiClient(handler),
+                    SESSION_ID,
+                    initialRow = testRow(),
+                )
+
+            // Seeded refresh failure keeps the row (never network-proven yet)...
+            vm.refresh()
+            runCurrent()
+            assertFalse(vm.gone.value)
+            assertIs<UiState.Success<DashboardSessionResponse>>(vm.detail.value)
+
+            // ...but once a network load has proven the row, a 403 clears to gone.
+            vm.refresh()
+            runCurrent()
+
+            assertTrue(vm.gone.value, "access revoked after proof clears protected content")
+            assertTrue(vm.detail.value is UiState.Error)
+        }
+
+    @Test
+    fun initial_load_failure_is_error_but_not_gone() =
+        runTest(testScheduler) {
+            val handler: MockRequestHandler = { respondError(HttpStatusCode.NotFound) }
+            val vm =
+                SessionDetailViewModel(
+                    mockApiClient(handler),
+                    SESSION_ID,
+                    initialRow = null,
+                )
+            vm.loadIfNeeded()
+            runCurrent()
+
+            assertTrue(vm.detail.value is UiState.Error)
+            assertFalse(vm.gone.value, "gone is the post-proof refresh terminal only")
         }
 }

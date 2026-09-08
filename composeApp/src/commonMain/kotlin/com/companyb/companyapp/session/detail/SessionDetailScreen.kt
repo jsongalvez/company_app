@@ -40,6 +40,8 @@ import com.companyb.companyapp.util.logWarn
  * after every mutation landing. A refresh failure that lands as Error while a good row was
  * already rendered keeps that row on screen (the VM's keep-row guard covers status legs; this
  * covers transport exceptions) — a stale-but-real detail beats a dead-end error pane.
+ * #675 — once a network load has proven the row, a 404/403 refresh instead marks it gone:
+ * protected content clears and the error chrome offers Back to sessions.
  */
 @Composable
 fun SessionDetailScreen(
@@ -49,6 +51,7 @@ fun SessionDetailScreen(
     onBack: () -> Unit,
 ) {
     val detailState by viewModel.detail.collectAsState()
+    val gone by viewModel.gone.collectAsState()
     var lastGoodRow by remember { mutableStateOf<DashboardSessionResponse?>(null) }
 
     LaunchedEffect(detailState) {
@@ -78,15 +81,21 @@ fun SessionDetailScreen(
             }
 
             is UiState.Error -> {
-                val fallbackRow = lastGoodRow
-                if (fallbackRow != null) {
-                    SessionDetailPane(
-                        session = fallbackRow,
-                        apiClient = apiClient,
-                        refreshSession = { viewModel.refresh() },
-                    )
+                // #675 — a deleted/inaccessible session clears protected content (no
+                // stale-row fallback) and offers Back to sessions.
+                if (gone) {
+                    GonePane(onBack)
                 } else {
-                    DetailErrorPane(viewModel, state.message)
+                    val fallbackRow = lastGoodRow
+                    if (fallbackRow != null) {
+                        SessionDetailPane(
+                            session = fallbackRow,
+                            apiClient = apiClient,
+                            refreshSession = { viewModel.refresh() },
+                        )
+                    } else {
+                        DetailErrorPane(viewModel, state.message, onBack)
+                    }
                 }
             }
 
@@ -105,6 +114,7 @@ fun SessionDetailScreen(
 private fun DetailErrorPane(
     viewModel: SessionDetailViewModel,
     message: String,
+    onBack: () -> Unit,
 ) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
@@ -116,6 +126,30 @@ private fun DetailErrorPane(
                 )
                 TextButton(onClick = { viewModel.retry() }) {
                     Text("Retry")
+                }
+                // #675 — a failed detail always offers the way back (compact Back
+                // restores the #672-retained list selection and scroll).
+                TextButton(onClick = onBack) {
+                    Text("Back to sessions")
+                }
+            }
+        }
+    }
+}
+
+/** #675 — the deleted/inaccessible terminal: no protected content, one way back. */
+@Composable
+private fun GonePane(onBack: () -> Unit) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
+            Column(modifier = Modifier.padding(Spacing.md)) {
+                Text(
+                    text = "This session is no longer available",
+                    color = InkSubtle,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                TextButton(onClick = onBack) {
+                    Text("Back to sessions")
                 }
             }
         }

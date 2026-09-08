@@ -106,7 +106,8 @@ fun SessionDetailContent(
 private fun SessionDetailHeader(session: DashboardSessionResponse) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            text = session.clientName ?: "Unknown client",
+            // #675 — the header adopts the #673 missing-value rule (blank reads unknown).
+            text = detailClientName(session.clientName),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,

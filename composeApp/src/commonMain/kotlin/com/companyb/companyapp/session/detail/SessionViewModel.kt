@@ -5,8 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ApiCallHandler
 import com.companyb.companyapp.async.LatestLoad
+import com.companyb.companyapp.async.LaunchRequest
 import com.companyb.companyapp.async.LoadGeneration
 import com.companyb.companyapp.async.UiState
+import com.companyb.companyapp.contracts.branchday.BranchDayTodayResponse
+import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.contracts.session.AddPractitionerRequest
 import com.companyb.companyapp.contracts.session.PromoteConcernRequest
 import com.companyb.companyapp.contracts.session.SessionPractitionerResponse
@@ -14,6 +17,7 @@ import com.companyb.companyapp.contracts.session.SessionResponse
 import com.companyb.companyapp.contracts.session.SessionVoidResponse
 import com.companyb.companyapp.contracts.session.UnvoidSessionRequest
 import com.companyb.companyapp.contracts.session.UpdatePractitionerRemarksRequest
+import com.companyb.companyapp.contracts.session.UpdateSessionStatusRequest
 import com.companyb.companyapp.contracts.session.VoidSessionRequest
 import com.companyb.companyapp.contracts.workforce.BranchMemberResponse
 import com.companyb.companyapp.network.ApiClient
@@ -59,12 +63,27 @@ class SessionViewModel(
     private val concernResultState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val concernResult: StateFlow<UiState<Unit>> = concernResultState.asStateFlow()
 
+    // #675 — the detail status transition (PATCH .../status, same body the dashboard cell
+    // commits): one-shot result plus a dedicated 409 flag. A version conflict is handled,
+    // not generic-error surfaced — the pane explains "This session changed" with Reload.
+    private val statusResultState = MutableStateFlow<UiState<SessionResponse>>(UiState.Idle)
+    val statusResult: StateFlow<UiState<SessionResponse>> = statusResultState.asStateFlow()
+
+    private val statusConflictState = MutableStateFlow(false)
+    val statusConflict: StateFlow<Boolean> = statusConflictState.asStateFlow()
+
+    // #675 — the day status behind the detail action model (same BranchDayTodayResponse
+    // read the dashboard uses; failure fails closed to null via the non-Success legs).
+    private val dayStatusState = MutableStateFlow<UiState<DayStatus>>(UiState.Idle)
+    val dayStatus: StateFlow<UiState<DayStatus>> = dayStatusState.asStateFlow()
+
     // #382 — post-create practitioner adds need the branch member directory (the same read
     // SessionCreate uses); loaded lazily when the picker dialog opens.
     // #382 — latest-wins guards for the roster/members loaders (#611 LoadGeneration owners:
     // one VM serves one selection since #486; the guards cover same-scope races).
     private val rosterGuard = LoadGeneration()
     private val membersGuard = LoadGeneration()
+    private val dayGuard = LoadGeneration()
 
     private val branchMembersState = MutableStateFlow<UiState<List<BranchMemberResponse>>>(UiState.Idle)
     val branchMembers: StateFlow<UiState<List<BranchMemberResponse>>> = branchMembersState.asStateFlow()
@@ -177,6 +196,12 @@ class SessionViewModel(
         sessionId: String,
         request: AddPractitionerRequest,
     ) {
+        // #675 — double-click guard held from the caller's frame (the #135 pattern): the
+        // handler pre-sets Loading only inside its coroutine, so two back-to-back taps
+        // would both dispatch. Membership adds are server-idempotent, but the second tap
+        // must not even send.
+        if (practitionerResultState.value is UiState.Loading) return
+        practitionerResultState.value = UiState.Loading
         handler.launch(
             state = practitionerResultState,
             operation = "addPractitioner",
@@ -255,5 +280,80 @@ class SessionViewModel(
     /** #382 — one-shot drain: the pane handles a terminal practitioner landing exactly once. */
     fun consumePractitionerResult() {
         practitionerResultState.value = UiState.Idle
+    }
+
+    /**
+     * #675 — the detail status transition (completion, no-show/cancel, corrections): the
+     * same PATCH + optimistic-version body the desktop status cell commits, so both paths
+     * share the backend's transition/correction/day rules. Ordinary completion gets no
+     * extra confirmation at the call site; REMITTED-day reason collection lives in the
+     * pane. The double-dispatch guard holds from the caller's frame (same #135 pattern
+     * as [addPractitioner]): a second tap reuses the stale version and would 409 against
+     * the just-committed row.
+     */
+    fun updateSessionStatus(
+        sessionId: String,
+        request: UpdateSessionStatusRequest,
+    ) {
+        if (statusResultState.value is UiState.Loading) return
+        statusConflictState.value = false
+        statusResultState.value = UiState.Loading
+        handler.launch(
+            LaunchRequest(
+                state = statusResultState,
+                operation = "updateSessionStatus",
+                endpoint = "PATCH /api/sessions/$sessionId/status",
+                block = {
+                    apiClient.httpClient.patch(ApiRoutes.sessionStatus(sessionId)) {
+                        setBody(request)
+                    }
+                },
+                transform = { it.body() },
+                // A 409 is stale-version proof, not a generic failure: the pane keeps the
+                // conflict banner + Reload path instead of an error line. The handled leg
+                // resets to Idle itself — the handler's Loading pre-set would otherwise
+                // wedge the action bar's mutating flag with no terminal ever landing.
+                onNonSuccess = { response ->
+                    if (response.status.value == STATUS_CONFLICT) {
+                        statusResultState.value = UiState.Idle
+                        statusConflictState.value = true
+                        true
+                    } else {
+                        false
+                    }
+                },
+            ),
+        )
+    }
+
+    /** #675 — one-shot drain for status landings; the conflict flag has its own clear. */
+    fun consumeStatusResult() {
+        statusResultState.value = UiState.Idle
+    }
+
+    fun clearStatusConflict() {
+        statusConflictState.value = false
+    }
+
+    /**
+     * #675 — the day-status read behind the detail action model. Latest-wins like the
+     * roster (same-scope races must not commit a superseded OPEN over a fresh REMITTED);
+     * any non-Success leg reads as unknown at the pane, failing the model closed.
+     */
+    fun loadDayStatus(branchId: String) {
+        handler.launchLatest(
+            LatestLoad(
+                state = dayStatusState,
+                operation = "loadDayStatus",
+                endpoint = "GET /api/branches/$branchId/today",
+                block = { apiClient.httpClient.get(ApiRoutes.branchToday(branchId)) },
+                decode = { it.body<BranchDayTodayResponse>().status },
+                guard = dayGuard,
+            ),
+        )
+    }
+
+    private companion object {
+        private const val STATUS_CONFLICT = 409
     }
 }

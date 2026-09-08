@@ -45,7 +45,22 @@ class SessionDetailViewModel(
         )
     val detail: StateFlow<UiState<DashboardSessionResponse>> = _detail.asStateFlow()
 
+    // #675 — a refresh that 404/403s AFTER a network load proved the row exists means the
+    // session was deleted or access was revoked: protected content clears and the screen
+    // offers Back to sessions. Seeded-only rows (never network-loaded) keep the #382
+    // keep-row behavior — the bearer-only read 404s for dashboard pushes without a
+    // notification, which is "no fresh data", not "the session is gone".
+    private val _gone = MutableStateFlow(false)
+    val gone: StateFlow<Boolean> = _gone.asStateFlow()
+    private var loadedFromNetwork = false
+
     private var fetchStarted = false
+
+    private companion object {
+        private const val STATUS_NOT_FOUND = 404
+        private const val STATUS_FORBIDDEN = 403
+        private const val GONE_MESSAGE = "This session is no longer available"
+    }
 
     // In-flight guard: ApiCallHandler launches are concurrent — two rapid retries would race
     // two GETs whose responses can land out of order (the stale-response overwrite class). The
@@ -101,12 +116,27 @@ class SessionDetailViewModel(
                     operation = "loadDetail",
                     endpoint = "GET /api/sessions/$sessionId",
                     block = { apiClient.httpClient.get(ApiRoutes.session(sessionId)) },
-                    transform = { it.body() },
+                    transform = {
+                        it.body<DashboardSessionResponse>().also {
+                            loadedFromNetwork = true
+                            // A later transport Error must not misroute to GonePane while
+                            // a proven row exists only as history: success clears the flag.
+                            _gone.value = false
+                        }
+                    },
                     // Status-leg failures (the bearer-only 404 for seeded dashboard-push rows
                     // whose caller holds no notification, a revoked capability 403) keep the
-                    // rendered row; only a failed INITIAL load lands in Error.
-                    onNonSuccess = {
-                        if (lastGood != null) {
+                    // rendered row; only a failed INITIAL load lands in Error. A 404/403
+                    // AFTER a network load proved the row exists clears to gone instead.
+                    onNonSuccess = { response ->
+                        val code = response.status.value
+                        if ((code == STATUS_NOT_FOUND || code == STATUS_FORBIDDEN) && lastGood != null &&
+                            loadedFromNetwork
+                        ) {
+                            _gone.value = true
+                            _detail.value = UiState.Error(GONE_MESSAGE)
+                            true
+                        } else if (lastGood != null) {
                             _detail.value = UiState.Success(lastGood)
                             true
                         } else {

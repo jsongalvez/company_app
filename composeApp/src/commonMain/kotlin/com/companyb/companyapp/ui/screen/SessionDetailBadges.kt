@@ -128,11 +128,12 @@ internal fun VoidedPill() {
 /**
  * #97 Q3 — client name treatment: strikethrough + dimmest ink when voided; active rows use
  * full ink. Shared by the desktop table row and the mobile card.
+ * #675 — blank reads unknown (the #673 missing-value rule), never an empty line.
  */
 @Composable
 internal fun ClientNameText(session: DashboardSessionResponse) {
     Text(
-        text = session.clientName ?: "Unknown client",
+        text = session.clientName?.takeIf { it.isNotBlank() } ?: "Unknown client",
         style = MaterialTheme.typography.bodyMedium,
         color = if (session.isVoided) InkSubtle else MaterialTheme.colorScheme.onSurface,
         textDecoration = if (session.isVoided) TextDecoration.LineThrough else TextDecoration.None,

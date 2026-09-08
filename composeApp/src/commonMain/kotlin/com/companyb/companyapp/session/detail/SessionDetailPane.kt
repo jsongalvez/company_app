@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -14,6 +13,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.app.hasBranchOrDayCapability
@@ -28,19 +28,22 @@ import com.companyb.companyapp.commerce.stock.SaleEffects
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.contracts.commerce.ProductSaleResponse
 import com.companyb.companyapp.contracts.session.AddPractitionerRequest
 import com.companyb.companyapp.contracts.session.DashboardPractitionerResponse
 import com.companyb.companyapp.contracts.session.DashboardSessionResponse
 import com.companyb.companyapp.contracts.session.SessionPractitionerResponse
+import com.companyb.companyapp.contracts.session.SessionResponse
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.SessionVoidResponse
 import com.companyb.companyapp.contracts.session.UpdatePractitionerRemarksRequest
+import com.companyb.companyapp.contracts.session.UpdateSessionStatusRequest
 import com.companyb.companyapp.contracts.workforce.BranchMemberResponse
 import com.companyb.companyapp.network.ApiClient
+import com.companyb.companyapp.session.dashboard.remittedReasonRequired
 import com.companyb.companyapp.ui.screen.EmptySessionPlaceholder
 import com.companyb.companyapp.ui.theme.Spacing
-import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -109,6 +112,9 @@ internal fun SessionDetailPane(
     val voidResult by sessionVm.voidResult.collectAsState()
     val unvoidResult by sessionVm.unvoidResult.collectAsState()
     val saleResult by productSaleVm.saleResult.collectAsState()
+    val statusResult by sessionVm.statusResult.collectAsState()
+    val statusConflict by sessionVm.statusConflict.collectAsState()
+    val dayStatusState by sessionVm.dayStatus.collectAsState()
     val members by sessionVm.branchMembers.collectAsState()
 
     // Per-selection dialog/dialog-input state — keyed so switching sessions on the desktop
@@ -126,9 +132,12 @@ internal fun SessionDetailPane(
                             voidResult = voidResult,
                             unvoidResult = unvoidResult,
                             saleResult = saleResult,
+                            statusResult = statusResult,
                         ),
                     members = members,
                     allowVoid = allowVoid,
+                    statusConflict = statusConflict,
+                    dayStatus = (dayStatusState as? UiState.Success)?.data,
                 ),
             vms = PaneViewModels(sessionVm, productSaleVm, inventoryVm),
             session = session,
@@ -146,9 +155,12 @@ internal class PaneResults(
     val unvoidResult: UiState<SessionVoidResponse>,
     // #419 — the session-linked product-sale flow rides its own VM but drains with the rest.
     val saleResult: UiState<ProductSaleResponse>,
+    // #675 — the detail status transition (completion/corrections) drains with the rest.
+    val statusResult: UiState<SessionResponse>,
 ) {
     /** Every terminal error message across the flows, deduplicated for display. */
     internal fun errorMessages(): List<String> =
+        // Status failures render in their own retry row ([StatusErrorRow]), not here.
         listOfNotNull(
             (practitionerResult as? UiState.Error)?.message,
             (concernResult as? UiState.Error)?.message,
@@ -171,6 +183,10 @@ private class PaneState(
     // #406 — void/unvoid is a desktop-only mutation surface (ADR-0020): the desktop inline
     // pane opts in; the mobile pushed route keeps the default read-only detail.
     val allowVoid: Boolean,
+    // #675 — the handled 409 flag (banner + Reload) and the day status behind the
+    // shared action model (null = unknown, the model fails closed).
+    val statusConflict: Boolean,
+    val dayStatus: DayStatus?,
 )
 
 /** The pane's side-loaded VM trio (#419 added the sale pair); one value, low arity (#412). */
@@ -181,7 +197,7 @@ private class PaneViewModels(
 )
 
 /** The pane's client-side gate mirrors (#382 edit, #406 void, #419 sale) from one snapshot. */
-private class PaneGates(
+internal class PaneGates(
     val canEdit: Boolean,
     val canVoid: Boolean,
     val canSell: Boolean,
@@ -191,8 +207,9 @@ private class PaneGates(
  * The exact backend-mirror predicates (#382/#406/#419), computed from one capability snapshot:
  * edit is branch-or-day `EDIT_BRANCH_DATA`, void is BRANCH-scoped `VOID_SESSION` only, sale is
  * branch-or-day `EDIT_BRANCH_DATA` fail-closed without the clocked-in day.
+ * Internal for the #675 capability-matrix tests (same module).
  */
-private fun paneGates(
+internal fun paneGates(
     capabilities: List<UserCapabilityResponse>,
     session: DashboardSessionResponse,
     branchDayId: String?,
@@ -234,21 +251,84 @@ private fun EditableSessionPane(
     val capabilities = snapshot.capabilities
     val branchDayId = snapshot.clock?.branchDayId
     val gates = paneGates(capabilities, session, branchDayId, state.allowVoid)
+    // #675 — Coordinator-only correction authority mirrors the backend's
+    // SessionAuthz.requireStatusCorrectionCapability (EDIT_PAST_DAY at the branch).
+    val canCorrectStatus =
+        capabilities.hasCapability(
+            CapabilityCodes.EDIT_PAST_DAY,
+            CapabilityContextType.BRANCH,
+            session.branchId,
+        )
     val mutating =
         state.results.practitionerResult is UiState.Loading ||
             state.results.concernResult is UiState.Loading ||
             state.results.voidResult is UiState.Loading ||
             state.results.unvoidResult is UiState.Loading ||
-            state.results.saleResult is UiState.Loading
+            state.results.saleResult is UiState.Loading ||
+            state.results.statusResult is UiState.Loading
     val gate = SessionEditGate(canEdit = gates.canEdit, mutating = mutating)
     val displaySession = mergeRosterNames(session, state.rosterRows)
+    // #675 — one shared action model for the desktop pane and the compact detail,
+    // driven by the refreshed row plus the existing status-policy/capability predicates.
+    val model =
+        sessionDetailActionModel(
+            session = displaySession,
+            rosterIds = state.rosterRows?.map { it.practitionerId }?.toSet(),
+            currentUserId = state.currentUserId,
+            canEdit = gates.canEdit,
+            canCorrectStatus = canCorrectStatus,
+            dayStatus = state.dayStatus,
+        )
+    val voidAffordance = sessionVoidAffordance(gates.canVoid, displaySession.isVoided)
+    // #419 — the sale gate mirrors POST /api/product-sales; voided sessions stay excluded.
+    val showSale = gates.canSell && !displaySession.isVoided
+    // #675 — ordinary completion dispatches directly; REMITTED-day writes collect the
+    // audit reason first (the backend 400s blank reasons server-side).
+    val requiresReason = remittedReasonRequired(state.dayStatus)
+    val primaryFocus = remember(session.id) { FocusRequester() }
+    val menuTriggerFocus = remember(session.id) { FocusRequester() }
+    val saleFocus = remember(session.id) { FocusRequester() }
 
-    PaneEffects(vms.session, session.id, state.results, refreshSession)
+    PaneEffects(vms.session, session.id, session.branchId, state.results, refreshSession)
     SaleEffects(vms.productSale, state.results.saleResult, refreshSession)
+    // #675 — a 409 repaints the authoritative row under the banner; the flag stays until
+    // the operator taps Reload, so the explanation survives to be read. Open dialog
+    // drafts are pane-held (keyed by session id) and survive the refresh, so unsent
+    // permitted edits stay for review instead of being discarded with the stale version.
+    StatusConflictEffects(conflict = state.statusConflict) {
+        refreshSession()
+    }
+    // #675 — action-bar-originated terminals keep focus in the action region: the primary
+    // slot while it survives, else the menu trigger (a detached requester is a silent
+    // no-op, e.g. completion dissolving the primary into the state line).
+    ActionFocusEffects(
+        focusTarget = if (model.primary != null) primaryFocus else menuTriggerFocus,
+        results = state.results,
+    )
+
+    fun requestStatus(
+        target: SessionStatus,
+        reason: String? = null,
+    ) {
+        targets.lastStatusTarget = target
+        vms.session.updateSessionStatus(
+            session.id,
+            UpdateSessionStatusRequest(status = target, version = session.version, reason = reason),
+        )
+    }
+
+    /** REMITTED-day writes collect the audit reason first; open days dispatch directly. */
+    fun requestTarget(target: SessionStatus) {
+        if (requiresReason) {
+            targets.pendingStatus = target
+        } else {
+            requestStatus(target)
+        }
+    }
 
     Column(modifier = modifier) {
-        // weight(1f): the detail content owns the flexible space — AddSelf and inline
-        // mutation errors stay visible below it instead of past the viewport.
+        // weight(1f): the detail content owns the flexible space — the action bar and
+        // inline mutation errors stay visible below it instead of past the viewport.
         Box(modifier = Modifier.weight(1f)) {
             SessionDetailContent(
                 session = displaySession,
@@ -256,70 +336,138 @@ private fun EditableSessionPane(
                 actions = paneActions(targets),
             )
         }
-        VoidActionSection(
-            affordance = sessionVoidAffordance(gates.canVoid, displaySession.isVoided),
-            mutating = mutating,
-            onVoid = { targets.showVoid = true },
-            onUnvoid = { targets.showUnvoid = true },
-        )
-        SellSection(
-            affordance = gates.canSell && !mutating && !displaySession.isVoided,
-            onSell = { targets.showSell = true },
-        )
-        AddSelfSection(
-            sessionStatus = session.sessionStatus,
-            roster = state.rosterRows,
-            currentUserId = state.currentUserId,
-            gate = gate,
-            onAddSelf = {
-                vms.session.addPractitioner(
-                    session.id,
-                    // Idempotency key minted at submit (BR §390–392); duplicate adds are
-                    // idempotent server-side anyway.
-                    AddPractitionerRequest(id = Uuid.random().toString(), practitionerId = state.currentUserId!!),
-                )
-            },
-        )
+        if (state.statusConflict) {
+            StatusConflictBanner(onReload = {
+                vms.session.clearStatusConflict()
+                refreshSession()
+            })
+        }
+        // The bar renders for editors and sellers only — read-only callers keep the
+        // exact pre-#675 rendering (content plus inline errors, no action region).
+        if (model.primary != null || model.showCompletedState || showSale ||
+            model.statusMenuOptions.isNotEmpty() || voidAffordance != null
+        ) {
+            DetailActionBar(
+                model = model,
+                showSale = showSale,
+                voidAffordance = voidAffordance,
+                mutating = mutating,
+                primaryBusy =
+                    (
+                        model.primary == SessionDetailPrimary.COMPLETE &&
+                            state.results.statusResult is UiState.Loading
+                    ) ||
+                        (
+                            model.primary == SessionDetailPrimary.ADD_SELF &&
+                                state.results.practitionerResult is UiState.Loading
+                        ),
+                primaryFocus = primaryFocus,
+                menuTriggerFocus = menuTriggerFocus,
+                saleFocus = saleFocus,
+                onPrimary = { primary ->
+                    when (primary) {
+                        SessionDetailPrimary.ADD_SELF -> {
+                            // Reachable only with a signed-in user (the policy offers no
+                            // primary otherwise); the guard documents it instead of `!!`.
+                            val uid = state.currentUserId
+                            if (uid != null) {
+                                vms.session.addPractitioner(
+                                    session.id,
+                                    // Idempotency key minted at submit (BR §390–392); duplicate adds are
+                                    // idempotent server-side anyway (plus the VM's double-tap guard).
+                                    AddPractitionerRequest(
+                                        id = Uuid.random().toString(),
+                                        practitionerId = uid,
+                                    ),
+                                )
+                            }
+                        }
+
+                        SessionDetailPrimary.COMPLETE -> {
+                            requestTarget(SessionStatus.COMPLETED)
+                        }
+                    }
+                },
+                onStatusOption = { target ->
+                    requestTarget(target)
+                },
+                onSell = { targets.showSell = true },
+                onVoid = { targets.showVoid = true },
+                onUnvoid = { targets.showUnvoid = true },
+                saleBusy = state.results.saleResult is UiState.Loading,
+            )
+        }
+        // #675 — the failed status target stays redispatchable with the freshly refreshed
+        // version (Retry hides once the target leaves the legal set). A revisit reuses the
+        // cached VM while targets reset, so the message renders without Retry rather than
+        // going silent when the target is gone.
+        val statusError = state.results.statusResult as? UiState.Error
+        val lastTarget = targets.lastStatusTarget
+        if (statusError != null) {
+            val retryTarget = lastTarget
+            StatusErrorRow(
+                message = statusError.message,
+                canRetry =
+                    retryTarget != null &&
+                        (
+                            retryTarget in model.statusMenuOptions ||
+                                (
+                                    model.primary == SessionDetailPrimary.COMPLETE &&
+                                        retryTarget == SessionStatus.COMPLETED
+                                )
+                        ),
+                onRetry = {
+                    if (retryTarget != null) requestTarget(retryTarget)
+                },
+            )
+        }
         InlineMutationErrors(state.results.errorMessages().distinct())
     }
 
-    PaneDialogs(vms.session, displaySession, gate.mutating, targets, state.members)
+    PaneDialogs(
+        sessionVm = vms.session,
+        session = displaySession,
+        mutating = gate.mutating,
+        targets = targets,
+        members = state.members,
+        dismissFocus = menuTriggerFocus,
+    )
+    StatusReasonDialogHost(
+        target = targets.pendingStatus,
+        mutating = mutating,
+        onConfirmed = { target, reason -> requestStatus(target, reason) },
+        onCleared = { targets.pendingStatus = null },
+        onDismissFocus = { menuTriggerFocus.requestFocus() },
+    )
     PaneSaleDialogHost(
         visible = targets.showSell,
         session = displaySession,
         sale = PaneSaleContext(branchDayId, vms.inventory, vms.productSale),
-        onClose = { targets.showSell = false },
+        // #675 — cancelling the sale dialog restores the invoking sale control.
+        onClose = {
+            targets.showSell = false
+            saleFocus.requestFocus()
+        },
     )
 }
 
-/**
- * #419 — the in-session sale entry point, rendered like the other pane action sections;
- * hidden entirely for read-only callers (the backend's gate stays authoritative).
- */
-@Composable
-private fun SellSection(
-    affordance: Boolean,
-    onSell: () -> Unit,
-) {
-    if (!affordance) return
-    Column(modifier = Modifier.padding(horizontal = Spacing.md)) {
-        TextButton(onClick = onSell) {
-            Text("Record sale")
-        }
-    }
-}
-
-/** Roster load + the one-shot mutation-result drains (#382): any terminal landing refreshes. */
+/** Roster/day-status loads + the one-shot mutation-result drains (#382): any terminal landing refreshes. */
 @Composable
 private fun PaneEffects(
     sessionVm: SessionViewModel,
     sessionId: String,
+    branchId: String,
     results: PaneResults,
     refreshSession: () -> Unit,
 ) {
     LaunchedEffect(sessionId) {
         // Fresh roster for the affordance set even when the enriched row arrived seeded.
         sessionVm.loadSessionPractitioners(sessionId)
+    }
+    LaunchedEffect(branchId) {
+        // #675 — the day status behind the shared action model; a blank branch fails
+        // closed (no read, the model offers nothing until the day is known).
+        if (branchId.isNotBlank()) sessionVm.loadDayStatus(branchId)
     }
     LaunchedEffect(results.practitionerResult) {
         when (val result = results.practitionerResult) {
@@ -330,6 +478,9 @@ private fun PaneEffects(
 
             is UiState.Error -> {
                 logWarn("SessionDetailVM", "practitioner mutation failed: ${result.message}")
+                // A failed mutation may still have moved the roster server-side — re-read
+                // it with the row so the membership shortcut never disagrees.
+                sessionVm.loadSessionPractitioners(sessionId)
                 refreshSession()
             }
 
@@ -358,9 +509,76 @@ private fun PaneEffects(
         }
         sessionVm.consumeConcernResult()
     }
+    LaunchedEffect(results.statusResult) {
+        when (val result = results.statusResult) {
+            is UiState.Success -> {
+                // Membership is untouched by status writes — only the authoritative row
+                // (status badge, version, primary/menu state) repaints, in place.
+                refreshSession()
+                sessionVm.consumeStatusResult()
+            }
+
+            is UiState.Error -> {
+                logWarn("SessionDetailVM", "status change failed: ${result.message}")
+                // Sticky failure: no consume — the retry row keeps the failed target
+                // redispatchable with the freshly refreshed version below. The next
+                // dispatch replaces it (Loading), a success clears it.
+                refreshSession()
+            }
+
+            else -> {
+                return@LaunchedEffect
+            }
+        }
+    }
     // #406 — the void/unvoid drains live with their dialogs in SessionDetailVoidFlow.kt.
     VoidUnvoidEffects(sessionVm, results, refreshSession)
 }
+
+/**
+ * #675 — the handled-conflict refresher: fires once when the 409 flag rises (the banner
+ * explains it; Reload clears the flag). Kept separate from the result drains because a
+ * handled conflict never lands in [PaneResults.statusResult].
+ */
+@Composable
+private fun StatusConflictEffects(
+    conflict: Boolean,
+    onResolve: () -> Unit,
+) {
+    LaunchedEffect(conflict) {
+        if (conflict) onResolve()
+    }
+}
+
+/**
+ * #675 — action-bar-originated terminals (status, membership, void/unvoid, sale) keep
+ * focus on the pane-chosen region target — the primary slot while it survives, else the
+ * menu trigger. Content-section flows (concerns) keep their own focus: their dialogs
+ * close back onto the invoking row. A detached requester is a silent no-op.
+ */
+@Composable
+private fun ActionFocusEffects(
+    focusTarget: FocusRequester,
+    results: PaneResults,
+) {
+    LaunchedEffect(results.statusResult) {
+        if (results.statusResult.isTerminal()) focusTarget.requestFocus()
+    }
+    LaunchedEffect(results.practitionerResult) {
+        if (results.practitionerResult.isTerminal()) focusTarget.requestFocus()
+    }
+    LaunchedEffect(results.voidResult) {
+        if (results.voidResult.isTerminal()) focusTarget.requestFocus()
+    }
+    LaunchedEffect(results.unvoidResult) {
+        if (results.unvoidResult.isTerminal()) focusTarget.requestFocus()
+    }
+    LaunchedEffect(results.saleResult) {
+        if (results.saleResult.isTerminal()) focusTarget.requestFocus()
+    }
+}
+
+private fun UiState<*>.isTerminal(): Boolean = this is UiState.Success || this is UiState.Error
 
 private fun paneActions(targets: PaneDialogTargets): SessionDetailActions =
     SessionDetailActions(
@@ -390,6 +608,7 @@ private fun PaneDialogs(
     mutating: Boolean,
     targets: PaneDialogTargets,
     members: UiState<List<BranchMemberResponse>>,
+    dismissFocus: FocusRequester,
 ) {
     RemoveConcernDialogHost(
         target = targets.removeConcern,
@@ -429,31 +648,7 @@ private fun PaneDialogs(
         mutating = mutating,
         onClose = { targets.showPromoteOther = false },
     )
-    PaneVoidDialogs(sessionVm, session, mutating, targets)
-}
-
-/**
- * #348 — add-self affordance, moved here so both hosts render it identically. Gated to
- * PENDING sessions where the caller holds the edit capability but is not yet on the roster.
- */
-@Composable
-private fun AddSelfSection(
-    sessionStatus: SessionStatus,
-    roster: List<SessionPractitionerResponse>?,
-    currentUserId: String?,
-    gate: SessionEditGate,
-    onAddSelf: () -> Unit,
-) {
-    if (!gate.canEdit || sessionStatus != SessionStatus.PENDING || currentUserId == null) return
-    val rosterIds = roster?.map { it.practitionerId } ?: return
-    if (gate.mutating) return
-    if (currentUserId in rosterIds) return
-
-    Column(modifier = Modifier.padding(horizontal = Spacing.md)) {
-        TextButton(onClick = onAddSelf) {
-            Text("Add self as practitioner")
-        }
-    }
+    PaneVoidDialogs(sessionVm, session, mutating, targets, dismissFocus)
 }
 
 /** Moves the side-loaded roster rows over the enriched row, keeping known display names. */
