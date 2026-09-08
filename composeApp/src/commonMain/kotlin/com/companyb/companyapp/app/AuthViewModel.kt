@@ -11,7 +11,7 @@ import com.companyb.companyapp.contracts.identity.LoginRequest
 import com.companyb.companyapp.contracts.identity.LoginResponse
 import com.companyb.companyapp.contracts.identity.ResetPasswordRequest
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.workforce.team.extractApiErrorMessage
+import com.companyb.companyapp.network.extractApiErrorMessage
 import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody

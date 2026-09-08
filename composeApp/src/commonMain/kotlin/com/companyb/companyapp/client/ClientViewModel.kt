@@ -10,7 +10,7 @@ import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.contracts.client.CreateClientRequest
 import com.companyb.companyapp.contracts.client.UpdateClientRequest
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.workforce.team.extractApiErrorMessage
+import com.companyb.companyapp.network.extractApiErrorMessage
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.patch

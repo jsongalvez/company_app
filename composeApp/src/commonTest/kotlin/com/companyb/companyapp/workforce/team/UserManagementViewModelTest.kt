@@ -955,16 +955,6 @@ class UserManagementViewModelTest {
             assertEquals(expected = 3, actual = users.data.size)
         }
 
-    @Test
-    fun extractApiErrorMessage_parses_error_field_else_null() {
-        val body = """{"error":"Username already exists"}"""
-        assertEquals(expected = "Username already exists", actual = extractApiErrorMessage(body))
-        assertNull(extractApiErrorMessage("""{"other":"x"}"""))
-        assertNull(extractApiErrorMessage("not json"))
-        assertNull(extractApiErrorMessage(null))
-        assertNull(extractApiErrorMessage(""))
-    }
-
     private fun user(
         id: String,
         displayName: String,

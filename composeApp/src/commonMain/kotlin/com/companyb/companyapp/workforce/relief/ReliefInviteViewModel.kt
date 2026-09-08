@@ -15,12 +15,14 @@ import com.companyb.companyapp.contracts.workforce.CreateReliefInviteRequest
 import com.companyb.companyapp.contracts.workforce.ReliefCandidateResponse
 import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
 import com.companyb.companyapp.network.ApiClient
+import com.companyb.companyapp.network.extractApiErrorMessage
 import com.companyb.companyapp.notification.NotificationState
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.encodeURLParameter
 import kotlinx.coroutines.CoroutineScope
@@ -249,8 +251,7 @@ class ReliefInviteViewModel(
     }
 
     private suspend fun revokeErrorMessage(response: HttpResponse): String =
-        runCatching { response.body<Map<String, String>>()["error"] }
-            .getOrNull()
+        extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
             ?.takeIf { it.isNotBlank() }
             ?: "Revoke failed (${response.status.value})"
 }

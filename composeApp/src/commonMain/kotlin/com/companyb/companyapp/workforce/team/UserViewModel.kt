@@ -17,6 +17,7 @@ import com.companyb.companyapp.contracts.identity.UserRoleReplaceRequest
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.identity.UserSummaryResponse
 import com.companyb.companyapp.network.ApiClient
+import com.companyb.companyapp.network.extractApiErrorMessage
 import com.companyb.companyapp.workforce.AssignmentSlotOperations
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -30,9 +31,6 @@ import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Clock
 
 /**
@@ -102,23 +100,6 @@ fun filterUsers(
             it.username.contains(trimmed, ignoreCase = true)
     }
 }
-
-/**
- * Extracts the backend's `{"error": "<message>"}` body (#345 create/role-replace 400/409
- * surfaces — PasswordPolicy/EmailPolicy text and duplicate-username conflicts name the fix).
- * Pure so the decision is testable; null when the body isn't that shape (non-JSON, missing
- * field) so callers fall back to their status-code message.
- */
-fun extractApiErrorMessage(body: String?): String? =
-    body?.let { text ->
-        runCatching {
-            Json
-                .parseToJsonElement(text)
-                .jsonObject["error"]
-                ?.jsonPrimitive
-                ?.content
-        }.getOrNull()
-    }
 
 /**
  * Params-object for [UserViewModel.runMutation] (#462 LPL burn: 7 params > 6 threshold;

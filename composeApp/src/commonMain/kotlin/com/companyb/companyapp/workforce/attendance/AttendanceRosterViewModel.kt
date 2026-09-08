@@ -12,8 +12,8 @@ import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.workforce.MarkAttendanceRequest
 import com.companyb.companyapp.contracts.workforce.MemberAttendanceResponse
 import com.companyb.companyapp.network.ApiClient
+import com.companyb.companyapp.network.extractApiErrorMessage
 import com.companyb.companyapp.workforce.AssignmentSlotOperations
-import com.companyb.companyapp.workforce.team.extractApiErrorMessage
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.post
