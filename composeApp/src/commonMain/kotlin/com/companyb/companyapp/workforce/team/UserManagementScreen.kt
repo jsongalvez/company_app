@@ -3,45 +3,45 @@ package com.companyb.companyapp.workforce.team
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.app.navigation.NavigationContextStore
+import com.companyb.companyapp.app.navigation.Route
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.branch.BranchResponse
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.identity.UserAssignmentResponse
 import com.companyb.companyapp.contracts.identity.UserStatus
-import com.companyb.companyapp.contracts.identity.UserSummaryResponse
 import com.companyb.companyapp.contracts.workforce.AssignmentResponse
-import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.ui.theme.rowHover
 import com.companyb.companyapp.util.logWarn
@@ -56,23 +56,28 @@ import com.companyb.companyapp.workforce.team.slotInputError
 
 /**
  * #135 — User Management screen, locked spec #106 D2-D5.
+ * #681 — reorganized into People (default) and Branches tabs without losing
+ * capabilities: finding/editing a user never traverses branch setup, and
+ * changing branch membership never scans all accounts.
  *
- * - D2 — flat user list (displayName/username/status badge/"deactivated X ago"/assigned branches
- *   with slots), client-side search, expandable rows (per-assignment slot edit + deactivate/
- *   reactivate toggle), deactivated rows dimmed with slot controls disabled.
- * - D3 — deactivate = confirmation dialog (login blocked immediately, capabilities gone, records
- *   + assignments kept) → existing PATCH; reactivate = direct row action → symmetric PATCH; the
- *   deactivate action is hidden on the own row; 2xx updates the row in place (pessimistic,
- *   ADR-0022).
- * - D4 — branch dropdown (branchType shown, `GET /api/branches` — this screen's holder
- *   legitimately owns GLOBAL MANAGE_USERS) + slot-order list for the selected branch: desktop =
- *   up/down arrows → pairwise `POST /slots/swap`; mobile = tap-to-edit slot number → PATCH slot;
- *   manual number input available on both as fallback (#95 — no desktop-only behavior leaks to
- *   mobile). Duplicates tolerated (BR:67) — no renumber cascade.
- * - D5 — single route pushed on both platforms (wired in both NavHosts, code-only MANAGE_USERS
- *   route gate per #99 D7; backend 403 stays authoritative). The drawer item stays hidden until
- *   the #94-grad capability wiring populates AppSessionState.snapshot — documented state, not
- *   hacked around (ticket note).
+ * - People: search + Active (default)/Inactive/All + Invite user; rows carry
+ *   display name, username, status text and a concise assignment summary;
+ *   selection opens the grouped detail (Account, Roles, Branch assignments;
+ *   Deactivate/Reactivate in the account More menu). >=1000dp list/detail
+ *   side-by-side ([TeamLayoutPolicy]), below it full-width detail with Back.
+ * - Branches: branch picker + selected name/type, roster in Branch Slot order,
+ *   primary Assign user, secondary Create branch; slot edits and removal stay
+ *   row-context actions through the existing slot policy.
+ * - Tab/search/filter/selected person/branch survive detail Back, reloads and
+ *   rotation (saveable); the section tab, selected person and list anchor
+ *   additionally survive section switches via the section store. Filter/search
+ *   empties offer Clear filters while true first use offers the invite action.
+ *   A status mutation that moves its row outside the filter keeps the row
+ *   pinned visible until the next interaction. Failed mutations retain their
+ *   target/draft (deactivate confirms dispatch before dismissing); success
+ *   retains the selection so the affected row/detail stays in view. The screen
+ *   itself is route-gated on MANAGE_USERS; backend 403s surface inline and the
+ *   loading gate visibly disables actions mid-flight.
  *
  * Mutations never optimistically mutate: a 2xx applies the in-place list update, any failure
  * keeps the row and surfaces an inline per-action error keyed by the same key as the in-flight
@@ -85,14 +90,64 @@ fun UserManagementScreen(
     currentUserId: String?,
 ) {
     val states = rememberUserManagementScreenStates()
+    var sectionTab by rememberSaveable(currentUserId) {
+        mutableStateOf(
+            teamSectionTabFromName(
+                NavigationContextStore.retained(currentUserId, TEAM_CONTEXT_BRANCH, Route.UserManagement)?.tab,
+            ),
+        )
+    }
+    var statusFilter by rememberSaveable(currentUserId) {
+        mutableStateOf(TeamStatusFilter.ACTIVE)
+    }
+    var selectedPersonId by rememberSaveable(currentUserId) {
+        mutableStateOf(
+            NavigationContextStore
+                .retained(currentUserId, TEAM_CONTEXT_BRANCH, Route.UserManagement)
+                ?.selectedId
+                .takeUnless { it.isNullOrEmpty() },
+        )
+    }
+    // Filter-excluded updated-row pin (#681): saveable so rotation keeps the
+    // held row; cleared on the next search/filter/tab/select/Back interaction.
+    var pinnedPersonId by rememberSaveable(currentUserId) { mutableStateOf<String?>(null) }
 
     UserManagementEntryEffects(
         viewModel = viewModel,
         branchViewModel = branchViewModel,
     )
 
-    val derived = rememberUserManagementDerived(viewModel, states.searchQuery, states.selectedBranchId)
+    val users by viewModel.users.collectAsState()
+    val heldList by viewModel.freshestUsers.collectAsState()
+    val branches by viewModel.branches.collectAsState()
+    val actionErrors by viewModel.actionErrors.collectAsState()
+    val assignmentResult by branchViewModel.assignmentResult.collectAsState()
     val mutationsDisabled = userManagementMutationsDisabled(viewModel, branchViewModel)
+    val peopleListState =
+        remember(currentUserId) {
+            val anchor =
+                NavigationContextStore
+                    .retained(currentUserId, TEAM_CONTEXT_BRANCH, Route.UserManagement)
+                    ?.scrollAnchorId
+                    ?.toIntOrNull()
+                    ?.coerceAtLeast(0) ?: 0
+            LazyListState(firstVisibleItemIndex = anchor)
+        }
+    DisposableEffect(currentUserId) {
+        onDispose {
+            // Cleared selections persist as the empty sentinel: retain() keeps
+            // the previous value on null legs, so a backed-out selection would
+            // otherwise resurrect on the next section return.
+            NavigationContextStore.retain(
+                currentUserId,
+                TEAM_CONTEXT_BRANCH,
+                Route.UserManagement,
+                selectedId = selectedPersonId ?: "",
+                scrollAnchorId = peopleListState.firstVisibleItemIndex.toString(),
+                tab = sectionTab.name,
+            )
+        }
+    }
 
     UserManagementMutationEffects(
         viewModel = viewModel,
@@ -111,9 +166,153 @@ fun UserManagementScreen(
                 .fillMaxSize()
                 .padding(Spacing.md),
     ) {
-        UserManagementTopSectionsHost(viewModel, branchViewModel, states, derived, mutationsDisabled)
+        TeamSectionTabs(
+            selected = sectionTab,
+            onSelect = { next ->
+                sectionTab = next
+                pinnedPersonId = null
+                NavigationContextStore.retain(
+                    currentUserId,
+                    TEAM_CONTEXT_BRANCH,
+                    Route.UserManagement,
+                    selectedId = selectedPersonId ?: "",
+                    tab = next.name,
+                )
+            },
+        )
+        Spacer(Modifier.size(Spacing.sm))
+        when (sectionTab) {
+            TeamSectionTab.PEOPLE -> {
+                PeopleTabContent(
+                    state =
+                        PeopleTabState(
+                            users = users,
+                            heldList = heldList,
+                            searchQuery = states.searchQuery,
+                            filter = statusFilter,
+                            pinnedId = pinnedPersonId,
+                            selectedId = selectedPersonId,
+                            mutationsDisabled = mutationsDisabled,
+                            actionErrors = actionErrors,
+                            currentUserId = currentUserId,
+                        ),
+                    callbacks =
+                        PeopleTabCallbacks(
+                            onSearchChange = {
+                                states.onSearchQueryChange(it)
+                                pinnedPersonId = null
+                            },
+                            onFilterChange = {
+                                statusFilter = it
+                                pinnedPersonId = null
+                            },
+                            onSelect = { id ->
+                                if (id != pinnedPersonId) pinnedPersonId = null
+                                selectedPersonId = id
+                                NavigationContextStore.retain(
+                                    currentUserId,
+                                    TEAM_CONTEXT_BRANCH,
+                                    Route.UserManagement,
+                                    selectedId = id,
+                                    tab = sectionTab.name,
+                                )
+                            },
+                            onBack = {
+                                selectedPersonId = null
+                                pinnedPersonId = null
+                            },
+                            onInvite = { states.onShowCreateUserChange(true) },
+                            onRefresh = {
+                                viewModel.loadUsers()
+                                viewModel.loadBranches()
+                            },
+                            onClearFilters = {
+                                states.onSearchQueryChange("")
+                                statusFilter = TeamStatusFilter.ALL
+                                pinnedPersonId = null
+                            },
+                            onRetry = viewModel::loadUsers,
+                            onEditRoles = { user -> states.onRoleEditTargetChange(user) },
+                            onDeactivate = { user ->
+                                states.onDeactivateTargetChange(user)
+                            },
+                            onReactivate = { id ->
+                                pinnedPersonId = id
+                                viewModel.setUserStatus(id, UserStatus.ACTIVE)
+                            },
+                            onEditSlot = { user, assignment ->
+                                states.onSlotEditTargetChange(
+                                    SlotEditTarget(
+                                        branchId = assignment.branchId,
+                                        branchName = assignment.branchName,
+                                        assignmentId = assignment.assignmentId,
+                                        displayName = user.displayName,
+                                        currentSlot = assignment.slot,
+                                    ),
+                                )
+                            },
+                            onRemoveAssignment = { user, assignment ->
+                                branchViewModel.resetAdministrationState()
+                                states.onRemoveAssignmentTargetChange(
+                                    AssignmentRemovalTarget(
+                                        userId = user.id,
+                                        displayName = user.displayName,
+                                        assignment = assignment,
+                                    ),
+                                )
+                            },
+                        ),
+                    listState = peopleListState,
+                )
+            }
 
-        UserManagementUserListHost(viewModel, branchViewModel, currentUserId, states, derived)
+            TeamSectionTab.BRANCHES -> {
+                val loadedBranches = (branches as? UiState.Success<List<BranchResponse>>)?.data.orEmpty()
+                val selectedBranch = loadedBranches.firstOrNull { it.id == states.selectedBranchId }
+                BranchesTab(
+                    state =
+                        BranchesTabState(
+                            branches = branches,
+                            selectedBranchId = states.selectedBranchId,
+                            selectedBranch = selectedBranch,
+                            slotRows =
+                                if (selectedBranch == null) {
+                                    emptyList()
+                                } else {
+                                    slotOrderForBranch(heldList.orEmpty(), selectedBranch.id)
+                                },
+                            actionErrors = actionErrors,
+                            assignmentError =
+                                branchesAssignmentError(
+                                    assignmentResult,
+                                    states.removeAssignmentTarget,
+                                    states.showAssignUserDialog,
+                                ),
+                            mutationsDisabled = mutationsDisabled,
+                            hasHeldUsers = heldList != null,
+                        ),
+                    callbacks =
+                        BranchesTabCallbacks(
+                            onBranchSelected = states.onSelectedBranchIdChange,
+                            onRetryBranches = viewModel::loadBranches,
+                            onCreateBranch = {
+                                branchViewModel.resetAdministrationState()
+                                states.onShowCreateBranchChange(true)
+                            },
+                            onAssign = {
+                                val target = selectedBranch
+                                if (target != null) {
+                                    branchViewModel.resetAdministrationState()
+                                    states.onAssignmentBranchChange(target)
+                                    states.onShowAssignDialogChange(true)
+                                }
+                            },
+                            onSwap = viewModel::swapSlots,
+                            onEditSlot = states.onSlotEditTargetChange,
+                        ),
+                )
+            }
+        }
     }
 
     UserManagementDialogHosts(
@@ -124,6 +323,7 @@ fun UserManagementScreen(
             UserManagementMemberDialogsActions(
                 deactivateTarget = states.deactivateTarget,
                 onDismissDeactivate = { states.onDeactivateTargetChange(null) },
+                onStatusDispatched = { pinnedPersonId = it },
                 slotEditTarget = states.slotEditTarget,
                 onDismissSlotEdit = { states.onSlotEditTargetChange(null) },
                 showCreateUserDialog = states.showCreateUserDialog,
@@ -144,6 +344,14 @@ fun UserManagementScreen(
             ),
     )
 }
+
+/**
+ * #681 — section-store branch leg for the GLOBAL Team & branches admin.
+ * The store keys per user+branch; team administration is not branch-scoped, so
+ * a constant leg gives per-user tab/selection/anchor persistence without
+ * implying a clocked-in branch.
+ */
+internal const val TEAM_CONTEXT_BRANCH = "team"
 
 /**
  * Member-lifecycle dialogs of the User Management screen, hoisted out of [UserManagementScreen]
@@ -168,8 +376,14 @@ internal fun UserManagementMemberDialogs(
             mutationsDisabled = mutationsDisabled,
             onDismiss = memberActions.onDismissDeactivate,
             onConfirm = {
-                memberActions.onDismissDeactivate()
-                viewModel.setUserStatus(target.id, UserStatus.INACTIVE)
+                // #681 — dismiss only when the mutation dispatches; a guard-swallowed
+                // confirm (same-frame refresh tap) retains the dialog instead of
+                // losing the action silently. The pin arms the filter-excluded
+                // row hold for the incoming status flip.
+                if (viewModel.setUserStatus(target.id, UserStatus.INACTIVE)) {
+                    memberActions.onStatusDispatched(target.id)
+                    memberActions.onDismissDeactivate()
+                }
             },
         )
     }
@@ -208,8 +422,10 @@ internal fun UserManagementMemberDialogs(
     }
 
     memberActions.roleEditTarget?.let { target ->
-        // Save closes the dialog immediately (the slot-edit precedent); a failed PUT surfaces
-        // as the "roles:$userId" inline error in the still-expanded row below the action row.
+        // #681 — the dialog retains its draft on failure (the slot-edit precedent)
+        // and renders the failure inline: dismiss runs only on 2xx via
+        // afterSuccess, so the error must surface here, not just in the detail
+        // behind the modal.
         RoleEditDialog(
             user = target,
             rolesState = rolesState,
@@ -219,10 +435,12 @@ internal fun UserManagementMemberDialogs(
                     onRetryRoles = viewModel::loadRoles,
                     onDismiss = memberActions.onDismissRoleEdit,
                     onSave = { selected ->
-                        memberActions.onDismissRoleEdit()
-                        viewModel.replaceRoles(target.id, selected)
+                        viewModel.replaceRoles(target.id, selected) {
+                            memberActions.onDismissRoleEdit()
+                        }
                     },
                 ),
+            errorMessage = actionErrors["roles:${target.id}"],
         )
     }
 }
@@ -457,145 +675,6 @@ private fun BranchPickerField(
         modifier = modifier,
         enabled = !disabled && !isLoading && !isIdle,
     )
-}
-
-/**
- * #479 — row-level mutations as one carrier (data classes are LPL-free): flags + the
- * deactivate/reactivate/roles/slot/remove callbacks shared by [UserRow] and
- * [UserRowExpandedBody].
- */
-data class UserRowActions(
-    val currentUserId: String?,
-    val mutationsDisabled: Boolean,
-    val onDeactivate: () -> Unit,
-    val onReactivate: () -> Unit,
-    val onEditRoles: () -> Unit,
-    val onEditSlot: (UserAssignmentResponse) -> Unit,
-    val onRemoveAssignment: (UserAssignmentResponse) -> Unit,
-)
-
-@Composable
-internal fun UserRow(
-    user: UserSummaryResponse,
-    expanded: Boolean,
-    onToggleExpanded: () -> Unit,
-    rowActions: UserRowActions,
-    errors: List<String>,
-) {
-    val isDeactivated = user.status == UserStatus.INACTIVE
-    Surface(
-        shape = RoundedCornerShape(CornerRadius.md),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .alpha(if (isDeactivated) DEACTIVATED_ROW_ALPHA else 1f)
-                    .padding(Spacing.md),
-        ) {
-            UserRowHeader(
-                user = user,
-                onToggleExpanded = onToggleExpanded,
-            )
-
-            if (expanded) {
-                UserRowExpandedBody(
-                    user = user,
-                    isDeactivated = isDeactivated,
-                    canDeactivate = !isDeactivated && user.id != rowActions.currentUserId,
-                    rowActions = rowActions,
-                )
-
-                if (user.id == rowActions.currentUserId) {
-                    Text(
-                        text = "You can't deactivate your own account",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                errors.forEach { error ->
-                    Text(
-                        text = error,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun UserRowExpandedBody(
-    user: UserSummaryResponse,
-    isDeactivated: Boolean,
-    canDeactivate: Boolean,
-    rowActions: UserRowActions,
-) {
-    HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
-
-    if (user.assignments.isEmpty()) {
-        Text(
-            text = "No branch assignments",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    } else {
-        user.assignments.forEach { assignment ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "${assignment.branchName} — slot ${assignment.slot}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(
-                    onClick = { rowActions.onEditSlot(assignment) },
-                    enabled = !isDeactivated && !rowActions.mutationsDisabled,
-                ) {
-                    Text("Edit slot")
-                }
-                TextButton(
-                    onClick = { rowActions.onRemoveAssignment(assignment) },
-                    enabled = !rowActions.mutationsDisabled,
-                ) {
-                    Text("Remove")
-                }
-            }
-        }
-    }
-
-    Row(modifier = Modifier.fillMaxWidth()) {
-        TextButton(onClick = rowActions.onEditRoles, enabled = !rowActions.mutationsDisabled) {
-            Text("Edit roles")
-        }
-        if (canDeactivate) {
-            TextButton(onClick = rowActions.onDeactivate, enabled = !rowActions.mutationsDisabled) {
-                Text(
-                    text = "Deactivate",
-                    // Dimmed via M3's disabledContentColor when gated mid-load —
-                    // the explicit error color would keep it vivid red (pass-4 SOFT,
-                    // the dialog conditional's principle).
-                    color =
-                        if (rowActions.mutationsDisabled) {
-                            Color.Unspecified
-                        } else {
-                            MaterialTheme.colorScheme.error
-                        },
-                )
-            }
-        }
-        if (isDeactivated) {
-            TextButton(onClick = rowActions.onReactivate, enabled = !rowActions.mutationsDisabled) {
-                Text("Reactivate")
-            }
-        }
-    }
 }
 
 internal val BranchResponseSaver =

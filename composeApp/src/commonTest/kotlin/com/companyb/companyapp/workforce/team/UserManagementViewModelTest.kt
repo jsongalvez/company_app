@@ -897,6 +897,49 @@ class UserManagementViewModelTest {
         }
 
     @Test
+    fun replaceRoles_afterSuccess_runs_only_on_success() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+            vm.loadUsers()
+            advanceUntilIdle()
+
+            // #681 — the dialog dismisses via afterSuccess: it must run on 2xx so
+            // the retained draft survives a failure with its inline error.
+            var calls = 0
+            vm.replaceRoles("u1", listOf("CASHIER")) { calls++ }
+            advanceUntilIdle()
+            assertEquals(expected = 1, actual = calls)
+
+            harness.replaceRolesStatus = HttpStatusCode.InternalServerError
+            vm.replaceRoles("u1", listOf("CASHIER")) { calls++ }
+            advanceUntilIdle()
+            assertEquals(expected = 1, actual = calls)
+            assertEquals(expected = "Role update failed: 500", actual = vm.actionErrors.value["roles:u1"])
+        }
+
+    @Test
+    fun setUserStatus_reports_dispatch_verdict() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+
+            // #681 — a Loading-skipped status flip reports false so the confirm
+            // dialog retains its target instead of losing the action silently.
+            vm.loadUsers()
+            assertEquals(expected = false, actual = vm.setUserStatus("u1", UserStatus.INACTIVE))
+            advanceUntilIdle()
+
+            assertEquals(expected = true, actual = vm.setUserStatus("u1", UserStatus.INACTIVE))
+            advanceUntilIdle()
+            val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
+            assertEquals(
+                expected = UserStatus.INACTIVE,
+                actual = state.data.first { it.id == "u1" }.status,
+            )
+        }
+
+    @Test
     fun loadRoles_double_call_while_loading_fires_single_request() =
         runTest(testScheduler) {
             val harness = UserHarness()

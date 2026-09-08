@@ -1,10 +1,5 @@
 package com.companyb.companyapp.workforce.team
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -13,20 +8,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.branch.BranchResponse
-import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.identity.UserSummaryResponse
-import com.companyb.companyapp.contracts.workforce.AssignmentResponse
-import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.workforce.branch.AssignmentRemovalTarget
 import com.companyb.companyapp.workforce.branch.BranchViewModel
 import com.companyb.companyapp.workforce.team.UserViewModel
-import com.companyb.companyapp.workforce.team.filterUsers
-import com.companyb.companyapp.workforce.team.slotOrderForBranch
 
 /**
  * Member + branch-admin dialog overlays hoisted out of [UserManagementScreen] for the #462
@@ -67,255 +56,6 @@ internal fun UserManagementDialogHosts(
 }
 
 /**
- * User-list region (status-when + LazyColumn) hoisted out of [UserManagementScreen] for the
- * #462 LongMethod burn-down. Lives here (not Header.kt) because Header.kt sits at the detekt
- * file-function wall (10/11) — Overlays.kt has fresh budget. Owns the slot-order actions
- * construction (the multi-line swap lambda) plus the error/empty/items branches; the Screen
- * passes derivations + single-line setters via [UserManagementUserListActions] (call-site
- * lambda bodies count toward the caller's LongMethod). ColumnScope receiver so the LazyColumn
- * keeps its `weight` (ColumnScope-bound member extension — same reason the LazyItemScope
- * `item {}` wrappers and `fillParentMaxSize` live inside wherever their scope resolves).
- * 5 params so it stays LongParameterList-clean outside the LPL-excluded Screen file.
- */
-@Composable
-internal fun ColumnScope.UserManagementUserList(
-    users: UiState<List<UserSummaryResponse>>,
-    heldNonNull: Boolean,
-    filteredUsers: List<UserSummaryResponse>,
-    selectedBranch: BranchResponse?,
-    actions: UserManagementUserListActions,
-) {
-    if (!heldNonNull) {
-        UserManagementLoadFallback(
-            users = users,
-            onRetry = actions.onRetry,
-        )
-        return
-    }
-    LazyColumn(
-        modifier = Modifier.weight(1f),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        if (selectedBranch != null) {
-            item(key = "slot-order") {
-                UserManagementSlotOrderItem(
-                    selectedBranchId = selectedBranch.id,
-                    branchName = actions.selectedBranchName,
-                    rows = actions.slotRows,
-                    mutationsDisabled = actions.mutationsDisabled,
-                    actions =
-                        UserManagementSlotOrderActions(
-                            actionErrors = actions.actionErrors,
-                            onSwap = { a, b -> actions.onSwapSlots(selectedBranch.id, a, b) },
-                            onEditSlot = actions.onEditSlotTarget,
-                        ),
-                )
-            }
-        }
-
-        item(key = "users-header") {
-            UserManagementListHeader()
-        }
-
-        if (users is UiState.Error) {
-            val errorState = users
-            item(key = "users-reload-error") {
-                UserManagementListErrorRow(
-                    message = errorState.message,
-                    retryEnabled = !actions.mutationsDisabled,
-                    onRetry = actions.onRetry,
-                )
-            }
-        }
-
-        if (filteredUsers.isEmpty()) {
-            item(key = "users-empty") {
-                Box(Modifier.fillParentMaxSize()) {
-                    UserManagementEmptyContent(searchQuery = actions.searchQuery)
-                }
-            }
-        } else {
-            items(filteredUsers, key = { it.id }) { user ->
-                UserManagementUserRowHost(
-                    user = user,
-                    expanded = user.id in actions.expandedIds,
-                    actions = actions.userRowActions,
-                )
-            }
-        }
-    }
-}
-
-/**
- * User-list region call hoisted out of [UserManagementScreen] for the #462 LongMethod
- * burn-down. Lives here because Header.kt sits at the detekt file-function wall (10/11) —
- * Overlays.kt holds the last safe slot. Self-sufficient: collects the users/held/errors
- * flows and the mutations gate itself (duplicate StateFlow subscriptions are cheap —
- * LoginNoticeEffect precedent) and owns the row-actions + list-actions construction
- * (call-site construction lines count toward the caller LongMethod); the Screen keeps one
- * slim single-line call. ColumnScope receiver so the LazyColumn keeps its `weight`
- * ([UserManagementUserList] precedent). 5 params so it stays LongParameterList-clean
- * outside the LPL-excluded Screen file. Held-list KeepLast semantics (#162, #143 VM-held
- * mirror) ride along: the host collects the same freshest flow, so a reload never flashes
- * over held rows and a failed reload never replaces the list.
- */
-@Composable
-internal fun ColumnScope.UserManagementUserListHost(
-    viewModel: UserViewModel,
-    branchViewModel: BranchViewModel,
-    currentUserId: String?,
-    states: UserManagementScreenStates,
-    derived: UserManagementDerived,
-) {
-    val users by viewModel.users.collectAsState()
-    val heldList by viewModel.freshestUsers.collectAsState()
-    val actionErrors by viewModel.actionErrors.collectAsState()
-    val mutationsDisabled = userManagementMutationsDisabled(viewModel, branchViewModel)
-    val userRowActions =
-        userManagementUserRowActions(
-            currentUserId = currentUserId,
-            mutationsDisabled = mutationsDisabled,
-            selectedBranchId = states.selectedBranchId,
-            actionErrors = actionErrors,
-            callbacks =
-                UserManagementUserRowCallbacks(
-                    expandedIds = states.expandedIds,
-                    onExpandedIdsChange = states.onExpandedIdsChange,
-                    onDeactivateTarget = states.onDeactivateTargetChange,
-                    onRoleEditTarget = states.onRoleEditTargetChange,
-                    onSlotEditTarget = states.onSlotEditTargetChange,
-                    onRemoveTarget = states.onRemoveAssignmentTargetChange,
-                    onReactivate = { id -> viewModel.setUserStatus(id, UserStatus.ACTIVE) },
-                    onResetAdministration = branchViewModel::resetAdministrationState,
-                ),
-        )
-    UserManagementUserList(
-        users = users,
-        heldNonNull = heldList != null,
-        filteredUsers = derived.filteredUsers,
-        selectedBranch = derived.selectedBranch,
-        actions =
-            UserManagementUserListActions(
-                selectedBranchName = derived.selectedBranchName ?: "",
-                slotRows = derived.slotRows,
-                mutationsDisabled = mutationsDisabled,
-                searchQuery = states.searchQuery,
-                expandedIds = states.expandedIds,
-                userRowActions = userRowActions,
-                actionErrors = actionErrors,
-                onSwapSlots = viewModel::swapSlots,
-                onEditSlotTarget = states.onSlotEditTargetChange,
-                onRetry = viewModel::loadUsers,
-            ),
-    )
-}
-
-/**
- * Top-sections actions construction hoisted out of [UserManagementScreen] for the #462
- * LongMethod burn-down. Lives here (not Header.kt) because Header.kt sits at the detekt
- * file-function wall (10/11) — Overlays.kt has fresh budget. Owns the derivations plus
- * the multi-line refresh/create/assign bodies; the Screen passes single-line setters,
- * method refs, and raw dialog states via [UserManagementTopSectionsCallbacks]
- * (call-site lambda bodies count toward the caller's LongMethod). Plain fun with 4
- * params so it stays LongParameterList-clean outside the LPL-excluded Screen file.
- */
-internal fun userManagementTopSectionsActions(
-    users: UiState<List<UserSummaryResponse>>,
-    heldNonNull: Boolean,
-    mutationsDisabled: Boolean,
-    callbacks: UserManagementTopSectionsCallbacks,
-): UserManagementTopSectionsActions =
-    UserManagementTopSectionsActions(
-        // Typing against an Error state with nothing held does nothing visible (ErrorCard
-        // renders instead of the list) — disable so the field doesn't look interactive
-        // (pass-1 P4 SOFT). With held rows the keep-last gate renders the list, so the
-        // client-side filter stays live over the mirror (#161).
-        searchEnabled = heldNonNull || users !is UiState.Error,
-        onSearchChange = callbacks.onSearchChange,
-        onInvite = { callbacks.onShowCreateUser(true) },
-        onRefresh = {
-            callbacks.onLoadUsers()
-            callbacks.onLoadBranches()
-        },
-        // Gated on a rendered list too: with nothing held (failed initial load) an
-        // appended created row would be invisible behind the ErrorCard — force the
-        // retry path instead (pass-4 P4).
-        inviteEnabled = !mutationsDisabled && heldNonNull,
-        refreshEnabled = !mutationsDisabled,
-        onBranchSelected = callbacks.onBranchSelected,
-        onRetryBranches = callbacks.onLoadBranches,
-        onCreateBranch = {
-            callbacks.onResetAdministration()
-            callbacks.onShowCreateBranch(true)
-        },
-        onAssign = {
-            // #482 — the pair opens atomically or not at all: a null selected branch must
-            // never leave the dialog flag true with no branch (the button hides in that
-            // state; this is the defense at the source).
-            val target = callbacks.selectedBranch
-            if (target != null) {
-                callbacks.onResetAdministration()
-                callbacks.onAssignmentBranchChange(target)
-                callbacks.onShowAssignDialog(true)
-            }
-        },
-        pickerDisabled = mutationsDisabled,
-        createEnabled = !mutationsDisabled,
-        assignEnabled = !mutationsDisabled && heldNonNull,
-        assignmentResult = callbacks.assignmentResult,
-        removeAssignmentTarget = callbacks.removeAssignmentTarget,
-        showAssignDialog = callbacks.showAssignDialog,
-    )
-
-/**
- * Title/search + branch-admin block call hoisted out of [UserManagementScreen] for the #462
- * LongMethod burn-down. Lives here (not Header.kt) because Header.kt sits at the detekt
- * file-function wall (10/11) — Overlays.kt has budget. Self-sufficient: collects the
- * users/held/branches/assignment flows itself (duplicate StateFlow subscriptions are cheap —
- * LoginNoticeEffect precedent) and owns the callbacks + actions construction (call-site
- * construction lines count toward the caller LongMethod); the Screen keeps one slim
- * single-line call. 5 params so it stays LongParameterList-clean outside the LPL-excluded
- * Screen file.
- */
-@Composable
-internal fun UserManagementTopSectionsHost(
-    viewModel: UserViewModel,
-    branchViewModel: BranchViewModel,
-    states: UserManagementScreenStates,
-    derived: UserManagementDerived,
-    mutationsDisabled: Boolean,
-) {
-    val users by viewModel.users.collectAsState()
-    val heldList by viewModel.freshestUsers.collectAsState()
-    val branches by viewModel.branches.collectAsState()
-    val assignmentResult by branchViewModel.assignmentResult.collectAsState()
-    val callbacks =
-        UserManagementTopSectionsCallbacks(
-            onSearchChange = states.onSearchQueryChange,
-            onShowCreateUser = states.onShowCreateUserChange,
-            onLoadUsers = viewModel::loadUsers,
-            onLoadBranches = viewModel::loadBranches,
-            onBranchSelected = states.onSelectedBranchIdChange,
-            onResetAdministration = branchViewModel::resetAdministrationState,
-            onShowCreateBranch = states.onShowCreateBranchChange,
-            onAssignmentBranchChange = states.onAssignmentBranchChange,
-            onShowAssignDialog = states.onShowAssignDialogChange,
-            selectedBranch = derived.selectedBranch,
-            assignmentResult = assignmentResult,
-            removeAssignmentTarget = states.removeAssignmentTarget,
-            showAssignDialog = states.showAssignUserDialog,
-        )
-    val actions = userManagementTopSectionsActions(users, heldList != null, mutationsDisabled, callbacks)
-    UserManagementTopSections(
-        searchQuery = states.searchQuery,
-        branches = branches,
-        selectedBranchId = states.selectedBranchId,
-        selectedBranch = derived.selectedBranch,
-        actions = actions,
-    )
-}
-
-/**
  * Mutations-disabled gate hoisted out of [UserManagementScreen] for the #462 LongMethod
  * burn-down. Lives here (not Header.kt) because Header.kt sits at the detekt file-function
  * wall (10/11) — Overlays.kt has fresh budget. Self-sufficient: collects the in-flight plus
@@ -350,42 +90,9 @@ internal fun userManagementMutationsDisabled(
 }
 
 /**
- * List/branch derivations hoisted out of [UserManagementScreen] for the #462 LongMethod
- * burn-down. Lives here (not Header.kt) because Header.kt sits at the detekt
- * file-function wall (10/11) — Overlays.kt has fresh budget. Self-sufficient: collects
- * the held list + branches itself (duplicate StateFlow subscriptions are cheap —
- * LoginNoticeEffect precedent) so the Screen keeps one slim call; remember keys and the
- * selected-branch filter stay verbatim. 3 params so it stays LongParameterList-clean
- * outside the LPL-excluded Screen file.
- */
-@Composable
-internal fun rememberUserManagementDerived(
-    viewModel: UserViewModel,
-    searchQuery: String,
-    selectedBranchId: String?,
-): UserManagementDerived {
-    val heldList by viewModel.freshestUsers.collectAsState()
-    val branches by viewModel.branches.collectAsState()
-    val loadedUsers = heldList.orEmpty()
-    val filteredUsers = remember(loadedUsers, searchQuery) { filterUsers(loadedUsers, searchQuery) }
-    val loadedBranches = (branches as? UiState.Success<List<BranchResponse>>)?.data.orEmpty()
-    val selectedBranch = loadedBranches.firstOrNull { it.id == selectedBranchId }
-    val slotRows =
-        remember(loadedUsers, selectedBranchId, selectedBranch) {
-            if (selectedBranch == null) emptyList() else slotOrderForBranch(loadedUsers, selectedBranch.id)
-        }
-    return UserManagementDerived(
-        filteredUsers = filteredUsers,
-        selectedBranch = selectedBranch,
-        slotRows = slotRows,
-        selectedBranchName = selectedBranch?.name,
-    )
-}
-
-/**
  * Dialog + UI states hoisted out of [UserManagementScreen] for the #462 LongMethod
  * burn-down. Lives here (not Header.kt) because Header.kt sits at the detekt
- * file-function wall (10/11) — Overlays.kt has fresh budget. Owns the 11
+ * file-function wall (10/11) — Overlays.kt has fresh budget. Owns the dialog + UI
  * remember/rememberSaveable states verbatim (incl. custom Savers) so the Screen keeps
  * one slim call; values + single-line setters ride [UserManagementScreenStates]
  * (data class so LongParameterList/TooManyFunctions-free). Unconditional call
@@ -395,7 +102,6 @@ internal fun rememberUserManagementDerived(
 internal fun rememberUserManagementScreenStates(): UserManagementScreenStates {
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedBranchId by rememberSaveable { mutableStateOf<String?>(null) }
-    var expandedIds by remember { mutableStateOf(emptySet<String>()) }
     var deactivateTarget by remember { mutableStateOf<UserSummaryResponse?>(null) }
     var slotEditTarget by
         rememberSaveable(stateSaver = SlotEditTargetSaver) {
@@ -417,8 +123,6 @@ internal fun rememberUserManagementScreenStates(): UserManagementScreenStates {
         onSearchQueryChange = { searchQuery = it },
         selectedBranchId = selectedBranchId,
         onSelectedBranchIdChange = { selectedBranchId = it },
-        expandedIds = expandedIds,
-        onExpandedIdsChange = { expandedIds = it },
         deactivateTarget = deactivateTarget,
         onDeactivateTargetChange = { deactivateTarget = it },
         slotEditTarget = slotEditTarget,

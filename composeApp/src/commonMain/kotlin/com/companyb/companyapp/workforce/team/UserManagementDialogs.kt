@@ -83,71 +83,6 @@ internal data class SlotDialogOptions(
 )
 
 /**
- * Callbacks + gates for [UserManagementHeader] (the header lives in its own file under the
- * #462 file-function budget split; the actions object keeps its signature
- * LongParameterList-clean — RoleEditActions precedent).
- */
-internal data class UserManagementHeaderActions(
-    val onInvite: () -> Unit,
-    val onRefresh: () -> Unit,
-    val inviteEnabled: Boolean,
-    val refreshEnabled: Boolean,
-)
-
-/**
- * Callbacks + gates for [UserManagementBranchAdmin] (#462 LongMethod burn — 2nd fn in
- * UserManagementHeader.kt, which has fresh file-function budget while UserManagementScreen.kt
- * sits at the wall; actions object keeps the host LongParameterList-clean).
- */
-internal data class UserManagementBranchAdminActions(
-    val onBranchSelected: (String?) -> Unit,
-    val onRetryBranches: () -> Unit,
-    val onCreateBranch: () -> Unit,
-    val onAssign: () -> Unit,
-    val pickerDisabled: Boolean,
-    val createEnabled: Boolean,
-    val assignEnabled: Boolean,
-    val assignmentResult: UiState<AssignmentResponse>,
-    val removeAssignmentTarget: AssignmentRemovalTarget?,
-    val showAssignDialog: Boolean,
-)
-
-/**
- * Callbacks + gates for [UserManagementUserRowHost] (#462 LongMethod burn — 3rd fn in
- * UserManagementHeader.kt, which has fresh file-function budget while UserManagementScreen.kt
- * sits at the wall; actions object keeps the host LongParameterList-clean). The row-error
- * filter derives inside the host so the Screen call site stays lean.
- */
-internal data class UserManagementUserRowActions(
-    val currentUserId: String?,
-    val mutationsDisabled: Boolean,
-    val selectedBranchId: String?,
-    val actionErrors: Map<String, String>,
-    val onToggleExpanded: (String) -> Unit,
-    val onDeactivate: (UserSummaryResponse) -> Unit,
-    val onReactivate: (String) -> Unit,
-    val onEditRoles: (UserSummaryResponse) -> Unit,
-    val onEditSlot: (UserSummaryResponse, UserAssignmentResponse) -> Unit,
-    val onRemoveAssignment: (UserSummaryResponse, UserAssignmentResponse) -> Unit,
-)
-
-/**
- * Single-line state setters behind the row-actions construction (#462 LongMethod burn —
- * the Screen builds this inline while [userManagementUserRowActions] owns the multi-line
- * toggle/target-construction bodies; data class so LongParameterList/TooManyFunctions-free).
- */
-internal data class UserManagementUserRowCallbacks(
-    val expandedIds: Set<String>,
-    val onExpandedIdsChange: (Set<String>) -> Unit,
-    val onDeactivateTarget: (UserSummaryResponse?) -> Unit,
-    val onRoleEditTarget: (UserSummaryResponse?) -> Unit,
-    val onSlotEditTarget: (SlotEditTarget?) -> Unit,
-    val onRemoveTarget: (AssignmentRemovalTarget?) -> Unit,
-    val onReactivate: (String) -> Unit,
-    val onResetAdministration: () -> Unit,
-)
-
-/**
  * Callbacks + gates for [UserManagementSlotOrderItem] (#462 LongMethod burn — 4th fn in
  * UserManagementHeader.kt, which has fresh file-function budget while UserManagementScreen.kt
  * sits at the wall; actions object keeps the host LongParameterList-clean). The slot-card
@@ -158,87 +93,6 @@ internal data class UserManagementSlotOrderActions(
     val actionErrors: Map<String, String>,
     val onSwap: (String, String) -> Unit,
     val onEditSlot: (SlotEditTarget) -> Unit,
-)
-
-/**
- * Callbacks + gates for [UserManagementTopSections] (#462 LongMethod burn — 10th fn in
- * UserManagementHeader.kt, the last safe slot while UserManagementScreen.kt sits at the
- * wall; actions object keeps the host LongParameterList-clean).
- */
-internal data class UserManagementTopSectionsActions(
-    val searchEnabled: Boolean,
-    val onSearchChange: (String) -> Unit,
-    val onInvite: () -> Unit,
-    val onRefresh: () -> Unit,
-    val inviteEnabled: Boolean,
-    val refreshEnabled: Boolean,
-    val onBranchSelected: (String?) -> Unit,
-    val onRetryBranches: () -> Unit,
-    val onCreateBranch: () -> Unit,
-    val onAssign: () -> Unit,
-    val pickerDisabled: Boolean,
-    val createEnabled: Boolean,
-    val assignEnabled: Boolean,
-    val assignmentResult: UiState<AssignmentResponse>,
-    val removeAssignmentTarget: AssignmentRemovalTarget?,
-    val showAssignDialog: Boolean,
-)
-
-/**
- * Single-line setters + raw dialog states behind the top-sections construction (same #462
- * hoist — the Screen passes these plus method refs while
- * [userManagementTopSectionsActions] owns the derivations and the multi-line
- * refresh/create/assign bodies; data class so LPL/TMF-free).
- */
-internal data class UserManagementTopSectionsCallbacks(
-    val onSearchChange: (String) -> Unit,
-    val onShowCreateUser: (Boolean) -> Unit,
-    val onLoadUsers: () -> Unit,
-    val onLoadBranches: () -> Unit,
-    val onBranchSelected: (String?) -> Unit,
-    val onResetAdministration: () -> Unit,
-    val onShowCreateBranch: (Boolean) -> Unit,
-    val onAssignmentBranchChange: (BranchResponse?) -> Unit,
-    val onShowAssignDialog: (Boolean) -> Unit,
-    val selectedBranch: BranchResponse?,
-    val assignmentResult: UiState<AssignmentResponse>,
-    val removeAssignmentTarget: AssignmentRemovalTarget?,
-    val showAssignDialog: Boolean,
-)
-
-/**
- * Callbacks + gates for the user-list region ([UserManagementUserList] in
- * UserManagementOverlays.kt — #462 LongMethod burn; the LazyColumn + status-when moves
- * there because UserManagementScreen.kt sits at the detekt file-function wall).
- * The slot-order swap lambda is owned by the host (the Screen passes the
- * `swapSlots` method ref); single-line setters + derivations ride here so the call site
- * stays lean (data class so LongParameterList/TooManyFunctions-free).
- */
-internal data class UserManagementUserListActions(
-    val selectedBranchName: String,
-    val slotRows: List<UserSlotRow>,
-    val mutationsDisabled: Boolean,
-    val searchQuery: String,
-    val expandedIds: Set<String>,
-    val userRowActions: UserManagementUserRowActions,
-    val actionErrors: Map<String, String>,
-    val onSwapSlots: (String, String, String) -> Unit,
-    val onEditSlotTarget: (SlotEditTarget) -> Unit,
-    val onRetry: () -> Unit,
-)
-
-/**
- * Derived list/branch selections for [UserManagementScreen] (#462 LongMethod burn —
- * the Screen keeps one slim `rememberUserManagementDerived` call while this holder
- * carries the filtered rows + branch + slot-order derivations; data class so
- * LongParameterList/TooManyFunctions-free, lives here with the other UserManagement
- * holders — MatchingDeclaration precedent).
- */
-internal data class UserManagementDerived(
-    val filteredUsers: List<UserSummaryResponse>,
-    val selectedBranch: BranchResponse?,
-    val slotRows: List<UserSlotRow>,
-    val selectedBranchName: String?,
 )
 
 /**
@@ -253,8 +107,6 @@ internal data class UserManagementScreenStates(
     val onSearchQueryChange: (String) -> Unit,
     val selectedBranchId: String?,
     val onSelectedBranchIdChange: (String?) -> Unit,
-    val expandedIds: Set<String>,
-    val onExpandedIdsChange: (Set<String>) -> Unit,
     val deactivateTarget: UserSummaryResponse?,
     val onDeactivateTargetChange: (UserSummaryResponse?) -> Unit,
     val slotEditTarget: SlotEditTarget?,
@@ -283,6 +135,7 @@ internal data class UserManagementScreenStates(
 internal data class UserManagementMemberDialogsActions(
     val deactivateTarget: UserSummaryResponse?,
     val onDismissDeactivate: () -> Unit,
+    val onStatusDispatched: (String) -> Unit,
     val slotEditTarget: SlotEditTarget?,
     val onDismissSlotEdit: () -> Unit,
     val showCreateUserDialog: Boolean,
@@ -642,6 +495,7 @@ internal fun RoleEditDialog(
     rolesState: UiState<List<RoleResponse>>,
     mutationsDisabled: Boolean,
     actions: RoleEditActions,
+    errorMessage: String? = null,
 ) {
     val options = (rolesState as? UiState.Success<List<RoleResponse>>)?.data.orEmpty()
     var selected by remember(user.id, rolesState) {
@@ -667,6 +521,7 @@ internal fun RoleEditDialog(
                         options = options,
                         mutationsDisabled = mutationsDisabled,
                         selected = selected,
+                        errorMessage = errorMessage,
                     ),
                 onPick = { picked -> selected = picked },
                 onRetryRoles = actions.onRetryRoles,
@@ -693,6 +548,7 @@ private class RoleEditBodyState(
     val options: List<RoleResponse>,
     val mutationsDisabled: Boolean,
     val selected: Set<String>,
+    val errorMessage: String? = null,
 )
 
 @Composable
@@ -741,6 +597,14 @@ private fun RoleEditBody(
 
             else -> {
                 RoleOptionList(state.options, state.selected, !state.mutationsDisabled, onPick)
+                state.errorMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = Spacing.sm),
+                    )
+                }
             }
         }
     }
@@ -821,77 +685,6 @@ internal fun UserSlotOrderCard(
                     color = MaterialTheme.colorScheme.error,
                 )
             }
-        }
-    }
-}
-
-/**
- * Clickable user-row header (identity + roles line + status badge), hoisted out of [UserRow]
- * under #462 and moved here under the file-function budget split. The badge `when` folds into
- * the Text value arg to keep the helper well under 60.
- */
-@Composable
-internal fun UserRowHeader(
-    user: UserSummaryResponse,
-    onToggleExpanded: () -> Unit,
-) {
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onToggleExpanded)
-                .rowHover(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = user.displayName,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = user.username,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            // #345 — role names inline so admins spot unassigned/ONBOARDING users
-            // without expanding (the wire omits empty lists — the empty default renders
-            // the explicit "No roles" line).
-            Text(
-                text = if (user.roles.isEmpty()) "No roles" else user.roles.joinToString(", "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            user.deactivatedAt?.let {
-                Text(
-                    text = "deactivated ${formatRelativeTimestamp(it)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        Spacer(Modifier.width(Spacing.sm))
-        Surface(
-            shape = RoundedCornerShape(CornerRadius.sm),
-            color = MaterialTheme.colorScheme.secondary,
-        ) {
-            Text(
-                text =
-                    when (user.status) {
-                        UserStatus.ACTIVE -> "ACTIVE"
-                        UserStatus.INACTIVE -> "INACTIVE"
-                    },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                // Unknown statuses render raw — a long value must not inflate the clickable row
-                // (pass-2 P4 SOFT).
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.xxs),
-            )
         }
     }
 }

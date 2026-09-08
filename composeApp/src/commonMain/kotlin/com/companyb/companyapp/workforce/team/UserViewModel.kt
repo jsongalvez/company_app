@@ -289,13 +289,16 @@ class UserViewModel(
     // D3 — status flip (deactivate shows a confirmation dialog; reactivate is a direct row
     // action) → the existing PATCHes; the row flips in place. Self-deactivate is hidden on the
     // own row; a backend 400 would surface the inline error. Mirrors #133's idempotent pair.
+    // #681 — returns the dispatch verdict so callers can retain their target when the
+    // mutation is skipped (the Loading/in-flight guard): a retained dialog beats a
+    // silent loss.
     fun setUserStatus(
         userId: String,
         status: UserStatus,
-    ) {
+    ): Boolean {
         when (status) {
             UserStatus.INACTIVE -> {
-                runMutation(
+                return runMutation(
                     MutationRequest(
                         key = "deactivate:$userId",
                         operation = "deactivateUser",
@@ -308,7 +311,7 @@ class UserViewModel(
             }
 
             UserStatus.ACTIVE -> {
-                runMutation(
+                return runMutation(
                     MutationRequest(
                         key = "reactivate:$userId",
                         operation = "reactivateUser",
@@ -372,9 +375,13 @@ class UserViewModel(
     // #345 — full-replace role bundle (PUT; backend idempotent). On 204 the row's roles update
     // in place from the request (the ADR-0022 pessimistic shape — no reload round-trip). 400
     // names the unknown role(s); SUPERUSER is never offered (#344).
+    // #681 — [afterSuccess] runs only on 2xx so the dialog can retain its draft on
+    // failure (the slot-edit precedent); the row-level inline error stays the
+    // failure surface.
     fun replaceRoles(
         userId: String,
         roleNames: List<String>,
+        afterSuccess: () -> Unit = {},
     ) {
         runMutation(
             MutationRequest(
@@ -386,7 +393,10 @@ class UserViewModel(
                         setBody(UserRoleReplaceRequest(roleNames))
                     }
                 },
-                onSuccess = { keptUsers.mutateUser(userId) { it.copy(roles = roleNames) } },
+                onSuccess = {
+                    keptUsers.mutateUser(userId) { it.copy(roles = roleNames) }
+                    afterSuccess()
+                },
                 responseMessage = { response ->
                     extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
                 },
