@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Script-level contract test for the hosted-CI repair watch (ref #627).
 # The daemon reconciles HEAD against hosted check-runs and mints at most one
-# repair ticket per red SHA — nothing is ever launched locally. Fixture gh
-# serves per-SHA check-runs payloads; no Gradle, database, or network.
+# repair ticket per red SHA — nothing is ever launched locally — but only when
+# WAYFINDER_CI_REPAIR=on. By default (ref #652) the watch is a no-op: no
+# polling, no tickets, no verdicts. Fixture gh serves per-SHA check-runs
+# payloads; no Gradle, database, or network.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -99,6 +101,7 @@ watch_once() {
     local output=$1
     env \
         OPENCODE_BIN="$WORK/bin/opencode" \
+        WAYFINDER_CI_REPAIR=on \
         WAYFINDER_GH_BIN="$WORK/bin/gh" \
         WAYFINDER_GH_REPO=fixture/repo \
         WAYFINDER_MAP_ISSUE=533 \
@@ -176,6 +179,7 @@ checks_for '{"total_count":1,"check_runs":[{"name":"quality","conclusion":"cance
 env \
     OPENCODE_BIN="$WORK/bin/opencode" \
     WAYFINDER_DRY_RUN=1 \
+    WAYFINDER_CI_REPAIR=on \
     WAYFINDER_GH_BIN="$WORK/bin/gh" \
     WAYFINDER_GH_REPO=fixture/repo \
     WAYFINDER_MAP_ISSUE=533 \
@@ -188,5 +192,26 @@ grep -q "DRY-RUN: hosted-CI verdict FAIL for HEAD $SHA_DRY" "$WORK/dry-run.log" 
 if grep -q 'issue create' "$WORK/gh-calls"; then die "dry-run wrote a repair ticket"; fi
 grep -q "ci_verdicts=$SHA_DRY" "$WATCH_REPO/.wayfinder-loop.state" 2>/dev/null &&
     die "dry-run recorded a verdict"
+
+# Disabled by default (ref #652): even a RED HEAD mints nothing and records
+# nothing unless WAYFINDER_CI_REPAIR=on.
+git -C "$WATCH_REPO" commit --allow-empty -q -m off-red-head
+SHA_OFF="$(git -C "$WATCH_REPO" rev-parse HEAD)"
+checks_for '{"total_count":1,"check_runs":[{"name":"quality","conclusion":"failure"}]}' "$SHA_OFF"
+: >"$WORK/gh-calls"
+env \
+    OPENCODE_BIN="$WORK/bin/opencode" \
+    WAYFINDER_GH_BIN="$WORK/bin/gh" \
+    WAYFINDER_GH_REPO=fixture/repo \
+    WAYFINDER_MAP_ISSUE=533 \
+    WAYFINDER_FRONTIER_ISSUE=901 \
+    GH_CALLS="$WORK/gh-calls" \
+    WORK_FIXTURES="$WORK" \
+    "$WATCH_LOOP" --ci-watch-once >"$WORK/watch-off.log" 2>&1
+no_writes
+grep -q "ci_verdicts=$SHA_OFF" "$WATCH_REPO/.wayfinder-loop.state" 2>/dev/null &&
+    die "disabled watch recorded a verdict"
+grep -q "ci_repair_issues=$SHA_OFF" "$WATCH_REPO/.wayfinder-loop.state" 2>/dev/null &&
+    die "disabled watch recorded a repair mapping"
 
 echo "test-wayfinder-ci-watch: OK"

@@ -30,9 +30,11 @@ seen-doc fingerprints, retries, hosted-CI verdict/repair mappings),
 - The daemon never stages, commits, or stashes — worktree hygiene belongs to
   the sessions.
 
-## Hosted-CI repair watch (ref #627; replaces the retired local-CI watchdog #577)
+## Hosted-CI repair watch (ref #627; replaces the retired local-CI watchdog #577) — DISABLED by default (ref #652)
 
-The daemon owns the hosted verification watch. On its normal session/doc ticks
+The watch is off: `WAYFINDER_CI_REPAIR` defaults to `off`, so the daemon performs no hosted check-runs polling and mints no repair tickets. Session-start CI reconciliation (root `AGENTS.md`, "Performance") is the repair signal — a RED HEAD is repaired first by the session that observes it. Set `WAYFINDER_CI_REPAIR=on` in the daemon environment to restore the reconciling behavior described below.
+
+When enabled, the daemon owns the hosted verification watch. On its normal session/doc ticks
 — at most every `WAYFINDER_CI_WATCH_SECS` (default 300s) — it reconciles
 current HEAD against hosted check-runs; active workers never poll hosted CI
 themselves, and nothing is ever launched locally. The verdict predicate

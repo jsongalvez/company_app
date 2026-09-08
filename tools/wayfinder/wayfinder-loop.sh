@@ -21,6 +21,8 @@
 #   WAYFINDER_STALL_SECS   no-progress zombie threshold in seconds (default 540 = old WAIT_SECS×STALL_SLICES)
 #   WAYFINDER_DRY_RUN      non-empty = log transitions, never spawn
 #   WAYFINDER_CI_WATCH_SECS hosted check-runs poll interval (default 300)
+#   WAYFINDER_CI_REPAIR    hosted-CI repair-ticket watch on/off (default off;
+#                          session-start CI reconciliation is the repair signal)
 #   WAYFINDER_GH_BIN       gh executable used for red-verdict tracker writes
 #   WAYFINDER_GH_REPO      repository for tracker writes (default from origin)
 #   WAYFINDER_MAP_ISSUE    map whose frontier the repair ticket blocks (default 533)
@@ -38,10 +40,16 @@ STALL_SECS="${WAYFINDER_STALL_SECS:-540}"
 GH_BIN="${WAYFINDER_GH_BIN:-$(command -v gh || true)}"
 MAP_ISSUE="${WAYFINDER_MAP_ISSUE:-533}"
 GH_REPO="${WAYFINDER_GH_REPO:-}"
-# Hosted-CI repair watch (ref #627): the daemon reconciles HEAD against hosted
-# check-runs — no local sweep is ever launched. Throttle keeps the 5s supervise
-# tick from hammering the API; the one-shot probe bypasses it.
+# Hosted-CI repair watch (ref #627) — DISABLED by default (ref #652): the
+# repair tickets it minted outlived their maps as unclaimable orphans while
+# session-start CI reconciliation already carries the RED-HEAD repair-first
+# signal. With WAYFINDER_CI_REPAIR=off (the default) ensure_ci_watch is a
+# no-op: no check-runs polling, no tickets, no state writes. Set
+# WAYFINDER_CI_REPAIR=on to restore the reconciling behavior below — no local
+# sweep is ever launched. Throttle keeps the 5s supervise tick from hammering
+# the API; the one-shot probe bypasses it.
 CI_WATCH_SECS="${WAYFINDER_CI_WATCH_SECS:-300}"
+CI_REPAIR_ENABLED="${WAYFINDER_CI_REPAIR:-off}"
 ci_last_poll=0
 REPAIR_MARKER="wayfinder-ci-repair"
 # Free-disk floor in GiB — below it the chain pings instead of silently wedging
@@ -529,6 +537,7 @@ ci_process_verdict() {
 # used by the script-level contract test bypasses the throttle.
 ensure_ci_watch() {
   local head seen now repo verdict failing
+  [ "$CI_REPAIR_ENABLED" = "on" ] || return 0
   head="$(ci_current_head)"
   valid_sha "$head" || {
     [ -n "$head" ] && log "CI watcher could not use non-SHA HEAD: $head"

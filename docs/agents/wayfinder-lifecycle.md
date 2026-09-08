@@ -119,8 +119,9 @@ Before any exit the worktree is clean: commit coherent slices normally
 pop only the stash their packet names — no unrelated stash is touched.
 
 After the packet is recorded and the worktree is clean, stop: hosted CI owns
-broad verification asynchronously and the daemon's repair watch consumes its
-verdict — no local exit sweep exists (the local-CI runner is retired, ref #627).
+broad verification asynchronously and each fresh session's start-of-session
+reconciliation consumes its verdict (the daemon repair watch is disabled, ref #652)
+— no local exit sweep exists (the local-CI runner is retired, ref #627).
 
 ## Negative controls
 
