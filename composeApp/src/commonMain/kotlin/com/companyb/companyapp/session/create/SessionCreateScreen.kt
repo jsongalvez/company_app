@@ -1,5 +1,3 @@
-@file:Suppress("TooManyFunctions")
-
 package com.companyb.companyapp.session.create
 
 import androidx.compose.foundation.layout.Arrangement
@@ -66,7 +64,8 @@ import com.companyb.companyapp.util.logWarn
  * practitioner explicitly continues without the failed links.
  */
 @Composable
-@Suppress("LongParameterList")
+// #594 7-param entry stays whole (declarative-UI signature; #535 no arbitrary DTO).
+@Suppress("LongParameterList") // #594
 fun SessionCreateScreen(
     viewModel: SessionCreateViewModel,
     clientViewModel: ClientViewModel,

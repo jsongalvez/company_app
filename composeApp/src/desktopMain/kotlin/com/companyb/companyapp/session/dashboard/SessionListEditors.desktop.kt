@@ -388,7 +388,6 @@ internal fun EditStatusLine(
 }
 
 /** Compact pencil glyph — Canvas-drawn (no material-icons dependency, the #107/#142 precedent). */
-@Suppress("MagicNumber")
 @Composable
 private fun EditPencil(
     tint: Color,
@@ -397,15 +396,15 @@ private fun EditPencil(
     Canvas(
         modifier =
             modifier
-                .size(12.dp)
-                .rotate(-45f),
+                .size(PENCIL_SIZE)
+                .rotate(PENCIL_TILT_DEGREES),
     ) {
         val w = size.width
         val h = size.height
-        val bodyH = h * 0.30f
+        val bodyH = h * PENCIL_BODY_RATIO
         val bodyTop = (h - bodyH) / 2f
-        val tipLen = w * 0.25f
-        val eraserLen = w * 0.15f
+        val tipLen = w * PENCIL_TIP_RATIO
+        val eraserLen = w * PENCIL_ERASER_RATIO
 
         drawRect(
             color = tint,
@@ -434,3 +433,10 @@ private fun EditPencil(
 
 private val EDIT_SPINNER_SIZE = 12.dp
 private val EDIT_SPINNER_STROKE = 2.dp
+
+// #594 pencil-glyph geometry (MagicNumber burn-down: named proportions, not bare literals).
+private val PENCIL_SIZE = 12.dp
+private const val PENCIL_TILT_DEGREES = -45f
+private const val PENCIL_BODY_RATIO = 0.30f
+private const val PENCIL_TIP_RATIO = 0.25f
+private const val PENCIL_ERASER_RATIO = 0.15f

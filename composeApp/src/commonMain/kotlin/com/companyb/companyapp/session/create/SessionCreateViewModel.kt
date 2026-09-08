@@ -56,7 +56,6 @@ interface SessionClientPickerApi : ClientPickerApi
  * narrow boundary (picker + form + submit); splitting it would scatter the contract
  * the screens depend on. Any further growth must split, not suppress again.
  */
-@Suppress("TooManyFunctions")
 interface SessionCreateFormApi : SessionClientPickerApi {
     val preview: StateFlow<UiState<SessionPreviewResponse>>
     val concerns: StateFlow<UiState<List<ConcernResponse>>>
@@ -112,7 +111,6 @@ fun isSessionCreateLocked(result: UiState<*>): Boolean = result is UiState.Loadi
  * other entry-scoped screen bakes in.
  */
 @OptIn(ExperimentalUuidApi::class)
-@Suppress("TooManyFunctions")
 class SessionCreateViewModel(
     private val apiClient: ApiClient,
     private val branchId: String,

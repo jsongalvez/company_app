@@ -836,15 +836,13 @@ style:
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt' #465 frozen #563 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/catalog/ProductCatalogScreen.kt' #465 frozen #562 retarget (was ui/screen)
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailReceipt.kt' #465 frozen #561 retarget
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateLayout.kt' #465 frozen #557 retarget
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateScreen.kt' #465 frozen #557 retarget
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/dashboard/SessionDashboardScreen.kt' #465 frozen #556 retarget
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateLayout.kt' #465 frozen #557 retarget #594 ticketed MatchingDeclarationName
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateScreen.kt' #465 frozen #557 retarget #594 ticketed LongParameterList
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/dashboard/SessionDashboardScreen.kt' #465 frozen #556 retarget #594 ticketed LongParameterList+UnusedParameter
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserManagementScreen.kt' #465 frozen #563 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/async/ApiCallHandler.kt' #465 frozen #554 retarget
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/finance/FinanceReportsViewModel.kt' #465 frozen #560 retarget (was FinanceReportDayEditOps)
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/InventoryMutationPolicy.kt' #465 frozen #562 retarget (was viewmodel)
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateViewModel.kt' #465 frozen #557 retarget
-      - '**/composeApp/src/desktopMain/kotlin/com/companyb/companyapp/session/dashboard/SessionListEditors.desktop.kt' #465 frozen #556 retarget
       - '**/composeApp/src/desktopTest/kotlin/com/companyb/companyapp/commerce/stock/InventoryRowPresentationTest.kt' #465 frozen #562 retarget (was ui/screen)
       - '**/shared/src/commonMain/kotlin/com/companyb/companyapp/api/ApiRoutes.kt' #465 frozen
   ForbiddenVoid:

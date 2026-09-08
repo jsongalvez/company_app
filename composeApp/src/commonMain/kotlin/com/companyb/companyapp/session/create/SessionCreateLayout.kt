@@ -1,4 +1,4 @@
-@file:Suppress("MatchingDeclarationName")
+@file:Suppress("MatchingDeclarationName") // #594 multi-decl layout owner, stays cohesive
 
 package com.companyb.companyapp.session.create
 

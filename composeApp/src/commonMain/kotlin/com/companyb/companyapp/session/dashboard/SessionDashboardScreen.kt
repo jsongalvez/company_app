@@ -87,7 +87,7 @@ internal expect fun DashboardEmptyState(
  * cover). The #95 platform-split precedent.
  */
 @Composable
-@Suppress("UnusedParameter") // #150 mobile text-only — onRefresh kept for DashboardEmptyState symmetry
+@Suppress("UnusedParameter") // #150 mobile text-only; #594 keep for DashboardEmptyState symmetry
 internal fun MobileDashboardEmptyState(
     selectedBranchName: String?,
     onRefresh: () -> Unit,
@@ -144,7 +144,7 @@ data class DashboardSelection(
  * 7 params: the two feature-content slots ride the #351 slot pattern (relief access,
  * #404 attendance) — grouping them would churn both hosts for no clarity gain.
  */
-@Suppress("LongParameterList")
+@Suppress("LongParameterList") // #594 7-param slots ride the #351 pattern, grouping churns hosts
 @Composable
 fun SessionDashboardScreen(
     viewModel: SessionDashboardViewModel,
