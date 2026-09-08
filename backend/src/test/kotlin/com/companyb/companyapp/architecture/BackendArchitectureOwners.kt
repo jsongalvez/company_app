@@ -50,6 +50,12 @@ import java.nio.file.Path
  * declaration/import analysis uses Kotlin PSI via Detekt's parser (#572);
  * the previous hand-written comment/string lexer, brace matcher and
  * fun-declaration regexes are gone.
+ *
+ * #609: transaction-count inventories are retired. Stores prove
+ * read-only wrappers structurally (InTransaction functions open no
+ * transaction; store-owned transactions carry no writes) and commands prove
+ * exactly-one ownership per required entrypoint ([requiredCommandTransactions]);
+ * comments and new read wrappers never alter a budget.
  */
 object BackendArchitectureOwners {
     const val BASE_PACKAGE = "com.companyb.companyapp"
@@ -346,21 +352,8 @@ object BackendArchitectureOwners {
         return file
             .collect<KtCallExpression>()
             .filter { isCallTo(it, TABLE_WRITE_OPS) }
-            .flatMap { call ->
-                val receiver =
-                    (call.parent as? KtDotQualifiedExpression)?.receiverExpression ?: return@flatMap emptyList()
-                val direct =
-                    when (receiver) {
-                        is KtSimpleNameExpression -> receiver.getReferencedName()
-                        is KtDotQualifiedExpression -> receiver.text.substringAfterLast('.').substringBefore('<')
-                        else -> null
-                    }?.let { resolveTable(it, imports, visibleTables, outermostQualifiedText(receiver)) }
-                if (direct != null) {
-                    listOf("$direct.${calleeName(call)}")
-                } else {
-                    receiverTables(receiver, imports, visibleTables).map { "$it.${calleeName(call)}" }
-                }
-            }.distinct()
+            .flatMap { resolveWriteOp(it, imports, visibleTables) }
+            .distinct()
     }
 
     private fun receiverTables(
@@ -449,6 +442,169 @@ object BackendArchitectureOwners {
             .collect<KtNamedFunction>()
             .filter { "InTransaction" in (it.name ?: "") && ownTransactionCalls(it) > 0 }
             .mapNotNull { it.name }
+
+    /** One required command-owned transaction: [file] must define [function] with exactly one block (#609). */
+    data class CommandTransaction(
+        val file: String,
+        val function: String,
+    )
+
+    /**
+     * Scoped entrypoint metadata for the required-transaction invariant (#609).
+     * Each listed command must own exactly one PSI transaction block; the
+     * at-most-one shape alone cannot prove a mutation runs in a transaction.
+     * Behavior atomicity (rollback/audit tests) stays authoritative alongside this pin.
+     */
+    val requiredCommandTransactions: Set<CommandTransaction> =
+        setOf(
+            CommandTransaction("branch/BranchService.kt", "create"),
+            CommandTransaction("commerce/ProductCategoryService.kt", "create"),
+            CommandTransaction("commerce/ProductService.kt", "create"),
+            CommandTransaction("commerce/ProductService.kt", "update"),
+            CommandTransaction("client/ClientService.kt", "create"),
+            CommandTransaction("client/ClientService.kt", "update"),
+            CommandTransaction("client/ClientService.kt", "anonymize"),
+            CommandTransaction("finance/AllowanceService.kt", "create"),
+            CommandTransaction("finance/CompensationService.kt", "create"),
+            CommandTransaction("finance/CompensationService.kt", "update"),
+            CommandTransaction("finance/ExpenseService.kt", "create"),
+            CommandTransaction("finance/ExpenseService.kt", "update"),
+            CommandTransaction("finance/ExpenseService.kt", "softDelete"),
+            CommandTransaction("finance/ExpenseService.kt", "restore"),
+            CommandTransaction("session/SessionService.kt", "create"),
+            CommandTransaction("session/SessionService.kt", "updateStatus"),
+            CommandTransaction("session/SessionService.kt", "updateFinalPrice"),
+            CommandTransaction("session/SessionService.kt", "voidSession"),
+            CommandTransaction("session/SessionService.kt", "unvoidSession"),
+            CommandTransaction("session/SessionPractitionerService.kt", "addPractitioner"),
+            CommandTransaction("session/SessionPractitionerService.kt", "updatePractitionerRemarks"),
+            CommandTransaction("session/SessionPractitionerService.kt", "removePractitioner"),
+            CommandTransaction("session/SessionConcernService.kt", "addToSession"),
+            CommandTransaction("session/SessionConcernService.kt", "removeFromSession"),
+            CommandTransaction("session/SessionConcernService.kt", "promoteConcern"),
+            CommandTransaction("session/SessionBaseRateService.kt", "setRate"),
+            CommandTransaction("identity/UserService.kt", "deactivate"),
+            CommandTransaction("identity/UserService.kt", "reactivate"),
+            CommandTransaction("workforce/UserBranchAssignmentService.kt", "create"),
+            CommandTransaction("workforce/UserBranchAssignmentService.kt", "remove"),
+            CommandTransaction("workforce/UserBranchAssignmentService.kt", "updateSlot"),
+            CommandTransaction("workforce/UserBranchAssignmentService.kt", "swapSlots"),
+            CommandTransaction("workforce/relief/ReliefAccessService.kt", "grantAccess"),
+            CommandTransaction("workforce/relief/ReliefAccessService.kt", "denyAccess"),
+            CommandTransaction("workforce/relief/ReliefAccessService.kt", "requestReliefAccess"),
+            CommandTransaction("workforce/relief/ReliefAccessService.kt", "cancelRequest"),
+            CommandTransaction("workforce/relief/ReliefInviteService.kt", "createInvite"),
+            CommandTransaction("workforce/relief/ReliefInviteService.kt", "acceptInvite"),
+            CommandTransaction("workforce/relief/ReliefInviteService.kt", "declineInvite"),
+            CommandTransaction("workforce/relief/ReliefInviteService.kt", "retractInvite"),
+            CommandTransaction("workforce/relief/ReliefInviteService.kt", "revokeInvite"),
+            CommandTransaction("workforce/relief/MedicalMissionDelegateService.kt", "assignDelegate"),
+            CommandTransaction("workforce/relief/MedicalMissionDelegateService.kt", "revokeDelegate"),
+            CommandTransaction("workforce/AttendanceService.kt", "clockIn"),
+            CommandTransaction("workforce/AttendanceService.kt", "clockOut"),
+            CommandTransaction("commerce/ProductSaleService.kt", "sell"),
+            CommandTransaction("commerce/InventoryService.kt", "recordMovement"),
+            CommandTransaction("commerce/InventoryService.kt", "ensureCard"),
+            CommandTransaction("commission/CommissionService.kt", "createManualInclusion"),
+            CommandTransaction("commission/CommissionService.kt", "recalculate"),
+            CommandTransaction("remittance/RemittanceService.kt", "submit"),
+            CommandTransaction("remittance/RemittanceService.kt", "createDraft"),
+            CommandTransaction("remittance/RemittanceService.kt", "undoAt"),
+            CommandTransaction("remittance/RemittanceService.kt", "updateHeader"),
+            CommandTransaction("remittance/RemittanceService.kt", "addLine"),
+            CommandTransaction("remittance/RemittanceService.kt", "removeLine"),
+            CommandTransaction("remittance/RemittanceService.kt", "addDayBreakdown"),
+            CommandTransaction("remittance/RemittanceService.kt", "removeDayBreakdown"),
+        )
+
+    /**
+     * PSI transaction counts for every function named [functionName] in the file.
+     * Empty when the function is absent; nested functions never leak into the outer count.
+     */
+    fun transactionsInFunction(
+        file: KtFile,
+        functionName: String,
+    ): List<Int> =
+        file
+            .collect<KtNamedFunction>()
+            .filter { it.name == functionName }
+            .map(::ownTransactionCalls)
+
+    /**
+     * Store-owned transactions carrying writes (#609). Each entry is
+     * `function: Table.op`. Read wrappers (transaction without writes) stay
+     * legal in any number; InTransaction bodies already prove zero blocks
+     * via [inTransactionFunctionsWithNestedTransaction]. Scope matches
+     * [tableWriteOps] (table-receiver DML): batch-executable writes such as
+     * the ADR-0024 notification scheduler batch stay outside this shape, as
+     * they do for the generic write-ownership rule.
+     */
+    fun storeTransactionWriteMixing(
+        file: KtFile,
+        visibleTables: Set<String>,
+    ): List<String> {
+        val imports = ourTableImports(file)
+        return file
+            .collect<KtNamedFunction>()
+            .filter { ownTransactionCalls(it) > 0 }
+            .mapNotNull { function ->
+                val writes = writeOpsExcludingNested(function, imports, visibleTables)
+                writes.takeIf { it.isNotEmpty() }?.let { "${function.name}: ${it.joinToString()}" }
+            }
+    }
+
+    /** One intentional store-owned write transaction: [file] may write in [function]'s own block (#609). */
+    data class StoreWriteTransaction(
+        val file: String,
+        val function: String,
+    )
+
+    /**
+     * Recorded intentional store-owned writes (#609). Lazy `branch_day`
+     * bootstrap stays unaudited as mechanism/derived state (architecture §12);
+     * audit acknowledgment is read-state, not a domain mutation. Every other
+     * store-owned transaction stays read-only; remove the entry with the write.
+     */
+    val allowedStoreWriteTransactions: Set<StoreWriteTransaction> =
+        setOf(
+            StoreWriteTransaction("branchday/BranchDayRepository.kt", "resolveOrCreate"),
+            StoreWriteTransaction("audit/AuditLogStore.kt", "acknowledge"),
+        )
+
+    private fun writeOpsExcludingNested(
+        function: KtNamedFunction,
+        imports: Map<String, String>,
+        visibleTables: Set<String>,
+    ): List<String> {
+        val calls = mutableListOf<KtCallExpression>()
+
+        fun walk(element: PsiElement) {
+            if (element !== function && element is KtNamedFunction) return
+            if (element is KtCallExpression) calls.add(element)
+            element.children.forEach(::walk)
+        }
+        function.children.forEach(::walk)
+        return calls
+            .filter { isCallTo(it, TABLE_WRITE_OPS) }
+            .flatMap { resolveWriteOp(it, imports, visibleTables) }
+            .distinct()
+    }
+
+    private fun resolveWriteOp(
+        call: KtCallExpression,
+        imports: Map<String, String>,
+        visibleTables: Set<String>,
+    ): List<String> {
+        val receiver = (call.parent as? KtDotQualifiedExpression)?.receiverExpression ?: return emptyList()
+        val direct =
+            when (receiver) {
+                is KtSimpleNameExpression -> receiver.getReferencedName()
+                is KtDotQualifiedExpression -> receiver.text.substringAfterLast('.').substringBefore('<')
+                else -> null
+            }?.let { resolveTable(it, imports, visibleTables, outermostQualifiedText(receiver)) }
+        if (direct != null) return listOf("$direct.${calleeName(call)}")
+        return receiverTables(receiver, imports, visibleTables).map { "$it.${calleeName(call)}" }
+    }
 
     // ---- Cross-feature stores (generic; replaces the BranchDay-only check) ----
 

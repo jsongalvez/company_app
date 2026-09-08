@@ -26,13 +26,21 @@ import kotlin.test.assertTrue
  * completed feature layout, and resurrected legacy/shared paths fail the
  * classification closed (#607). The retired
  * BackendFeatureBoundaryArchitectureTest folder scopes and the BranchDay-only
- * store check are subsumed here; per-file transaction-count pins stay where
- * they guard exact wrapper budgets.
+ * store check are subsumed here; transaction-count inventories
+ * (Crud/Expense/Remittance/Attendance read-wrapper budgets, hand-parsed
+ * command bodies, declaration-presence pins) retired #609 in favor of the
+ * required-command and read-only-transaction invariants below.
  *
  * #608: persistence covers Tables and read-only mapped Views. Foreign mapping
  * reads need a recorded file-level projection grant even inside `internal`
  * types; FK declarations and `tableName` metadata need none; view writes fail
  * even for the owner; stale grants fail the tree.
+ *
+ * #609: comments and new read wrappers never alter a budget (PSI, per-function
+ * counts). Removing a required mutation transaction fails the required-command
+ * pin; detaching audit/recalculation fails the behavior atomicity suites
+ * (Expense/Remittance/Attendance/Commission/Crud); nested store transactions
+ * stay rejected.
  */
 class SemanticOwnershipArchitectureTest {
     private val sources: Map<String, String> by lazy { BackendArchitectureOwners.discover() }
@@ -204,6 +212,60 @@ class SemanticOwnershipArchitectureTest {
                 BackendArchitectureOwners.inTransactionFunctionsWithNestedTransaction(file).map { "$path: $it" }
             }
         assertTrue(offenders.isEmpty(), "stores must not nest transactions:\n${offenders.joinToString("\n")}")
+    }
+
+    @Test
+    fun `each required command owns exactly one transaction`() {
+        val required = BackendArchitectureOwners.requiredCommandTransactions
+        assertTrue(required.isNotEmpty(), "required-command metadata must not be empty")
+        val offenders =
+            required.mapNotNull { entry ->
+                val file = files[entry.file] ?: return@mapNotNull "${entry.file}: missing from tree"
+                val counts = BackendArchitectureOwners.transactionsInFunction(file, entry.function)
+                if (counts.size != 1) {
+                    "${entry.file}: ${entry.function} matches ${counts.size} functions, want 1"
+                } else if (counts.single() != 1) {
+                    "${entry.file}: ${entry.function} owns ${counts.single()} transactions, want 1"
+                } else {
+                    null
+                }
+            }
+        assertTrue(
+            offenders.isEmpty(),
+            "required commands must own exactly one transaction:\n${offenders.joinToString("\n")}",
+        )
+    }
+
+    @Test
+    fun `stores open transactions only for reads`() {
+        val allowed = BackendArchitectureOwners.allowedStoreWriteTransactions
+        for (entry in allowed) {
+            val file = files[entry.file] ?: error("recorded store write missing from tree: ${entry.file}")
+            val mixing = BackendArchitectureOwners.storeTransactionWriteMixing(file, treeTables)
+            assertTrue(
+                mixing.any { it.substringBefore(":") == entry.function },
+                "recorded store write no longer writes in a transaction (remove it): ${entry.file}: ${entry.function}",
+            )
+        }
+        val offenders =
+            files
+                .filter { (path, _) -> BackendArchitectureOwners.roleOf(path) == BackendArchitectureOwners.STORE }
+                .flatMap { (path, file) ->
+                    BackendArchitectureOwners
+                        .storeTransactionWriteMixing(file, treeTables)
+                        .map { "$path: $it" }
+                        .filter { line ->
+                            val function = line.substringAfter(": ").substringBefore(":")
+                            BackendArchitectureOwners.StoreWriteTransaction(
+                                path,
+                                function,
+                            ) !in allowed
+                        }
+                }
+        assertTrue(
+            offenders.isEmpty(),
+            "store-owned transactions must carry no writes:\n${offenders.joinToString("\n")}",
+        )
     }
 
     // ---- Feature table ownership (generic; replaces the BranchDay-only pin) ----
@@ -568,6 +630,97 @@ class SemanticOwnershipArchitectureTest {
         assertEquals(
             emptyList(),
             BackendArchitectureOwners.inTransactionFunctionsWithNestedTransaction(parse(generic)),
+        )
+    }
+
+    @Test
+    fun `fixture - required command counts ignore comments strings and nested helpers`() {
+        val commented =
+            """
+            package f
+            import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+            object Svc {
+                // transaction { this prose must not count }
+                /* transaction { block prose } */
+                fun save() {
+                    val note = "transaction { string lookalike }"
+                    transaction { 1 }
+                }
+            }
+            """.trimIndent()
+        assertEquals(listOf(1), BackendArchitectureOwners.transactionsInFunction(parse(commented), "save"))
+        val nestedHelper =
+            """
+            package f
+            import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+            object Svc {
+                fun outer() {
+                    fun inner() {
+                        transaction { 1 }
+                    }
+                    inner()
+                }
+            }
+            """.trimIndent()
+        assertEquals(listOf(0), BackendArchitectureOwners.transactionsInFunction(parse(nestedHelper), "outer"))
+        assertEquals(listOf(1), BackendArchitectureOwners.transactionsInFunction(parse(nestedHelper), "inner"))
+        assertEquals(
+            emptyList(),
+            BackendArchitectureOwners.transactionsInFunction(parse("package f\nfun a() = 1\n"), "missing"),
+        )
+    }
+
+    @Test
+    fun `fixture - store transactions with writes fail while read wrappers pass`() {
+        val readWrapper =
+            """
+            package f
+            import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+            import com.companyb.companyapp.commerce.WidgetTable
+            object WidgetRepository {
+                fun find(): Int = transaction { 1 }
+            }
+            """.trimIndent()
+        assertEquals(
+            emptyList(),
+            BackendArchitectureOwners.storeTransactionWriteMixing(parse(readWrapper), setOf("WidgetTable")),
+        )
+        val writeMixing =
+            """
+            package f
+            import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+            import com.companyb.companyapp.commerce.WidgetTable
+            object WidgetRepository {
+                fun evil() {
+                    transaction { WidgetTable.insert { } }
+                }
+            }
+            """.trimIndent()
+        assertEquals(
+            listOf("evil: WidgetTable.insert"),
+            BackendArchitectureOwners.storeTransactionWriteMixing(parse(writeMixing), setOf("WidgetTable")),
+        )
+        val nestedWriteStaysWithNested =
+            """
+            package f
+            import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+            import com.companyb.companyapp.commerce.WidgetTable
+            object WidgetRepository {
+                fun outer() {
+                    transaction { 1 }
+                    fun inner() {
+                        WidgetTable.insert { }
+                    }
+                    inner()
+                }
+            }
+            """.trimIndent()
+        assertEquals(
+            emptyList(),
+            BackendArchitectureOwners.storeTransactionWriteMixing(
+                parse(nestedWriteStaysWithNested),
+                setOf("WidgetTable"),
+            ),
         )
     }
 
