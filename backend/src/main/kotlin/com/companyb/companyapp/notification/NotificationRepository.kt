@@ -14,6 +14,7 @@ import org.jetbrains.exposed.v1.core.statements.BatchInsertStatement
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.statements.BatchInsertBlockingExecutable
+import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.OffsetDateTime
@@ -49,43 +50,47 @@ internal object NotificationRepository {
     // DO NOTHING). Appointment identity is session + target appointment date — a same-sweep
     // retry reuses the key while a genuinely later appointment gets a new one (#356: distinct
     // repeat events survive). Relief identity is event + source. Returns rows actually created.
-    fun insertBatch(params: List<NotificationCreateParams>): Int {
-        if (params.isEmpty()) return 0
-
-        return transaction {
-            // In-batch event identity: one command's broadcast writes one message per
-            // (occurrence, recipient) even when several events share the batch.
-            val seen = HashSet<Pair<String, UUID>>()
-            val fresh =
-                params.filter { candidate ->
-                    seen.add(dedupKeyFor(candidate) to candidate.userId)
-                }
-            if (fresh.isEmpty()) {
-                0
-            } else {
-                val statement =
-                    BatchInsertStatement(
-                        table = NotificationTable,
-                        ignore = true,
-                        shouldReturnGeneratedValues = false,
-                    )
-                fresh.forEach { candidate ->
-                    statement.addBatch()
-                    statement[NotificationTable.sessionId] = candidate.sessionId
-                    statement[NotificationTable.userId] = candidate.userId
-                    statement[NotificationTable.branchId] = candidate.branchId
-                    statement[NotificationTable.message] = candidate.message
-                    statement[NotificationTable.createdAt] = CurrentTimestampWithTimeZone
-                    statement[NotificationTable.eventType] = candidate.eventType
-                    statement[NotificationTable.sourceId] = candidate.sourceId
-                    statement[NotificationTable.targetDate] = candidate.targetDate
-                    statement[NotificationTable.dedupKey] = dedupKeyFor(candidate)
-                }
-                BatchInsertBlockingExecutable(statement).execute(this) ?: 0
-            }
+    fun insertBatch(params: List<NotificationCreateParams>): Int =
+        transaction {
+            insertBatchInTransaction(params)
         }.also {
             logger.info { "[INSERT-NOTIFICATIONS] created=$it candidates=${params.size}" }
         }
+
+    // Store operation for the owning command (ADR-0024, #602): runs on the caller's transaction
+    // and opens none. Notifications are system read-state, not a §12.1 covered table — no audit row.
+    fun insertBatchInTransaction(params: List<NotificationCreateParams>): Int {
+        if (params.isEmpty()) return 0
+
+        // In-batch event identity: one command's broadcast writes one message per
+        // (occurrence, recipient) even when several events share the batch.
+        val seen = HashSet<Pair<String, UUID>>()
+        val fresh =
+            params.filter { candidate ->
+                seen.add(dedupKeyFor(candidate) to candidate.userId)
+            }
+        if (fresh.isEmpty()) {
+            return 0
+        }
+        val statement =
+            BatchInsertStatement(
+                table = NotificationTable,
+                ignore = true,
+                shouldReturnGeneratedValues = false,
+            )
+        fresh.forEach { candidate ->
+            statement.addBatch()
+            statement[NotificationTable.sessionId] = candidate.sessionId
+            statement[NotificationTable.userId] = candidate.userId
+            statement[NotificationTable.branchId] = candidate.branchId
+            statement[NotificationTable.message] = candidate.message
+            statement[NotificationTable.createdAt] = CurrentTimestampWithTimeZone
+            statement[NotificationTable.eventType] = candidate.eventType
+            statement[NotificationTable.sourceId] = candidate.sourceId
+            statement[NotificationTable.targetDate] = candidate.targetDate
+            statement[NotificationTable.dedupKey] = dedupKeyFor(candidate)
+        }
+        return BatchInsertBlockingExecutable(statement).execute(TransactionManager.current()) ?: 0
     }
 
     /**

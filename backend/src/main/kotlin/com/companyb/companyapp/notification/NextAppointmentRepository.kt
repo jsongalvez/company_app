@@ -35,52 +35,58 @@ internal object NextAppointmentRepository {
 
     fun findUpcomingSessions(targetDate: LocalDate): List<UpcomingSession> =
         transaction {
-            SessionTable
-                .leftJoin(
-                    ActiveSessionVoidsView,
-                    { SessionTable.id },
-                    { ActiveSessionVoidsView.sessionId },
-                ).join(
-                    BranchDayTable,
-                    JoinType.INNER,
-                    SessionTable.branchDayId,
-                    BranchDayTable.id,
-                ).selectAll()
-                .where {
-                    (SessionTable.sessionStatus eq SessionStatus.COMPLETED) and
-                        (SessionTable.nextAppointmentDate eq targetDate) and
-                        (ActiveSessionVoidsView.sessionId.isNull())
-                }.map { row ->
-                    UpcomingSession(
-                        sessionId = row[SessionTable.id],
-                        branchId = row[BranchDayTable.branchId],
-                    )
-                }
+            findUpcomingSessionsInTransaction(targetDate)
         }
+
+    fun findUpcomingSessionsInTransaction(targetDate: LocalDate): List<UpcomingSession> =
+        SessionTable
+            .leftJoin(
+                ActiveSessionVoidsView,
+                { SessionTable.id },
+                { ActiveSessionVoidsView.sessionId },
+            ).join(
+                BranchDayTable,
+                JoinType.INNER,
+                SessionTable.branchDayId,
+                BranchDayTable.id,
+            ).selectAll()
+            .where {
+                (SessionTable.sessionStatus eq SessionStatus.COMPLETED) and
+                    (SessionTable.nextAppointmentDate eq targetDate) and
+                    (ActiveSessionVoidsView.sessionId.isNull())
+            }.map { row ->
+                UpcomingSession(
+                    sessionId = row[SessionTable.id],
+                    branchId = row[BranchDayTable.branchId],
+                )
+            }
 
     fun findActiveCoordinatorsForBranches(branchIds: Collection<UUID>): Map<UUID, List<UUID>> =
         transaction {
-            UserBranchAssignmentTable
-                .innerJoin(
-                    ActiveUserCapabilitiesView,
-                    { UserBranchAssignmentTable.userId },
-                    { ActiveUserCapabilitiesView.userId },
-                ).innerJoin(
-                    CapabilityTable,
-                    { ActiveUserCapabilitiesView.capabilityId },
-                    { CapabilityTable.id },
-                ).select(
-                    UserBranchAssignmentTable.userId,
-                    UserBranchAssignmentTable.branchId,
-                ).where {
-                    (UserBranchAssignmentTable.branchId inList branchIds) and
-                        (UserBranchAssignmentTable.endedAt.isNull()) and
-                        (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH) and
-                        (ActiveUserCapabilitiesView.contextId eq UserBranchAssignmentTable.branchId) and
-                        (CapabilityTable.code eq CapabilityCodes.RECEIVE_NEXT_APPOINTMENT_ALERTS)
-                }.withDistinct()
-                .map { row ->
-                    row[UserBranchAssignmentTable.branchId] to row[UserBranchAssignmentTable.userId]
-                }.groupBy({ it.first }, { it.second })
+            findActiveCoordinatorsForBranchesInTransaction(branchIds)
         }
+
+    fun findActiveCoordinatorsForBranchesInTransaction(branchIds: Collection<UUID>): Map<UUID, List<UUID>> =
+        UserBranchAssignmentTable
+            .innerJoin(
+                ActiveUserCapabilitiesView,
+                { UserBranchAssignmentTable.userId },
+                { ActiveUserCapabilitiesView.userId },
+            ).innerJoin(
+                CapabilityTable,
+                { ActiveUserCapabilitiesView.capabilityId },
+                { CapabilityTable.id },
+            ).select(
+                UserBranchAssignmentTable.userId,
+                UserBranchAssignmentTable.branchId,
+            ).where {
+                (UserBranchAssignmentTable.branchId inList branchIds) and
+                    (UserBranchAssignmentTable.endedAt.isNull()) and
+                    (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH) and
+                    (ActiveUserCapabilitiesView.contextId eq UserBranchAssignmentTable.branchId) and
+                    (CapabilityTable.code eq CapabilityCodes.RECEIVE_NEXT_APPOINTMENT_ALERTS)
+            }.withDistinct()
+            .map { row ->
+                row[UserBranchAssignmentTable.branchId] to row[UserBranchAssignmentTable.userId]
+            }.groupBy({ it.first }, { it.second })
 }

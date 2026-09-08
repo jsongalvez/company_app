@@ -18,4 +18,13 @@ object NotificationAppender {
      * their own). No audit row (system read-state, not a §12.1 covered table).
      */
     fun append(params: List<NotificationCreateParams>): Int = NotificationRepository.insertBatch(params)
+
+    /**
+     * Store operation for the owning command (ADR-0024, #602): runs on the caller's transaction
+     * and opens none. Commands that already own a transaction (relief broadcasts, the
+     * next-appointment sweep) call this so the rows commit atomically with the change they
+     * announce. No audit row (system read-state, not a §12.1 covered table).
+     */
+    fun appendInTransaction(params: List<NotificationCreateParams>): Int =
+        NotificationRepository.insertBatchInTransaction(params)
 }

@@ -60,7 +60,7 @@ internal object ReliefNotifications {
     ) {
         val names = AccountReads.findDisplayNamesByIds(listOf(requesterId))
         val requesterName = names[requesterId] ?: "A user"
-        broadcast(
+        broadcastInTransaction(
             ReliefBroadcast(
                 eventType = REQUESTED,
                 sourceId = requestId,
@@ -83,7 +83,7 @@ internal object ReliefNotifications {
         val actorName = names[actorId] ?: "A member"
         val requesterName = names[requesterId] ?: "a user"
         val verb = if (eventType == GRANTED) "granted" else "denied"
-        broadcast(
+        broadcastInTransaction(
             ReliefBroadcast(
                 eventType = eventType,
                 sourceId = requestId,
@@ -105,7 +105,7 @@ internal object ReliefNotifications {
     ) {
         val inviteeName = AccountReads.findDisplayNamesByIds(listOf(inviteeId))[inviteeId] ?: "A user"
         val verb = if (eventType == INVITE_ACCEPTED) "accepted" else "declined"
-        broadcast(
+        broadcastInTransaction(
             ReliefBroadcast(
                 eventType = eventType,
                 sourceId = inviteId,
@@ -131,7 +131,7 @@ internal object ReliefNotifications {
         val names = AccountReads.findDisplayNamesByIds(listOf(actorId, inviteeId))
         val actorName = names[actorId] ?: "A member"
         val inviteeName = names[inviteeId] ?: "a user"
-        broadcast(
+        broadcastInTransaction(
             ReliefBroadcast(
                 eventType = INVITE_REVOKED,
                 sourceId = inviteId,
@@ -145,7 +145,7 @@ internal object ReliefNotifications {
         // #508 — the invitee's explicit notice shares the event + source but carries its own
         // occurrence key: per (occurrence, recipient) uniqueness must keep BOTH rows even
         // when the invitee is a branch member holding the broadcast above.
-        broadcast(
+        broadcastInTransaction(
             ReliefBroadcast(
                 eventType = INVITE_REVOKED,
                 sourceId = inviteId,
@@ -230,6 +230,25 @@ internal object ReliefNotifications {
 
     private fun broadcast(broadcast: ReliefBroadcast): Int =
         NotificationAppender.append(
+            broadcast.recipients.distinct().map { recipient ->
+                NotificationCreateParams(
+                    sessionId = null,
+                    userId = recipient,
+                    branchId = broadcast.context.branchId,
+                    message = broadcast.message,
+                    eventType = broadcast.eventType,
+                    sourceId = broadcast.sourceId,
+                    targetDate = broadcast.context.date,
+                    dedupKey = broadcast.dedupKey,
+                )
+            },
+        )
+
+    // #602 — command-transaction broadcast: relief commands that already own a transaction
+    // persist the rows on that transaction so the notice commits atomically with the change.
+    // Job entry points without an outer transaction keep using [broadcast].
+    private fun broadcastInTransaction(broadcast: ReliefBroadcast): Int =
+        NotificationAppender.appendInTransaction(
             broadcast.recipients.distinct().map { recipient ->
                 NotificationCreateParams(
                     sessionId = null,
