@@ -66,6 +66,30 @@ object CapabilityFilter {
     }
 
     /**
+     * Enforces [capabilityCode] at any context (#660): BRANCH, BRANCH_DAY, or GLOBAL.
+     * For global catalog reads with no branch context (GET /api/concerns) so every
+     * EDIT_BRANCH_DATA holder — branch-assigned practitioners/coordinators via the
+     * V21 BRANCH leg, relief holders via BRANCH_DAY, direct GLOBAL grantees — lists
+     * the catalog the session-anchored promote write inserts into. Same capability
+     * as the write; the #104 D6 any-context precedent.
+     *
+     * Throws [com.companyb.companyapp.exception.ForbiddenException] (403) if the caller
+     * holds the capability in no context.
+     */
+    fun requireAnyContextCapability(
+        context: Context,
+        capabilityCode: String,
+        message: String? = null,
+    ) {
+        val callerId = context.callerUuid()
+        if (!CapabilityService.hasCapabilityAnyContext(callerId, capabilityCode)) {
+            throw com.companyb.companyapp.exception.ForbiddenException(
+                message ?: "$capabilityCode capability required",
+            )
+        }
+    }
+
+    /**
      * Enforces [capabilityCode] on [CapabilityContextType.BRANCH] for the given [branchDayId].
      * Resolves the branch from the branch day and calls [CapabilityService.requireCapability].
      *

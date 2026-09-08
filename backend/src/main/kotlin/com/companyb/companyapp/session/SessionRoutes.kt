@@ -737,7 +737,11 @@ private fun registerConcernGates(config: JavalinConfig) {
     }
 
     config.routes.before(ApiRoutes.CONCERNS) { context ->
-        CapabilityFilter.requireGlobalCapability(
+        // #660: the catalog list is global with no branch context, so the gate accepts
+        // EDIT_BRANCH_DATA in any context (BRANCH/BRANCH_DAY/GLOBAL) — the same capability
+        // the session-anchored promote write requires at its session branch. A GLOBAL-only
+        // gate 403'd every role-derived branch holder (EDIT_BRANCH_DATA never derives GLOBAL).
+        CapabilityFilter.requireAnyContextCapability(
             context,
             CapabilityCodes.EDIT_BRANCH_DATA,
             "EDIT_BRANCH_DATA capability required to manage concerns",
