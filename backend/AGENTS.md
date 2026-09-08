@@ -219,9 +219,10 @@ unbounded list.
 Grant writes (`user_capability` rows for relief access or delegate assignments) go only
 through the authorization seam (`AuthorizationGrants.grantReliefCapabilityInTransaction`,
 `grantDelegateCapabilityInTransaction`, and friends) inside the owning command's transaction —
-never by touching `UserCapabilityTable` directly. Use
-`CapabilityService.findCapabilityIdByCode("EDIT_BRANCH_DATA")` when the caller must resolve
-the capability ID itself. The grant table and `GrantStore` stay `internal` to the
+never by touching `UserCapabilityTable` directly. Callers supply target user, branch/day,
+source identity and (for relief) the validity window; the fixed capability code/ID,
+source/context and priority stay owned
+inside authorization (`GrantStore`, #606). The grant table and `GrantStore` stay `internal` to the
 authorization owner; test fixtures seed grants via `IdentityFixtures`.
 
 **Read endpoints must also gate on capabilities.** If a write endpoint (POST/PATCH/DELETE) checks a

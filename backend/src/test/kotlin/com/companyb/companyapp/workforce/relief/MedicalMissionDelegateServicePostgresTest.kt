@@ -1,8 +1,10 @@
 package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.CapabilityTable
 import com.companyb.companyapp.authorization.UserCapabilityTable
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.contracts.audit.AuditAction
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
 import com.companyb.companyapp.contracts.branch.BranchType
@@ -84,6 +86,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
         assertNull(result.endedAt)
         assertTrue(delegateExists(delegateId))
         assertTrue(capabilityExistsForDelegate(delegateId, targetUserId, branchId))
+        assertEquals(editBranchDataCapabilityId(), grantCapabilityIdForDelegate(delegateId))
     }
 
     @Test
@@ -480,6 +483,24 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
                         (UserCapabilityTable.validTo.isNull())
                 }.empty()
                 .not()
+        }
+
+    private fun editBranchDataCapabilityId(): UUID =
+        transaction {
+            CapabilityTable
+                .selectAll()
+                .where { CapabilityTable.code eq CapabilityCodes.EDIT_BRANCH_DATA }
+                .single()[CapabilityTable.id]
+        }
+
+    private fun grantCapabilityIdForDelegate(delegateId: UUID): UUID =
+        transaction {
+            UserCapabilityTable
+                .selectAll()
+                .where {
+                    (UserCapabilityTable.sourceId eq delegateId) and
+                        (UserCapabilityTable.sourceType eq CapabilitySourceType.MEDICAL_MISSION_DELEGATE)
+                }.single()[UserCapabilityTable.capabilityId]
         }
 
     private fun capabilityIsExpired(delegateId: UUID): Boolean =

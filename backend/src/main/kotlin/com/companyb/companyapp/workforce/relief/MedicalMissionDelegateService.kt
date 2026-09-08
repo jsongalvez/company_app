@@ -3,9 +3,7 @@ package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.authorization.AuthorizationGrants
-import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branch.BranchService
-import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
@@ -35,11 +33,6 @@ object MedicalMissionDelegateService {
             throw ValidationException("Medical mission delegate requires a medical mission Branch")
         }
 
-        val capabilityId =
-            checkNotNull(
-                CapabilityService.findCapabilityIdByCode(CapabilityCodes.EDIT_BRANCH_DATA),
-            ) { "EDIT_BRANCH_DATA capability not found" }
-
         val delegate =
             transaction {
                 assignDelegateInTransaction(
@@ -47,7 +40,6 @@ object MedicalMissionDelegateService {
                     targetUserId = targetUserId,
                     branchId = branchId,
                     callerId = callerId,
-                    capabilityId = capabilityId,
                 )
             }
 
@@ -61,7 +53,6 @@ object MedicalMissionDelegateService {
         targetUserId: UUID,
         branchId: UUID,
         callerId: UUID,
-        capabilityId: UUID,
     ): MedicalMissionDelegate {
         val existing = MedicalMissionDelegateRepository.findByIdInTransaction(delegateId)
         if (existing != null) {
@@ -97,7 +88,6 @@ object MedicalMissionDelegateService {
                 targetUserId = targetUserId,
                 branchId = branchId,
                 delegateId = delegateId,
-                capabilityId = capabilityId,
             )
             MedicalMissionDelegateAudit.inserted(AuditContext(callerId, branchId), result.delegate)
         }

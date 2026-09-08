@@ -43,7 +43,7 @@ internal object GrantStore {
     fun grantReliefCapabilityInTransaction(params: GrantReliefCapabilityParams) {
         UserCapabilityTable.insertIgnore {
             it[UserCapabilityTable.userId] = params.userId
-            it[UserCapabilityTable.capabilityId] = reliefCapabilityId()
+            it[UserCapabilityTable.capabilityId] = editBranchDataCapabilityId()
             it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH_DAY
             it[UserCapabilityTable.contextId] = params.branchDayId
             it[UserCapabilityTable.sourceType] = CapabilitySourceType.RELIEF_ACCESS
@@ -76,6 +76,8 @@ internal object GrantStore {
     /**
      * Delegate-grant writer (moved from the workforce delegate store): inserts the
      * branch-scoped capability for [targetUserId] at [branchId], sourced from [delegateId].
+     * Owns the fixed EDIT_BRANCH_DATA capability code/ID, BRANCH context, delegate source
+     * and priority (#606) — callers supply only target user, branch and delegate identity.
      * In-transaction store operation (ADR-0024) — runs on the caller's command transaction
      * so the grant cannot outlive a failed delegate insert.
      */
@@ -83,11 +85,10 @@ internal object GrantStore {
         targetUserId: UUID,
         branchId: UUID,
         delegateId: UUID,
-        capabilityId: UUID,
     ) {
         UserCapabilityTable.insert {
             it[UserCapabilityTable.userId] = targetUserId
-            it[UserCapabilityTable.capabilityId] = capabilityId
+            it[UserCapabilityTable.capabilityId] = editBranchDataCapabilityId()
             it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH
             it[UserCapabilityTable.contextId] = branchId
             it[UserCapabilityTable.sourceType] = CapabilitySourceType.MEDICAL_MISSION_DELEGATE
@@ -112,7 +113,7 @@ internal object GrantStore {
             }
     }
 
-    private fun reliefCapabilityId(): UUID =
+    private fun editBranchDataCapabilityId(): UUID =
         checkNotNull(
             CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA),
         ) { "EDIT_BRANCH_DATA capability not found" }

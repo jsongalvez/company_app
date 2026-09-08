@@ -25,14 +25,15 @@ object AuthorizationGrants {
 
     /**
      * Writes the branch-scoped delegate grant for the delegate-assign flow.
+     * Owns the fixed capability, source, context and priority (#606) — callers
+     * supply only target user, branch and delegate identity.
      * Runs on the caller's command transaction.
      */
     fun grantDelegateCapabilityInTransaction(
         targetUserId: UUID,
         branchId: UUID,
         delegateId: UUID,
-        capabilityId: UUID,
-    ) = GrantStore.grantDelegateCapabilityInTransaction(targetUserId, branchId, delegateId, capabilityId)
+    ) = GrantStore.grantDelegateCapabilityInTransaction(targetUserId, branchId, delegateId)
 
     /** Closes the delegate grant window for the delegate-revoke flow. Runs on the caller's transaction. */
     fun closeDelegateCapabilityInTransaction(delegateId: UUID) =
