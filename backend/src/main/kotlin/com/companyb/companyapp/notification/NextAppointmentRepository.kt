@@ -25,18 +25,15 @@ import java.util.UUID
 /**
  * Read store for the next-appointment notification sweep (#324): every `*Table`/view join
  * lives behind this internal repository; NextAppointmentScheduler keeps scheduling policy and
- * the notification write (via NotificationRepository). Each read owns its own transaction.
+ * the notification write (via NotificationRepository). Reads are `*InTransaction` store
+ * operations on the caller's transaction (#602); [findActiveCoordinatorsForBranches] keeps a
+ * self-contained wrapper for direct reads.
  */
 internal object NextAppointmentRepository {
     data class UpcomingSession(
         val sessionId: UUID,
         val branchId: UUID,
     )
-
-    fun findUpcomingSessions(targetDate: LocalDate): List<UpcomingSession> =
-        transaction {
-            findUpcomingSessionsInTransaction(targetDate)
-        }
 
     fun findUpcomingSessionsInTransaction(targetDate: LocalDate): List<UpcomingSession> =
         SessionTable
