@@ -94,7 +94,26 @@ object ClientRoutes {
     private const val CLIENT_ID_PARAM = "clientId"
 
     fun register(config: JavalinConfig) {
+        // #653 exact-segment lesson (#114): before(CLIENTS) does NOT fire on child
+        // segments — item + anonymize routes need their own GLOBAL EDIT_BRANCH_DATA
+        // guards (PII-destruction stays under the same gate: no narrower code exists).
         config.routes.before(ApiRoutes.CLIENTS) { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                "EDIT_BRANCH_DATA capability required to manage clients",
+            )
+        }
+
+        config.routes.before(ApiRoutes.CLIENT_PATH) { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                "EDIT_BRANCH_DATA capability required to manage clients",
+            )
+        }
+
+        config.routes.before(ApiRoutes.CLIENT_ANONYMIZE_PATH) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
                 CapabilityCodes.EDIT_BRANCH_DATA,
