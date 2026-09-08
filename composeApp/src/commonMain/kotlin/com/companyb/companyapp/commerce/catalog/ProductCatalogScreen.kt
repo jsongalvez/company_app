@@ -69,6 +69,7 @@ import kotlin.uuid.Uuid
  * id); in-flight mutations disable their affordances (repeated-submission guard, with the
  * ViewModel synchronous single-flight backstop).
  */
+@Suppress("LongMethod") // #597 screen orchestrator stays whole per #535
 @Composable
 fun ProductCatalogScreen(
     viewModel: ProductViewModel,
@@ -163,6 +164,8 @@ fun ProductCatalogScreen(
 }
 
 @Composable
+// #597 10-param effects stay whole (declarative-UI signature; #535 no arbitrary DTO).
+@Suppress("LongParameterList", "LongMethod") // #597
 private fun CatalogScreenEffects(
     viewModel: ProductViewModel,
     productsState: UiState<List<ProductResponse>>,
@@ -250,6 +253,8 @@ private fun CatalogScreenEffects(
 }
 
 @Composable
+// #597 9-param dialogs stay whole (declarative-UI signature; #535 no arbitrary DTO).
+@Suppress("LongParameterList") // #597
 private fun CatalogScreenDialogs(
     viewModel: ProductViewModel,
     creatingProduct: Boolean,

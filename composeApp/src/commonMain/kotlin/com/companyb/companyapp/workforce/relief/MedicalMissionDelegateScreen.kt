@@ -76,6 +76,8 @@ fun eligibleDelegateUsers(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+// #598 screen orchestrator stays whole (state derivation + layout; #535 no arbitrary split).
+@Suppress("LongMethod", "CyclomaticComplexMethod") // #598
 fun MedicalMissionDelegateScreen(
     delegateViewModel: DelegateViewModel,
     userViewModel: UserViewModel,
@@ -174,7 +176,6 @@ fun MedicalMissionDelegateScreen(
             userNames = userNames,
             mutationsDisabled = mutationsDisabled,
             refreshDisabled = refreshDisabled,
-            revokeState = revokeState,
             onBranchSelected = {
                 selectedBranchId = it
                 revokeTarget = null
@@ -223,6 +224,8 @@ fun MedicalMissionDelegateScreen(
 }
 
 @Composable
+// #598 9-param effects stay whole (declarative-UI signature; #535 no arbitrary DTO).
+@Suppress("LongParameterList") // #598
 private fun DelegateLoadEffects(
     userViewModel: UserViewModel,
     delegateViewModel: DelegateViewModel,
@@ -259,6 +262,8 @@ private fun DelegateLoadEffects(
 }
 
 @Composable
+// #598 6-param effects stay whole (declarative-UI signature; #535 no arbitrary DTO).
+@Suppress("LongParameterList") // #598
 private fun DelegateOutcomeEffects(
     delegateViewModel: DelegateViewModel,
     assignState: UiState<DelegateResponse>,
@@ -360,6 +365,8 @@ private fun DelegateScreenHeader(
 }
 
 @Composable
+// #598 19-param body stays whole (declarative-UI signature; #535 no arbitrary DTO).
+@Suppress("LongParameterList") // #598
 private fun ColumnScope.DelegateScreenBody(
     branchesState: UiState<List<BranchResponse>>,
     missionBranches: List<BranchResponse>,
@@ -374,7 +381,6 @@ private fun ColumnScope.DelegateScreenBody(
     userNames: Map<String, String>,
     mutationsDisabled: Boolean,
     refreshDisabled: Boolean,
-    revokeState: UiState<Unit>,
     onBranchSelected: (String) -> Unit,
     onTargetSelected: (String?) -> Unit,
     onAssign: () -> Unit,
@@ -426,6 +432,8 @@ private fun ColumnScope.DelegateScreenBody(
 }
 
 @Composable
+// #598 17-param content stays whole (declarative-UI signature; #535 no arbitrary DTO).
+@Suppress("LongParameterList") // #598
 private fun ColumnScope.DelegateBranchContent(
     missionBranches: List<BranchResponse>,
     selectedBranchId: String?,
@@ -472,6 +480,8 @@ private fun ColumnScope.DelegateBranchContent(
 }
 
 @Composable
+// #598 6-param dialog stays whole (declarative-UI signature; #535 no arbitrary DTO).
+@Suppress("LongParameterList") // #598
 private fun DelegateRevokeDialog(
     revokeTarget: DelegateResponse?,
     userNames: Map<String, String>,

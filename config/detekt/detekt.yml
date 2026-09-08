@@ -786,7 +786,7 @@ style:
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/App.kt' #465 frozen #555 retarget #585 repair
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/audit/AuditLogDiff.kt' #465 frozen #564 retarget (was ui/screen) #600 ticketed ReturnCount
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientPicker.kt' #465 frozen #558 retarget #599 ticketed MatchingDeclarationName
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt' #465 frozen #563 retarget #598 ticketed LongParameterList
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt' #465 frozen #563 retarget #598 ticketed LongParameterList+LongMethod+CyclomaticComplexMethod
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/catalog/ProductCatalogScreen.kt' #465 frozen #562 retarget (was ui/screen) #597 ticketed LongMethod+CyclomaticComplexMethod+LongParameterList
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateLayout.kt' #465 frozen #557 retarget #594 ticketed MatchingDeclarationName
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateScreen.kt' #465 frozen #557 retarget #594 ticketed LongParameterList

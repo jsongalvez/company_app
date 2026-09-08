@@ -1,4 +1,5 @@
-// #598: LocalClipboardManager copy affordance rides the deprecated-but-common API until the suspend LocalClipboard migration lands.
+// #598: LocalClipboardManager copy affordance rides the deprecated-but-common API
+// until the suspend LocalClipboard migration lands.
 @file:Suppress("DEPRECATION") // #598
 
 package com.companyb.companyapp.workforce.team
