@@ -1,7 +1,7 @@
 package com.companyb.companyapp.notification
 
 import com.companyb.companyapp.contracts.notification.NotificationResponse
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 /**
  * One notification-queue row (#679): the server row plus whether this visit already marked
