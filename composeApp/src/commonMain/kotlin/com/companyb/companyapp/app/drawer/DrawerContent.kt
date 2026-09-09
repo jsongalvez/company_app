@@ -41,8 +41,12 @@ import com.companyb.companyapp.app.DrawerViewModel
 import com.companyb.companyapp.app.navigation.LocalNavHostController
 import com.companyb.companyapp.app.navigation.NavigationContextStore
 import com.companyb.companyapp.app.navigation.Route
+import com.companyb.companyapp.app.navigation.SessionCreateExitGuard
 import com.companyb.companyapp.app.navigation.ShellLayoutPolicy
 import com.companyb.companyapp.app.navigation.currentRoute
+import com.companyb.companyapp.app.navigation.previousRoute
+import com.companyb.companyapp.app.navigation.shouldInterceptPushedDetailExit
+import com.companyb.companyapp.app.navigation.shouldInterceptSessionCreateExit
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.workforce.ClockOutRequest
 import com.companyb.companyapp.contracts.workforce.ClockOutResponse
@@ -96,6 +100,10 @@ fun DrawerContent(
     // #389 — host hook fired after every drawer-initiated navigation (item tap, clock-out
     // landing). Mobile closes its modal drawer; the desktop permanent drawer no-ops.
     onItemNavigated: () -> Unit = {},
+    // #726 — narrow exit-intent seam: a dirty SessionCreate entry intercepts section
+    // switches into a Keep editing / Discard and continue decision (pendingRoute retains
+    // the originally chosen destination). Null = no intake guard (previews/tests).
+    exitGuard: SessionCreateExitGuard? = null,
 ) {
     val navController = LocalNavHostController.current
     val snapshot by AppSessionState.snapshot.collectAsState()
@@ -142,6 +150,7 @@ fun DrawerContent(
                 adminExpanded = adminExpanded,
                 onAdminToggle = { adminExpanded = !adminExpanded },
                 onItemNavigated = onItemNavigated,
+                exitGuard = exitGuard,
             )
         }
         DrawerFooter(
@@ -153,6 +162,7 @@ fun DrawerContent(
             branchName = clock?.branchName,
             navController = navController,
             onItemNavigated = onItemNavigated,
+            exitGuard = exitGuard,
         )
     }
 }
@@ -168,6 +178,7 @@ private fun DrawerNavSections(
     adminExpanded: Boolean,
     onAdminToggle: () -> Unit,
     onItemNavigated: () -> Unit,
+    exitGuard: SessionCreateExitGuard? = null,
 ) {
     val unreadCount: Int? by NotificationState.unreadCount.collectAsState()
     val inviteCount: Int? by NotificationState.inviteCount.collectAsState()
@@ -178,16 +189,49 @@ private fun DrawerNavSections(
         // date) vs Dashboard()) are distinct destinations, so home-from-relief-day
         // still navigates.
         if (!ShellLayoutPolicy.isSameDestination(selectedRoute, item.route) && navigationEnabled) {
-            // #389 — section-switch semantics: collapse to the Dashboard root
-            // before pushing, so back from a section returns straight home and
-            // repeated taps never stack duplicates. The Dashboard item itself
-            // pops its existing instance (a relief deep-link panel included)
-            // and pushes a fresh home — popUpTo matches the destination pattern,
-            // not the entry args (SessionCreate landing precedent).
-            navController.navigate(item.route) {
-                popUpTo(Route.Dashboard()) { inclusive = item.route is Route.Dashboard }
+            // #726 — dirty intake intercepts section switches: retain the destination
+            // while the Keep editing / Discard and continue decision is pending; close
+            // the modal drawer so the decision surface is visible.
+            if (exitGuard != null &&
+                shouldInterceptSessionCreateExit(
+                    selectedRoute,
+                    exitGuard.dirty.value,
+                    navigationEnabled,
+                )
+            ) {
+                exitGuard.pendingRoute.value = item.route
+                onItemNavigated()
+            } else if (exitGuard != null &&
+                shouldInterceptPushedDetailExit(
+                    selectedRoute,
+                    navController.previousRoute(),
+                    navigationEnabled,
+                )
+            ) {
+                // #726 — drawer escape from the linked profile over a dirty intake:
+                // pop back to the intake first so the retained decision shows there.
+                // Keep editing lands back in intake with values intact; Discard and
+                // continue executes the retained destination once.
+                if (navController.popBackStack()) {
+                    exitGuard.pendingRoute.value = item.route
+                } else {
+                    navController.navigate(item.route) {
+                        popUpTo(Route.Dashboard()) { inclusive = item.route is Route.Dashboard }
+                    }
+                }
+                onItemNavigated()
+            } else {
+                // #389 — section-switch semantics: collapse to the Dashboard root
+                // before pushing, so back from a section returns straight home and
+                // repeated taps never stack duplicates. The Dashboard item itself
+                // pops its existing instance (a relief deep-link panel included)
+                // and pushes a fresh home — popUpTo matches the destination pattern,
+                // not the entry args (SessionCreate landing precedent).
+                navController.navigate(item.route) {
+                    popUpTo(Route.Dashboard()) { inclusive = item.route is Route.Dashboard }
+                }
+                onItemNavigated()
             }
-            onItemNavigated()
         }
     }
     DrawerSectionGroup(
@@ -355,6 +399,7 @@ private fun ColumnScope.DrawerFooter(
     branchName: String?,
     navController: NavHostController,
     onItemNavigated: () -> Unit,
+    exitGuard: SessionCreateExitGuard? = null,
 ) {
     Spacer(Modifier.weight(1f))
     HorizontalDivider(color = MaterialTheme.colorScheme.outline)
@@ -370,10 +415,37 @@ private fun ColumnScope.DrawerFooter(
         onClick = {
             // #671 — same-destination taps are a true no-op (not even a drawer close).
             if (!ShellLayoutPolicy.isSameDestination(selectedRoute, Route.Profile) && navigationEnabled) {
-                navController.navigate(Route.Profile) {
-                    popUpTo(Route.Dashboard()) { inclusive = false }
+                // #726 — dirty intake intercepts the footer Profile switch like any section.
+                if (exitGuard != null &&
+                    shouldInterceptSessionCreateExit(
+                        selectedRoute,
+                        exitGuard.dirty.value,
+                        navigationEnabled,
+                    )
+                ) {
+                    exitGuard.pendingRoute.value = Route.Profile
+                    onItemNavigated()
+                } else if (exitGuard != null &&
+                    shouldInterceptPushedDetailExit(
+                        selectedRoute,
+                        navController.previousRoute(),
+                        navigationEnabled,
+                    )
+                ) {
+                    if (navController.popBackStack()) {
+                        exitGuard.pendingRoute.value = Route.Profile
+                    } else {
+                        navController.navigate(Route.Profile) {
+                            popUpTo(Route.Dashboard()) { inclusive = false }
+                        }
+                    }
+                    onItemNavigated()
+                } else {
+                    navController.navigate(Route.Profile) {
+                        popUpTo(Route.Dashboard()) { inclusive = false }
+                    }
+                    onItemNavigated()
                 }
-                onItemNavigated()
             }
         },
         colors =

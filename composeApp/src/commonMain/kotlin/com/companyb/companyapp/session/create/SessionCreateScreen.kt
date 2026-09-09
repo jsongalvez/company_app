@@ -36,6 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -84,7 +85,7 @@ import com.companyb.companyapp.util.logWarn
  */
 @Composable
 // #594 7-param entry stays whole (declarative-UI signature; #535 no arbitrary DTO).
-@Suppress("LongParameterList") // #594
+@Suppress("LongParameterList") // #594 + #726 exit seam stays on the entry signature.
 fun SessionCreateScreen(
     viewModel: SessionCreateViewModel,
     clientViewModel: ClientViewModel,
@@ -93,6 +94,11 @@ fun SessionCreateScreen(
     onSessionCreated: (String) -> Unit,
     onClientProfileClick: (String) -> Unit = {},
     onSubmissionLockChanged: (Boolean) -> Unit = {},
+    // #726 — narrow exit-intent seam: shell sets pendingRoute instead of navigating away
+    // from a dirty entry; this screen owns the Keep editing / Discard and continue
+    // decision and the draft it discards. Null = no shell guard (previews/tests).
+    exitGuard: com.companyb.companyapp.app.navigation.SessionCreateExitGuard? = null,
+    onExitToRoute: (com.companyb.companyapp.app.navigation.Route) -> Unit = {},
 ) {
     val query by viewModel.query.collectAsState()
     val searchState by viewModel.searchResults.collectAsState()
@@ -139,11 +145,33 @@ fun SessionCreateScreen(
     }
     // System back dismisses the discard dialog first (stays editing), matching
     // the dialog's own Escape behavior; buttons share requestBack directly.
+    // #726 — a pending shell exit behaves the same: system back keeps editing.
+    val guard = exitGuard
+    val pendingExitRoute = guard?.pendingRoute?.value
+    // #726 — mirror dirty synchronously post-commit so a drawer tap in the next frame
+    // reads fresh intent (LaunchedEffect would defer a frame and admit a stale-false
+    // bypass on an edit-then-tap within one batch).
+    SideEffect {
+        guard?.dirty?.value = dirty
+    }
+    LaunchedEffect(isSubmissionLocked) {
+        // #726 — submission lock wins over the abandon prompt: conflicting shell
+        // navigation stays disabled, never a Discard and continue offer.
+        if (isSubmissionLocked) exitGuard?.pendingRoute?.value = null
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            exitGuard?.dirty?.value = false
+            exitGuard?.pendingRoute?.value = null
+        }
+    }
     SessionCreateNavigationGuard(
         isSubmissionLocked = isSubmissionLocked,
         onSubmissionLockChanged = onSubmissionLockChanged,
         onSystemBack = {
-            if (showDiscardDialog) {
+            if (guard != null && guard.pendingRoute.value != null) {
+                guard.pendingRoute.value = null
+            } else if (showDiscardDialog) {
                 showDiscardDialog = false
             } else {
                 requestBack()
@@ -266,6 +294,22 @@ fun SessionCreateScreen(
                 showDiscardDialog = false
                 viewModel.discardDraft()
                 if (discardPopsAfter) onBack()
+            },
+        )
+    }
+
+    // #726 — dirty shell exit: the drawer retained its destination in pendingRoute while
+    // this decision was pending. Keep editing stays with values intact; Discard and
+    // continue clears once then executes the original destination exactly once.
+    if (guard != null && pendingExitRoute != null && !isSubmissionLocked) {
+        DiscardDraftDialog(
+            confirmLabel = "Discard and continue",
+            onKeepEditing = { guard.pendingRoute.value = null },
+            onDiscard = {
+                val target = guard.pendingRoute.value
+                guard.pendingRoute.value = null
+                viewModel.discardDraft()
+                if (target != null) onExitToRoute(target)
             },
         )
     }
@@ -875,7 +919,9 @@ private fun AdditionalDetails(
     draft: SessionCreateDraft,
     enabled: Boolean,
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    // #726 — expanded survives the linked Profile push/pop (rememberSaveable rides the
+    // entry's saved state; plain remember would reset on every roundtrip).
+    var expanded by rememberSaveable { mutableStateOf(false) }
     val membersState by viewModel.members.collectAsState()
     val selectedPractitioner by viewModel.selectedPractitioner.collectAsState()
     val summary =
@@ -942,11 +988,14 @@ private fun AdditionalDetails(
  * #674 — abandoning a dirty draft offers Keep editing (safe default, initial
  * focus) or Discard changes. Honors the #670 dialog rules (max 560dp, scrolling
  * body, fixed actions, no entrance animation); Escape/Back stays editing.
+ * #726 — shell exits reuse the same treatment with a "Discard and continue" confirm
+ * that executes the drawer-retained destination after clearing.
  */
 @Composable
 private fun DiscardDraftDialog(
     onKeepEditing: () -> Unit,
     onDiscard: () -> Unit,
+    confirmLabel: String = "Discard changes",
 ) {
     val keepFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { keepFocus.requestFocus() }
@@ -970,7 +1019,7 @@ private fun DiscardDraftDialog(
             }
         },
         confirmButton = {
-            SecondaryActionButton(label = "Discard changes", onClick = onDiscard)
+            SecondaryActionButton(label = confirmLabel, onClick = onDiscard)
         },
         dismissButton = {
             PrimaryActionButton(

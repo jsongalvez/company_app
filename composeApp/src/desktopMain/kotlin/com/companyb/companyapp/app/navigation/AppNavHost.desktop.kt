@@ -70,6 +70,8 @@ actual fun AppNavHost(
     val currentRoute = navController.currentRoute()
     val postClockIn = currentRoute.isPostClockIn()
     val sessionCreateNavigationLocked = rememberSessionCreateNavigationLock()
+    // #726 — dirty-intake exit intent (shared with mobile).
+    val sessionCreateExitGuard = rememberSessionCreateExitGuard()
     val clientMutationInFlight by ClientState.clientMutationInFlight.collectAsState()
     NotificationBadgeHost(apiClient, postClockIn)
 
@@ -91,6 +93,7 @@ actual fun AppNavHost(
                 tokenStore = tokenStore,
                 navController = navController,
                 sessionCreateNavigationLocked = sessionCreateNavigationLocked,
+                sessionCreateExitGuard = sessionCreateExitGuard,
                 contentModifier = contentModifier,
             )
         }
@@ -101,6 +104,7 @@ actual fun AppNavHost(
                     postClockIn = postClockIn,
                     navigationEnabled = navigationEnabled,
                     navContent = navContent,
+                    exitGuard = sessionCreateExitGuard,
                 )
             } else {
                 NarrowDesktopShell(
@@ -108,6 +112,7 @@ actual fun AppNavHost(
                     postClockIn = postClockIn,
                     navigationEnabled = navigationEnabled,
                     navContent = navContent,
+                    exitGuard = sessionCreateExitGuard,
                 )
             }
         }
@@ -120,6 +125,7 @@ private fun WideDesktopShell(
     postClockIn: Boolean,
     navigationEnabled: Boolean,
     navContent: @Composable (Modifier) -> Unit,
+    exitGuard: SessionCreateExitGuard? = null,
 ) {
     PermanentNavigationDrawer(
         drawerContent = {
@@ -132,6 +138,7 @@ private fun WideDesktopShell(
                             .fillMaxHeight()
                             .width(ShellLayoutPolicy.sidebarWidth)
                             .background(MaterialTheme.colorScheme.surface),
+                    exitGuard = exitGuard,
                 )
             }
         },
@@ -146,6 +153,7 @@ private fun NarrowDesktopShell(
     postClockIn: Boolean,
     navigationEnabled: Boolean,
     navContent: @Composable (Modifier) -> Unit,
+    exitGuard: SessionCreateExitGuard? = null,
 ) {
     val narrowDrawerState = rememberDrawerState(DrawerValue.Closed)
     val narrowScope = rememberCoroutineScope()
@@ -157,6 +165,7 @@ private fun NarrowDesktopShell(
                         apiClient = apiClient,
                         navigationEnabled = navigationEnabled,
                         onItemNavigated = { narrowScope.launch { narrowDrawerState.close() } },
+                        exitGuard = exitGuard,
                     )
                 }
             }
@@ -182,6 +191,7 @@ private fun DesktopShellNavHost(
     tokenStore: TokenStore,
     navController: NavHostController,
     sessionCreateNavigationLocked: MutableState<Boolean>,
+    sessionCreateExitGuard: SessionCreateExitGuard,
     contentModifier: Modifier,
 ) {
     NavHost(navController = navController, startDestination = startDestination(), modifier = contentModifier) {
@@ -212,6 +222,12 @@ private fun DesktopShellNavHost(
                         navigateDeskQueue(navController, currentId, id)
                     },
                 ),
+            exitGuard = sessionCreateExitGuard,
+            onExitToRoute = { route ->
+                navController.navigate(route) {
+                    popUpTo(Route.Dashboard()) { inclusive = route is Route.Dashboard }
+                }
+            },
         )
     }
 }

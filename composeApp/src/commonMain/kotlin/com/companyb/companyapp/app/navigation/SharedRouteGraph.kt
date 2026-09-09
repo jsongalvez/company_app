@@ -91,12 +91,18 @@ internal fun Route?.isPostClockIn(): Boolean =
     this != null && this !is Route.Login && this !is Route.BranchSelect &&
         this !is Route.AcceptInvite && this !is Route.ForgotPassword
 
+// #726 7-param graph seam stays whole (declarative-UI wiring per #535: one leg per
+// shell-owned input; bundling would manufacture a DTO).
+@Suppress("LongParameterList") // #726
 fun NavGraphBuilder.appRouteGraph(
     apiClient: ApiClient,
     tokenStore: TokenStore,
     navController: NavHostController,
     onSubmissionLockChanged: (Boolean) -> Unit,
     hooks: PlatformRouteHooks,
+    // #726 — narrow exit-intent seam; null = no intake guard (tests/previews).
+    exitGuard: SessionCreateExitGuard? = null,
+    onExitToRoute: ((Route) -> Unit)? = null,
 ) {
     authGraph(apiClient, tokenStore, navController)
     branchGraph(apiClient, navController, hooks.dashboardLive)
@@ -105,7 +111,14 @@ fun NavGraphBuilder.appRouteGraph(
     financeGraph(apiClient, navController, hooks.onDeskQueueNavigate)
     auditGraph(apiClient, navController)
     teamGraph(apiClient)
-    sessionGraph(apiClient, navController, onSubmissionLockChanged, hooks.onClientProfileClick)
+    sessionGraph(
+        apiClient = apiClient,
+        navController = navController,
+        onSubmissionLockChanged = onSubmissionLockChanged,
+        onClientProfileClick = hooks.onClientProfileClick,
+        exitGuard = exitGuard,
+        onExitToRoute = onExitToRoute,
+    )
 }
 
 private fun NavGraphBuilder.authGraph(
@@ -487,6 +500,8 @@ private fun NavGraphBuilder.sessionGraph(
     navController: NavHostController,
     onSubmissionLockChanged: (Boolean) -> Unit,
     onClientProfileClick: ((String) -> Unit)?,
+    exitGuard: SessionCreateExitGuard? = null,
+    onExitToRoute: ((Route) -> Unit)? = null,
 ) {
     composable<Route.SessionCreate> {
         SessionCreateContent(
@@ -494,6 +509,8 @@ private fun NavGraphBuilder.sessionGraph(
             navController = navController,
             onSubmissionLockChanged = onSubmissionLockChanged,
             onClientProfileClick = onClientProfileClick,
+            exitGuard = exitGuard,
+            onExitToRoute = onExitToRoute,
         )
     }
     // #574 — Route.SessionDetail.row is a custom @Serializable DTO; type-safe routes resolve

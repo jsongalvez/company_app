@@ -31,6 +31,8 @@ internal fun SessionCreateContent(
     navController: NavHostController,
     onSubmissionLockChanged: (Boolean) -> Unit,
     onClientProfileClick: ((String) -> Unit)?,
+    exitGuard: SessionCreateExitGuard? = null,
+    onExitToRoute: ((Route) -> Unit)? = null,
 ) {
     val snapshot by AppSessionState.snapshot.collectAsState()
     val capabilities = snapshot.capabilities
@@ -51,7 +53,8 @@ internal fun SessionCreateContent(
                 onSubmissionLockChanged(false)
                 navController.popBackStack()
             },
-            // Desktop navigates to the client profile; mobile keeps the default (no-op).
+            // #726 — compact + desktop share the linked client-profile push; the
+            // entry-scoped draft survives underneath and Back restores it.
             onClientProfileClick = { clientId -> onClientProfileClick?.invoke(clientId) },
             // #386 — created sessions carry the creator no notification row, so a
             // bearer-only SessionDetail push dead-ends in 404; land on a fresh Dashboard
@@ -64,6 +67,15 @@ internal fun SessionCreateContent(
                 }
             },
             onSubmissionLockChanged = onSubmissionLockChanged,
+            // #726 — Discard and continue executes the drawer-retained destination once
+            // with the same collapse-to-Dashboard semantics as a direct drawer tap.
+            exitGuard = exitGuard,
+            onExitToRoute =
+                onExitToRoute ?: { route ->
+                    navController.navigate(route) {
+                        popUpTo(Route.Dashboard()) { inclusive = route is Route.Dashboard }
+                    }
+                },
         )
     } else {
         RouteGateCard(label = "New session")

@@ -58,6 +58,8 @@ internal fun MobileAppNavHost(
     val currentRoute = navController.currentRoute()
     val postClockIn = currentRoute.isPostClockIn()
     val sessionCreateNavigationLocked = rememberSessionCreateNavigationLock()
+    // #726 — dirty-intake exit intent survives drawer + content compositions.
+    val sessionCreateExitGuard = rememberSessionCreateExitGuard()
     val clientMutationInFlight by ClientState.clientMutationInFlight.collectAsState()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -79,6 +81,7 @@ internal fun MobileAppNavHost(
                             clientMutationInFlight,
                         ),
                     onItemNavigated = { scope.launch { drawerState.close() } },
+                    exitGuard = sessionCreateExitGuard,
                 )
             },
             drawerState = drawerState,
@@ -103,6 +106,7 @@ internal fun MobileAppNavHost(
                         tokenStore = tokenStore,
                         navController = navController,
                         navigationLocked = sessionCreateNavigationLocked,
+                        exitGuard = sessionCreateExitGuard,
                     )
                 }
             }
@@ -118,6 +122,7 @@ private fun MobileDrawerSheet(
     drawerState: DrawerState,
     navigationEnabled: Boolean,
     onItemNavigated: () -> Unit,
+    exitGuard: SessionCreateExitGuard? = null,
 ) {
     if (postClockIn) {
         // #96 Q5 close-out check (source-verified at Material3 NavigationDrawer.kt:1013):
@@ -131,6 +136,7 @@ private fun MobileDrawerSheet(
                 apiClient = apiClient,
                 navigationEnabled = navigationEnabled,
                 onItemNavigated = onItemNavigated,
+                exitGuard = exitGuard,
             )
         }
     }
@@ -154,6 +160,7 @@ private fun NavGraphBuilder.mobileAppRoutes(
     tokenStore: TokenStore,
     navController: NavHostController,
     navigationLocked: MutableState<Boolean>,
+    exitGuard: SessionCreateExitGuard? = null,
 ) {
     // #456 — one shared registration; this shell keeps only chrome +
     // the single-pane dashboard presentation below.
@@ -175,7 +182,18 @@ private fun NavGraphBuilder.mobileAppRoutes(
                         },
                     )
                 },
+                // #726 — compact intake shares the linked client-profile push; the
+                // entry-scoped draft survives underneath and Back restores it.
+                onClientProfileClick = { clientId ->
+                    navController.navigate(Route.ClientDetail(clientId))
+                },
             ),
+        exitGuard = exitGuard,
+        onExitToRoute = { route ->
+            navController.navigate(route) {
+                popUpTo(Route.Dashboard()) { inclusive = route is Route.Dashboard }
+            }
+        },
     )
 }
 

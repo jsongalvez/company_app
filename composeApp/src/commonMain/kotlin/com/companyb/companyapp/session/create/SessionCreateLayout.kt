@@ -89,6 +89,15 @@ internal fun SessionCreateMobileBody(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                // #726 — compact Profile roundtrip: secondary verification affordance beside
+                // Change; identity + intake fields stay primary. Linked push preserves the
+                // entry-scoped draft; Back restores it (no discard prompt, no disk persist).
+                TextButton(
+                    onClick = { args.onClientProfileClick(client.id) },
+                    enabled = !args.isSubmissionLocked,
+                ) {
+                    Text("Profile")
+                }
                 TextButton(onClick = args.onChangeClient, enabled = !args.isSubmissionLocked) {
                     Text("Change")
                 }
