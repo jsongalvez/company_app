@@ -17,15 +17,18 @@ import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
+import com.companyb.companyapp.workforce.AttendanceTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
@@ -98,6 +101,45 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
             }
         assertEquals(true, saleAudit[AuditLogTable.isFlagged])
         assertEquals("Coordinator correction", saleAudit[AuditLogTable.reason])
+    }
+
+    @Test
+    fun `sell on REMITTED day recalculates persisted commission splits`() {
+        val remittedDayId =
+            BranchWorkforceFixtures.createRemittedBranchDay(
+                branchId,
+                TestFixtures.today.minusDays(3),
+            )
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        val clockBase = TestFixtures.realNow().atOffset(ZoneOffset.UTC)
+        transaction {
+            AttendanceTable.insert {
+                it[AttendanceTable.id] = TestFixtures.uuid()
+                it[AttendanceTable.branchDayId] = remittedDayId
+                it[AttendanceTable.userId] = callerId
+                it[AttendanceTable.markedBy] = callerId
+                it[AttendanceTable.clockIn] = clockBase.minusHours(5)
+            }
+        }
+
+        ProductSaleService.sell(
+            callerId = callerId,
+            id = TestFixtures.uuid(),
+            branchDayId = remittedDayId,
+            sessionId = null,
+            clientId = null,
+            isWalkIn = true,
+            productId = productId,
+            quantity = 1,
+            expectedVersion = 1,
+            reason = "Coordinator correction",
+        )
+
+        val persisted = CommissionService.getByBranchDayId(remittedDayId)
+        assertEquals(1, persisted.size)
+        assertEquals(BigDecimal("10.0000"), persisted.single().amount)
+        val live = CommissionService.liveCommissions(remittedDayId)
+        assertEquals(persisted.single().amount, live.getValue(callerId).amount)
     }
 
     @Test

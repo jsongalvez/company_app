@@ -122,9 +122,13 @@ object ProductSaleService {
                 ProductSaleAudit.inserted(context, sale)
                 ProductSaleAudit.updated(context, beforeCard, newCard)
 
-                // Commission splits join this same command transaction — a rollback of any write
-                // above also rolls them back (pinned by existing sell/commission failure tests).
-                CommissionService.recalculateInTransaction(branchDayId)
+                // #687 — PAST/REMITTED sales force the recalc: the day gate above already
+                // required EDIT_PAST_DAY (+reason on REMITTED), so the caller holds the same
+                // authority the manual-recalculate route requires; joining the splits in this
+                // transaction keeps persisted commission_split equal to liveCommissions
+                // instead of stale-until-manual (daily_sales_summary.total_commission).
+                // OPEN-day behavior is unchanged (force is a no-op there).
+                CommissionService.recalculateInTransaction(branchDayId, force = true)
 
                 createdBranchId = params.branchId
                 SellProductResult(sale, created = true)
