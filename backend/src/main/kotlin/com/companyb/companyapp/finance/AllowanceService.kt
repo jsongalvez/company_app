@@ -72,7 +72,11 @@ object AllowanceService {
         }
     }
 
-    fun findByBranchDayId(branchDayId: UUID): List<Allowance> = AllowanceRepository.findByBranchDayId(branchDayId)
+    fun findByBranchDayId(branchDayId: UUID): List<Allowance> {
+        BranchDayService.requireBranchDayExists(branchDayId)
+
+        return AllowanceRepository.findByBranchDayId(branchDayId)
+    }
 }
 
 /**

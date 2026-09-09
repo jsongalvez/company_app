@@ -302,9 +302,10 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `findByBranchDayId returns empty list for non-existent branch day`() {
-        val results = AllowanceService.findByBranchDayId(TestFixtures.uuid())
-        assertEquals(0, results.size)
+    fun `findByBranchDayId with unknown branch day throws NotFoundException`() {
+        assertFailsWith<NotFoundException> {
+            AllowanceService.findByBranchDayId(TestFixtures.uuid())
+        }
     }
 
     @Test
