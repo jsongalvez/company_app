@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wayfinder-chief.sh — map chief scheduler for Wayfinder parallel supervision (map #697, tickets #735 #737).
+# wayfinder-chief.sh — map chief scheduler for Wayfinder parallel supervision (map #697, tickets #735 #737 #738).
 #
 # One orchestration layer per active map: the chief continuously schedules,
 # reconciles, reviews-queues, and refills bounded worker capacity through the
@@ -46,6 +46,7 @@
 #          [--registry PATH] [--interval SECS] [--base SHA]
 #          [--spawn-helper PARENT --scope TEXT --helper-workspace DIR
 #            [--helper-name NAME] [--helper-mode read-only|writable]]
+#          [--spawn-scout SLICE --scout-workspace DIR [--scout-name NAME]]
 #
 # --base records the known canonical revision in ticket prompts (no git is
 # run here; the worker verifies `git rev-parse HEAD` in its workspace and
@@ -53,6 +54,19 @@
 # helper spawn for an existing worker and exits (helpers never nest; the
 # helper ticket inherits the parent ticket; writable helpers need their own
 # isolated workspace with an explicit non-overlapping scope).
+#
+# Bug-scout lane (ticket #738): --spawn-scout performs one chief-mediated
+# scout spawn for a bounded audit slice and exits. The scout prompt (built by
+# wayfinder-scout.sh, the single source of truth) carries the read-only
+# contract, slice scope, duplication check, ticket-quality template, and the
+# disposable-workspace note. The worker row carries --role bug-scout with the
+# map number as its supervision anchor (scouts are repo-scoped, not bound to
+# one implementation ticket); slice linkage lives in scout state and the
+# chief log. Slice progress is recorded in scout state on success
+# (--base pre-validated before any spawn; a post-spawn record failure other
+# than an already-active re-audit reports nonzero). Scout dispatch stays
+# explicit — the normal pass below still fills just the ticket frontier, and
+# role-aware priority/caps belong to sibling ticket #742.
 #
 # Env: WAYFINDER_MAX_WORKERS (default 1), WAYFINDER_WORKER_KIND,
 #   WAYFINDER_WORKER_ARGS, WAYFINDER_GH_BIN (default gh), WAYFINDER_GH_REPO
@@ -62,6 +76,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 WORKER="$SCRIPT_DIR/wayfinder-worker.sh"
+SCOUT="$SCRIPT_DIR/wayfinder-scout.sh"
 
 MAP="" ONCE=0 DRY_RUN=""
 MAX="${WAYFINDER_MAX_WORKERS:-1}"
@@ -72,6 +87,7 @@ GH_BIN="${WAYFINDER_GH_BIN:-gh}"
 GH_REPO="${WAYFINDER_GH_REPO:-}"
 BASE_SHA=""
 SPAWN_HELPER="" HELPER_SCOPE="" HELPER_WORKSPACE="" HELPER_NAME="" HELPER_MODE="read-only"
+SPAWN_SCOUT="" SCOUT_WORKSPACE="" SCOUT_NAME=""
 
 usage() { sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 log() { printf '%s [chief] %s\n' "$(date '+%F %T')" "$*"; }
@@ -94,19 +110,35 @@ while [ $# -gt 0 ]; do
         --helper-workspace) HELPER_WORKSPACE="${2:-}"; shift 2 ;;
         --helper-name) HELPER_NAME="${2:-}"; shift 2 ;;
         --helper-mode) HELPER_MODE="${2:-}"; shift 2 ;;
+        --spawn-scout) SPAWN_SCOUT="${2:-}"; shift 2 ;;
+        --scout-workspace) SCOUT_WORKSPACE="${2:-}"; shift 2 ;;
+        --scout-name) SCOUT_NAME="${2:-}"; shift 2 ;;
         -h|--help) usage ;;
         *) die "unknown flag $1" ;;
     esac
 done
 [[ "$MAP" =~ ^[0-9]+$ ]] || { printf 'wayfinder-chief: --map N is required\n' >&2; exit 2; }
 [[ "$MAX" =~ ^[0-9]+$ ]] && [ "$MAX" -ge 1 ] || die "--max-workers must be >= 1 (got '$MAX')"
+if [ -n "$SPAWN_HELPER" ] && [ -n "$SPAWN_SCOUT" ]; then
+    die "--spawn-helper and --spawn-scout are separate single-shot lanes (one per invocation)"
+fi
+if [ -n "$SPAWN_SCOUT" ] && [ "$HELPER_MODE" != "read-only" ]; then
+    die "--helper-mode does not apply to --spawn-scout (helpers only)"
+fi
+if [ -z "$SPAWN_HELPER" ] && [ -z "$SPAWN_SCOUT" ] && [ "$HELPER_MODE" != "read-only" ]; then
+    die "--helper-mode requires --spawn-helper <parent-worker>"
+fi
 if [ -z "$SPAWN_HELPER" ] && { [ -n "$HELPER_SCOPE" ] || [ -n "$HELPER_WORKSPACE" ] || [ -n "$HELPER_NAME" ]; }; then
     die "--scope/--helper-workspace/--helper-name require --spawn-helper <parent-worker>"
+fi
+if [ -z "$SPAWN_SCOUT" ] && { [ -n "$SCOUT_WORKSPACE" ] || [ -n "$SCOUT_NAME" ]; }; then
+    die "--scout-workspace/--scout-name require --spawn-scout <slice>"
 fi
 export WAYFINDER_MAX_WORKERS="$MAX"
 export WAYFINDER_WORKER_REGISTRY="$REGISTRY"
 export WAYFINDER_ROLE=chief
 [ -x "$WORKER" ] || die "worker seam not executable: $WORKER"
+[ -x "$SCOUT" ] || die "scout contract not executable: $SCOUT"
 command -v "$GH_BIN" >/dev/null 2>&1 || die "gh binary not found: $GH_BIN (set WAYFINDER_GH_BIN)"
 command -v jq >/dev/null 2>&1 || die "jq is required for frontier queries"
 if [ -z "$GH_REPO" ]; then
@@ -170,8 +202,10 @@ query_frontier() {
         esac
         # A registry row in any status means the ticket is already handled
         # or in flight — never spawn a duplicate (retry prompts go through
-        # worker_prompt for the existing row).
-        if registry_tickets | grep -qx "$n"; then continue; fi
+        # worker_prompt for the existing row). Full-input grep (no -q): an
+        # early-exiting grep would SIGPIPE the producer mid-list under
+        # pipefail and flake the gate into duplicate spawns.
+        if registry_tickets | grep -x "$n" >/dev/null; then continue; fi
         case " $labels " in
             *" priority:P0 "*) rank=0 ;;
             *" priority:P1 "*) rank=1 ;;
@@ -195,8 +229,9 @@ ticket_workspace() { # <ticket> — print dir or nothing when awaiting provider.
 }
 
 chief_idle_work() {
-    # Hook for useful chief work between fills (future: scout supervision,
-    # doc refresh). Today: a heartbeat line so supervision can see liveness.
+    # Hook for useful chief work between fills (future: automatic scout
+    # supervision via --spawn-scout, doc refresh). Today: a heartbeat line
+    # so supervision can see liveness.
     log "chief idle work: none pending (map #$MAP)"
 }
 
@@ -338,6 +373,88 @@ spawn_helper_for() { # chief-mediated helper spawn; exits 0 on success.
     return "$rc"
 }
 
+scout_name_taken() { # <name> — true when the worker registry holds the name.
+    [ -f "$REGISTRY" ] || return 1
+    awk -F'\t' -v n="$1" '$1 == n { found=1; exit } END { exit !found }' "$REGISTRY"
+}
+
+spawn_scout_for() { # chief-mediated bug-scout spawn for one slice; exits 0 on success.
+    [ -n "$SPAWN_SCOUT" ] || die "--spawn-scout requires a slice (see wayfinder-scout.sh slices)"
+    # Full-input grep (no -q): an early-exiting grep would SIGPIPE the
+    # producer mid-list under pipefail and flake slice validation.
+    "$SCOUT" slices | grep -xF "$SPAWN_SCOUT" >/dev/null \
+        || die "--spawn-scout: unknown slice '$SPAWN_SCOUT' (see wayfinder-scout.sh slices)"
+    [ -n "$SCOUT_WORKSPACE" ] || die "--spawn-scout requires --scout-workspace <read-only dir>"
+    [ -d "$SCOUT_WORKSPACE" ] || die "--spawn-scout: workspace does not exist: $SCOUT_WORKSPACE"
+    case "$SCOUT_WORKSPACE" in
+        *$'\t'*|*$'\n'*) die "--spawn-scout: workspace path must not contain tabs or newlines" ;;
+    esac
+    # Pre-validate the base before spending capacity: an unresolvable --base
+    # must refuse here, not orphan a spawned worker (also runs in dry-run —
+    # resolve-base is read-only).
+    if [ -n "$BASE_SHA" ]; then
+        "$SCOUT" resolve-base --base "$BASE_SHA" >/dev/null \
+            || die "--spawn-scout: unknown base revision '$BASE_SHA'"
+    fi
+    local name="$SCOUT_NAME" prompt_file="" args=() rc=0 n start_err start_rc=0
+    if [ -z "$name" ]; then
+        name="wf-${MAP}-scout" n=1
+        while scout_name_taken "$name"; do
+            n=$((n + 1))
+            name="wf-${MAP}-scout-${n}"
+            [ "$n" -lt 1000 ] || die "--spawn-scout: cannot allocate a free scout name under 'wf-${MAP}-scout'"
+        done
+    fi
+    [[ "$name" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || die "--spawn-scout: invalid scout name '$name'"
+    prompt_file="$(mktemp)"
+    if [ -n "$BASE_SHA" ]; then
+        "$SCOUT" prompt "$SPAWN_SCOUT" --map "$MAP" --workspace "$SCOUT_WORKSPACE" --base "$BASE_SHA" > "$prompt_file" \
+            || { rm -f "$prompt_file"; die "--spawn-scout: cannot build the scout prompt for '$SPAWN_SCOUT'"; }
+    else
+        "$SCOUT" prompt "$SPAWN_SCOUT" --map "$MAP" --workspace "$SCOUT_WORKSPACE" > "$prompt_file" \
+            || { rm -f "$prompt_file"; die "--spawn-scout: cannot build the scout prompt for '$SPAWN_SCOUT'"; }
+    fi
+    args=(spawn --role bug-scout --ticket "$MAP" --workspace "$SCOUT_WORKSPACE" --name "$name" --prompt-file "$prompt_file")
+    [ -z "$PANE" ] || args+=(--pane "$PANE")
+    if [ -n "$DRY_RUN" ]; then
+        log "dry-run: would spawn scout for slice $SPAWN_SCOUT (role=bug-scout, workspace=$SCOUT_WORKSPACE, name=$name)"
+        rm -f "$prompt_file"
+        return 0
+    fi
+    "$WORKER" "${args[@]}" || rc=$?
+    rm -f "$prompt_file"
+    [ "$rc" -eq 0 ] || return "$rc"
+    log "spawned scout $name for slice $SPAWN_SCOUT (role=bug-scout, ticket #$MAP, workspace=$SCOUT_WORKSPACE)"
+    # Record slice progress only after the worker exists: a refused spawn
+    # (capacity, duplicate name) leaves scout state untouched. An already
+    # active slice is a deliberate re-audit, not a failure; any other
+    # record failure is reported nonzero so the divergence stays visible
+    # (the worker still runs, but complete/note-finding would refuse a
+    # never-started slice).
+    start_err="$(mktemp)"
+    if [ -n "$BASE_SHA" ]; then
+        "$SCOUT" start "$SPAWN_SCOUT" --base "$BASE_SHA" 2>"$start_err" || start_rc=$?
+    else
+        "$SCOUT" start "$SPAWN_SCOUT" 2>"$start_err" || start_rc=$?
+    fi
+    if [ "$start_rc" -eq 0 ]; then
+        rm -f "$start_err"
+        return 0
+    fi
+    if [ "$(scout_slice_status)" = "active" ]; then
+        log "scout $name spawned; slice $SPAWN_SCOUT already active (re-audit)"
+        rm -f "$start_err"
+        return 0
+    fi
+    log "warning: scout $name spawned but slice-state start failed: $(cat "$start_err")"
+    rm -f "$start_err"
+    return 1
+}
+
+scout_slice_status() { # print the scout-state status for the spawn slice, or nothing.
+    "$SCOUT" status 2>/dev/null | awk -F'\t' -v s="$SPAWN_SCOUT" '$1 == s { print $2; exit }'
+}
+
 pass() {
     log "pass start (map #$MAP, max=$MAX)"
     if [ -z "$DRY_RUN" ]; then
@@ -387,6 +504,11 @@ pass() {
 
 if [ -n "$SPAWN_HELPER" ]; then
     spawn_helper_for || exit $?
+    exit 0
+fi
+
+if [ -n "$SPAWN_SCOUT" ]; then
+    spawn_scout_for || exit $?
     exit 0
 fi
 
