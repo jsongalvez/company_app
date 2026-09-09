@@ -98,16 +98,9 @@ object SessionService {
         val basePrice = resolveDefaultBasePrice(branchId, clientId, sessionType)
 
         return transaction {
-            // #509 — client-first lock order (matches status/price/void/unvoid): the client
-            // row is locked before the day row so concurrent session mutations serialize
-            // instead of deadlocking. The day gate below locks the day row, serializing
-            // this create with remittance submit/undo's REMITTED transition.
-            val lockedClient =
-                ClientReads.acquireLockInTransaction(clientId)
-                    ?: throw NotFoundException("Client not found")
-            if (lockedClient.deletedAt != null) {
-                throw ConflictException("Cannot create a session for an anonymized client")
-            }
+            // #509 — client-first lock order preserved (see requireActiveClientInTransaction):
+            // the client row is locked before the day gate's day row.
+            requireActiveClientInTransaction(clientId)
             idempotentReplayOrNull(SessionRepository.findByIdInTransaction(id), clientId, branchDay.id, callerId)?.let {
                 return@transaction it
             }
@@ -139,6 +132,21 @@ object SessionService {
             }
 
             result
+        }
+    }
+
+    /**
+     * #692 — client existence + anonymization gate for create (runs on the caller's command
+     * transaction): unknown client fails closed with 404, anonymized fails with 409.
+     * Extracted so [create] stays under the LongMethod gate; preserves the client-first
+     * lock order (#509 — matches status/price/void/unvoid).
+     */
+    private fun requireActiveClientInTransaction(clientId: UUID) {
+        val lockedClient =
+            ClientReads.acquireLockInTransaction(clientId)
+                ?: throw NotFoundException("Client not found")
+        if (lockedClient.deletedAt != null) {
+            throw ConflictException("Cannot create a session for an anonymized client")
         }
     }
 

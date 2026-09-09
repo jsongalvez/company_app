@@ -64,19 +64,8 @@ object CompensationService {
         }
 
         return transaction {
-            // #511 — in-tx replay classification before the day gate (mirrors #509/#510):
-            // a same-id row already committed acks without gating so retries landing
-            // after a day transition still ack; a foreign row fails closed.
-            CompensationRepository.findByIdInTransaction(id)?.let { existing ->
-                if (existing.workBranchDayId != workBranchDayId ||
-                    existing.payingBranchDayId != payingBranchDayId
-                ) {
-                    throw NotFoundException("Compensation not found for this branch day")
-                }
-                if (existing.userId != userId || existing.assignedBy != callerId) {
-                    throw ConflictException("Compensation id already belongs to another create request")
-                }
-                return@transaction existing
+            replayIfExistsInTransaction(id, workBranchDayId, payingBranchDayId, userId, callerId)?.let {
+                return@transaction it
             }
             // Locked day read: serializes this create with remittance's REMITTED transition.
             val (payingDay, isRemitted) =
@@ -107,6 +96,31 @@ object CompensationService {
                 "[CREATE-COMPENSATION] Compensation ${created.id.toString().maskUUID()} created"
             }
         }
+    }
+
+    /**
+     * #511 — in-tx replay classification before the day gate (mirrors #509/#510):
+     * a same-id row already committed acks without gating so retries landing
+     * after a day transition still ack; a foreign row fails closed.
+     * Extracted so [create] stays under the ThrowsCount gate (#695 repair).
+     */
+    private fun replayIfExistsInTransaction(
+        id: UUID,
+        workBranchDayId: UUID,
+        payingBranchDayId: UUID,
+        userId: UUID,
+        callerId: UUID,
+    ): Compensation? {
+        val existing = CompensationRepository.findByIdInTransaction(id) ?: return null
+        if (existing.workBranchDayId != workBranchDayId ||
+            existing.payingBranchDayId != payingBranchDayId
+        ) {
+            throw NotFoundException("Compensation not found for this branch day")
+        }
+        if (existing.userId != userId || existing.assignedBy != callerId) {
+            throw ConflictException("Compensation id already belongs to another create request")
+        }
+        return existing
     }
 
     // #596: 6-param update command stays whole per #535; bundle only on a real ownership decision.
