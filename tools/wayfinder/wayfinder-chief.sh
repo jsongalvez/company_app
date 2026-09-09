@@ -523,8 +523,8 @@ WORKSPACE: $ws
 BASE: <full 40-char HEAD you verified in $ws>
 COMMIT: <sha of your reviewable commit in $ws, or none>
 
-Also write the STATUS and COMMIT lines to $ws/.wayfinder/report-$ticket.md
-(one line each, e.g. `STATUS: done` + `COMMIT: <sha>`) the moment you finish —
+Also write two lines (STATUS followed by COMMIT, same values as above) to the file
+$ws/.wayfinder/report-$ticket.md the moment you finish —
 the chief harvests that file even if your session goes idle first.
 
 SUMMARY:
