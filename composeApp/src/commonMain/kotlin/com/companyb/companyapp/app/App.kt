@@ -220,7 +220,7 @@ private fun LaunchValidationSplash(
     ) {
         if (errorMessage == null) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                // #670 — cold load uses a bounded placeholder; splash retry repeats reads
+                // #670 — cold load uses a bounded loading indicator; splash retry repeats reads
                 // only, never POSTs (resolver contract from #669 stays intact).
                 ColdLoadPlaceholder(message = busyMessage ?: "Loading…")
             }

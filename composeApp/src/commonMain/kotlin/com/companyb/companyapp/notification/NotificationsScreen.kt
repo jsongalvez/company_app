@@ -108,7 +108,6 @@ fun NotificationsScreen(
     ) {
         NotificationsHeaderHost(
             viewModel = viewModel,
-            reliefInviteViewModel = reliefInviteViewModel,
             derived = derived,
             onRefresh = {
                 val firstVisible = listState.layoutInfo.visibleItemsInfo.firstOrNull()

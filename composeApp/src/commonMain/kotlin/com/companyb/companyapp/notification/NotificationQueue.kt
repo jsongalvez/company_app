@@ -4,16 +4,6 @@ import com.companyb.companyapp.contracts.notification.NotificationResponse
 import kotlin.time.Instant
 
 /**
- * One notification-queue row (#679): the server row plus whether this visit already marked
- * it read. Rows read this visit stay at their queue position with [readThisVisit] set —
- * the list never reorders under the pointer; an explicit refresh reconciles groups.
- */
-data class QueueRow(
-    val notification: NotificationResponse,
-    val readThisVisit: Boolean,
-)
-
-/**
  * Merges the live unread feed with the visit-local read marks into one position-stable
  * queue. Order reproduces the server feed (`createdAt` DESC, `id` DESC — the repository
  * order), so a row that flips to read keeps its index. Timestamps parse to instants so

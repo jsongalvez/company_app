@@ -246,6 +246,7 @@ fun BaseRatesScreen(
                 when {
                     !loaded && ratesState is UiState.Error -> {
                         ErrorCard(
+                            // SAFETY: is-check above; delegated State value doesn't smart-cast #467
                             message = (ratesState as UiState.Error).message,
                             onRetry = { viewModel.loadRates(scopedBranchId) },
                         )

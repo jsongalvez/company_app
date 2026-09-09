@@ -183,6 +183,7 @@ fun InventoryScreen(
     var lastCards by remember(branchId) { mutableStateOf<List<BranchInventoryResponse>>(emptyList()) }
     LaunchedEffect(inventoryState) {
         if (inventoryState is UiState.Success) {
+            // SAFETY: is-check above; delegated State value doesn't smart-cast #467
             lastCards = (inventoryState as UiState.Success<List<BranchInventoryResponse>>).data
         }
     }

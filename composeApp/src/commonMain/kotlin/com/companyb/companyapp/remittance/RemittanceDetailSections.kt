@@ -206,7 +206,6 @@ internal fun RemittanceDetailWorkspace(
         }
         if (isDraft) {
             RemittanceReviewFooter(
-                detail = detail,
                 busy = !editsEnabled,
                 onReview = { dialogs.submit = true },
             )
@@ -262,7 +261,6 @@ internal fun RemittanceDetailMountedDialogs(
  */
 @Composable
 private fun RemittanceReviewFooter(
-    detail: RemittanceDetailResponse,
     busy: Boolean,
     onReview: () -> Unit,
 ) {

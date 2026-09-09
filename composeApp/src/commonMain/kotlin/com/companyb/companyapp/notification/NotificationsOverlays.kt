@@ -152,7 +152,6 @@ internal data class NeedsDerived(
 @Composable
 internal fun NotificationsHeaderHost(
     viewModel: NotificationViewModel,
-    reliefInviteViewModel: ReliefInviteViewModel,
     derived: NotificationsDerived,
     onRefresh: () -> Unit,
 ) {

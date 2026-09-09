@@ -114,7 +114,7 @@ fun BranchSelectScreen(
         when (val state = branchesState) {
             is UiState.Loading -> {
                 if (lastBranches.isEmpty()) {
-                    // #670 — cold load uses a bounded placeholder, not a full-screen takeover.
+                    // #670 — cold load uses a bounded loading indicator, not a full-screen takeover.
                     ColdLoadPlaceholder(message = "Loading branches…")
                 } else {
                     InlineStatus(message = "Refreshing branches…", kind = InlineStatusKind.UPDATING)

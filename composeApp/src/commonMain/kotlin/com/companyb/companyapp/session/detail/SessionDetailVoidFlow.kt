@@ -55,7 +55,10 @@ internal class PaneDialogTargets {
     var showSell by mutableStateOf(false)
 }
 
-/** #406 — which void affordance an editable row offers, or none when the gate is closed. #675 renders it as a Session-actions menu item (never the primary slot). */
+/**
+ * #406 — which void affordance an editable row offers, or none when the gate is closed.
+ * #675 renders it as a Session-actions menu item (never the primary slot).
+ */
 internal enum class SessionVoidAffordance { VOID, UNVOID }
 
 internal fun sessionVoidAffordance(

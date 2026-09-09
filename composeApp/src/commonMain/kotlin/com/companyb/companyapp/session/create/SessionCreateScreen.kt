@@ -142,7 +142,6 @@ fun SessionCreateScreen(
     SessionCreateNavigationGuard(
         isSubmissionLocked = isSubmissionLocked,
         onSubmissionLockChanged = onSubmissionLockChanged,
-        onBack = requestBack,
         onSystemBack = {
             if (showDiscardDialog) {
                 showDiscardDialog = false
@@ -298,7 +297,6 @@ private fun SessionCreateHeader(
 private fun SessionCreateNavigationGuard(
     isSubmissionLocked: Boolean,
     onSubmissionLockChanged: (Boolean) -> Unit,
-    onBack: () -> Unit,
     onSystemBack: () -> Unit,
 ) {
     LaunchedEffect(isSubmissionLocked) {

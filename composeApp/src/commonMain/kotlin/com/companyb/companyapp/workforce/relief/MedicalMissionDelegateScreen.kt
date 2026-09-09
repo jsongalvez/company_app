@@ -410,7 +410,7 @@ private fun ColumnScope.DelegateScreenBody(
 ) {
     // #670 — a refresh (explicit Refresh button) retains the populated region: stale rows
     // stay mounted under an UPDATING/FAILURE banner instead of unmounting to a spinner.
-    // Cold loads (nothing retained) keep the bounded placeholder / error card.
+    // Cold loads (nothing retained) keep the bounded loading card / error card.
     val hasRetained = missionBranches.isNotEmpty()
     when {
         branchesState is UiState.Error && !hasRetained -> {
@@ -712,7 +712,7 @@ private fun ColumnScope.DelegateList(
         }
 
         is UiState.Loading -> {
-            // #670 — bounded placeholder; branch-switch loads must not retain the prior
+            // #670 — bounded loading indicator; branch-switch loads must not retain the prior
             // branch's rows (cross-branch bleed class), so no keep-last here.
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 ColdLoadPlaceholder(message = "Loading delegates…")

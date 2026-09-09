@@ -198,6 +198,7 @@ private fun RemittanceDetailScreenBody(
             // instead of silently presenting stale-as-fresh.
             if (detailState is UiState.Error && effectiveDetail != null) {
                 RemittanceStaleRetry(
+                    // SAFETY: is-check above; delegated State value doesn't smart-cast #467
                     message = (detailState as UiState.Error).message,
                     onRetry = { args.viewModel.loadRemittance(args.remittanceId) },
                 )
@@ -217,6 +218,7 @@ private fun RemittanceDetailScreenBody(
 
                 detailState is UiState.Error -> {
                     RemittanceDetailLoadError(
+                        // SAFETY: is-check above; delegated State value doesn't smart-cast #467
                         message = (detailState as UiState.Error).message,
                         onRetry = { args.viewModel.loadRemittance(args.remittanceId) },
                     )

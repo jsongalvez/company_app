@@ -72,13 +72,7 @@ private fun detailStatusOptions(
         currentStatus = session.sessionStatus,
         hasCorrectionAuthority = canCorrectStatus,
         dayStatus = dayStatus,
-    ).mapNotNull {
-        try {
-            SessionStatus.valueOf(it)
-        } catch (_: IllegalArgumentException) {
-            null
-        }
-    }.filter { it != session.sessionStatus }
+    ).mapNotNull { SessionStatus.entries.find { status -> status.name == it } }.filter { it != session.sessionStatus }
 }
 
 /**

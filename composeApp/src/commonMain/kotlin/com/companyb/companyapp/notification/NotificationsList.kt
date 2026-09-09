@@ -40,19 +40,6 @@ import com.companyb.companyapp.workforce.relief.currentOperationalDate
 import com.companyb.companyapp.workforce.relief.isInviteExpired
 
 /**
- * Stable callbacks for the notification queue (#679). Bundled so the lazy host stays
- * LongParameterList-clean; [lastOpenedId] restores focus to the invoking row after Back.
- */
-internal data class QueueCallbacks(
-    val onNotificationClick: (NotificationResponse) -> Unit,
-    val onAcceptInvite: (String) -> Unit,
-    val onDeclineInvite: (String) -> Unit,
-    val onRetryReceived: () -> Unit,
-    val lastOpenedId: String?,
-    val focusRequesters: MutableMap<String, FocusRequester>,
-)
-
-/**
  * Stable lazy keys, shared with the refresh anchor restore in [NotificationsScreen].
  * Anchor helpers mirror [NotificationsLazyList]'s section order/counts (headers included) —
  * keep them in sync when the structure changes. Restore is exact-id-or-nothing: a

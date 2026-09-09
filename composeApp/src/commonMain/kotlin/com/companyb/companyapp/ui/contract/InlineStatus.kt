@@ -22,25 +22,6 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import com.companyb.companyapp.ui.theme.Spacing
 
-/**
- * #670 — shared inline status: updating, last-updated/stale, failure + Retry, success.
- *
- * Never replaces a populated region for a background refresh and never steals focus:
- * the Retry control is reachable by keyboard but never auto-focused. Status always pairs
- * text (or a distinct icon + text) — never color alone — and success is a short nonmodal
- * note with no automatic navigation.
- *
- * No composed entrance animation is added; the UPDATING spinner is essential progress
- * indication (not decorative motion), so reduced motion has nothing to suppress here.
- */
-enum class InlineStatusKind {
-    UPDATING,
-    STALE,
-    FAILURE,
-    SUCCESS,
-    INFO,
-}
-
 @Composable
 fun InlineStatus(
     message: String,
@@ -85,7 +66,7 @@ fun InlineStatus(
 }
 
 /**
- * Cold-load placeholder: bounded (never a full-screen takeover for a refresh), stable
+ * Cold-load indicator: bounded (never a full-screen takeover for a refresh), stable
  * across recompositions so a landing read does not shift surrounding chrome.
  */
 @Composable

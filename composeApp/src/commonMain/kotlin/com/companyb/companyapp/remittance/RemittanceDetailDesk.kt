@@ -69,19 +69,6 @@ import kotlin.uuid.Uuid
 import androidx.compose.ui.geometry.CornerRadius as GeometryCornerRadius
 
 /**
- * #677 — shared desk bundle built by the success host: the queue mirrors + shared list
- * state, rail callbacks, and the desk selection context (branch + selected id).
- */
-internal data class RemittanceDeskState(
-    val branchId: String,
-    val currentId: String,
-    val mirrors: Map<String, List<RemittanceResponse>>,
-    val queueState: UiState<List<RemittanceResponse>>,
-    val onQueueClick: (String) -> Unit,
-    val onRetryQueue: () -> Unit,
-)
-
-/**
  * #677 — queue + one workspace (the #447 Variant B desk minus its third summary rail:
  * the evolving draft and its review live in the one workspace, never duplicated into
  * a side brief). Wide layouts only; the workspace is the detail content with its

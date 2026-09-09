@@ -33,7 +33,7 @@ import com.companyb.companyapp.ui.theme.Spacing
  *
  * One filled primary per task region; secondary outlined/quiet; tertiary text. A busy
  * action keeps its label and outer bounds: the [OperationalUiContract.progressSlot] slot is
- * always reserved (invisible placeholder when idle), duplicate submission is disabled, and
+ * always reserved (invisible reserved slot when idle), duplicate submission is disabled, and
  * adjacent controls never shift. Minimum height covers touch (48dp); desktop pointer
  * targets (40dp) are satisfied inside it.
  *

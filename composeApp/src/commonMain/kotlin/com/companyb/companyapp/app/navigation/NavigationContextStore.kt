@@ -43,22 +43,33 @@ object NavigationContextStore {
     /**
      * Stable per-section key: detail routes share their parent's slot, so selecting a
      * session then pushing its detail does not fork the Sessions context.
+     *
+     * Exhaustive over [Route] (#468 — no `::class` runtime narrowing): pushed routes map
+     * to their parent slot, auth/branch entry points keep stable keys.
      */
     fun sectionKey(route: Route): String =
-        when (val parent = ShellLayoutPolicy.parentFor(route)) {
+        when (ShellLayoutPolicy.parentFor(route)) {
             is Route.Dashboard -> "sessions"
+            is Route.SessionDetail -> "sessions"
+            is Route.SessionCreate -> "sessions"
             is Route.Clients -> "clients"
+            is Route.ClientDetail -> "clients"
             is Route.Inventory -> "inventory"
             is Route.BaseRates -> "rates"
             is Route.ProductCatalog -> "catalog"
             is Route.Finance -> "finance"
             is Route.RemittanceList -> "remittance"
+            is Route.RemittanceDetail -> "remittance"
             is Route.Notifications -> "notifications"
             is Route.AuditLog -> "audit"
+            is Route.AuditLogHistory -> "audit"
             is Route.UserManagement -> "team"
             is Route.MedicalMissionDelegates -> "delegates"
             is Route.Profile -> "profile"
-            else -> "section:${parent::class.simpleName}"
+            is Route.BranchSelect -> "branch-select"
+            is Route.Login -> "login"
+            is Route.AcceptInvite -> "invite"
+            is Route.ForgotPassword -> "password"
         }
 
     /** Last retained context for this user+branch+section, or null when never visited. */
