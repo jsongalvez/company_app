@@ -144,7 +144,11 @@ internal object RemittanceLineRepository {
         }
 
         RemittanceLineTable
-            .update({ RemittanceLineTable.id eq lineId and RemittanceLineTable.deletedAt.isNull() }) {
+            .update({
+                (RemittanceLineTable.id eq lineId) and
+                    (RemittanceLineTable.remittanceId eq remittanceId) and
+                    RemittanceLineTable.deletedAt.isNull()
+            }) {
                 it[RemittanceLineTable.deletedBy] = deletedBy
                 it[RemittanceLineTable.deletedAt] =
                     CurrentTimestampWithTimeZone
@@ -164,8 +168,10 @@ internal object RemittanceLineRepository {
         val afterLine =
             RemittanceLineTable
                 .selectAll()
-                .where { RemittanceLineTable.id eq lineId }
-                .single()
+                .where {
+                    (RemittanceLineTable.id eq lineId) and
+                        (RemittanceLineTable.remittanceId eq remittanceId)
+                }.single()
                 .toRemittanceLine()
 
         logger.info { "[DELETE-REMITTANCE-LINE] Line ${afterLine.id.toString().maskUUID()} deleted" }

@@ -746,6 +746,37 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `delete line through another remittance returns not found without mutation`() {
+        val owner = createDraftRemittance()
+        val other = createDraftRemittance()
+        createSession()
+        val lineId = TestFixtures.uuid()
+
+        RemittanceService.addLine(
+            callerId = callerId,
+            remittanceId = owner.id,
+            id = lineId,
+            type = RemittanceLineType.SESSION,
+            sessionId = sessionId,
+            productSaleId = null,
+            amount = BigDecimal("1500.00"),
+        )
+
+        val ownerVersionBefore = RemittanceService.getRemittance(owner.id).remittance.version
+        val otherVersionBefore = RemittanceService.getRemittance(other.id).remittance.version
+
+        assertFailsWith<NotFoundException> {
+            RemittanceService.removeLine(callerId, other.id, lineId)
+        }
+
+        val ownerDetail = RemittanceService.getRemittance(owner.id)
+        assertEquals(1, ownerDetail.lines.size)
+        assertEquals(BigDecimal("1500.00"), ownerDetail.totalAmount)
+        assertEquals(ownerVersionBefore, ownerDetail.remittance.version)
+        assertEquals(otherVersionBefore, RemittanceService.getRemittance(other.id).remittance.version)
+    }
+
+    @Test
     fun `delete line from non-DRAFT remittance returns bad request`() {
         val remittance = createDraftRemittance()
         createSession()
