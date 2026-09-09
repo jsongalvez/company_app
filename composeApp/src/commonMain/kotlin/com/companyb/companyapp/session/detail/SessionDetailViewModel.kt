@@ -130,9 +130,11 @@ class SessionDetailViewModel(
                     // AFTER a network load proved the row exists clears to gone instead.
                     onNonSuccess = { response ->
                         val code = response.status.value
-                        if ((code == STATUS_NOT_FOUND || code == STATUS_FORBIDDEN) && lastGood != null &&
-                            loadedFromNetwork
-                        ) {
+                        // #695 — named gone gate: a 404/403 after a proven load clears to gone.
+                        val goneAfterProof =
+                            (code == STATUS_NOT_FOUND || code == STATUS_FORBIDDEN) &&
+                                lastGood != null && loadedFromNetwork
+                        if (goneAfterProof) {
                             _gone.value = true
                             _detail.value = UiState.Error(GONE_MESSAGE)
                             true

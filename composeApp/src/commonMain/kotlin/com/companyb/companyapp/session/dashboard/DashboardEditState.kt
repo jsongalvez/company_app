@@ -130,9 +130,9 @@ fun mergeDashboardRows(
             val previous = previousById[row.id]
             if (previous != null && previous.version > row.version) previous else row
         }
-    if (pinnedId == null || existing == null) return merged
-    val pinnedIndex = existing.indexOfFirst { it.id == pinnedId }
-    val mergedIndex = merged.indexOfFirst { it.id == pinnedId }
+    // #695 — unpinned or order-unknown polls keep the merged order; only a tracked edit pins.
+    val pinnedIndex = if (pinnedId == null) -1 else existing?.indexOfFirst { it.id == pinnedId } ?: -1
+    val mergedIndex = if (pinnedId == null) -1 else merged.indexOfFirst { it.id == pinnedId }
     if (pinnedIndex < 0 || mergedIndex < 0 || pinnedIndex == mergedIndex) return merged
     return merged.toMutableList().apply {
         val pinned = removeAt(mergedIndex)

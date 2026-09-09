@@ -176,9 +176,11 @@ fun ProductCatalogScreen(
     LaunchedEffect(productsState, refocusRowId) {
         val target = refocusRowId
         val barrier = focusBarrier
-        if (target != null && barrier != null && productsState !== barrier &&
-            productsState !is UiState.Idle && productsState !is UiState.Loading
-        ) {
+        // #695 — named settle gate: same barrier/outcome rule for the focus intent, one branch.
+        val focusIntentSettled =
+            target != null && barrier != null && productsState !== barrier &&
+                productsState !is UiState.Idle && productsState !is UiState.Loading
+        if (focusIntentSettled) {
             if (productsState is UiState.Success && lastProducts.any { it.id == target }) {
                 focusBarrier = null
             } else {

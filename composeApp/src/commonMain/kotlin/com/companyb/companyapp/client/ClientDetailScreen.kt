@@ -174,14 +174,20 @@ fun ClientDetailScreen(
     LaunchedEffect(session.editingSection, updateState) {
         val switchTarget = autoSwitch
         val detail = detailClient
-        if (switchTarget != null && detail != null &&
-            session.editingSection == null &&
-            updateState !is UiState.Loading && !navigationLocked
-        ) {
+        // #695 — named auto-land gate: same save-dispatch landing rule, one readable branch.
+        val canAutoLand =
+            switchTarget != null && detail != null &&
+                session.editingSection == null &&
+                updateState !is UiState.Loading && !navigationLocked
+        if (canAutoLand) {
             autoSwitch = null
             session.startSection(switchTarget, detail)
         }
-        if (autoAnon && session.editingSection == null && updateState !is UiState.Loading && !navigationLocked) {
+        // #695 — read after the landing above: a just-started edit blocks the anonymize auto-open.
+        val canAutoAnon =
+            autoAnon && session.editingSection == null &&
+                updateState !is UiState.Loading && !navigationLocked
+        if (canAutoAnon) {
             autoAnon = false
             showAnonymizeDialog = true
         }

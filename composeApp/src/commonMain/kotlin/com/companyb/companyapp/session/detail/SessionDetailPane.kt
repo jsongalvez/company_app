@@ -344,9 +344,11 @@ private fun EditableSessionPane(
         }
         // The bar renders for editors and sellers only — read-only callers keep the
         // exact pre-#675 rendering (content plus inline errors, no action region).
-        if (model.primary != null || model.showCompletedState || showSale ||
-            model.statusMenuOptions.isNotEmpty() || voidAffordance != null
-        ) {
+        // #695 — named bar gate: editor/seller affordances in one readable branch.
+        val showActionBar =
+            model.primary != null || model.showCompletedState || showSale ||
+                model.statusMenuOptions.isNotEmpty() || voidAffordance != null
+        if (showActionBar) {
             DetailActionBar(
                 model = model,
                 showSale = showSale,

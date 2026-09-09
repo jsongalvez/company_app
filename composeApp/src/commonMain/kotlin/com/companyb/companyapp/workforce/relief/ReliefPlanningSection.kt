@@ -352,7 +352,11 @@ private fun PlanningRequestsSection(
         // when no incoming ask stands (the card would render nothing for them); relief
         // users see it only on a truly empty day (their outgoing rows render in the card).
         val nothingForMember = !isReliefUser && rows?.incomingPending(currentUserId)?.isEmpty() == true
-        if (rows != null && requestsState !is UiState.Loading && (rows.isEmpty() || nothingForMember)) {
+        // #695 — named empty-state gate: same member/relief distinction, one readable branch.
+        val showRequestsEmpty =
+            rows != null && requestsState !is UiState.Loading &&
+                (rows.isEmpty() || nothingForMember)
+        if (showRequestsEmpty) {
             Text(
                 text = "Requests",
                 style = MaterialTheme.typography.labelSmall,
@@ -682,13 +686,13 @@ private fun PlanningAcceptedSection(
         )
     }
     LaunchedEffect(revokeState) {
+        // #695 — named settle gate: success, error, or an idle after loading ends the revoke wait.
+        val revokeSettled =
+            revokeState is UiState.Success || revokeState is UiState.Error ||
+                (revokeState is UiState.Idle && revokeWasLoading)
         if (revokeState is UiState.Loading) {
             revokeWasLoading = true
-        } else if (
-            revokeState is UiState.Success ||
-            revokeState is UiState.Error ||
-            (revokeState is UiState.Idle && revokeWasLoading)
-        ) {
+        } else if (revokeSettled) {
             revokeWasLoading = false
             pendingRevoke = null
         }
