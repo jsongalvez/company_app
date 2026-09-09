@@ -76,7 +76,6 @@ private const val TAG = "ReliefPlanningSection"
  *   kept separate from the action errors so a failed refresh never reads as a failed send;
  * - Requests and Invitations carry separate concise empty states.
  */
-@Suppress("LongParameterList") // #680 planning legs stay whole per #535; callers supply context only
 @Composable
 fun ReliefPlanningTabContent(
     branchId: String,

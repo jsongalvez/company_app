@@ -191,6 +191,7 @@ complexity:
     active: true
     threshold: 60
     excludes:
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/rates/BaseRatesScreen.kt' #685 screen orchestrator stays whole per #535; #695 suppress-to-exclude migration
   LongParameterList:
     # #535: design signal, not a mandate for arbitrary DTO wrappers — coherent
     # state-owner and declarative-UI signatures stay whole; bundle only on a real
@@ -202,6 +203,12 @@ complexity:
     ignoreDataClasses: true
     ignoreAnnotatedParameter: []
     excludes:
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/ReliefPlanningSection.kt' #680 planning legs stay whole per #535; #695 suppress-to-exclude migration
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/detail/SessionDetailActionBar.kt' #675 action legs stay whole per #535; #695 suppress-to-exclude migration
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/rates/BaseRatesScreen.kt' #685 rows/editor stay whole per #535; #695 suppress-to-exclude migration
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateActionBar.kt' #674 bar signatures stay whole per #535; #695 suppress-to-exclude migration
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/contract/OperationalDialog.kt' #670 dialog shell stays whole per #535; #695 suppress-to-exclude migration
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/InventoryScreen.kt' #676 header/body/list stay whole per #535; #695 suppress-to-exclude migration
   MethodOverloading:
     active: true
     threshold: 6

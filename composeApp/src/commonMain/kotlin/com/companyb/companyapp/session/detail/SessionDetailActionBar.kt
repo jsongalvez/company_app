@@ -44,7 +44,6 @@ import com.companyb.companyapp.ui.theme.Spacing
  * A completed session keeps a quiet state line in the primary slot, so the just-clicked
  * primary is never replaced by a destructive action at that pointer location.
  */
-@Suppress("LongParameterList") // #675 action legs stay whole per #535 (bar-owned inputs, #672 precedent)
 @Composable
 internal fun DetailActionBar(
     model: SessionDetailActionModel,

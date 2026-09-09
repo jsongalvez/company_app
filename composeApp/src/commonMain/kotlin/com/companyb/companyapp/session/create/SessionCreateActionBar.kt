@@ -35,7 +35,6 @@ import com.companyb.companyapp.ui.theme.Spacing
  * another session (VM-owned).
  */
 @Composable
-@Suppress("LongParameterList") // #674 declarative-UI bar signature stays whole per #535.
 internal fun SessionCreateActionBar(
     viewModel: SessionCreateFormApi,
     draft: SessionCreateDraft,
@@ -78,7 +77,6 @@ internal fun SessionCreateActionBar(
 }
 
 @Composable
-@Suppress("LongParameterList") // #674 declarative-UI bar row stays whole per #535.
 private fun SubmitBar(
     draft: SessionCreateDraft,
     hasClient: Boolean,

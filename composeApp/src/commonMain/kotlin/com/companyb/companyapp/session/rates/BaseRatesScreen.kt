@@ -68,7 +68,6 @@ import kotlin.uuid.Uuid
  * refresh" with a reload-only Retry (never another POST). MEDICAL_MISSION stays locked at
  * ₱0 ([missionPriceLocked]; the server additionally normalizes, #405 invariant shape).
  */
-@Suppress("LongMethod") // #685 screen orchestrator stays whole per #535
 @Composable
 fun BaseRatesScreen(
     viewModel: SessionRatesViewModel,
@@ -338,7 +337,6 @@ private fun NullBranchCard(onSelectBranch: () -> Unit) {
 
 @Composable
 // #685 16-param rows stay whole (declarative-UI signature; #535 no arbitrary DTO).
-@Suppress("LongParameterList") // #685
 private fun RateRows(
     rates: List<RateResponse>,
     editingType: SessionType?,
@@ -429,7 +427,6 @@ private fun RateRowRest(
 
 @Composable
 // #685 13-param editor stays whole (declarative-UI signature; #535 no arbitrary DTO).
-@Suppress("LongParameterList") // #685
 private fun RateRowEditor(
     row: RateDisplayRow,
     draft: String,

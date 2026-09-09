@@ -276,7 +276,6 @@ private fun writeOverlayFor(
  * The screen header (#676): title plus search, Low stock filter, History (#397),
  * Add product to branch (#395), and Refresh affordances.
  */
-@Suppress("LongParameterList") // #676 header carries search/filter/history/add/refresh in one row per #535.
 @Composable
 private fun InventoryHeader(
     context: InventorySectionContext,
@@ -440,7 +439,6 @@ private fun InventoryOverlayHosts(
     }
 }
 
-@Suppress("LongParameterList") // #676 body threads retained list + filter + actions per #535.
 @Composable
 private fun InventoryBody(
     state: UiState<List<BranchInventoryResponse>>,
@@ -524,7 +522,6 @@ private fun InventoryBody(
     }
 }
 
-@Suppress("LongParameterList") // #676 list threads filter + empty states + actions per #535.
 @Composable
 private fun InventorySuccessList(
     cards: List<BranchInventoryResponse>,

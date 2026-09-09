@@ -47,7 +47,6 @@ import com.companyb.companyapp.ui.theme.Spacing
  * so reduced motion has nothing to suppress here.
  */
 @Composable
-@Suppress("LongParameterList") // #670 declarative-UI dialog shell stays whole per #535.
 fun OperationalDialog(
     title: String,
     onDismiss: () -> Unit,
@@ -157,7 +156,6 @@ fun DestructiveActionButton(
  * destructive intent is honored by the error-color label below).
  */
 @Composable
-@Suppress("LongParameterList") // #670 declarative-UI confirm stays whole per #535.
 fun DestructiveConfirmDialog(
     title: String,
     body: String,
