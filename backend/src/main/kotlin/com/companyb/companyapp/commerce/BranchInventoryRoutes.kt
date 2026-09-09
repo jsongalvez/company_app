@@ -141,14 +141,19 @@ object BranchInventoryRoutes {
         registerHandlers(config)
     }
 
+    private fun requireKnownBranchId(context: Context): UUID {
+        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+        BranchService.findById(branchId)
+        return branchId
+    }
+
     private fun registerGuards(config: JavalinConfig) {
         // #732 — 404 precedence for an unknown branch before the capability gate
         // (#730 SessionBaseRateRoutes precedent; #711/#715/#724 class):
         // requireBranchCapabilityForBranchId alone conflates "unknown branch" with
         // "known but non-member". BranchService.findById throws NotFoundException.
         config.routes.before("/api/branches/{branchId}/inventory") { context ->
-            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            BranchService.findById(branchId)
+            val branchId = requireKnownBranchId(context)
             val required =
                 if (context.method() == HandlerType.POST) {
                     CapabilityCodes.MANAGE_PRODUCTS
@@ -163,8 +168,7 @@ object BranchInventoryRoutes {
         }
 
         config.routes.before("/api/branches/{branchId}/inventory/low-stock") { context ->
-            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            BranchService.findById(branchId)
+            val branchId = requireKnownBranchId(context)
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
                 branchId,
@@ -173,8 +177,7 @@ object BranchInventoryRoutes {
         }
 
         config.routes.before("/api/branches/{branchId}/inventory/movements") { context ->
-            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            BranchService.findById(branchId)
+            val branchId = requireKnownBranchId(context)
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
                 branchId,
@@ -183,8 +186,7 @@ object BranchInventoryRoutes {
         }
 
         config.routes.before("/api/branches/{branchId}/inventory/{productId}/restock") { context ->
-            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            BranchService.findById(branchId)
+            val branchId = requireKnownBranchId(context)
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
                 branchId,
@@ -193,8 +195,7 @@ object BranchInventoryRoutes {
         }
 
         config.routes.before("/api/branches/{branchId}/inventory/{productId}/movement") { context ->
-            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            BranchService.findById(branchId)
+            val branchId = requireKnownBranchId(context)
             val request = context.bodyAsClass<InventoryMovementRequest>()
             val reason = validateMovementReason(request.reason)
             val required =
