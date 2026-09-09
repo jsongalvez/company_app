@@ -552,6 +552,21 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `deep-link read with unknown branch throws NotFoundException`() {
+        assertFailsWith<NotFoundException> {
+            ReliefAccessService.listForCallerByDay(memberId, TestFixtures.uuid(), TestFixtures.today)
+        }
+    }
+
+    @Test
+    fun `deep-link read on existing day with zero requests returns empty list`() {
+        val emptyDate = TestFixtures.today.plusDays(11)
+        insertBranchDay(TestFixtures.uuid(), branchId, date = emptyDate)
+
+        assertTrue(ReliefAccessService.listForCallerByDay(memberId, branchId, emptyDate).isEmpty())
+    }
+
+    @Test
     fun `mine list carries branch context across days`() {
         val todayId = TestFixtures.uuid()
         val futureId = TestFixtures.uuid()

@@ -64,6 +64,10 @@ object ReliefAccessService {
         branchId: UUID,
         date: LocalDate,
     ): List<ReliefAccess> {
+        // #725 — 404 precedence for an unknown branch before the day read (#721
+        // precedent): findByBranchAndDate alone conflates "unknown branch" with
+        // "known branch with no day yet".
+        BranchService.findById(branchId)
         val branchDay = BranchDayService.findByBranchAndDate(branchId, date) ?: return emptyList()
         return listForCaller(callerId, branchDay.id)
     }
