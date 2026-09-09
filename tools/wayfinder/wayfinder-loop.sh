@@ -594,9 +594,10 @@ handoff_fingerprint() {
 }
 
 seed_seen_docs() {
-  local d fp entries=""
+  local exclude="${1:-}" d fp entries=""
   while IFS= read -r d; do
     [ -n "$d" ] || continue
+    [ "$d" = "$exclude" ] && continue
     fp="$(handoff_fingerprint "$d")"
     if [ -n "$entries" ]; then entries="$entries,$d@$fp"; else entries="$d@$fp"; fi
   done < <(handoff_docs)
@@ -1234,7 +1235,9 @@ wait_for_doc() {
       # settle: the file may still be mid-write
       sleep 10
       last_doc="$d"
-      mark_seen "$d"
+      # NOT marked seen here: spawn_session marks the doc AS SPAWNED, after its
+      # prompt lands. Marking earlier opened a crash window (daemon killed
+      # while a spawn gate held — packet swallowed, never requeued).
       save_state
       spawn_session "$d" || pick_rc=$?
       if [ "$pick_rc" -eq 0 ]; then
@@ -1288,11 +1291,13 @@ if [ "${1:-}" = "--bootstrap" ]; then
   # plain restart resumes supervision of the live chain instead.
   workers="$(wayfinder_workers)"
   [ -z "$workers" ] || die "live chain worker(s) still active ($(echo "$workers" | tr '\n' ' ')) — resume supervision instead of --bootstrap, or stand them down first (see docs/agents/wayfinder-loop.md)"
-  # Seed every existing handoff by content, not basename. A later session may
-  # overwrite an existing numbered handoff filename.
-  seen_docs="$(seed_seen_docs)"
+  # Seed every existing handoff by content, not basename — except the bootstrap
+  # doc itself, which spawn_session marks AS SPAWNED after its prompt lands.
+  # Marking it here opened the same crash window as wait_for_doc (daemon killed
+  # while a spawn gate held — packet swallowed, never requeued) and double-marked
+  # it alongside the spawn mark.
+  seen_docs="$(seed_seen_docs "$doc")"
   last_doc="$doc"
-  mark_seen "$doc"
   retries=0
   save_state
   log "bootstrap with $doc — spawning first session"
