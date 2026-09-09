@@ -4,6 +4,7 @@ import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.authorization.AuthorizationGrants
 import com.companyb.companyapp.authorization.GrantReliefCapabilityParams
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
@@ -60,6 +61,10 @@ object ReliefInviteService {
         // Advisory pre-transaction fast-path (unchanged): the insertIgnore swallow below
         // is the atomic per-person guard; these reads only fail fast.
         // #598: eligibility + advisory guards split into named checks (ThrowsCount budget is 2).
+        // #711 — 404 precedence for an unknown branch before the membership gate:
+        // requireActiveAssignment alone conflates "unknown branch" with "known but
+        // non-member" (the #704 clockIn / requestReliefAccess order).
+        BranchService.findById(branchId)
         requireActiveAssignment(callerId, branchId)
         requireInviteeEligible(inviteeUserId, callerId)
 

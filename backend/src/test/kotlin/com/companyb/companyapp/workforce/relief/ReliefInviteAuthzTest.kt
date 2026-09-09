@@ -222,6 +222,28 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
     }
 
     @Test
+    fun `create with unknown branch returns 404 without writing rows`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            val response =
+                client.post(
+                    "/api/branches/$unknownBranch/relief-invites",
+                    createBody(invitee, tomorrow),
+                    asUser(inviter),
+                )
+            assertEquals(404, response.code, response.body.string().orEmpty())
+            val dayCount =
+                transaction {
+                    BranchDayTable
+                        .selectAll()
+                        .where { BranchDayTable.branchId eq unknownBranch }
+                        .count()
+                }
+            assertEquals(0L, dayCount, "unknown branch must 404 before resolve-or-create writes a day row")
+        }
+    }
+
+    @Test
     fun `inviter cannot invite themselves`() {
         testServer.client.let { client ->
             val response =
