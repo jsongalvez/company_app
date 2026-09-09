@@ -23,6 +23,14 @@ package com.companyb.companyapp.app.navigation
  * All/Pending/Completed): the drawer collapses to the Dashboard root on
  * section-switch, so a ViewModel/screen-held filter would reset on every return.
  * The tab rides the same user+branch key and null-leg rules as the anchors.
+ *
+ * #727 — Inventory owns a lightweight working context on the same seam (search query
+ * + Low stock filter + identity scroll anchor): the drawer collapses to the Dashboard
+ * root on section-switch, so entry-scoped query/filter/list state alone would reset
+ * on every Inventory → Finance → Inventory roundtrip. Query/low-stock ride the same
+ * user+branch key and null-leg rules as the anchors; the anchor reuses
+ * scrollAnchorId as the visible card id (identity, not index) so filtering or data
+ * changes degrade to a safe fallback instead of a stuck viewport.
  */
 object NavigationContextStore {
     /** What a section needs to restore its working position on return. */
@@ -30,6 +38,10 @@ object NavigationContextStore {
         val selectedId: String? = null,
         val scrollAnchorId: String? = null,
         val tab: String? = null,
+        // #727 — Inventory working context only (query + Low stock filter). Null =
+        // never visited; empty query / false filter are meaningful retained values.
+        val query: String? = null,
+        val lowStockOnly: Boolean? = null,
     )
 
     private val contexts: MutableMap<String, SectionContext> = mutableMapOf()
@@ -92,6 +104,10 @@ object NavigationContextStore {
         selectedId: String?,
         scrollAnchorId: String? = null,
         tab: String? = null,
+        // #727 — null = leave intact; non-null (including "" / false) overwrites so an
+        // explicit clear is itself retained and never resurrects an older value.
+        query: String? = null,
+        lowStockOnly: Boolean? = null,
     ) {
         if (userId == null || branchId == null) return
         val k = key(userId, branchId, section)
@@ -101,6 +117,8 @@ object NavigationContextStore {
                 selectedId = selectedId ?: previous.selectedId,
                 scrollAnchorId = scrollAnchorId ?: previous.scrollAnchorId,
                 tab = tab ?: previous.tab,
+                query = query ?: previous.query,
+                lowStockOnly = lowStockOnly ?: previous.lowStockOnly,
             )
     }
 

@@ -117,4 +117,95 @@ class NavigationContextStoreTest {
 
         assertNull(NavigationContextStore.retained("u1", "b2", Route.Dashboard()))
     }
+
+    @Test
+    fun `inventory query and filter survive a section roundtrip`() {
+        NavigationContextStore.retain(
+            "u1",
+            "b1",
+            Route.Inventory,
+            selectedId = null,
+            query = "serum",
+            lowStockOnly = true,
+            scrollAnchorId = "card-9",
+        )
+
+        val restored = NavigationContextStore.retained("u1", "b1", Route.Inventory)
+        assertEquals("serum", restored?.query)
+        assertEquals(true, restored?.lowStockOnly)
+        assertEquals("card-9", restored?.scrollAnchorId)
+    }
+
+    @Test
+    fun `explicit inventory clear overwrites and never resurrects`() {
+        NavigationContextStore.retain(
+            "u1",
+            "b1",
+            Route.Inventory,
+            selectedId = null,
+            query = "serum",
+            lowStockOnly = true,
+        )
+
+        NavigationContextStore.retain(
+            "u1",
+            "b1",
+            Route.Inventory,
+            selectedId = null,
+            query = "",
+            lowStockOnly = false,
+        )
+
+        val restored = NavigationContextStore.retained("u1", "b1", Route.Inventory)
+        assertEquals("", restored?.query)
+        assertEquals(false, restored?.lowStockOnly)
+    }
+
+    @Test
+    fun `null inventory legs leave stored query and filter intact`() {
+        NavigationContextStore.retain(
+            "u1",
+            "b1",
+            Route.Inventory,
+            selectedId = null,
+            query = "serum",
+            lowStockOnly = true,
+            scrollAnchorId = "card-9",
+        )
+
+        NavigationContextStore.retain("u1", "b1", Route.Inventory, selectedId = null)
+
+        val restored = NavigationContextStore.retained("u1", "b1", Route.Inventory)
+        assertEquals("serum", restored?.query)
+        assertEquals(true, restored?.lowStockOnly)
+        assertEquals("card-9", restored?.scrollAnchorId)
+    }
+
+    @Test
+    fun `inventory context is keyed per user and branch`() {
+        NavigationContextStore.retain(
+            "u1",
+            "b1",
+            Route.Inventory,
+            selectedId = null,
+            query = "serum",
+            lowStockOnly = true,
+        )
+
+        assertNull(NavigationContextStore.retained("u1", "b2", Route.Inventory))
+        assertNull(NavigationContextStore.retained("u2", "b1", Route.Inventory))
+    }
+
+    @Test
+    fun `inventory context never shares a slot with sessions`() {
+        NavigationContextStore.retain(
+            "u1",
+            "b1",
+            Route.Inventory,
+            selectedId = null,
+            query = "serum",
+        )
+
+        assertNull(NavigationContextStore.retained("u1", "b1", Route.Dashboard())?.query)
+    }
 }

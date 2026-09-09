@@ -24,17 +24,21 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.app.AppSessionState
+import com.companyb.companyapp.app.navigation.NavigationContextStore
+import com.companyb.companyapp.app.navigation.Route
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.client.ClientSearchApi
 import com.companyb.companyapp.commerce.catalog.ProductViewModel
@@ -145,6 +149,11 @@ internal class InventorySectionContext(
  * vs refresh failure reads distinctly); search/low-stock/empty states read distinctly;
  * compact widths stack identity-first instead of horizontal scrolling.
  *
+ * #727 — cross-section workspace memory: search query, Low stock filter, and the visible
+ * card anchor survive top-level section roundtrips per user+branch via
+ * NavigationContextStore (identity anchor with start-of-list fallback); overlays, drafts,
+ * banners, and success notes stay entry-local and are never resurrected.
+ *
  * States: load-on-entry + Refresh button (the Remittance D7 axis); cold Loading spinner;
  * cold error → shared ErrorCard retry; retained list + Updating/failure bands on refresh;
  * empty hint; rows sorted by product name (toInventoryRows pins the presentation rules,
@@ -167,6 +176,10 @@ fun InventoryScreen(
     val snapshot by AppSessionState.snapshot.collectAsState()
     val capabilities = snapshot.capabilities
     val branchDayId = snapshot.clock?.branchDayId
+    // #727 — section working context is keyed by signed-in user + operational branch
+    // (the existing section-context safety rule): a branch switch or a new session is a
+    // fresh key, so the previous branch/session's query can never resurface here.
+    val contextUserId = snapshot.user?.id
     // #676 — branch-keyed working context (#671 rekey rule): an open dialog, the retained
     // list, the write label, and the scroll anchor never surface another branch's data.
     var overlay by remember(branchId) { mutableStateOf<InventoryOverlay?>(null) }
@@ -174,10 +187,22 @@ fun InventoryScreen(
         InventorySectionContext(viewModel, productViewModel, productSaleViewModel, clientSearch, branchId)
     val writeResults = InventoryWriteResults(restockResult, movementResult, cardResult, saleResult)
     val writesDisabled = writesDisabled(restockResult, movementResult, saleResult)
-    // #676 — header query/filter survive back + refresh (screen-held, keyed by branch so a
-    // branch switch never surfaces another branch's query).
-    var query by rememberSaveable(branchId) { mutableStateOf("") }
-    var lowStockOnly by rememberSaveable(branchId) { mutableStateOf(false) }
+    // #727 — lightweight working context survives top-level section roundtrips per
+    // user+branch (the drawer collapses to the Dashboard root on switch, so entry-scoped
+    // state alone would reset on every Inventory → Finance → Inventory return). Read
+    // once per entry; every change below retains immediately so an explicit clear never
+    // resurrects an older value. Workspace memory only — the list still loads
+    // authoritative data through the existing legs.
+    val retainedInventory =
+        remember(contextUserId, branchId) {
+            NavigationContextStore.retained(contextUserId, branchId, Route.Inventory)
+        }
+    var query by rememberSaveable(contextUserId, branchId) {
+        mutableStateOf(retainedInventory?.query ?: "")
+    }
+    var lowStockOnly by rememberSaveable(contextUserId, branchId) {
+        mutableStateOf(retainedInventory?.lowStockOnly ?: false)
+    }
     // #676 — retained populated list: follow-up reloads never replace usable content.
     // Branch-keyed with the overlay above so a branch switch never flashes old rows.
     var lastCards by remember(branchId) { mutableStateOf<List<BranchInventoryResponse>>(emptyList()) }
@@ -198,7 +223,52 @@ fun InventoryScreen(
     LaunchedEffect(inventoryState) { if (inventoryState is UiState.Success) lastWriteLabel = null }
     // #676 — the list anchor survives dialog roundtrips and refreshes; branch-keyed so a
     // switch resets instead of jumping to a meaningless offset.
-    val listState = remember(branchId) { LazyListState() }
+    // #727 — across top-level section switches the anchor is the visible card id
+    // (identity, not index): restored once against the filtered cards when the first
+    // authoritative load lands, with a safe start-of-list fallback when the anchor is
+    // gone or no longer matches. Refreshes and in-entry filter edits never re-scroll —
+    // the live position stays under the operator.
+    val listState = remember(contextUserId, branchId) { LazyListState() }
+    val inventoryAnchorId = retainedInventory?.scrollAnchorId
+    var inventoryAnchorConsumed by remember(contextUserId, branchId) {
+        mutableStateOf(inventoryAnchorId == null)
+    }
+    val lowStockIdsForAnchor =
+        (lowStockState as? UiState.Success)?.data.orEmpty().mapTo(mutableSetOf()) { it.productId }
+    val cardsForAnchor = (inventoryState as? UiState.Success)?.data ?: lastCards
+    val visibleForAnchor = filterInventoryCards(cardsForAnchor, query, lowStockOnly, lowStockIdsForAnchor)
+    // #727 — latest snapshots for the dispose leg above (see comment there).
+    val latestQuery by rememberUpdatedState(query)
+    val latestLowStockOnly by rememberUpdatedState(lowStockOnly)
+    val latestCards by rememberUpdatedState(cardsForAnchor)
+    val latestLowStockIds by rememberUpdatedState(lowStockIdsForAnchor)
+    LaunchedEffect(inventoryState is UiState.Success, cardsForAnchor.size) {
+        if (!inventoryAnchorConsumed && inventoryState is UiState.Success) {
+            val index = inventoryAnchorIndex(visibleForAnchor, inventoryAnchorId)
+            if (index > 0) listState.scrollToItem(index)
+            inventoryAnchorConsumed = true
+        }
+    }
+    DisposableEffect(contextUserId, branchId) {
+        onDispose {
+            // #727 — dispose closes over the effect's first-run values, so read the
+            // latest query/filter/cards through updated state (a keystroke-captured
+            // snapshot would otherwise retain a stale anchor).
+            val cards = filterInventoryCards(latestCards, latestQuery, latestLowStockOnly, latestLowStockIds)
+            val anchor =
+                cards
+                    .getOrNull(
+                        listState.firstVisibleItemIndex.coerceIn(0, (cards.size - 1).coerceAtLeast(0)),
+                    )?.id
+            NavigationContextStore.retain(
+                contextUserId,
+                branchId,
+                Route.Inventory,
+                selectedId = null,
+                scrollAnchorId = anchor,
+            )
+        }
+    }
 
     InventoryLoadEffects(viewModel, branchId, writeResults)
     Column(
@@ -212,9 +282,29 @@ fun InventoryScreen(
             inventoryState = inventoryState,
             cardResult = writeResults.cardResult,
             query = query,
-            onQueryChange = { query = it },
+            // #727 — the retained context updates on every keystroke/toggle (including an
+            // explicit clear): returning later must not resurrect an older value.
+            onQueryChange = {
+                query = it
+                NavigationContextStore.retain(
+                    contextUserId,
+                    branchId,
+                    Route.Inventory,
+                    selectedId = null,
+                    query = it,
+                )
+            },
             lowStockOnly = lowStockOnly,
-            onLowStockToggle = { lowStockOnly = !lowStockOnly },
+            onLowStockToggle = {
+                lowStockOnly = !lowStockOnly
+                NavigationContextStore.retain(
+                    contextUserId,
+                    branchId,
+                    Route.Inventory,
+                    selectedId = null,
+                    lowStockOnly = !lowStockOnly,
+                )
+            },
             onOverlay = { overlay = it },
         )
         LowStockStrip(
@@ -240,6 +330,14 @@ fun InventoryScreen(
             onClearFilters = {
                 query = ""
                 lowStockOnly = false
+                NavigationContextStore.retain(
+                    contextUserId,
+                    branchId,
+                    Route.Inventory,
+                    selectedId = null,
+                    query = "",
+                    lowStockOnly = false,
+                )
             },
             rowActions = inventoryRowActions(capabilities, branchId, branchDayId, writesDisabled),
             listState = listState,
