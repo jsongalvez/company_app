@@ -118,9 +118,24 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create session rejects requested practitioner with no active membership`() {
+        val outsiderId = TestFixtures.uuid()
+        IdentityFixtures.insertTestUser(outsiderId, "session-outsider")
+
         assertFailsWith<ValidationException> {
-            createSession(callerId, sessionId, requestedPractitionerId = TestFixtures.uuid())
+            createSession(callerId, sessionId, requestedPractitionerId = outsiderId)
         }
+    }
+
+    @Test
+    fun `create session throws 404 for unknown requested practitioner with no row written`() {
+        val unknownPractitionerId = TestFixtures.uuid()
+        val blockedId = TestFixtures.uuid()
+
+        assertFailsWith<NotFoundException> {
+            createSession(callerId, blockedId, requestedPractitionerId = unknownPractitionerId)
+        }
+        assertNull(SessionRepository.findById(blockedId))
+        assertEquals(0L, auditEntryCount(SessionTable.tableName, blockedId))
     }
 
     @Test

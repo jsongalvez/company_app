@@ -13,6 +13,7 @@ import com.companyb.companyapp.contracts.session.isStatusTransitionAllowed
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.identity.AccountReads
 import com.companyb.companyapp.workforce.WorkforceReads
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -69,6 +70,11 @@ object SessionService {
 
         // #366 — the requested practitioner must be an ACTIVE member of the session's branch
         // (today any existing UUID is accepted). Optional field: null passes untouched.
+        // #705 — unknown users 404 before the membership 400 (addPractitioner #696 precedent):
+        // hasActiveMember alone conflates "unknown user" with "known but ineligible".
+        if (requestedPractitionerId != null && !AccountReads.userExists(requestedPractitionerId)) {
+            throw NotFoundException("User not found")
+        }
         if (requestedPractitionerId != null &&
             !WorkforceReads.hasActiveMember(branchId, requestedPractitionerId)
         ) {
