@@ -399,6 +399,32 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
         }
     }
 
+    @Test
+    fun `sent list with unknown branch returns 404`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            val response = client.get("/api/branches/$unknownBranch/relief-invites", asUser(inviter))
+            assertEquals(404, response.code, response.body.string().orEmpty())
+        }
+    }
+
+    @Test
+    fun `accepted list with unknown branch returns 404`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            val response = client.get("/api/branches/$unknownBranch/relief-invites/accepted", asUser(inviter))
+            assertEquals(404, response.code, response.body.string().orEmpty())
+        }
+    }
+
+    @Test
+    fun `accepted list requires the assignment gate`() {
+        testServer.client.let { client ->
+            val response = client.get("/api/branches/$branchA/relief-invites/accepted", asUser(nonAssigned))
+            assertEquals(403, response.code)
+        }
+    }
+
     // ─────────────────────────── received list ───────────────────────────
 
     @Test
@@ -700,6 +726,27 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/relief-candidates?date=$tomorrow", asUser(nonAssigned))
             assertEquals(403, response.code)
+        }
+    }
+
+    @Test
+    fun `candidates with unknown branch returns 404 without creating a day row`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            val response =
+                client.get(
+                    "/api/branches/$unknownBranch/relief-candidates?date=$tomorrow",
+                    asUser(inviter),
+                )
+            assertEquals(404, response.code, response.body.string().orEmpty())
+            val dayCount =
+                transaction {
+                    BranchDayTable
+                        .selectAll()
+                        .where { BranchDayTable.branchId eq unknownBranch }
+                        .count()
+                }
+            assertEquals(0L, dayCount, "unknown branch must 404 before any day resolution")
         }
     }
 

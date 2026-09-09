@@ -111,6 +111,10 @@ object ReliefInviteService {
         callerId: UUID,
         branchId: UUID,
     ): List<ReliefInviteView> {
+        // #715 — 404 precedence for an unknown branch before the membership gate:
+        // requireActiveAssignment alone conflates "unknown branch" with "known but
+        // non-member" (the #711 createInvite / #704 clockIn order).
+        BranchService.findById(branchId)
         requireActiveAssignment(callerId, branchId)
         return ReliefInviteRepository.findSentByInviterAndBranch(callerId, branchId)
     }
@@ -128,6 +132,8 @@ object ReliefInviteService {
         callerId: UUID,
         branchId: UUID,
     ): List<ReliefInviteView> {
+        // #715 — same 404 precedence as listSent (#711 precedent).
+        BranchService.findById(branchId)
         requireActiveAssignment(callerId, branchId)
         return ReliefInviteRepository.findAcceptedByBranch(branchId, BranchDayService.currentOperationalDate())
     }
@@ -335,6 +341,8 @@ object ReliefInviteService {
         query: String,
         date: LocalDate,
     ): List<ReliefCandidate> {
+        // #715 — same 404 precedence as listSent (#711 precedent).
+        BranchService.findById(branchId)
         requireActiveAssignment(callerId, branchId)
 
         val branchDayId = BranchDayService.findByBranchAndDate(branchId, date)?.id
