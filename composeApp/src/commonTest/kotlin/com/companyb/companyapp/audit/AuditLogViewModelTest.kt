@@ -117,7 +117,7 @@ class AuditLogViewModelTest {
             val state = assertIs<UiState.Success<List<AuditLogEntryResponse>>>(vm.flaggedEntries.value)
             assertEquals(expected = listOf("e1", "e2"), actual = state.data.map { it.id })
             val error = vm.ackErrors.value["e1"]
-            assertEquals(expected = "Acknowledge failed: 500", actual = error)
+            assertEquals(expected = "Mark reviewed failed: 500", actual = error)
             assertTrue(vm.acknowledgingIds.value.isEmpty())
         }
 
@@ -137,7 +137,7 @@ class AuditLogViewModelTest {
             val state = assertIs<UiState.Success<List<AuditLogEntryResponse>>>(vm.flaggedEntries.value)
             assertEquals(expected = listOf("e1", "e2"), actual = state.data.map { it.id })
             assertEquals(
-                expected = "Only another reviewer can acknowledge this entry",
+                expected = "Only another reviewer can mark this entry reviewed",
                 actual = vm.ackErrors.value["e1"],
             )
         }

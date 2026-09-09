@@ -38,7 +38,7 @@ internal actual fun AuditLogEntryList(
                     entry = entry,
                     display =
                         AuditLogRowDisplay(
-                            tableLabel = args.tableLabels[entry.tableName] ?: entry.tableName,
+                            tableLabel = resolveAuditTableLabel(args.tableLabels, entry.tableName),
                             expanded = entry.id in args.expandedIds,
                             onToggleExpanded = { args.onToggleExpanded(entry.id) },
                         ),

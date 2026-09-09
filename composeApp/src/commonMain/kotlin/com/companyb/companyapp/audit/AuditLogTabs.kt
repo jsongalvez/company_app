@@ -66,6 +66,7 @@ internal data class AuditLogBrowseUi(
     val refreshError: String?,
     val filterDraft: AuditLogFilterDraft,
     val filtersApplied: Boolean,
+    val appliedFilters: AuditLogFilters,
     val onApplyFilters: (AuditLogFilters) -> Unit,
     val onRetryBrowse: () -> Unit,
     val onRetryTables: () -> Unit,
@@ -111,6 +112,7 @@ internal fun rememberAuditLogBrowseUi(
         refreshError = collected.browseRefreshError,
         filterDraft = filterDraft,
         filtersApplied = collected.appliedFilters != AuditLogFilters(),
+        appliedFilters = collected.appliedFilters,
         onApplyFilters = viewModel::applyFilters,
         onRetryBrowse = viewModel::retryBrowse,
         onRetryTables = viewModel::loadTables,
@@ -390,6 +392,7 @@ private fun AllActivityTab(
             onRetryTables = browse.onRetryTables,
             draft = browse.filterDraft,
             onApply = browse.onApplyFilters,
+            applied = browse.appliedFilters,
         )
 
         when (state) {

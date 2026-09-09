@@ -17,7 +17,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -72,15 +75,29 @@ private fun AuditLogExpandedDetails(
                 parseDiff(entry.oldValue, entry.newValue)
             }
         when {
-            // D3 — a present-but-unparseable diff side is server-data corruption: render
-            // nothing rather than a misleading "no changes" line (corruption ≠ absence).
+            // #686 — a present-but-unparseable diff side is server-data corruption, distinct
+            // from genuine absence. Fully unavailable shows the unavailable box (with the
+            // record-history retry when the caller offers it); partial keeps the decodable
+            // values with the unavailable side labeled and never implies completeness.
+            malformedDiff && fields.isEmpty() -> {
+                AuditChangesUnavailable(
+                    showRetry = affordances.showFullHistory,
+                    onRetry = affordances.onFullHistory,
+                )
+            }
+
             malformedDiff -> {
-                Unit
+                Text(
+                    text = AUDIT_CHANGES_PARTIAL_BODY,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                ChangedFieldsList(fields = fields, action = entry.action)
             }
 
             fields.isEmpty() -> {
                 Text(
-                    text = "No field changes recorded",
+                    text = AUDIT_NO_CHANGES_TEXT,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -98,12 +115,72 @@ private fun AuditLogExpandedDetails(
                 modifier = Modifier.padding(top = Spacing.xs),
             )
         }
+        AuditTechnicalDetails(entry = entry, fields = fields)
         AuditLogEntryActions(
             entry = entry,
             affordances = affordances,
         )
         if (affordances.ackError != null) {
             InlineErrorText(text = affordances.ackError)
+        }
+    }
+}
+
+@Composable
+private fun AuditChangesUnavailable(
+    showRetry: Boolean,
+    onRetry: () -> Unit,
+) {
+    Column {
+        Text(
+            text = AUDIT_CHANGES_UNAVAILABLE_TITLE,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = AUDIT_CHANGES_UNAVAILABLE_BODY,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (showRetry) {
+            TextButton(onClick = onRetry) {
+                Text("Open full history")
+            }
+        }
+    }
+}
+
+@Composable
+private fun AuditTechnicalDetails(
+    entry: AuditLogEntryResponse,
+    fields: List<ChangedField>,
+) {
+    var expanded by remember(entry.id) { mutableStateOf(false) }
+    Column {
+        TextButton(onClick = { expanded = !expanded }) {
+            Text(if (expanded) "Hide technical details" else "Technical details")
+        }
+        if (expanded) {
+            // #686 — exact technical keys stay available without dominating. Values shown
+            // here are the same display values as the diff (redacted payloads stay
+            // redacted everywhere, including this area).
+            Text(
+                text = "Table: ${entry.tableName}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = "Record: ${entry.recordId}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (fields.isNotEmpty()) {
+                Text(
+                    text = "Fields: ${fields.joinToString { it.field }}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -212,7 +289,7 @@ private fun AuditLogEntryActions(
                 onClick = affordances.onAcknowledge,
                 enabled = !affordances.acknowledging,
             ) {
-                Text(if (affordances.acknowledging) "Acknowledging…" else "Acknowledge")
+                Text(if (affordances.acknowledging) "Marking reviewed…" else "Mark reviewed")
             }
         }
         if (affordances.showFullHistory) {
@@ -308,7 +385,7 @@ internal fun MobileAuditLogEntryList(
                     entry = entry,
                     display =
                         AuditLogRowDisplay(
-                            tableLabel = args.tableLabels[entry.tableName] ?: entry.tableName,
+                            tableLabel = resolveAuditTableLabel(args.tableLabels, entry.tableName),
                             expanded = entry.id in args.expandedIds,
                             onToggleExpanded = { args.onToggleExpanded(entry.id) },
                         ),

@@ -204,9 +204,9 @@ class AuditLogViewModel(
                             entry.id,
                             if (response.status == HttpStatusCode.Conflict) {
                                 // Self-acknowledge (D2: the editor can't clear their own flag).
-                                "Only another reviewer can acknowledge this entry"
+                                "Only another reviewer can mark this entry reviewed"
                             } else {
-                                "Acknowledge failed: ${response.status.value}"
+                                "Mark reviewed failed: ${response.status.value}"
                             },
                         )
                     },
@@ -214,7 +214,7 @@ class AuditLogViewModel(
                         // Every failure path (transport or deserialization) clears the in-flight guard
                         // so the row's button re-enables, and surfaces an inline error (ADR-0022
                         // pessimistic axis; #123 decision 2) — onError is that surface (#169).
-                        ackTracker.fail(entry.id, "Acknowledge failed: ${e.message ?: "network error"}")
+                        ackTracker.fail(entry.id, "Mark reviewed failed: ${e.message ?: "network error"}")
                     },
                 ),
         )

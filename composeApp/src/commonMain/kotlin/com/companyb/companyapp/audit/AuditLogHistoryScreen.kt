@@ -62,7 +62,7 @@ private fun AuditLogHistoryHeader(
             Text("← Back")
         }
         Text(
-            text = "History — $tableName",
+            text = "History — ${formatAuditTableFallback(tableName)}",
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(start = Spacing.sm),
         )
