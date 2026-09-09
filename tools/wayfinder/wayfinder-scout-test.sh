@@ -247,11 +247,14 @@ grep -q 'would spawn scout for slice tests-fixtures' "$WORK/cout" && ok "dry-run
 
 echo "13. second scout for another slice gets its own name; re-audit reuses the slice"
 fresh_scout; : > "$WAYFINDER_WORKER_REGISTRY"; : > "$HERDR_CALLS"
-chief --map 697 --max-workers 3 --spawn-scout backend-domain --scout-workspace "$WORK/scout-ws" >/dev/null 2>&1
-chief --map 697 --max-workers 3 --spawn-scout api-routes-auth --scout-workspace "$WORK/scout-ws"
+# Naming/re-audit behavior (not capacity): raise the narrow scout ceiling so
+# three concurrent scout rows fit (default 1 keeps audit from starving
+# implementation — ticket #742).
+WAYFINDER_MAX_BUG_SCOUTS=3 chief --map 697 --max-workers 3 --spawn-scout backend-domain --scout-workspace "$WORK/scout-ws" >/dev/null 2>&1
+WAYFINDER_MAX_BUG_SCOUTS=3 chief --map 697 --max-workers 3 --spawn-scout api-routes-auth --scout-workspace "$WORK/scout-ws"
 grep -q $'^wf-697-scout-2\tbug-scout\t' "$WAYFINDER_WORKER_REGISTRY" \
     && ok "concurrent slice scout allocated a sibling name" || bad "naming wrong: $(cat "$WAYFINDER_WORKER_REGISTRY")"
-chief --map 697 --max-workers 3 --spawn-scout backend-domain --scout-workspace "$WORK/scout-ws"
+WAYFINDER_MAX_BUG_SCOUTS=3 chief --map 697 --max-workers 3 --spawn-scout backend-domain --scout-workspace "$WORK/scout-ws"
 grep -q 'already active (re-audit)' "$WORK/cout" && ok "re-audit of the active slice logged, worker kept" || bad "re-audit mishandled: $(cat "$WORK/cout")"
 [ "$(grep -c '^backend-domain' "$WORK/scout.tsv")" -eq 1 ] && ok "re-audit kept a single slice row" || bad "slice rows duplicated"
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wayfinder-chief.sh — map chief scheduler for Wayfinder parallel supervision (map #697, tickets #735 #737 #738 #739 #740 #741).
+# wayfinder-chief.sh — map chief scheduler for Wayfinder parallel supervision (map #697, tickets #735 #737 #738 #739 #740 #741 #742).
 #
 # One orchestration layer per active map: the chief continuously schedules,
 # reconciles, reviews-queues, and refills bounded worker capacity through the
@@ -66,8 +66,10 @@
 # chief log. Slice progress is recorded in scout state on success
 # (--base pre-validated before any spawn; a post-spawn record failure other
 # than an already-active re-audit reports nonzero). Scout dispatch stays
-# explicit — the normal pass below still fills just the ticket frontier, and
-# role-aware priority/caps belong to sibling ticket #742.
+# explicit — the normal pass below still fills just the ticket frontier — and
+# the scout ceiling (WAYFINDER_MAX_BUG_SCOUTS, default 1) keeps long-lived
+# audit from starving implementation (sibling ticket #742 owns the full
+# role-aware capacity model).
 #
 # Maintenance lane (ticket #739): --spawn-maintenance performs one
 # chief-mediated maintenance spawn for a red hosted-CI SHA and exits. The
@@ -111,6 +113,24 @@
 # Successor handoff generations must not advance while quiescence reports
 # BLOCKED (see wayfinder-recover.sh quiescence).
 #
+# Role-aware capacity + observability (ticket #742): the hard global worker
+# ceiling (WAYFINDER_MAX_WORKERS, default 1 — the sequential fallback) is
+# enforced by the worker seam on every spawn; narrower ceilings for
+# maintenance (WAYFINDER_MAX_MAINTENANCE_WORKERS, default 1), scouts
+# (WAYFINDER_MAX_BUG_SCOUTS, default 1, 0 disables), and helpers
+# (WAYFINDER_MAX_HELPERS, default 2, 0 disables) are enforced here via
+# wayfinder-capacity.sh check before each mediated spawn. Heavyweight
+# build/test concurrency is bounded independently (WAYFINDER_MAX_HEAVY_JOBS,
+# default 2): workers coordinate slots through the capacity seam's
+# heavy-acquire/heavy-release, and a refused acquire is waiting-resource —
+# never semantic blocked-input. Deterministic priority under constraint:
+# preserve running work, then maintenance repair, ticket frontier
+# (priority:P0 > P1 > P2/untagged, lowest number first), helpers, scouts
+# last. --status prints the compact operator view (active, blocked-input vs
+# resource-waiting, review-pending, free capacity) without entering panes.
+# Dispatch/collect/disposition milestones emit structured events best-effort
+# (a failed emit never breaks scheduling; --dry-run emits nothing).
+#
 # Usage: wayfinder-chief.sh --map N [--once] [--max-workers N] [--dry-run]
 #          [--workspace DIR] [--workspace-base DIR] [--pane PANE]
 #          [--registry PATH] [--interval SECS] [--base SHA]
@@ -124,9 +144,15 @@
 #            [--finding TEXT] [--result-commit SHA]]
 #          [--integrate WORKER [--allow-gated]]
 #          [--recover]
+#          [--status [--machine]]
 #
 # Env: WAYFINDER_MAX_WORKERS (default 1), WAYFINDER_MAX_MAINTENANCE_WORKERS
-#   (default 1, live maintenance rows only), WAYFINDER_WORKER_KIND,
+#   (default 1, live maintenance rows only), WAYFINDER_MAX_BUG_SCOUTS
+#   (default 1, live scout rows only, 0 disables), WAYFINDER_MAX_HELPERS
+#   (default 2, live helper rows only, 0 disables), WAYFINDER_MAX_HEAVY_JOBS
+#   (default 2, heavyweight slots — reported, not enforced, here),
+#   WAYFINDER_EVENTS_LOG (structured events file, default: beside the worker
+#   registry), WAYFINDER_WORKER_KIND,
 #   WAYFINDER_WORKER_ARGS, WAYFINDER_GH_BIN (default gh), WAYFINDER_GH_REPO
 #   (default from origin), HERDR_BIN, WAYFINDER_GENERATION (recorded on spawn,
 #   default empty), WAYFINDER_ROLE=chief (set automatically).
@@ -139,10 +165,14 @@ SCOUT="$SCRIPT_DIR/wayfinder-scout.sh"
 MAINT="$SCRIPT_DIR/wayfinder-maintenance.sh"
 REVIEW="$SCRIPT_DIR/wayfinder-review.sh"
 RECOVER="$SCRIPT_DIR/wayfinder-recover.sh"
+CAPACITY="$SCRIPT_DIR/wayfinder-capacity.sh"
 
 MAP="" ONCE=0 DRY_RUN=""
 MAX="${WAYFINDER_MAX_WORKERS:-1}"
 MAX_MAINT="${WAYFINDER_MAX_MAINTENANCE_WORKERS:-1}"
+MAX_SCOUTS="${WAYFINDER_MAX_BUG_SCOUTS:-1}"
+MAX_HELPERS="${WAYFINDER_MAX_HELPERS:-2}"
+MAX_HEAVY="${WAYFINDER_MAX_HEAVY_JOBS:-2}"
 WORKSPACE="$REPO" WORKSPACE_BASE="" PANE=""
 REGISTRY="${WAYFINDER_WORKER_REGISTRY:-$REPO/.wayfinder/workers.tsv}"
 INTERVAL=15
@@ -156,10 +186,33 @@ QUEUE="" QUEUE_ALL=""
 REVIEW_WORKER="" REVIEW_DISP="" REVIEW_FINDING="" REVIEW_COMMIT=""
 INTEGRATE_WORKER="" INTEGRATE_GATED=""
 RECOVER_LANE=""
+STATUS_LANE="" STATUS_MACHINE=""
 
 usage() { sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 log() { printf '%s [chief] %s\n' "$(date '+%F %T')" "$*"; }
 die() { printf 'wayfinder-chief: %s\n' "$*" >&2; exit 1; }
+
+# capacity_emit <event> [emit-flags...] — best-effort structured lifecycle
+# event (ticket #742). Never breaks scheduling: a missing seam or a failed
+# write is silent. --dry-run callers never reach here (dry-run emits nothing).
+capacity_emit() {
+    [ -x "$CAPACITY" ] || return 0
+    WAYFINDER_WORKER_REGISTRY="$REGISTRY" \
+    WAYFINDER_EVENTS_LOG="${WAYFINDER_EVENTS_LOG:-$(dirname "$REGISTRY")/events.log}" \
+        "$CAPACITY" emit "$@" >/dev/null 2>&1 || true
+}
+
+# capacity_check <role> — refuse dispatch past the global or role ceiling.
+capacity_check() {
+    [ -x "$CAPACITY" ] || return 0
+    WAYFINDER_WORKER_REGISTRY="$REGISTRY" \
+    WAYFINDER_MAX_WORKERS="$MAX" \
+    WAYFINDER_MAX_MAINTENANCE_WORKERS="$MAX_MAINT" \
+    WAYFINDER_MAX_BUG_SCOUTS="$MAX_SCOUTS" \
+    WAYFINDER_MAX_HELPERS="$MAX_HELPERS" \
+    WAYFINDER_MAX_HEAVY_JOBS="$MAX_HEAVY" \
+        "$CAPACITY" check --role "$1"
+}
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -195,6 +248,8 @@ while [ $# -gt 0 ]; do
         --integrate) INTEGRATE_WORKER="${2:-}"; shift 2 ;;
         --allow-gated) INTEGRATE_GATED=1; shift ;;
         --recover) RECOVER_LANE=1; shift ;;
+        --status) STATUS_LANE=1; shift ;;
+        --machine) STATUS_MACHINE=1; shift ;;
         -h|--help) usage ;;
         *) die "unknown flag $1" ;;
     esac
@@ -202,6 +257,9 @@ done
 [[ "$MAP" =~ ^[0-9]+$ ]] || { printf 'wayfinder-chief: --map N is required\n' >&2; exit 2; }
 [[ "$MAX" =~ ^[0-9]+$ ]] && [ "$MAX" -ge 1 ] || die "--max-workers must be >= 1 (got '$MAX')"
 [[ "$MAX_MAINT" =~ ^[0-9]+$ ]] && [ "$MAX_MAINT" -ge 1 ] || die "WAYFINDER_MAX_MAINTENANCE_WORKERS must be >= 1 (got '$MAX_MAINT')"
+[[ "$MAX_SCOUTS" =~ ^[0-9]+$ ]] || die "WAYFINDER_MAX_BUG_SCOUTS must be >= 0 (got '$MAX_SCOUTS')"
+[[ "$MAX_HELPERS" =~ ^[0-9]+$ ]] || die "WAYFINDER_MAX_HELPERS must be >= 0 (got '$MAX_HELPERS')"
+[[ "$MAX_HEAVY" =~ ^[0-9]+$ ]] || die "WAYFINDER_MAX_HEAVY_JOBS must be >= 0 (got '$MAX_HEAVY')"
 lanes=0
 [ -n "$SPAWN_HELPER" ] && lanes=$((lanes + 1))
 [ -n "$SPAWN_SCOUT" ] && lanes=$((lanes + 1))
@@ -210,8 +268,9 @@ lanes=0
 [ -n "$REVIEW_WORKER" ] && lanes=$((lanes + 1))
 [ -n "$INTEGRATE_WORKER" ] && lanes=$((lanes + 1))
 [ -n "$RECOVER_LANE" ] && lanes=$((lanes + 1))
+[ -n "$STATUS_LANE" ] && lanes=$((lanes + 1))
 if [ "$lanes" -gt 1 ]; then
-    die "--spawn-helper, --spawn-scout, --spawn-maintenance, --queue, --review, --integrate, and --recover are separate single-shot lanes (one per invocation)"
+    die "--spawn-helper, --spawn-scout, --spawn-maintenance, --queue, --review, --integrate, --recover, and --status are separate single-shot lanes (one per invocation)"
 fi
 if [ -n "$SPAWN_MAINT" ] && [ "$HELPER_MODE" != "read-only" ]; then
     die "--helper-mode does not apply to --spawn-maintenance (helpers only)"
@@ -233,6 +292,9 @@ if [ -z "$SPAWN_MAINT" ] && { [ -n "$MAINT_WORKSPACE" ] || [ -n "$MAINT_NAME" ] 
 fi
 if [ -z "$QUEUE" ] && [ -n "$QUEUE_ALL" ]; then
     die "--all requires --queue"
+fi
+if [ -z "$STATUS_LANE" ] && [ -n "$STATUS_MACHINE" ]; then
+    die "--machine requires --status"
 fi
 if [ -z "$REVIEW_WORKER" ] && { [ -n "$REVIEW_DISP" ] || [ -n "$REVIEW_FINDING" ] || [ -n "$REVIEW_COMMIT" ]; }; then
     die "--disposition/--finding/--result-commit require --review <worker>"
@@ -296,6 +358,11 @@ collect_results() {
             "$REGISTRY" > "$tmp"
         mv "$tmp" "$REGISTRY"
         log "collected $name (was $(printf '%s' "$row" | cut -f6), ticket #$(printf '%s' "$row" | cut -f3)) -> ready-for-review"
+        case "$(printf '%s' "$row" | cut -f6)" in
+            blocked) capacity_emit worker-blocked-input --worker "$name" --role "$(printf '%s' "$row" | cut -f2)" --ticket "$(printf '%s' "$row" | cut -f3)" --workspace "$(printf '%s' "$row" | cut -f4)" --detail "collected to ready-for-review" ;;
+            failed) capacity_emit worker-failed --worker "$name" --role "$(printf '%s' "$row" | cut -f2)" --ticket "$(printf '%s' "$row" | cut -f3)" --workspace "$(printf '%s' "$row" | cut -f4)" --detail "collected to ready-for-review" ;;
+            *) capacity_emit worker-collected --worker "$name" --role "$(printf '%s' "$row" | cut -f2)" --ticket "$(printf '%s' "$row" | cut -f3)" --workspace "$(printf '%s' "$row" | cut -f4)" --detail "done-awaiting-review" ;;
+        esac
         changed=$((changed + 1))
     done <<< "$rows"
     if command -v flock >/dev/null 2>&1; then
@@ -430,7 +497,9 @@ spawn_for_ticket() { # <ticket> <workspace>
         "$WORKER" spawn --role ticket --ticket "$ticket" --workspace "$ws" --name "$name" --prompt-file "$prompt_file" || rc=$?
     fi
     rm -f "$prompt_file"
-    return "$rc"
+    [ "$rc" -eq 0 ] || return "$rc"
+    [ -z "$DRY_RUN" ] && capacity_emit worker-dispatched --worker "$name" --role ticket --ticket "$ticket" --workspace "$ws" --detail "map #$MAP fill"
+    return 0
 }
 
 helper_prompt() { # <parent> <ticket> <scope> <workspace> <mode> — print helper prompt.
@@ -490,6 +559,11 @@ spawn_helper_for() { # chief-mediated helper spawn; exits 0 on success.
     parent_ticket="$(printf '%s' "$parent_row" | cut -f3)"
     [[ "$parent_ticket" =~ ^[0-9]+$ ]] || die "--spawn-helper: parent '$SPAWN_HELPER' carries no ticket"
     [ -d "$HELPER_WORKSPACE" ] || die "--spawn-helper: workspace does not exist: $HELPER_WORKSPACE"
+    # Narrow helper ceiling (ticket #742): helpers count toward the global
+    # bound (worker seam) and additionally cap here so helper bursts cannot
+    # starve ticket implementation. Check-then-act assumes the single-chief
+    # model shared with the ticket fill path.
+    capacity_check helper || exit $?
     local prompt_file="" args=() rc=0
     prompt_file="$(mktemp)"
     helper_prompt "$SPAWN_HELPER" "$parent_ticket" "$HELPER_SCOPE" "$HELPER_WORKSPACE" "$HELPER_MODE" > "$prompt_file"
@@ -503,7 +577,15 @@ spawn_helper_for() { # chief-mediated helper spawn; exits 0 on success.
     fi
     "$WORKER" "${args[@]}" || rc=$?
     rm -f "$prompt_file"
-    return "$rc"
+    [ "$rc" -eq 0 ] || return "$rc"
+    if [ -z "$DRY_RUN" ]; then
+        local helper_name="$HELPER_NAME"
+        if [ -z "$helper_name" ]; then
+            helper_name="$(awk -F'\t' -v p="$SPAWN_HELPER" '$2 == "helper" && $10 == p { n = $1 } END { print n }' "$REGISTRY")"
+        fi
+        capacity_emit helper-dispatched --worker "${helper_name:-unknown}" --role helper --ticket "$parent_ticket" --workspace "$HELPER_WORKSPACE" --detail "parent $SPAWN_HELPER scope: $HELPER_SCOPE"
+    fi
+    return 0
 }
 
 scout_name_taken() { # <name> — true when the worker registry holds the name.
@@ -529,6 +611,9 @@ spawn_scout_for() { # chief-mediated bug-scout spawn for one slice; exits 0 on s
         "$SCOUT" resolve-base --base "$BASE_SHA" >/dev/null \
             || die "--spawn-scout: unknown base revision '$BASE_SHA'"
     fi
+    # Narrow scout ceiling (ticket #742): long-lived audit cannot starve
+    # implementation. Single-chief check-then-act like the helper lane.
+    capacity_check bug-scout || exit $?
     local name="$SCOUT_NAME" prompt_file="" args=() rc=0 n start_err start_rc=0
     if [ -z "$name" ]; then
         name="wf-${MAP}-scout" n=1
@@ -557,6 +642,7 @@ spawn_scout_for() { # chief-mediated bug-scout spawn for one slice; exits 0 on s
     "$WORKER" "${args[@]}" || rc=$?
     rm -f "$prompt_file"
     [ "$rc" -eq 0 ] || return "$rc"
+    [ -z "$DRY_RUN" ] && capacity_emit scout-dispatched --worker "$name" --role bug-scout --ticket "$MAP" --workspace "$SCOUT_WORKSPACE" --detail "slice $SPAWN_SCOUT"
     log "spawned scout $name for slice $SPAWN_SCOUT (role=bug-scout, ticket #$MAP, workspace=$SCOUT_WORKSPACE)"
     # Record slice progress only after the worker exists: a refused spawn
     # (capacity, duplicate name) leaves scout state untouched. An already
@@ -586,11 +672,6 @@ spawn_scout_for() { # chief-mediated bug-scout spawn for one slice; exits 0 on s
 
 scout_slice_status() { # print the scout-state status for the spawn slice, or nothing.
     "$SCOUT" status 2>/dev/null | awk -F'\t' -v s="$SPAWN_SCOUT" '$1 == s { print $2; exit }'
-}
-
-maintenance_live_count() { # live maintenance rows occupying the narrow bound.
-    [ -f "$REGISTRY" ] || { printf '0'; return; }
-    awk -F'\t' '$2 == "maintenance" && ($6 == "spawning" || $6 == "running") { n++ } END { print n + 0 }' "$REGISTRY"
 }
 
 maintenance_name_taken() { # <name> — true when the worker registry holds the name.
@@ -636,14 +717,12 @@ spawn_maintenance_for() { # chief-mediated maintenance spawn for one red SHA; ex
         "$MAINT" resolve-base --base "$BASE_SHA" >/dev/null \
             || die "--spawn-maintenance: unknown base revision '$BASE_SHA'"
     fi
-    # Narrow maintenance bound (live rows only — no permanently occupied idle
-    # worker). The shared global bound is still enforced by the worker seam.
-    # Check-then-act assumes the single-chief model shared with the ticket
-    # fill path (cf. WorkspaceProvider flock note); cross-chief registry
-    # hardening belongs to sibling ticket #741's recovery work.
-    if [ "$(maintenance_live_count)" -ge "$MAX_MAINT" ]; then
-        die "--spawn-maintenance: at maintenance capacity ($(maintenance_live_count)/$MAX_MAINT live maintenance workers) — refuse to exceed WAYFINDER_MAX_MAINTENANCE_WORKERS"
-    fi
+    # Narrow maintenance bound (ticket #742, live rows only — no permanently
+    # occupied idle worker). The shared global bound is still enforced by the
+    # worker seam. Check-then-act assumes the single-chief model shared with
+    # the ticket fill path (cf. WorkspaceProvider flock note); cross-chief
+    # registry hardening belongs to sibling ticket #741's recovery work.
+    capacity_check maintenance || exit $?
     local name="$MAINT_NAME" prompt_file="" args=() rc=0 n
     if [ -z "$name" ]; then
         name="wf-${MAP}-maintenance" n=1
@@ -682,6 +761,7 @@ spawn_maintenance_for() { # chief-mediated maintenance spawn for one red SHA; ex
     "$WORKER" "${args[@]}" || rc=$?
     rm -f "$prompt_file"
     [ "$rc" -eq 0 ] || return "$rc"
+    [ -z "$DRY_RUN" ] && capacity_emit maintenance-dispatched --worker "$name" --role maintenance --ticket "$MAINT_REPAIR" --workspace "$MAINT_WORKSPACE" --detail "red $SPAWN_MAINT"
     log "spawned maintenance $name for red $SPAWN_MAINT (repair #$MAINT_REPAIR, role=maintenance, workspace=$MAINT_WORKSPACE)"
     log "canonical integration gated until repair #$MAINT_REPAIR lands; ticket workers may continue in isolated workspaces (#740 queue)"
 }
@@ -736,6 +816,20 @@ recover_lane() { # crash-restart recovery; single-shot, no fill.
     [ -x "$RECOVER" ] || die "recovery lane not executable: $RECOVER"
     WAYFINDER_WORKER_REGISTRY="$REGISTRY" "$RECOVER" reconcile
     WAYFINDER_WORKER_REGISTRY="$REGISTRY" "$RECOVER" orphans || true
+    [ -z "$DRY_RUN" ] && capacity_emit chief-recovered --detail "map #$MAP worker+provider reconcile before dispatch"
+}
+
+status_lane() { # compact operator view; single-shot, no fill.
+    [ -x "$CAPACITY" ] || die "capacity seam not executable: $CAPACITY"
+    local args=(status)
+    [ -z "$STATUS_MACHINE" ] || args+=(--machine)
+    WAYFINDER_WORKER_REGISTRY="$REGISTRY" \
+    WAYFINDER_MAX_WORKERS="$MAX" \
+    WAYFINDER_MAX_MAINTENANCE_WORKERS="$MAX_MAINT" \
+    WAYFINDER_MAX_BUG_SCOUTS="$MAX_SCOUTS" \
+    WAYFINDER_MAX_HELPERS="$MAX_HELPERS" \
+    WAYFINDER_MAX_HEAVY_JOBS="$MAX_HEAVY" \
+        "$CAPACITY" "${args[@]}"
 }
 
 pass() {
@@ -783,6 +877,9 @@ pass() {
         fi
     done <<< "$frontier"
     log "pass end: spawned $spawned (free slots were $free)"
+    if [ -z "$DRY_RUN" ] && [ "$spawned" -gt 0 ]; then
+        capacity_emit slot-refilled --detail "map #$MAP spawned $spawned (free slots were $free)"
+    fi
     chief_idle_work
 }
 
@@ -821,10 +918,19 @@ if [ -n "$RECOVER_LANE" ]; then
     exit 0
 fi
 
+if [ -n "$STATUS_LANE" ]; then
+    status_lane || exit $?
+    exit 0
+fi
+
+# Scheduling entry (ticket #742): single-shot lanes above never reach here,
+# so this marks real chief runs (daemon start, --once steps) — never dry-run.
 if [ "$ONCE" -eq 1 ]; then
+    [ -z "$DRY_RUN" ] && capacity_emit chief-started --detail "map #$MAP max=$MAX once"
     pass
     exit 0
 fi
+[ -z "$DRY_RUN" ] && capacity_emit chief-started --detail "map #$MAP max=$MAX loop"
 trap 'log "chief stopping"; exit 0' TERM INT
 while :; do
     pass

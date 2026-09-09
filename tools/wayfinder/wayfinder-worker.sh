@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wayfinder-worker.sh — Herdr worker-control seam for the Wayfinder map chief (map #697, tickets #735 #737 #741).
+# wayfinder-worker.sh — Herdr worker-control seam for the Wayfinder map chief (map #697, tickets #735 #737 #741 #742).
 #
 # Hides direct Herdr CLI details behind one small boundary so the chief
 # scheduler (wayfinder-chief.sh) and later tickets never parse Herdr output
@@ -47,6 +47,15 @@
 #   ticket, maintenance, bug-scout, helper.
 # - Concurrency is bounded: spawn refuses when running rows reach
 #   WAYFINDER_MAX_WORKERS (default 1 — the sequential fallback).
+#   Narrower role ceilings (maintenance, bug-scout, helper) and the
+#   independent heavyweight-job bound live in sibling ticket #742's capacity
+#   seam (wayfinder-capacity.sh), which chief dispatch lanes check before
+#   spawning here.
+# - Heavyweight work (full Gradle suites, load runs) coordinates through the
+#   capacity seam's heavy-acquire/heavy-release: a refused acquire is
+#   waiting-resource, never semantic blocked-input — the worker stays running
+#   and retries with backoff. Heavy slots held by crashed workers are
+#   released by the capacity seam's chief-only heavy-reconcile, never leaked.
 # - Stable identity for crash recovery (tickets #735 #741): the Herdr agent
 #   name is the registry key — chief-driven spawns name it deterministically
 #   per map+ticket (wf-<map>-<ticket>) so a daemon/chief restart reconciles

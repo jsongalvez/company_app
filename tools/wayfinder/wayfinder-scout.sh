@@ -60,6 +60,8 @@
 # - Only the map chief mutates scout progress (start/complete/note-finding
 #   refuse leaf roles with a chief pointer); slices/next/status/prompt stay
 #   observable to all so a scout can read its assignment.
+# - Slice start/complete emit structured lifecycle events best-effort (ticket
+#   #742 observability); a failed emit never breaks the progress update.
 # - Every finding must pass the prompt's duplication check and ticket-quality
 #   template before filing; speculative low-signal tickets are out of scope.
 # - Do not introduce OpenCode, Rift, or Lane dependencies to satisfy this ticket.
@@ -76,6 +78,7 @@ DISCOVERED_REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CANON_DEFAULT="${WAYFINDER_REPO:-$DISCOVERED_REPO}"
 REGISTRY_DEFAULT="${WAYFINDER_SCOUT_REGISTRY:-$DISCOVERED_REPO/.wayfinder/scout.tsv}"
 CALLER_ROLE="${WAYFINDER_ROLE:-chief}"
+CAPACITY="$SCRIPT_DIR/wayfinder-capacity.sh"
 
 LEAF_ROLES="ticket maintenance bug-scout helper"
 
@@ -117,6 +120,15 @@ reg_init() { # <registry>
 reg_row() { # <registry> <slice>
     [ -f "$1" ] || return 0
     awk -F'\t' -v s="$2" '$1 == s { print; exit }' "$1"
+}
+
+# scout_emit <registry> <event> [emit-flags...] — best-effort structured
+# lifecycle event (ticket #742 observability); never breaks progress updates.
+scout_emit() { # <registry> <event> [emit-flags...]
+    local registry="$1"; shift
+    [ -x "$CAPACITY" ] || return 0
+    WAYFINDER_EVENTS_LOG="${WAYFINDER_EVENTS_LOG:-$(dirname "$registry")/events.log}" \
+        "$CAPACITY" emit "$@" >/dev/null 2>&1 || true
 }
 
 # reg_upsert <registry> <slice> <status> <base> <issues> <note>
@@ -228,6 +240,7 @@ cmd_start() {
         issues=""
     fi
     reg_upsert "$registry" "$slice" "active" "$sha" "$issues" "auditing at $sha"
+    scout_emit "$registry" scout-slice-started --detail "slice=$slice base=$sha"
     printf 'started %s base=%s\n' "$slice" "$sha"
 }
 
@@ -254,6 +267,7 @@ cmd_complete() {
     issues="$(printf '%s' "$row" | cut -f4)"
     [ -n "$note" ] || note="audited at $base"
     reg_upsert "$registry" "$slice" "done" "$base" "$issues" "$note"
+    scout_emit "$registry" scout-slice-completed --detail "slice=$slice base=$base issues=${issues:-none}"
     printf 'completed %s base=%s issues=%s\n' "$slice" "$(printf '%s' "$base" | cut -c1-7)" "${issues:-none}"
 }
 

@@ -93,6 +93,7 @@ CANON_DEFAULT="${WAYFINDER_REPO:-$DISCOVERED_REPO}"
 PROVIDER_DEFAULT="${WAYFINDER_WORKSPACE_PROVIDER:-git-worktree}"
 REGISTRY_DEFAULT="${WAYFINDER_WORKSPACE_REGISTRY:-$DISCOVERED_REPO/.wayfinder/workspaces.tsv}"
 CALLER_ROLE="${WAYFINDER_ROLE:-chief}"
+CAPACITY="$SCRIPT_DIR/wayfinder-capacity.sh"
 
 LEAF_ROLES="ticket maintenance bug-scout helper"
 
@@ -111,6 +112,17 @@ require_chief() { # <op>
 }
 
 valid_id() { [[ "${1:-}" =~ ^[a-z][a-z0-9_-]{0,63}$ ]]; }
+
+# workspace_emit <event> [emit-flags...] — best-effort structured lifecycle
+# event (ticket #742 observability). The events log sits beside this call's
+# workspace registry (identical to the worker-registry side in production);
+# a failed emit never breaks the workspace operation.
+workspace_emit() { # <registry> <event> [emit-flags...]
+    local registry="$1"; shift
+    [ -x "$CAPACITY" ] || return 0
+    WAYFINDER_EVENTS_LOG="${WAYFINDER_EVENTS_LOG:-$(dirname "$registry")/events.log}" \
+        "$CAPACITY" emit "$@" >/dev/null 2>&1 || true
+}
 
 need_arg() { # <flag> <value> — a flag without its value is misuse (exit 2).
     [ -n "${2:-}" ] || usage_err "$1 requires a value"
@@ -268,6 +280,7 @@ cmd_create() {
     reg_upsert "$registry" "$id" "$provider" "$path" "$sha" "creating" "$purpose" "$branch" "allocating $provider workspace"
     if out="$(git -C "$canon" worktree add -b "$branch" "$path" "$sha" 2>&1)"; then
         reg_upsert "$registry" "$id" "$provider" "$path" "$sha" "ready" "$purpose" "$branch" "created at $short"
+        workspace_emit "$registry" workspace-created --workspace "$path" --detail "id=$id provider=$provider base=$sha purpose=$purpose"
         printf 'created %s provider=%s path=%s base=%s\n' "$id" "$provider" "$path" "$sha"
     else
         git -C "$canon" worktree remove --force "$path" >/dev/null 2>&1 || true
@@ -442,6 +455,7 @@ cmd_cleanup() {
         *) die "cleanup: unknown provider '$provider' for workspace '$id'" ;;
     esac
     reg_remove "$registry" "$id"
+    workspace_emit "$registry" workspace-cleaned --workspace "$path" --detail "id=$id was=$state base=$base purpose=$purpose"
     printf 'cleaned %s (was %s base=%s purpose=%s)\n' "$id" "$state" "$(printf '%s' "$base" | cut -c1-7)" "$purpose"
 }
 

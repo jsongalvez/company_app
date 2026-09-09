@@ -110,6 +110,9 @@
 # - bug-scout rows are never reviewable (read-only output is tickets);
 #   helper rows integrate via their parent ticket's result, so direct helper
 #   review is refused with a pointer at the parent worker.
+# - Every disposition and integration emits a structured lifecycle event
+#   best-effort (ticket #742 observability): a failed emit never breaks the
+#   disposition itself.
 # - Do not introduce OpenCode, Rift, or Lane dependencies to satisfy this ticket.
 #
 # Env:
@@ -130,6 +133,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DISCOVERED_REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 WORKER="$SCRIPT_DIR/wayfinder-worker.sh"
+CAPACITY="$SCRIPT_DIR/wayfinder-capacity.sh"
 
 CANON_DEFAULT="${WAYFINDER_REPO:-$DISCOVERED_REPO}"
 REGISTRY="${WAYFINDER_WORKER_REGISTRY:-$DISCOVERED_REPO/.wayfinder/workers.tsv}"
@@ -193,6 +197,16 @@ with_registry_unlock() {
 
 row_field() { # <row> <n> — print TSV field n.
     printf '%s' "$1" | cut -f"$2"
+}
+
+# review_emit <event> [emit-flags...] — best-effort structured lifecycle event
+# (ticket #742). Never breaks a disposition: a missing seam or failed write
+# is silent.
+review_emit() {
+    [ -x "$CAPACITY" ] || return 0
+    WAYFINDER_WORKER_REGISTRY="$REGISTRY" \
+    WAYFINDER_EVENTS_LOG="${WAYFINDER_EVENTS_LOG:-$(dirname "$REGISTRY")/events.log}" \
+        "$CAPACITY" emit "$@" >/dev/null 2>&1 || true
 }
 
 # reg_set <name> <status> <note-append> — move one row, appending to its note.
@@ -396,6 +410,7 @@ cmd_review() {
             [ -n "$result" ] || die "review: accept requires --result-commit <reviewed 40-char SHA> (inspect the commit before accepting)"
             reg_set "$name" "accepted-awaiting-integration" "reviewed=accept result=$result${finding:+ finding: $finding}"
             review_log "$name" "accept ticket=#$ticket result=$result${finding:+ finding: $finding}"
+            review_emit review-accepted --worker "$name" --role "$role" --ticket "$ticket" --workspace "$ws" --detail "result=$result"
             log "accepted $name (ticket #$ticket, result $(printf '%s' "$result" | cut -c1-7)) — awaiting integration window"
             ;;
         revision)
@@ -422,6 +437,7 @@ cmd_review() {
                 || die "review: '$name' moved to $fresh_status during the prompt — revision NOT recorded, re-issue against the new state"
             reg_set "$name" "revision-requested" "reviewed=revision finding: $finding"
             review_log "$name" "revision ticket=#$ticket finding: $finding"
+            review_emit review-revision --worker "$name" --role "$role" --ticket "$ticket" --workspace "$ws" --detail "$finding"
             log "revision requested from $name in its workspace $ws (state kept, context preserved)"
             ;;
         reject|cancel)
@@ -439,6 +455,7 @@ cmd_review() {
             [ "$disp" = "reject" ] && terminal="rejected"
             reg_set "$name" "$terminal" "reviewed=$disp finding: $finding"
             review_log "$name" "$disp ticket=#$ticket finding: $finding"
+            review_emit "review-$terminal" --worker "$name" --role "$role" --ticket "$ticket" --workspace "$ws" --detail "$finding"
             log "$disp recorded for $name (ticket #$ticket) — workspace preserved until explicit cleanup"
             if [ "$disp" = "cancel" ]; then
                 log "release the tracker claim for ticket #$ticket (remove the worker assignee) so it re-enters the pool instead of pinning the chain"
@@ -586,6 +603,7 @@ cmd_integrate() {
         [ -n "$verified" ] || die "integrate: verification failed for already-present $short — '$name' kept as accepted-awaiting-integration"
         reg_set "$name" "integrated" "integrated=$newbase result=$result already-present verified=$verified$gated_note"
         review_log "$name" "integrate ticket=#$ticket result=$result already-present integrated=$newbase verified=$verified$gated_note"
+        review_emit integration-completed --worker "$name" --role "$role" --ticket "$ticket" --workspace "$ws" --detail "result=$result already-present integrated=$newbase"
         log "integrated $name (ticket #$ticket): result $short already present at $(printf '%s' "$newbase" | cut -c1-7) — no new commit$gated_note"
         integrate_done "$name" "$ticket"
         return 0
@@ -616,6 +634,7 @@ cmd_integrate() {
         fi
         reg_set "$name" "integrated" "integrated=$newhead result=$result verified=$verified$gated_note"
         review_log "$name" "integrate ticket=#$ticket result=$result integrated=$newhead verified=$verified$gated_note"
+        review_emit integration-completed --worker "$name" --role "$role" --ticket "$ticket" --workspace "$ws" --detail "result=$result integrated=$newhead"
         log "integrated $name (ticket #$ticket): $short -> $(printf '%s' "$newhead" | cut -c1-7)$gated_note"
         integrate_done "$name" "$ticket"
         return 0
