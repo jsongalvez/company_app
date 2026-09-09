@@ -131,4 +131,70 @@ class BaseRatesLogicTest {
         assertNull(rateInputError("2500"))
         assertNull(rateInputError("2500.50"))
     }
+
+    // --- rateDraftError (#685 trimmed submit, quiet pristine field) ---
+
+    @Test
+    fun `draft validation trims and stays quiet until the first keystroke`() {
+        assertNull(rateDraftError(""))
+        assertEquals("Enter a rate amount", rateDraftError("   "))
+        assertNull(rateDraftError("  2500  "))
+        assertEquals("Invalid rate amount: abc", rateDraftError("abc"))
+        assertEquals("rate must be non-negative", rateDraftError("-500"))
+    }
+
+    // --- rateValueLabel (#685 rest-state value line) ---
+
+    @Test
+    fun `rest value shows the authoritative currency when set`() {
+        val row = RateDisplayRow(BASE_RATE_ROWSPECS[0], rateId = "r1", rateText = "2500.00", missionLocked = false)
+
+        assertEquals("₱2500.00", rateValueLabel(row))
+    }
+
+    @Test
+    fun `rest value falls back to the documented default when unset`() {
+        val row = RateDisplayRow(BASE_RATE_ROWSPECS[0], rateId = null, rateText = null, missionLocked = false)
+
+        assertEquals("Default ₱2,500", rateValueLabel(row))
+    }
+
+    @Test
+    fun `mission rest value locks at zero`() {
+        val row = RateDisplayRow(BASE_RATE_ROWSPECS[4], rateId = "r9", rateText = "0.00", missionLocked = true)
+
+        assertEquals("₱0", rateValueLabel(row))
+    }
+
+    // --- rateEditingContextLabel (#685 secondary context under an open editor) ---
+
+    @Test
+    fun `editing context reports current default or nothing for mission`() {
+        val set = RateDisplayRow(BASE_RATE_ROWSPECS[0], rateId = "r1", rateText = "2500.00", missionLocked = false)
+        val unset = RateDisplayRow(BASE_RATE_ROWSPECS[0], rateId = null, rateText = null, missionLocked = false)
+        val mission = RateDisplayRow(BASE_RATE_ROWSPECS[4], rateId = "r9", rateText = "0.00", missionLocked = true)
+
+        assertEquals("Current ₱2500.00", rateEditingContextLabel(set))
+        assertEquals("Default ₱2,500", rateEditingContextLabel(unset))
+        assertNull(rateEditingContextLabel(mission))
+    }
+
+    // --- rateChangedWhileEditing (#685 no silent draft overwrite) ---
+
+    @Test
+    fun `only a real authoritative change counts as stale`() {
+        assertFalse(rateChangedWhileEditing(null, "2500.00"))
+        assertFalse(rateChangedWhileEditing("2500.00", "2500.00"))
+        assertFalse(rateChangedWhileEditing(null, null))
+        assertTrue(rateChangedWhileEditing("2500.00", "2000.00"))
+        assertTrue(rateChangedWhileEditing("2500.00", null))
+    }
+
+    // --- resolveSaveRequestId (#685 timeout retry reuses its identifier) ---
+
+    @Test
+    fun `save retry reuses its original idempotency id`() {
+        assertEquals("first", resolveSaveRequestId("first") { "second" })
+        assertEquals("minted", resolveSaveRequestId(null) { "minted" })
+    }
 }

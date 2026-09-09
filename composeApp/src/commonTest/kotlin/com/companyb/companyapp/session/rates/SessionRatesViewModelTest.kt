@@ -92,6 +92,42 @@ class SessionRatesViewModelTest {
             assertEquals(1, harness.saveCount)
         }
 
+    @Test
+    fun resetSetRateState_clears_error_so_the_next_edit_starts_clean() =
+        runTest(testScheduler) {
+            val harness = RatesHarness(saveStatus = HttpStatusCode.BadRequest)
+            val vm = SessionRatesViewModel(mockApiClient(harness.handler()))
+
+            vm.setRate("b1", SetRateRequest("r1", SessionType.REGULAR, "-5"))
+            advanceUntilIdle()
+            assertIs<UiState.Error>(vm.setRateState.value)
+
+            vm.resetSetRateState()
+            assertIs<UiState.Idle>(vm.setRateState.value)
+
+            harness.saveStatus = HttpStatusCode.Created
+            vm.setRate("b1", SetRateRequest("r2", SessionType.REGULAR, "2500"))
+            advanceUntilIdle()
+
+            assertIs<UiState.Success<RateResponse>>(vm.setRateState.value)
+            assertEquals(2, harness.saveCount)
+        }
+
+    @Test
+    fun resetSetRateState_keeps_success() =
+        runTest(testScheduler) {
+            val harness = RatesHarness()
+            val vm = SessionRatesViewModel(mockApiClient(harness.handler()))
+
+            vm.setRate("b1", SetRateRequest("r1", SessionType.REGULAR, "2500"))
+            advanceUntilIdle()
+            assertIs<UiState.Success<RateResponse>>(vm.setRateState.value)
+
+            vm.resetSetRateState()
+
+            assertIs<UiState.Success<RateResponse>>(vm.setRateState.value)
+        }
+
     private class RatesHarness(
         var saveStatus: HttpStatusCode = HttpStatusCode.Created,
     ) {

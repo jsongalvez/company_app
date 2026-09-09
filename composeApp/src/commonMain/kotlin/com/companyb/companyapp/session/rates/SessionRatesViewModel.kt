@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ApiCallHandler
+import com.companyb.companyapp.async.LatestLoad
+import com.companyb.companyapp.async.LoadGeneration
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.session.RateResponse
 import com.companyb.companyapp.contracts.session.SetRateRequest
@@ -33,13 +35,21 @@ class SessionRatesViewModel(
     private val _setRateState = MutableStateFlow<UiState<RateResponse>>(UiState.Idle)
     val setRateState: StateFlow<UiState<RateResponse>> = _setRateState.asStateFlow()
 
+    // #685 — latest-wins guard for the rate list (#611 LoadGeneration owner): a branch
+    // switch fires a new GET on the same entry-scoped VM, and the superseded old-branch
+    // landing must commit nothing over the new branch's rows.
+    private val ratesGuard = LoadGeneration()
+
     fun loadRates(branchId: String) {
-        handler.launch(
-            state = _rates,
-            operation = "loadRates",
-            endpoint = "GET /api/branches/$branchId/rates",
-            block = { apiClient.httpClient.get(ApiRoutes.branchRates(branchId)) },
-            transform = { it.body() },
+        handler.launchLatest(
+            LatestLoad(
+                state = _rates,
+                operation = "loadRates",
+                endpoint = "GET /api/branches/$branchId/rates",
+                block = { apiClient.httpClient.get(ApiRoutes.branchRates(branchId)) },
+                decode = { it.body() },
+                guard = ratesGuard,
+            ),
         )
     }
 
@@ -64,5 +74,16 @@ class SessionRatesViewModel(
             },
             transform = { it.body() },
         )
+    }
+
+    /**
+     * #685 — clears a terminal save ERROR so opening another row editor starts clean.
+     * Success rows are kept: the post-save authoritative reload already closes the editor
+     * into the fresh list, so no overlay is needed.
+     */
+    fun resetSetRateState() {
+        if (_setRateState.value is UiState.Error) {
+            _setRateState.value = UiState.Idle
+        }
     }
 }

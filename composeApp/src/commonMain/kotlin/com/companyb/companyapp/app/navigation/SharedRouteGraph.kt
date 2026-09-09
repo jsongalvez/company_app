@@ -101,7 +101,7 @@ fun NavGraphBuilder.appRouteGraph(
     authGraph(apiClient, tokenStore, navController)
     branchGraph(apiClient, navController, hooks.dashboardLive)
     clientGraph(apiClient, navController)
-    inventoryGraph(apiClient)
+    inventoryGraph(apiClient, navController)
     financeGraph(apiClient, navController, hooks.onDeskQueueNavigate)
     auditGraph(apiClient, navController)
     teamGraph(apiClient)
@@ -239,7 +239,10 @@ private fun NavGraphBuilder.clientGraph(
     }
 }
 
-private fun NavGraphBuilder.inventoryGraph(apiClient: ApiClient) {
+private fun NavGraphBuilder.inventoryGraph(
+    apiClient: ApiClient,
+    navController: NavHostController,
+) {
     composable<Route.Inventory> {
         // #391 — read-only branch inventory; gate mirrors the drawer item
         // (#156 any-context EDIT_BRANCH_DATA; backend branch-scoped gate
@@ -274,18 +277,34 @@ private fun NavGraphBuilder.inventoryGraph(apiClient: ApiClient) {
         // #418 — coordinator base-rate admin; gate mirrors
         // `SessionBaseRateRoutes` exactly (MANAGE_PRODUCTS at BRANCH context for
         // the clocked-in branch — no GLOBAL leg, no day leg, #131 strictness).
+        // #685 — the heading names the clocked-in branch; the null-branch state
+        // routes to branch selection instead of a no-op retry. The null check runs
+        // first: the exact-scope gate fail-closes on a null branch, so without it
+        // the clock-in prompt would be unreachable behind the gate card.
         val snapshot by AppSessionState.snapshot.collectAsState()
         val capabilities = snapshot.capabilities
         val selectedBranchId = snapshot.clock?.branchId
-        if (capabilities.hasCapability(
+        val ratesViewModel: SessionRatesViewModel =
+            viewModel { SessionRatesViewModel(apiClient) }
+        if (selectedBranchId == null) {
+            BaseRatesScreen(
+                viewModel = ratesViewModel,
+                branchId = null,
+                branchName = null,
+                onSelectBranch = { navController.navigate(Route.BranchSelect) },
+            )
+        } else if (capabilities.hasCapability(
                 CapabilityCodes.MANAGE_PRODUCTS,
                 CapabilityContextType.BRANCH,
                 selectedBranchId,
             )
         ) {
-            val ratesViewModel: SessionRatesViewModel =
-                viewModel { SessionRatesViewModel(apiClient) }
-            BaseRatesScreen(viewModel = ratesViewModel, branchId = selectedBranchId)
+            BaseRatesScreen(
+                viewModel = ratesViewModel,
+                branchId = selectedBranchId,
+                branchName = snapshot.clock?.branchName,
+                onSelectBranch = { navController.navigate(Route.BranchSelect) },
+            )
         } else {
             RouteGateCard(label = "Base Rates")
         }
