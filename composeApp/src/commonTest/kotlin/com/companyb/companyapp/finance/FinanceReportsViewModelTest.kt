@@ -2258,4 +2258,260 @@ class FinanceReportsViewModelTest {
             assertEquals("2026-09", vm.monthInput.value, "default month follows the operational day")
             assertEquals("2026-09", vm.appliedMonth.value.toString())
         }
+    // ─────────────────────────── applied-context restore (#728) ───────────────────────────
+
+    @Test
+    fun stagedRestore_restoresBranchModeAndMonthInOneLoad() =
+        runTest(testScheduler) {
+            val windows = mutableListOf<Triple<String, String?, String?>>()
+            val rollupParams = mutableListOf<Pair<String?, String?>>()
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_B/daily-summaries" -> {
+                        windows +=
+                            Triple(
+                                BRANCH_B,
+                                request.url.parameters["from"],
+                                request.url.parameters["to"],
+                            )
+                        respondJson(feedResponse(listOf("2026-07-15")))
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_B/monthly-summary" -> {
+                        rollupParams += (request.url.parameters["year"] to request.url.parameters["month"])
+                        respondJson(rollupJson(branch = BRANCH_B, month = 7))
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.stageFinanceRestore(
+                FinanceRestoreRequest(
+                    branchId = BRANCH_B,
+                    modeName = "MONTHLY",
+                    month = "2026-07",
+                    rangeFrom = null,
+                    rangeTo = null,
+                    jumpMonth = null,
+                ),
+            )
+            vm.loadBranches()
+            runCurrent()
+
+            assertEquals(BRANCH_B, vm.selectedBranchId.value)
+            assertEquals(ReportMode.MONTHLY, vm.mode.value)
+            assertEquals("2026-07", vm.appliedMonth.value.toString())
+            assertEquals("2026-07", vm.monthInput.value)
+            assertNull(vm.paramError.value)
+            assertEquals(
+                listOf(Triple<String, String?, String?>(BRANCH_B, "2026-07-01", "2026-07-31")),
+                windows,
+            )
+            assertEquals(listOf<Pair<String?, String?>>("2026" to "7"), rollupParams)
+        }
+
+    @Test
+    fun stagedRestore_fallsBackWhenStoredBranchIsGone() =
+        runTest(testScheduler) {
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath.endsWith("/daily-summaries") -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.stageFinanceRestore(
+                FinanceRestoreRequest(
+                    branchId = "branch-gone",
+                    modeName = "DAILY",
+                    month = null,
+                    rangeFrom = null,
+                    rangeTo = null,
+                    jumpMonth = null,
+                ),
+            )
+            vm.loadBranches()
+            runCurrent()
+
+            assertEquals(BRANCH_A, vm.selectedBranchId.value)
+        }
+
+    @Test
+    fun stagedRestore_invalidStoredScopeDegradesToDefaults() =
+        runTest(testScheduler) {
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath.endsWith("/daily-summaries") -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.stageFinanceRestore(
+                FinanceRestoreRequest(
+                    branchId = BRANCH_A,
+                    modeName = "FORTNIGHTLY",
+                    month = "not-a-month",
+                    rangeFrom = "2026-08-10",
+                    rangeTo = "2026-08-01",
+                    jumpMonth = "not-a-month",
+                ),
+            )
+            vm.loadBranches()
+            runCurrent()
+
+            assertEquals(BRANCH_A, vm.selectedBranchId.value)
+            assertEquals(ReportMode.DAILY, vm.mode.value)
+            assertEquals("2026-08", vm.appliedMonth.value.toString())
+            assertNull(vm.appliedRange.value)
+            assertNull(vm.jumpMonth.value)
+        }
+
+    @Test
+    fun stagedRestore_dateRangeRestoresTheWindow() =
+        runTest(testScheduler) {
+            val windows = mutableListOf<Pair<String?, String?>>()
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        windows += (request.url.parameters["from"] to request.url.parameters["to"])
+                        respondJson(feedResponse(listOf("2026-08-05")))
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.stageFinanceRestore(
+                FinanceRestoreRequest(
+                    branchId = BRANCH_A,
+                    modeName = "DATE_RANGE",
+                    month = null,
+                    rangeFrom = "2026-08-01",
+                    rangeTo = "2026-08-10",
+                    jumpMonth = null,
+                ),
+            )
+            vm.loadBranches()
+            runCurrent()
+
+            assertEquals(ReportMode.DATE_RANGE, vm.mode.value)
+            assertEquals("2026-08-01" to "2026-08-10", vm.appliedRange.value)
+            assertEquals("2026-08-01" to "2026-08-10", windows.single())
+        }
+
+    @Test
+    fun pickerDraft_writesTheSameDraftWithoutFetchingUntilApply() =
+        runTest(testScheduler) {
+            var feedRequests = 0
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        feedRequests++
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/monthly-summary" -> {
+                        respondJson(rollupJson())
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+            vm.setMode(ReportMode.MONTHLY)
+            runCurrent()
+            val pinned = feedRequests
+
+            // A picker choice writes the same draft the text field edits (no fetch).
+            vm.setMonthInput("2026-07")
+            runCurrent()
+
+            assertEquals(pinned, feedRequests)
+            assertEquals("2026-08", vm.appliedMonth.value.toString())
+
+            vm.applyMonth()
+            runCurrent()
+
+            assertEquals("2026-07", vm.appliedMonth.value.toString())
+            assertEquals(pinned + 1, feedRequests)
+        }
+
+    @Test
+    fun pickerDraft_rangeWritesTheSameDraftsWithoutFetchingUntilApply() =
+        runTest(testScheduler) {
+            var feedRequests = 0
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        feedRequests++
+                        respondJson(feedResponse(listOf("2026-08-05")))
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+            vm.setMode(ReportMode.DATE_RANGE)
+            runCurrent()
+            val pinned = feedRequests
+
+            vm.setRangeInputs("2026-08-01", "2026-08-10")
+            runCurrent()
+
+            assertEquals(pinned, feedRequests)
+            assertNull(vm.appliedRange.value)
+
+            vm.applyRange()
+            runCurrent()
+
+            assertEquals("2026-08-01" to "2026-08-10", vm.appliedRange.value)
+            assertEquals(pinned + 1, feedRequests)
+        }
 }

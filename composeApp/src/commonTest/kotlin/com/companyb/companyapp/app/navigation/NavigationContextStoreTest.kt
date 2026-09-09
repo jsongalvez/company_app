@@ -208,4 +208,123 @@ class NavigationContextStoreTest {
 
         assertNull(NavigationContextStore.retained("u1", "b1", Route.Dashboard())?.query)
     }
+
+    @Test
+    fun `finance applied scope survives a section roundtrip`() {
+        NavigationContextStore.retain(
+            "u1",
+            "b1",
+            Route.Finance,
+            selectedId = "day-9",
+            scrollAnchorId = "day-7",
+            financeBranchId = "branch-b",
+            financeMode = "MONTHLY",
+            financeMonth = "2026-08",
+            financeRangeFrom = "2026-08-01",
+            financeRangeTo = "2026-08-10",
+            financeJumpMonth = "2026-07",
+            financeShowCards = true,
+        )
+
+        val restored = NavigationContextStore.retained("u1", "b1", Route.Finance)
+        assertEquals("branch-b", restored?.financeBranchId)
+        assertEquals("MONTHLY", restored?.financeMode)
+        assertEquals("2026-08", restored?.financeMonth)
+        assertEquals("2026-08-01", restored?.financeRangeFrom)
+        assertEquals("2026-08-10", restored?.financeRangeTo)
+        assertEquals("2026-07", restored?.financeJumpMonth)
+        assertEquals(true, restored?.financeShowCards)
+        assertEquals("day-9", restored?.selectedId)
+        assertEquals("day-7", restored?.scrollAnchorId)
+    }
+
+    @Test
+    fun `explicit finance clear overwrites and never resurrects`() {
+        NavigationContextStore.retain(
+            "u1",
+            "b1",
+            Route.Finance,
+            selectedId = "day-9",
+            financeBranchId = "branch-b",
+            financeMode = "DATE_RANGE",
+            financeRangeFrom = "2026-08-01",
+            financeRangeTo = "2026-08-10",
+            financeJumpMonth = "2026-07",
+            financeShowCards = true,
+        )
+
+        NavigationContextStore.retain(
+            "u1",
+            "b1",
+            Route.Finance,
+            selectedId = "",
+            financeRangeFrom = "",
+            financeRangeTo = "",
+            financeJumpMonth = "",
+            financeShowCards = false,
+        )
+
+        val restored = NavigationContextStore.retained("u1", "b1", Route.Finance)
+        assertEquals("", restored?.selectedId)
+        assertEquals("", restored?.financeRangeFrom)
+        assertEquals("", restored?.financeRangeTo)
+        assertEquals("", restored?.financeJumpMonth)
+        assertEquals(false, restored?.financeShowCards)
+        assertEquals("branch-b", restored?.financeBranchId)
+    }
+
+    @Test
+    fun `null finance legs leave stored scope intact`() {
+        NavigationContextStore.retain(
+            "u1",
+            "b1",
+            Route.Finance,
+            selectedId = "day-9",
+            scrollAnchorId = "day-7",
+            financeBranchId = "branch-b",
+            financeMode = "MONTHLY",
+            financeMonth = "2026-08",
+            financeShowCards = true,
+        )
+
+        NavigationContextStore.retain("u1", "b1", Route.Finance, selectedId = null)
+
+        val restored = NavigationContextStore.retained("u1", "b1", Route.Finance)
+        assertEquals("day-9", restored?.selectedId)
+        assertEquals("day-7", restored?.scrollAnchorId)
+        assertEquals("branch-b", restored?.financeBranchId)
+        assertEquals("MONTHLY", restored?.financeMode)
+        assertEquals("2026-08", restored?.financeMonth)
+        assertEquals(true, restored?.financeShowCards)
+    }
+
+    @Test
+    fun `finance context is keyed per user and branch`() {
+        NavigationContextStore.retain(
+            "u1",
+            "b1",
+            Route.Finance,
+            selectedId = "day-9",
+            financeBranchId = "branch-b",
+            financeMode = "MONTHLY",
+        )
+
+        assertNull(NavigationContextStore.retained("u1", "b2", Route.Finance))
+        assertNull(NavigationContextStore.retained("u2", "b1", Route.Finance))
+    }
+
+    @Test
+    fun `finance context never shares a slot with inventory`() {
+        NavigationContextStore.retain(
+            "u1",
+            "b1",
+            Route.Finance,
+            selectedId = null,
+            financeBranchId = "branch-b",
+            financeMode = "MONTHLY",
+        )
+
+        assertNull(NavigationContextStore.retained("u1", "b1", Route.Inventory)?.financeBranchId)
+        assertNull(NavigationContextStore.retained("u1", "b1", Route.Finance)?.query)
+    }
 }

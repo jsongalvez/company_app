@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -25,14 +24,21 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.app.AppSessionState
+import com.companyb.companyapp.app.navigation.NavigationContextStore
+import com.companyb.companyapp.app.navigation.Route
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.reporting.DailySalesSummaryResponse
 import com.companyb.companyapp.contracts.reporting.MonthlyRemittanceSummaryResponse
@@ -50,9 +56,93 @@ internal fun FeedSection(
 ) {
     // #678 — the list state + Rows/Cards choice hoist above the status branch, so Back
     // from a detail and Cold reloads restore the period list, scroll position and view.
-    // (Rotation still resets them — no rememberSaveable anywhere on this surface.)
-    var showCards by remember { mutableStateOf(false) }
-    val listState = rememberLazyListState()
+    // #728 — across top-level section switches the Rows/Cards choice, the visible-row
+    // anchor, and the selected day survive per user+clock-branch via NavigationContextStore
+    // (identity anchors with safe fallbacks); edit mode and drafts stay entry-local.
+    val snapshot by AppSessionState.snapshot.collectAsState()
+    val contextUserId = snapshot.user?.id
+    val contextBranchId = snapshot.clock?.branchId
+    val retainedFinance =
+        remember(contextUserId, contextBranchId) {
+            NavigationContextStore.retained(contextUserId, contextBranchId, Route.Finance)
+        }
+    var showCards by rememberSaveable(contextUserId, contextBranchId) {
+        mutableStateOf(retainedFinance?.financeShowCards ?: false)
+    }
+    // #728 — the report-list anchor is the visible day's branchDayId (identity, not
+    // index): restored once against the feed when the first authoritative load lands,
+    // with a safe start-of-list fallback. Refreshes and in-entry scope edits never
+    // re-scroll — the live position stays under the operator.
+    val listState =
+        remember(contextUserId, contextBranchId) {
+            LazyListState()
+        }
+    val financeAnchorId = retainedFinance?.scrollAnchorId
+    var financeAnchorConsumed by remember(contextUserId, contextBranchId) {
+        mutableStateOf(financeAnchorId.isNullOrBlank())
+    }
+    var financeDayConsumed by remember(contextUserId, contextBranchId) {
+        mutableStateOf(retainedFinance?.selectedId.isNullOrBlank())
+    }
+    val feedDays = (collected.feed as? UiState.Success<List<DailySalesSummaryResponse>>)?.data.orEmpty()
+    LaunchedEffect(collected.feed is UiState.Success, feedDays.size) {
+        if (collected.feed is UiState.Success) {
+            if (!financeAnchorConsumed) {
+                val index = financeAnchorIndex(feedDays, financeAnchorId)
+                if (index > 0) listState.scrollToItem(index)
+                financeAnchorConsumed = true
+            }
+            // #728 — restores the selected day only when it still belongs to the
+            // restored applied scope (present in the authoritative feed); otherwise the
+            // list shows safely with no stale detail. Consumed once per entry.
+            if (!financeDayConsumed && collected.selectedDay == null) {
+                val day = resolveRestoredFinanceDay(retainedFinance?.selectedId, feedDays)
+                if (day != null) viewModel.selectDay(day)
+                financeDayConsumed = true
+            } else if (!financeDayConsumed) {
+                financeDayConsumed = true
+            }
+        }
+    }
+    val latestShowCards by rememberUpdatedState(showCards)
+    val latestSelectedDay by rememberUpdatedState(collected.selectedDay)
+    val latestDayConsumed by rememberUpdatedState(financeDayConsumed)
+    // #728 — the selected-day anchor updates on every selection change (including an
+    // explicit clear, stored as "" so it never resurrects an older day).
+    LaunchedEffect(collected.selectedDay?.branchDayId) {
+        if (contextUserId == null || contextBranchId == null) return@LaunchedEffect
+        // Guard the pre-restore frame: the VM clears the selection on every load, and
+        // retaining that transient null before the feed lookup runs would wipe the slot
+        // we are about to restore. The dispose leg below is the durable writer.
+        if (!financeDayConsumed) return@LaunchedEffect
+        NavigationContextStore.retain(
+            contextUserId,
+            contextBranchId,
+            Route.Finance,
+            selectedId = latestSelectedDay?.branchDayId ?: "",
+        )
+    }
+    DisposableEffect(contextUserId, contextBranchId) {
+        onDispose {
+            if (contextUserId == null || contextBranchId == null) return@onDispose
+            val days = (viewModel.feedEntries.value as? UiState.Success)?.data.orEmpty()
+            val anchor =
+                days
+                    .getOrNull(
+                        listState.firstVisibleItemIndex.coerceIn(0, (days.size - 1).coerceAtLeast(0)),
+                    )?.branchDayId
+            // #728 — a pre-restore exit (leaving before the first feed lands) must not
+            // wipe the stored day with an explicit clear: null leaves it intact.
+            NavigationContextStore.retain(
+                contextUserId,
+                contextBranchId,
+                Route.Finance,
+                selectedId = if (latestDayConsumed) (latestSelectedDay?.branchDayId ?: "") else null,
+                scrollAnchorId = anchor,
+                financeShowCards = latestShowCards,
+            )
+        }
+    }
     Column(modifier = modifier.fillMaxWidth().padding(top = Spacing.sm)) {
         FeedSectionHeader(viewModel = viewModel, collected = collected)
         FeedSectionStatus(feed = collected.feed, onRetry = viewModel::retryFeed)
@@ -64,7 +154,18 @@ internal fun FeedSection(
                 chrome =
                     FeedListChrome(
                         showCards = showCards,
-                        onShowCards = { showCards = it },
+                        onShowCards = {
+                            showCards = it
+                            if (contextUserId != null && contextBranchId != null) {
+                                NavigationContextStore.retain(
+                                    contextUserId,
+                                    contextBranchId,
+                                    Route.Finance,
+                                    selectedId = null,
+                                    financeShowCards = it,
+                                )
+                            }
+                        },
                         listState = listState,
                     ),
             )

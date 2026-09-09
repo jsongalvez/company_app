@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -20,6 +22,7 @@ import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -246,24 +249,24 @@ internal fun DateRangeParamRow(
     // never fires a request (Apply validates first), so the last valid report stays
     // mounted until Apply. The error stacks below the fields — never inside the row —
     // so the row holds at 390dp with no horizontal scroll.
+    // #728 — picker affordance rides inside the field (trailing Pick, audit precedent):
+    // picking writes the same draft the text edits, never applies, dismissal no-ops.
     Column(modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedTextField(
+            FinanceDateField(
+                label = "Start (yyyy-MM-dd)",
                 value = ui.fromInput,
                 onValueChange = ui.onFromChange,
-                label = { Text("Start (yyyy-MM-dd)") },
-                singleLine = true,
                 modifier = Modifier.weight(1f),
             )
             Spacer(Modifier.width(Spacing.xs))
-            OutlinedTextField(
+            FinanceDateField(
+                label = "End (yyyy-MM-dd)",
                 value = ui.toInput,
                 onValueChange = ui.onToChange,
-                label = { Text("End (yyyy-MM-dd)") },
-                singleLine = true,
                 modifier = Modifier.weight(1f),
             )
             Spacer(Modifier.width(Spacing.sm))
@@ -291,16 +294,17 @@ internal fun MonthParamRow(
     paramError: String?,
 ) {
     // #678 — the error stacks below the row so the month picker holds at 390dp.
+    // #728 — month picker rides inside the field (typed entry stays for speed):
+    // picking writes the same draft, never applies, dismissal no-ops.
     Column(modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedTextField(
+            FinanceMonthField(
+                label = "Month (yyyy-MM)",
                 value = monthInput,
                 onValueChange = onMonthInputChange,
-                label = { Text("Month (yyyy-MM)") },
-                singleLine = true,
                 modifier = Modifier.width(200.dp),
             )
             Spacer(Modifier.width(Spacing.sm))
@@ -326,16 +330,16 @@ internal fun JumpParamRow(
     paramError: String?,
 ) {
     // #678 — the error stacks below the row so the jump picker holds at 390dp.
+    // #728 — same month-picker treatment as MonthParamRow (draft-only, no auto-jump).
     Column(modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedTextField(
+            FinanceMonthField(
+                label = "Jump to month (yyyy-MM)",
                 value = monthInput,
                 onValueChange = onJumpInputChange,
-                label = { Text("Jump to month (yyyy-MM)") },
-                singleLine = true,
                 modifier = Modifier.weight(1f),
             )
             Spacer(Modifier.width(Spacing.sm))
@@ -350,6 +354,82 @@ internal fun JumpParamRow(
                 modifier = Modifier.padding(top = Spacing.xxs),
             )
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FinanceDateField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var pickerOpen by remember { mutableStateOf(false) }
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        singleLine = true,
+        trailingIcon = {
+            TextButton(onClick = { pickerOpen = true }) { Text("Pick") }
+        },
+        modifier = modifier,
+    )
+    if (pickerOpen) {
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = financeDateToPickerMillis(value))
+        DatePickerDialog(
+            onDismissRequest = { pickerOpen = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        financePickerMillisToDate(pickerState.selectedDateMillis)?.let(onValueChange)
+                        pickerOpen = false
+                    },
+                ) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pickerOpen = false }) { Text("Cancel") }
+            },
+        ) { DatePicker(state = pickerState) }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FinanceMonthField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var pickerOpen by remember { mutableStateOf(false) }
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        singleLine = true,
+        trailingIcon = {
+            TextButton(onClick = { pickerOpen = true }) { Text("Pick") }
+        },
+        modifier = modifier,
+    )
+    if (pickerOpen) {
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = financeMonthToPickerMillis(value))
+        DatePickerDialog(
+            onDismissRequest = { pickerOpen = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        financePickerMillisToMonth(pickerState.selectedDateMillis)?.let(onValueChange)
+                        pickerOpen = false
+                    },
+                ) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pickerOpen = false }) { Text("Cancel") }
+            },
+        ) { DatePicker(state = pickerState) }
     }
 }
 

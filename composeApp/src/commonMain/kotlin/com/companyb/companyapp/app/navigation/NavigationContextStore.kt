@@ -31,6 +31,14 @@ package com.companyb.companyapp.app.navigation
  * user+branch key and null-leg rules as the anchors; the anchor reuses
  * scrollAnchorId as the visible card id (identity, not index) so filtering or data
  * changes degrade to a safe fallback instead of a stuck viewport.
+ *
+ * #728 - Finance owns its applied browsing context on the same seam (selected
+ * accessible branch + report mode + applied month/range/jump + Rows/Cards choice).
+ * Applied scope rides the same user+branch key and null-leg rules; drafts, edit
+ * mode, dialogs, and transient errors stay entry-local and are never retained.
+ * The selected day reuses selectedId and the report-list position reuses
+ * scrollAnchorId (both branchDayId identity, with safe fallbacks when the anchor
+ * no longer belongs to the feed).
  */
 object NavigationContextStore {
     /** What a section needs to restore its working position on return. */
@@ -42,6 +50,16 @@ object NavigationContextStore {
         // never visited; empty query / false filter are meaningful retained values.
         val query: String? = null,
         val lowStockOnly: Boolean? = null,
+        // #728 - Finance applied browsing context only. Null = never visited.
+        // Empty month/range/jump strings are meaningful retained values (cleared
+        // scope: DATE_RANGE with no window, ALL_TIME unbounded).
+        val financeBranchId: String? = null,
+        val financeMode: String? = null,
+        val financeMonth: String? = null,
+        val financeRangeFrom: String? = null,
+        val financeRangeTo: String? = null,
+        val financeJumpMonth: String? = null,
+        val financeShowCards: Boolean? = null,
     )
 
     private val contexts: MutableMap<String, SectionContext> = mutableMapOf()
@@ -108,6 +126,14 @@ object NavigationContextStore {
         // explicit clear is itself retained and never resurrects an older value.
         query: String? = null,
         lowStockOnly: Boolean? = null,
+        // #728 - null = leave intact; non-null (including "" / false) overwrites.
+        financeBranchId: String? = null,
+        financeMode: String? = null,
+        financeMonth: String? = null,
+        financeRangeFrom: String? = null,
+        financeRangeTo: String? = null,
+        financeJumpMonth: String? = null,
+        financeShowCards: Boolean? = null,
     ) {
         if (userId == null || branchId == null) return
         val k = key(userId, branchId, section)
@@ -119,6 +145,13 @@ object NavigationContextStore {
                 tab = tab ?: previous.tab,
                 query = query ?: previous.query,
                 lowStockOnly = lowStockOnly ?: previous.lowStockOnly,
+                financeBranchId = financeBranchId ?: previous.financeBranchId,
+                financeMode = financeMode ?: previous.financeMode,
+                financeMonth = financeMonth ?: previous.financeMonth,
+                financeRangeFrom = financeRangeFrom ?: previous.financeRangeFrom,
+                financeRangeTo = financeRangeTo ?: previous.financeRangeTo,
+                financeJumpMonth = financeJumpMonth ?: previous.financeJumpMonth,
+                financeShowCards = financeShowCards ?: previous.financeShowCards,
             )
     }
 

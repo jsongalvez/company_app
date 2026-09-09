@@ -19,6 +19,8 @@ import androidx.compose.ui.Modifier
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.app.hasCapabilityAnyContext
 import com.companyb.companyapp.app.hasDayGrant
+import com.companyb.companyapp.app.navigation.NavigationContextStore
+import com.companyb.companyapp.app.navigation.Route
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
@@ -61,6 +63,7 @@ fun FinanceReportsScreen(
         downloads = collected.downloads,
         onDownloadNote = { downloadNote = it },
     )
+    FinanceAppliedContextEffects(viewModel = viewModel, collected = collected)
     FinanceReportsDownloadNote(downloadNote)
 
     Column(modifier = modifier.fillMaxSize().padding(Spacing.md)) {
@@ -88,6 +91,8 @@ private fun rememberFinanceReportsCollected(viewModel: FinanceReportsViewModel):
     val rangeFromInput by viewModel.rangeFromInput.collectAsState()
     val rangeToInput by viewModel.rangeToInput.collectAsState()
     val appliedRange by viewModel.appliedRange.collectAsState()
+    val appliedMonth by viewModel.appliedMonth.collectAsState()
+    val jumpMonth by viewModel.jumpMonth.collectAsState()
     val paramError by viewModel.paramError.collectAsState()
     val monthlyRollup by viewModel.monthlyRollup.collectAsState()
     val feed by viewModel.feedEntries.collectAsState()
@@ -114,6 +119,8 @@ private fun rememberFinanceReportsCollected(viewModel: FinanceReportsViewModel):
         rangeFromInput = rangeFromInput,
         rangeToInput = rangeToInput,
         appliedRange = appliedRange,
+        appliedMonth = appliedMonth.toString(),
+        jumpMonth = jumpMonth?.toString(),
         paramError = paramError,
         monthlyRollup = monthlyRollup,
         feed = feed,
@@ -140,6 +147,8 @@ internal data class FinanceReportsCollected(
     val rangeFromInput: String,
     val rangeToInput: String,
     val appliedRange: Pair<String, String>?,
+    val appliedMonth: String,
+    val jumpMonth: String?,
     val paramError: String?,
     val monthlyRollup: UiState<MonthlyRemittanceSummaryResponse?>,
     val feed: UiState<List<DailySalesSummaryResponse>>,
@@ -167,6 +176,30 @@ private fun FinanceReportsScreenEffects(
         // accessible-branches list is BRANCH-grant-only (empty for a relief delegate):
         // the fetch would be dead work.
         if (!reliefOnly) {
+            // #728 — stage the retained applied scope before the first load so the
+            // restore lands in one load (default-then-restored would flash + double-fetch).
+            // Drafts mirror applied on restore; edit mode/dialogs/errors never stage.
+            val snapshot = AppSessionState.snapshot.value
+            val retained =
+                NavigationContextStore.retained(snapshot.user?.id, snapshot.clock?.branchId, Route.Finance)
+            if (retained != null &&
+                (
+                    retained.financeBranchId != null || retained.financeMode != null ||
+                        retained.financeMonth != null || retained.financeRangeFrom != null ||
+                        retained.financeRangeTo != null || retained.financeJumpMonth != null
+                )
+            ) {
+                viewModel.stageFinanceRestore(
+                    FinanceRestoreRequest(
+                        branchId = retained.financeBranchId,
+                        modeName = retained.financeMode,
+                        month = retained.financeMonth,
+                        rangeFrom = retained.financeRangeFrom,
+                        rangeTo = retained.financeRangeTo,
+                        jumpMonth = retained.financeJumpMonth,
+                    ),
+                )
+            }
             viewModel.loadBranches()
         }
     }
@@ -199,6 +232,52 @@ private fun FinanceReportsDownloadNote(note: String?) {
             text = note,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * #728 - retains the applied Finance browsing scope on every applied change (branch,
+ * mode, month, range, jump). Guarded by branches Success (branch access must be known
+ * before anything is trusted) and reliefOnly (the relief surface owns no report scope).
+ * Draft invalid text is entry-local and never retained; only applied scope lands here.
+ * Null user/clock legs fail closed via the store. The selected day, list anchor, and
+ * Rows/Cards choice ride FeedSection (they need the feed/list chrome there).
+ */
+@Composable
+private fun FinanceAppliedContextEffects(
+    viewModel: FinanceReportsViewModel,
+    collected: FinanceReportsCollected,
+) {
+    val snapshot by AppSessionState.snapshot.collectAsState()
+    val userId = snapshot.user?.id
+    val clockBranchId = snapshot.clock?.branchId
+    val branchesReady = collected.branches is UiState.Success
+    LaunchedEffect(
+        collected.selectedBranchId,
+        collected.mode,
+        collected.appliedMonth,
+        collected.appliedRange,
+        collected.jumpMonth,
+        branchesReady,
+        collected.reliefOnly,
+        userId,
+        clockBranchId,
+    ) {
+        if (collected.reliefOnly || !branchesReady) return@LaunchedEffect
+        if (userId == null || clockBranchId == null) return@LaunchedEffect
+        val branchId = collected.selectedBranchId ?: return@LaunchedEffect
+        NavigationContextStore.retain(
+            userId,
+            clockBranchId,
+            Route.Finance,
+            selectedId = null,
+            financeBranchId = branchId,
+            financeMode = collected.mode.name,
+            financeMonth = collected.appliedMonth,
+            financeRangeFrom = collected.appliedRange?.first ?: "",
+            financeRangeTo = collected.appliedRange?.second ?: "",
+            financeJumpMonth = collected.jumpMonth ?: "",
         )
     }
 }

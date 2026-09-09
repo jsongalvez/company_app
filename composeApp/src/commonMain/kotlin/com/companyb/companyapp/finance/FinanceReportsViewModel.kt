@@ -104,23 +104,76 @@ class FinanceReportsViewModel(
                 val list = it.body<List<BranchResponse>>()
                 _branches.value = UiState.Success(list)
                 if (selectedBranchIdState.value == null) {
-                    // Default: the clocked-in branch when the user can see it, else the first
-                    // accessible branch (Accountant: GLOBAL view, no selected branch — D3).
-                    val default =
-                        list.firstOrNull { b ->
-                            b.id ==
-                                AppSessionState.snapshot.value.clock
-                                    ?.branchId
+                    val pending = pendingFinanceRestore
+                    pendingFinanceRestore = null
+                    if (pending != null) {
+                        applyStagedFinanceRestore(pending, list)
+                    } else {
+                        // Default: the clocked-in branch when the user can see it, else the first
+                        // accessible branch (Accountant: GLOBAL view, no selected branch — D3).
+                        val default =
+                            list.firstOrNull { b ->
+                                b.id ==
+                                    AppSessionState.snapshot.value.clock
+                                        ?.branchId
+                            }
+                                ?: list.firstOrNull()
+                        if (default != null) {
+                            selectedBranchIdState.value = default.id
+                            refreshWindowAndFeed()
                         }
-                            ?: list.firstOrNull()
-                    if (default != null) {
-                        selectedBranchIdState.value = default.id
-                        refreshWindowAndFeed()
                     }
+                } else {
+                    pendingFinanceRestore = null
                 }
                 list
             },
         )
+    }
+
+    // #728 - single-load restore: validates the staged slot against the accessible
+    // list (stored branch wins when still accessible, else the safe default rule),
+    // mirrors drafts to the applied scope, then loads once. Invalid stored scope
+    // degrades to defaults; the feed lookup for the selected day (screen-owned)
+    // degrades to the list, never stale detail.
+    private fun applyStagedFinanceRestore(
+        pending: FinanceRestoreRequest,
+        accessible: List<BranchResponse>,
+    ) {
+        val ids = accessible.map { it.id }
+        val branchId =
+            resolveRestoredFinanceBranch(
+                pending.branchId,
+                ids,
+                AppSessionState.snapshot.value.clock
+                    ?.branchId,
+            ) ?: return
+        val mode = parseStoredFinanceMode(pending.modeName) ?: modeState.value
+        val month = parseStoredFinanceMonth(pending.month) ?: appliedMonthState.value
+        val range = parseStoredFinanceRange(pending.rangeFrom, pending.rangeTo)
+        val jump = parseStoredFinanceJumpMonth(pending.jumpMonth)
+        selectedBranchIdState.value = branchId
+        modeState.value = mode
+        appliedMonthState.value = month
+        appliedRangeState.value = range
+        jumpMonthState.value = jump
+        monthInputState.value =
+            when {
+                mode == ReportMode.MONTHLY -> month.toString()
+                mode == ReportMode.ALL_TIME && jump != null -> jump.toString()
+                else -> defaultMonth.toString()
+            }
+        rangeFromInputState.value = range?.first ?: ""
+        rangeToInputState.value = range?.second ?: ""
+        paramErrorState.value = null
+        selectedDayState.value = null
+        editModeState.value = false
+        clearEditData()
+        monthlyRollupState.value = UiState.Idle
+        refreshWindowAndFeed()
+        if (mode == ReportMode.MONTHLY) {
+            loadMonthlyRollup()
+        }
     }
 
     fun selectBranch(branchId: String) {
@@ -164,6 +217,21 @@ class FinanceReportsViewModel(
 
     /** Applied ALL_TIME jump month (null = unbounded all-time). */
     private val jumpMonthState = MutableStateFlow<YearMonth?>(null)
+    val jumpMonth: StateFlow<YearMonth?> = jumpMonthState.asStateFlow()
+
+    // #728 - staged applied scope (screen passes the retained NavigationContextStore
+    // slot before the first loadBranches so the restore lands in one load instead of
+    // default-then-restored). Consumed once inside loadBranches; memory-only.
+    private var pendingFinanceRestore: FinanceRestoreRequest? = null
+
+    /**
+     * #728 - stages the retained applied scope for the next loadBranches. The draft
+     * inputs mirror the applied scope on restore (invalid draft text is entry-local
+     * and never retained). Edit mode, dialogs, and transient errors are never staged.
+     */
+    fun stageFinanceRestore(request: FinanceRestoreRequest) {
+        pendingFinanceRestore = request
+    }
 
     /** Mode-parameter validation errors (rendered inline next to the field). */
     private val paramErrorState = MutableStateFlow<String?>(null)
