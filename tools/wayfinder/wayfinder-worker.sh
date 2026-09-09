@@ -512,10 +512,10 @@ cmd_status() {
 #   `STATUS: done|blocked|failed` line (plus `COMMIT:`) — written by the
 #   worker per its ticket prompt. Adopted immediately.
 # - Signal B (fallback): Herdr named status `idle` persisted across passes
-#   (>=300s, tracked in harvest.tsv beside the registry) AND the workspace
+#   (>=120s, tracked in harvest.tsv beside the registry) AND the workspace
 #   sits on a `prototype/*` branch (never master) AND holds commits ahead of
 #   its recorded base AND has a clean tree. The commit+clean gates carry the
-#   safety (a mid-build worker has no commit or a dirty tree); the 300s timer
+#   safety (a mid-build worker has no commit or a dirty tree); the 120s timer
 #   is only flicker margin. A worker idle mid-build with no commit is never
 #   harvested; a worker that committed to master is never harvested (left for
 #   the operator).
@@ -575,7 +575,7 @@ cmd_harvest() {
                 continue
                 ;;
         esac
-        if [ $((now - first)) -lt 300 ]; then continue; fi
+        if [ $((now - first)) -lt 120 ]; then continue; fi
         if [ ! -d "$ws" ]; then skipped=$((skipped + 1)); continue; fi
         br="$(git -C "$ws" branch --show-current 2>/dev/null || true)"
         case "$br" in
@@ -590,7 +590,7 @@ cmd_harvest() {
         case "$ahead" in ''|*[!0-9]*) ahead=0 ;; esac
         if [ "$ahead" -le 0 ]; then skipped=$((skipped + 1)); continue; fi
         headsha="$(git -C "$ws" rev-parse HEAD 2>/dev/null || printf 'none')"
-        reg_upsert "$name" "$role" "$ticket" "$ws" "$pane" "done" "harvested: idle 300s+ with $ahead commit(s) on $br ($headsha)"
+        reg_upsert "$name" "$role" "$ticket" "$ws" "$pane" "done" "harvested: idle 120s+ with $ahead commit(s) on $br ($headsha)"
         printf 'harvested %s via idle+branch evidence -> done (%s %s)\n' "$name" "$br" "$headsha"
         harvested=$((harvested + 1))
     done < "$REGISTRY"
