@@ -15,6 +15,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.time.OffsetDateTime
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -89,6 +90,45 @@ class NotificationServicePostgresTest : BasePostgresTest() {
 
         assertEquals(1, notifications.size)
         assertEquals(callerId, notifications.first().userId)
+    }
+
+    @Test
+    fun `listUnread orders same-timestamp rows by id desc`() {
+        val fixed = OffsetDateTime.parse("2026-03-01T00:00:00Z")
+        val firstId = TestFixtures.uuid()
+        val secondId = TestFixtures.uuid()
+        // Locals, not members: inside insert{} the table receiver shadows same-named
+        // members, so a member name would inline the COLUMN as the value.
+        val recipientId = callerId
+        val ownerBranchId = branchId
+        transaction {
+            NotificationTable.insert {
+                it[NotificationTable.id] = firstId
+                it[NotificationTable.sessionId] = null
+                it[NotificationTable.userId] = recipientId
+                it[NotificationTable.branchId] = ownerBranchId
+                it[NotificationTable.message] = "tie-first"
+                it[NotificationTable.createdAt] = fixed
+                it[NotificationTable.dedupKey] = "TEST:unread-tie:$firstId"
+            }
+            NotificationTable.insert {
+                it[NotificationTable.id] = secondId
+                it[NotificationTable.sessionId] = null
+                it[NotificationTable.userId] = recipientId
+                it[NotificationTable.branchId] = ownerBranchId
+                it[NotificationTable.message] = "tie-second"
+                it[NotificationTable.createdAt] = fixed
+                it[NotificationTable.dedupKey] = "TEST:unread-tie:$secondId"
+            }
+        }
+
+        val ordered =
+            NotificationService
+                .listUnread(callerId)
+                .filter { it.id == firstId || it.id == secondId }
+                .map { it.id }
+
+        assertEquals(listOf(firstId, secondId).sortedDescending(), ordered)
     }
 
     @Test

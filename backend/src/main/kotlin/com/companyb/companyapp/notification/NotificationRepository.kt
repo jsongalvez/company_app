@@ -103,6 +103,7 @@ internal object NotificationRepository {
                 .selectAll()
                 .where { (NotificationTable.userId eq userId) and (NotificationTable.isRead eq false) }
                 .orderBy(NotificationTable.createdAt, SortOrder.DESC)
+                .orderBy(NotificationTable.id, SortOrder.DESC)
                 .map { it.toNotification() }
         }.also {
             logger.info { "[FIND-UNREAD] ${it.size} unread notifications for user ${userId.toString().maskUUID()}" }
