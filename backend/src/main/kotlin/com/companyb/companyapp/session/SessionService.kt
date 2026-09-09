@@ -102,8 +102,10 @@ object SessionService {
             // row is locked before the day row so concurrent session mutations serialize
             // instead of deadlocking. The day gate below locks the day row, serializing
             // this create with remittance submit/undo's REMITTED transition.
-            val lockedClient = ClientReads.acquireLockInTransaction(clientId)
-            if (lockedClient?.deletedAt != null) {
+            val lockedClient =
+                ClientReads.acquireLockInTransaction(clientId)
+                    ?: throw NotFoundException("Client not found")
+            if (lockedClient.deletedAt != null) {
                 throw ConflictException("Cannot create a session for an anonymized client")
             }
             idempotentReplayOrNull(SessionRepository.findByIdInTransaction(id), clientId, branchDay.id, callerId)?.let {

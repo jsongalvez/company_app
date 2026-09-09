@@ -360,6 +360,18 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `create session throws 404 for unknown client with no row written`() {
+        val unknownClientId = TestFixtures.uuid()
+        val blockedId = TestFixtures.uuid()
+
+        assertFailsWith<NotFoundException> {
+            createSession(callerId, blockedId, clientId = unknownClientId)
+        }
+        assertNull(SessionRepository.findById(blockedId))
+        assertEquals(0L, auditEntryCount(SessionTable.tableName, blockedId))
+    }
+
+    @Test
     fun `medical mission branch always creates MEDICAL_MISSION session type`() {
         val mmBranchId = TestFixtures.uuid()
         val mmClientId = TestFixtures.uuid()
