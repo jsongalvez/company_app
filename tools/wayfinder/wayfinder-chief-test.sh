@@ -25,7 +25,7 @@ cat >"$WORK/bin/herdr" <<'EOF'
 printf '%s\n' "$*" >>"$HERDR_CALLS"
 case "${1:-} ${2:-}" in
     "pane split") printf '{"result":{"pane":{"pane_id":"pane-7"}}}'; exit 0 ;;
-    "agent start") printf '{"result":{"agent":{"name":"%s","status":"running"}}}' "$3"; exit 0 ;;
+    "agent start") if [ -f "$WORK/fail-start-$3" ]; then printf 'injected start failure\n' >&2; exit 1; fi; printf '{"result":{"agent":{"name":"%s","status":"running"}}}' "$3"; exit 0 ;;
     "agent prompt") exit 0 ;;
     "agent list")
         if [ -f "$WORK/list.json" ]; then cat "$WORK/list.json"; else printf '{"result":{"agents":[]}}'; fi
@@ -160,6 +160,58 @@ chief --map 697 --once
 grep -q 'empty frontier' "$WORK/out" && ok "empty frontier logged, exit 0" || bad "empty frontier mishandled"
 if grep -v '^#' "$CHIEF" | grep -w -q 'git'; then bad "chief invokes git"; else ok "chief never invokes git"; fi
 if grep -v '^#' "$WORKER" | grep -w -q 'git'; then bad "worker seam invokes git"; else ok "worker seam never invokes git"; fi
+
+echo "8. ticket prompt carries the worker contract (map #697 #737)"
+fresh_reg 8
+printf '[{"number":801}]' >"$WORK/sub-697.json"
+mkissue 801 open 0 '[]' "$LBL_TASK"
+chief --map 697 --once --max-workers 1 --base abcdef1234567890
+for token in "ROLE:" "TICKET:" "WORKSPACE:" "BASE:" "COMMIT:" "SUMMARY:" "FILES:" "VERIFICATION:" "RISKS" "HELP REQUESTS" "assign-first" "blocked" "exactly one ticket"; do
+    grep -q -- "$token" "$HERDR_CALLS" && ok "prompt carries $token" || bad "prompt missing $token"
+done
+grep -q -- "801" "$HERDR_CALLS" && ok "prompt names the ticket" || bad "prompt missing ticket number"
+grep -q -- "abcdef1234567890" "$HERDR_CALLS" && ok "prompt carries dispatched base" || bad "prompt missing --base value"
+if grep -- "agent prompt" "$HERDR_CALLS" | grep -q -- '--wait'; then bad "prompt path leaked --wait"; else ok "contract prompt stays async"; fi
+
+echo "9. chief-mediated helper spawn with parent association (map #697 #737)"
+fresh_reg 9
+printf 'wf-697-901\tticket\t901\t%s\tpane-7\trunning\tt0\tt0\tspawned\n' "$WORK/ws" > "$WAYFINDER_WORKER_REGISTRY"
+mkdir -p "$WORK/helper-ws"
+if bash "$CHIEF" --map 697 --max-workers 2 --spawn-helper wf-697-901 --scope "backend investigation" --helper-workspace "$WORK/helper-ws" >"$WORK/out" 2>"$WORK/err"; then
+    ok "helper spawn accepted"
+else bad "helper spawn failed: $(cat "$WORK/err")"; fi
+grep -q $'^wf-697-901-h1\thelper\t901\t' "$WAYFINDER_WORKER_REGISTRY" \
+    && ok "helper registered under parent ticket" || bad "helper row missing: $(cat "$WAYFINDER_WORKER_REGISTRY")"
+[ "$(awk -F'\t' -v n=wf-697-901-h1 '$1 == n { print $10; exit }' "$WAYFINDER_WORKER_REGISTRY")" = "wf-697-901" ] \
+    && ok "helper carries parent association" || bad "helper parent column missing"
+grep -q -- "SCOPE: backend investigation" "$HERDR_CALLS" && ok "helper prompt carries bounded scope" || bad "helper prompt missing scope"
+grep -q -- "PARENT: wf-697-901" "$HERDR_CALLS" && ok "helper prompt names parent" || bad "helper prompt missing parent"
+if bash "$CHIEF" --map 697 --spawn-helper wf-ghost --scope "x" --helper-workspace "$WORK/helper-ws" >"$WORK/out" 2>"$WORK/err"; then
+    bad "helper under unknown parent accepted"
+else ok "helper under unknown parent refused"; fi
+if bash "$CHIEF" --map 697 --spawn-helper wf-697-901 --helper-workspace "$WORK/helper-ws" >"$WORK/out" 2>"$WORK/err"; then
+    bad "helper without scope accepted"
+else ok "helper without scope refused"; fi
+if bash "$CHIEF" --map 697 --spawn-helper wf-697-901-h1 --scope "nested" --helper-workspace "$WORK/helper-ws" >"$WORK/out" 2>"$WORK/err"; then
+    bad "nested helper under a helper accepted"
+else ok "nested helper refused"; fi
+if bash "$CHIEF" --map 697 --spawn-helper wf-697-901 --scope "x" --helper-workspace "$WORK/missing-ws" >"$WORK/out" 2>"$WORK/err"; then
+    bad "helper with missing workspace accepted"
+else ok "helper with missing workspace refused"; fi
+if bash "$CHIEF" --map 697 --once --scope "stray" >"$WORK/out" 2>"$WORK/err"; then
+    bad "stray --scope without --spawn-helper accepted"
+else ok "stray helper flags without --spawn-helper refused"; fi
+
+echo "10. spawn failure breaks the fill instead of counting as spawned (map #697 #737)"
+fresh_reg 10
+printf '[{"number":1001},{"number":1002}]' >"$WORK/sub-697.json"
+mkissue 1001 open 0 '[]' "$LBL_TASK"; mkissue 1002 open 0 '[]' "$LBL_TASK"
+: > "$WORK/fail-start-wf-697-1001"
+chief --map 697 --once --max-workers 2
+[ "$(grep -c '^wf-697-' "$WAYFINDER_WORKER_REGISTRY" || true)" -eq 0 ] \
+    && ok "failed spawn left no row and filled nothing further" || bad "fill miscounted: $(cat "$WAYFINDER_WORKER_REGISTRY")"
+grep -q 'spawn refused for ticket #1001' "$WORK/out" && ok "refusal logged, fill stopped" || bad "no refusal log: $(cat "$WORK/out")"
+rm -f "$WORK"/fail-start-*
 
 echo
 if [ $fail -eq 0 ]; then echo "chief-contract: OK"; else echo "chief-contract: FAILURES PRESENT"; exit 1; fi

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wayfinder-worker.sh — Herdr worker-control seam for the Wayfinder map chief (map #697, ticket #735).
+# wayfinder-worker.sh — Herdr worker-control seam for the Wayfinder map chief (map #697, tickets #735 #737).
 #
 # Hides direct Herdr CLI details behind one small boundary so the chief
 # scheduler (wayfinder-chief.sh) and later tickets never parse Herdr output
@@ -7,6 +7,7 @@
 #
 #   spawn     --role R --ticket N --workspace DIR [--name N] [--pane P]
 #             [--kind K] [--prompt-file F | --prompt TEXT]
+#             [--parent WORKER --scope TEXT] (helper only)
 #   prompt    <name> [--text-file F | --text TEXT]
 #   status    <name>
 #   wait      <name> [--timeout MS] [--until STATE]...
@@ -15,11 +16,28 @@
 #   cleanup   <name> [--force]
 #   reconcile
 #
-# Contract notes (ticket #735 acceptance):
+# Contract notes (tickets #735 #737 acceptance):
 # - Only the map chief creates/schedules workers. spawn/prompt/stop/cleanup/
 #   reconcile refuse leaf roles: when WAYFINDER_ROLE is ticket, maintenance,
 #   bug-scout, or helper the call fails with a "request help via the chief"
 #   message instead of touching Herdr. status/wait/read stay observable to all.
+# - Ticket-worker ownership (ticket #737): each ticket worker owns exactly one
+#   assigned ticket. The worker prompt (built by the chief) carries role,
+#   ticket, map context, and workspace/base identity; the worker must verify
+#   the assign-first claim before editing (a lost race stops before durable
+#   changes), implement only the assigned scope, and never claim a second
+#   ticket, integrate to master, close its own ticket, create the successor
+#   handoff, touch another worker's workspace, or spawn recursive agents.
+#   Completion is a structured report (STATUS/ROLE/TICKET/WORKSPACE/BASE/
+#   COMMIT/SUMMARY/FILES/VERIFICATION/RISKS/HELP REQUESTS) collected via
+#   `read`; `blocked` names the exact decision/question without stalling
+#   unrelated workers.
+# - Helper mediation (ticket #737): a ticket worker may request bounded help
+#   via HELP REQUESTS, but only the chief spawns helpers — as registered,
+#   capacity-counted siblings with a parent association (--parent names the
+#   existing parent worker, --scope records the non-overlapping bounded
+#   scope). Helpers never nest (a helper cannot parent another helper).
+#   Writable helpers receive their own isolated workspace like any worker.
 # - Dispatch is asynchronous by default: spawn and prompt never pass --wait
 #   (nor --until/--timeout) to `herdr agent prompt`. worker_wait is the only
 #   blocking call and always carries an explicit check-in --timeout
@@ -44,7 +62,9 @@
 #   WAYFINDER_WORKER_REGISTRY  registry file (default: <repo>/.wayfinder/workers.tsv)
 #
 # Registry (TSV, runtime state under gitignored .wayfinder/):
-#   name role ticket workspace pane status created updated note
+#   name role ticket workspace pane status created updated note parent
+# Parent (column 10, ticket #737) names the parent worker for helper rows and
+# is empty for all other roles. Older 9-column rows read as parent-empty.
 # Status flow: spawning -> running -> done|blocked -> ready-for-review
 # (-> accepted/revision/rejected in ticket #740) -> cleanup removes the row.
 # stop marks stopped; reconcile marks missing agents gone.
@@ -100,24 +120,32 @@ reg_row() { # <name> — print the TSV row or nothing.
     awk -F'\t' -v name="$1" '$1 == name { print; exit }' "$REGISTRY"
 }
 
-# reg_upsert <name> <role> <ticket> <workspace> <pane> <status> <note>
+# reg_upsert <name> <role> <ticket> <workspace> <pane> <status> <note> [parent]
+# The optional parent (column 10, helper rows) defaults to preserving the
+# existing row's parent so status updates (stop/reconcile) never drop the
+# helper association; new rows default to empty (non-helper).
 reg_upsert() {
     local name="$1" role="$2" ticket="$3" workspace="$4" pane="$5" status="$6" note="$7"
+    local parent="${8:-}"
     local now existing created tmp
     now="$(date '+%F %T')"
     note="$(printf '%s' "$note" | tr '\t\n' '  ')"
+    parent="$(printf '%s' "$parent" | tr '\t\n' '  ')"
     reg_init
     existing="$(reg_row "$name")"
     if [ -n "$existing" ]; then
         created="$(printf '%s' "$existing" | cut -f7)"
         [ -n "$created" ] || created="$now"
+        if [ -z "$parent" ]; then
+            parent="$(printf '%s' "$existing" | awk -F'\t' '{ print $10 }')"
+        fi
     else
         created="$now"
     fi
     tmp="$(mktemp)"
     awk -F'\t' -v name="$name" '$1 != name' "$REGISTRY" > "$tmp"
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$name" "$role" "$ticket" "$workspace" "$pane" "$status" "$created" "$now" "$note" >> "$tmp"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$name" "$role" "$ticket" "$workspace" "$pane" "$status" "$created" "$now" "$note" "$parent" >> "$tmp"
     mv "$tmp" "$REGISTRY"
 }
 
@@ -139,7 +167,7 @@ alloc_pane() {
 cmd_spawn() {
     require_chief "worker_spawn"
     local role="" ticket="" workspace="" name="" pane="" kind="$WORKER_KIND_DEFAULT"
-    local prompt_text="" prompt_file=""
+    local prompt_text="" prompt_file="" parent="" scope=""
     while [ $# -gt 0 ]; do
         case "$1" in
             --role) role="${2:-}"; shift 2 ;;
@@ -150,6 +178,8 @@ cmd_spawn() {
             --kind) kind="${2:-}"; shift 2 ;;
             --prompt) prompt_text="${2:-}"; shift 2 ;;
             --prompt-file) prompt_file="${2:-}"; shift 2 ;;
+            --parent) parent="${2:-}"; shift 2 ;;
+            --scope) scope="${2:-}"; shift 2 ;;
             -h|--help) usage ;;
             *) usage_err "spawn: unknown flag $1" ;;
         esac
@@ -157,7 +187,36 @@ cmd_spawn() {
     valid_role "$role" || usage_err "spawn: --role must be one of: $VALID_ROLES"
     [[ "$ticket" =~ ^[0-9]+$ ]] || usage_err "spawn: --ticket must be a numeric issue number"
     [ -n "$workspace" ] || usage_err "spawn: --workspace is required (provider-owned dir; never created here)"
+    case "$workspace" in
+        *$'\t'*|*$'\n'*) die "spawn: workspace path must not contain tabs or newlines" ;;
+    esac
     [ -d "$workspace" ] || die "spawn: workspace does not exist: $workspace (ticket #736 owns creation)"
+    if [ "$role" = "helper" ]; then
+        [ -n "$parent" ] || usage_err "spawn: --role helper requires --parent <parent-worker> (chief-mediated only)"
+        [ -n "$scope" ] || usage_err "spawn: --role helper requires --scope <bounded non-overlapping scope>"
+        valid_name "$parent" || usage_err "spawn: invalid parent worker name '$parent'"
+        local parent_row parent_role parent_ticket parent_workspace
+        parent_row="$(reg_row "$parent")"
+        [ -n "$parent_row" ] || die "spawn: unknown parent worker '$parent' (helpers attach to a registered worker)"
+        parent_role="$(printf '%s' "$parent_row" | cut -f2)"
+        [ "$parent_role" != "helper" ] || die "spawn: parent '$parent' is itself a helper — helpers never nest (request via the chief)"
+        parent_ticket="$(printf '%s' "$parent_row" | cut -f3)"
+        [ "$ticket" = "$parent_ticket" ] || die "spawn: helper ticket #$ticket must match parent '$parent' ticket #$parent_ticket"
+        parent_workspace="$(printf '%s' "$parent_row" | cut -f4)"
+        [ "$workspace" != "$parent_workspace" ] || die "spawn: helper workspace must differ from parent '$parent' workspace (writable helpers need their own isolated workspace)"
+        if [ -z "$name" ]; then
+            local n=1
+            name="${parent}-h${n}"
+            while [ -n "$(reg_row "$name")" ]; do
+                n=$((n + 1))
+                name="${parent}-h${n}"
+                [ "$n" -lt 1000 ] || die "spawn: cannot allocate a helper name under '$parent'"
+            done
+        fi
+    else
+        [ -z "$parent" ] || usage_err "spawn: --parent is helper-only (role $role takes no parent)"
+        [ -z "$scope" ] || usage_err "spawn: --scope is helper-only (role $role takes no scope)"
+    fi
     [ -z "$name" ] && name="wf-${ticket}-${role}"
     valid_name "$name" || die "spawn: invalid Herdr agent name '$name' (want [a-z][a-z0-9_-]{0,31})"
     case "$pane" in ''|*[!a-zA-Z0-9_:@-]* ) [ -z "$pane" ] || die "spawn: invalid pane id '$pane'" ;; esac
@@ -188,11 +247,19 @@ cmd_spawn() {
     fi
     if [ -n "$prompt_text" ]; then
         if ! out="$("$HERDR_BIN" agent prompt "$name" "$prompt_text" 2>&1)"; then
-            reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "started; initial prompt failed: $out"
+            if [ "$role" = "helper" ]; then
+                reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "helper for $parent: $scope; initial prompt failed: $out" "$parent"
+            else
+                reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "started; initial prompt failed: $out" "$parent"
+            fi
             die "agent prompt failed for $name (worker kept as running): $out"
         fi
     fi
-    reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "spawned kind=$kind"
+    if [ "$role" = "helper" ]; then
+        reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "helper for $parent: $scope (kind=$kind)" "$parent"
+    else
+        reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "spawned kind=$kind" "$parent"
+    fi
     printf 'spawned %s (role=%s ticket=#%s pane=%s)\n' "$name" "$role" "$ticket" "$pane"
 }
 
@@ -325,7 +392,7 @@ cmd_reconcile() {
     live="$(herdr_field "$out" '[.. | objects | select(has("name") and has("status")) | "\(.name)\t\(.status)"] | unique | .[]')"
     names="$(printf '%s' "$live" | cut -f1)"
     local kept=0 gone=0 updated=0
-    while IFS=$'\t' read -r name _role _ticket _ws _pane status _c _u _note; do
+    while IFS=$'\t' read -r name _role _ticket _ws _pane status _c _u _note _parent; do
         [ -n "$name" ] || continue
         herdr_status="$(printf '%s' "$live" | awk -F'\t' -v n="$name" '$1 == n { print $2; exit }')"
         if [ -z "$herdr_status" ]; then

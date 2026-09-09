@@ -63,10 +63,15 @@ else ok "script never hard-codes --wait on agent prompt"; fi
 echo "3. role is explicit and validated"
 run spawn --ticket 102 --workspace "$WORK/ws"; [ "$(rc)" -eq 2 ] && ok "missing role rejected" || bad "missing role accepted"
 run spawn --role bogus --ticket 102 --workspace "$WORK/ws"; [ "$(rc)" -eq 2 ] && ok "bad role rejected" || bad "bad role accepted"
-for r in maintenance bug-scout helper; do
+for r in maintenance bug-scout; do
     run spawn --role "$r" --ticket 102 --workspace "$WORK/ws" --name "wf-$r"
     [ "$(rc)" -eq 0 ] && ok "role $r accepted" || bad "role $r rejected: $(cat "$WORK/err")"
 done
+# Helper spawns only through chief mediation: parent + scope required (map #697 #737).
+run spawn --role helper --ticket 102 --workspace "$WORK/ws" --name wf-helper
+[ "$(rc)" -eq 2 ] && ok "bare helper spawn rejected (needs parent+scope)" || bad "bare helper spawn accepted"
+run spawn --role ticket --ticket 102 --workspace "$WORK/ws" --name wf-parflag --parent wf-a --scope x
+[ "$(rc)" -eq 2 ] && ok "--parent on non-helper rejected" || bad "--parent on non-helper accepted"
 
 echo "4. leaf roles cannot orchestrate through the normal contract"
 if WAYFINDER_ROLE=ticket bash "$WORKER" spawn --role ticket --ticket 103 --workspace "$WORK/ws" --name wf-leaf >"$WORK/out" 2>"$WORK/err"; then
@@ -136,6 +141,52 @@ export WAYFINDER_MAX_WORKERS=5
 echo "11. no Git integration and no workspace creation in the seam"
 if grep -v '^#' "$WORKER" | grep -w -q 'git'; then bad "seam invokes git"; else ok "seam never invokes git"; fi
 if grep -v '^#' "$WORKER" | grep -Eq 'git worktree|mkdir.*[Ww]orkspace'; then bad "seam creates workspaces"; else ok "seam never creates workspaces"; fi
+
+echo "12. helper mediation: parent association, no nesting, ticket match (map #697 #737)"
+export WAYFINDER_WORKER_REGISTRY="$WORK/helpers.tsv" WAYFINDER_MAX_WORKERS=5
+: > "$WORK/helpers.tsv"
+mkdir -p "$WORK/ws2"
+bash "$WORKER" spawn --role ticket --ticket 501 --workspace "$WORK/ws" --name wf-par >/dev/null 2>&1 \
+    || bad "parent ticket spawn failed"
+run spawn --role helper --ticket 501 --workspace "$WORK/ws2" --parent wf-par --scope "backend investigation" --name wf-h1
+[ "$(rc)" -eq 0 ] && ok "chief-mediated helper accepted" || bad "helper rejected: $(cat "$WORK/err")"
+grep -q $'^wf-h1\thelper\t501\t.*\trunning\t.*helper for wf-par: backend investigation' "$WORK/helpers.tsv" \
+    && ok "helper row records scope note" || bad "helper note wrong: $(cat "$WORK/helpers.tsv")"
+[ "$(awk -F'\t' -v n=wf-h1 '$1 == n { print $10; exit }' "$WORK/helpers.tsv")" = "wf-par" ] \
+    && ok "helper row carries parent association" || bad "parent column missing"
+run spawn --role helper --ticket 501 --workspace "$WORK/ws2" --parent wf-h1 --scope "nested" --name wf-nest
+[ "$(rc)" -ne 0 ] && ok "nested helper under a helper refused" || bad "nested helper accepted"
+run spawn --role helper --ticket 999 --workspace "$WORK/ws2" --parent wf-par --scope "wrong ticket" --name wf-wrong
+[ "$(rc)" -ne 0 ] && ok "helper ticket mismatch refused" || bad "helper ticket mismatch accepted"
+run spawn --role helper --ticket 501 --workspace "$WORK/ws2" --parent wf-ghost --scope "ghost" --name wf-ghost-h
+[ "$(rc)" -ne 0 ] && ok "helper under unknown parent refused" || bad "helper under unknown parent accepted"
+run spawn --role helper --ticket 501 --workspace "$WORK/ws2" --parent wf-par --name wf-noscope
+[ "$(rc)" -eq 2 ] && ok "helper without scope rejected" || bad "helper without scope accepted"
+run spawn --role helper --ticket 501 --workspace "$WORK/ws" --parent wf-par --scope "shared checkout" --name wf-shared
+[ "$(rc)" -ne 0 ] && ok "helper sharing the parent workspace refused" || bad "helper sharing parent workspace accepted"
+
+echo "13. helpers count toward capacity and survive status updates with parent intact"
+export WAYFINDER_WORKER_REGISTRY="$WORK/hcap.tsv" WAYFINDER_MAX_WORKERS=2
+: > "$WORK/hcap.tsv"
+bash "$WORKER" spawn --role ticket --ticket 601 --workspace "$WORK/ws" --name wf-hcpar >/dev/null 2>&1 \
+    || bad "cap parent spawn failed"
+bash "$WORKER" spawn --role helper --ticket 601 --workspace "$WORK/ws2" --parent wf-hcpar --scope "s1" --name wf-hc1 >/dev/null 2>&1 \
+    || bad "cap helper spawn failed"
+if bash "$WORKER" spawn --role ticket --ticket 602 --workspace "$WORK/ws" --name wf-hc2 >"$WORK/out" 2>"$WORK/err"; then
+    bad "third spawn past helper-occupied capacity accepted"
+elif grep -q "capacity" "$WORK/err"; then ok "helper occupies a capacity slot"; else bad "wrong refusal: $(cat "$WORK/err")"; fi
+bash "$WORKER" stop wf-hc1 >/dev/null 2>&1 || bad "helper stop failed"
+[ "$(awk -F'\t' -v n=wf-hc1 '$1 == n { print $10; exit }' "$WORK/hcap.tsv")" = "wf-hcpar" ] \
+    && ok "parent survives stop" || bad "parent dropped by stop"
+printf 'done' > "$WORK/status-wf-hcpar"
+cat >"$WORK/list.json" <<'JSON'
+{"result":{"agents":[{"name":"wf-hcpar","status":"done"},{"name":"wf-hc1","status":"idle"}]}}
+JSON
+bash "$WORKER" reconcile >/dev/null 2>&1 || bad "reconcile with helper failed"
+[ "$(awk -F'\t' -v n=wf-hc1 '$1 == n { print $10; exit }' "$WORK/hcap.tsv")" = "wf-hcpar" ] \
+    && ok "parent survives reconcile" || bad "parent dropped by reconcile"
+export WAYFINDER_WORKER_REGISTRY="$WORK/workers.tsv" WAYFINDER_MAX_WORKERS=5
+rm -f "$WORK"/list.json "$WORK"/status-*
 
 echo
 if [ $fail -eq 0 ]; then echo "worker-contract: OK"; else echo "worker-contract: FAILURES PRESENT"; exit 1; fi
