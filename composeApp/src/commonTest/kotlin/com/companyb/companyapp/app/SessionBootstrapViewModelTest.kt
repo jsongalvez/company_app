@@ -69,6 +69,9 @@ class SessionBootstrapViewModelTest {
         ]
         """.trimIndent()
 
+    // #669 — null-shift leg: no open clock-in, bootstrap opens branch selection.
+    private val noShiftJson = """{"shift":null}"""
+
     private fun bootstrapHandler(
         meStatus: HttpStatusCode = HttpStatusCode.OK,
         capsStatus: HttpStatusCode = HttpStatusCode.OK,
@@ -90,6 +93,15 @@ class SessionBootstrapViewModelTest {
                     respond(
                         content = ByteReadChannel(capsBody),
                         status = capsStatus,
+                        headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                    )
+                }
+
+                // #669 — shift-resume leg (read-only; null = no open shift).
+                path == "/api/me/active-attendance" -> {
+                    respond(
+                        content = ByteReadChannel(noShiftJson),
+                        status = HttpStatusCode.OK,
                         headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
                     )
                 }
@@ -216,19 +228,32 @@ class SessionBootstrapViewModelTest {
         runTest(testScheduler) {
             var meCalls = 0
             val handler: MockRequestHandler = { request ->
-                if (request.url.encodedPath == "/api/me") {
-                    meCalls++
-                    respond(
-                        content = ByteReadChannel(meJson),
-                        status = HttpStatusCode.OK,
-                        headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-                    )
-                } else {
-                    respond(
-                        content = ByteReadChannel(capabilitiesJson),
-                        status = HttpStatusCode.OK,
-                        headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-                    )
+                when (request.url.encodedPath) {
+                    "/api/me" -> {
+                        meCalls++
+                        respond(
+                            content = ByteReadChannel(meJson),
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                        )
+                    }
+
+                    // #669 — null shift so the resume leg succeeds without a second caps refresh.
+                    "/api/me/active-attendance" -> {
+                        respond(
+                            content = ByteReadChannel(noShiftJson),
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                        )
+                    }
+
+                    else -> {
+                        respond(
+                            content = ByteReadChannel(capabilitiesJson),
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                        )
+                    }
                 }
             }
             val vm = SessionBootstrapViewModel(mockApiClient(handler))
