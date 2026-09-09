@@ -257,6 +257,7 @@ complexity:
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailScreen.kt' #677 workspace host stays whole per #535; #695 LongParameterList burndown
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/detail/SessionDetailPane.kt' #675 pane/dialogs stay whole per #535; #695 LongParameterList burndown
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/detail/SessionDetailStatusPolicy.kt' #675 policy signatures stay whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/dashboard/DashboardStatusPolicy.kt' #672 dashboard policy stays whole per #535; #695 LongParameterList burndown
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/contract/OperationalActions.kt' #670 action row stays whole per #535; #695 LongParameterList burndown
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/branch/BranchSelectScreen.kt' #669 shift entry stays whole per #535; #695 LongParameterList burndown
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/TeamPeopleSection.kt' #681 people list stays whole per #535; #695 LongParameterList burndown
