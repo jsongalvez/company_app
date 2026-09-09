@@ -5,6 +5,7 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.identity.AccountReads
 import com.companyb.companyapp.logging.maskUUID
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -28,8 +29,11 @@ object AllowanceService {
         userId: UUID,
         amount: BigDecimal,
         reason: String? = null,
-    ): Allowance =
-        transaction {
+    ): Allowance {
+        if (!AccountReads.userExists(userId)) {
+            throw NotFoundException("User not found")
+        }
+        return transaction {
             // In-tx replay classification before the day gate (mirrors #509/#510/#511):
             // a same-id row already committed acks without gating so retries landing
             // after a day transition still ack; ownership matches createInTransaction below.
@@ -66,6 +70,7 @@ object AllowanceService {
         }.also { created ->
             logger.info { "[CREATE-ALLOWANCE] Allowance ${created.id.toString().maskUUID()} created" }
         }
+    }
 
     fun findByBranchDayId(branchDayId: UUID): List<Allowance> = AllowanceRepository.findByBranchDayId(branchDayId)
 }

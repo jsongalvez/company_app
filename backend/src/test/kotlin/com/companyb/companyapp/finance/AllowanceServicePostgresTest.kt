@@ -24,6 +24,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class AllowanceServicePostgresTest : BasePostgresTest() {
@@ -243,6 +244,34 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
                 amount = BigDecimal("500.00"),
             )
         }
+    }
+
+    @Test
+    fun `create allowance throws 404 for unknown user with no row written`() {
+        val unknownUserId = TestFixtures.uuid()
+        val blockedId = TestFixtures.uuid()
+
+        assertFailsWith<NotFoundException> {
+            AllowanceService.create(
+                callerId = callerId,
+                id = blockedId,
+                branchDayId = branchDayId,
+                userId = unknownUserId,
+                amount = BigDecimal("500.00"),
+            )
+        }
+        val stored = transaction { AllowanceRepository.findByIdInTransaction(blockedId) }
+        assertNull(stored)
+        val auditCount =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq AllowanceTable.tableName) and
+                            (AuditLogTable.recordId eq blockedId)
+                    }.count()
+            }
+        assertEquals(0, auditCount)
     }
 
     @Test

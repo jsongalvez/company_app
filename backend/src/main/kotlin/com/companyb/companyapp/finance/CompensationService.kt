@@ -7,6 +7,7 @@ import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.identity.AccountReads
 import com.companyb.companyapp.logging.maskUUID
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -57,6 +58,10 @@ object CompensationService {
         reason: String? = null,
     ): Compensation {
         val workDay = BranchDayService.requireBranchDayExists(workBranchDayId)
+
+        if (!AccountReads.userExists(userId)) {
+            throw NotFoundException("User not found")
+        }
 
         return transaction {
             // #511 — in-tx replay classification before the day gate (mirrors #509/#510):

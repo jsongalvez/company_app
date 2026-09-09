@@ -273,6 +273,37 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `create compensation throws 404 for unknown user with no row written`() {
+        val unknownUserId = TestFixtures.uuid()
+        val blockedId = TestFixtures.uuid()
+
+        assertFailsWith<NotFoundException> {
+            CompensationService.create(
+                callerId = callerId,
+                id = blockedId,
+                workBranchDayId = workBranchDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = unknownUserId,
+                amount = BigDecimal("1500.00"),
+                note = null,
+            )
+        }
+        val stored = transaction { CompensationRepository.findByIdInTransaction(blockedId) }
+        assertNull(stored)
+        val auditCount =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.changedBy eq callerId) and
+                            (AuditLogTable.auditTableName eq CompensationTable.tableName) and
+                            (AuditLogTable.recordId eq blockedId)
+                    }.count()
+            }
+        assertEquals(0, auditCount)
+    }
+
+    @Test
     fun `update compensation succeeds`() {
         val compId = TestFixtures.uuid()
         val created =
