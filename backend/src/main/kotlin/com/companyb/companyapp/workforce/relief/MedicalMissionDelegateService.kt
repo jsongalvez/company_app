@@ -31,6 +31,11 @@ object MedicalMissionDelegateService {
         if (branch.branchType != BranchType.MEDICAL_MISSION) {
             throw ValidationException("Medical mission delegate requires a medical mission Branch")
         }
+        // #708 — unknown targets 404 before the eligibility 400 (#705/#707 precedent):
+        // isActiveManagerInTransaction alone conflates "unknown user" with "known but ineligible".
+        if (!AccountReads.userExists(targetUserId)) {
+            throw NotFoundException("User not found")
+        }
 
         val delegate =
             transaction {
