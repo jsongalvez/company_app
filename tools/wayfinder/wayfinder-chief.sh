@@ -432,8 +432,9 @@ collect_results() {
 # (map #755: prompt delivery over Herdr is occasionally lost — the agent sits
 # at an empty prompt, never claims, does zero work). A running/spawning row
 # qualifies only when ALL hold: ticket still open, ticket unassigned, row age
-# >20min, workspace HEAD equals its recorded base (no commits = nothing to
-# lose). Re-prompt preserves agent/workspace (cheaper than respawn); the
+# >10min (healthy claim lands in ~2-3min; 10min is flicker margin, not a
+# diagnosis), workspace HEAD equals its recorded base (no commits = nothing
+# to lose). Re-prompt preserves agent/workspace (cheaper than respawn); the
 # worker's assign-first race check still guards duplicates.
 claim_watchdog() {
     [ -f "$REGISTRY" ] || return 0
@@ -450,7 +451,7 @@ claim_watchdog() {
         created_epoch="$(date -d "$created" +%s 2>/dev/null || printf '')"
         case "$created_epoch" in ''|*[!0-9]*) continue ;; esac
         age=$((now - created_epoch))
-        if [ "$age" -le 1200 ]; then continue; fi
+        if [ "$age" -le 600 ]; then continue; fi
         payload="$("$GH_BIN" api "repos/$GH_REPO/issues/$ticket" --jq '{state: .state, assignees: [.assignees[].login]}' 2>/dev/null)" || continue
         [ "$(printf '%s' "$payload" | jq -r '.state')" = "open" ] || continue
         [ "$(printf '%s' "$payload" | jq -r '.assignees | length')" -eq 0 ] || continue
