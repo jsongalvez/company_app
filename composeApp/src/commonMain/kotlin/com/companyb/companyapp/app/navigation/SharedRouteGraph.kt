@@ -104,7 +104,7 @@ fun NavGraphBuilder.appRouteGraph(
     inventoryGraph(apiClient)
     financeGraph(apiClient, navController, hooks.onDeskQueueNavigate)
     auditGraph(apiClient, navController)
-    teamGraph(apiClient, navController)
+    teamGraph(apiClient)
     sessionGraph(apiClient, navController, onSubmissionLockChanged, hooks.onClientProfileClick)
 }
 

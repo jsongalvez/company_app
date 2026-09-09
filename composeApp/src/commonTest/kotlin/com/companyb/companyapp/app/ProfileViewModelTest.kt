@@ -198,6 +198,53 @@ class ProfileViewModelTest {
             val error = assertIs<UiState.Error>(vm.slotUpdate.value)
             assertEquals("Slot must be 1 or greater", error.message)
         }
+
+    @Test
+    fun loadCapabilities_success_updates_freshest_retention() =
+        runTest(testScheduler) {
+            val vm = ProfileViewModel(mockApiClient(profileHandler(mutableListOf(2))))
+            vm.loadAll()
+            advanceUntilIdle()
+
+            assertIs<UiState.Success<List<UserCapabilityResponse>>>(vm.capabilities.value)
+            val retained = vm.freshestCapabilities.value
+            assertEquals(1, retained?.size)
+            assertEquals("EDIT_BRANCH_DATA", retained?.first()?.capabilityCode)
+        }
+
+    @Test
+    fun loadCapabilities_failure_preserves_freshest_and_other_sections() =
+        runTest(testScheduler) {
+            // #682 — independent reads: a capability refresh failure keeps the last-known
+            // destinations (freshest) plus the identity/branch sections intact.
+            var failCapabilities = false
+            val vm =
+                ProfileViewModel(
+                    mockApiClient({ request ->
+                        if (failCapabilities &&
+                            request.url.encodedPath.endsWith("/api/me/capabilities") &&
+                            request.method == HttpMethod.Get
+                        ) {
+                            respondError(HttpStatusCode.InternalServerError)
+                        } else {
+                            profileHandler(mutableListOf(2))(request)
+                        }
+                    }),
+                )
+            vm.loadAll()
+            advanceUntilIdle()
+            assertIs<UiState.Success<List<UserCapabilityResponse>>>(vm.capabilities.value)
+
+            failCapabilities = true
+            vm.loadCapabilities()
+            advanceUntilIdle()
+
+            assertIs<UiState.Error>(vm.capabilities.value)
+            val retained = vm.freshestCapabilities.value
+            assertEquals(1, retained?.size)
+            assertIs<UiState.Success<com.companyb.companyapp.contracts.identity.MeResponse>>(vm.me.value)
+            assertIs<UiState.Success<List<MeBranchResponse>>>(vm.branches.value)
+        }
 }
 
 /** JSON 200 responder; extension because ktor's mock `respond` lives on the handle scope. */

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -26,7 +27,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.app.ProfileViewModel
 import com.companyb.companyapp.async.UiState
-import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.contracts.branch.MeBranchResponse
 import com.companyb.companyapp.contracts.identity.MeResponse
@@ -40,16 +40,15 @@ import com.companyb.companyapp.workforce.team.SlotEditTarget
 import com.companyb.companyapp.workforce.team.SlotEditTargetSaver
 
 /**
- * #381 — the signed-in user's own profile: identity, branch assignments (with Branch Slot),
- * a readable capability summary, and the self slot edit. Pushed route (the AuditLogHistory
- * shape — content-level Back TextButton), entry-scoped VM (#112). No admin affordances: the
- * only mutation is the backend's `updateSlot` self-leg on own assignments.
+ * #381 — the signed-in user's own profile: identity heading, branch assignments (with
+ * Branch Slot), a compact Access summary, and the self slot edit. Entry-scoped VM
+ * (#112). #682 — shell-owned destination (no local Back: the shell titles "Profile");
+ * the raw capability dump is replaced by navigation-derived destinations plus a
+ * collapsed technical disclosure. No admin affordances: the only mutation is the
+ * backend's `updateSlot` self-leg on own assignments.
  */
 @Composable
-fun ProfileScreen(
-    viewModel: ProfileViewModel,
-    onBack: () -> Unit,
-) {
+fun ProfileScreen(viewModel: ProfileViewModel) {
     val me by viewModel.me.collectAsState()
     val slotUpdate by viewModel.slotUpdate.collectAsState()
     var slotEditTarget by
@@ -70,7 +69,6 @@ fun ProfileScreen(
         me = me,
         viewModel = viewModel,
         slotUpdate = slotUpdate,
-        onBack = onBack,
         onSlotEdit = { target ->
             viewModel.resetSlotUpdate()
             slotEditTarget = target
@@ -98,7 +96,6 @@ private fun ProfileScreenBody(
     me: UiState<MeResponse>,
     viewModel: ProfileViewModel,
     slotUpdate: UiState<Unit>,
-    onBack: () -> Unit,
     onSlotEdit: (SlotEditTarget) -> Unit,
 ) {
     Column(
@@ -107,20 +104,6 @@ private fun ProfileScreenBody(
                 .fillMaxSize()
                 .padding(Spacing.md),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = onBack) {
-                Text("← Back")
-            }
-            Text(
-                text = "Profile",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(start = Spacing.sm),
-            )
-        }
-
         when (val meState = me) {
             is UiState.Error -> {
                 logWarn("ProfileScreen", "meState=Error: ${meState.message}")
@@ -154,6 +137,7 @@ private fun ProfileContent(
 ) {
     val branches by viewModel.branches.collectAsState()
     val capabilities by viewModel.capabilities.collectAsState()
+    val retainedCapabilities by viewModel.freshestCapabilities.collectAsState()
 
     Column(
         modifier =
@@ -191,11 +175,11 @@ private fun ProfileContent(
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         Spacer(Modifier.height(Spacing.sm))
 
-        Text("Capabilities", style = MaterialTheme.typography.titleMedium)
-        CapabilitiesSectionBody(
+        AccessSectionBody(
             capState = capabilities,
-            branchRows = (branches as? UiState.Success)?.data ?: emptyList(),
-            onRetry = viewModel::loadAll,
+            retainedCaps = retainedCapabilities,
+            onRefresh = viewModel::loadCapabilities,
+            onRetry = viewModel::loadCapabilities,
         )
     }
 }
@@ -210,6 +194,7 @@ private fun AssignmentsSectionBody(
 ) {
     when (branchState) {
         is UiState.Error -> {
+            logWarn("ProfileScreen", "branches=Error: ${branchState.message}")
             InlineSectionError(message = branchState.message, onRetry = onRetry)
         }
 
@@ -221,19 +206,26 @@ private fun AssignmentsSectionBody(
             // Relief rows carry no assignment (assignmentId and slot are null server-side).
             val assignments = branchState.data.filter { it.assignmentId != null && it.slot != null }
             if (assignments.isEmpty()) {
-                EmptySectionText("No branch assignments yet — an admin assigns you from User Management.")
+                EmptySectionText(
+                    "No branch assignments yet. " +
+                        "Ask an Owner, Manager or Coordinator with team-management access " +
+                        "to check your assignment.",
+                )
             } else {
                 assignments.forEach { row ->
                     val assignmentId = row.assignmentId ?: return@forEach
                     val slot = row.slot ?: return@forEach
+                    // #682 — the unresolved-name fallback rides into the edit target too,
+                    // so the dialog names the same branch the row shows.
+                    val branchName = row.branchName.ifBlank { "Branch name unavailable" }
                     AssignmentRow(
-                        branchName = row.branchName,
+                        branchName = branchName,
                         slot = slot,
                         onEdit = {
                             onSlotEdit(
                                 SlotEditTarget(
                                     branchId = row.branchId,
-                                    branchName = row.branchName,
+                                    branchName = branchName,
                                     assignmentId = assignmentId,
                                     displayName = user.displayName,
                                     currentSlot = slot,
@@ -258,39 +250,173 @@ private fun AssignmentsSectionBody(
     }
 }
 
+/**
+ * #682 — the compact Access section: read-only destination summary derived from
+ * navigation's capability predicates, with independent refresh/retry (branch and
+ * capability reads fail independently). A pending refresh keeps known destinations
+ * visible with a status; a failed load reads "Access unavailable" (never "No access").
+ * Raw capability rows live only inside the collapsed technical disclosure.
+ */
 @Composable
-private fun CapabilitiesSectionBody(
+private fun AccessSectionBody(
     capState: UiState<List<UserCapabilityResponse>>,
-    branchRows: List<MeBranchResponse>,
+    retainedCaps: List<UserCapabilityResponse>?,
+    onRefresh: () -> Unit,
     onRetry: () -> Unit,
 ) {
-    when (capState) {
-        is UiState.Error -> {
-            InlineSectionError(message = capState.message, onRetry = onRetry)
-        }
+    var technicalExpanded by rememberSaveable { mutableStateOf(false) }
 
-        is UiState.Success -> {
-            if (capState.data.isEmpty()) {
-                EmptySectionText("No capabilities — you gain access once assigned to a branch.")
-            } else {
-                val branchNames = branchRows.associate { it.branchId to it.branchName }
-                capState.data.forEach { cap ->
-                    CapabilityRow(
-                        code = cap.capabilityCode,
-                        scope = scopeLabel(cap.contextType, cap.contextId, branchNames),
-                    )
+    Column {
+        AccessSectionHeader(isBusy = capState is UiState.Loading, onRefresh = onRefresh)
+        // #682 — the known list survives Loading/Error frames (VM freshest); only a first
+        // load with nothing retained falls through to the spinner/error below.
+        val visibleCaps = (capState as? UiState.Success)?.data ?: retainedCaps
+        if (visibleCaps != null) {
+            if (capState is UiState.Loading) {
+                Text(
+                    text = "Refreshing access…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkSubtle,
+                    modifier = Modifier.padding(top = Spacing.xs),
+                )
+            }
+            DestinationGroups(caps = visibleCaps)
+            if (capState is UiState.Error) {
+                logWarn("ProfileScreen", "capabilities=Error: ${capState.message}")
+                InlineSectionError(message = "Access unavailable", onRetry = onRetry)
+            }
+            TechnicalDetails(
+                caps = visibleCaps,
+                expanded = technicalExpanded,
+                onToggle = { technicalExpanded = !technicalExpanded },
+            )
+        } else {
+            when (capState) {
+                is UiState.Error -> {
+                    logWarn("ProfileScreen", "capabilities=Error: ${capState.message}")
+                    InlineSectionError(message = "Access unavailable", onRetry = onRetry)
+                }
+
+                else -> {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.md),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
                 }
             }
         }
+    }
+}
 
-        else -> {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(Spacing.md),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator()
+@Composable
+private fun AccessSectionHeader(
+    isBusy: Boolean,
+    onRefresh: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Access",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onRefresh, enabled = !isBusy) {
+            Text("Refresh access")
+        }
+    }
+    Text(
+        text = "Access is determined by your roles and branch or day grants.",
+        style = MaterialTheme.typography.bodySmall,
+        color = InkSubtle,
+        modifier = Modifier.padding(top = Spacing.xs),
+    )
+}
+
+/** #682 — grouped destination names; empty grants keep the always-available rows plus the no-access note. */
+@Composable
+private fun DestinationGroups(caps: List<UserCapabilityResponse>) {
+    val groups = accessDestinationGroups(caps)
+    DestinationGroup(heading = "Always available", names = groups.always)
+    DestinationGroup(heading = "Branch access", names = groups.branch)
+    DestinationGroup(heading = "Global access", names = groups.global)
+    if (groups.branch.isEmpty() && groups.global.isEmpty()) {
+        Text(
+            text =
+                "No work access is available. " +
+                    "Ask your team administrator to check your role and branch access.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = InkSubtle,
+            modifier = Modifier.padding(top = Spacing.sm),
+        )
+    } else {
+        Text(
+            text = "Destinations reflect navigation access, not every action within them.",
+            style = MaterialTheme.typography.bodySmall,
+            color = InkSubtle,
+            modifier = Modifier.padding(top = Spacing.sm),
+        )
+    }
+}
+
+@Composable
+private fun DestinationGroup(
+    heading: String,
+    names: List<String>,
+) {
+    if (names.isEmpty()) return
+    Text(
+        text = heading,
+        style = MaterialTheme.typography.labelLarge,
+        color = InkSubtle,
+        modifier = Modifier.padding(top = Spacing.sm),
+    )
+    names.forEach { name ->
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
+    }
+}
+
+/**
+ * #682 — collapsed technical inventory for support: exact code, scope kind and
+ * identifier per row, selectable, no decorative badges. Capabilities may change after
+ * clock-in or grant changes; there is no preference editor here.
+ */
+@Composable
+private fun TechnicalDetails(
+    caps: List<UserCapabilityResponse>,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    TextButton(onClick = onToggle) {
+        Text(if (expanded) "Hide technical access details" else "Technical access details")
+    }
+    if (expanded) {
+        Text(
+            text = "Capabilities may change after clock-in or grant changes.",
+            style = MaterialTheme.typography.bodySmall,
+            color = InkSubtle,
+        )
+        SelectionContainer {
+            Column {
+                caps.forEach { cap ->
+                    Column(Modifier.padding(top = Spacing.xs)) {
+                        Text(cap.capabilityCode, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            text = "${cap.contextType} · ${cap.contextId}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = InkSubtle,
+                        )
+                    }
+                }
             }
         }
     }
@@ -320,22 +446,6 @@ private fun AssignmentRow(
     }
 }
 
-@Composable
-private fun CapabilityRow(
-    code: String,
-    scope: String,
-) {
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(top = Spacing.sm),
-    ) {
-        Text(code, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Text(scope, style = MaterialTheme.typography.bodySmall, color = InkSubtle)
-    }
-}
-
 /** Inline section error; retry reloads owning read so stale assignment targets can be refreshed. */
 @Composable
 private fun InlineSectionError(
@@ -359,21 +469,3 @@ private fun EmptySectionText(message: String) {
         modifier = Modifier.padding(top = Spacing.sm),
     )
 }
-
-/**
- * Readable capability scope: GLOBAL → "Global"; BRANCH resolves the name from the loaded
- * assignment rows (falls back to the raw context id); every other context reads as its
- * grant kind (day grants, mission/tour delegations).
- */
-private fun scopeLabel(
-    contextType: CapabilityContextType,
-    contextId: String,
-    branchNames: Map<String, String>,
-): String =
-    when (contextType) {
-        CapabilityContextType.GLOBAL -> "Global"
-        CapabilityContextType.BRANCH -> branchNames[contextId] ?: "Branch $contextId"
-        CapabilityContextType.BRANCH_DAY -> "Day grant"
-        CapabilityContextType.MEDICAL_MISSION -> "Mission delegation"
-        CapabilityContextType.PROVINCIAL_TOUR -> "Tour delegation"
-    }

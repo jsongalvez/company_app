@@ -4,7 +4,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
-import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import com.companyb.companyapp.app.AppSessionState
 import com.companyb.companyapp.app.ProfileViewModel
@@ -19,10 +18,7 @@ import com.companyb.companyapp.workforce.team.UserViewModel
 
 // #460 — team-management routes split out of auditGraph (LongMethod budget is 60;
 // each graph stays under it and the registration file stays within TooManyFunctions).
-internal fun NavGraphBuilder.teamGraph(
-    apiClient: ApiClient,
-    navController: NavHostController,
-) {
+internal fun NavGraphBuilder.teamGraph(apiClient: ApiClient) {
     // #135 — D5: code-only MANAGE_USERS route gate, now the #156 any-context
     // check (backend GLOBAL gate + 403 paths stay authoritative).
     composable<Route.UserManagement> {
@@ -46,14 +42,11 @@ internal fun NavGraphBuilder.teamGraph(
     composable<Route.MedicalMissionDelegates> {
         MedicalMissionDelegatesDestination(apiClient)
     }
-    // #381 — own profile: no route gate (every authenticated user), pushed
-    // route, entry-scoped VM (#112).
+    // #381 — own profile: no route gate (every authenticated user),
+    // entry-scoped VM (#112). #682 — shell-owned destination (no local Back).
     composable<Route.Profile> {
         val profileViewModel: ProfileViewModel =
             viewModel { ProfileViewModel(apiClient) }
-        ProfileScreen(
-            viewModel = profileViewModel,
-            onBack = { navController.popBackStack() },
-        )
+        ProfileScreen(viewModel = profileViewModel)
     }
 }

@@ -39,6 +39,14 @@ class ProfileViewModel(
     private val _capabilities = MutableStateFlow<UiState<List<UserCapabilityResponse>>>(UiState.Idle)
     val capabilities: StateFlow<UiState<List<UserCapabilityResponse>>> = _capabilities.asStateFlow()
 
+    /**
+     * #682 — last-known capabilities, retained across refresh Loading/Error frames so a
+     * pending Access refresh leaves known destinations visible (the keep-last shape,
+     * without the reconciling-load machinery — this read has no post-mutation reload).
+     */
+    private val _freshestCapabilities = MutableStateFlow<List<UserCapabilityResponse>?>(null)
+    val freshestCapabilities: StateFlow<List<UserCapabilityResponse>?> = _freshestCapabilities.asStateFlow()
+
     private val _slotUpdate = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val slotUpdate: StateFlow<UiState<Unit>> = _slotUpdate.asStateFlow()
 
@@ -52,13 +60,7 @@ class ProfileViewModel(
             transform = { it.body() },
         )
         loadBranches()
-        handler.launch(
-            state = _capabilities,
-            operation = "loadCapabilities",
-            endpoint = "GET ${ApiRoutes.ME_CAPABILITIES}",
-            block = { apiClient.httpClient.get(ApiRoutes.ME_CAPABILITIES) },
-            transform = { it.body() },
-        )
+        loadCapabilities()
     }
 
     fun loadBranches() {
@@ -68,6 +70,22 @@ class ProfileViewModel(
             endpoint = "GET ${ApiRoutes.ME_BRANCHES}",
             block = { apiClient.httpClient.get(ApiRoutes.ME_BRANCHES) },
             transform = { it.body() },
+        )
+    }
+
+    /**
+     * #682 — independent capability read: the Access section refreshes/retries without
+     * touching identity or branch rows (branch and capability reads fail independently).
+     */
+    fun loadCapabilities() {
+        handler.launch(
+            state = _capabilities,
+            operation = "loadCapabilities",
+            endpoint = "GET ${ApiRoutes.ME_CAPABILITIES}",
+            block = { apiClient.httpClient.get(ApiRoutes.ME_CAPABILITIES) },
+            transform = { response ->
+                response.body<List<UserCapabilityResponse>>().also { _freshestCapabilities.value = it }
+            },
         )
     }
 
