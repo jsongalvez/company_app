@@ -72,9 +72,8 @@ object AttendanceService {
         // #716 — 404 precedence for an unknown target before the membership gate:
         // findActiveMembers would otherwise yield non-membership and surface 403
         // (403-masking-404; same position as #705/#707/#708 userExists guard).
-        if (!AccountReads.userExists(targetUserId)) {
-            throw NotFoundException("User not found")
-        }
+        // Extracted so [mark] stays under the ThrowsCount gate (RED repair).
+        requireTargetExists(targetUserId)
         return transaction {
             // Gate inside the command transaction, under the assignment row lock (#404
             // review): a concurrent revocation or deactivation serializes with the mark
@@ -394,6 +393,18 @@ private fun requireActiveMember(
 ) {
     if (!AttendanceRepository.hasActiveMembershipInTransaction(branchId, userId)) {
         throw ForbiddenException(message)
+    }
+}
+
+/**
+ * #716 — unknown-target 404 precedence for mark (runs before the command
+ * transaction): an unknown user fails closed with 404 before the membership
+ * gate, so a non-member never surfaces as 403-masking-404. Extracted so
+ * [AttendanceService.mark] stays under the ThrowsCount gate (RED repair).
+ */
+private fun requireTargetExists(targetUserId: UUID) {
+    if (!AccountReads.userExists(targetUserId)) {
+        throw NotFoundException("User not found")
     }
 }
 

@@ -65,9 +65,9 @@ object ProductSaleService {
                 val (branchDay, isRemitted) =
                     BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason)
 
-                if (BranchService.findByIdOrNull(branchDay.branchId) == null) {
-                    throw NotFoundException("Branch not found")
-                }
+                // #710 precedence preserved via findById (throws the same 404):
+                // an unknown branch fails closed before the product/session gates.
+                BranchService.findById(branchDay.branchId)
 
                 val product = requireActiveProduct(productId)
 
