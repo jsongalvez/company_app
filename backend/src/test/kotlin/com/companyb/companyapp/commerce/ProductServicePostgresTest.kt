@@ -2,7 +2,7 @@ package com.companyb.companyapp.commerce
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.commerce.ProductTable
 import com.companyb.companyapp.contracts.audit.AuditAction
-import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
@@ -260,10 +260,10 @@ class ProductServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create with non-existent category returns bad request`() {
+    fun `create with non-existent category returns not found with zero audit`() {
         IdentityFixtures.grantManageProducts(callerId, sourceId)
 
-        assertFailsWith<ValidationException> {
+        assertFailsWith<NotFoundException> {
             ProductService.create(
                 callerId = callerId,
                 id = productId,
@@ -273,6 +273,34 @@ class ProductServicePostgresTest : BasePostgresTest() {
                 commissionAmount = BigDecimal("25.00"),
             )
         }
+        assertEquals(0L, auditEntryCount(productId))
+    }
+
+    @Test
+    fun `update with non-existent category returns not found with zero audit`() {
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
+        ProductService.create(
+            callerId = callerId,
+            id = productId,
+            name = "Test Product",
+            productCategoryId = categoryId,
+            unitPrice = BigDecimal("250.00"),
+            commissionAmount = BigDecimal("25.00"),
+        )
+        val auditsBefore = auditEntryCount(productId)
+
+        assertFailsWith<NotFoundException> {
+            ProductService.update(
+                callerId = callerId,
+                productId = productId,
+                name = null,
+                productCategoryId = TestFixtures.uuid(),
+                unitPrice = null,
+                commissionAmount = null,
+                isActive = null,
+            )
+        }
+        assertEquals(auditsBefore, auditEntryCount(productId))
     }
 
     private fun auditEntryCount(productId: UUID): Long =

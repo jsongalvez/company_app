@@ -2,7 +2,6 @@ package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.exception.ValidationException
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -29,7 +28,7 @@ object ProductService {
     ): ProductCreateResult {
         val categoryExists = ProductCategoryRepository.findById(productCategoryId) != null
         if (!categoryExists) {
-            throw ValidationException("Product category not found")
+            throw NotFoundException("Product category not found")
         }
 
         return transaction {
@@ -71,7 +70,7 @@ object ProductService {
         isActive: Boolean?,
     ): Product {
         if (productCategoryId != null && ProductCategoryRepository.findById(productCategoryId) == null) {
-            throw ValidationException("Product category not found")
+            throw NotFoundException("Product category not found")
         }
 
         return transaction {
