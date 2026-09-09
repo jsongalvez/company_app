@@ -48,6 +48,7 @@ import kotlin.test.assertTrue
 
 class SessionCreateServerTimeTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
+    private val noneUser = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val bookedClientId = TestFixtures.uuid()
     private val walkInClientId = TestFixtures.uuid()
@@ -56,6 +57,7 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
 
     override fun initTestData() {
         IdentityFixtures.insertTestUser(callerId, "session-server-time")
+        IdentityFixtures.insertTestUser(noneUser, "session-server-time-none")
         BranchWorkforceFixtures.insertTestBranch(branchId)
         SessionClientFixtures.insertTestClient(bookedClientId)
         SessionClientFixtures.insertTestClient(walkInClientId)
@@ -174,6 +176,79 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
             if (bookedAt != null) put("bookedAt", bookedAt)
             if (nextAppointmentDate != null) put("nextAppointmentDate", nextAppointmentDate)
         }
+
+    // ──────────────────────────────────────────────
+    // #733 — unknown branchId returns 404 before the today gate
+    // (#730/#732 precedent; #711 non-member leg)
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `create with unknown branch returns 404 for EDIT holder elsewhere`() {
+        val unknownBranch = TestFixtures.uuid()
+        val body =
+            buildMap<String, Any> {
+                put("id", TestFixtures.uuid().toString())
+                put("clientId", bookedClientId.toString())
+                put("branchId", unknownBranch.toString())
+                put("isWalkIn", false)
+                put("finalPrice", "2500.00")
+            }
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client.post(ApiRoutes.SESSIONS, body, asUser(callerId)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `create with unknown branch returns 404 without any capability`() {
+        val unknownBranch = TestFixtures.uuid()
+        val body =
+            buildMap<String, Any> {
+                put("id", TestFixtures.uuid().toString())
+                put("clientId", bookedClientId.toString())
+                put("branchId", unknownBranch.toString())
+                put("isWalkIn", false)
+                put("finalPrice", "2500.00")
+            }
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client.post(ApiRoutes.SESSIONS, body, asUser(noneUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `preview with unknown branch returns 404 for EDIT holder elsewhere`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client
+                    .get(
+                        "/api/branches/$unknownBranch/session-preview?clientId=$bookedClientId",
+                        asUser(callerId),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `preview with unknown branch returns 404 without any capability`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client
+                    .get(
+                        "/api/branches/$unknownBranch/session-preview?clientId=$bookedClientId",
+                        asUser(noneUser),
+                    ).code,
+            )
+        }
+    }
 
     private fun databaseNow(): OffsetDateTime =
         transaction {

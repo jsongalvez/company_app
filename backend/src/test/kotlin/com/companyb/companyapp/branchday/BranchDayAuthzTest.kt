@@ -186,4 +186,31 @@ class BranchDayAuthzTest : BasePostgresTest() {
             )
         }
     }
+
+    // ──────────────────────────────────────────────
+    // #733 — unknown branchId returns 404 before the today gate
+    // (#730/#732 precedent; #711 non-member leg)
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `GET today with unknown branch returns 404 for EDIT holder elsewhere`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client.get("/api/branches/$unknownBranch/today", asUser(editOnlyUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET today with unknown branch returns 404 without any capability`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client.get("/api/branches/$unknownBranch/today", asUser(noneUser)).code,
+            )
+        }
+    }
 }

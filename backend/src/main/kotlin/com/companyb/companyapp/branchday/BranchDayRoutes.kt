@@ -2,6 +2,7 @@ package com.companyb.companyapp.branchday
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.branchday.BranchDayTodayResponse
 import com.companyb.companyapp.contracts.branchday.BranchDayUserResponse
@@ -38,6 +39,7 @@ import java.util.UUID
     responses = [
         OpenApiResponse(status = "200", content = [OpenApiContent(from = BranchDayTodayResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
@@ -48,6 +50,10 @@ object BranchDayRoutes {
     fun register(config: JavalinConfig) {
         config.routes.before(ApiRoutes.BRANCH_TODAY_PATH) { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            // #733 — 404 precedence for an unknown branch before the today gate
+            // (#730/#732 precedent): requireBranchOrDayForBranch alone conflates
+            // "unknown branch" with "known but non-member".
+            BranchService.findById(branchId)
             // #158 via the shared today gate (#452): a BRANCH_DAY relief grant for today
             // reads today's status for its granted day.
             CapabilityFilter.requireBranchOrDayForBranch(context, branchId)

@@ -8,6 +8,7 @@ import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.session.AddPractitionerRequest
 import com.companyb.companyapp.contracts.session.AddSessionConcernRequest
@@ -188,6 +189,7 @@ private const val GATED_BRANCH_DAY_ATTR = "gatedBranchDayId"
     responses = [
         OpenApiResponse(status = "200", content = [OpenApiContent(from = SessionPreviewResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
@@ -329,6 +331,11 @@ object SessionRoutes {
     private fun registerPreview(config: JavalinConfig) {
         config.routes.before(ApiRoutes.BRANCH_SESSION_PREVIEW_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
+            // #733 — 404 precedence for an unknown branch before the today gate
+            // (#730 SessionBaseRateRoutes / #732 BranchInventoryRoutes precedent):
+            // requireBranchOrDayForBranch alone conflates "unknown branch" with
+            // "known but non-member" (findToday is null for both).
+            BranchService.findById(branchId)
             // Same gate as the create it previews (#452): the preview passes exactly
             // when the create would.
             CapabilityFilter.requireBranchOrDayForBranch(context, branchId)
@@ -644,6 +651,9 @@ private fun registerCreateGate(config: JavalinConfig) {
         if (context.method() != HandlerType.POST) return@before
         val request = context.bodyAsClass<CreateSessionRequest>()
         val branchId = uuidOrThrow(request.branchId, "branch id")
+        // #733 — 404 precedence for an unknown branch before the today gate
+        // (#730/#732 precedent; same shape as registerPreview above).
+        BranchService.findById(branchId)
         // Day-scoped (#157) via the shared today gate (#452): a BRANCH_DAY relief
         // grant for today satisfies the create gate. The resolved day is handed to
         // the handler so the gate and the write share one resolution (no
