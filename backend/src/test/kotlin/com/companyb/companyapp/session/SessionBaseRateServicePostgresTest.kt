@@ -361,6 +361,13 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `findActiveRates with unknown branch throws NotFoundException`() {
+        assertFailsWith<NotFoundException> {
+            SessionBaseRateService.findActiveRates(TestFixtures.uuid())
+        }
+    }
+
+    @Test
     fun `findActiveRates without MANAGE_PRODUCTS is allowed at service layer`() {
         val rates = SessionBaseRateService.findActiveRates(branchId)
 

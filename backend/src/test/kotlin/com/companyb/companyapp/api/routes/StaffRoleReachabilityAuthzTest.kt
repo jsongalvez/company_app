@@ -293,6 +293,46 @@ class StaffRoleReachabilityAuthzTest : BasePostgresTest() {
     }
 
     @Test
+    fun `coordinator reads session base rates at the assigned branch`() {
+        testServer.client.let { client ->
+            val response = client.get("/api/branches/$branchA/rates", asUser(coordinatorUser))
+            assertEquals(200, response.code, response.body.string().orEmpty())
+        }
+    }
+
+    @Test
+    fun `session base rates at a known branch without assignment stays forbidden`() {
+        testServer.client.let { client ->
+            assertEquals(
+                403,
+                client.get("/api/branches/$unrelatedBranch/rates", asUser(coordinatorUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `session base rates with unknown branch returns 404`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client.get("/api/branches/$unknownBranch/rates", asUser(coordinatorUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `session base rates with unknown branch returns 404 without any capability`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client.get("/api/branches/$unknownBranch/rates", asUser(onboardingUser)).code,
+            )
+        }
+    }
+
+    @Test
     fun `onboarding stays locked out despite an active assignment`() {
         testServer.client.let { client ->
             assertEquals(403, client.post("/api/expenses", expenseBody(todayAtBranchA), asUser(onboardingUser)).code)

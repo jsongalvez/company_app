@@ -6,6 +6,7 @@ import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.session.RateResponse
 import com.companyb.companyapp.contracts.session.SetRateRequest
@@ -32,6 +33,8 @@ import java.util.UUID
     responses = [
         OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<RateResponse>::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 @OpenApi(
@@ -45,6 +48,8 @@ import java.util.UUID
         OpenApiResponse(status = "200", content = [OpenApiContent(from = RateResponse::class)]),
         OpenApiResponse(status = "201", content = [OpenApiContent(from = RateResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 object SessionBaseRateRoutes {
@@ -52,9 +57,15 @@ object SessionBaseRateRoutes {
 
     fun register(config: JavalinConfig) {
         config.routes.before("/api/branches/{branchId}/rates") { context ->
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            // #730 — 404 precedence for an unknown branch before the capability gate:
+            // requireBranchCapabilityForBranchId alone conflates "unknown branch" with
+            // "known but non-member" (the #711 createInvite / #715 listSent order, resolving
+            // the #724-deferred session-rate filter policy with the same precedence).
+            BranchService.findById(branchId)
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
-                context.pathParamAsUuid(BRANCH_ID_PARAM),
+                branchId,
                 CapabilityCodes.MANAGE_PRODUCTS,
             )
         }

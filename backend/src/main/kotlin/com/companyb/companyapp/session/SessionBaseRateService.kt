@@ -2,6 +2,7 @@ package com.companyb.companyapp.session
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.session.SessionType
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -71,7 +72,13 @@ internal object SessionBaseRateService {
             result
         }
 
-    fun findActiveRates(branchId: UUID): List<SessionBaseRate> = SessionBaseRateRepository.findActiveByBranch(branchId)
+    fun findActiveRates(branchId: UUID): List<SessionBaseRate> {
+        // #730 — 404 precedence for an unknown branch before the repository read
+        // (#715 listSent / #724 listActiveMembers precedent; the route before-filter
+        // carries the same check for HTTP, this covers direct service callers).
+        BranchService.findById(branchId)
+        return SessionBaseRateRepository.findActiveByBranch(branchId)
+    }
 }
 
 /**
