@@ -40,6 +40,9 @@ internal fun rememberNotificationsDerived(viewModel: NotificationViewModel): Not
     val freshestUnread by viewModel.freshestNotifications.collectAsState()
     val readThisSession by viewModel.readThisSession.collectAsState()
     val historyState by viewModel.history.collectAsState()
+    val historyCursor by viewModel.historyCursor.collectAsState()
+    val historyLoadingMore by viewModel.historyLoadingMore.collectAsState()
+    val historyLoadMoreError by viewModel.historyLoadMoreError.collectAsState()
     val markReadState by viewModel.markReadResult.collectAsState()
     val markAllState by viewModel.markAllResult.collectAsState()
 
@@ -88,6 +91,9 @@ internal fun rememberNotificationsDerived(viewModel: NotificationViewModel): Not
         visibleHistory = visibleHistory,
         hasContent = hasContent,
         markAllBusy = markAllState is UiState.Loading,
+        historyHasMore = historyCursor != null,
+        historyLoadingMore = historyLoadingMore,
+        historyLoadMoreError = historyLoadMoreError,
     )
 }
 
@@ -244,5 +250,8 @@ internal fun NotificationsEntryEffects(
     }
     LaunchedEffect(derived.historyError) {
         derived.historyError?.let { logWarn("NotificationsScreen", "history=Error: $it") }
+    }
+    LaunchedEffect(derived.historyLoadMoreError) {
+        derived.historyLoadMoreError?.let { logWarn("NotificationsScreen", "historyLoadMore=Error: $it") }
     }
 }

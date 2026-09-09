@@ -81,7 +81,7 @@ fun NotificationsScreen(
         )
 
     // #679 — anchor restore for explicit refresh. The loadings converge both legs; the
-    // history leg (multi-page loop) lands last in the typical case, so its Success is the
+    // history leg (single bounded page, #701) lands last in the typical case, so its Success is the
     // settle signal: re-seat the anchor row — matched by id wherever reconciliation moved
     // it — at the captured offset. One-shot; a missing anchor simply leaves the retained
     // scroll position standing. Settles on any terminal leg state: a failed leg clears the
@@ -133,6 +133,13 @@ fun NotificationsScreen(
                     queueRows = queueRows,
                     history = derived.visibleHistory,
                     callbacks = callbacks,
+                    historyPaging =
+                        HistoryPaging(
+                            hasMore = derived.historyHasMore,
+                            loadingMore = derived.historyLoadingMore,
+                            loadMoreError = derived.historyLoadMoreError,
+                            onLoadMore = { viewModel.loadMoreHistory() },
+                        ),
                 )
             }
         when (val state = notificationsState) {
@@ -240,6 +247,9 @@ internal data class NotificationsDerived(
     val visibleHistory: List<NotificationResponse>,
     val hasContent: Boolean,
     val markAllBusy: Boolean,
+    val historyHasMore: Boolean,
+    val historyLoadingMore: Boolean,
+    val historyLoadMoreError: String?,
 )
 
 @Composable

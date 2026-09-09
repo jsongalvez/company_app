@@ -28,6 +28,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.time.Duration.Companion.milliseconds
@@ -315,7 +316,10 @@ class NotificationViewModelTest {
     fun refreshQueue_arms_convergence_and_onRefreshLanded_clears_visit_marks() =
         runTest(testScheduler) {
             NotificationState.setUnreadCount(2)
-            val vm = NotificationViewModel(mockApiClient(notificationsHandler()))
+            // #701 — the refreshed first page already carries the visit-read row, so the
+            // convergence clears it into the server's Earlier group.
+            val historyWithN1 = """{"entries":[$READ_JSON],"nextCursor":null}"""
+            val vm = NotificationViewModel(mockApiClient(notificationsHandler(historyBody = historyWithN1)))
 
             vm.loadUnreadNotifications()
             runCurrent()
@@ -335,6 +339,27 @@ class NotificationViewModelTest {
 
             vm.onRefreshLanded()
             assertEquals(expected = emptyList<String>(), actual = vm.readThisSession.value.map { it.id })
+        }
+
+    @Test
+    fun onRefreshLanded_keeps_marks_absent_from_loaded_pages() =
+        runTest(testScheduler) {
+            NotificationState.setUnreadCount(2)
+            // #701 — paging means the first page cannot cover every row: a visit-read mark
+            // beyond the loaded pages stays in place instead of vaporizing until paged to.
+            val vm = NotificationViewModel(mockApiClient(notificationsHandler()))
+
+            vm.loadUnreadNotifications()
+            runCurrent()
+
+            vm.markRead("n1")
+            runCurrent()
+
+            vm.refreshQueue()
+            runCurrent()
+
+            vm.onRefreshLanded()
+            assertEquals(expected = listOf("n1"), actual = vm.readThisSession.value.map { it.id })
         }
 
     @Test
@@ -544,19 +569,133 @@ class NotificationViewModelTest {
         }
 
     @Test
-    fun loadHistory_follows_next_cursor_and_accumulates_pages() =
+    fun loadHistory_loads_first_page_only_and_exposes_cursor() =
         runTest(testScheduler) {
+            val cursors = mutableListOf<String?>()
             val vm =
                 NotificationViewModel(
-                    mockApiClient(notificationsHandler(historySecondBody = HISTORY_PAGE2_JSON)),
+                    mockApiClient(
+                        notificationsHandler(
+                            historySecondBody = HISTORY_PAGE2_JSON,
+                            onHistoryRequest = { cursors += it },
+                        ),
+                    ),
                 )
 
             vm.loadHistory()
             runCurrent()
 
-            // Two bounded pages (cursor-1 between them) accumulate into the full Earlier list.
+            // #701 — entry fetches one bounded page even when the server offers more: no
+            // fetch-all loop, so the Earlier list renders the loaded page only.
+            val state = assertIs<UiState.Success<List<NotificationResponse>>>(vm.history.value)
+            assertEquals(expected = listOf("h1"), actual = state.data.map { it.id })
+            assertEquals(expected = "cursor-1", actual = vm.historyCursor.value)
+            assertEquals(expected = listOf<String?>(null), actual = cursors)
+            assertFalse(vm.historyLoadingMore.value)
+            assertNull(vm.historyLoadMoreError.value)
+        }
+
+    @Test
+    fun loadMoreHistory_appends_second_page_and_forwards_cursor_verbatim() =
+        runTest(testScheduler) {
+            val cursors = mutableListOf<String?>()
+            val vm =
+                NotificationViewModel(
+                    mockApiClient(
+                        notificationsHandler(
+                            historySecondBody = HISTORY_PAGE2_JSON,
+                            onHistoryRequest = { cursors += it },
+                        ),
+                    ),
+                )
+
+            vm.loadHistory()
+            runCurrent()
+            vm.loadMoreHistory()
+            runCurrent()
+
+            // Append-only, display order preserved, keyset cursor forwarded verbatim.
             val state = assertIs<UiState.Success<List<NotificationResponse>>>(vm.history.value)
             assertEquals(expected = listOf("h1", "h2"), actual = state.data.map { it.id })
+            assertNull(vm.historyCursor.value)
+            assertEquals(expected = listOf(null, "cursor-1"), actual = cursors)
+            assertFalse(vm.historyLoadingMore.value)
+        }
+
+    @Test
+    fun loadMoreHistory_without_cursor_makes_no_request() =
+        runTest(testScheduler) {
+            var historyCalls = 0
+            val vm =
+                NotificationViewModel(
+                    mockApiClient(
+                        notificationsHandler(
+                            historyBody = EMPTY_PAGE_JSON,
+                            onHistoryRequest = { historyCalls++ },
+                        ),
+                    ),
+                )
+
+            vm.loadHistory()
+            runCurrent()
+            assertNull(vm.historyCursor.value)
+
+            vm.loadMoreHistory()
+            runCurrent()
+
+            assertEquals(expected = 1, actual = historyCalls)
+            val state = assertIs<UiState.Success<List<NotificationResponse>>>(vm.history.value)
+            assertEquals(expected = emptyList<String>(), actual = state.data.map { it.id })
+        }
+
+    @Test
+    fun loadMoreHistory_failure_keeps_list_and_sets_error() =
+        runTest(testScheduler) {
+            val vm =
+                NotificationViewModel(
+                    mockApiClient(
+                        notificationsHandler(
+                            historySecondBody = HISTORY_PAGE2_JSON,
+                            historySecondStatus = HttpStatusCode.InternalServerError,
+                        ),
+                    ),
+                )
+
+            vm.loadHistory()
+            runCurrent()
+
+            val job = vm.loadMoreHistory()
+            runCurrent()
+            job?.join()
+
+            // The rendered Earlier list survives; the cursor stays so a retry remains
+            // available and the spinner releases.
+            val state = assertIs<UiState.Success<List<NotificationResponse>>>(vm.history.value)
+            assertEquals(expected = listOf("h1"), actual = state.data.map { it.id })
+            assertEquals(expected = "loadMoreHistory failed: 500", actual = vm.historyLoadMoreError.value)
+            assertFalse(vm.historyLoadingMore.value)
+            assertEquals(expected = "cursor-1", actual = vm.historyCursor.value)
+        }
+
+    @Test
+    fun loadMoreHistory_dedupes_overlapping_rows() =
+        runTest(testScheduler) {
+            val vm =
+                NotificationViewModel(
+                    mockApiClient(
+                        notificationsHandler(historySecondBody = HISTORY_PAGE2_DUP_JSON),
+                    ),
+                )
+
+            vm.loadHistory()
+            runCurrent()
+            vm.loadMoreHistory()
+            runCurrent()
+
+            // A repeated row across the page boundary renders once, in first-seen position.
+            val state = assertIs<UiState.Success<List<NotificationResponse>>>(vm.history.value)
+            assertEquals(expected = listOf("h1", "h3"), actual = state.data.map { it.id })
+            assertNull(vm.historyCursor.value)
         }
 
     private fun notificationsHandler(
@@ -571,6 +710,8 @@ class NotificationViewModelTest {
         historyStatus: HttpStatusCode = HttpStatusCode.OK,
         historyBody: String = EMPTY_PAGE_JSON,
         historySecondBody: String? = null,
+        historySecondStatus: HttpStatusCode = HttpStatusCode.OK,
+        onHistoryRequest: ((String?) -> Unit)? = null,
         dispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
     ): MockRequestHandler {
         // First GET serves the two known rows; a reload GET (post-markAllRead with a nonzero
@@ -606,15 +747,17 @@ class NotificationViewModelTest {
 
                 // #356 — the screen entry now also fetches history; existing tests default it
                 // to an empty page so their unread-queue assertions stay untouched.
-                // #508 — history is keyset-paged: the mock serves one object page; when
+                // #508/#701 — history is keyset-paged: the mock serves one object page; when
                 // historySecondBody is set the first GET serves HISTORY_PAGE1_JSON (one entry
-                // + cursor) and later GETs serve it, pinning multi-page accumulation.
+                // + cursor) and later GETs serve it, pinning the explicit load-more step
+                // (the VM never follows the cursor itself).
                 request.method == HttpMethod.Get && request.url.encodedPath == "/api/notifications/history" -> {
                     historyGetCount++
+                    onHistoryRequest?.invoke(request.url.parameters["cursor"])
                     if (historySecondBody != null && historyGetCount == 1) {
                         jsonRespond(status = historyStatus, body = HISTORY_PAGE1_JSON)
                     } else if (historySecondBody != null) {
-                        jsonRespond(status = historyStatus, body = historySecondBody)
+                        jsonRespond(status = historySecondStatus, body = historySecondBody)
                     } else {
                         jsonRespond(status = historyStatus, body = historyBody)
                     }
@@ -664,6 +807,13 @@ class NotificationViewModelTest {
         const val HISTORY_PAGE2_JSON =
             """{"entries":[
                 {"id":"h2","sessionId":"s9","branchId":"b9","message":"Session at 3:00 PM — Old Row","isRead":false,"readAt":null,"createdAt":"2026-08-01T06:00:00+08:00"}
+            ],"nextCursor":null}"""
+
+        // #701 — overlapping second page: repeats h1 (page-boundary re-read) plus a new h3.
+        const val HISTORY_PAGE2_DUP_JSON =
+            """{"entries":[
+                {"id":"h1","sessionId":null,"branchId":"b1","message":"Relief request expired","isRead":true,"readAt":"2026-08-04T22:00:00+08:00","createdAt":"2026-08-04T21:00:00+08:00"},
+                {"id":"h3","sessionId":"s8","branchId":"b8","message":"Session at 9:00 AM — Older Row","isRead":true,"readAt":"2026-08-02T22:00:00+08:00","createdAt":"2026-08-02T06:00:00+08:00"}
             ],"nextCursor":null}"""
 
         const val EMPTY_PAGE_JSON = """{"entries":[],"nextCursor":null}"""

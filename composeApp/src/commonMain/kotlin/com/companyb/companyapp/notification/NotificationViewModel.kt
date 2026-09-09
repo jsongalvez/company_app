@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.async.ActionStamp
 import com.companyb.companyapp.async.ApiCallHandler
+import com.companyb.companyapp.async.GuardedStateless
 import com.companyb.companyapp.async.KeepLast
 import com.companyb.companyapp.async.LaunchRequest
 import com.companyb.companyapp.async.ReconcilingLoad
@@ -53,6 +54,21 @@ class NotificationViewModel(
     private val _history = MutableStateFlow<UiState<List<NotificationResponse>>>(UiState.Idle)
     val history: StateFlow<UiState<List<NotificationResponse>>> = _history.asStateFlow()
 
+    // #701 — cursor-forward paging over the permanent history: entry/refresh/retry fetch
+    // one bounded page, an explicit load-more appends. The cursor is the server keyset
+    // verbatim (null = last page); the loading flag and error line keep the Earlier list
+    // rendered while a next page is in flight or failed (AuditLog/Finance precedent).
+    private val _historyCursor = MutableStateFlow<String?>(null)
+    val historyCursor: StateFlow<String?> = _historyCursor.asStateFlow()
+    private val _historyLoadingMore = MutableStateFlow(false)
+    val historyLoadingMore: StateFlow<Boolean> = _historyLoadingMore.asStateFlow()
+    private val _historyLoadMoreError = MutableStateFlow<String?>(null)
+    val historyLoadMoreError: StateFlow<String?> = _historyLoadMoreError.asStateFlow()
+
+    // Bumped on every fresh history load: an in-flight load-more from the previous
+    // generation goes inert instead of appending its stale page onto the new list.
+    private var historyGeneration = 0
+
     // Bumped on every successful action (markRead/markAll): a load that lands with a
     // mismatched capture predates the action — see loadUnreadNotifications.
     private val actionStamp = ActionStamp()
@@ -81,10 +97,14 @@ class NotificationViewModel(
         )
 
     // #356 — history load; runs alongside the unread fetch on screen entry and on retry.
-    // #508 — keyset-paged under the hood: bounded pages accumulate into the full Earlier
-    // list, so the screen keeps rendering every row while no single response is unbounded.
-    fun loadHistory(): Job =
-        handler.launch(
+    // #701 — one bounded page per load (cursor-forward, append-only via loadMoreHistory):
+    // the Earlier list renders loaded pages only, so entry and refresh never re-accumulate
+    // the permanent history. The cursor is replaced from the fresh page verbatim.
+    fun loadHistory(): Job {
+        historyGeneration++
+        _historyLoadMoreError.value = null
+        _historyLoadingMore.value = false
+        return handler.launch(
             state = _history,
             operation = "loadHistory",
             endpoint = "GET /api/notifications/history",
@@ -92,18 +112,55 @@ class NotificationViewModel(
                 apiClient.httpClient.get(ApiRoutes.notificationsHistory(cursor = null, limit = HISTORY_PAGE_LIMIT))
             },
             transform = { first ->
-                var page = first.body<NotificationHistoryResponse>()
-                val entries = page.entries.toMutableList()
-                while (page.nextCursor != null) {
-                    page =
-                        apiClient.httpClient
-                            .get(ApiRoutes.notificationsHistory(cursor = page.nextCursor, limit = HISTORY_PAGE_LIMIT))
-                            .body<NotificationHistoryResponse>()
-                    entries.addAll(page.entries)
-                }
-                entries.toList()
+                val page = first.body<NotificationHistoryResponse>()
+                _historyCursor.value = page.nextCursor
+                page.entries
             },
         )
+    }
+
+    // #701 — explicit load-more: appends the next keyset page onto the loaded list without
+    // refetching earlier pages. State-less (the #168 launch) so a failed or in-flight page
+    // never clobbers the rendered Earlier list. Null when there is nothing to fetch (last
+    // page, a cold load in flight, or no loaded list to append to) — the footer hides.
+    fun loadMoreHistory(): Job? {
+        val cursor = _historyCursor.value ?: return null
+        if (_historyLoadingMore.value) return null
+        if (_history.value !is UiState.Success) return null
+        _historyLoadMoreError.value = null
+        val generation = historyGeneration
+        _historyLoadingMore.value = true
+        return handler.launchStatelessGuarded(
+            operation = "loadMoreHistory",
+            endpoint = "GET /api/notifications/history",
+            block = {
+                apiClient.httpClient.get(ApiRoutes.notificationsHistory(cursor = cursor, limit = HISTORY_PAGE_LIMIT))
+            },
+            guarded =
+                GuardedStateless(
+                    decode = { it.body<NotificationHistoryResponse>() },
+                    commit = { page ->
+                        _historyCursor.value = page.nextCursor
+                        val current =
+                            (_history.value as? UiState.Success<List<NotificationResponse>>)?.data.orEmpty()
+                        val knownIds = current.map { it.id }.toSet()
+                        _history.value =
+                            UiState.Success(current + page.entries.filterNot { it.id in knownIds })
+                        _historyLoadingMore.value = false
+                    },
+                    stale = { generation != historyGeneration },
+                    onNonSuccess = { response ->
+                        _historyLoadMoreError.value = "loadMoreHistory failed: ${response.status.value}"
+                        _historyLoadingMore.value = false
+                    },
+                    onError = { e ->
+                        _historyLoadMoreError.value =
+                            "loadMoreHistory failed: ${e.message ?: "network error"}"
+                        _historyLoadingMore.value = false
+                    },
+                ),
+        )
+    }
 
     fun markRead(notificationId: String): Job =
         handler.launch(
@@ -188,16 +245,24 @@ class NotificationViewModel(
     }
 
     /**
-     * Converges a refresh: drops the visit-local read marks once the history reload lands,
+     * Converges a refresh: drops the visit-local read marks the loaded history now covers,
      * re-homing those rows under Earlier from server truth. No-op unless a refresh armed it
-     * (entry loads, markAll-triggered reloads and history retries never arm). A markRead that
-     * lands between arm and history Success is cleared with the rest — it reconverges on the
-     * next refresh.
+     * (entry loads, markAll-triggered reloads and history retries never arm). Marks beyond
+     * the loaded pages stay in place — with #701 paging the first page cannot cover every
+     * row, so clearing them would vaporize rows until the user pages that far. A markRead
+     * that lands between arm and history Success is cleared with the rest — it reconverges
+     * on the next refresh.
      */
     fun onRefreshLanded() {
         if (refreshArmed) {
             refreshArmed = false
-            _readThisSession.value = emptyList()
+            val loadedIds =
+                (_history.value as? UiState.Success<List<NotificationResponse>>)
+                    ?.data
+                    ?.map { it.id }
+                    .orEmpty()
+                    .toSet()
+            _readThisSession.value = _readThisSession.value.filterNot { it.id in loadedIds }
         }
     }
 

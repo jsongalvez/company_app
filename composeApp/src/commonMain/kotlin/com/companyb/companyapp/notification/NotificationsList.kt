@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -110,6 +111,7 @@ internal fun NotificationsLazyList(
     queueRows: List<QueueRow>,
     history: List<NotificationResponse>,
     callbacks: QueueCallbacks,
+    historyPaging: HistoryPaging,
 ) {
     LazyColumn(
         state = listState,
@@ -117,7 +119,7 @@ internal fun NotificationsLazyList(
     ) {
         needsItems(needs, callbacks)
         queueItems(queueRows, callbacks)
-        historyItems(history, callbacks)
+        historyItems(history, historyPaging, callbacks)
     }
 }
 
@@ -206,6 +208,7 @@ private fun LazyListScope.queueItems(
 
 private fun LazyListScope.historyItems(
     history: List<NotificationResponse>,
+    paging: HistoryPaging,
     callbacks: QueueCallbacks,
 ) {
     if (history.isNotEmpty()) {
@@ -225,8 +228,58 @@ private fun LazyListScope.historyItems(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             }
         }
+        // #701 — explicit load-more footer: the Earlier list renders loaded pages only, so
+        // older rows arrive one bounded page per tap instead of one entry-time sweep.
+        paging.loadMoreError?.let { error ->
+            item(key = "history-load-error") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    TextButton(onClick = paging.onLoadMore) {
+                        Text("Retry")
+                    }
+                }
+            }
+        }
+        if (paging.hasMore || paging.loadingMore) {
+            item(key = "history-load-more") {
+                TextButton(
+                    onClick = paging.onLoadMore,
+                    enabled = !paging.loadingMore,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (paging.loadingMore) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text("Load more")
+                    }
+                }
+            }
+        }
     }
 }
+
+/**
+ * #701 — Earlier-list paging bundle: cursor-derived availability plus the load-more
+ * in-flight/error surface and its retry entry. Bundled so the lazy host stays
+ * LongParameterList-clean (the QueueCallbacks precedent).
+ */
+internal data class HistoryPaging(
+    val hasMore: Boolean,
+    val loadingMore: Boolean,
+    val loadMoreError: String?,
+    val onLoadMore: () -> Unit,
+)
 
 @Composable
 private fun SectionLabel(text: String) {
