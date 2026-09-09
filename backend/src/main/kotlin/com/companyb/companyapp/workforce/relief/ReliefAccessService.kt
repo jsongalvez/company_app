@@ -44,9 +44,9 @@ object ReliefAccessService {
         callerId: UUID,
         branchDayId: UUID,
     ): List<ReliefAccess> {
+        val branchId = BranchDayService.requireBranchDayExists(branchDayId).branchId
         val requests = ReliefAccessRepository.findByBranchDayId(branchDayId)
         if (requests.isEmpty()) return requests
-        val branchId = BranchDayService.requireBranchDayExists(branchDayId).branchId
         val isMember = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId) != null
         return if (isMember) requests else requests.filter { it.requestedBy == callerId }
     }
