@@ -8,6 +8,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.companyb.companyapp.app.App
+import com.companyb.companyapp.proto.splitmaster.SplitMasterProtoApp
 
 private fun detectProjectRoot(dir: java.io.File): String {
     val markers = listOf(".git", "settings.gradle.kts")
@@ -25,18 +26,23 @@ fun main() {
     }
     java.io.File(System.getProperty("companyApp.logDir")).mkdirs()
     application {
+        val splitMaster = System.getenv("COMPANYAPP_PROTO_SPLIT_MASTER") == "true"
         val windowState =
             rememberWindowState(
-                size = DpSize(1024.dp, 768.dp),
+                size = if (splitMaster) DpSize(1280.dp, 800.dp) else DpSize(1024.dp, 768.dp),
                 position = WindowPosition(Alignment.Center),
             )
 
         Window(
             onCloseRequest = ::exitApplication,
-            title = "CompanyApp",
+            title = if (splitMaster) "CompanyApp — split-master prototype" else "CompanyApp",
             state = windowState,
         ) {
-            App()
+            if (splitMaster) {
+                SplitMasterProtoApp(onExit = ::exitApplication)
+            } else {
+                App()
+            }
         }
     }
 }
