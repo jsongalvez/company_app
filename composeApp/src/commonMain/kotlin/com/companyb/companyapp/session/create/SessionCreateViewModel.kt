@@ -67,8 +67,6 @@ interface SessionCreateFormApi : SessionClientPickerApi {
     val concernRetryState: StateFlow<UiState<Unit>>
     val toggleConcern: (String) -> Unit
 
-    fun clearSelectedClient()
-
     fun setFinalPrice(value: String)
 
     fun setOtherConcerns(value: String)
@@ -86,14 +84,6 @@ interface SessionCreateFormApi : SessionClientPickerApi {
     fun retryConcerns()
 
     fun retryMembers()
-
-    fun createSession(
-        finalPrice: String,
-        remarks: String?,
-        otherConcerns: String?,
-        // Default: today's shipped walk-in shape — existing callers keep the same semantics.
-        booking: BookingFields = BookingFields(isWalkIn = true, nextAppointmentDate = null),
-    )
 
     fun retryConcernAdds()
 }
@@ -181,7 +171,7 @@ class SessionCreateViewModel(
     }
 
     /** #348 — the picker's "Change" action: selection dropped, preview back to Idle. */
-    override fun clearSelectedClient() {
+    fun clearSelectedClient() {
         if (isSubmissionLocked()) return
         _createResult.value = UiState.Idle
         _selectedClient.value = null
@@ -372,7 +362,7 @@ class SessionCreateViewModel(
     private var createdSessionId: String? = null
     private var concernRetryJob: Job? = null
 
-    override fun createSession(
+    fun createSession(
         finalPrice: String,
         remarks: String?,
         otherConcerns: String?,

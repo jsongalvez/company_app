@@ -21,14 +21,9 @@ object OperationalUiContract {
     val dialogMaxWidth: Dp = 560.dp
     val progressSlot: Dp = 18.dp
     val focusRingWidth: Dp = 2.dp
-    val controlRadius: Dp = 6.dp
-    val surfaceRadius: Dp = 8.dp
     val minTargetDesktop: Dp = 40.dp
     val minTargetTouch: Dp = 48.dp
     val minActionHeight: Dp = 48.dp
-    val iconSizeMin: Dp = 18.dp
-    val iconSizeMax: Dp = 20.dp
-    val pageGutterDesktop: Dp = 24.dp
     val pageGutterCompact: Dp = 16.dp
     val compactViewportBreakpoint: Dp = 600.dp
 
@@ -37,8 +32,6 @@ object OperationalUiContract {
     val pageHeadingCompact: TextUnit = 24.sp
     val pageHeadingCompactLine: TextUnit = 30.sp
     val currentObject: TextUnit = 24.sp
-    val sectionHeading: TextUnit = 18.sp
-    val decisiveNumeral: TextUnit = 32.sp
     val desktopBody: TextUnit = 14.sp
     val touchBody: TextUnit = 16.sp
     val secondaryLabelMin: TextUnit = 12.sp

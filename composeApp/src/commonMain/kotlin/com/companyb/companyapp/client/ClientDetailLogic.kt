@@ -3,7 +3,6 @@ package com.companyb.companyapp.client
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.text.input.KeyboardType
 import com.companyb.companyapp.async.UiState
 import com.companyb.companyapp.contracts.client.ClientPatchField
 import com.companyb.companyapp.contracts.client.ClientResponse
@@ -27,56 +26,6 @@ internal enum class ClientField {
 }
 
 /**
- * Shared edit snapshot for one field row (#476 LPL burn — the row editors read one carrier
- * instead of four separate params).
- */
-internal data class ClientFieldEditState(
-    val editingField: ClientField?,
-    val draftValue: String,
-    val fieldError: String?,
-    val navigationLocked: Boolean,
-)
-
-/** Field identity + display for [ClientFieldEditor] (#476 LPL burn). */
-internal data class ClientFieldSpec(
-    val label: String,
-    val value: String,
-    val field: ClientField,
-    val keyboardType: KeyboardType = KeyboardType.Text,
-)
-
-/**
- * Edit callbacks for the content-body subtree (#476 LPL burn — one carrier for the section
- * and row editors; each reader documents which half it uses).
- */
-internal data class ClientDetailCallbacks(
-    val onDraftChange: (String) -> Unit,
-    val onStartEdit: (ClientField) -> Unit,
-    val onCommit: (ClientField) -> Unit,
-    val onCancel: () -> Unit,
-    val onCommitBp: () -> Unit,
-    val onBpDraftChanged: () -> Unit,
-    val onAnonymizeClick: () -> Unit,
-)
-
-/** Landing-resolution callbacks for [ClientDetailUpdateEffects] (#476 LPL burn — 6 params → 4). */
-internal data class ClientUpdateCallbacks(
-    val onEditClear: () -> Unit,
-    val onClearPending: () -> Unit,
-    val onFieldError: (String) -> Unit,
-)
-
-/** Display + draft snapshot for the BP-pair editor (#476 LPL burn — 10 params → 2). */
-internal data class BpPairState(
-    val systolic: Short?,
-    val diastolic: Short?,
-    val editing: Boolean,
-    val fieldError: String?,
-    val draft: BpDraftState,
-    val enabled: Boolean,
-)
-
-/**
  * Live-commit dependencies for the edit session (#476 Cyclomatic burn — the commit/start
  * helpers left [ClientDetailContent] for here, reading explicit deps instead of composable
  * captures). The `live*` reads are synchronous flow values (no composition lag — the
@@ -94,7 +43,6 @@ internal data class ClientEditDeps(
 /**
  * Hoisted edit-session state for [ClientDetailContent] (#476 Cyclomatic burn — the local commit
  * helpers carried the content composable to 35/15; as members each owns its own budget).
- * Remembered by the content; snapshots ([ClientFieldEditState]) and callbacks flow down.
  */
 internal class ClientEditSession {
     var editingField by mutableStateOf<ClientField?>(null)
@@ -122,35 +70,6 @@ internal class ClientEditSession {
         draftValue = value
         fieldError = null
     }
-
-    fun clearBpError() {
-        fieldError = null
-    }
-
-    /** Snapshot for the row editors — rebuilt every composition from live session state. */
-    fun snapshot(navigationLocked: Boolean): ClientFieldEditState =
-        ClientFieldEditState(
-            editingField = editingField,
-            draftValue = draftValue,
-            fieldError = fieldError,
-            navigationLocked = navigationLocked,
-        )
-
-    /** Subtree callbacks bound to [client] + [deps] (#476 — keeps ClientDetailContent short). */
-    fun callbacks(
-        client: ClientResponse,
-        deps: ClientEditDeps,
-        onAnonymizeClick: () -> Unit,
-    ): ClientDetailCallbacks =
-        ClientDetailCallbacks(
-            onDraftChange = ::handleDraftChange,
-            onStartEdit = { startEdit(it, client, deps) },
-            onCommit = { commitEdit(it, client, deps) },
-            onCancel = ::exitEdit,
-            onCommitBp = { commitBpDrafts(client, deps) },
-            onBpDraftChanged = ::clearBpError,
-            onAnonymizeClick = onAnonymizeClick,
-        )
 
     // Synchronous record of the last dispatched PATCH's payload — the supersede gate compares
     // the current draft against it (no composition-lagged reads in the gate).

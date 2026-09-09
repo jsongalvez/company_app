@@ -6,8 +6,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 
 /**
@@ -16,7 +14,6 @@ import androidx.compose.ui.text.style.TextOverflow
  * title/body slots (auth screens previously read M3-default headlineLarge).
  *
  * Desktop body 14sp, touch body 16sp; secondary labels floor at 12sp per the contract.
- * Money/count columns use tabular figures + end alignment via [TabularNumeralText].
  *
  * Headings contribute no composed animation; type changes apply instantly.
  */
@@ -63,24 +60,6 @@ fun CurrentObjectHeading(
 }
 
 @Composable
-fun SectionHeading(
-    text: String,
-    modifier: Modifier = Modifier,
-    maxLines: Int = Int.MAX_VALUE,
-) {
-    Text(
-        text = text,
-        modifier = modifier,
-        style =
-            MaterialTheme.typography.titleMedium.copy(
-                fontSize = OperationalUiContract.sectionHeading,
-            ),
-        maxLines = maxLines,
-        overflow = TextOverflow.Ellipsis,
-    )
-}
-
-@Composable
 fun SecondaryLabel(
     text: String,
     modifier: Modifier = Modifier,
@@ -95,21 +74,3 @@ fun SecondaryLabel(
         overflow = TextOverflow.Ellipsis,
     )
 }
-
-/** Money/count cells: tabular figures with end alignment so columns compare. */
-@Composable
-fun TabularNumeralText(
-    text: String,
-    modifier: Modifier = Modifier,
-    style: TextStyle = MaterialTheme.typography.bodyMedium,
-) {
-    Text(
-        text = text,
-        modifier = modifier,
-        style = style.copy(fontFeatureSettings = TABULAR_FEATURE),
-        textAlign = TextAlign.End,
-        maxLines = 1,
-    )
-}
-
-private const val TABULAR_FEATURE = "tnum"
