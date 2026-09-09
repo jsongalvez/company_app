@@ -28,7 +28,8 @@ scope, safety, external authorization, or preference needs human input, create a
 separate issue with `needs-info` or `ready-for-human`, record verified facts and the
 blocking decision, unclaim the blocked ticket so it stays deferred until answered,
 then write the handoff and stop — the chain never waits on a human answer in a live
-session. Never guess.
+session. Never guess. Every deferral lands as a tracked ticket — under a wayfinder
+map, linked to the map — so the next session finds it on the tracker, never in prose alone.
 
 ## Wayfinder session lifecycle
 
