@@ -7,6 +7,7 @@ import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.test.TestFixtures
@@ -257,6 +258,47 @@ class AttendanceMarkPostgresTest : BasePostgresTest() {
                 targetUserId = outsiderId,
                 present = true,
                 attendanceId = TestFixtures.uuid(),
+            )
+        }
+    }
+
+    @Test
+    fun `mark present with unknown branch returns 404 without writing rows`() {
+        val unknownBranchId = TestFixtures.uuid()
+        val attendanceId = TestFixtures.uuid()
+
+        assertFailsWith<NotFoundException> {
+            AttendanceService.mark(
+                callerId = markerId,
+                branchId = unknownBranchId,
+                targetUserId = targetId,
+                present = true,
+                attendanceId = attendanceId,
+            )
+        }
+
+        assertEquals(0L, attendanceCount(attendanceId), "no attendance row for unknown branch")
+        assertEquals(0L, auditCount(attendanceId), "no audit row for unknown branch")
+        assertEquals(
+            0L,
+            transaction {
+                BranchDayTable.selectAll().where { BranchDayTable.branchId eq unknownBranchId }.count()
+            },
+            "resolveOrCreate must not leave a branch_day row for an unknown branch",
+        )
+    }
+
+    @Test
+    fun `mark absent with unknown branch returns 404`() {
+        val unknownBranchId = TestFixtures.uuid()
+
+        assertFailsWith<NotFoundException> {
+            AttendanceService.mark(
+                callerId = markerId,
+                branchId = unknownBranchId,
+                targetUserId = targetId,
+                present = false,
+                attendanceId = null,
             )
         }
     }

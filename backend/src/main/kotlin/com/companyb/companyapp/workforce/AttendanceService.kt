@@ -63,8 +63,12 @@ object AttendanceService {
         targetUserId: UUID,
         present: Boolean,
         attendanceId: UUID?,
-    ): AttendanceMarkResult =
-        transaction {
+    ): AttendanceMarkResult {
+        // #712 — 404 precedence for an unknown branch before the membership gate:
+        // findActiveMembers would otherwise yield empty membership and surface 403
+        // (403-masking-404; same position as #704 clockIn guard).
+        BranchService.findById(branchId)
+        return transaction {
             // Gate inside the command transaction, under the assignment row lock (#404
             // review): a concurrent revocation or deactivation serializes with the mark
             // instead of racing a pre-transaction check. #519 — reciprocal marks took
@@ -86,6 +90,7 @@ object AttendanceService {
                 markAbsent(callerId, branchId, targetUserId)
             }
         }
+    }
 
     /**
      * The present leg: mirrors self clock-in — day resolution, #376 branch-day lock,
