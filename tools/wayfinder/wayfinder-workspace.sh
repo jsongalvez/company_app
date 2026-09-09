@@ -3,9 +3,11 @@
 #
 # Every writable worker receives an isolated workspace at a known base revision
 # and returns a reviewable Git change without sharing uncommitted state with
-# another worker. Git worktrees are the initial/default provider; the contract
-# stays provider-neutral so a future copy-on-write snapshot/reflink adapter can
-# land without changing scheduler semantics.
+# another worker. The default provider is `cow`: copy-on-write snapshots via
+# the Rift CLI (ticket #754 — no worktrees on this VPS), backed by a btrfs
+# volume holding a rift-managed seed workspace. `git-worktree` stays available
+# explicitly; the contract stays provider-neutral so scheduler semantics never
+# branch on provider identity.
 #
 # Subcommands:
 #
@@ -23,7 +25,7 @@
 #
 # Plus neutral purpose/detail for operability: purpose names why the workspace
 # exists (ticket-<N>, scout-<slice>, maintenance-<sha>); detail carries
-# provider-specific identity (git-worktree branch, future snapshot ID) and must
+# provider-specific identity (cow snapshot name, git-worktree branch) and must
 # never be parsed by scheduler code.
 #
 # Lifecycle: creating -> ready -> (cleaned, row removed). reconcile marks a
@@ -56,15 +58,15 @@
 # eligible for integration unless explicitly converted into a writable
 # implementation task (sibling #740 owns the review gate).
 #
-# CoW compatibility: a future provider adds one `cow)` branch beside
-# `git-worktree)` below plus its detail format. The `fake` provider (plain
-# directories, no git worktrees or branches) exists for contract tests that
-# must exercise lifecycle logic without depending on actual CoW filesystems
-# (ticket #743): same registry shape, same isolation guarantees, none of the
-# git mechanics. Scheduler code (chief, worker
-# seam) must keep treating workspaces as opaque dirs + neutral metadata — no
-# provider-specific branching there. Do not introduce OpenCode, Rift, or Lane
-# dependencies to satisfy this ticket.
+# CoW provider (`cow`, ticket #754): Rift-CLI snapshots beside `git-worktree`
+# and `fake`. The `fake` provider (plain directories, no snapshots or
+# branches) exists for contract tests that must exercise lifecycle logic
+# without depending on CoW filesystems (ticket #743): same registry shape,
+# same isolation guarantees, none of the snapshot mechanics. Scheduler code
+# (chief, worker seam) must keep treating workspaces as opaque dirs + neutral
+# metadata — no provider-specific branching there. Only the `cow` provider
+# branch below may invoke the Rift CLI (via COW_RIFT_BIN); Lane/OpenCode
+# dependencies stay out everywhere.
 #
 # Contract notes (ticket #736 acceptance):
 # - Only the map chief creates/reconciles/destroys workspaces. create/cleanup/
@@ -80,9 +82,15 @@
 #   complete views.
 #
 # Env:
-#   WAYFINDER_WORKSPACE_PROVIDER  provider name (default: git-worktree;
-#                               `fake` = plain directories for contract
-#                               tests, no git worktrees or branches)
+#   WAYFINDER_WORKSPACE_PROVIDER  provider name (default: cow;
+#                               `git-worktree` = classic worktrees, kept
+#                               explicitly; `fake` = plain directories for
+#                               contract tests, no snapshots or branches)
+#   WAYFINDER_COW_SEED            rift-managed seed workspace (required for
+#                               the cow provider, e.g. /mnt/rift-ws/seed —
+#                               a btrfs subvolume prepared with `rift init`)
+#   COW_RIFT_BIN                  Rift CLI (default: rift from PATH;
+#                               /usr/local/bin/rift on this VPS)
 #   WAYFINDER_WORKSPACE_ROOT      workspace root dir (default: <repo>-workspaces sibling)
 #   WAYFINDER_WORKSPACE_REGISTRY  registry file (default: <repo>/.wayfinder/workspaces.tsv)
 #   WAYFINDER_REPO                canonical checkout (default: repo containing this script)
@@ -96,7 +104,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DISCOVERED_REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 CANON_DEFAULT="${WAYFINDER_REPO:-$DISCOVERED_REPO}"
-PROVIDER_DEFAULT="${WAYFINDER_WORKSPACE_PROVIDER:-git-worktree}"
+PROVIDER_DEFAULT="${WAYFINDER_WORKSPACE_PROVIDER:-cow}"
 REGISTRY_DEFAULT="${WAYFINDER_WORKSPACE_REGISTRY:-$DISCOVERED_REPO/.wayfinder/workspaces.tsv}"
 CALLER_ROLE="${WAYFINDER_ROLE:-chief}"
 CAPACITY="$SCRIPT_DIR/wayfinder-capacity.sh"
@@ -230,6 +238,55 @@ resolve_base() { # <canon> <base-or-empty> — print full 40-char SHA.
     printf '%s' "$sha"
 }
 
+# cow provider helpers (ticket #754). Every Rift CLI invocation goes through
+# COW_RIFT_BIN inside these cow_* functions — no other code path may reference
+# the cow snapshot tool, so the provider seam stays greppable (see the
+# workspace self-test's provider-isolation check).
+cow_rift() { # cow snapshot-tool shim — args passed to COW_RIFT_BIN.
+    "${COW_RIFT_BIN:-rift}" "$@"
+}
+
+cow_require_seed() { # print WAYFINDER_COW_SEED or fail closed.
+    local seed="${WAYFINDER_COW_SEED:-}"
+    [ -n "$seed" ] || die "cow: WAYFINDER_COW_SEED is not set (rift-managed seed workspace required, e.g. /mnt/rift-ws/seed)"
+    [ -d "$seed" ] || die "cow: seed workspace not found: $seed"
+    git -C "$seed" rev-parse --git-dir >/dev/null 2>&1 || die "cow: seed is not a git checkout: $seed"
+    [ -f "$seed/.rift" ] || [ -d "$seed/.rift" ] || die "cow: seed is not rift-managed (no .rift marker): $seed — run rift init there first"
+    printf '%s' "$seed"
+}
+
+cow_seed_sync() { # <seed> <sha> — pin the cow seed to base, fail closed on dirt.
+    local seed="$1" sha="$2" st
+    st="$(git -C "$seed" status --porcelain 2>&1)" \
+        || die "cow: cannot read seed status: $st"
+    [ -z "$st" ] || die "cow: seed workspace is dirty — refusing to snapshot dirt: $seed"
+    # Best-effort fetch so the seed sees canonical HEAD; a failed fetch still
+    # fails closed below if the base is unknown to the seed.
+    git -C "$seed" fetch -q origin >/dev/null 2>&1 || true
+    git -C "$seed" checkout -q --detach "$sha" >/dev/null 2>&1 \
+        || die "cow: seed cannot reach base $sha (fetch first if canonical advanced)"
+    st="$(git -C "$seed" status --porcelain 2>&1)" || die "cow: cannot re-read seed status"
+    [ -z "$st" ] || die "cow: seed dirty after checkout to $sha"
+    [ "$(git -C "$seed" rev-parse HEAD)" = "$sha" ] || die "cow: seed HEAD mismatch after checkout"
+}
+
+cow_snapshot_create() { # <seed> <name> — print the new cow workspace path.
+    local seed="$1" name="$2" out line path=""
+    out="$(cd "$seed" && cow_rift create --no-hooks --name "$name" 2>&1)" \
+        || die "cow: snapshot create failed for $name: $out"
+    while IFS= read -r line; do
+        [ -n "$line" ] && path="$line"
+    done <<< "$out"
+    [ -n "$path" ] || die "cow: snapshot tool printed no workspace path for $name"
+    [ -d "$path" ] || die "cow: snapshot path missing after create: $path"
+    printf '%s' "$path"
+}
+
+cow_snapshot_remove() { # <seed> <path> — best-effort cow workspace removal.
+    local seed="$1" path="$2"
+    (cd "$seed" && cow_rift remove -f --no-hooks "$path" >/dev/null 2>&1) || rm -rf "$path" 2>/dev/null || true
+}
+
 gen_id() { # <registry> <canon> <provider> <root> <purpose> <short> — unique wf-* id.
     local registry="$1" canon="$2" provider="$3" root="$4" purpose="$5" short="$6"
     local slug base cand n
@@ -267,8 +324,8 @@ cmd_create() {
     [ -n "$root" ] || root="$(default_root "$canon")"
     valid_root "$root"
     case "$provider" in
-        git-worktree|fake) ;;
-        *) die "create: unknown provider '$provider' (want git-worktree or fake; add a future CoW adapter beside it without changing scheduler semantics)" ;;
+        git-worktree|fake|cow) ;;
+        *) die "create: unknown provider '$provider' (want cow, git-worktree, or fake)" ;;
     esac
     local sha short registry
     sha="$(resolve_base "$canon" "$base")"
@@ -287,16 +344,39 @@ cmd_create() {
                 && die "create: branch already exists: wf/$id" || true
         fi
     fi
-    local path branch out
+    local path branch out seed
     mkdir -p "$root"
     root="$(cd "$root" && pwd)" # absolute: reconcile compares worktree-list paths
     path="$root/$id"
     case "$provider" in
         git-worktree) branch="wf/$id" ;;
         fake) branch="fake:$id" ;; # no git branch; detail stays opaque to schedulers
+        cow) branch="cow:$id" ;; # cow snapshot name;detail stays opaque to schedulers
     esac
     reg_upsert "$registry" "$id" "$provider" "$path" "$sha" "creating" "$purpose" "$branch" "allocating $provider workspace"
     case "$provider" in
+        cow)
+            # The cow tool decides placement: the snapshot path comes back
+            # from the tool itself, so the registry row is rewritten below
+            # with the real path.
+            seed="$(cow_require_seed)"
+            cow_seed_sync "$seed" "$sha"
+            if path="$(cow_snapshot_create "$seed" "$id")"; then
+                if [ "$(git -C "$path" rev-parse HEAD 2>/dev/null)" = "$sha" ]; then
+                    reg_upsert "$registry" "$id" "$provider" "$path" "$sha" "ready" "$purpose" "$branch" "cow snapshot at $short"
+                    workspace_emit "$registry" workspace-created --workspace "$path" --detail "id=$id provider=$provider base=$sha purpose=$purpose"
+                    printf 'created %s provider=%s path=%s base=%s\n' "$id" "$provider" "$path" "$sha"
+                else
+                    cow_snapshot_remove "$seed" "$path"
+                    reg_remove "$registry" "$id"
+                    die "create: cow snapshot HEAD mismatch for $id (want $short)"
+                fi
+            else
+                reg_remove "$registry" "$id"
+                die "create: cow snapshot failed for $id"
+            fi
+            return 0
+            ;;
         fake)
             if mkdir -p "$path" 2>/dev/null; then
                 printf '%s\n' "$sha" >"$path/.base" 2>/dev/null || true
@@ -399,9 +479,27 @@ cmd_reconcile() {
             kept=$((kept + 1))
             continue
         fi
-        # Liveness is provider-dispatched: a future CoW adapter adds its own
-        # branch here without changing scheduler semantics.
+        # Liveness is provider-dispatched: each provider owns its own branch
+        # here without changing scheduler semantics.
         case "$provider" in
+            cow)
+                # A cow snapshot is live while its directory survives with a
+                # readable git HEAD; removal deletes the directory outright.
+                if [ -d "$path" ] && git -C "$path" rev-parse HEAD >/dev/null 2>&1; then
+                    if [ "$state" = "creating" ]; then
+                        reg_upsert "$registry" "$id" "$provider" "$path" "$base" "ready" "$purpose" "$detail" "adopted after interrupted create"
+                    fi
+                    kept=$((kept + 1))
+                else
+                    case "$state" in
+                        ready|creating)
+                            reg_upsert "$registry" "$id" "$provider" "$path" "$base" "gone" "$purpose" "$detail" "snapshot path missing — result may be salvageable"
+                            gone=$((gone + 1))
+                            ;;
+                        *) kept=$((kept + 1)) ;;
+                    esac
+                fi
+                ;;
             fake)
                 if [ -d "$path" ]; then
                     if [ "$state" = "creating" ]; then
@@ -484,6 +582,21 @@ cmd_cleanup() {
     : "$force" # cleanup is deterministic by default: --force is accepted for
     # symmetry with the worker seam but changes nothing (dirty checkouts still go).
     case "$provider" in
+        cow)
+            # Deterministic removal via the cow snapshot tool (dirty snapshots
+            # still go); falls back to plain removal when the seed is gone.
+            # Sibling #740 must integrate accepted work before calling cleanup:
+            # the snapshot below is always deleted.
+            case "$path" in
+                *$'\t'*|*$'\n'*) die "cleanup: refusing to remove a path with control characters for '$id'" ;;
+            esac
+            if [ -n "${WAYFINDER_COW_SEED:-}" ] && [ -d "${WAYFINDER_COW_SEED:-}" ]; then
+                cow_snapshot_remove "$WAYFINDER_COW_SEED" "$path"
+            else
+                printf 'wayfinder-workspace: warning: cow seed unavailable for %s — plain removal of %s\n' "$id" "$path" >&2
+                rm -rf "$path" 2>/dev/null || true
+            fi
+            ;;
         fake)
             # No git identity to delete: the directory is the workspace.
             # Accepted, rejected, failed, and cancelled converge here.

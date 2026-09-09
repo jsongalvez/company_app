@@ -261,7 +261,7 @@ grep -q "^QUIESCENT$" "$WORK/out" && ok "successor may advance after integrate+c
 : > "$WAYFINDER_WORKER_REGISTRY"
 
 echo "11. reconcile joins worker + workspace provider state, never respawns or deletes"
-bash "$WORKSPACE" create --purpose ticket-170 --id wf-ws1 --root "$WORK/ws-root" >/dev/null 2>&1 \
+bash "$WORKSPACE" create --provider fake --purpose ticket-170 --id wf-ws1 --root "$WORK/ws-root" >/dev/null 2>&1 \
     || bad "workspace fixture create failed"
 mkrow wf-ws-row ticket 170 "$(bash "$WORKSPACE" path wf-ws1)" running
 rm -rf "$(bash "$WORKSPACE" path wf-ws1)"

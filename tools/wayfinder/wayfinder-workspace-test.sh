@@ -2,7 +2,14 @@
 # wayfinder-workspace-test.sh — contract tests for wayfinder-workspace.sh (map #697 #736).
 # Real git fixture repos only (isolated under /tmp/opencode): no real Herdr,
 # Gradle, database, or network. Never touches the canonical checkout.
-set -euo pipefail
+#
+# NOTE: pipefail stays OFF here by design (#754). Every assertion below is
+# `producer | grep -q pattern`, where only grep's verdict matters; with
+# pipefail, grep -q's early exit SIGPIPEs the producer and the pipeline
+# spuriously fails ~2% of runs (measured). Producers here are either
+# file-backed (suite writes) or re-checked on the next line — a dead producer
+# surfaces as empty output, which fails the grep anyway.
+set -eu
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WORKSPACE="$ROOT/tools/wayfinder/wayfinder-workspace.sh"
@@ -140,9 +147,12 @@ if grep -v '^#' "$WORKSPACE" | grep -Ev '\^\{commit\}' | grep -w -Eq 'merge|cher
 elif grep -v '^#' "$WORKSPACE" | grep -Eq 'git -C[^#]* commit( |$)'; then
     bad "provider commits"
 else ok "provider never integrates (branch/worktree verbs only)"; fi
-if grep -vi '^#' "$WORKSPACE" | grep -Eq 'rift|lane|opencode'; then
-    bad "provider depends on Rift/Lane/OpenCode"
-else ok "no Rift/Lane/OpenCode dependency"; fi
+if grep -vi '^#' "$WORKSPACE" | grep -Eq 'lane|opencode'; then
+    bad "provider depends on Lane/OpenCode"
+else ok "no Lane/OpenCode dependency"; fi
+if grep -vi '^#' "$WORKSPACE" | grep -Ei 'rift' | grep -Ev 'cow|RIFT_BIN' | grep -q .; then
+    bad "snapshot-tool reference outside cow provider: $(grep -vi '^#' "$WORKSPACE" | grep -Ei 'rift' | grep -Ev 'cow|RIFT_BIN' | head -n 3)"
+else ok "snapshot tool isolated to cow provider"; fi
 if grep -v '^#' "$WORKSPACE" | grep -Eq 'worktree (add|remove|list|prune)'; then
     ok "git-worktree verbs isolated in the provider"
 else bad "expected git worktree verbs missing"; fi
@@ -199,6 +209,29 @@ PATH="$WORK/fakebin:$PATH" run reconcile; [ "$(rc_of)" -ne 0 ] && ok "worktree-l
 bash "$WORKSPACE" inspect wf-fc | grep -q "lifecycle_state=ready" \
     && ok "no mass-gone on git failure" || bad "rows marked gone on git failure"
 bash "$WORKSPACE" cleanup wf-fc >/dev/null 2>&1 || bad "fail-closed workspace cleanup failed"
+
+echo "13. cow provider requires a seed; live round-trip when a seed is configured"
+(unset WAYFINDER_COW_SEED; run create --purpose x --id wf-cownoseed --provider cow --root "$WORK/ws-root")
+[ "$(rc_of)" -ne 0 ] && ok "cow without seed refused" || bad "cow without seed accepted"
+grep -q "WAYFINDER_COW_SEED" "$WORK/err" && ok "refusal names the missing seed env" || bad "refusal unclear: $(cat "$WORK/err")"
+if [ -n "${WAYFINDER_COW_TEST_SEED:-}" ] && command -v "${COW_RIFT_BIN:-rift}" >/dev/null 2>&1; then
+    export WAYFINDER_COW_SEED="$WAYFINDER_COW_TEST_SEED"
+    seed_head="$(git -C "$WAYFINDER_COW_TEST_SEED" rev-parse HEAD)"
+    run create --repo "$WAYFINDER_COW_TEST_SEED" --purpose ticket-900 --id wf-cowlive --provider cow --base "$seed_head" --root "$WORK/ws-root"
+    [ "$(rc_of)" -eq 0 ] && ok "cow live create succeeded" || bad "cow live create failed: $(cat "$WORK/err")"
+    cow_path="$(bash "$WORKSPACE" path wf-cowlive --repo "$WAYFINDER_COW_TEST_SEED" 2>/dev/null)"
+    [ -n "$cow_path" ] && [ -d "$cow_path" ] && ok "cow snapshot path exists: $cow_path" || bad "cow path missing"
+    [ "$(git -C "$cow_path" rev-parse HEAD 2>/dev/null)" = "$seed_head" ] && ok "cow snapshot at requested base" || bad "cow base mismatch"
+    echo "cow-secret" > "$cow_path/cow-marker.txt"
+    [ ! -f "$WAYFINDER_COW_TEST_SEED/cow-marker.txt" ] && ok "cow snapshot isolated from seed" || bad "cow write leaked to seed"
+    run cleanup wf-cowlive --repo "$WAYFINDER_COW_TEST_SEED"
+    [ "$(rc_of)" -eq 0 ] && ok "cow cleanup succeeded" || bad "cow cleanup failed: $(cat "$WORK/err")"
+    [ ! -e "$cow_path" ] && ok "cow snapshot path removed" || bad "cow path survived cleanup"
+    [ -z "$(reg_row wf-cowlive)" ] && ok "cow registry row removed" || bad "cow row survived cleanup"
+    unset WAYFINDER_COW_SEED
+else
+    ok "cow live round-trip skipped (set WAYFINDER_COW_TEST_SEED with a rift binary present)"
+fi
 
 echo
 if [ $fail -eq 0 ]; then echo "workspace-contract: OK"; else echo "workspace-contract: FAILURES PRESENT"; exit 1; fi

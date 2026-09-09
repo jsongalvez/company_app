@@ -48,7 +48,7 @@ Wayfinder daemon -> map chief -> ticket workers (one ticket each, writable)
 Separation of concerns: Wayfinder decides *what* runs and when; Herdr tracks
 *which* agents/panes run; GitHub stays the durable work/tracker authority
 (blockers, priority, claims, repair issues); the WorkspaceProvider
-(`tools/wayfinder/wayfinder-workspace.sh`, default git-worktree) decides
+(`tools/wayfinder/wayfinder-workspace.sh`, default cow/Rift snapshots per #754) decides
 *where* each isolated worker runs; the chief owns review, disposition, and
 the single-writer integration queue (`tools/wayfinder/wayfinder-review.sh`).
 Crash recovery reconciles recorded workers/workspaces before new dispatch
