@@ -66,6 +66,7 @@ import java.util.UUID
     responses = [
         OpenApiResponse(status = "200", content = [OpenApiContent(from = BranchResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
@@ -94,6 +95,8 @@ object BranchRoutes {
             val rawSegment = context.pathParam(BRANCH_ID_PARAM)
             if (rawSegment == ApiRoutes.BRANCHES_ACCESSIBLE.substringAfterLast("/")) return@before
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            // #745 — 404 precedence for an unknown branch before the capability gate (#730/#732/#744 precedent).
+            BranchService.findById(branchId)
             CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
                 context,
                 branchId,

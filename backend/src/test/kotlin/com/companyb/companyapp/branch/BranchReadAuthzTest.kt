@@ -151,4 +151,11 @@ class BranchReadAuthzTest : BasePostgresTest() {
     fun `accessible picker stays open beside the item gate`() {
         assertEquals(200, getStatus(noneUser, "/api/branches/accessible"))
     }
+
+    @Test
+    fun `unknown branch item read is 404 not 403`() {
+        val unknown = TestFixtures.uuid()
+        assertEquals(404, getStatus(branchViewUser, "/api/branches/$unknown"))
+        assertEquals(404, getStatus(noneUser, "/api/branches/$unknown"))
+    }
 }
