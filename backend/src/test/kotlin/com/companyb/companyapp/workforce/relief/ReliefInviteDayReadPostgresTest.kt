@@ -1,6 +1,7 @@
 package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
@@ -12,6 +13,7 @@ import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
@@ -113,5 +115,15 @@ class ReliefInviteDayReadPostgresTest : BasePostgresTest() {
 
         assertEquals(1, rows.size)
         assertEquals(ReliefInviteStatus.DECLINED, rows.single().invite.status)
+    }
+
+    @Test
+    fun `unknown branch returns 404 instead of an empty list`() {
+        val duty = TestFixtures.today.plusDays(3)
+        ReliefInviteService.createInvite(inviterId, branchId, inviteeId, duty)
+
+        assertFailsWith<NotFoundException> {
+            ReliefInviteService.listForDay(inviterId, TestFixtures.uuid(), duty)
+        }
     }
 }

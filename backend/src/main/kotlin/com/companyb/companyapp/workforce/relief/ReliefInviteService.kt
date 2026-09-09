@@ -152,6 +152,10 @@ object ReliefInviteService {
         branchId: UUID,
         date: LocalDate,
     ): List<ReliefInviteView> {
+        // #721 — 404 precedence for an unknown branch before the day read (#715
+        // precedent): findByBranchAndDate alone conflates "unknown branch" with
+        // "known branch with no invites on the date".
+        BranchService.findById(branchId)
         val rows = ReliefInviteRepository.findByBranchAndDate(branchId, date)
         if (rows.isEmpty()) return rows
         val isMember = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId) != null
