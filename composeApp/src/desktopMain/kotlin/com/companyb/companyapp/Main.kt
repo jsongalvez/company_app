@@ -8,6 +8,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.companyb.companyapp.app.App
+import com.companyb.companyapp.proto.inventorycounter.ProtoInventoryCounterApp
 
 private fun detectProjectRoot(dir: java.io.File): String {
     val markers = listOf(".git", "settings.gradle.kts")
@@ -25,18 +26,23 @@ fun main() {
     }
     java.io.File(System.getProperty("companyApp.logDir")).mkdirs()
     application {
+        val protoInventoryCounter = System.getenv("COMPANYAPP_PROTO_INVENTORY_COUNTER") == "true"
         val windowState =
             rememberWindowState(
-                size = DpSize(1024.dp, 768.dp),
+                size = if (protoInventoryCounter) DpSize(1280.dp, 800.dp) else DpSize(1024.dp, 768.dp),
                 position = WindowPosition(Alignment.Center),
             )
 
         Window(
             onCloseRequest = ::exitApplication,
-            title = "CompanyApp",
+            title = if (protoInventoryCounter) "CompanyApp — Stock Counter Prototype" else "CompanyApp",
             state = windowState,
         ) {
-            App()
+            if (protoInventoryCounter) {
+                ProtoInventoryCounterApp(onBack = ::exitApplication)
+            } else {
+                App()
+            }
         }
     }
 }
