@@ -52,18 +52,22 @@ data class SessionCreateResult(
 internal object SessionRepository {
     fun countPriorNonMedicalMissionSessions(clientId: UUID): Long =
         transaction {
-            SessionTable
-                .leftJoin(
-                    ActiveSessionVoidsView,
-                    { SessionTable.id },
-                    { ActiveSessionVoidsView.sessionId },
-                ).selectAll()
-                .where {
-                    (SessionTable.clientId eq clientId) and
-                        (SessionTable.sessionType neq SessionType.MEDICAL_MISSION) and
-                        (ActiveSessionVoidsView.sessionId.isNull())
-                }.count()
+            countPriorNonMedicalMissionSessionsInTransaction(clientId)
         }
+
+    /** In-transaction store read (#751) — runs on the caller's command transaction. */
+    fun countPriorNonMedicalMissionSessionsInTransaction(clientId: UUID): Long =
+        SessionTable
+            .leftJoin(
+                ActiveSessionVoidsView,
+                { SessionTable.id },
+                { ActiveSessionVoidsView.sessionId },
+            ).selectAll()
+            .where {
+                (SessionTable.clientId eq clientId) and
+                    (SessionTable.sessionType neq SessionType.MEDICAL_MISSION) and
+                    (ActiveSessionVoidsView.sessionId.isNull())
+            }.count()
 
     /**
      * #424 — final price of the client's most recent non-MEDICAL_MISSION, non-voided session.
@@ -72,21 +76,25 @@ internal object SessionRepository {
      */
     fun findMostRecentPriorSessionFinalPrice(clientId: UUID): BigDecimal? =
         transaction {
-            SessionTable
-                .leftJoin(
-                    ActiveSessionVoidsView,
-                    { SessionTable.id },
-                    { ActiveSessionVoidsView.sessionId },
-                ).selectAll()
-                .where {
-                    (SessionTable.clientId eq clientId) and
-                        (SessionTable.sessionType neq SessionType.MEDICAL_MISSION) and
-                        (ActiveSessionVoidsView.sessionId.isNull())
-                }.orderBy(SessionTable.createdAt to SortOrder.DESC)
-                .limit(1)
-                .singleOrNull()
-                ?.get(SessionTable.finalPrice)
+            findMostRecentPriorSessionFinalPriceInTransaction(clientId)
         }
+
+    /** In-transaction store read (#751) — runs on the caller's command transaction. */
+    fun findMostRecentPriorSessionFinalPriceInTransaction(clientId: UUID): BigDecimal? =
+        SessionTable
+            .leftJoin(
+                ActiveSessionVoidsView,
+                { SessionTable.id },
+                { ActiveSessionVoidsView.sessionId },
+            ).selectAll()
+            .where {
+                (SessionTable.clientId eq clientId) and
+                    (SessionTable.sessionType neq SessionType.MEDICAL_MISSION) and
+                    (ActiveSessionVoidsView.sessionId.isNull())
+            }.orderBy(SessionTable.createdAt to SortOrder.DESC)
+            .limit(1)
+            .singleOrNull()
+            ?.get(SessionTable.finalPrice)
 
     fun getBranchType(branchId: UUID): BranchType? =
         transaction {

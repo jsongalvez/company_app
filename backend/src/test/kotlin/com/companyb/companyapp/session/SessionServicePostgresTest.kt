@@ -236,6 +236,38 @@ class SessionServicePostgresTest : BasePostgresTest() {
         }
     }
 
+    // #751 — history reads join the command transaction after the client-row lock,
+    // so sequential creates observe committed priors (no stale priorCount=0).
+    @Test
+    fun `sequential creates walk the type ladder REGULAR to SECOND_SESSION to SUBSEQUENT`() {
+        val firstId = TestFixtures.uuid()
+        val first = createSession(callerId, firstId)
+        assertEquals(SessionType.REGULAR, first.session.sessionType)
+        SessionService.updateStatus(callerId, firstId, SessionStatus.COMPLETED, 1)
+
+        val secondId = TestFixtures.uuid()
+        val second = createSession(callerId, secondId)
+        assertEquals(SessionType.SECOND_SESSION, second.session.sessionType)
+        SessionService.updateStatus(callerId, secondId, SessionStatus.COMPLETED, 1)
+
+        val thirdId = TestFixtures.uuid()
+        val third = createSession(callerId, thirdId)
+        assertEquals(SessionType.SUBSEQUENT, third.session.sessionType)
+    }
+
+    // #751 — voided sessions stay excluded from the in-transaction prior count.
+    @Test
+    fun `voided sessions do not count toward prior session type`() {
+        val firstId = TestFixtures.uuid()
+        createSession(callerId, firstId)
+        SessionService.voidSession(callerId, firstId, TestFixtures.uuid(), "Created in error")
+
+        val secondId = TestFixtures.uuid()
+        val second = createSession(callerId, secondId)
+
+        assertEquals(SessionType.REGULAR, second.session.sessionType)
+    }
+
     @Test
     fun `create session for anonymized client throws conflict`() {
         ClientService.anonymize(callerId, clientId)

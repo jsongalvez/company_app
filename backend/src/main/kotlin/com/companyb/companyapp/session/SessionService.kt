@@ -91,18 +91,6 @@ object SessionService {
             gatedBranchDayId?.let { BranchDayService.requireBranchDayForBranch(it, branchId) }
                 ?: BranchDayService.resolveOrCreate(branchId, today)
 
-        val priorCount = SessionRepository.countPriorNonMedicalMissionSessions(clientId)
-        val sessionType = computeSessionType(branchType, priorCount)
-
-        // #405 — BR §Session types: a medical-mission visit is always free (₱0). The rule is
-        // an invariant of the domain, not an input constraint, so a non-zero caller-supplied
-        // price is normalized to zero rather than rejected — no client version or direct API
-        // caller can persist one.
-        val effectiveFinalPrice =
-            if (sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else finalPrice
-
-        val basePrice = resolveDefaultBasePrice(branchId, clientId, sessionType)
-
         return transaction {
             // #509 — client-first lock order preserved (see requireActiveClientInTransaction):
             // the client row is locked before the day gate's day row.
@@ -110,6 +98,21 @@ object SessionService {
             idempotentReplayOrNull(SessionRepository.findByIdInTransaction(id), clientId, branchDay.id, callerId)?.let {
                 return@transaction it
             }
+            // #751 — history reads join this command transaction after the client-row
+            // lock so concurrent creates for the same client serialize on the client
+            // row; reading before the lock let two writers both see priorCount=0 and
+            // persist REGULAR twice (type has no DB backstop, unlike PENDING).
+            val priorCount = SessionRepository.countPriorNonMedicalMissionSessionsInTransaction(clientId)
+            val sessionType = computeSessionType(branchType, priorCount)
+
+            // #405 — BR §Session types: a medical-mission visit is always free (₱0). The rule is
+            // an invariant of the domain, not an input constraint, so a non-zero caller-supplied
+            // price is normalized to zero rather than rejected — no client version or direct API
+            // caller can persist one.
+            val effectiveFinalPrice =
+                if (sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else finalPrice
+
+            val basePrice = resolveDefaultBasePriceInTransaction(branchId, clientId, sessionType)
             val (lockedDay, isRemitted) =
                 BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDay.id, reason)
             val result =
@@ -216,6 +219,18 @@ object SessionService {
             ?: throw ValidationException("No base rate configured for session type $sessionType at this branch")
     }
 
+    /** In-transaction rate read (#751) — runs on the caller's command transaction. */
+    private fun computeBasePriceInTransaction(
+        branchId: UUID,
+        sessionType: SessionType,
+    ): BigDecimal {
+        val activeRates = SessionBaseRateRepository.findActiveByBranchInTransaction(branchId)
+        return activeRates
+            .firstOrNull { it.sessionType == sessionType }
+            ?.rate
+            ?: throw ValidationException("No base rate configured for session type $sessionType at this branch")
+    }
+
     /**
      * #424 — BR §Clients: after a free session the next visit's DEFAULT offered price is the
      * branch's SUBSEQUENT base rate instead of the derived type's rate. The trigger keys on
@@ -237,6 +252,20 @@ object SessionService {
             computeBasePrice(branchId, SessionType.SUBSEQUENT)
         } else {
             computeBasePrice(branchId, sessionType)
+        }
+
+    /** In-transaction #424 default (#751) — runs on the caller's command transaction. */
+    private fun resolveDefaultBasePriceInTransaction(
+        branchId: UUID,
+        clientId: UUID,
+        sessionType: SessionType,
+    ): BigDecimal =
+        if (sessionType != SessionType.MEDICAL_MISSION &&
+            SessionRepository.findMostRecentPriorSessionFinalPriceInTransaction(clientId)?.signum() == 0
+        ) {
+            computeBasePriceInTransaction(branchId, SessionType.SUBSEQUENT)
+        } else {
+            computeBasePriceInTransaction(branchId, sessionType)
         }
 
     fun updateStatus(

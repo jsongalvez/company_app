@@ -207,20 +207,24 @@ internal object SessionBaseRateRepository {
 
     fun findActiveByBranch(branchId: UUID): List<SessionBaseRate> =
         transaction {
-            SessionBaseRateTable
-                .selectAll()
-                .where {
-                    (SessionBaseRateTable.branchId eq branchId) and
-                        (SessionBaseRateTable.effectiveUntil greater CurrentTimestampWithTimeZone)
-                }.orderBy(
-                    SessionBaseRateTable.sessionType to SortOrder.ASC,
-                    SessionBaseRateTable.effectiveFrom to SortOrder.DESC,
-                ).map { it.toSessionBaseRate() }
+            findActiveByBranchInTransaction(branchId)
         }.also {
             logger.info {
                 "[FIND-ACTIVE-RATES] Fetched ${it.size} rate(s) for branch ${branchId.toString().maskUUID()}"
             }
         }
+
+    /** In-transaction store read (#751) — runs on the caller's command transaction. */
+    fun findActiveByBranchInTransaction(branchId: UUID): List<SessionBaseRate> =
+        SessionBaseRateTable
+            .selectAll()
+            .where {
+                (SessionBaseRateTable.branchId eq branchId) and
+                    (SessionBaseRateTable.effectiveUntil greater CurrentTimestampWithTimeZone)
+            }.orderBy(
+                SessionBaseRateTable.sessionType to SortOrder.ASC,
+                SessionBaseRateTable.effectiveFrom to SortOrder.DESC,
+            ).map { it.toSessionBaseRate() }
 
     private fun findByIdInTransaction(id: UUID): SessionBaseRate? =
         SessionBaseRateTable
