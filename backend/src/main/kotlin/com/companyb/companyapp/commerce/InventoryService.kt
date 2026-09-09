@@ -239,12 +239,10 @@ object InventoryService {
             requireActiveProductInTransaction(productId)
 
             val result = BranchInventoryRepository.ensureCardInTransaction(branchId, productId)
-            val context = AuditContext(callerId, branchId)
             if (result.created) {
-                BranchInventoryAudit.inserted(context, result.card)
-            } else {
-                BranchInventoryAudit.updated(context, result.card, result.card)
+                BranchInventoryAudit.inserted(AuditContext(callerId, branchId), result.card)
             }
+            // No audit on existing card (#749): audit log is immutable mutation history.
             result.card
         }.also {
             logger.info { "[ENSURE-CARD] Inventory card ensured for branch=$branchId product=$productId" }

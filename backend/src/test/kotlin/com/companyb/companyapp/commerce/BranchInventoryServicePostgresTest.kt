@@ -80,24 +80,24 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `ensureCard on existing card writes update audit row without mutating the card`() {
+    fun `ensureCard on existing card writes no audit row without mutating the card`() {
         IdentityFixtures.grantManageProducts(callerId, sourceId)
         InventoryService.ensureCard(callerId, branchId, productId)
 
         val ensured = InventoryService.ensureCard(callerId, branchId, productId)
 
         assertEquals(1, ensured.version)
-        val updates =
+        val rows =
             transaction {
                 AuditLogTable
                     .selectAll()
                     .where {
                         (AuditLogTable.auditTableName eq BranchInventoryTable.tableName) and
-                            (AuditLogTable.recordId eq ensured.id) and
-                            (AuditLogTable.action eq AuditAction.UPDATE)
-                    }.count()
+                            (AuditLogTable.recordId eq ensured.id)
+                    }.toList()
             }
-        assertEquals(1, updates)
+        assertEquals(1, rows.size)
+        assertEquals(AuditAction.INSERT, rows.single()[AuditLogTable.action])
     }
 
     @Test
