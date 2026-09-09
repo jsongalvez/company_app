@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wayfinder-chief.sh — map chief scheduler for Wayfinder parallel supervision (map #697, tickets #735 #737 #738).
+# wayfinder-chief.sh — map chief scheduler for Wayfinder parallel supervision (map #697, tickets #735 #737 #738 #739).
 #
 # One orchestration layer per active map: the chief continuously schedules,
 # reconciles, reviews-queues, and refills bounded worker capacity through the
@@ -33,7 +33,10 @@
 # (issue_dependencies_summary.blocked_by), claim/assignment rules, and
 # human-deferred states (needs-info / ready-for-human) gate every pickup, in
 # priority order (priority:P0, then P1, then P2/untagged; lowest number breaks
-# ties). The chief never assigns tickets — workers claim assign-first on start
+# ties). Repair issues (body carries the wayfinder-ci-repair marker) are the
+# maintenance lane's durable tasks and never enter the ticket fill — the chief
+# dispatches them explicitly via --spawn-maintenance. The chief never assigns
+# tickets — workers claim assign-first on start
 # per docs/agents/issue-tracker.md — and never performs Git integration:
 # collected done/blocked workers become ready-for-review rows for sibling
 # ticket #740's review/integration queue. Workspace dirs are never created
@@ -68,7 +71,37 @@
 # explicit — the normal pass below still fills just the ticket frontier, and
 # role-aware priority/caps belong to sibling ticket #742.
 #
-# Env: WAYFINDER_MAX_WORKERS (default 1), WAYFINDER_WORKER_KIND,
+# Maintenance lane (ticket #739): --spawn-maintenance performs one
+# chief-mediated maintenance spawn for a red hosted-CI SHA and exits. The
+# prompt (built by wayfinder-maintenance.sh, the single source of truth)
+# carries the writable-but-isolated contract: exactly one repair task (the
+# durable per-SHA repair issue minted by the hosted-CI watch — reused here,
+# never a second invisible channel), assign-first repair claim with race
+# fail-safe, no frontier pickup, no direct canonical writes, no
+# self-integration, and the structured completion report with root cause. The
+# worker row carries --role maintenance with the repair issue as its ticket.
+# Dispatch stays explicit — the normal pass below still fills the ticket
+# frontier (unrelated isolated implementation continues while the baseline is
+# red); canonical integration stays gated until the repair lands (sibling
+# ticket #740's queue). Maintenance capacity is bounded by
+# WAYFINDER_MAX_MAINTENANCE_WORKERS (default 1, live rows only — no permanently
+# occupied idle worker) inside the shared WAYFINDER_MAX_WORKERS bound; a
+# repair issue that already holds a maintenance row is never double-dispatched
+# (registry persists across chief restarts; explicit cleanup precedes any
+# redispatch). Pending/unknown/green CI never dispatches: the lane requires an
+# explicit red SHA and the watch mints repair issues only for red verdicts.
+#
+# Usage: wayfinder-chief.sh --map N [--once] [--max-workers N] [--dry-run]
+#          [--workspace DIR] [--workspace-base DIR] [--pane PANE]
+#          [--registry PATH] [--interval SECS] [--base SHA]
+#          [--spawn-helper PARENT --scope TEXT --helper-workspace DIR
+#            [--helper-name NAME] [--helper-mode read-only|writable]]
+#          [--spawn-scout SLICE --scout-workspace DIR [--scout-name NAME]]
+#          [--spawn-maintenance SHA --maintenance-workspace DIR
+#            --repair-issue N [--maintenance-name NAME] [--failing TEXT]]
+#
+# Env: WAYFINDER_MAX_WORKERS (default 1), WAYFINDER_MAX_MAINTENANCE_WORKERS
+#   (default 1, live maintenance rows only), WAYFINDER_WORKER_KIND,
 #   WAYFINDER_WORKER_ARGS, WAYFINDER_GH_BIN (default gh), WAYFINDER_GH_REPO
 #   (default from origin), HERDR_BIN, WAYFINDER_ROLE=chief (set automatically).
 set -euo pipefail
@@ -77,9 +110,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 WORKER="$SCRIPT_DIR/wayfinder-worker.sh"
 SCOUT="$SCRIPT_DIR/wayfinder-scout.sh"
+MAINT="$SCRIPT_DIR/wayfinder-maintenance.sh"
 
 MAP="" ONCE=0 DRY_RUN=""
 MAX="${WAYFINDER_MAX_WORKERS:-1}"
+MAX_MAINT="${WAYFINDER_MAX_MAINTENANCE_WORKERS:-1}"
 WORKSPACE="$REPO" WORKSPACE_BASE="" PANE=""
 REGISTRY="${WAYFINDER_WORKER_REGISTRY:-$REPO/.wayfinder/workers.tsv}"
 INTERVAL=15
@@ -88,6 +123,7 @@ GH_REPO="${WAYFINDER_GH_REPO:-}"
 BASE_SHA=""
 SPAWN_HELPER="" HELPER_SCOPE="" HELPER_WORKSPACE="" HELPER_NAME="" HELPER_MODE="read-only"
 SPAWN_SCOUT="" SCOUT_WORKSPACE="" SCOUT_NAME=""
+SPAWN_MAINT="" MAINT_WORKSPACE="" MAINT_NAME="" MAINT_REPAIR="" MAINT_FAILING=""
 
 usage() { sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 log() { printf '%s [chief] %s\n' "$(date '+%F %T')" "$*"; }
@@ -113,19 +149,32 @@ while [ $# -gt 0 ]; do
         --spawn-scout) SPAWN_SCOUT="${2:-}"; shift 2 ;;
         --scout-workspace) SCOUT_WORKSPACE="${2:-}"; shift 2 ;;
         --scout-name) SCOUT_NAME="${2:-}"; shift 2 ;;
+        --spawn-maintenance) SPAWN_MAINT="${2:-}"; shift 2 ;;
+        --maintenance-workspace) MAINT_WORKSPACE="${2:-}"; shift 2 ;;
+        --maintenance-name) MAINT_NAME="${2:-}"; shift 2 ;;
+        --repair-issue) MAINT_REPAIR="${2:-}"; shift 2 ;;
+        --failing) MAINT_FAILING="${2:-}"; shift 2 ;;
         -h|--help) usage ;;
         *) die "unknown flag $1" ;;
     esac
 done
 [[ "$MAP" =~ ^[0-9]+$ ]] || { printf 'wayfinder-chief: --map N is required\n' >&2; exit 2; }
 [[ "$MAX" =~ ^[0-9]+$ ]] && [ "$MAX" -ge 1 ] || die "--max-workers must be >= 1 (got '$MAX')"
-if [ -n "$SPAWN_HELPER" ] && [ -n "$SPAWN_SCOUT" ]; then
-    die "--spawn-helper and --spawn-scout are separate single-shot lanes (one per invocation)"
+[[ "$MAX_MAINT" =~ ^[0-9]+$ ]] && [ "$MAX_MAINT" -ge 1 ] || die "WAYFINDER_MAX_MAINTENANCE_WORKERS must be >= 1 (got '$MAX_MAINT')"
+lanes=0
+[ -n "$SPAWN_HELPER" ] && lanes=$((lanes + 1))
+[ -n "$SPAWN_SCOUT" ] && lanes=$((lanes + 1))
+[ -n "$SPAWN_MAINT" ] && lanes=$((lanes + 1))
+if [ "$lanes" -gt 1 ]; then
+    die "--spawn-helper, --spawn-scout, and --spawn-maintenance are separate single-shot lanes (one per invocation)"
+fi
+if [ -n "$SPAWN_MAINT" ] && [ "$HELPER_MODE" != "read-only" ]; then
+    die "--helper-mode does not apply to --spawn-maintenance (helpers only)"
 fi
 if [ -n "$SPAWN_SCOUT" ] && [ "$HELPER_MODE" != "read-only" ]; then
     die "--helper-mode does not apply to --spawn-scout (helpers only)"
 fi
-if [ -z "$SPAWN_HELPER" ] && [ -z "$SPAWN_SCOUT" ] && [ "$HELPER_MODE" != "read-only" ]; then
+if [ -z "$SPAWN_HELPER" ] && [ -z "$SPAWN_SCOUT" ] && [ -z "$SPAWN_MAINT" ] && [ "$HELPER_MODE" != "read-only" ]; then
     die "--helper-mode requires --spawn-helper <parent-worker>"
 fi
 if [ -z "$SPAWN_HELPER" ] && { [ -n "$HELPER_SCOPE" ] || [ -n "$HELPER_WORKSPACE" ] || [ -n "$HELPER_NAME" ]; }; then
@@ -134,11 +183,15 @@ fi
 if [ -z "$SPAWN_SCOUT" ] && { [ -n "$SCOUT_WORKSPACE" ] || [ -n "$SCOUT_NAME" ]; }; then
     die "--scout-workspace/--scout-name require --spawn-scout <slice>"
 fi
+if [ -z "$SPAWN_MAINT" ] && { [ -n "$MAINT_WORKSPACE" ] || [ -n "$MAINT_NAME" ] || [ -n "$MAINT_REPAIR" ] || [ -n "$MAINT_FAILING" ]; }; then
+    die "--maintenance-workspace/--maintenance-name/--repair-issue/--failing require --spawn-maintenance <sha>"
+fi
 export WAYFINDER_MAX_WORKERS="$MAX"
 export WAYFINDER_WORKER_REGISTRY="$REGISTRY"
 export WAYFINDER_ROLE=chief
 [ -x "$WORKER" ] || die "worker seam not executable: $WORKER"
 [ -x "$SCOUT" ] || die "scout contract not executable: $SCOUT"
+[ -x "$MAINT" ] || die "maintenance contract not executable: $MAINT"
 command -v "$GH_BIN" >/dev/null 2>&1 || die "gh binary not found: $GH_BIN (set WAYFINDER_GH_BIN)"
 command -v jq >/dev/null 2>&1 || die "jq is required for frontier queries"
 if [ -z "$GH_REPO" ]; then
@@ -188,18 +241,24 @@ query_frontier() {
     ranked=""
     for n in $numbers; do
         payload="$("$GH_BIN" api "repos/$GH_REPO/issues/$n" \
-            --jq '{state: .state, blocked: .issue_dependencies_summary.blocked_by, assignees: [.assignees[].login], labels: [.labels[].name]}' 2>/dev/null)" || \
+            --jq '{state: .state, blocked: .issue_dependencies_summary.blocked_by, assignees: [.assignees[].login], labels: [.labels[].name], repair: ((.body // "") | contains("wayfinder-ci-repair"))}' 2>/dev/null)" || \
             die "issue query failed for #$n"
         state="$(printf '%s' "$payload" | jq -r '.state')"
         blocked="$(printf '%s' "$payload" | jq -r '.blocked // 0')"
         assignees="$(printf '%s' "$payload" | jq -r '.assignees | length')"
         labels="$(printf '%s' "$payload" | jq -r '.labels | join(" ")')"
+        repair="$(printf '%s' "$payload" | jq -r '.repair')"
         [ "$state" = "open" ] || continue
         [ "${blocked:-0}" -eq 0 ] || continue
         [ "$assignees" -eq 0 ] || continue
         case " $labels " in
             *" needs-info "*|*" ready-for-human "*) continue ;;
         esac
+        # Repair issues are the maintenance lane's durable tasks (ticket
+        # #739; marker literal mirrors REPAIR_MARKER in wayfinder-loop.sh),
+        # not ordinary frontier tickets: the chief dispatches them explicitly
+        # via --spawn-maintenance, never through the ticket fill.
+        [ "$repair" = "true" ] && continue
         # A registry row in any status means the ticket is already handled
         # or in flight — never spawn a duplicate (retry prompts go through
         # worker_prompt for the existing row). Full-input grep (no -q): an
@@ -455,6 +514,104 @@ scout_slice_status() { # print the scout-state status for the spawn slice, or no
     "$SCOUT" status 2>/dev/null | awk -F'\t' -v s="$SPAWN_SCOUT" '$1 == s { print $2; exit }'
 }
 
+maintenance_live_count() { # live maintenance rows occupying the narrow bound.
+    [ -f "$REGISTRY" ] || { printf '0'; return; }
+    awk -F'\t' '$2 == "maintenance" && ($6 == "spawning" || $6 == "running") { n++ } END { print n + 0 }' "$REGISTRY"
+}
+
+maintenance_name_taken() { # <name> — true when the worker registry holds the name.
+    [ -f "$REGISTRY" ] || return 1
+    awk -F'\t' -v n="$1" '$1 == n { found=1; exit } END { exit !found }' "$REGISTRY"
+}
+
+maintenance_ticket_row() { # <repair-issue> — print the maintenance row for the repair task, or nothing.
+    [ -f "$REGISTRY" ] || return 0
+    awk -F'\t' -v t="$1" '$2 == "maintenance" && $3 == t { print; exit }' "$REGISTRY"
+}
+
+spawn_maintenance_for() { # chief-mediated maintenance spawn for one red SHA; exits 0 on success.
+    [[ "$SPAWN_MAINT" =~ ^[0-9a-f]{40}$ ]] \
+        || die "--spawn-maintenance: SHA must be a full 40-char lowercase commit (got '$SPAWN_MAINT')"
+    [[ "$MAINT_REPAIR" =~ ^[0-9]+$ ]] \
+        || die "--spawn-maintenance requires --repair-issue <durable repair task> (reuse the hosted-CI repair issue)"
+    [ -n "$MAINT_WORKSPACE" ] || die "--spawn-maintenance requires --maintenance-workspace <isolated dir>"
+    case "${MAINT_FAILING:-}" in
+        *$'\t'*|*$'\n'*) die "--spawn-maintenance: --failing text must not contain tabs or newlines (prompt-forgery guard)" ;;
+    esac
+    [ -d "$MAINT_WORKSPACE" ] || die "--spawn-maintenance: workspace does not exist: $MAINT_WORKSPACE"
+    case "$MAINT_WORKSPACE" in
+        *$'\t'*|*$'\n'*) die "--spawn-maintenance: workspace path must not contain tabs or newlines" ;;
+    esac
+    # Recovery guard first: a repair issue that already holds a maintenance
+    # row is never double-dispatched (the registry persists across chief
+    # restarts; explicit cleanup precedes any redispatch). The message names
+    # the owner so the operator can reconcile instead of respawning.
+    local existing existing_status
+    existing="$(maintenance_ticket_row "$MAINT_REPAIR")"
+    if [ -n "$existing" ]; then
+        existing_status="$(printf '%s' "$existing" | cut -f6)"
+        die "--spawn-maintenance: repair #$MAINT_REPAIR already holds maintenance worker '$(printf '%s' "$existing" | cut -f1)' ($existing_status) — reconcile or cleanup first, never duplicate"
+    fi
+    # Pre-validate revisions before spending capacity: an unresolvable SHA
+    # must refuse here, not orphan a spawned worker (also runs in dry-run —
+    # resolve-base is read-only). The failing SHA is mandatory; --base is
+    # validated too when the operator passes one (scout-lane parity).
+    "$MAINT" resolve-base --base "$SPAWN_MAINT" >/dev/null \
+        || die "--spawn-maintenance: unknown base revision '$SPAWN_MAINT'"
+    if [ -n "$BASE_SHA" ]; then
+        "$MAINT" resolve-base --base "$BASE_SHA" >/dev/null \
+            || die "--spawn-maintenance: unknown base revision '$BASE_SHA'"
+    fi
+    # Narrow maintenance bound (live rows only — no permanently occupied idle
+    # worker). The shared global bound is still enforced by the worker seam.
+    # Check-then-act assumes the single-chief model shared with the ticket
+    # fill path (cf. WorkspaceProvider flock note); cross-chief registry
+    # hardening belongs to sibling ticket #741's recovery work.
+    if [ "$(maintenance_live_count)" -ge "$MAX_MAINT" ]; then
+        die "--spawn-maintenance: at maintenance capacity ($(maintenance_live_count)/$MAX_MAINT live maintenance workers) — refuse to exceed WAYFINDER_MAX_MAINTENANCE_WORKERS"
+    fi
+    local name="$MAINT_NAME" prompt_file="" args=() rc=0 n
+    if [ -z "$name" ]; then
+        name="wf-${MAP}-maintenance" n=1
+        while maintenance_name_taken "$name"; do
+            n=$((n + 1))
+            name="wf-${MAP}-maintenance-${n}"
+            [ "$n" -lt 1000 ] || die "--spawn-maintenance: cannot allocate a free maintenance name under 'wf-${MAP}-maintenance'"
+        done
+    fi
+    [[ "$name" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || die "--spawn-maintenance: invalid maintenance name '$name'"
+    prompt_file="$(mktemp)"
+    if [ -n "$BASE_SHA" ]; then
+        if [ -n "$MAINT_FAILING" ]; then
+            "$MAINT" prompt "$SPAWN_MAINT" --repair-issue "$MAINT_REPAIR" --map "$MAP" --workspace "$MAINT_WORKSPACE" --base "$BASE_SHA" --failing "$MAINT_FAILING" > "$prompt_file" \
+                || { rm -f "$prompt_file"; die "--spawn-maintenance: cannot build the maintenance prompt for '$SPAWN_MAINT'"; }
+        else
+            "$MAINT" prompt "$SPAWN_MAINT" --repair-issue "$MAINT_REPAIR" --map "$MAP" --workspace "$MAINT_WORKSPACE" --base "$BASE_SHA" > "$prompt_file" \
+                || { rm -f "$prompt_file"; die "--spawn-maintenance: cannot build the maintenance prompt for '$SPAWN_MAINT'"; }
+        fi
+    else
+        if [ -n "$MAINT_FAILING" ]; then
+            "$MAINT" prompt "$SPAWN_MAINT" --repair-issue "$MAINT_REPAIR" --map "$MAP" --workspace "$MAINT_WORKSPACE" --failing "$MAINT_FAILING" > "$prompt_file" \
+                || { rm -f "$prompt_file"; die "--spawn-maintenance: cannot build the maintenance prompt for '$SPAWN_MAINT'"; }
+        else
+            "$MAINT" prompt "$SPAWN_MAINT" --repair-issue "$MAINT_REPAIR" --map "$MAP" --workspace "$MAINT_WORKSPACE" > "$prompt_file" \
+                || { rm -f "$prompt_file"; die "--spawn-maintenance: cannot build the maintenance prompt for '$SPAWN_MAINT'"; }
+        fi
+    fi
+    args=(spawn --role maintenance --ticket "$MAINT_REPAIR" --workspace "$MAINT_WORKSPACE" --name "$name" --prompt-file "$prompt_file")
+    [ -z "$PANE" ] || args+=(--pane "$PANE")
+    if [ -n "$DRY_RUN" ]; then
+        log "dry-run: would spawn maintenance for red $SPAWN_MAINT (repair #$MAINT_REPAIR, role=maintenance, workspace=$MAINT_WORKSPACE, name=$name)"
+        rm -f "$prompt_file"
+        return 0
+    fi
+    "$WORKER" "${args[@]}" || rc=$?
+    rm -f "$prompt_file"
+    [ "$rc" -eq 0 ] || return "$rc"
+    log "spawned maintenance $name for red $SPAWN_MAINT (repair #$MAINT_REPAIR, role=maintenance, workspace=$MAINT_WORKSPACE)"
+    log "canonical integration gated until repair #$MAINT_REPAIR lands; ticket workers may continue in isolated workspaces (#740 queue)"
+}
+
 pass() {
     log "pass start (map #$MAP, max=$MAX)"
     if [ -z "$DRY_RUN" ]; then
@@ -509,6 +666,11 @@ fi
 
 if [ -n "$SPAWN_SCOUT" ]; then
     spawn_scout_for || exit $?
+    exit 0
+fi
+
+if [ -n "$SPAWN_MAINT" ]; then
+    spawn_maintenance_for || exit $?
     exit 0
 fi
 

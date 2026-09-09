@@ -27,7 +27,7 @@
 #                          session-start CI reconciliation is the repair signal)
 #   WAYFINDER_GH_BIN       gh executable used for red-verdict tracker writes
 #   WAYFINDER_GH_REPO      repository for tracker writes (default from origin)
-#   WAYFINDER_MAP_ISSUE    map whose frontier the repair ticket blocks (default 533)
+#   WAYFINDER_MAP_ISSUE    map the repair issue attaches to as a child (default 533)
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -307,67 +307,17 @@ tracker_repo() {
   [ -n "$path" ] && printf '%s' "$path" || printf '%s' 'jsongalvez/company_app'
 }
 
-# Return every currently claimable child in the map's ordered section. A red
-# verification must stop the normal frontier rather than merely blocking its
-# first row: otherwise the next unblocked row would bypass the repair ticket.
-# The ordered body remains authority for preference; live issue JSON supplies
-# state, assignee, labels, and native dependency counts.
-ci_frontier_issue() {
-  local repo candidate state assignees blocked labels
-  local map_file issue_file
-  local -a candidates=()
-
-  if [ -n "${WAYFINDER_FRONTIER_ISSUE:-}" ]; then
-    printf '%s' "$WAYFINDER_FRONTIER_ISSUE"
-    return 0
-  fi
-  [ -n "$GH_BIN" ] || return 1
-  repo="$(tracker_repo)"
-  map_file="$(mktemp)"
-  if ! "$GH_BIN" api "repos/$repo/issues/$MAP_ISSUE" >"$map_file" 2>/dev/null; then
-    rm -f "$map_file"
-    return 1
-  fi
-  mapfile -t candidates < <(
-    jq -r '.body // ""' "$map_file" 2>/dev/null |
-      sed -n '/^## Ordered implementation children/,/^## /p' |
-      sed -n 's/^- \[[ x]\] #\([0-9][0-9]*\).*/\1/p' || true
-  )
-  rm -f "$map_file"
-
-  # A map created by an older connector may not have the ordered heading. The
-  # native child list is a safe read-only fallback for that case.
-  if [ "${#candidates[@]}" -eq 0 ]; then
-    map_file="$(mktemp)"
-    if "$GH_BIN" api "repos/$repo/issues/$MAP_ISSUE/sub_issues?per_page=100" >"$map_file" 2>/dev/null; then
-      mapfile -t candidates < <(jq -r '.[].number // empty' "$map_file" 2>/dev/null || true)
-    fi
-    rm -f "$map_file"
-  fi
-
-  for candidate in "${candidates[@]}"; do
-    issue_file="$(mktemp)"
-    if ! "$GH_BIN" api "repos/$repo/issues/$candidate" >"$issue_file" 2>/dev/null; then
-      rm -f "$issue_file"
-      continue
-    fi
-    state="$(jq -r '.state // ""' "$issue_file" 2>/dev/null || true)"
-    assignees="$(jq -r '(.assignees // []) | length' "$issue_file" 2>/dev/null || true)"
-    blocked="$(jq -r '.issue_dependencies_summary.blocked_by // 0' "$issue_file" 2>/dev/null || true)"
-    labels="$(jq -r '[.labels[]?.name] | join(",")' "$issue_file" 2>/dev/null || true)"
-    rm -f "$issue_file"
-    [[ "$state" = open ]] || continue
-    [[ "$assignees" = 0 ]] || continue
-    [[ "$blocked" =~ ^[0-9]+$ ]] || blocked=1
-    [ "$blocked" -eq 0 ] || continue
-    case ",$labels," in
-      *,ready-for-human,*|*,needs-info,*) continue ;;
-    esac
-    printf '%s\n' "$candidate"
-  done
-  return 0
-}
-
+# Parallel maintenance model (map #697 #739): a red baseline no longer stops
+# the normal frontier. The durable repair issue below is the maintenance
+# worker's task: the map chief dispatches it explicitly via
+# wayfinder-chief.sh --spawn-maintenance (isolated workspace, chief-reviewed),
+# unrelated ticket workers continue in isolated workspaces, and canonical
+# integration stays gated until the repair lands (sibling ticket #740's
+# queue). The serialized stop-the-line frontier block is deliberately gone:
+# native blocked_by edges cannot express "implementation may continue while
+# integration waits", so blocking every frontier row would starve safe
+# parallel work. Repair issues minted before this change may still carry old
+# frontier blocks; those decay as their repairs close.
 ci_ensure_map_child() {
   local repo="$1" issue_number="$2" issue_id="$3" expected actual
   expected="https://api.github.com/repos/$repo/issues/$MAP_ISSUE"
@@ -389,42 +339,16 @@ ci_ensure_map_child() {
   }
 }
 
-ci_ensure_frontier_block() {
-  local repo="$1" frontier="$2" repair_id="$3" deps_file
-  [ -n "$frontier" ] || {
-    log "hosted-CI red verdict has no claimable frontier; repair ticket remains unblocked"
-    return 0
-  }
-  [ "$frontier" != "$repair_id" ] || return 0
-  deps_file="$(mktemp)"
-  if ! "$GH_BIN" api "repos/$repo/issues/$frontier/dependencies/blocked_by" >"$deps_file" 2>/dev/null; then
-    rm -f "$deps_file"
-    log "could not read dependencies for frontier #$frontier"
-    return 1
-  fi
-  if jq -e --arg id "$repair_id" 'any(.[]?; ((.id // "") | tostring) == $id)' "$deps_file" >/dev/null 2>&1; then
-    rm -f "$deps_file"
-    return 0
-  fi
-  rm -f "$deps_file"
-  if ! "$GH_BIN" api --method POST "repos/$repo/issues/$frontier/dependencies/blocked_by" \
-    -F "issue_id=$repair_id" >/dev/null 2>&1; then
-    log "could not add repair issue #$repair_id as blocker of frontier #$frontier"
-    return 1
-  fi
-  log "repair issue #$repair_id now blocks frontier #$frontier"
-}
-
 ci_repair_ticket() {
   local sha="$1" failing="$2" repo issue_number issue_id issue_state issue_url body title
-  local issue_file found frontiers frontier failed=0 cached=""
+  local issue_file found cached=""
 
   [ -n "$GH_BIN" ] || {
-    log "hosted-CI red verdict for $sha — gh is unavailable; no frontier block"
+    log "hosted-CI red verdict for $sha — gh is unavailable; no repair ticket"
     return 1
   }
   if ! "$GH_BIN" auth status >/dev/null 2>&1; then
-    log "hosted-CI red verdict for $sha — gh auth is unavailable in daemon environment; no frontier block"
+    log "hosted-CI red verdict for $sha — gh auth is unavailable in daemon environment; no repair ticket"
     return 1
   fi
   repo="$(tracker_repo)"
@@ -458,8 +382,11 @@ Covered HEAD: \`$sha\`
 Verdict: FAIL (failing checks: $failing)
 
 This repair ticket was created by the Wayfinder daemon after hosted CI
-reported red for this HEAD. Repair the failing gate before normal frontier
-work proceeds. The daemon never launches local verification."
+reported red for this HEAD. The map chief dispatches it to a dedicated
+maintenance worker (tools/wayfinder/wayfinder-chief.sh --spawn-maintenance);
+unrelated ticket workers may continue in isolated workspaces while canonical
+integration stays gated until this repair lands. The daemon never launches
+local verification."
       # Use --body, not --body-file: a tracker body is never sourced from an
       # unchecked/possibly empty temporary file.
       issue_url="$("$GH_BIN" issue create --repo "$repo" --title "$title" --body "$body" \
@@ -475,7 +402,7 @@ work proceeds. The daemon never launches local verification."
   issue_file="$(mktemp)"
   if ! "$GH_BIN" api "repos/$repo/issues/$issue_number" >"$issue_file" 2>/dev/null; then
     rm -f "$issue_file"
-    log "repair issue #$issue_number disappeared before it could block the frontier"
+    log "repair issue #$issue_number disappeared before it could be recorded"
     return 1
   fi
   issue_id="$(jq -r '.id // ""' "$issue_file" 2>/dev/null || true)"
@@ -495,17 +422,8 @@ work proceeds. The daemon never launches local verification."
     return 1
   fi
   ci_record_repair "$sha" "$issue_number"
-  if ! frontiers="$(ci_frontier_issue)"; then
-    log "could not reconcile the map frontier for hosted-CI red HEAD $sha"
-    return 1
-  fi
-  while IFS= read -r frontier; do
-    [ -n "$frontier" ] || continue
-    if ! ci_ensure_frontier_block "$repo" "$frontier" "$issue_id"; then
-      failed=1
-    fi
-  done <<< "$frontiers"
-  [ "$failed" -eq 0 ]
+  log "repair issue #$issue_number ready for chief maintenance dispatch: tools/wayfinder/wayfinder-chief.sh --map $MAP_ISSUE --spawn-maintenance $sha --repair-issue $issue_number --maintenance-workspace <isolated-dir> --failing '$failing'"
+  log "ticket workers may continue in isolated workspaces; canonical integration stays gated until repair #$issue_number lands (map #697 #739, queue #740)"
 }
 
 ci_process_verdict() {

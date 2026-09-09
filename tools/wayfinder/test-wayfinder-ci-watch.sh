@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# Script-level contract test for the hosted-CI repair watch (ref #627).
+# Script-level contract test for the hosted-CI repair watch (ref #627, map #697 #739).
 # The daemon reconciles HEAD against hosted check-runs and mints at most one
-# repair ticket per red SHA — nothing is ever launched locally — but only when
-# WAYFINDER_CI_REPAIR=on. By default (ref #652) the watch is a no-op: no
-# polling, no tickets, no verdicts. Fixture gh serves per-SHA check-runs
+# durable repair ticket per red SHA — nothing is ever launched locally — but
+# only when WAYFINDER_CI_REPAIR=on. By default (ref #652) the watch is a no-op:
+# no polling, no tickets, no verdicts. A red baseline no longer stops the
+# normal frontier (serialized stop-the-line is gone): the repair issue is the
+# maintenance worker's task for the chief --spawn-maintenance lane, unrelated
+# ticket workers continue in isolated workspaces, and canonical integration
+# stays gated until the repair lands. Fixture gh serves per-SHA check-runs
 # payloads; no Gradle, database, or network.
 set -euo pipefail
 
@@ -72,9 +76,6 @@ if [ "${1:-}" = api ]; then
                 printf '{"id":900001,"number":900,"state":"open","parent_issue_url":"https://api.github.com/repos/fixture/repo/issues/533"}\n'
             fi
             ;;
-        'repos/fixture/repo/issues/901/dependencies/blocked_by')
-            printf '[]\n'
-            ;;
         *)
             printf '{}\n'
             ;;
@@ -105,7 +106,6 @@ watch_once() {
         WAYFINDER_GH_BIN="$WORK/bin/gh" \
         WAYFINDER_GH_REPO=fixture/repo \
         WAYFINDER_MAP_ISSUE=533 \
-        WAYFINDER_FRONTIER_ISSUE=901 \
         GH_CALLS="$WORK/gh-calls" \
         WORK_FIXTURES="$WORK" \
         "$WATCH_LOOP" --ci-watch-once >"$output" 2>&1
@@ -155,14 +155,20 @@ no_writes
 grep -q "ci_verdicts=$SHA_DOCS" "$WATCH_REPO/.wayfinder-loop.state" 2>/dev/null &&
     die "unran HEAD recorded a verdict"
 
-# RED: one failing check — exactly one ticket, one frontier block, persisted mapping.
+# RED: one failing check — exactly one durable repair ticket, persisted mapping
+# and dedupe, but NO frontier block: implementation continues in isolated
+# workspaces while the repair issue waits for the chief maintenance lane.
 git -C "$WATCH_REPO" commit --allow-empty -q -m red-head
 SHA_RED="$(git -C "$WATCH_REPO" rev-parse HEAD)"
 checks_for '{"total_count":2,"check_runs":[{"name":"quality","conclusion":"failure"},{"name":"compose","conclusion":"success"}]}' "$SHA_RED"
 : >"$WORK/gh-calls"
 watch_once "$WORK/watch-red.log"
 assert_eq 1 "$(grep -c '^issue create' "$WORK/gh-calls")" "red verdict created duplicate/zero repair tickets"
-grep -q 'dependencies/blocked_by' "$WORK/gh-calls" || die "red verdict did not add a frontier dependency"
+if grep -q 'dependencies/blocked_by' "$WORK/gh-calls"; then die "red verdict blocked the frontier (serialized stop-the-line is gone — see map #697 #739)"; fi
+grep -q "ready for chief maintenance dispatch" "$WORK/watch-red.log" ||
+    die "red verdict did not direct the repair to the maintenance lane"
+grep -q "may continue in isolated workspaces" "$WORK/watch-red.log" ||
+    die "red verdict did not record the implementation-continues contract"
 grep -q "ci_repair_issues=$SHA_RED:900" "$WATCH_REPO/.wayfinder-loop.state" ||
     die "red SHA-to-repair mapping was not persisted"
 grep -q "$SHA_RED=FAIL" "$WATCH_REPO/.wayfinder-loop.state" ||
@@ -170,6 +176,7 @@ grep -q "$SHA_RED=FAIL" "$WATCH_REPO/.wayfinder-loop.state" ||
 
 watch_once "$WORK/watch-red-repeat.log"
 assert_eq 1 "$(grep -c '^issue create' "$WORK/gh-calls")" "same red SHA created a second repair ticket"
+if grep -q 'dependencies/blocked_by' "$WORK/gh-calls"; then die "repeat poll blocked the frontier"; fi
 
 # DRY-RUN on a fresh red HEAD plans the ticket and writes nothing.
 git -C "$WATCH_REPO" commit --allow-empty -q -m dry-red-head
@@ -183,7 +190,6 @@ env \
     WAYFINDER_GH_BIN="$WORK/bin/gh" \
     WAYFINDER_GH_REPO=fixture/repo \
     WAYFINDER_MAP_ISSUE=533 \
-    WAYFINDER_FRONTIER_ISSUE=901 \
     GH_CALLS="$WORK/gh-calls" \
     WORK_FIXTURES="$WORK" \
     "$WATCH_REPO/scripts/wayfinder-loop.sh" --ci-watch-once >"$WORK/dry-run.log" 2>&1
@@ -204,7 +210,6 @@ env \
     WAYFINDER_GH_BIN="$WORK/bin/gh" \
     WAYFINDER_GH_REPO=fixture/repo \
     WAYFINDER_MAP_ISSUE=533 \
-    WAYFINDER_FRONTIER_ISSUE=901 \
     GH_CALLS="$WORK/gh-calls" \
     WORK_FIXTURES="$WORK" \
     "$WATCH_LOOP" --ci-watch-once >"$WORK/watch-off.log" 2>&1
