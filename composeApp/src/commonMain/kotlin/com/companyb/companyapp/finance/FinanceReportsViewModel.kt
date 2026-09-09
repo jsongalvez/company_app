@@ -29,6 +29,7 @@ import com.companyb.companyapp.contracts.reporting.DailySalesSummaryResponse
 import com.companyb.companyapp.contracts.reporting.MonthlyRemittanceSummaryResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.util.logWarn
+import com.companyb.companyapp.workforce.relief.currentOperationalDate
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -45,9 +46,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.TimeZone
 import kotlinx.datetime.YearMonth
-import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.ExperimentalUuidApi
@@ -80,8 +79,10 @@ class FinanceReportsViewModel(
     private val now: Instant = Clock.System.now(),
 ) : ViewModel() {
     private val handler = ApiCallHandler(viewModelScope, "FinanceVM")
-    private val today: LocalDate =
-        now.toLocalDateTime(TimeZone.of("Asia/Manila")).date
+
+    // #698 — the client's "today" is the operational date (04:00 Asia/Manila roll,
+    // BranchDayService sole authority), not the calendar date — mirrors relief #399.
+    private val today: LocalDate = currentOperationalDate(now)
     private val defaultMonth: YearMonth = YearMonth(today.year, today.month.ordinal + 1)
 
     // ─────────────────────────── branches ───────────────────────────

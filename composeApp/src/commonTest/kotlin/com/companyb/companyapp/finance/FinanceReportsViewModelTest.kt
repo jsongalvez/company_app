@@ -2225,4 +2225,37 @@ class FinanceReportsViewModelTest {
                 "the refreshed report still lands",
             )
         }
+
+    @Test
+    fun operationalDateBoundary_before4am_usesPreviousDay() =
+        runTest(testScheduler) {
+            // #698 — 02:00 Manila on Oct-01 is operationally Sep-30 (04:00 roll,
+            // BranchDayService sole authority): feed `to`, default month and banner
+            // must follow the operational day, not the calendar date.
+            val boundaryNow = Instant.parse("2026-09-30T18:00:00Z")
+            var feedTo: String? = null
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        feedTo = request.url.parameters["to"]
+                        respondJson(feedResponse(listOf("2026-09-30")))
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = boundaryNow)
+            vm.loadBranches()
+            runCurrent()
+
+            assertEquals("2026-09-30", feedTo, "DAILY feed must pin `to` to the operational day")
+            assertEquals("2026-09", vm.monthInput.value, "default month follows the operational day")
+            assertEquals("2026-09", vm.appliedMonth.value.toString())
+        }
 }

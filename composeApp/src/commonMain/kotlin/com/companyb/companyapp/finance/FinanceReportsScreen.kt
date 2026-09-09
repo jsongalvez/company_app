@@ -27,9 +27,8 @@ import com.companyb.companyapp.contracts.reporting.DailySalesSummaryResponse
 import com.companyb.companyapp.contracts.reporting.MonthlyRemittanceSummaryResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.saveDownload
+import com.companyb.companyapp.workforce.relief.currentOperationalDate
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 
 /**
@@ -99,11 +98,8 @@ private fun rememberFinanceReportsCollected(viewModel: FinanceReportsViewModel):
     val exportErrors by viewModel.exportErrors.collectAsState()
     val snapshot by AppSessionState.snapshot.collectAsState()
     val capabilities = snapshot.capabilities
-    val today =
-        Clock.System
-            .now()
-            .toLocalDateTime(TimeZone.of("Asia/Manila"))
-            .date
+    // #698 — operational date (04:00 Asia/Manila), not calendar date — mirrors the VM.
+    val today = currentOperationalDate(Clock.System.now())
     // #158 — a BRANCH_DAY grant holder's day-scoped surface. Relief-only users (no
     // VIEW_BRANCH_DATA) get it directly; hybrid users (VIEW elsewhere + a day grant at
     // a branch the picker never lists — the #98 window is BRANCH-grant-only) reach it
