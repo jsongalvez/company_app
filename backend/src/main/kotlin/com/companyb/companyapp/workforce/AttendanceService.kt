@@ -201,8 +201,12 @@ object AttendanceService {
     fun rosterToday(
         callerId: UUID,
         branchId: UUID,
-    ): List<AttendanceRosterEntry> =
-        transaction {
+    ): List<AttendanceRosterEntry> {
+        // #713 — 404 precedence for an unknown branch before the membership gate:
+        // hasActiveMembership would otherwise yield no membership and surface 403
+        // (403-masking-404; same position as #712 mark / #704 clockIn guard).
+        BranchService.findById(branchId)
+        return transaction {
             requireActiveMember(callerId, branchId, "Home-branch membership required to view this branch's attendance")
 
             val presentUserIds =
@@ -220,6 +224,7 @@ object AttendanceService {
                 )
             }
         }
+    }
 
     fun clockOut(
         attendanceId: UUID,

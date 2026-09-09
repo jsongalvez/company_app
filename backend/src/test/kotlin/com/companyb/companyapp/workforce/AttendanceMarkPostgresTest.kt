@@ -452,6 +452,15 @@ class AttendanceMarkPostgresTest : BasePostgresTest() {
         }
     }
 
+    @Test
+    fun `roster read with unknown branch returns 404`() {
+        val unknownBranchId = TestFixtures.uuid()
+
+        assertFailsWith<NotFoundException> {
+            AttendanceService.rosterToday(markerId, unknownBranchId)
+        }
+    }
+
     private fun deactivate(userId: UUID) {
         transaction {
             AppUserTable.update({ AppUserTable.id eq userId }) { it[status] = UserStatus.INACTIVE }
