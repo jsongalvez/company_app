@@ -11,6 +11,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.identity.AccountReads
 import com.companyb.companyapp.workforce.ShiftGuard
 import com.companyb.companyapp.workforce.UserBranchAssignmentRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -388,6 +389,11 @@ object ReliefInviteService {
     ) {
         if (inviteeUserId == callerId) {
             throw ValidationException("You cannot invite yourself")
+        }
+        // #707 — unknown users 404 before the eligibility 400 (#705 precedent):
+        // isActiveUser alone conflates "unknown user" with "known but inactive".
+        if (!AccountReads.userExists(inviteeUserId)) {
+            throw NotFoundException("User not found")
         }
         if (!ReliefInviteRepository.isActiveUser(inviteeUserId)) {
             throw ValidationException("Invitee must be an active user")

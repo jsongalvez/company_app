@@ -1,10 +1,14 @@
 package com.companyb.companyapp.workforce.relief
 
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.notification.NotificationRepository
 import com.companyb.companyapp.notification.NotificationTable
 import com.companyb.companyapp.test.TestFixtures
@@ -18,10 +22,12 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
@@ -219,4 +225,41 @@ class ReliefInviteRevokePostgresTest : BasePostgresTest() {
         ReliefInviteService.acceptInvite(inviteeId, invite.id)
         return invite.id
     }
+
+    // #707 — unknown invitee 404s before the eligibility 400 (#705 precedent).
+    @Test
+    fun `create invite with unknown invitee throws 404 with no row or audit`() {
+        val unknownInvitee = TestFixtures.uuid()
+        val duty = TestFixtures.today.plusDays(3)
+        val sentBefore = ReliefInviteService.listSent(inviterId, branchId).size
+        val auditsBefore = reliefInviteAuditCount()
+
+        assertFailsWith<NotFoundException> {
+            ReliefInviteService.createInvite(inviterId, branchId, unknownInvitee, duty)
+        }
+
+        assertEquals(sentBefore, ReliefInviteService.listSent(inviterId, branchId).size)
+        assertTrue(ReliefInviteService.listReceived(unknownInvitee).isEmpty())
+        assertEquals(auditsBefore, reliefInviteAuditCount())
+    }
+
+    @Test
+    fun `create invite with inactive invitee still throws 400`() {
+        val inactiveId = TestFixtures.uuid()
+        IdentityFixtures.insertTestUser(inactiveId, "revoke-inactive")
+        transaction {
+            AppUserTable.update({ AppUserTable.id eq inactiveId }) {
+                it[AppUserTable.status] = UserStatus.INACTIVE
+            }
+        }
+
+        assertFailsWith<ValidationException> {
+            ReliefInviteService.createInvite(inviterId, branchId, inactiveId, TestFixtures.today.plusDays(3))
+        }
+    }
+
+    private fun reliefInviteAuditCount(): Long =
+        transaction {
+            AuditLogTable.selectAll().where { AuditLogTable.auditTableName eq ReliefInviteTable.tableName }.count()
+        }
 }
