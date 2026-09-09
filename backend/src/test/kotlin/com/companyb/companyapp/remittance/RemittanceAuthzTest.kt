@@ -961,4 +961,130 @@ class RemittanceAuthzTest : BasePostgresTest() {
             )
         }
     }
+
+    // ──────────────────────────────────────────────
+    // #734 — unknown branchId returns 404 before the capability gate
+    // (#730 SessionBaseRateRoutes / #732 BranchInventoryRoutes precedent)
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `GET list with unknown branch returns 404`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client.get("/api/remittances?branchId=$unknownBranch", asUser(submitUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET list with unknown branch returns 404 without any capability`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client.get("/api/remittances?branchId=$unknownBranch", asUser(noneUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET sessions picker with unknown branch returns 404`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client
+                    .get(
+                        "/api/branches/$unknownBranch/remittance-sessions?from=$rangeStart&to=$rangeEnd",
+                        asUser(submitUser),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET product-sales picker with unknown branch returns 404`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client
+                    .get(
+                        "/api/branches/$unknownBranch/remittance-product-sales?from=$rangeStart&to=$rangeEnd",
+                        asUser(submitUser),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET days picker with unknown branch returns 404`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client
+                    .get(
+                        "/api/branches/$unknownBranch/remittance-days?from=$rangeStart&to=$rangeEnd",
+                        asUser(submitUser),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET list on branch with zero rows returns 200 empty list`() {
+        val emptyBranch = TestFixtures.uuid()
+        BranchWorkforceFixtures.insertTestBranch(emptyBranch, "Empty Remittance Branch $emptyBranch")
+        IdentityFixtures.grantCapability(
+            userId = submitUser,
+            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = emptyBranch,
+            sourceId = sourceId,
+        )
+        testServer.client.let { client ->
+            val response = client.get("/api/remittances?branchId=$emptyBranch", asUser(submitUser))
+            assertEquals(200, response.code)
+            assertEquals("[]", response.body.string().orEmpty())
+        }
+    }
+
+    @Test
+    fun `GET pickers on branch with zero rows return 200 empty lists`() {
+        val emptyBranch = TestFixtures.uuid()
+        BranchWorkforceFixtures.insertTestBranch(emptyBranch, "Empty Picker Branch $emptyBranch")
+        IdentityFixtures.grantCapability(
+            userId = submitUser,
+            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = emptyBranch,
+            sourceId = sourceId,
+        )
+        testServer.client.let { client ->
+            val sessions =
+                client.get(
+                    "/api/branches/$emptyBranch/remittance-sessions?from=$rangeStart&to=$rangeEnd",
+                    asUser(submitUser),
+                )
+            assertEquals(200, sessions.code)
+            assertEquals("[]", sessions.body.string().orEmpty())
+            val sales =
+                client.get(
+                    "/api/branches/$emptyBranch/remittance-product-sales?from=$rangeStart&to=$rangeEnd",
+                    asUser(submitUser),
+                )
+            assertEquals(200, sales.code)
+            assertEquals("[]", sales.body.string().orEmpty())
+            val days =
+                client.get(
+                    "/api/branches/$emptyBranch/remittance-days?from=$rangeStart&to=$rangeEnd",
+                    asUser(submitUser),
+                )
+            assertEquals(200, days.code)
+            assertEquals("[]", days.body.string().orEmpty())
+        }
+    }
 }

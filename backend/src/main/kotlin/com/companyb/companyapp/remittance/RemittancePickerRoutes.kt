@@ -3,6 +3,7 @@ package com.companyb.companyapp.remittance
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.remittance.RemittanceDayPickerEntryResponse
 import com.companyb.companyapp.contracts.remittance.RemittanceProductSalePickerEntryResponse
@@ -37,6 +38,7 @@ import java.util.UUID
         ),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
@@ -57,6 +59,7 @@ import java.util.UUID
         ),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
@@ -77,31 +80,41 @@ import java.util.UUID
         ),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 object RemittancePickerRoutes {
     fun register(config: JavalinConfig) {
+        // #734 — 404 precedence for an unknown branch before the capability gate
+        // (#730/#732 precedent): requireBranchCapabilityForBranchId alone conflates
+        // "unknown branch" with "known but non-member".
         config.routes.before(ApiRoutes.BRANCH_REMITTANCE_SESSIONS_PATH) { context ->
+            val branchId = context.pathParamAsUuid("branchId")
+            BranchService.findById(branchId)
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
-                context.pathParamAsUuid("branchId"),
+                branchId,
                 CapabilityCodes.SUBMIT_REMITTANCE,
             )
         }
 
         config.routes.before(ApiRoutes.BRANCH_REMITTANCE_PRODUCT_SALES_PATH) { context ->
+            val branchId = context.pathParamAsUuid("branchId")
+            BranchService.findById(branchId)
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
-                context.pathParamAsUuid("branchId"),
+                branchId,
                 CapabilityCodes.SUBMIT_REMITTANCE,
             )
         }
 
         config.routes.before(ApiRoutes.BRANCH_REMITTANCE_DAYS_PATH) { context ->
+            val branchId = context.pathParamAsUuid("branchId")
+            BranchService.findById(branchId)
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
-                context.pathParamAsUuid("branchId"),
+                branchId,
                 CapabilityCodes.SUBMIT_REMITTANCE,
             )
         }

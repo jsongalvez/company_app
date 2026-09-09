@@ -6,6 +6,7 @@ import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.remittance.AddDayBreakdownRequest
 import com.companyb.companyapp.contracts.remittance.CreateRemittanceDraftRequest
@@ -57,6 +58,7 @@ import java.util.UUID
         OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<RemittanceResponse>::class)]),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
@@ -70,6 +72,7 @@ import java.util.UUID
         OpenApiResponse(status = "201", content = [OpenApiContent(from = RemittanceResponse::class)]),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
@@ -232,6 +235,10 @@ object RemittanceRoutes {
                         return@before
                     }
                 }
+            // #734 — 404 precedence for an unknown branch before the capability gate
+            // (#730/#732 precedent): requireBranchCapabilityForBranchId alone conflates
+            // "unknown branch" with "known but non-member".
+            BranchService.findById(branchId)
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
                 branchId,
