@@ -242,6 +242,17 @@ internal object SessionRepository {
             findByIdInTransaction(id)
         }
 
+    /**
+     * Void-state store read (#750) — runs on the caller's open transaction. Authority is
+     * `active_session_voids` (unvoided rows drop out of the view, so presence means voided).
+     */
+    fun isVoidedInTransaction(sessionId: UUID): Boolean =
+        ActiveSessionVoidsView
+            .selectAll()
+            .where { ActiveSessionVoidsView.sessionId eq sessionId }
+            .empty()
+            .not()
+
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
     fun findByIdInTransaction(id: UUID): Session? =
         SessionTable

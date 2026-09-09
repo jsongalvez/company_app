@@ -1,5 +1,6 @@
 package com.companyb.companyapp.session
 
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 /**
@@ -21,4 +22,17 @@ object SessionReads {
         clientId: UUID,
         excludedSessionId: UUID? = null,
     ): Boolean = SessionRepository.hasActivePendingSessionInTransaction(clientId, excludedSessionId)
+
+    /**
+     * Void-state read for remittance line validation (#750) — runs on the caller's open
+     * transaction. Delegates to the internal store; authority is `active_session_voids`
+     * (unvoided rows drop out of the view).
+     */
+    fun isVoidedInTransaction(sessionId: UUID): Boolean = SessionRepository.isVoidedInTransaction(sessionId)
+
+    /** Non-transactional wrapper for void-state reads outside a command transaction. */
+    fun isVoided(sessionId: UUID): Boolean =
+        transaction {
+            isVoidedInTransaction(sessionId)
+        }
 }

@@ -291,11 +291,16 @@ internal object RemittanceRepository {
     fun sumGrossIncomeInTransaction(remittanceId: UUID): BigDecimal =
         RemittancePolicy.sum(
             RemittanceLineTable
-                .selectAll()
+                .leftJoin(
+                    ActiveSessionVoidsView,
+                    { RemittanceLineTable.sessionId },
+                    { ActiveSessionVoidsView.sessionId },
+                ).selectAll()
                 .where {
                     (RemittanceLineTable.remittanceId eq remittanceId) and
                         (RemittanceLineTable.type eq RemittanceLineType.SESSION) and
-                        RemittanceLineTable.deletedAt.isNull()
+                        RemittanceLineTable.deletedAt.isNull() and
+                        (ActiveSessionVoidsView.sessionId.isNull())
                 }.map { it[RemittanceLineTable.amount] },
         )
 

@@ -11,6 +11,7 @@ import com.companyb.companyapp.contracts.remittance.RemittanceLineType
 import com.companyb.companyapp.contracts.remittance.RemittanceMethod
 import com.companyb.companyapp.contracts.remittance.RemittanceStatus
 import com.companyb.companyapp.contracts.remittance.RemittanceType
+import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
@@ -23,6 +24,7 @@ import com.companyb.companyapp.remittance.RemittanceRepository
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.remittance.RemittanceSubmissionResult
 import com.companyb.companyapp.remittance.RemittanceTable
+import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
@@ -307,6 +309,59 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         assertEquals(BigDecimal("200.00"), result.totalCompensation)
         assertEquals(BigDecimal("150.00"), result.totalExpenses)
         assertEquals(BigDecimal("650.00"), result.netIncome)
+    }
+
+    @Test
+    fun `submit excludes voided session lines from snapshot`() {
+        val remittanceId = TestFixtures.uuid()
+        createDraftRemittance(remittanceId)
+        val branchDayId = resolveCurrentBranchDay()
+        addDayBreakdown(remittanceId, TestFixtures.uuid(), branchDayId)
+        ensureClientExists()
+        val secondClientId = SessionClientFixtures.insertTestClient()
+        val voidedSessionId = TestFixtures.uuid()
+        val activeSessionId = TestFixtures.uuid()
+        SessionClientFixtures.insertTestSession(
+            id = voidedSessionId,
+            clientId = clientId,
+            branchDayId = branchDayId,
+            sessionStatus = SessionStatus.COMPLETED,
+        )
+        SessionClientFixtures.insertTestSession(
+            id = activeSessionId,
+            clientId = secondClientId,
+            branchDayId = branchDayId,
+            sessionStatus = SessionStatus.COMPLETED,
+        )
+        RemittanceService.addLine(
+            callerId = callerId,
+            remittanceId = remittanceId,
+            id = TestFixtures.uuid(),
+            type = RemittanceLineType.SESSION,
+            sessionId = voidedSessionId,
+            productSaleId = null,
+            amount = BigDecimal("1000.00"),
+        )
+        RemittanceService.addLine(
+            callerId = callerId,
+            remittanceId = remittanceId,
+            id = TestFixtures.uuid(),
+            type = RemittanceLineType.SESSION,
+            sessionId = activeSessionId,
+            productSaleId = null,
+            amount = BigDecimal("400.00"),
+        )
+        SessionService.voidSession(callerId, voidedSessionId, TestFixtures.uuid(), "Created in error")
+
+        val version = RemittanceService.getRemittance(remittanceId).remittance.version
+        val result = RemittanceService.submit(callerId, remittanceId, version)
+
+        assertNotNull(result)
+        assertEquals(BigDecimal("400.00"), result.grossIncome)
+        assertEquals(BigDecimal("400.00"), result.netIncome)
+        val snapshot = RemittanceService.getRemittance(remittanceId).snapshot
+        assertNotNull(snapshot)
+        assertEquals(BigDecimal("400.00"), snapshot.grossIncome)
     }
 
     @Test

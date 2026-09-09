@@ -355,22 +355,31 @@ object RemittanceService {
             when (type) {
                 RemittanceLineType.SESSION -> {
                     val sourceId = sessionId ?: throw ValidationException("sessionId is required for SESSION line type")
-                    SessionReads.findById(sourceId)?.branchDayId
-                        ?: throw NotFoundException("Session not found")
+                    val session =
+                        SessionReads.findByIdInTransaction(sourceId)
+                            ?: throw NotFoundException("Session not found")
+                    // #750 — voided sessions stay visible but are excluded from financial
+                    // calculations, so attaching one is an explicit 400 (branch mismatch stays 404).
+                    if (SessionReads.isVoidedInTransaction(sourceId)) {
+                        throw ValidationException("Session is voided")
+                    }
+                    session.branchDayId
                 }
 
                 RemittanceLineType.PRODUCT_SALE -> {
                     val sourceId =
                         productSaleId
                             ?: throw ValidationException("productSaleId is required for PRODUCT_SALE line type")
-                    CommerceReads.findSaleById(sourceId)?.branchDayId
+                    CommerceReads.findSaleByIdInTransaction(sourceId)?.branchDayId
                         ?: throw NotFoundException("Product sale not found")
                 }
             }
         // #483 — the pickers only offer the loaded range, so an out-of-range source is a
         // stale-client or forged write; the branch check stays 404 (indistinguishable),
         // the range check is an explicit 400.
-        val day = BranchDayService.requireBranchDayExists(sourceBranchDayId)
+        val day =
+            BranchDayService.findByIdInTransaction(sourceBranchDayId)
+                ?: throw NotFoundException("Branch day not found")
         if (day.branchId != remittance.branchId) {
             throw NotFoundException("Source does not belong to remittance branch")
         }

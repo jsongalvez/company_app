@@ -285,6 +285,53 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `add SESSION line rejects voided source`() {
+        val remittance = createDraftRemittance()
+        createSession()
+        SessionService.voidSession(callerId, sessionId, TestFixtures.uuid(), "Created in error")
+
+        val error =
+            assertFailsWith<ValidationException> {
+                RemittanceService.addLine(
+                    callerId = callerId,
+                    remittanceId = remittance.id,
+                    id = TestFixtures.uuid(),
+                    type = RemittanceLineType.SESSION,
+                    sessionId = sessionId,
+                    productSaleId = null,
+                    amount = BigDecimal("1500.00"),
+                )
+            }
+        assertTrue(checkNotNull(error.message).contains("voided", ignoreCase = true))
+
+        assertEquals(remittance.version, RemittanceService.getRemittance(remittance.id).remittance.version)
+        assertTrue(RemittanceService.getRemittance(remittance.id).lines.isEmpty())
+        assertEquals(0, remittanceLineAuditCount())
+    }
+
+    @Test
+    fun `add SESSION line succeeds after unvoid`() {
+        val remittance = createDraftRemittance()
+        createSession()
+        SessionService.voidSession(callerId, sessionId, TestFixtures.uuid(), "Created in error")
+        SessionService.unvoidSession(callerId, sessionId, "Resolved in error")
+
+        val line =
+            RemittanceService.addLine(
+                callerId = callerId,
+                remittanceId = remittance.id,
+                id = TestFixtures.uuid(),
+                type = RemittanceLineType.SESSION,
+                sessionId = sessionId,
+                productSaleId = null,
+                amount = BigDecimal("1500.00"),
+            )
+
+        assertNotNull(line)
+        assertEquals(sessionId, line.sessionId)
+    }
+
+    @Test
     fun `add line idempotent duplicate returns existing`() {
         val remittance = createDraftRemittance()
         createSession()
