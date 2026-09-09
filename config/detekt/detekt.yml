@@ -269,6 +269,7 @@ complexity:
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/navigation/SharedRouteGraph.kt' #726 graph seam stays whole per #535
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/navigation/RouteContentHelpers.kt' #726 intake seam stays whole per #535
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/navigation/MobileAppNavHost.kt' #726 drawer sheet stays whole per #535
+      - '**/composeApp/src/desktopMain/kotlin/com/companyb/companyapp/app/navigation/AppNavHost.desktop.kt' #726 desktop shell seam stays whole per #535
   MethodOverloading:
     active: true
     threshold: 6
