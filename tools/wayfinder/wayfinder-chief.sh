@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wayfinder-chief.sh — map chief scheduler for Wayfinder parallel supervision (map #697, tickets #735 #737 #738 #739).
+# wayfinder-chief.sh — map chief scheduler for Wayfinder parallel supervision (map #697, tickets #735 #737 #738 #739 #740).
 #
 # One orchestration layer per active map: the chief continuously schedules,
 # reconciles, reviews-queues, and refills bounded worker capacity through the
@@ -19,7 +19,7 @@
 #
 # Control loop (asynchronous — never spawn-N-then-wait-for-all-N):
 #
-#   reconcile workers -> collect completed/blocked -> queue ready results
+#   reconcile workers -> collect completed/blocked/failed -> queue ready results
 #     -> query authoritative frontier -> fill free capacity
 #     -> perform useful chief work -> repeat
 #
@@ -37,19 +37,17 @@
 # maintenance lane's durable tasks and never enter the ticket fill — the chief
 # dispatches them explicitly via --spawn-maintenance. The chief never assigns
 # tickets — workers claim assign-first on start
-# per docs/agents/issue-tracker.md — and never performs Git integration:
-# collected done/blocked workers become ready-for-review rows for sibling
-# ticket #740's review/integration queue. Workspace dirs are never created
+# per docs/agents/issue-tracker.md — and never writes canonical state except
+# through sibling ticket #740's serialized review/integration queue
+# (wayfinder-review.sh --review/--integrate, the single-writer lane): the
+# daemon never touches canonical state at all, and isolated-workspace
+# workers never write outside their own workspace (the sequential fallback,
+# where the workspace IS the repo checkout, integrates via the queue's
+# already-present path instead of a fresh commit). Collected
+# done/blocked/failed workers become ready-for-review rows for that queue. Workspace dirs are never created
 # here (sibling ticket #736 owns the WorkspaceProvider): with --workspace-base
 # a missing per-ticket dir skips with an awaiting-provider note; the default
 # single --workspace (the repo checkout) preserves the sequential fallback.
-#
-# Usage: wayfinder-chief.sh --map N [--once] [--max-workers N] [--dry-run]
-#          [--workspace DIR] [--workspace-base DIR] [--pane PANE]
-#          [--registry PATH] [--interval SECS] [--base SHA]
-#          [--spawn-helper PARENT --scope TEXT --helper-workspace DIR
-#            [--helper-name NAME] [--helper-mode read-only|writable]]
-#          [--spawn-scout SLICE --scout-workspace DIR [--scout-name NAME]]
 #
 # --base records the known canonical revision in ticket prompts (no git is
 # run here; the worker verifies `git rev-parse HEAD` in its workspace and
@@ -91,6 +89,19 @@
 # redispatch). Pending/unknown/green CI never dispatches: the lane requires an
 # explicit red SHA and the watch mints repair issues only for red verdicts.
 #
+# Review/integration queue (ticket #740): every writable worker result
+# receives an explicit chief disposition through wayfinder-review.sh — accept
+# (records the reviewed result commit, awaits a safe integration window),
+# revision (concrete findings back to the SAME worker in its SAME workspace),
+# reject/cancel (explicit, never silent) — then single-writer `integrate`
+# (serialized, conflict-safe, verified) before any tracker closure or
+# workspace release. `done` stays distinct from accepted/integrated; gated
+# integrations wait while isolated implementation continues. Lanes below:
+# --queue (inspectable queue + gate state), --review (disposition),
+# --integrate (single-writer apply). The chief pass only collects
+# done/blocked/failed into ready-for-review and logs queue depth — it never
+# auto-integrates, so the sequential fallback keeps working unchanged.
+#
 # Usage: wayfinder-chief.sh --map N [--once] [--max-workers N] [--dry-run]
 #          [--workspace DIR] [--workspace-base DIR] [--pane PANE]
 #          [--registry PATH] [--interval SECS] [--base SHA]
@@ -99,6 +110,10 @@
 #          [--spawn-scout SLICE --scout-workspace DIR [--scout-name NAME]]
 #          [--spawn-maintenance SHA --maintenance-workspace DIR
 #            --repair-issue N [--maintenance-name NAME] [--failing TEXT]]
+#          [--queue [--all]]
+#          [--review WORKER --disposition accept|revision|reject|cancel
+#            [--finding TEXT] [--result-commit SHA]]
+#          [--integrate WORKER [--allow-gated]]
 #
 # Env: WAYFINDER_MAX_WORKERS (default 1), WAYFINDER_MAX_MAINTENANCE_WORKERS
 #   (default 1, live maintenance rows only), WAYFINDER_WORKER_KIND,
@@ -111,6 +126,7 @@ REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 WORKER="$SCRIPT_DIR/wayfinder-worker.sh"
 SCOUT="$SCRIPT_DIR/wayfinder-scout.sh"
 MAINT="$SCRIPT_DIR/wayfinder-maintenance.sh"
+REVIEW="$SCRIPT_DIR/wayfinder-review.sh"
 
 MAP="" ONCE=0 DRY_RUN=""
 MAX="${WAYFINDER_MAX_WORKERS:-1}"
@@ -124,6 +140,9 @@ BASE_SHA=""
 SPAWN_HELPER="" HELPER_SCOPE="" HELPER_WORKSPACE="" HELPER_NAME="" HELPER_MODE="read-only"
 SPAWN_SCOUT="" SCOUT_WORKSPACE="" SCOUT_NAME=""
 SPAWN_MAINT="" MAINT_WORKSPACE="" MAINT_NAME="" MAINT_REPAIR="" MAINT_FAILING=""
+QUEUE="" QUEUE_ALL=""
+REVIEW_WORKER="" REVIEW_DISP="" REVIEW_FINDING="" REVIEW_COMMIT=""
+INTEGRATE_WORKER="" INTEGRATE_GATED=""
 
 usage() { sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 log() { printf '%s [chief] %s\n' "$(date '+%F %T')" "$*"; }
@@ -154,6 +173,14 @@ while [ $# -gt 0 ]; do
         --maintenance-name) MAINT_NAME="${2:-}"; shift 2 ;;
         --repair-issue) MAINT_REPAIR="${2:-}"; shift 2 ;;
         --failing) MAINT_FAILING="${2:-}"; shift 2 ;;
+        --queue) QUEUE=1; shift ;;
+        --all) QUEUE_ALL=1; shift ;;
+        --review) REVIEW_WORKER="${2:-}"; shift 2 ;;
+        --disposition) REVIEW_DISP="${2:-}"; shift 2 ;;
+        --finding) REVIEW_FINDING="${2:-}"; shift 2 ;;
+        --result-commit) REVIEW_COMMIT="${2:-}"; shift 2 ;;
+        --integrate) INTEGRATE_WORKER="${2:-}"; shift 2 ;;
+        --allow-gated) INTEGRATE_GATED=1; shift ;;
         -h|--help) usage ;;
         *) die "unknown flag $1" ;;
     esac
@@ -165,8 +192,11 @@ lanes=0
 [ -n "$SPAWN_HELPER" ] && lanes=$((lanes + 1))
 [ -n "$SPAWN_SCOUT" ] && lanes=$((lanes + 1))
 [ -n "$SPAWN_MAINT" ] && lanes=$((lanes + 1))
+[ -n "$QUEUE" ] && lanes=$((lanes + 1))
+[ -n "$REVIEW_WORKER" ] && lanes=$((lanes + 1))
+[ -n "$INTEGRATE_WORKER" ] && lanes=$((lanes + 1))
 if [ "$lanes" -gt 1 ]; then
-    die "--spawn-helper, --spawn-scout, and --spawn-maintenance are separate single-shot lanes (one per invocation)"
+    die "--spawn-helper, --spawn-scout, --spawn-maintenance, --queue, --review, and --integrate are separate single-shot lanes (one per invocation)"
 fi
 if [ -n "$SPAWN_MAINT" ] && [ "$HELPER_MODE" != "read-only" ]; then
     die "--helper-mode does not apply to --spawn-maintenance (helpers only)"
@@ -186,12 +216,22 @@ fi
 if [ -z "$SPAWN_MAINT" ] && { [ -n "$MAINT_WORKSPACE" ] || [ -n "$MAINT_NAME" ] || [ -n "$MAINT_REPAIR" ] || [ -n "$MAINT_FAILING" ]; }; then
     die "--maintenance-workspace/--maintenance-name/--repair-issue/--failing require --spawn-maintenance <sha>"
 fi
+if [ -z "$QUEUE" ] && [ -n "$QUEUE_ALL" ]; then
+    die "--all requires --queue"
+fi
+if [ -z "$REVIEW_WORKER" ] && { [ -n "$REVIEW_DISP" ] || [ -n "$REVIEW_FINDING" ] || [ -n "$REVIEW_COMMIT" ]; }; then
+    die "--disposition/--finding/--result-commit require --review <worker>"
+fi
+if [ -z "$INTEGRATE_WORKER" ] && [ -n "$INTEGRATE_GATED" ]; then
+    die "--allow-gated requires --integrate <worker>"
+fi
 export WAYFINDER_MAX_WORKERS="$MAX"
 export WAYFINDER_WORKER_REGISTRY="$REGISTRY"
 export WAYFINDER_ROLE=chief
 [ -x "$WORKER" ] || die "worker seam not executable: $WORKER"
 [ -x "$SCOUT" ] || die "scout contract not executable: $SCOUT"
 [ -x "$MAINT" ] || die "maintenance contract not executable: $MAINT"
+[ -x "$REVIEW" ] || die "review queue not executable: $REVIEW"
 command -v "$GH_BIN" >/dev/null 2>&1 || die "gh binary not found: $GH_BIN (set WAYFINDER_GH_BIN)"
 command -v jq >/dev/null 2>&1 || die "jq is required for frontier queries"
 if [ -z "$GH_REPO" ]; then
@@ -209,25 +249,37 @@ running_count() {
     awk -F'\t' '$6 == "spawning" || $6 == "running" { n++ } END { print n + 0 }' "$REGISTRY"
 }
 
-# collect_results — mark done/blocked rows ready-for-review (sibling #740's
-# queue). Frees the execution slot without touching Git or deleting rows.
+# collect_results — mark done/blocked/failed rows ready-for-review (sibling
+# #740's queue). Frees the execution slot without touching canonical state
+# or deleting rows. failed rows keep their origin in the note so the chief
+# can tell salvageable results from clean completions at disposition time.
 collect_results() {
     [ -f "$REGISTRY" ] || return 0
     local changed=0
     local rows
-    rows="$(awk -F'\t' '$6 == "done" || $6 == "blocked" { print $1 }' "$REGISTRY")"
+    rows="$(awk -F'\t' '$6 == "done" || $6 == "blocked" || $6 == "failed" { print $1 }' "$REGISTRY")"
     [ -n "$rows" ] || return 0
     local name row tmp
+    if command -v flock >/dev/null 2>&1; then
+        mkdir -p "$(dirname "$REGISTRY")"
+        exec {WAYFINDER_CHIEF_REG_FD}>"$REGISTRY.lock"
+        flock -w 60 "$WAYFINDER_CHIEF_REG_FD" \
+            || { printf 'wayfinder-chief: cannot lock registry: %s.lock\n' "$REGISTRY" >&2; return 1; }
+    fi
     while IFS= read -r name; do
         [ -n "$name" ] || continue
         row="$(awk -F'\t' -v n="$name" '$1 == n { print; exit }' "$REGISTRY")"
         tmp="$(mktemp)"
-        awk -F'\t' -v n="$name" -v now="$(date '+%F %T')" 'BEGIN { OFS = "\t" } $1 == n { $6 = "ready-for-review"; $8 = now; $9 = $9 " | awaiting chief review (#740 queue)" } { print }' \
+        awk -F'\t' -v n="$name" -v now="$(date '+%F %T')" 'BEGIN { OFS = "\t" } $1 == n { $6 = "ready-for-review"; $8 = now; $9 = ($9 == "" ? "awaiting chief review (#740 queue)" : $9 " | awaiting chief review (#740 queue)") } { print }' \
             "$REGISTRY" > "$tmp"
         mv "$tmp" "$REGISTRY"
         log "collected $name (was $(printf '%s' "$row" | cut -f6), ticket #$(printf '%s' "$row" | cut -f3)) -> ready-for-review"
         changed=$((changed + 1))
     done <<< "$rows"
+    if command -v flock >/dev/null 2>&1; then
+        # Value-based close (`exec {VAR}>&-` misbehaves on some bash builds).
+        eval "exec $WAYFINDER_CHIEF_REG_FD>&-" 2>/dev/null || true
+    fi
     printf '%d' "$changed" > /dev/null
 }
 
@@ -612,6 +664,48 @@ spawn_maintenance_for() { # chief-mediated maintenance spawn for one red SHA; ex
     log "canonical integration gated until repair #$MAINT_REPAIR lands; ticket workers may continue in isolated workspaces (#740 queue)"
 }
 
+# queue_depths — cheap registry counts for the #740 review queue (no tracker,
+# no Herdr, no canonical reads): keeps an unbounded pile of stale accepted
+# rows visible instead of silent. Runs in every pass, including dry-run. The
+# gate reading reuses the queue's own gate-status so the pass log and
+# `integrate` can never disagree (same predicate, same live-maintenance view).
+queue_depths() {
+    local ready accepted revision failed gate="ready" gate_out
+    if [ ! -f "$REGISTRY" ]; then
+        log "review queue: empty (no worker registry)"
+        return 0
+    fi
+    ready="$(awk -F'\t' '$6 == "ready-for-review" { n++ } END { print n + 0 }' "$REGISTRY")"
+    accepted="$(awk -F'\t' '$6 == "accepted-awaiting-integration" { n++ } END { print n + 0 }' "$REGISTRY")"
+    revision="$(awk -F'\t' '$6 == "revision-requested" { n++ } END { print n + 0 }' "$REGISTRY")"
+    failed="$(awk -F'\t' '$6 == "failed" { n++ } END { print n + 0 }' "$REGISTRY")"
+    gate_out="$(WAYFINDER_WORKER_REGISTRY="$REGISTRY" "$REVIEW" gate-status 2>/dev/null || printf 'ready')"
+    case "$gate_out" in
+        gated:*) gate="GATED (${gate_out#gated: })" ;;
+    esac
+    log "review queue: $ready ready-for-review, $accepted accepted-awaiting-integration, $revision revision-requested, $failed failed (integration gate: $gate)"
+}
+
+queue_lane() { # inspectable review queue + gate state; single-shot, no fill.
+    local args=(queue)
+    [ -z "$QUEUE_ALL" ] || args+=(--all)
+    "$REVIEW" "${args[@]}"
+}
+
+review_lane() { # explicit chief disposition; single-shot, no fill.
+    [ -n "$REVIEW_DISP" ] || die "--review requires --disposition accept|revision|reject|cancel"
+    local args=(review "$REVIEW_WORKER" --disposition "$REVIEW_DISP")
+    [ -z "$REVIEW_FINDING" ] || args+=(--finding "$REVIEW_FINDING")
+    [ -z "$REVIEW_COMMIT" ] || args+=(--result-commit "$REVIEW_COMMIT")
+    "$REVIEW" "${args[@]}"
+}
+
+integrate_lane() { # single-writer integration; single-shot, no fill.
+    local args=(integrate "$INTEGRATE_WORKER")
+    [ -z "$INTEGRATE_GATED" ] || args+=(--allow-gated)
+    "$REVIEW" "${args[@]}"
+}
+
 pass() {
     log "pass start (map #$MAP, max=$MAX)"
     if [ -z "$DRY_RUN" ]; then
@@ -622,6 +716,7 @@ pass() {
     if [ -z "$DRY_RUN" ]; then
         collect_results
     fi
+    queue_depths
     local free frontier ticket ws spawned=0
     free=$((MAX - $(running_count)))
     if [ "$free" -le 0 ]; then
@@ -671,6 +766,21 @@ fi
 
 if [ -n "$SPAWN_MAINT" ]; then
     spawn_maintenance_for || exit $?
+    exit 0
+fi
+
+if [ -n "$QUEUE" ]; then
+    queue_lane || exit $?
+    exit 0
+fi
+
+if [ -n "$REVIEW_WORKER" ]; then
+    review_lane || exit $?
+    exit 0
+fi
+
+if [ -n "$INTEGRATE_WORKER" ]; then
+    integrate_lane || exit $?
     exit 0
 fi
 

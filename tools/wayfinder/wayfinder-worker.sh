@@ -65,9 +65,21 @@
 #   name role ticket workspace pane status created updated note parent
 # Parent (column 10, ticket #737) names the parent worker for helper rows and
 # is empty for all other roles. Older 9-column rows read as parent-empty.
-# Status flow: spawning -> running -> done|blocked -> ready-for-review
-# (-> accepted/revision/rejected in ticket #740) -> cleanup removes the row.
-# stop marks stopped; reconcile marks missing agents gone.
+# Status flow: spawning -> running -> done|blocked|failed -> ready-for-review
+# (-> revision-requested: live rework, still stoppable; the worker's
+#  re-report returns via done|blocked|failed -> ready-for-review for a fresh
+#  disposition -> accepted-awaiting-integration -> integrated;
+#  -> rejected|cancelled) in ticket #740's chief-owned review queue.
+# reconcile adopts worker re-reports from revision-requested but never
+# rewrites a waiting disposition (ready-for-review,
+# accepted-awaiting-integration) or a terminal (integrated, rejected,
+# cancelled): a missing pane never strands the workspace result. cleanup
+# removes terminal rows (integrated|rejected|cancelled|stopped|gone);
+# unreviewed or salvageable rows need --force. stop refuses non-live review
+# state (ready-for-review, accepted-awaiting-integration, integrated,
+# rejected, cancelled) but stays available for live rework
+# (revision-requested): stopping a reworking worker keeps its revision
+# findings in the review log, not the overwritten row note.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -120,6 +132,28 @@ reg_row() { # <name> — print the TSV row or nothing.
     awk -F'\t' -v name="$1" '$1 == name { print; exit }' "$REGISTRY"
 }
 
+# with_registry_lock / with_registry_unlock — serialize whole-file registry
+# rewrites across local writers (spawn/prompt/stop/reconcile here, chief
+# collect, review dispositions). Self-contained per call: never held across
+# subprocess invocations. flock releases on process exit; without flock the
+# single-chief assumption applies (cross-chief hardening is ticket #741).
+with_registry_lock() {
+    if command -v flock >/dev/null 2>&1; then
+        mkdir -p "$(dirname "$REGISTRY")"
+        exec {WAYFINDER_WORKER_REG_FD}>"$REGISTRY.lock"
+        flock -w 60 "$WAYFINDER_WORKER_REG_FD" \
+            || die "cannot lock registry: $REGISTRY.lock"
+    fi
+}
+
+with_registry_unlock() {
+    # Value-based close: `exec {VAR}>&-` misbehaves on some bash builds
+    # (observed: stderr closed as a side effect), so close the numeric fd.
+    if command -v flock >/dev/null 2>&1; then
+        eval "exec $WAYFINDER_WORKER_REG_FD>&-" 2>/dev/null || true
+    fi
+}
+
 # reg_upsert <name> <role> <ticket> <workspace> <pane> <status> <note> [parent]
 # The optional parent (column 10, helper rows) defaults to preserving the
 # existing row's parent so status updates (stop/reconcile) never drop the
@@ -143,10 +177,12 @@ reg_upsert() {
         created="$now"
     fi
     tmp="$(mktemp)"
+    with_registry_lock
     awk -F'\t' -v name="$name" '$1 != name' "$REGISTRY" > "$tmp"
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
         "$name" "$role" "$ticket" "$workspace" "$pane" "$status" "$created" "$now" "$note" "$parent" >> "$tmp"
     mv "$tmp" "$REGISTRY"
+    with_registry_unlock
 }
 
 # herdr_json <jq-filter> — tolerant field walk for Herdr response shapes.
@@ -346,6 +382,11 @@ cmd_stop() {
     local row
     row="$(reg_row "$name")" || true
     [ -n "$row" ] || die "stop: unknown worker '$name' (not in registry)"
+    case "$(printf '%s' "$row" | cut -f6)" in
+        ready-for-review|accepted-awaiting-integration|integrated|rejected|cancelled)
+            die "stop: worker $name is $(printf '%s' "$row" | cut -f6) — not a live worker; use review dispositions and cleanup instead"
+            ;;
+    esac
     need_herdr
     local out
     out="$("$HERDR_BIN" agent send-keys "$name" ctrl+c 2>&1)" \
@@ -374,10 +415,20 @@ cmd_cleanup() {
         spawning|running)
             [ "$force" -eq 1 ] || die "cleanup: worker $name is $status — refuse to orphan a live agent (stop it first or pass --force)"
             ;;
+        done|blocked|failed|ready-for-review|revision-requested|accepted-awaiting-integration)
+            # Unreviewed or salvageable result (ticket #740): an explicit
+            # chief disposition (review accept/revision/reject, then
+            # integrate) precedes cleanup — never drop reviewable work
+            # silently. Terminal integrated/rejected/cancelled rows clean
+            # freely; --force overrides for operator recovery.
+            [ "$force" -eq 1 ] || die "cleanup: worker $name is $status — unreviewed or salvageable result; record a review disposition first (pass --force to override)"
+            ;;
     esac
     tmp="$(mktemp)"
+    with_registry_lock
     awk -F'\t' -v name="$name" '$1 != name' "$REGISTRY" > "$tmp"
     mv "$tmp" "$REGISTRY"
+    with_registry_unlock
     printf 'cleaned %s (was %s)\n' "$name" "$status"
 }
 
@@ -394,7 +445,31 @@ cmd_reconcile() {
     local kept=0 gone=0 updated=0
     while IFS=$'\t' read -r name _role _ticket _ws _pane status _c _u _note _parent; do
         [ -n "$name" ] || continue
+        case "$status" in
+            ready-for-review|accepted-awaiting-integration|integrated|rejected|cancelled)
+                # Waiting disposition or terminal (ticket #740): Herdr
+                # liveness never rewrites a disposition, and a missing pane
+                # never strands the workspace result — cleanup follows the
+                # terminal disposition explicitly.
+                kept=$((kept + 1))
+                continue
+                ;;
+        esac
         herdr_status="$(printf '%s' "$live" | awk -F'\t' -v n="$name" '$1 == n { print $2; exit }')"
+        if [ "$status" = "revision-requested" ]; then
+            # Live rework: adopt the worker's re-report so the revision
+            # round-trips via done|blocked|failed back to the chief collect
+            # for a fresh disposition. A missing pane keeps the revision
+            # (the workspace still holds the rework) instead of stranding it.
+            case "$herdr_status" in
+                done|blocked|failed)
+                    reg_upsert "$name" "$_role" "$_ticket" "$_ws" "$_pane" "$herdr_status" "rework reported $herdr_status — back to chief review"
+                    updated=$((updated + 1))
+                    ;;
+                *) kept=$((kept + 1)) ;;
+            esac
+            continue
+        fi
         if [ -z "$herdr_status" ]; then
             case "$status" in
                 spawning|running)
@@ -408,6 +483,7 @@ cmd_reconcile() {
                 running|working|idle) herdr_status="running" ;;
                 done) herdr_status="done" ;;
                 blocked) herdr_status="blocked" ;;
+                failed) herdr_status="failed" ;;
                 *) herdr_status="$status" ;;
             esac
             if [ "$herdr_status" != "$status" ]; then
