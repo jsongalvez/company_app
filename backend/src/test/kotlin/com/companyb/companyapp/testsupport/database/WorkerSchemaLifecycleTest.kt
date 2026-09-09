@@ -139,17 +139,27 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
 
     private fun assertMigrationCount(conn: java.sql.Connection) {
         conn.createStatement().use { stmt ->
-            val rs = stmt.executeQuery("SELECT version FROM flyway_schema_history WHERE version IS NOT NULL")
+            val rs = stmt.executeQuery("SELECT version, script FROM flyway_schema_history WHERE version IS NOT NULL")
             val versions = mutableSetOf<String>()
+            val scripts = mutableMapOf<String, String>()
             while (rs.next()) {
                 versions.add(rs.getString(1))
+                scripts[rs.getString(1)] = rs.getString(2)
             }
             assertTrue(versions.contains("1"), "worker schema must hold baseline V1, found $versions")
             assertTrue(versions.contains("2"), "worker schema must hold seed V2, found $versions")
+            // Retired V4–V6 numbers stay reserved (folded into V1, #370/#461/#548); V3 is the
+            // first legitimate post-squash migration (#688 monthly PRODUCT revenue).
             assertTrue(
-                versions.none { it in setOf("3", "4", "5", "6") },
-                "retired V3–V6 must stay folded into V1, found $versions",
+                versions.none { it in setOf("4", "5", "6") },
+                "retired V4–V6 must stay folded into V1, found $versions",
             )
+            scripts["3"]?.let { script ->
+                assertTrue(
+                    script.contains("monthly_remittance_summary_product_revenue"),
+                    "unexpected V3 migration (retired V3 stays folded): $script",
+                )
+            }
         }
     }
 

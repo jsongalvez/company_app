@@ -132,7 +132,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `returns correct summary for a PRODUCT remittance`() {
+    fun `returns line-derived revenue for a PRODUCT remittance`() {
         val remittanceId = TestFixtures.uuid()
         val lineId = TestFixtures.uuid()
         val breakdownId = TestFixtures.uuid()
@@ -144,8 +144,9 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         assertEquals(1, summary.totalRemittances)
         assertEquals(0, summary.sessionCount)
         assertEquals(1, summary.productCount)
-        assertEquals(0, BigDecimal.ZERO.compareTo(summary.grossIncome))
-        assertEquals(0, BigDecimal.ZERO.compareTo(summary.netIncome))
+        // #688 — PRODUCT revenue comes from remittance_line sums (no snapshot exists).
+        assertEquals(0, BigDecimal("200.00").compareTo(summary.grossIncome))
+        assertEquals(0, BigDecimal("200.00").compareTo(summary.netIncome))
     }
 
     @Test
@@ -160,7 +161,9 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         assertEquals(2, summary.totalRemittances)
         assertEquals(1, summary.sessionCount)
         assertEquals(1, summary.productCount)
-        assertEquals(0, BigDecimal("500.00").compareTo(summary.grossIncome))
+        // #688 — SESSION snapshot 500.00 + PRODUCT line 200.00.
+        assertEquals(0, BigDecimal("700.00").compareTo(summary.grossIncome))
+        assertEquals(0, BigDecimal("700.00").compareTo(summary.netIncome))
     }
 
     @Test
@@ -182,7 +185,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `returns zero snapshot values for PRODUCT remittance with only counts`() {
+    fun `returns line-derived revenue for PRODUCT remittance with only counts`() {
         val remittanceId = TestFixtures.uuid()
         val lineId = TestFixtures.uuid()
         val breakdownId = TestFixtures.uuid()
@@ -194,10 +197,26 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         assertEquals(1, summary.totalRemittances)
         assertEquals(0, summary.sessionCount)
         assertEquals(1, summary.productCount)
-        assertEquals(0, BigDecimal.ZERO.compareTo(summary.grossIncome))
+        // #688 — PRODUCT month carries its line amount; comp/expenses stay zero.
+        assertEquals(0, BigDecimal("200.00").compareTo(summary.grossIncome))
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.totalCompensation))
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.totalExpenses))
-        assertEquals(0, BigDecimal.ZERO.compareTo(summary.netIncome))
+        assertEquals(0, BigDecimal("200.00").compareTo(summary.netIncome))
+    }
+
+    @Test
+    fun `monthly aggregate reconciles with per-remittance line sums`() {
+        val sessionRemId = TestFixtures.uuid()
+        val productRemId = TestFixtures.uuid()
+        createSubmittedSessionRemittance(sessionRemId, TestFixtures.uuid(), TestFixtures.uuid(), BigDecimal("500.00"))
+        createSubmittedProductRemittance(productRemId, TestFixtures.uuid(), TestFixtures.uuid())
+
+        val summary = getCurrentMonthSummary(branchId)
+        val sessionTotal = RemittanceService.getRemittance(sessionRemId).totalAmount
+        val productTotal = RemittanceService.getRemittance(productRemId).totalAmount
+
+        assertEquals(0, sessionTotal.add(productTotal).compareTo(summary.grossIncome))
+        assertEquals(0, sessionTotal.add(productTotal).compareTo(summary.netIncome))
     }
 
     private fun createSubmittedSessionRemittance(

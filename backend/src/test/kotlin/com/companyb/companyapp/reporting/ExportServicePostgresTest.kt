@@ -246,6 +246,33 @@ class ExportServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `monthly export reports PRODUCT line revenue`() {
+        createSubmittedProductRemittance(BigDecimal("750.00"))
+        val result = ExportService.exportMonthly(branchId, today.year, today.monthValue, ExportFormat.CSV)
+        val csv = String(result.bytes, Charsets.UTF_8)
+        assertTrue(csv.contains("750.00"), "expected PRODUCT revenue 750.00 but got: $csv")
+    }
+
+    @Test
+    fun `all-time export reports PRODUCT line revenue`() {
+        createSubmittedProductRemittance(BigDecimal("750.00"))
+        val result = ExportService.exportAllTime(branchId, ExportFormat.CSV)
+        val csv = String(result.bytes, Charsets.UTF_8)
+        assertTrue(csv.contains("750.00"), "expected PRODUCT revenue 750.00 but got: $csv")
+    }
+
+    @Test
+    fun `monthly export reconciles SESSION snapshot with PRODUCT lines`() {
+        createSubmittedRemittance(BigDecimal("5000.00"), BigDecimal("1000.00"), BigDecimal("500.00"))
+        createSubmittedProductRemittance(BigDecimal("750.00"))
+        val result = ExportService.exportMonthly(branchId, today.year, today.monthValue, ExportFormat.CSV)
+        val csv = String(result.bytes, Charsets.UTF_8)
+        // SESSION net 3500.00 + PRODUCT 750.00 = 4250.00; gross 5000.00 + 750.00 = 5750.00.
+        assertTrue(csv.contains("5750.00"), "expected reconciled gross 5750.00 but got: $csv")
+        assertTrue(csv.contains("4250.00"), "expected reconciled net 4250.00 but got: $csv")
+    }
+
+    @Test
     fun `monthly export CSV returns valid CSV bytes`() {
         createSubmittedRemittance(BigDecimal("5000.00"), BigDecimal("1000.00"), BigDecimal("500.00"))
         val result = ExportService.exportMonthly(branchId, today.year, today.monthValue, ExportFormat.CSV)
@@ -289,6 +316,27 @@ class ExportServicePostgresTest : BasePostgresTest() {
         val pdfStart = byteArrayOf(0x25, 0x50, 0x44, 0x46)
         assertContentEquals(pdfStart, result.bytes.take(4).toByteArray())
         assertEquals("application/pdf", result.contentType)
+    }
+
+    @Test
+    fun `provincial export reports PRODUCT line revenue`() {
+        val provBranchId = TestFixtures.uuid()
+        BranchWorkforceFixtures.insertTestBranch(
+            provBranchId,
+            "Prov Product Branch ${TestFixtures.uuid()}",
+            BranchType.PROVINCIAL_TOUR,
+        )
+        insertBranchDay(TestFixtures.uuid(), provBranchId, today)
+        createSubmittedProductRemittance(BigDecimal("750.00"), provBranchId)
+        val result =
+            ExportService.exportByBranchType(
+                BranchType.PROVINCIAL_TOUR,
+                null,
+                null,
+                ExportFormat.CSV,
+            )
+        val csv = String(result.bytes, Charsets.UTF_8)
+        assertTrue(csv.contains("750.00"), "expected PRODUCT revenue 750.00 but got: $csv")
     }
 
     @Test
@@ -513,6 +561,53 @@ class ExportServicePostgresTest : BasePostgresTest() {
         compensation: BigDecimal,
         expenses: BigDecimal,
     ): UUID = createSubmittedRemittanceForBranch(branchId, grossIncome, compensation, expenses)
+
+    private fun createSubmittedProductRemittance(
+        productRevenue: BigDecimal,
+        targetBranchId: UUID = branchId,
+    ): UUID {
+        val remittanceId = TestFixtures.uuid()
+        // NOTE: `targetBranchId` is a parameter (locals shadow table members), so the
+        // `RemittanceTable.insert {}` receiver cannot hijack it the way a bare `branchId`
+        // property would (that resolves to the `branch_id` column self-reference).
+        val targetDayId = findOrCreateBranchDay(targetBranchId)
+        transaction {
+            val categoryId = TestFixtures.uuid()
+            val productId = TestFixtures.uuid()
+            val saleId = TestFixtures.uuid()
+            CommerceFinanceFixtures.insertTestCategory(categoryId)
+            CommerceFinanceFixtures.insertTestProduct(productId, categoryId = categoryId)
+            CommerceFinanceFixtures.insertTestProductSale(
+                id = saleId,
+                branchDayId = targetDayId,
+                productId = productId,
+                handledBy = callerId,
+                unitPrice = productRevenue,
+                totalAmount = productRevenue,
+            )
+            RemittanceTable.insert {
+                it[RemittanceTable.id] = remittanceId
+                it[RemittanceTable.branchId] = targetBranchId
+                it[RemittanceTable.type] = RemittanceType.PRODUCT
+                it[RemittanceTable.method] = RemittanceMethod.HANDED_TO_ACCOUNTANT
+                it[RemittanceTable.status] = RemittanceStatus.SUBMITTED
+                it[RemittanceTable.version] = 2
+                it[RemittanceTable.submittedDate] = today
+                it[RemittanceTable.submittedBy] = callerId
+                it[RemittanceTable.dateRangeStart] = today
+                it[RemittanceTable.dateRangeEnd] = today
+            }
+            RemittanceLineTable.insert {
+                it[RemittanceLineTable.id] = TestFixtures.uuid()
+                it[RemittanceLineTable.remittanceId] = remittanceId
+                it[RemittanceLineTable.type] = RemittanceLineType.PRODUCT_SALE
+                it[RemittanceLineTable.amount] = productRevenue
+                it[RemittanceLineTable.productSaleId] = saleId
+            }
+            insertRemittanceBreakdown(remittanceId, targetDayId)
+        }
+        return remittanceId
+    }
 
     private fun createSubmittedRemittanceForBranch(
         targetBranchId: UUID,
