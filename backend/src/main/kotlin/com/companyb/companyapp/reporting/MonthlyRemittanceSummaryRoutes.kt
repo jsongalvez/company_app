@@ -2,6 +2,7 @@ package com.companyb.companyapp.reporting
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.reporting.MonthlyRemittanceSummaryResponse
 import com.companyb.companyapp.dto.ErrorResponse
@@ -33,6 +34,7 @@ import java.util.UUID
         OpenApiResponse(status = "200", content = [OpenApiContent(from = MonthlyRemittanceSummaryResponse::class)]),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
@@ -41,8 +43,10 @@ object MonthlyRemittanceSummaryRoutes {
     private const val MIN_MONTH = 1
 
     fun register(config: JavalinConfig) {
+        // #744 — 404 precedence for an unknown branch before the capability gate (#730/#732 precedent).
         config.routes.before(ApiRoutes.BRANCH_MONTHLY_SUMMARY_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
+            BranchService.findById(branchId)
             CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
                 context,
                 branchId,

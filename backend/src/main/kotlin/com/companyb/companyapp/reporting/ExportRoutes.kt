@@ -2,6 +2,7 @@ package com.companyb.companyapp.reporting
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.dto.ErrorResponse
@@ -82,6 +83,8 @@ import java.util.UUID
         ),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 @OpenApi(
@@ -104,6 +107,8 @@ import java.util.UUID
         ),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 @OpenApi(
@@ -130,6 +135,8 @@ import java.util.UUID
         ),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 @OpenApi(
@@ -156,6 +163,8 @@ import java.util.UUID
         ),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 object ExportRoutes {
@@ -176,6 +185,8 @@ object ExportRoutes {
         // the JWT-gate regression.
         config.routes.before("/api/branches/{branchId}/export/*") { context ->
             val branchId = context.pathParamAsUuid("branchId")
+            // #744 — 404 precedence for an unknown branch before the capability gate (#730/#732 precedent).
+            BranchService.findById(branchId)
             CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
                 context,
                 branchId,

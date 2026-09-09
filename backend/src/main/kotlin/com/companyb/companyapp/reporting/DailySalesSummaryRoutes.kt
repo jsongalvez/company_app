@@ -3,6 +3,7 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.parseBrowseLimit
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.reporting.DailySalesSummaryBrowseResponse
@@ -45,6 +46,7 @@ import java.util.UUID
         OpenApiResponse(status = "200", content = [OpenApiContent(from = DailySalesSummaryBrowseResponse::class)]),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
@@ -59,13 +61,18 @@ import java.util.UUID
         OpenApiResponse(status = "200", content = [OpenApiContent(from = DailySalesSummaryResponse::class)]),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 object DailySalesSummaryRoutes {
     fun register(config: JavalinConfig) {
+        // #744 — 404 precedence for an unknown branch before the capability gate
+        // (#730/#732 precedent): the ForBranchId gates alone conflate
+        // "unknown branch" with "known but non-member".
         config.routes.before(ApiRoutes.BRANCH_DAILY_SUMMARY_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
+            BranchService.findById(branchId)
             val date = parseRequiredDate(context)
             // #158 — the single-day read accepts the relief grant: a BRANCH_DAY
             // `EDIT_BRANCH_DATA` holder reads the granted day's summary (the read mirror
@@ -84,6 +91,7 @@ object DailySalesSummaryRoutes {
 
         config.routes.before(ApiRoutes.BRANCH_DAILY_SUMMARIES_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
+            BranchService.findById(branchId)
             CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
                 context,
                 branchId,

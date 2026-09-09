@@ -525,4 +525,38 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         assertEquals(403, getStatus(viewA, "/api/branches"))
         assertEquals(403, getStatus(noneUser, "/api/branches"))
     }
+
+    // ──────────────────────────────────────────────
+    // #744: unknown branch → 404 before the capability gate
+    // (branch-scoped-elsewhere + zero-grant legs per #711 precedence)
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `unknown branch daily-summary is 404 not 403`() {
+        val unknown = TestFixtures.uuid()
+        assertEquals(404, getStatus(viewA, "/api/branches/$unknown/daily-summary?date=2026-08-10"))
+        assertEquals(404, getStatus(noneUser, "/api/branches/$unknown/daily-summary?date=2026-08-10"))
+    }
+
+    @Test
+    fun `unknown branch daily-summaries is 404-gate not 403`() {
+        val unknown = TestFixtures.uuid()
+        // Browse has no 404 data shape — the existence gate 404s before the capability gate.
+        assertEquals(404, getStatus(viewA, "/api/branches/$unknown/daily-summaries"))
+        assertEquals(404, getStatus(noneUser, "/api/branches/$unknown/daily-summaries"))
+    }
+
+    @Test
+    fun `unknown branch monthly-summary is 404 not 403`() {
+        val unknown = TestFixtures.uuid()
+        assertEquals(404, getStatus(viewA, "/api/branches/$unknown/monthly-summary?year=2026&month=8"))
+        assertEquals(404, getStatus(noneUser, "/api/branches/$unknown/monthly-summary?year=2026&month=8"))
+    }
+
+    @Test
+    fun `unknown branch export is 404 not 403`() {
+        val unknown = TestFixtures.uuid()
+        assertEquals(404, getStatus(viewA, "/api/branches/$unknown/export/daily?date=2026-08-10&format=csv"))
+        assertEquals(404, getStatus(noneUser, "/api/branches/$unknown/export/daily?date=2026-08-10&format=csv"))
+    }
 }
