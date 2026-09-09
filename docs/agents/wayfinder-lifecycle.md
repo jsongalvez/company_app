@@ -173,15 +173,27 @@ pop only the stash their packet names — no unrelated stash is touched.
 ### CI-wait packets (pending verdict, zero delta)
 
 When session-start CI reconciliation reports PENDING and the session did no
-work (no commit, no tracker write owed), do NOT mint another numbered packet:
-numbered `*-pendingN-*` chains defeat the daemon's fingerprint dedupe — every
-new filename reads as new work and burns a full-context worker per minute
-(the map #668 / ticket #695 pending9→pending15 spin). Instead:
+work (no commit, no tracker write owed), productive pivot beats idle hold —
+never mint numbered `*-pendingN-*` packets: every new filename defeats the
+daemon's fingerprint dedupe and burns a full-context worker per minute
+(the map #668 / ticket #695 pending9→pending15 spin). Instead, in order:
 
-- If a `<!-- wayfinder-ci-wait: <full-head-sha> -->` packet for this HEAD
-  already exists, stop with NO new packet — the chain rests on that hold.
-- Else write exactly one `wayfinder-<map>-<shortsha>-ciwait-handoff.md`
-  packet carrying the marker and stop.
+1. **Pivot first.** Release the pending claim (remove the driver assignee so
+   the ticket re-enters the pool instead of pinning the chain), record the
+   awaited SHA plus its acceptance predicate in the successor packet, and
+   direct the successor at exactly one pivot target taken under the normal
+   claim order (chain-end fallback, then map audit). That pickup is the
+   successor's one claim. The pending ticket's resolution belongs to
+   whichever later session reconciles its verdict: reconcile the recorded
+   awaited SHA as well as HEAD (HEAD may have moved under AFK pushes) —
+   GREEN resolves it, RED repairs the named leg.
+2. **Hold last.** Only when no pivot candidate qualifies, fall back to the
+   canonical hold and keep the claim assigned so the woken session continues
+   it:
+    - If a `<!-- wayfinder-ci-wait: <full-head-sha> -->` packet for this HEAD
+      already exists, stop with NO new packet — the chain rests on that hold.
+    - Else write exactly one `wayfinder-<map>-<shortsha>-ciwait-handoff.md`
+      packet carrying the marker and stop.
 
 The daemon holds the spawn on that marker until hosted CI concludes
 (GREEN/RED wakes exactly one session; UNKNOWN or unreachable CI proceeds),

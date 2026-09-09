@@ -33,7 +33,8 @@ seen-doc fingerprints, retries, hosted-CI verdict/repair mappings),
 ## CI-wait hold (pending-verdict packets)
 
 A session whose session-start CI reconciliation reports PENDING with zero
-work delta writes one canonical `wayfinder-<map>-<shortsha>-ciwait-handoff.md`
+work delta and no pivot candidate (lifecycle: "CI-wait packets" — pivot
+first, hold last) writes one canonical `wayfinder-<map>-<shortsha>-ciwait-handoff.md`
 packet carrying `<!-- wayfinder-ci-wait: <full-head-sha> -->` and stops
 (lifecycle: "CI-wait packets"). The daemon holds the spawn on that marker
 instead of burning a worker per minute: it polls the awaited SHA's hosted
