@@ -12,7 +12,7 @@ fail=0
 ok() { echo "  ok: $1"; }
 bad() { echo "  FAIL: $1"; fail=1; }
 
-for name in wayfinder-loop.sh wayfinder-create-child.sh wayfinder-verify-child.sh wayfinder-park.sh; do
+for name in wayfinder-loop.sh wayfinder-create-child.sh wayfinder-verify-child.sh wayfinder-park.sh wayfinder-worker.sh wayfinder-chief.sh; do
   canonical="$ROOT/tools/wayfinder/$name"
   wrapper="$ROOT/scripts/$name"
   [ -f "$canonical" ] || { bad "canonical missing: $name"; continue; }
@@ -54,6 +54,8 @@ check_status() { # <label> <expected-code> <args...>
 check_status wayfinder-create-child.sh 2
 check_status wayfinder-verify-child.sh 2
 check_status wayfinder-park.sh 2
+check_status wayfinder-worker.sh 2
+check_status wayfinder-chief.sh 2
 
 # Cwd independence: invoking by absolute path from /tmp still resolves the same
 # repository (same lock / same bootstrap gate) instead of the caller cwd.
