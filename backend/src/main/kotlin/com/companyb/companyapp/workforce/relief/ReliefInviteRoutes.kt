@@ -7,6 +7,7 @@ import com.companyb.companyapp.contracts.workforce.CreateReliefInviteRequest
 import com.companyb.companyapp.contracts.workforce.ReliefCandidateResponse
 import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
 import com.companyb.companyapp.dto.ErrorResponse
+import com.companyb.companyapp.exception.NotFoundException
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
@@ -256,7 +257,7 @@ object ReliefInviteRoutes {
         context.status(HttpStatus.CREATED)
         context.json(
             ReliefInviteService.viewFor(invite)?.toResponse()
-                ?: throw BadRequestResponse("Invite not found"),
+                ?: throw NotFoundException("Relief invite not found"),
         )
     }
 
@@ -268,7 +269,7 @@ object ReliefInviteRoutes {
         context.status(HttpStatus.OK)
         context.json(
             ReliefInviteService.viewFor(invite)?.toResponse()
-                ?: throw BadRequestResponse("Invite not found"),
+                ?: throw NotFoundException("Relief invite not found"),
         )
     }
 
@@ -280,7 +281,7 @@ object ReliefInviteRoutes {
         context.status(HttpStatus.OK)
         context.json(
             ReliefInviteService.viewFor(invite)?.toResponse()
-                ?: throw BadRequestResponse("Invite not found"),
+                ?: throw NotFoundException("Relief invite not found"),
         )
     }
 
@@ -292,7 +293,7 @@ object ReliefInviteRoutes {
         context.status(HttpStatus.OK)
         context.json(
             ReliefInviteService.viewFor(invite)?.toResponse()
-                ?: throw BadRequestResponse("Invite not found"),
+                ?: throw NotFoundException("Relief invite not found"),
         )
     }
 
@@ -304,7 +305,7 @@ object ReliefInviteRoutes {
         context.status(HttpStatus.OK)
         context.json(
             ReliefInviteService.viewFor(invite)?.toResponse()
-                ?: throw BadRequestResponse("Invite not found"),
+                ?: throw NotFoundException("Relief invite not found"),
         )
     }
 
