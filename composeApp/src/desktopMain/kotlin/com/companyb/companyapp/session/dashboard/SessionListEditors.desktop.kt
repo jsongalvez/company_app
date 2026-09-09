@@ -86,6 +86,7 @@ private fun DashboardEditableCell(
                         currentStatus = session.sessionStatus,
                         hasCorrectionAuthority = config.canCorrectStatus,
                         dayStatus = config.dayStatus,
+                        isVoided = session.isVoided,
                     )
             }
 
@@ -108,6 +109,7 @@ private fun DashboardEditableCell(
                         currentStatus = session.sessionStatus,
                         hasCorrectionAuthority = config.canCorrectStatus,
                         dayStatus = config.dayStatus,
+                        isVoided = session.isVoided,
                     )
                 val inline = InlineEditActions(actions.onEditDraftChange, actions.onEditCommit, actions.onEditDiscard)
                 EditControl(edit = edit, canEdit = canEdit, statusValues = statusValues, actions = inline)
@@ -217,6 +219,7 @@ private fun RemittedCellDialog(
                 currentStatus = session.sessionStatus,
                 hasCorrectionAuthority = config.canCorrectStatus,
                 dayStatus = config.dayStatus,
+                isVoided = session.isVoided,
             ),
         actions =
             RemittedEditActions(

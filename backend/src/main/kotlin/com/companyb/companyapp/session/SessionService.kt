@@ -262,6 +262,15 @@ object SessionService {
                 throw ConflictException("Session version mismatch")
             }
 
+            // #690 — void freezes status: a voided row rejects every status change
+            // (unvoid restores editability). Roster joins stay open (#689).
+            // Authority is the void row (active = unvoidedAt null), read after the
+            // session lock so a concurrent void serializes on the same row.
+            val activeVoid = SessionVoidRepository.findBySessionIdInTransaction(sessionId)
+            if (activeVoid != null && activeVoid.unvoidedAt == null) {
+                throw ConflictException("Session is voided")
+            }
+
             if (!isStatusTransitionAllowed(session.sessionStatus, newStatus, session.isWalkIn)) {
                 throw ValidationException(
                     "Illegal session status transition from ${session.sessionStatus} to $newStatus",

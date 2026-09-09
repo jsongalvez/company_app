@@ -16,6 +16,7 @@ private const val OTHER = "u2"
 private fun policyRow(
     status: SessionStatus = SessionStatus.PENDING,
     isWalkIn: Boolean = false,
+    isVoided: Boolean = false,
 ) = DashboardSessionResponse(
     id = "s1",
     clientId = "c1",
@@ -30,7 +31,7 @@ private fun policyRow(
     bookedAt = null,
     nextAppointmentDate = null,
     version = 3,
-    isVoided = false,
+    isVoided = isVoided,
 )
 
 private fun model(
@@ -41,8 +42,9 @@ private fun model(
     canEdit: Boolean = true,
     canCorrectStatus: Boolean = false,
     dayStatus: DayStatus? = DayStatus.OPEN,
+    isVoided: Boolean = false,
 ) = sessionDetailActionModel(
-    session = policyRow(status, isWalkIn),
+    session = policyRow(status, isWalkIn, isVoided),
     rosterIds = rosterIds,
     currentUserId = currentUserId,
     canEdit = canEdit,
@@ -163,6 +165,25 @@ class SessionDetailStatusPolicyTest {
         assertEquals("Mark no-show", SessionStatus.NO_SHOW.detailActionLabel())
         assertEquals("Cancel session", SessionStatus.CANCELLED.detailActionLabel())
         assertEquals("Reopen as pending", SessionStatus.PENDING.detailActionLabel())
+    }
+
+    @Test
+    fun voided_session_hides_status_options_but_keeps_unvoid_path() {
+        val member = model(rosterIds = setOf(ME), isVoided = true)
+        assertNull(member.primary, "void freezes completion shortcut")
+        assertTrue(member.statusMenuOptions.isEmpty(), "voided rows offer no status targets")
+        assertFalse(member.showCompletedState)
+
+        val nonMember = model(rosterIds = setOf(OTHER), isVoided = true)
+        assertEquals(SessionDetailPrimary.ADD_SELF, nonMember.primary, "roster joins stay open (#689)")
+        assertTrue(nonMember.statusMenuOptions.isEmpty())
+    }
+
+    @Test
+    fun voided_completed_session_offers_no_status_targets() {
+        val result = model(status = SessionStatus.COMPLETED, isVoided = true)
+        assertNull(result.primary)
+        assertTrue(result.statusMenuOptions.isEmpty())
     }
 
     @Test

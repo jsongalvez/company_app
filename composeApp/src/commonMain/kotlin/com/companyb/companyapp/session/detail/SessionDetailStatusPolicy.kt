@@ -72,6 +72,9 @@ private fun detailStatusOptions(
         currentStatus = session.sessionStatus,
         hasCorrectionAuthority = canCorrectStatus,
         dayStatus = dayStatus,
+        // #690 — void freezes status (Unvoid toggles the options back);
+        // roster joins stay open via detailPrimary ADD_SELF (#689).
+        isVoided = session.isVoided,
     ).mapNotNull { SessionStatus.entries.find { status -> status.name == it } }.filter { it != session.sessionStatus }
 }
 

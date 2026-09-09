@@ -89,6 +89,15 @@ private const val DASHBOARD_JSON_V2 =
          "version":2,"isVoided":false,"practitioners":[],"concerns":[]}],
        "commission":{"amount":"200.0000","productSalesCount":1}}"""
 
+// #690 — a concurrent void flips isVoided without bumping the optimistic version.
+private const val DASHBOARD_JSON_VOIDED =
+    """{"sessions":[
+        {"id":"s1","clientId":"c1","clientName":"Test Client","sessionType":"REGULAR","isWalkIn":false,
+         "sessionStatus":"PENDING","basePrice":"2500.00","finalPrice":"2500.00","remarks":null,
+         "otherConcerns":null,"bookedAt":"2026-08-12T08:00:00+08:00","nextAppointmentDate":null,
+         "version":1,"isVoided":true,"practitioners":[],"concerns":[]}],
+       "commission":{"amount":"200.0000","productSalesCount":1}}"""
+
 // #403 — the day-status read behind the REMITTED-day reason gate.
 private const val DAY_TODAY_PATH = "/api/branches/b1/today"
 
@@ -1120,6 +1129,56 @@ class SessionDashboardViewModelTest {
                 assertFalse(reloaded.conflict)
                 assertNull(reloaded.error)
                 assertTrue(reloaded.fieldChangedRemotely, "fresh PENDING != attempted COMPLETED")
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun commit_409_then_void_reload_clears_conflict_without_version_bump() =
+        runTest(testScheduler) {
+            AppSessionState.setCapabilities(editRow())
+            var json = DASHBOARD_JSON
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        editDashboardHandler(
+                            patchResponse = {
+                                HttpStatusCode.Conflict to """{"error":"Session is voided"}"""
+                            },
+                            getJson = { json },
+                        ),
+                    ),
+                )
+            try {
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("COMPLETED")
+                vm.commitEdit()
+                runCurrent()
+
+                val conflicted = vm.editState.value
+                assertNotNull(conflicted)
+                assertTrue(conflicted.conflict)
+
+                // A concurrent void lands without a version bump — the reload must still
+                // clear the conflict (the void flag is the newer data); the retry then
+                // fails the client-side status validation honestly.
+                json = DASHBOARD_JSON_VOIDED
+                vm.reloadAfterConflict()
+                runCurrent()
+
+                val reloaded = vm.editState.value
+                assertNotNull(reloaded)
+                assertFalse(reloaded.conflict, "voided reload resolves the conflict")
+                assertNull(reloaded.error)
+
+                vm.commitEdit()
+                runCurrent()
+                val invalid = vm.editState.value
+                assertNotNull(invalid)
+                assertFalse(invalid.conflict)
+                assertNotNull(invalid.error, "retry on a voided row fails validation, not conflict")
             } finally {
                 vm.pause()
             }

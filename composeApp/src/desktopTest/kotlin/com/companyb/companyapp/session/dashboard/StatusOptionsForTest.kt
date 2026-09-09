@@ -89,4 +89,16 @@ class StatusOptionsForTest {
         )
         assertFalse(statusEditAllowed(false, SessionStatus.PENDING, true, null))
     }
+
+    @Test
+    fun `voided rows keep current value but offer no edit`() {
+        assertEquals(
+            listOf("PENDING"),
+            statusOptionsFor(false, SessionStatus.PENDING, false, DayStatus.OPEN, isVoided = true),
+        )
+        assertFalse(statusEditAllowed(false, SessionStatus.PENDING, false, DayStatus.OPEN, isVoided = true))
+        assertFalse(
+            statusEditAllowed(false, SessionStatus.NO_SHOW, true, DayStatus.PAST, isVoided = true),
+        )
+    }
 }

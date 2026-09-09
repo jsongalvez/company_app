@@ -522,6 +522,11 @@ class SessionDashboardViewModel(
      * the user would retry a stale version forever with no visible failure); and only for
      * the machine still being edited (a discard or a new edit during the reload owns the
      * state).
+     *
+     * #690 — a voided STATUS row re-baselines without a version bump (void/unvoid leave
+     * the optimistic version untouched): the fresh void flag IS the newer data, so the
+     * reload proceeds and the retry then fails the client-side status validation
+     * honestly instead of standing the conflict forever.
      */
     fun reloadAfterConflict() {
         val state = currentEditState.value ?: return
@@ -535,7 +540,8 @@ class SessionDashboardViewModel(
                 return@launch
             }
             val row = lastDataCache.value?.sessions?.firstOrNull { it.id == current.sessionId } ?: return@launch
-            if (row.version <= current.baselineVersion) {
+            val voidedStatusRow = current.field == DashboardEditField.STATUS && row.isVoided
+            if (row.version <= current.baselineVersion && !voidedStatusRow) {
                 // No newer data landed (refresh was cancelled by an in-flight poll, or the
                 // fetch failed) — the conflict stands; the user clicks Reload again.
                 return@launch
@@ -558,6 +564,7 @@ class SessionDashboardViewModel(
                         currentStatus = row.sessionStatus,
                         hasCorrectionAuthority = canCorrectStatusState.value,
                         dayStatus = dayStatusState.value,
+                        isVoided = row.isVoided,
                     )
             )
 
@@ -619,6 +626,7 @@ class SessionDashboardViewModel(
                     currentStatus = baselineStatus(state, row),
                     hasCorrectionAuthority = canCorrectStatusState.value,
                     dayStatus = dayStatusState.value,
+                    isVoided = row.isVoided,
                 ) -> INVALID_STATUS_MESSAGE
 
             state.field == DashboardEditField.FINAL_PRICE && !dayEditAllowed() -> DAY_STATE_UNAVAILABLE_MESSAGE

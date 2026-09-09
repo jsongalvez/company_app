@@ -18,10 +18,12 @@ internal fun statusOptionsFor(
     currentStatus: SessionStatus,
     hasCorrectionAuthority: Boolean,
     dayStatus: DayStatus?,
+    isVoided: Boolean = false,
 ): List<String> =
     SessionStatus.entries
-        .filter { target -> statusTargetAllowed(target, isWalkIn, currentStatus, hasCorrectionAuthority, dayStatus) }
-        .map { it.name }
+        .filter { target ->
+            statusTargetAllowed(target, isWalkIn, currentStatus, hasCorrectionAuthority, dayStatus, isVoided)
+        }.map { it.name }
 
 private fun statusTargetAllowed(
     target: SessionStatus,
@@ -29,13 +31,23 @@ private fun statusTargetAllowed(
     currentStatus: SessionStatus,
     hasCorrectionAuthority: Boolean,
     dayStatus: DayStatus?,
+    isVoided: Boolean = false,
 ): Boolean =
     when {
+        // #690 — void freezes status: the row keeps its current value for display,
+        // but no transition target is offered. Unvoid toggles the options back.
+        isVoided && target != currentStatus -> false
+
         target == currentStatus -> true
+
         dayStatus == null -> false
+
         dayStatus != DayStatus.OPEN && !hasCorrectionAuthority -> false
+
         !isStatusTransitionAllowed(currentStatus, target, isWalkIn) -> false
+
         isStatusCorrection(currentStatus, target) && !hasCorrectionAuthority -> false
+
         else -> true
     }
 
@@ -44,8 +56,9 @@ internal fun statusEditAllowed(
     currentStatus: SessionStatus,
     hasCorrectionAuthority: Boolean,
     dayStatus: DayStatus?,
+    isVoided: Boolean = false,
 ): Boolean =
-    statusOptionsFor(isWalkIn, currentStatus, hasCorrectionAuthority, dayStatus)
+    statusOptionsFor(isWalkIn, currentStatus, hasCorrectionAuthority, dayStatus, isVoided)
         .any { it != currentStatus.name }
 
 /**

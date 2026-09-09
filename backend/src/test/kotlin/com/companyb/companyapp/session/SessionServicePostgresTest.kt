@@ -695,9 +695,21 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `voided session status remains editable`() {
+    fun `voided session status is frozen`() {
         createSession(callerId, sessionId)
         SessionService.voidSession(callerId, sessionId, TestFixtures.uuid(), "Created in error")
+
+        assertFailsWith<ConflictException> {
+            SessionService.updateStatus(callerId, sessionId, SessionStatus.NO_SHOW, 1)
+        }
+        assertEquals(SessionStatus.PENDING, SessionRepository.findById(sessionId)?.sessionStatus)
+    }
+
+    @Test
+    fun `unvoided session status becomes editable again`() {
+        createSession(callerId, sessionId)
+        SessionService.voidSession(callerId, sessionId, TestFixtures.uuid(), "Created in error")
+        SessionService.unvoidSession(callerId, sessionId, "Resolved in error")
 
         val updated = SessionService.updateStatus(callerId, sessionId, SessionStatus.NO_SHOW, 1)
 
