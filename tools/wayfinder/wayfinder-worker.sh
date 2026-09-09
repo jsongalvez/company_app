@@ -592,6 +592,9 @@ cmd_harvest() {
         printf 'harvested %s via idle+branch evidence -> done (%s %s)\n' "$name" "$br" "$headsha"
         harvested=$((harvested + 1))
     done < "$REGISTRY"
+    if [ -s "$state_file" ]; then
+        awk -F'\t' 'NR == FNR { seen[$1] = 1; next } $1 in seen' "$REGISTRY" "$state_file" > "$state_file.tmp" && mv "$state_file.tmp" "$state_file"
+    fi
     printf 'harvest: %d harvested, %d skipped\n' "$harvested" "$skipped"
 }
 

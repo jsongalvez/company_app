@@ -428,6 +428,49 @@ collect_results() {
     printf '%d' "$changed" > /dev/null
 }
 
+# claim_watchdog — re-deliver the ticket prompt to workers that never started
+# (map #755: prompt delivery over Herdr is occasionally lost — the agent sits
+# at an empty prompt, never claims, does zero work). A running/spawning row
+# qualifies only when ALL hold: ticket still open, ticket unassigned, row age
+# >20min, workspace HEAD equals its recorded base (no commits = nothing to
+# lose). Re-prompt preserves agent/workspace (cheaper than respawn); the
+# worker's assign-first race check still guards duplicates.
+claim_watchdog() {
+    [ -f "$REGISTRY" ] || return 0
+    local now line name ticket ws status created created_epoch age
+    now="$(date +%s)"
+    while IFS= read -r line; do
+        name="$(printf '%s' "$line" | cut -f1)"
+        ticket="$(printf '%s' "$line" | cut -f3)"
+        ws="$(printf '%s' "$line" | cut -f4)"
+        status="$(printf '%s' "$line" | cut -f6)"
+        created="$(printf '%s' "$line" | cut -f7)"
+        [ -n "$name" ] || continue
+        case "$status" in spawning|running) ;; *) continue ;; esac
+        created_epoch="$(date -d "$created" +%s 2>/dev/null || printf '')"
+        case "$created_epoch" in ''|*[!0-9]*) continue ;; esac
+        age=$((now - created_epoch))
+        if [ "$age" -le 1200 ]; then continue; fi
+        payload="$("$GH_BIN" api "repos/$GH_REPO/issues/$ticket" --jq '{state: .state, assignees: [.assignees[].login]}' 2>/dev/null)" || continue
+        [ "$(printf '%s' "$payload" | jq -r '.state')" = "open" ] || continue
+        [ "$(printf '%s' "$payload" | jq -r '.assignees | length')" -eq 0 ] || continue
+        [ -d "$ws" ] || continue
+        wid="wf-$ticket"
+        wsreg="${WAYFINDER_WORKSPACE_REGISTRY:-$REPO/.wayfinder/workspaces.tsv}"
+        base="$(awk -F'\t' -v w="$wid" '$1 == w { print $4; exit }' "$wsreg" 2>/dev/null)"
+        headsha="$(git -C "$ws" rev-parse HEAD 2>/dev/null || printf '')"
+        if [ -z "$base" ] || [ -z "$headsha" ] || [ "$base" != "$headsha" ]; then continue; fi
+        prompt_file="$(mktemp)"
+        ticket_prompt "$ticket" "$ws" > "$prompt_file"
+        if "$WORKER" prompt "$name" --text-file "$prompt_file" >/dev/null 2>&1; then
+            log "claim_watchdog: re-prompted $name (ticket #$ticket unclaimed, no work, age ${age}s)"
+        else
+            log "claim_watchdog: re-prompt failed for $name (ticket #$ticket)"
+        fi
+        rm -f "$prompt_file"
+    done < "$REGISTRY"
+}
+
 # query_frontier — ordered open/unblocked/unclaimed/non-deferred child numbers.
 query_frontier() {
     local numbers n payload state blocked assignees labels rank
@@ -910,6 +953,7 @@ pass() {
         # Harvest is best-effort evidence adoption (map #755): a failure must
         # never block the fill — log and continue, unlike reconcile above.
         harvest_out="$("$WORKER" harvest 2>&1)" && printf '%s\n' "$harvest_out" || log "harvest failed (continuing without it): $harvest_out"
+        claim_watchdog
         collect_results
     fi
     queue_depths
