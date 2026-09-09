@@ -33,11 +33,16 @@
 #             integrated|rejected|cancelled). Human summary on stderr.
 #   status <worker>
 #             print one row plus its review-log tail.
-#   review <worker> --disposition accept|revision|reject|cancel
+#   review <worker> --disposition accept|revision|reject|cancel|salvage
 #                    [--finding TEXT] [--result-commit SHA]
 #             record an explicit chief disposition. revision returns to the
 #             same worker/workspace via the worker seam (async prompt, no
-#             --wait); the workspace is never recreated or moved.
+#             --wait); the workspace is never recreated or moved. salvage
+#             re-queues a crashed (stopped|gone) worker whose reviewable
+#             commit survived in its workspace or the object store: the
+#             result commit is verified before the row re-enters the queue
+#             as failed, so a dead worker's work still reaches accept (a
+#             crashed row otherwise reaches only reject/cancel).
 #   integrate <worker> [--repo DIR] [--allow-gated]
 #             single-writer integration of an accepted result into the
 #             canonical checkout: serialized, conflict-safe, verified.
@@ -134,6 +139,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DISCOVERED_REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 WORKER="$SCRIPT_DIR/wayfinder-worker.sh"
 CAPACITY="$SCRIPT_DIR/wayfinder-capacity.sh"
+COMMON="$SCRIPT_DIR/wayfinder-common.sh"
 
 CANON_DEFAULT="${WAYFINDER_REPO:-$DISCOVERED_REPO}"
 REGISTRY="${WAYFINDER_WORKER_REGISTRY:-$DISCOVERED_REPO/.wayfinder/workers.tsv}"
@@ -154,6 +160,10 @@ usage() {
 die() { printf 'wayfinder-review: %s\n' "$*" >&2; exit 1; }
 usage_err() { printf 'wayfinder-review: %s\n' "$*" >&2; exit 2; }
 log() { printf '%s [review] %s\n' "$(date '+%F %T')" "$*"; }
+
+[ -f "$COMMON" ] || die "shared hardening seam missing: $COMMON (ticket #746)"
+# shellcheck disable=SC1090
+. "$COMMON"
 
 require_chief() { # <op>
     case " $LEAF_ROLES " in
@@ -184,6 +194,8 @@ with_registry_lock() {
         exec {WAYFINDER_REVIEW_REG_FD}>"$REGISTRY.lock"
         flock -w 60 "$WAYFINDER_REVIEW_REG_FD" \
             || die "cannot lock registry: $REGISTRY.lock"
+    else
+        wf_warn_no_flock "review queue rewrite"
     fi
 }
 
@@ -238,16 +250,14 @@ result_of() { # <row> — print the latest accepted result= SHA or nothing.
     printf '%s' "$1" | grep -oE 'reviewed=accept result=[0-9a-f]{40}' | tail -1 | grep -oE '[0-9a-f]{40}'
 }
 
-# refuse_forgery <text> — reject note-token separators and structured-token
-# forgery in operator finding/reason text (prompt-forgery guard, same class
-# as the maintenance lane's --failing check).
-refuse_forgery() { # <flag> <text>
-    case "$1" in
-        *$'\t'*|*$'\n'*|*'|'*) die "review: $2 must not contain tabs, newlines, or '|' (note-token guard)" ;;
-    esac
-    case "$1" in
-        *reviewed=*|*result=*|*integrated=*|*verified=*) die "review: $2 must not contain structured note tokens (reviewed=/result=/integrated=/verified=)" ;;
-    esac
+# refuse_forgery <text> <flag-label> — reject note-token separators and
+# structured-token forgery in operator finding/reason text
+# (prompt-forgery guard, same class as the maintenance lane's --failing
+# check). The predicate is the shared wayfinder-common.sh one (ticket
+# #746); this wrapper only adds the review-prefixed message.
+refuse_forgery() { # <text> <flag-label>
+    wf_refuse_forgery "$1" \
+        || die "review: $2 must not contain tabs, newlines, or '|' (note-token guard) and must not contain structured note tokens (reviewed=/result=/integrated=/verified=)"
 }
 
 is_pending() { # <status> — true for actionable review states.
@@ -381,8 +391,8 @@ cmd_review() {
         esac
     done
     case "$disp" in
-        accept|revision|reject|cancel) ;;
-        *) usage_err "review: --disposition must be accept|revision|reject|cancel (got '${disp:-}')" ;;
+        accept|revision|reject|cancel|salvage) ;;
+        *) usage_err "review: --disposition must be accept|revision|reject|cancel|salvage (got '${disp:-}')" ;;
     esac
     [ -z "$finding" ] || refuse_forgery "$finding" "--finding"
     if [ -n "$result" ]; then
@@ -439,6 +449,32 @@ cmd_review() {
             review_log "$name" "revision ticket=#$ticket finding: $finding"
             review_emit review-revision --worker "$name" --role "$role" --ticket "$ticket" --workspace "$ws" --detail "$finding"
             log "revision requested from $name in its workspace $ws (state kept, context preserved)"
+            ;;
+        salvage)
+            # Crashed-to-review re-queue (ticket #746): a stopped|gone row
+            # holds no live agent to re-report, but its reviewable commit
+            # may survive. Verify the commit resolves in the worker
+            # workspace or the canonical object store, then re-enter the
+            # queue as failed — the normal accept path (failed plus an
+            # inspected --result-commit) applies from there.
+            case "$status" in
+                stopped|gone) ;;
+                *) die "review: cannot salvage '$name' while $status (want stopped or gone with a reviewable commit — live and queued rows already have a path)" ;;
+            esac
+            [ -n "$result" ] || die "review: salvage requires --result-commit <reviewable 40-char SHA> (the crashed worker's commit, verified below)"
+            local short provenance
+            short="$(printf '%s' "$result" | cut -c1-7)"
+            if git -C "$ws" cat-file -e "${result}^{commit}" 2>/dev/null; then
+                provenance="workspace $ws"
+            elif [ -d "$CANON_DEFAULT" ] && git -C "$CANON_DEFAULT" cat-file -e "${result}^{commit}" 2>/dev/null; then
+                provenance="canonical object store"
+            else
+                die "review: salvage result $short resolves in neither the worker workspace ($ws) nor the canonical object store — commit the salvageable files first, then salvage the new commit"
+            fi
+            reg_set "$name" "failed" "salvaged result=$result from $status ($provenance)${finding:+ finding: $finding}"
+            review_log "$name" "salvage ticket=#$ticket result=$result from $status ($provenance)${finding:+ finding: $finding}"
+            review_emit review-salvaged --worker "$name" --role "$role" --ticket "$ticket" --workspace "$ws" --detail "result=$result from $status"
+            log "salvaged $name (ticket #$ticket, result $short from $status) — re-enters the queue as failed; accept only after inspection"
             ;;
         reject|cancel)
             case "$status" in
@@ -676,7 +712,7 @@ verify_result() {
 integrate_done() {
     local name="$1" ticket="$2"
     log "ticket #$ticket may now be closed by the chief — closure only after this integrated state"
-    log "workspace for '$name' is now safe to release: worker cleanup + provider cleanup"
+    log "workspace for '$name' is now safe to release: worker cleanup (tears down the Herdr agent/pane best-effort, ticket #746) + provider cleanup"
 }
 
 [ $# -ge 1 ] || usage

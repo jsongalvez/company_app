@@ -63,6 +63,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DISCOVERED_REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 CANON_DEFAULT="${WAYFINDER_REPO:-$DISCOVERED_REPO}"
+COMMON="$SCRIPT_DIR/wayfinder-common.sh"
 
 usage() {
     sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//'
@@ -71,6 +72,10 @@ usage() {
 
 die() { printf 'wayfinder-maintenance: %s\n' "$*" >&2; exit 1; }
 usage_err() { printf 'wayfinder-maintenance: %s\n' "$*" >&2; exit 2; }
+
+[ -f "$COMMON" ] || die "shared hardening seam missing: $COMMON (ticket #746)"
+# shellcheck disable=SC1090
+. "$COMMON"
 
 need_arg() { # <flag> <value>
     [ -n "${2:-}" ] || usage_err "$1 requires a value"
@@ -120,9 +125,10 @@ cmd_prompt() { # <sha> --repair-issue N --map M --workspace DIR [--base SHA] [--
     case "$workspace" in
         *$'\t'*|*$'\n'*) usage_err "prompt: workspace path must not contain tabs or newlines" ;;
     esac
-    case "${failing:-}" in
-        *$'\t'*|*$'\n'*) usage_err "prompt: --failing text must not contain tabs or newlines (prompt-forgery guard)" ;;
-    esac
+    # Shared forgery guard (ticket #746): --failing text travels into the
+    # prompt and the chief lane; refuse separators and structured tokens.
+    wf_refuse_forgery "${failing:-}" \
+        || usage_err "prompt: --failing text must not contain tabs, newlines, or '|' and must not contain structured note tokens (reviewed=/result=/integrated=/verified=)"
     local base_line="BASE: derive the workspace HEAD revision at start (full 40-char commit) and report it"
     [ -n "$base" ] && base_line="BASE: dispatched at canonical $base — verify the workspace HEAD revision (full 40-char commit) at start and report the actual value"
     local failing_line="FAILING CHECKS: $failing"

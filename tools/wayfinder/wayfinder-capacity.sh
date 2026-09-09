@@ -91,6 +91,7 @@
 #   maintenance-dispatched scout-slice-started scout-slice-completed
 #   worker-collected worker-blocked-input worker-failed slot-refilled
 #   review-accepted review-revision review-rejected review-cancelled
+#   review-salvaged (ticket #746: crashed rows re-queued with a commit)
 #   integration-completed workspace-created workspace-cleaned
 #   heavy-acquired heavy-waiting heavy-released heavy-reconciled
 #
@@ -129,6 +130,7 @@ WORKER="$SCRIPT_DIR/wayfinder-worker.sh"
 SCOUT="$SCRIPT_DIR/wayfinder-scout.sh"
 REVIEW="$SCRIPT_DIR/wayfinder-review.sh"
 RECOVER="$SCRIPT_DIR/wayfinder-recover.sh"
+COMMON="$SCRIPT_DIR/wayfinder-common.sh"
 
 WORKER_REGISTRY="${WAYFINDER_WORKER_REGISTRY:-$DISCOVERED_REPO/.wayfinder/workers.tsv}"
 STATE_DIR="$(dirname "$WORKER_REGISTRY")"
@@ -155,6 +157,10 @@ usage() {
 
 die() { printf 'wayfinder-capacity: %s\n' "$*" >&2; exit 1; }
 usage_err() { printf 'wayfinder-capacity: %s\n' "$*" >&2; exit 2; }
+
+[ -f "$COMMON" ] || die "shared hardening seam missing: $COMMON (ticket #746)"
+# shellcheck disable=SC1090
+. "$COMMON"
 
 require_chief() { # <op>
     case " $LEAF_ROLES " in
@@ -223,6 +229,8 @@ with_heavy_lock() {
         exec {WAYFINDER_HEAVY_LOCK_FD}>"$HEAVY_REGISTRY.lock"
         flock -w 60 "$WAYFINDER_HEAVY_LOCK_FD" \
             || die "cannot lock heavy registry: $HEAVY_REGISTRY.lock"
+    else
+        wf_warn_no_flock "heavy-slot registry rewrite"
     fi
 }
 

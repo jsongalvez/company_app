@@ -40,6 +40,10 @@
 #   agent wait <name> ...     bounded check-in (always reports done)
 #   agent read <name> ...     return the canned terminal output
 #   agent send-keys <name> .. interrupt the agent (stop path)
+#   agent delete <name>     tear down the agent (cleanup path, ticket #746 —
+#                             drops the canned status/output/prompt state so
+#                             the agent reads as gone, like a real teardown)
+#   pane kill <pane>        release the pane (cleanup path, best-effort)
 #
 # Crash/disappearance is simulated by omitting the agent from list.json (the
 # seam marks the row gone, row kept for salvage) or by deleting its status
@@ -120,6 +124,16 @@ case "${1:-} ${2:-}" in
         exit 0
         ;;
     "agent send-keys")
+        exit 0
+        ;;
+    "agent delete")
+        name="${3:-}"
+        [ -n "$name" ] || { printf 'fake-herdr: agent delete requires a name\n' >&2; exit 1; }
+        rm -f "$STATE_DIR/status-$name" "$STATE_DIR/output-$name" "$STATE_DIR/prompt-$name"
+        printf '{"result":{"agent":{"name":"%s","status":"deleted"}}}' "$name"
+        exit 0
+        ;;
+    "pane kill")
         exit 0
         ;;
 esac

@@ -20,6 +20,9 @@
 # Control loop (asynchronous — never spawn-N-then-wait-for-all-N):
 #
 #   reconcile workers -> collect completed/blocked/failed -> queue ready results
+#     -> refuse fill while unmanaged wf-* strays exist (ticket #746: a stray
+#        may hold a frontier claim outside the registry — adopt or stop it
+#        first, never spawn a duplicate owner around it)
 #     -> query authoritative frontier -> fill free capacity
 #     -> perform useful chief work -> repeat
 #
@@ -169,8 +172,9 @@
 #   WAYFINDER_EVENTS_LOG (structured events file, default: beside the worker
 #   registry), WAYFINDER_WORKER_KIND,
 #   WAYFINDER_WORKER_ARGS, WAYFINDER_GH_BIN (default gh), WAYFINDER_GH_REPO
-#   (default from origin), HERDR_BIN, WAYFINDER_GENERATION (recorded on spawn,
-#   default empty), WAYFINDER_ROLE=chief (set automatically).
+#   (default from origin), HERDR_BIN, WAYFINDER_GENERATION (recorded on spawn —
+#   minted once per chief session when unset, ticket #746; explicit values
+#   preserved), WAYFINDER_ROLE=chief (set automatically).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -181,6 +185,7 @@ MAINT="$SCRIPT_DIR/wayfinder-maintenance.sh"
 REVIEW="$SCRIPT_DIR/wayfinder-review.sh"
 RECOVER="$SCRIPT_DIR/wayfinder-recover.sh"
 CAPACITY="$SCRIPT_DIR/wayfinder-capacity.sh"
+COMMON="$SCRIPT_DIR/wayfinder-common.sh"
 
 MAP="" ONCE=0 DRY_RUN=""
 MAX="${WAYFINDER_MAX_WORKERS:-1}"
@@ -207,6 +212,10 @@ STATUS_LANE="" STATUS_MACHINE=""
 usage() { sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 log() { printf '%s [chief] %s\n' "$(date '+%F %T')" "$*"; }
 die() { printf 'wayfinder-chief: %s\n' "$*" >&2; exit 1; }
+
+[ -f "$COMMON" ] || die "shared hardening seam missing: $COMMON (ticket #746)"
+# shellcheck disable=SC1090
+. "$COMMON"
 
 # capacity_emit <event> [emit-flags...] — best-effort structured lifecycle
 # event (ticket #742). Never breaks scheduling: a missing seam or a failed
@@ -329,11 +338,20 @@ fi
 export WAYFINDER_MAX_WORKERS="$MAX"
 export WAYFINDER_WORKER_REGISTRY="$REGISTRY"
 export WAYFINDER_ROLE=chief
-# Recovery identity (ticket #741): every worker spawn records the owning map
-# (always) and the chief generation (parallel deployments set
-# WAYFINDER_GENERATION per chief session; empty stays legal for the sequential
-# fallback). The worker seam defaults from these env values.
+# Recovery identity (ticket #741, minting knob ticket #746): every worker
+# spawn records the owning map (always) and the chief generation. Parallel
+# deployments set WAYFINDER_GENERATION per chief session; when unset, the
+# chief mints one stable stamp for its own lifetime so a restarted chief
+# never reuses its predecessor's generation (empty stays legal for the
+# sequential fallback — duplication safety comes from the deterministic
+# worker name key, generation is diagnostic identity for operators). The
+# worker seam defaults from these env values.
 export WAYFINDER_MAP="$MAP"
+if [ -z "${WAYFINDER_GENERATION:-}" ]; then
+    WAYFINDER_GENERATION="chief-$(date '+%Y%m%d-%H%M%S')-$$"
+    export WAYFINDER_GENERATION
+    log "minted chief generation $WAYFINDER_GENERATION (recorded on every spawn; set WAYFINDER_GENERATION to override)"
+fi
 [ -x "$WORKER" ] || die "worker seam not executable: $WORKER"
 [ -x "$SCOUT" ] || die "scout contract not executable: $SCOUT"
 [ -x "$MAINT" ] || die "maintenance contract not executable: $MAINT"
@@ -373,10 +391,24 @@ collect_results() {
         exec {WAYFINDER_CHIEF_REG_FD}>"$REGISTRY.lock"
         flock -w 60 "$WAYFINDER_CHIEF_REG_FD" \
             || { printf 'wayfinder-chief: cannot lock registry: %s.lock\n' "$REGISTRY" >&2; return 1; }
+    else
+        wf_warn_no_flock "chief collect rewrite"
     fi
     while IFS= read -r name; do
         [ -n "$name" ] || continue
         row="$(awk -F'\t' -v n="$name" '$1 == n { print; exit }' "$REGISTRY")"
+        # Re-validate under the lock (ticket #746): the snapshot above
+        # raced review dispositions and integrations — a row that moved
+        # past done|blocked|failed (reviewed, integrated, cleaned) is
+        # skipped, never clobbered back to ready-for-review.
+        if [ -z "$row" ]; then
+            log "collect: $name vanished since the snapshot (cleaned concurrently) — skipping"
+            continue
+        fi
+        case "$(printf '%s' "$row" | cut -f6)" in
+            done|blocked|failed) ;;
+            *) log "collect: $name is now $(printf '%s' "$row" | cut -f6) — skipping (moved since the snapshot)"; continue ;;
+        esac
         tmp="$(mktemp -p "$(dirname "$REGISTRY")" reg.XXXXXX)"
         awk -F'\t' -v n="$name" -v now="$(date '+%F %T')" 'BEGIN { OFS = "\t" } $1 == n { $6 = "ready-for-review"; $8 = now; $9 = ($9 == "" ? "awaiting chief review (#740 queue)" : $9 " | awaiting chief review (#740 queue)") } { print }' \
             "$REGISTRY" > "$tmp"
@@ -568,6 +600,10 @@ EOF
 spawn_helper_for() { # chief-mediated helper spawn; exits 0 on success.
     [ -n "$SPAWN_HELPER" ] || die "--spawn-helper requires a parent worker name"
     [ -n "$HELPER_SCOPE" ] || die "--spawn-helper requires --scope <bounded non-overlapping scope>"
+    # Shared forgery guard (ticket #746): the scope lands in the worker
+    # registry note via the worker seam.
+    wf_refuse_forgery "$HELPER_SCOPE" \
+        || die "--spawn-helper: --scope must not contain tabs, newlines, or '|' and must not contain structured note tokens (reviewed=/result=/integrated=/verified=)"
     [ -n "$HELPER_WORKSPACE" ] || die "--spawn-helper requires --helper-workspace <isolated dir>"
     case "$HELPER_MODE" in
         read-only|writable) ;;
@@ -714,9 +750,10 @@ spawn_maintenance_for() { # chief-mediated maintenance spawn for one red SHA; ex
     [[ "$MAINT_REPAIR" =~ ^[0-9]+$ ]] \
         || die "--spawn-maintenance requires --repair-issue <durable repair task> (reuse the hosted-CI repair issue)"
     [ -n "$MAINT_WORKSPACE" ] || die "--spawn-maintenance requires --maintenance-workspace <isolated dir>"
-    case "${MAINT_FAILING:-}" in
-        *$'\t'*|*$'\n'*) die "--spawn-maintenance: --failing text must not contain tabs or newlines (prompt-forgery guard)" ;;
-    esac
+    # Shared forgery guard (ticket #746): --failing text travels into the
+    # maintenance prompt; refuse separators and structured note tokens.
+    wf_refuse_forgery "${MAINT_FAILING:-}" \
+        || die "--spawn-maintenance: --failing text must not contain tabs, newlines, or '|' and must not contain structured note tokens (reviewed=/result=/integrated=/verified=)"
     [ -d "$MAINT_WORKSPACE" ] || die "--spawn-maintenance: workspace does not exist: $MAINT_WORKSPACE"
     case "$MAINT_WORKSPACE" in
         *$'\t'*|*$'\n'*) die "--spawn-maintenance: workspace path must not contain tabs or newlines" ;;
@@ -858,8 +895,10 @@ status_lane() { # compact operator view; single-shot, no fill.
 
 pass() {
     log "pass start (map #$MAP, max=$MAX)"
+    local reconcile_out=""
     if [ -z "$DRY_RUN" ]; then
-        "$WORKER" reconcile
+        reconcile_out="$("$WORKER" reconcile 2>&1)" || { printf '%s\n' "$reconcile_out"; return 1; }
+        printf '%s\n' "$reconcile_out"
     else
         log "dry-run: skip worker reconcile"
     fi
@@ -867,6 +906,21 @@ pass() {
         collect_results
     fi
     queue_depths
+    # Unmanaged-stray gate (ticket #746): reconcile reports live agents
+    # the registry never saw. A wf-* stray may hold a frontier ticket's
+    # claim outside the registry — filling around it would spawn a
+    # duplicate owner. Skip the fill (collection above still ran) until
+    # an operator adopts or stops the stray; non-Wayfinder agents never
+    # gate the fill. Mirrors the daemon's reconcile-then-gate discipline.
+    local strays=""
+    if [ -z "$DRY_RUN" ]; then
+        strays="$(printf '%s\n' "$reconcile_out" | awk '/^unmanaged: wf-/ { print $2 }' | tr '\n' ' ')"
+        if [ -n "$strays" ]; then
+            log "unmanaged Wayfinder agent(s) present: $strays — adopt (recover adopt) or stop them before dispatch; skip fill this pass"
+            chief_idle_work
+            return 0
+        fi
+    fi
     local free frontier ticket ws spawned=0
     free=$((MAX - $(running_count)))
     if [ "$free" -le 0 ]; then

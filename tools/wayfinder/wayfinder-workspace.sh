@@ -100,6 +100,7 @@ PROVIDER_DEFAULT="${WAYFINDER_WORKSPACE_PROVIDER:-git-worktree}"
 REGISTRY_DEFAULT="${WAYFINDER_WORKSPACE_REGISTRY:-$DISCOVERED_REPO/.wayfinder/workspaces.tsv}"
 CALLER_ROLE="${WAYFINDER_ROLE:-chief}"
 CAPACITY="$SCRIPT_DIR/wayfinder-capacity.sh"
+COMMON="$SCRIPT_DIR/wayfinder-common.sh"
 
 LEAF_ROLES="ticket maintenance bug-scout helper"
 
@@ -110,6 +111,10 @@ usage() {
 
 die() { printf 'wayfinder-workspace: %s\n' "$*" >&2; exit 1; }
 usage_err() { printf 'wayfinder-workspace: %s\n' "$*" >&2; exit 2; }
+
+[ -f "$COMMON" ] || die "shared hardening seam missing: $COMMON (ticket #746)"
+# shellcheck disable=SC1090
+. "$COMMON"
 
 require_chief() { # <op>
     case " $LEAF_ROLES " in
@@ -157,6 +162,8 @@ with_registry_lock() {
         exec {WAYFINDER_WORKSPACE_LOCK_FD}>"$1.lock"
         flock -w 60 "$WAYFINDER_WORKSPACE_LOCK_FD" \
             || die "cannot lock registry: $1.lock"
+    else
+        wf_warn_no_flock "workspace registry rewrite"
     fi
 }
 

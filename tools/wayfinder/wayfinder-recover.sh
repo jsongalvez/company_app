@@ -35,10 +35,10 @@
 #             while BLOCKED. Read-only: no Herdr, no gh, no git.
 #   orphans
 #             list crashed workers (stopped/gone) holding tracker claims plus
-#             the exact gh release commands that return each ticket to the pool.
-#             Read-only: prints guidance, never mutates the tracker (the chief
-#             performs the release after confirming no salvageable result needs
-#             review first).
+#             the salvage lane and the exact gh release commands that return
+#             each ticket to the pool. Read-only: prints guidance, never
+#             mutates the tracker (the chief performs the release after
+#             confirming no salvageable result needs review first).
 #   adopt <name> --role R --ticket N --workspace DIR [--pane P] [--map M]
 #             [--generation G] [--parent W --scope TEXT] (helper only)
 #             register one unmanaged live Herdr agent as a running worker so a
@@ -50,8 +50,10 @@
 #             map; helper rows excepted against their own parent: helpers share
 #             the parent ticket by design), and records map/generation recovery
 #             identity under the worker seam's charset rules (a forged
-#             generation could shadow review note tokens). Never starts agents
-#             and never touches the tracker.
+#             generation could shadow review note tokens). Occupancy guards
+#             run before the liveness probe and again under the registry lock
+#             (ticket #746): a concurrent adopt loses with a refusal, never a
+#             duplicate row. Never starts agents and never touches the tracker.
 #
 # Lifecycle bands (quiescence + status share these):
 #
@@ -104,6 +106,7 @@ DISCOVERED_REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 WORKER="$SCRIPT_DIR/wayfinder-worker.sh"
 WORKSPACE="$SCRIPT_DIR/wayfinder-workspace.sh"
 REVIEW="$SCRIPT_DIR/wayfinder-review.sh"
+COMMON="$SCRIPT_DIR/wayfinder-common.sh"
 
 CANON_DEFAULT="${WAYFINDER_REPO:-$DISCOVERED_REPO}"
 WORKER_REGISTRY="${WAYFINDER_WORKER_REGISTRY:-$DISCOVERED_REPO/.wayfinder/workers.tsv}"
@@ -125,6 +128,10 @@ die() { printf 'wayfinder-recover: %s\n' "$*" >&2; exit 1; }
 usage_err() { printf 'wayfinder-recover: %s\n' "$*" >&2; exit 2; }
 log() { printf '%s [recover] %s\n' "$(date '+%F %T')" "$*"; }
 
+[ -f "$COMMON" ] || die "shared hardening seam missing: $COMMON (ticket #746)"
+# shellcheck disable=SC1090
+. "$COMMON"
+
 require_chief() { # <op>
     case " $LEAF_ROLES " in
         *" $CALLER_ROLE "*) die "$1 requires the map chief (WAYFINDER_ROLE=$CALLER_ROLE is a leaf role — request help via the chief instead)" ;;
@@ -142,6 +149,35 @@ valid_writable() { case " $WRITABLE_ROLES " in *" $1 "*) return 0;; esac; return
 worker_row() { # <name> — print the worker TSV row or nothing.
     [ -f "$WORKER_REGISTRY" ] || return 0
     awk -F'\t' -v name="$1" '$1 == name { print; exit }' "$WORKER_REGISTRY"
+}
+
+# ticket_rival <role> <ticket> <parent> — print the rival worker holding
+# <ticket>, or nothing when adoption is safe. Runs both before the Herdr
+# liveness probe (fast refusal) and again under the registry lock (the
+# authoritative decision, ticket #746), so two concurrent adopts cannot
+# both slip past the pre-check and duplicate a ticket owner.
+ticket_rival() { # <role> <ticket> <parent>
+    local r="$1" t="$2" p="$3"
+    [ -f "$WORKER_REGISTRY" ] || return 0
+    case "$r" in
+        bug-scout) return 0 ;; # scouts anchor ticket=map; several may share one map.
+        helper)
+            # Helpers share the parent ticket by design, so the ticket guard
+            # only refuses a NON-parent holder (a duplicate ticket worker for
+            # the same number — pathological, never a second helper).
+            awk -F'\t' -v t="$t" -v p="$p" '$3 == t && $2 != "helper" && $2 != "bug-scout" && $1 != p { print $1; exit }' "$WORKER_REGISTRY"
+            ;;
+        *)
+            awk -F'\t' -v t="$t" '$3 == t { print $1; exit }' "$WORKER_REGISTRY"
+            ;;
+    esac
+}
+
+adopt_unlock() {
+    if command -v flock >/dev/null 2>&1; then
+        # Value-based close (`exec {VAR}>&-` misbehaves on some bash builds).
+        eval "exec $WAYFINDER_RECOVER_REG_FD>&-" 2>/dev/null || true
+    fi
 }
 
 # band semantics live in quiescence_reason/cmd_status below (single source).
@@ -176,8 +212,16 @@ quiescence_reason() {
     local active=0 pending=0 crashed=0 scout_active=0 scout_pending=0
     local active_names="" pending_names="" crashed_names="" scout_names=""
     if [ -f "$WORKER_REGISTRY" ]; then
-        local name role _ticket _ws _pane status
-        while IFS=$'\t' read -r name role _ticket _ws _pane status _c _u _note _parent _map _generation _rest; do
+        # Empty-safe field split (ticket #746): `read` with a tab IFS
+        # collapses empty fields (tab is IFS whitespace), shifting sparse
+        # rows such as empty-pane adopted rows so the band decision reads
+        # the wrong column. Whole-line reads plus positional split keep
+        # every band aligned.
+        local line name role status
+        while IFS= read -r line; do
+            name="$(wf_tsv_field "$line" 1)"
+            role="$(wf_tsv_field "$line" 2)"
+            status="$(wf_tsv_field "$line" 6)"
             [ -n "$name" ] || continue
             if [ "$role" = "bug-scout" ]; then
                 case "$status" in
@@ -242,8 +286,12 @@ cmd_orphans() {
     [ $# -eq 0 ] || usage_err "orphans takes no flags"
     local found=0
     [ -f "$WORKER_REGISTRY" ] || { printf 'orphans: none (no worker registry)\n'; return 0; }
-    local name role ticket _ws _pane status
-    while IFS=$'\t' read -r name role ticket _ws _pane status _c _u _note _parent _map _generation _rest; do
+    local line name role ticket status
+    while IFS= read -r line; do
+        name="$(wf_tsv_field "$line" 1)"
+        role="$(wf_tsv_field "$line" 2)"
+        ticket="$(wf_tsv_field "$line" 3)"
+        status="$(wf_tsv_field "$line" 6)"
         [ -n "$name" ] || continue
         case "$status" in
             stopped|gone) ;;
@@ -257,6 +305,7 @@ cmd_orphans() {
                 ;;
             *)
                 printf '  action: inspect the workspace result first (reviewable commit may be salvageable for the #740 queue)\n'
+                printf '  salvage: wayfinder-review.sh review %s --disposition salvage --result-commit <reviewable-sha>  # crashed rows with a surviving commit re-enter the queue as failed\n' "$name"
                 printf '  release: gh issue edit %s --remove-assignee @me  # only after the result is dispositioned or confirmed unsalvageable\n' "$ticket"
                 ;;
         esac
@@ -268,8 +317,11 @@ cmd_status() {
     [ $# -eq 0 ] || usage_err "status takes no flags"
     local total=0 active=0 pending=0 crashed=0 terminal=0 scouts=0
     if [ -f "$WORKER_REGISTRY" ]; then
-        local name role _ticket _ws _pane status
-        while IFS=$'\t' read -r name role _ticket _ws _pane status _c _u _note _parent _map _generation _rest; do
+        local line name role status
+        while IFS= read -r line; do
+            name="$(wf_tsv_field "$line" 1)"
+            role="$(wf_tsv_field "$line" 2)"
+            status="$(wf_tsv_field "$line" 6)"
             [ -n "$name" ] || continue
             total=$((total + 1))
             if [ "$role" = "bug-scout" ]; then scouts=$((scouts + 1)); continue; fi
@@ -332,7 +384,7 @@ cmd_adopt() {
     [ $# -ge 1 ] || usage_err "adopt: worker name is required"
     local name="$1"; shift
     valid_name "$name" || usage_err "adopt: invalid worker name '$name'"
-    local role="" ticket="" workspace="" pane="" map="" generation="" parent="" scope=""
+    local role="" ticket="" workspace="" pane="" map="" generation="" parent="" scope="" _rival=""
     while [ $# -gt 0 ]; do
         case "$1" in
             --role) need_arg "$1" "${2:-}"; role="$2"; shift 2 ;;
@@ -378,6 +430,10 @@ cmd_adopt() {
     if [ "$role" = "helper" ]; then
         [ -n "$parent" ] || usage_err "adopt: --role helper requires --parent <parent-worker>"
         [ -n "$scope" ] || usage_err "adopt: --role helper requires --scope <bounded scope note>"
+        # Shared forgery guard (ticket #746): the scope lands in the
+        # registry note, which the review queue greps for result tokens.
+        wf_refuse_forgery "$scope" \
+            || die "adopt: --scope must not contain tabs, newlines, or '|' and must not contain structured note tokens (reviewed=/result=/integrated=/verified=)"
         valid_name "$parent" || usage_err "adopt: invalid parent worker name '$parent'"
         local parent_row
         parent_row="$(worker_row "$parent")"
@@ -393,25 +449,14 @@ cmd_adopt() {
     fi
     [ -z "$(worker_row "$name")" ] \
         || die "adopt: worker name already registered: $name (reconcile or cleanup first — never duplicate)"
-    if [ -f "$WORKER_REGISTRY" ]; then
-        if [ "$role" = "bug-scout" ]; then
-            : # scouts anchor ticket=map; several may share one map.
-        elif [ "$role" = "helper" ]; then
-            # Helpers share the parent ticket by design, so the ticket guard
-            # only refuses a NON-parent holder (a duplicate ticket worker for
-            # the same number — pathological, never a second helper).
-            local rival
-            rival="$(awk -F'\t' -v t="$ticket" -v p="$parent" '$3 == t && $2 != "helper" && $2 != "bug-scout" && $1 != p { print $1; exit }' "$WORKER_REGISTRY")"
-            if [ -n "$rival" ]; then
-                die "adopt: ticket #$ticket is held by non-parent worker '$rival' — resolve that row first"
-            fi
-        else
-            local holder
-            holder="$(awk -F'\t' -v t="$ticket" '$3 == t { print $1; exit }' "$WORKER_REGISTRY")"
-            if [ -n "$holder" ]; then
-                die "adopt: ticket #$ticket is already held by '$holder' — resolve that row first (never two owners for one ticket)"
-            fi
-        fi
+    # Fast pre-checks before the slow Herdr liveness probe; the locked
+    # section below re-validates authoritatively (ticket #746).
+    _rival="$(ticket_rival "$role" "$ticket" "$parent")"
+    if [ -n "$_rival" ]; then
+        case "$role" in
+            helper) die "adopt: ticket #$ticket is held by non-parent worker '$_rival' — resolve that row first" ;;
+            *) die "adopt: ticket #$ticket is already held by '$_rival' — resolve that row first (never two owners for one ticket)" ;;
+        esac
     fi
     command -v jq >/dev/null 2>&1 || die "adopt: jq is required for Herdr output parsing"
     local herdr_status status note
@@ -440,16 +485,31 @@ cmd_adopt() {
         exec {WAYFINDER_RECOVER_REG_FD}>"$WORKER_REGISTRY.lock"
         flock -w 60 "$WAYFINDER_RECOVER_REG_FD" \
             || die "adopt: cannot lock registry: $WORKER_REGISTRY.lock"
+    else
+        wf_warn_no_flock "adopt registry append"
+    fi
+    # Authoritative re-validation under the lock (ticket #746): the
+    # pre-checks above raced the Herdr liveness probe, so a concurrent
+    # adopt or spawn may have landed since. Refuse instead of duplicating
+    # a name or a ticket owner.
+    if [ -n "$(worker_row "$name")" ]; then
+        adopt_unlock
+        die "adopt: worker name already registered: $name (a concurrent adopt won — refusing instead of duplicating)"
+    fi
+    _rival="$(ticket_rival "$role" "$ticket" "$parent")"
+    if [ -n "$_rival" ]; then
+        adopt_unlock
+        case "$role" in
+            helper) die "adopt: ticket #$ticket is held by non-parent worker '$_rival' (a concurrent adopt won — resolve that row first)" ;;
+            *) die "adopt: ticket #$ticket is already held by '$_rival' (a concurrent adopt won — never two owners for one ticket)" ;;
+        esac
     fi
     tmp="$(mktemp -p "$(dirname "$WORKER_REGISTRY")" reg.XXXXXX)"
     awk -F'\t' -v n="$name" '$1 != n' "$WORKER_REGISTRY" > "$tmp"
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
         "$name" "$role" "$ticket" "$workspace" "$pane" "$status" "$now" "$now" "$note" "$parent" "$map" "$generation" >> "$tmp"
     mv "$tmp" "$WORKER_REGISTRY"
-    if command -v flock >/dev/null 2>&1; then
-        # Value-based close (`exec {VAR}>&-` misbehaves on some bash builds).
-        eval "exec $WAYFINDER_RECOVER_REG_FD>&-" 2>/dev/null || true
-    fi
+    adopt_unlock
     log "adopted $name (role=$role ticket=#$ticket status=$status)"
 }
 

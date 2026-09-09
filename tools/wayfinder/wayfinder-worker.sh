@@ -46,7 +46,11 @@
 # - Worker role/class is explicit: every registry row carries one of
 #   ticket, maintenance, bug-scout, helper.
 # - Concurrency is bounded: spawn refuses when running rows reach
-#   WAYFINDER_MAX_WORKERS (default 1 — the sequential fallback).
+#   WAYFINDER_MAX_WORKERS (default 1 — the sequential fallback). The
+#   pre-spawn capacity/name checks are re-validated under the registry
+#   lock on insert (ticket #746 reg_insert): a lost race refuses instead
+#   of overwriting a concurrent spawn's row, and the just-started agent
+#   is torn down so no live worker leaks.
 #   Narrower role ceilings (maintenance, bug-scout, helper) and the
 #   independent heavyweight-job bound live in sibling ticket #742's capacity
 #   seam (wayfinder-capacity.sh), which chief dispatch lanes check before
@@ -106,7 +110,10 @@
 # rewrites a waiting disposition (ready-for-review,
 # accepted-awaiting-integration) or a terminal (integrated, rejected,
 # cancelled): a missing pane never strands the workspace result. cleanup
-# removes terminal rows (integrated|rejected|cancelled|stopped|gone);
+# removes terminal rows (integrated|rejected|cancelled|stopped|gone) and
+# then tears down the Herdr agent/pane best-effort (ticket #746: a
+# cleaned row must not leave a live agent that reappears as `unmanaged`
+# and blocks the next successor gate);
 # unreviewed or salvageable rows need --force. stop refuses non-live review
 # state (ready-for-review, accepted-awaiting-integration, integrated,
 # rejected, cancelled) but stays available for live rework
@@ -133,6 +140,11 @@ usage() {
 
 die() { printf 'wayfinder-worker: %s\n' "$*" >&2; exit 1; }
 usage_err() { printf 'wayfinder-worker: %s\n' "$*" >&2; exit 2; }
+
+COMMON="$SCRIPT_DIR/wayfinder-common.sh"
+[ -f "$COMMON" ] || die "shared hardening seam missing: $COMMON (ticket #746)"
+# shellcheck disable=SC1090
+. "$COMMON"
 
 need_herdr() {
     command -v "$HERDR_BIN" >/dev/null 2>&1 || die "herdr binary not found: $HERDR_BIN (set HERDR_BIN)"
@@ -175,6 +187,8 @@ with_registry_lock() {
         exec {WAYFINDER_WORKER_REG_FD}>"$REGISTRY.lock"
         flock -w 60 "$WAYFINDER_WORKER_REG_FD" \
             || die "cannot lock registry: $REGISTRY.lock"
+    else
+        wf_warn_no_flock "worker registry rewrite"
     fi
 }
 
@@ -230,6 +244,81 @@ reg_upsert() {
         "$name" "$role" "$ticket" "$workspace" "$pane" "$status" "$created" "$now" "$note" "$parent" "$map" "$generation" >> "$tmp"
     mv "$tmp" "$REGISTRY"
     with_registry_unlock
+}
+
+# reg_insert <name> <role> <ticket> <workspace> <pane> <status> <note> [parent [map [generation]]]
+# Insert-only variant of reg_upsert for spawn paths (ticket #746): the
+# duplicate-name and capacity guards that cmd_spawn checks before
+# allocating Herdr resources are re-validated under the registry lock, so
+# two concurrent spawns cannot both slip past the pre-checks and silently
+# overwrite each other or exceed WAYFINDER_MAX_WORKERS. Refuses (prints to
+# stderr, returns 1) instead of overwriting; the caller tears down the
+# just-started agent so a lost race leaks no live worker.
+reg_insert() {
+    local name="$1" role="$2" ticket="$3" workspace="$4" pane="$5" status="$6" note="$7"
+    local parent="${8:-}" map="${9:-}" generation="${10:-}"
+    local now created running tmp
+    now="$(date '+%F %T')"
+    created="$now"
+    note="$(printf '%s' "$note" | tr '\t\n' '  ')"
+    parent="$(printf '%s' "$parent" | tr '\t\n' '  ')"
+    map="$(printf '%s' "$map" | tr '\t\n' '  ')"
+    generation="$(printf '%s' "$generation" | tr '\t\n' '  ')"
+    reg_init
+    with_registry_lock
+    if [ -n "$(awk -F'\t' -v name="$name" '$1 == name { print; exit }' "$REGISTRY")" ]; then
+        with_registry_unlock
+        printf 'wayfinder-worker: spawn race: worker name already registered: %s (a concurrent spawn won — refusing instead of overwriting)\n' "$name" >&2
+        return 1
+    fi
+    case "$status" in
+        spawning|running)
+            running="$(awk -F'\t' '$6 == "spawning" || $6 == "running" { n++ } END { print n + 0 }' "$REGISTRY")"
+            if [ "$running" -ge "$MAX_WORKERS" ]; then
+                with_registry_unlock
+                printf 'wayfinder-worker: spawn race: at capacity (%s/%s running) — refusing %s (a concurrent spawn filled the last slot)\n' "$running" "$MAX_WORKERS" "$name" >&2
+                return 1
+            fi
+            ;;
+    esac
+    # Same-dir staging (ticket #741): the atomic rename publishes only
+    # complete views to lock-free readers (quiescence, counts).
+    tmp="$(mktemp -p "$(dirname "$REGISTRY")" reg.XXXXXX)"
+    awk -F'\t' -v name="$name" '$1 != name' "$REGISTRY" > "$tmp"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$name" "$role" "$ticket" "$workspace" "$pane" "$status" "$created" "$now" "$note" "$parent" "$map" "$generation" >> "$tmp"
+    mv "$tmp" "$REGISTRY"
+    with_registry_unlock
+}
+
+# teardown_agent <name> <pane> — best-effort Herdr release after a safe
+# terminal disposition or a refused spawn (ticket #746). A cleaned row
+# must not leave a live agent that reappears as `unmanaged` and blocks
+# the next successor gate. The delete/kill verbs are best-effort: an
+# unknown verb or an already-gone agent warns on stderr and never fails
+# the caller (cleanup of a crashed worker whose agent is already gone is
+# the normal case, not an error). The warning names the exact manual
+# equivalent so an unrecognized runtime stays actionable.
+teardown_agent() {
+    local name="${1:-}" pane="${2:-}" out
+    [ -n "$name" ] || return 0
+    command -v "$HERDR_BIN" >/dev/null 2>&1 || {
+        printf 'wayfinder-worker: warning: herdr binary not found (%s) — agent %s left for the operator (herdr agent delete %s)\n' "$HERDR_BIN" "$name" "$name" >&2
+        return 0
+    }
+    if out="$("$HERDR_BIN" agent delete "$name" 2>&1)"; then
+        printf 'wayfinder-worker: tore down agent %s\n' "$name" >&2
+    else
+        printf 'wayfinder-worker: warning: agent teardown for %s reported: %s (operator equivalent: herdr agent delete %s)\n' "$name" "$out" "$name" >&2
+    fi
+    if [ -n "$pane" ]; then
+        if out="$("$HERDR_BIN" pane kill "$pane" 2>&1)"; then
+            printf 'wayfinder-worker: tore down pane %s\n' "$pane" >&2
+        else
+            printf 'wayfinder-worker: warning: pane teardown for %s reported: %s (operator equivalent: herdr pane kill %s)\n' "$pane" "$out" "$pane" >&2
+        fi
+    fi
+    return 0
 }
 
 # herdr_json <jq-filter> — tolerant field walk for Herdr response shapes.
@@ -290,6 +379,10 @@ cmd_spawn() {
     if [ "$role" = "helper" ]; then
         [ -n "$parent" ] || usage_err "spawn: --role helper requires --parent <parent-worker> (chief-mediated only)"
         [ -n "$scope" ] || usage_err "spawn: --role helper requires --scope <bounded non-overlapping scope>"
+        # Shared forgery guard (ticket #746): the scope lands in the
+        # registry note, which the review queue greps for result tokens.
+        wf_refuse_forgery "$scope" \
+            || die "spawn: --scope must not contain tabs, newlines, or '|' and must not contain structured note tokens (reviewed=/result=/integrated=/verified=)"
         valid_name "$parent" || usage_err "spawn: invalid parent worker name '$parent'"
         local parent_row parent_role parent_ticket parent_workspace
         parent_row="$(reg_row "$parent")"
@@ -347,17 +440,21 @@ cmd_spawn() {
     if [ -n "$prompt_text" ]; then
         if ! out="$("$HERDR_BIN" agent prompt "$name" "$prompt_text" 2>&1)"; then
             if [ "$role" = "helper" ]; then
-                reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "helper for $parent: $scope; initial prompt failed: $out" "$parent" "$map" "$generation"
+                reg_insert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "helper for $parent: $scope; initial prompt failed: $out" "$parent" "$map" "$generation" \
+                    || { teardown_agent "$name" "$pane"; die "spawn: lost a concurrent insert race for $name after a failed initial prompt (worker not registered): $out"; }
             else
-                reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "started; initial prompt failed: $out" "$parent" "$map" "$generation"
+                reg_insert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "started; initial prompt failed: $out" "$parent" "$map" "$generation" \
+                    || { teardown_agent "$name" "$pane"; die "spawn: lost a concurrent insert race for $name after a failed initial prompt (worker not registered): $out"; }
             fi
             die "agent prompt failed for $name (worker kept as running): $out"
         fi
     fi
     if [ "$role" = "helper" ]; then
-        reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "helper for $parent: $scope (kind=$kind)" "$parent" "$map" "$generation"
+        reg_insert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "helper for $parent: $scope (kind=$kind)" "$parent" "$map" "$generation" \
+            || { teardown_agent "$name" "$pane"; die "spawn: worker name already registered or at capacity (a concurrent spawn won) — started agent torn down: $name"; }
     else
-        reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "spawned kind=$kind" "$parent" "$map" "$generation"
+        reg_insert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "spawned kind=$kind" "$parent" "$map" "$generation" \
+            || { teardown_agent "$name" "$pane"; die "spawn: worker name already registered or at capacity (a concurrent spawn won) — started agent torn down: $name"; }
     fi
     printf 'spawned %s (role=%s ticket=#%s pane=%s)\n' "$name" "$role" "$ticket" "$pane"
 }
@@ -470,10 +567,11 @@ cmd_cleanup() {
         esac
     done
     valid_name "$name" || usage_err "cleanup: invalid worker name '$name'"
-    local row status tmp
+    local row status pane tmp
     row="$(reg_row "$name")" || true
     [ -n "$row" ] || die "cleanup: unknown worker '$name' (not in registry)"
     status="$(printf '%s' "$row" | cut -f6)"
+    pane="$(printf '%s' "$row" | cut -f5)"
     case "$status" in
         spawning|running)
             [ "$force" -eq 1 ] || die "cleanup: worker $name is $status — refuse to orphan a live agent (stop it first or pass --force)"
@@ -494,6 +592,11 @@ cmd_cleanup() {
     awk -F'\t' -v name="$name" '$1 != name' "$REGISTRY" > "$tmp"
     mv "$tmp" "$REGISTRY"
     with_registry_unlock
+    # Pane/agent release (ticket #746): the row is gone, so the Herdr agent
+    # must go too — otherwise it reappears as `unmanaged` and blocks the
+    # next successor gate. Best-effort: a crashed worker whose agent is
+    # already gone warns and still cleans up.
+    teardown_agent "$name" "$pane"
     printf 'cleaned %s (was %s)\n' "$name" "$status"
 }
 
@@ -526,7 +629,19 @@ cmd_reconcile() {
     fi
     names="$(printf '%s' "$live" | cut -f1)"
     local kept=0 gone=0 updated=0 readopted=0
-    while IFS=$'\t' read -r name _role _ticket _ws _pane status _c _u _note _parent _map _generation _rest; do
+    # Empty-safe field split (ticket #746): `read` with a tab IFS
+    # collapses empty fields (tab is IFS whitespace), shifting sparse
+    # rows such as empty-pane adopted rows so the status check reads the
+    # wrong column. Whole-line reads plus positional split keep every
+    # band decision aligned.
+    local line
+    while IFS= read -r line; do
+        name="$(wf_tsv_field "$line" 1)"
+        _role="$(wf_tsv_field "$line" 2)"
+        _ticket="$(wf_tsv_field "$line" 3)"
+        _ws="$(wf_tsv_field "$line" 4)"
+        _pane="$(wf_tsv_field "$line" 5)"
+        status="$(wf_tsv_field "$line" 6)"
         [ -n "$name" ] || continue
         # Re-adopt (ticket #741): a row previously marked gone/stopped whose
         # Herdr agent is live again is adopted back instead of respawned — a
