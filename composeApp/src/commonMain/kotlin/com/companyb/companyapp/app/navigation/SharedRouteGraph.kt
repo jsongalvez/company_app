@@ -93,7 +93,6 @@ internal fun Route?.isPostClockIn(): Boolean =
 
 // #726 7-param graph seam stays whole (declarative-UI wiring per #535: one leg per
 // shell-owned input; bundling would manufacture a DTO).
-@Suppress("LongParameterList") // #726
 fun NavGraphBuilder.appRouteGraph(
     apiClient: ApiClient,
     tokenStore: TokenStore,

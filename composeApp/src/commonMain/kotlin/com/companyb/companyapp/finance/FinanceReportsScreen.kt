@@ -63,7 +63,7 @@ fun FinanceReportsScreen(
         downloads = collected.downloads,
         onDownloadNote = { downloadNote = it },
     )
-    FinanceAppliedContextEffects(viewModel = viewModel, collected = collected)
+    FinanceAppliedContextEffects(collected = collected)
     FinanceReportsDownloadNote(downloadNote)
 
     Column(modifier = modifier.fillMaxSize().padding(Spacing.md)) {
@@ -182,13 +182,7 @@ private fun FinanceReportsScreenEffects(
             val snapshot = AppSessionState.snapshot.value
             val retained =
                 NavigationContextStore.retained(snapshot.user?.id, snapshot.clock?.branchId, Route.Finance)
-            if (retained != null &&
-                (
-                    retained.financeBranchId != null || retained.financeMode != null ||
-                        retained.financeMonth != null || retained.financeRangeFrom != null ||
-                        retained.financeRangeTo != null || retained.financeJumpMonth != null
-                )
-            ) {
+            if (retained != null && hasStoredFinanceScope(retained)) {
                 viewModel.stageFinanceRestore(
                     FinanceRestoreRequest(
                         branchId = retained.financeBranchId,
@@ -225,6 +219,23 @@ private fun FinanceReportsScreenEffects(
     }
 }
 
+/**
+ * #728 — stored applied scope probe (the ComplexCondition burn): a retained slot counts
+ * as restorable when any applied leg is present. List-form so the call site stays a
+ * single null-check plus one predicate.
+ */
+private fun hasStoredFinanceScope(retained: NavigationContextStore.SectionContext?): Boolean {
+    if (retained == null) return false
+    return listOf(
+        retained.financeBranchId,
+        retained.financeMode,
+        retained.financeMonth,
+        retained.financeRangeFrom,
+        retained.financeRangeTo,
+        retained.financeJumpMonth,
+    ).any { it != null }
+}
+
 @Composable
 private fun FinanceReportsDownloadNote(note: String?) {
     if (note != null) {
@@ -245,10 +256,7 @@ private fun FinanceReportsDownloadNote(note: String?) {
  * Rows/Cards choice ride FeedSection (they need the feed/list chrome there).
  */
 @Composable
-private fun FinanceAppliedContextEffects(
-    viewModel: FinanceReportsViewModel,
-    collected: FinanceReportsCollected,
-) {
+private fun FinanceAppliedContextEffects(collected: FinanceReportsCollected) {
     val snapshot by AppSessionState.snapshot.collectAsState()
     val userId = snapshot.user?.id
     val clockBranchId = snapshot.clock?.branchId
