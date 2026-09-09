@@ -101,7 +101,7 @@ object ProductSaleService {
 
                 val beforeCard =
                     BranchInventoryRepository.findCardForUpdateInTransaction(params.branchId, params.productId)
-                        ?: error("inventory card not found for branch=${params.branchId} product=${params.productId}")
+                        ?: throw NotFoundException("Inventory card not found")
 
                 if (beforeCard.currentStock < params.quantity) throw ValidationException("Insufficient stock")
 

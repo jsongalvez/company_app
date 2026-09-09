@@ -356,6 +356,46 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `sell without inventory card returns not found without writes`() {
+        val unstockedProductId = TestFixtures.uuid()
+        CommerceFinanceFixtures.insertTestProduct(
+            unstockedProductId,
+            "Unstocked ${unstockedProductId.toString().take(8)}",
+            categoryId,
+        )
+        val saleId = TestFixtures.uuid()
+
+        assertFailsWith<NotFoundException> {
+            ProductSaleService.sell(
+                callerId = callerId,
+                id = saleId,
+                branchDayId = branchDayId,
+                sessionId = null,
+                clientId = null,
+                isWalkIn = true,
+                productId = unstockedProductId,
+                quantity = 1,
+                expectedVersion = 1,
+            )
+        }
+
+        assertEquals(
+            0,
+            transaction { ProductSaleTable.selectAll().where { ProductSaleTable.id eq saleId }.count() },
+        )
+        assertEquals(
+            0,
+            transaction {
+                InventoryMovementTable.selectAll().where { InventoryMovementTable.productSaleId eq saleId }.count()
+            },
+        )
+        assertEquals(
+            0,
+            transaction { AuditLogTable.selectAll().where { AuditLogTable.recordId eq saleId }.count() },
+        )
+    }
+
+    @Test
     fun `sell with unknown client returns not found without writes`() {
         val saleId = TestFixtures.uuid()
         val unknownClientId = TestFixtures.uuid()
