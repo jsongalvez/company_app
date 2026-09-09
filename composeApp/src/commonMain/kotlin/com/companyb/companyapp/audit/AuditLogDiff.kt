@@ -242,21 +242,45 @@ internal fun parseDiff(
 ): Pair<List<ChangedField>, Boolean> {
     val old = parseFieldMap(oldValue)
     val new = parseFieldMap(newValue)
-    if (old is FieldMap.Malformed && new is FieldMap.Malformed) return emptyList<ChangedField>() to true
-    if (old is FieldMap.Malformed) {
-        val newFields = (new as? FieldMap.Valid)?.fields ?: return emptyList<ChangedField>() to true
-        if (newFields.isEmpty()) return emptyList<ChangedField>() to true
-        return newFields.keys.sorted().map { key ->
+    // #695 single-exit fold: each malformed/valid shape computes its answer as a
+    // `when` branch value — no behavior change, only the 8 early returns collapse.
+    // Branch bodies stay single calls so this orchestrator stays under Cyclomatic 15.
+    val result: Pair<List<ChangedField>, Boolean> =
+        when {
+            old is FieldMap.Malformed && new is FieldMap.Malformed -> emptyList<ChangedField>() to true
+            old is FieldMap.Malformed -> partialForMalformedOld(new)
+            new is FieldMap.Malformed -> partialForMalformedNew(old)
+            else -> mergedValidDiff(old, new)
+        }
+    return result
+}
+
+private fun partialForMalformedOld(new: FieldMap): Pair<List<ChangedField>, Boolean> {
+    val newFields = (new as? FieldMap.Valid)?.fields
+    return if (newFields.isNullOrEmpty()) {
+        emptyList<ChangedField>() to true
+    } else {
+        newFields.keys.sorted().map { key ->
             ChangedField(field = key, old = AUDIT_VALUE_UNAVAILABLE, new = newFields[key]?.toDisplayValue())
         } to true
     }
-    if (new is FieldMap.Malformed) {
-        val oldFields = (old as? FieldMap.Valid)?.fields ?: return emptyList<ChangedField>() to true
-        if (oldFields.isEmpty()) return emptyList<ChangedField>() to true
-        return oldFields.keys.sorted().map { key ->
+}
+
+private fun partialForMalformedNew(old: FieldMap): Pair<List<ChangedField>, Boolean> {
+    val oldFields = (old as? FieldMap.Valid)?.fields
+    return if (oldFields.isNullOrEmpty()) {
+        emptyList<ChangedField>() to true
+    } else {
+        oldFields.keys.sorted().map { key ->
             ChangedField(field = key, old = oldFields[key]?.toDisplayValue(), new = AUDIT_VALUE_UNAVAILABLE)
         } to true
     }
+}
+
+private fun mergedValidDiff(
+    old: FieldMap,
+    new: FieldMap,
+): Pair<List<ChangedField>, Boolean> {
     val oldFields = (old as? FieldMap.Valid)?.fields
     val newFields = (new as? FieldMap.Valid)?.fields
     // #601 max-2: empty-diff and key-diff share one exit.

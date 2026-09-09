@@ -72,6 +72,51 @@ internal fun buildSectionPatch(
     bpDiastolic: String,
     client: ClientResponse,
 ): SectionPatchResult {
+    // #695 single-exit fold: per-field merge + BP pair accumulate into one holder;
+    // the loop carries zero jumps (early exits live in the helper's guard returns),
+    // and the three terminal answers share one `when` exit.
+    val acc = SectionPatchAccumulator()
+    for (field in section.fields()) {
+        accumulateNonBpField(field, drafts, client, acc)
+    }
+    applyHealthBpPair(section, bpSystolic, bpDiastolic, client, acc)
+    val result =
+        when {
+            acc.errors.isNotEmpty() -> {
+                SectionPatchResult(null, acc.errors, true)
+            }
+
+            !acc.hasChanges -> {
+                SectionPatchResult(null, emptyMap(), false)
+            }
+
+            else -> {
+                SectionPatchResult(
+                    request =
+                        UpdateClientRequest(
+                            firstName = acc.firstName,
+                            lastName = acc.lastName,
+                            middleName = acc.middleName,
+                            suffix = acc.suffix,
+                            phoneNumber = acc.phoneNumber,
+                            address = acc.address,
+                            gender = acc.gender,
+                            age = acc.age,
+                            systolicBp = acc.systolic,
+                            diastolicBp = acc.diastolic,
+                            medicalConditions = acc.medical,
+                            clearFields = acc.clears,
+                        ),
+                    fieldErrors = emptyMap(),
+                    hasChanges = true,
+                )
+            }
+        }
+    return result
+}
+
+/** #695 mutable holder so the per-field + BP helpers stay small without changing merge semantics. */
+private class SectionPatchAccumulator {
     val errors = mutableMapOf<ClientField, String>()
     var firstName: String? = null
     var middleName: String? = null
@@ -86,86 +131,90 @@ internal fun buildSectionPatch(
     var medical: String? = null
     val clears = mutableSetOf<String>()
     var hasChanges = false
+}
 
-    for (field in section.fields()) {
-        if (field == ClientField.BP_PAIR) continue
-        val current = currentFieldValue(client, field)
-        val draftTrimmed = drafts[field]?.trim() ?: current
-        // AGE compares numerically so a leading-zero alias ("030" vs "30") is not a
-        // modification (matches DispatchedDraft's canonicalization downstream).
-        val unchanged =
-            if (field == ClientField.AGE) {
-                draftTrimmed.toIntOrNull() == current.toIntOrNull()
-            } else {
-                draftTrimmed == current
-            }
-        if (unchanged) continue
-        val patch = patchFor(field, draftTrimmed) { errors[field] = it }
-        if (patch == null) continue
-        hasChanges = true
-        patch.firstName?.let { firstName = it }
-        patch.middleName?.let { middleName = it }
-        patch.lastName?.let { lastName = it }
-        patch.suffix?.let { suffix = it }
-        patch.phoneNumber?.let { phoneNumber = it }
-        patch.address?.let { address = it }
-        patch.gender?.let { gender = it }
-        patch.age?.let { age = it }
-        patch.medicalConditions?.let { medical = it }
-        clears.addAll(patch.clearFields)
-    }
+private fun accumulateNonBpField(
+    field: ClientField,
+    drafts: Map<ClientField, String>,
+    client: ClientResponse,
+    acc: SectionPatchAccumulator,
+) {
+    val patch = changedPatchFor(field, drafts, client, acc) ?: return
+    acc.hasChanges = true
+    mergePatch(patch, acc)
+}
 
-    if (section == ClientSection.HEALTH) {
-        val seedSys = client.systolicBp?.toString().orEmpty()
-        val seedDia = client.diastolicBp?.toString().orEmpty()
-        val sys = bpSystolic.trim()
-        val dia = bpDiastolic.trim()
-        if (sys != seedSys || dia != seedDia) {
-            if (sys.isEmpty() && dia.isEmpty()) {
-                hasChanges = true
-                clears.add(ClientPatchField.SYSTOLIC_BP)
-                clears.add(ClientPatchField.DIASTOLIC_BP)
-            } else {
-                val sysVal = sys.toShortOrNull()
-                val diaVal = dia.toShortOrNull()
-                val bpError =
-                    when {
-                        sys.isEmpty() || dia.isEmpty() -> "Both BP fields are required"
-                        sysVal == null || diaVal == null -> "Enter a valid number"
-                        else -> null
-                    }
-                if (bpError != null) {
-                    errors[ClientField.BP_PAIR] = bpError
-                } else {
-                    hasChanges = true
-                    systolic = sysVal
-                    diastolic = diaVal
-                }
+private fun changedPatchFor(
+    field: ClientField,
+    drafts: Map<ClientField, String>,
+    client: ClientResponse,
+    acc: SectionPatchAccumulator,
+): UpdateClientRequest? {
+    if (field == ClientField.BP_PAIR) return null
+    val current = currentFieldValue(client, field)
+    val draftTrimmed = drafts[field]?.trim() ?: current
+    // AGE compares numerically so a leading-zero alias ("030" vs "30") is not a
+    // modification (matches DispatchedDraft's canonicalization downstream).
+    val unchanged =
+        if (field == ClientField.AGE) {
+            draftTrimmed.toIntOrNull() == current.toIntOrNull()
+        } else {
+            draftTrimmed == current
+        }
+    if (unchanged) return null
+    return patchFor(field, draftTrimmed) { acc.errors[field] = it }
+}
+
+private fun mergePatch(
+    patch: UpdateClientRequest,
+    acc: SectionPatchAccumulator,
+) {
+    patch.firstName?.let { acc.firstName = it }
+    patch.middleName?.let { acc.middleName = it }
+    patch.lastName?.let { acc.lastName = it }
+    patch.suffix?.let { acc.suffix = it }
+    patch.phoneNumber?.let { acc.phoneNumber = it }
+    patch.address?.let { acc.address = it }
+    patch.gender?.let { acc.gender = it }
+    patch.age?.let { acc.age = it }
+    patch.medicalConditions?.let { acc.medical = it }
+    acc.clears.addAll(patch.clearFields)
+}
+
+private fun applyHealthBpPair(
+    section: ClientSection,
+    bpSystolic: String,
+    bpDiastolic: String,
+    client: ClientResponse,
+    acc: SectionPatchAccumulator,
+) {
+    if (section != ClientSection.HEALTH) return
+    val seedSys = client.systolicBp?.toString().orEmpty()
+    val seedDia = client.diastolicBp?.toString().orEmpty()
+    val sys = bpSystolic.trim()
+    val dia = bpDiastolic.trim()
+    if (sys == seedSys && dia == seedDia) return
+    if (sys.isEmpty() && dia.isEmpty()) {
+        acc.hasChanges = true
+        acc.clears.add(ClientPatchField.SYSTOLIC_BP)
+        acc.clears.add(ClientPatchField.DIASTOLIC_BP)
+    } else {
+        val sysVal = sys.toShortOrNull()
+        val diaVal = dia.toShortOrNull()
+        val bpError =
+            when {
+                sys.isEmpty() || dia.isEmpty() -> "Both BP fields are required"
+                sysVal == null || diaVal == null -> "Enter a valid number"
+                else -> null
             }
+        if (bpError != null) {
+            acc.errors[ClientField.BP_PAIR] = bpError
+        } else {
+            acc.hasChanges = true
+            acc.systolic = sysVal
+            acc.diastolic = diaVal
         }
     }
-
-    if (errors.isNotEmpty()) return SectionPatchResult(null, errors, true)
-    if (!hasChanges) return SectionPatchResult(null, emptyMap(), false)
-    return SectionPatchResult(
-        request =
-            UpdateClientRequest(
-                firstName = firstName,
-                lastName = lastName,
-                middleName = middleName,
-                suffix = suffix,
-                phoneNumber = phoneNumber,
-                address = address,
-                gender = gender,
-                age = age,
-                systolicBp = systolic,
-                diastolicBp = diastolic,
-                medicalConditions = medical,
-                clearFields = clears,
-            ),
-        fieldErrors = emptyMap(),
-        hasChanges = true,
-    )
 }
 
 /**
@@ -184,23 +233,31 @@ internal class ClientSectionSession {
 
     fun isDirty(client: ClientResponse): Boolean {
         val section = editingSection ?: return false
-        for (field in section.fields()) {
-            if (field == ClientField.BP_PAIR) continue
-            val current = currentFieldValue(client, field)
-            val draft = (drafts[field] ?: current).trim()
-            // AGE compares numerically so a leading-zero alias is not a modification.
-            if (field == ClientField.AGE) {
-                if (draft.toIntOrNull() != current.toIntOrNull()) return true
-            } else if (draft != current) {
-                return true
+        // #695 single-exit fold: `any` lambda returns are excluded from ReturnCount,
+        // so the field scan + BP check share one terminal exit with identical semantics.
+        val nonBpDirty =
+            section.fields().any { field ->
+                if (field == ClientField.BP_PAIR) {
+                    false
+                } else {
+                    val current = currentFieldValue(client, field)
+                    val draft = (drafts[field] ?: current).trim()
+                    // AGE compares numerically so a leading-zero alias is not a modification.
+                    if (field == ClientField.AGE) {
+                        draft.toIntOrNull() != current.toIntOrNull()
+                    } else {
+                        draft != current
+                    }
+                }
             }
-        }
-        if (section == ClientSection.HEALTH) {
-            val seedSys = client.systolicBp?.toString().orEmpty()
-            val seedDia = client.diastolicBp?.toString().orEmpty()
-            if (bpDraft.systolic.trim() != seedSys || bpDraft.diastolic.trim() != seedDia) return true
-        }
-        return false
+        val bpDirty =
+            section == ClientSection.HEALTH &&
+                run {
+                    val seedSys = client.systolicBp?.toString().orEmpty()
+                    val seedDia = client.diastolicBp?.toString().orEmpty()
+                    bpDraft.systolic.trim() != seedSys || bpDraft.diastolic.trim() != seedDia
+                }
+        return nonBpDirty || bpDirty
     }
 
     fun startSection(
@@ -273,19 +330,23 @@ internal class ClientSectionSession {
                 bpDiastolic = bpDraft.diastolic,
                 client = client,
             )
-        if (result.fieldErrors.isNotEmpty()) {
-            fieldErrors.clear()
-            fieldErrors.putAll(result.fieldErrors)
-            return false
-        }
-        if (!result.hasChanges) {
-            exitEdit()
-            return true
-        }
-        lastRequest = result.request
-        pendingSection = section
-        deps.onPatch(result.request!!)
-        return true
+        // #695 single-exit fold: guards above stay excluded; the three terminal
+        // answers (invalid / unchanged / dispatch) share one exit below.
+        val dispatched: Boolean =
+            if (result.fieldErrors.isNotEmpty()) {
+                fieldErrors.clear()
+                fieldErrors.putAll(result.fieldErrors)
+                false
+            } else if (!result.hasChanges) {
+                exitEdit()
+                true
+            } else {
+                lastRequest = result.request
+                pendingSection = section
+                deps.onPatch(result.request!!)
+                true
+            }
+        return dispatched
     }
 
     fun retryPending(deps: ClientEditDeps): Boolean {
