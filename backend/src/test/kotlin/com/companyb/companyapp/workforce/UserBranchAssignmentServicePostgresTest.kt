@@ -629,6 +629,22 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         assertTrue(assignments.isEmpty())
     }
 
+    @Test
+    fun `findActiveByBranch with unknown branch throws NotFoundException`() {
+        IdentityFixtures.grantManageUsers(callerId, sourceId)
+
+        assertFailsWith<NotFoundException> {
+            UserBranchAssignmentService.findActiveByBranch(callerId, TestFixtures.uuid())
+        }
+    }
+
+    @Test
+    fun `findActiveByBranch without MANAGE_USERS on unknown branch stays forbidden`() {
+        assertFailsWith<ForbiddenException> {
+            UserBranchAssignmentService.findActiveByBranch(nonManagerId, TestFixtures.uuid())
+        }
+    }
+
     // --- #366 requested-practitioner directory ---
 
     @Test
@@ -651,6 +667,13 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `listActiveMembers without membership is forbidden at service layer`() {
         assertFailsWith<ForbiddenException> {
             UserBranchAssignmentService.listActiveMembers(nonManagerId, branchId)
+        }
+    }
+
+    @Test
+    fun `listActiveMembers with unknown branch throws NotFoundException`() {
+        assertFailsWith<NotFoundException> {
+            UserBranchAssignmentService.listActiveMembers(nonManagerId, TestFixtures.uuid())
         }
     }
 

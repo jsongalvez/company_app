@@ -213,6 +213,11 @@ object UserBranchAssignmentService {
         branchId: UUID,
     ): List<UserBranchAssignment> {
         requireManageUsers(callerId, "MANAGE_USERS capability required to view assignments")
+        // #724 — 404 precedence for an unknown branch before the repository read:
+        // findActiveByBranch alone conflates "unknown branch" with "known branch
+        // with no assignments" (the #715 listSent / #721 listForDay order). The
+        // GLOBAL gate stays first so non-managers still 403 without an existence leak.
+        BranchService.findById(branchId)
         return UserBranchAssignmentRepository.findActiveByBranch(branchId)
     }
 
@@ -231,6 +236,10 @@ object UserBranchAssignmentService {
         callerId: UUID,
         branchId: UUID,
     ): List<BranchMemberRow> {
+        // #724 — 404 precedence for an unknown branch before the membership gate:
+        // findActiveByBranchAndUser alone conflates "unknown branch" with "known but
+        // non-member" and surfaces 403 (the #712 mark / #713 rosterToday order).
+        BranchService.findById(branchId)
         val assignment = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId)
         if (assignment == null) {
             BranchDayService.requireBranchOrDayForToday(
