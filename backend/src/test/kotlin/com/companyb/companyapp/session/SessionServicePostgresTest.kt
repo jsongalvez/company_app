@@ -1119,6 +1119,32 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `add practitioner throws 404 for unknown practitioner with no row written`() {
+        createSession(callerId, practitionerSessionId)
+        val unknownPractitionerId = TestFixtures.uuid()
+        val requestId = TestFixtures.uuid()
+
+        assertFailsWith<NotFoundException> {
+            SessionPractitionerService.addPractitioner(
+                callerId = callerId,
+                id = requestId,
+                sessionId = practitionerSessionId,
+                practitionerId = unknownPractitionerId,
+                remarks = null,
+            )
+        }
+        val stored =
+            transaction {
+                SessionPractitionerRepository.findBySessionAndPractitionerInTransaction(
+                    practitionerSessionId,
+                    unknownPractitionerId,
+                )
+            }
+        assertNull(stored)
+        assertEquals(0L, auditEntryCount(SessionPractitionerTable.tableName, requestId))
+    }
+
+    @Test
     fun `update practitioner remarks succeeds and increments session version and writes audit`() {
         createSession(callerId, practitionerSessionId)
         val practitionerEntityId = TestFixtures.uuid()

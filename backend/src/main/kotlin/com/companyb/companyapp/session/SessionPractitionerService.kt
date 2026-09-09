@@ -5,6 +5,7 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.identity.AccountReads
 import com.companyb.companyapp.workforce.WorkforceReads
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -43,8 +44,11 @@ internal object SessionPractitionerService {
         practitionerId: UUID,
         remarks: String?,
         reason: String? = null,
-    ): AddPractitionerResult =
-        transaction {
+    ): AddPractitionerResult {
+        if (!AccountReads.userExists(practitionerId)) {
+            throw NotFoundException("User not found")
+        }
+        return transaction {
             val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason)
 
             val existing =
@@ -84,6 +88,7 @@ internal object SessionPractitionerService {
 
             result
         }
+    }
 
     fun updatePractitionerRemarks(
         callerId: UUID,
