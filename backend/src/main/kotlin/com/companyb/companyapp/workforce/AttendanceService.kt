@@ -9,6 +9,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.identity.AccountReads
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.OffsetDateTime
@@ -68,6 +69,12 @@ object AttendanceService {
         // findActiveMembers would otherwise yield empty membership and surface 403
         // (403-masking-404; same position as #704 clockIn guard).
         BranchService.findById(branchId)
+        // #716 — 404 precedence for an unknown target before the membership gate:
+        // findActiveMembers would otherwise yield non-membership and surface 403
+        // (403-masking-404; same position as #705/#707/#708 userExists guard).
+        if (!AccountReads.userExists(targetUserId)) {
+            throw NotFoundException("User not found")
+        }
         return transaction {
             // Gate inside the command transaction, under the assignment row lock (#404
             // review): a concurrent revocation or deactivation serializes with the mark

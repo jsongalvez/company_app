@@ -263,6 +263,38 @@ class AttendanceMarkPostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `mark present with unknown target returns 404 without writing rows`() {
+        val unknownUserId = TestFixtures.uuid()
+        val attendanceId = TestFixtures.uuid()
+
+        assertFailsWith<NotFoundException> {
+            AttendanceService.mark(
+                callerId = markerId,
+                branchId = branchId,
+                targetUserId = unknownUserId,
+                present = true,
+                attendanceId = attendanceId,
+            )
+        }
+
+        assertEquals(0L, attendanceCount(attendanceId), "no attendance row for unknown target")
+        assertEquals(0L, auditCount(attendanceId), "no audit row for unknown target")
+    }
+
+    @Test
+    fun `mark absent with unknown target returns 404`() {
+        assertFailsWith<NotFoundException> {
+            AttendanceService.mark(
+                callerId = markerId,
+                branchId = branchId,
+                targetUserId = TestFixtures.uuid(),
+                present = false,
+                attendanceId = null,
+            )
+        }
+    }
+
+    @Test
     fun `mark present with unknown branch returns 404 without writing rows`() {
         val unknownBranchId = TestFixtures.uuid()
         val attendanceId = TestFixtures.uuid()
