@@ -8,6 +8,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.companyb.companyapp.app.App
+import com.companyb.companyapp.proto.bauhausblocks.BauhausProtoApp
 
 private fun detectProjectRoot(dir: java.io.File): String {
     val markers = listOf(".git", "settings.gradle.kts")
@@ -24,19 +25,24 @@ fun main() {
         System.setProperty("companyApp.logDir", "$root/logs/client")
     }
     java.io.File(System.getProperty("companyApp.logDir")).mkdirs()
+    val bauhausBlocks = System.getenv("COMPANYAPP_PROTO_BAUHAUS_BLOCKS") == "true"
     application {
         val windowState =
             rememberWindowState(
-                size = DpSize(1024.dp, 768.dp),
+                size = if (bauhausBlocks) DpSize(1280.dp, 800.dp) else DpSize(1024.dp, 768.dp),
                 position = WindowPosition(Alignment.Center),
             )
 
         Window(
             onCloseRequest = ::exitApplication,
-            title = "CompanyApp",
+            title = if (bauhausBlocks) "CompanyApp - Bauhaus Blocks prototype" else "CompanyApp",
             state = windowState,
         ) {
-            App()
+            if (bauhausBlocks) {
+                BauhausProtoApp()
+            } else {
+                App()
+            }
         }
     }
 }
