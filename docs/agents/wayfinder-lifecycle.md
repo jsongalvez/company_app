@@ -170,16 +170,18 @@ Before any exit the worktree is clean: commit coherent slices normally
 `tools/wayfinder/wayfinder-park.sh <note>` and record the exact stash ref. Successors
 pop only the stash their packet names — no unrelated stash is touched.
 
-### CI-wait packets (pending verdict, zero delta)
+### Pending verdicts (never wait)
 
 When session-start CI reconciliation reports PENDING and the session did no
-work (no commit, no tracker write owed), productive pivot beats idle hold —
-never mint numbered `*-pendingN-*` packets: every new filename defeats the
-daemon's fingerprint dedupe and burns a full-context worker per minute
-(the map #668 / ticket #695 pending9→pending15 spin). Instead, in order:
+work (no commit, no tracker write owed), the chain never idles on the
+verdict — consume AFK tasks or audit for bugs instead. Never mint numbered
+`*-pendingN-*` packets and never write `wayfinder-ci-wait` hold packets
+(removed ref #702): every new filename defeats the daemon's fingerprint
+dedupe and burns a full-context worker per minute (the map #668 / ticket
+#695 pending9→pending15 spin). Instead, in order:
 
-1. **Pivot first.** Release the pending claim (remove the driver assignee so
-   the ticket re-enters the pool instead of pinning the chain), record the
+1. **Pivot.** Release the pending claim (remove the driver assignee so the
+   ticket re-enters the pool instead of pinning the chain), record the
    awaited SHA plus its acceptance predicate in the successor packet, and
    direct the successor at exactly one pivot target taken under the normal
    claim order (chain-end fallback, then map audit). That pickup is the
@@ -187,17 +189,9 @@ daemon's fingerprint dedupe and burns a full-context worker per minute
    whichever later session reconciles its verdict: reconcile the recorded
    awaited SHA as well as HEAD (HEAD may have moved under AFK pushes) —
    GREEN resolves it, RED repairs the named leg.
-2. **Hold last.** Only when no pivot candidate qualifies, fall back to the
-   canonical hold and keep the claim assigned so the woken session continues
-   it:
-    - If a `<!-- wayfinder-ci-wait: <full-head-sha> -->` packet for this HEAD
-      already exists, stop with NO new packet — the chain rests on that hold.
-    - Else write exactly one `wayfinder-<map>-<shortsha>-ciwait-handoff.md`
-      packet carrying the marker and stop.
-
-The daemon holds the spawn on that marker until hosted CI concludes
-(GREEN/RED wakes exactly one session; UNKNOWN or unreachable CI proceeds),
-and real progress in any newer unmarked packet preempts the wait.
+2. **Rest.** Only when no pivot candidate qualifies, stop with NO new packet
+   and keep the claim assigned — the chain pauses until a human or new work
+   restarts it.
 
 After the packet is recorded and the worktree is clean, stop: hosted CI owns
 broad verification asynchronously and each fresh session's start-of-session
