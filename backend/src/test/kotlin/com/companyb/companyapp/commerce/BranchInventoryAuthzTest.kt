@@ -7,6 +7,7 @@ import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.http.KotlinxSerializationMapper
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
@@ -87,6 +88,9 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                 }
                 cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
                     ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+                }
+                cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                    ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
                 }
                 BranchInventoryRoutes.register(cfg)
             }
@@ -504,6 +508,109 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                     .post(
                         "/api/branches/$branchId/inventory",
                         mapOf("productId" to productId.toString()),
+                        asUser(editOnlyUser),
+                    ).code,
+            )
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // #732 — unknown branchId returns 404 before the capability gate
+    // (#730 SessionBaseRateRoutes precedent; #711/#715/#724 class)
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `GET inventory with unknown branch returns 404`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client.get("/api/branches/$unknownBranch/inventory", asUser(editOnlyUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET inventory with unknown branch returns 404 without any capability`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client.get("/api/branches/$unknownBranch/inventory", asUser(noneUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET low-stock with unknown branch returns 404`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client.get("/api/branches/$unknownBranch/inventory/low-stock", asUser(editOnlyUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET movements with unknown branch returns 404`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client.get("/api/branches/$unknownBranch/inventory/movements", asUser(editOnlyUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `POST ensureCard with unknown branch returns 404`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client
+                    .post(
+                        "/api/branches/$unknownBranch/inventory",
+                        mapOf("productId" to productId.toString()),
+                        asUser(manageOnlyUser),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `POST restock with unknown branch returns 404`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            val body =
+                mapOf(
+                    "id" to TestFixtures.uuid().toString(),
+                    "quantity" to 10,
+                    "branchDayId" to branchDayId.toString(),
+                )
+            assertEquals(
+                404,
+                client
+                    .post(
+                        "/api/branches/$unknownBranch/inventory/$productId/restock",
+                        body,
+                        asUser(manageOnlyUser),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `POST movement with unknown branch returns 404`() {
+        val unknownBranch = TestFixtures.uuid()
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client
+                    .post(
+                        "/api/branches/$unknownBranch/inventory/$productId/movement",
+                        movementBody("TESTER", -1),
                         asUser(editOnlyUser),
                     ).code,
             )

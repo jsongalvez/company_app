@@ -4,6 +4,7 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.commerce.AddInventoryCardRequest
 import com.companyb.companyapp.contracts.commerce.BranchInventoryResponse
@@ -43,6 +44,8 @@ private val ALLOWED_MOVEMENT_REASONS =
     responses = [
         OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<BranchInventoryResponse>::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 @OpenApi(
@@ -68,6 +71,8 @@ private val ALLOWED_MOVEMENT_REASONS =
     responses = [
         OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<BranchInventoryResponse>::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 @OpenApi(
@@ -81,6 +86,8 @@ private val ALLOWED_MOVEMENT_REASONS =
         OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<InventoryMovementResponse>::class)]),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 @OpenApi(
@@ -100,6 +107,7 @@ private val ALLOWED_MOVEMENT_REASONS =
         OpenApiResponse(status = "201", content = [OpenApiContent(from = InventoryMovementResponse::class)]),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
@@ -120,6 +128,7 @@ private val ALLOWED_MOVEMENT_REASONS =
         OpenApiResponse(status = "201", content = [OpenApiContent(from = InventoryMovementResponse::class)]),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
@@ -133,8 +142,13 @@ object BranchInventoryRoutes {
     }
 
     private fun registerGuards(config: JavalinConfig) {
+        // #732 — 404 precedence for an unknown branch before the capability gate
+        // (#730 SessionBaseRateRoutes precedent; #711/#715/#724 class):
+        // requireBranchCapabilityForBranchId alone conflates "unknown branch" with
+        // "known but non-member". BranchService.findById throws NotFoundException.
         config.routes.before("/api/branches/{branchId}/inventory") { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            BranchService.findById(branchId)
             val required =
                 if (context.method() == HandlerType.POST) {
                     CapabilityCodes.MANAGE_PRODUCTS
@@ -150,6 +164,7 @@ object BranchInventoryRoutes {
 
         config.routes.before("/api/branches/{branchId}/inventory/low-stock") { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            BranchService.findById(branchId)
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
                 branchId,
@@ -159,6 +174,7 @@ object BranchInventoryRoutes {
 
         config.routes.before("/api/branches/{branchId}/inventory/movements") { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            BranchService.findById(branchId)
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
                 branchId,
@@ -168,6 +184,7 @@ object BranchInventoryRoutes {
 
         config.routes.before("/api/branches/{branchId}/inventory/{productId}/restock") { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            BranchService.findById(branchId)
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
                 branchId,
@@ -177,6 +194,7 @@ object BranchInventoryRoutes {
 
         config.routes.before("/api/branches/{branchId}/inventory/{productId}/movement") { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            BranchService.findById(branchId)
             val request = context.bodyAsClass<InventoryMovementRequest>()
             val reason = validateMovementReason(request.reason)
             val required =
