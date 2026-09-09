@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wayfinder-chief.sh — map chief scheduler for Wayfinder parallel supervision (map #697, tickets #735 #737 #738 #739 #740).
+# wayfinder-chief.sh — map chief scheduler for Wayfinder parallel supervision (map #697, tickets #735 #737 #738 #739 #740 #741).
 #
 # One orchestration layer per active map: the chief continuously schedules,
 # reconciles, reviews-queues, and refills bounded worker capacity through the
@@ -102,6 +102,15 @@
 # done/blocked/failed into ready-for-review and logs queue depth — it never
 # auto-integrates, so the sequential fallback keeps working unchanged.
 #
+# Crash recovery (ticket #741): every spawn records the owning map and the
+# chief generation (WAYFINDER_GENERATION) in the worker registry, so a
+# restarted daemon/chief reconciles the same deterministic worker names
+# instead of duplicating live workers. A recovered chief runs --recover first:
+# worker + workspace-provider reconcile through their seams, then the
+# quiescence verdict and orphan release guidance — before any new dispatch.
+# Successor handoff generations must not advance while quiescence reports
+# BLOCKED (see wayfinder-recover.sh quiescence).
+#
 # Usage: wayfinder-chief.sh --map N [--once] [--max-workers N] [--dry-run]
 #          [--workspace DIR] [--workspace-base DIR] [--pane PANE]
 #          [--registry PATH] [--interval SECS] [--base SHA]
@@ -114,11 +123,13 @@
 #          [--review WORKER --disposition accept|revision|reject|cancel
 #            [--finding TEXT] [--result-commit SHA]]
 #          [--integrate WORKER [--allow-gated]]
+#          [--recover]
 #
 # Env: WAYFINDER_MAX_WORKERS (default 1), WAYFINDER_MAX_MAINTENANCE_WORKERS
 #   (default 1, live maintenance rows only), WAYFINDER_WORKER_KIND,
 #   WAYFINDER_WORKER_ARGS, WAYFINDER_GH_BIN (default gh), WAYFINDER_GH_REPO
-#   (default from origin), HERDR_BIN, WAYFINDER_ROLE=chief (set automatically).
+#   (default from origin), HERDR_BIN, WAYFINDER_GENERATION (recorded on spawn,
+#   default empty), WAYFINDER_ROLE=chief (set automatically).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -127,6 +138,7 @@ WORKER="$SCRIPT_DIR/wayfinder-worker.sh"
 SCOUT="$SCRIPT_DIR/wayfinder-scout.sh"
 MAINT="$SCRIPT_DIR/wayfinder-maintenance.sh"
 REVIEW="$SCRIPT_DIR/wayfinder-review.sh"
+RECOVER="$SCRIPT_DIR/wayfinder-recover.sh"
 
 MAP="" ONCE=0 DRY_RUN=""
 MAX="${WAYFINDER_MAX_WORKERS:-1}"
@@ -143,6 +155,7 @@ SPAWN_MAINT="" MAINT_WORKSPACE="" MAINT_NAME="" MAINT_REPAIR="" MAINT_FAILING=""
 QUEUE="" QUEUE_ALL=""
 REVIEW_WORKER="" REVIEW_DISP="" REVIEW_FINDING="" REVIEW_COMMIT=""
 INTEGRATE_WORKER="" INTEGRATE_GATED=""
+RECOVER_LANE=""
 
 usage() { sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 log() { printf '%s [chief] %s\n' "$(date '+%F %T')" "$*"; }
@@ -181,6 +194,7 @@ while [ $# -gt 0 ]; do
         --result-commit) REVIEW_COMMIT="${2:-}"; shift 2 ;;
         --integrate) INTEGRATE_WORKER="${2:-}"; shift 2 ;;
         --allow-gated) INTEGRATE_GATED=1; shift ;;
+        --recover) RECOVER_LANE=1; shift ;;
         -h|--help) usage ;;
         *) die "unknown flag $1" ;;
     esac
@@ -195,8 +209,9 @@ lanes=0
 [ -n "$QUEUE" ] && lanes=$((lanes + 1))
 [ -n "$REVIEW_WORKER" ] && lanes=$((lanes + 1))
 [ -n "$INTEGRATE_WORKER" ] && lanes=$((lanes + 1))
+[ -n "$RECOVER_LANE" ] && lanes=$((lanes + 1))
 if [ "$lanes" -gt 1 ]; then
-    die "--spawn-helper, --spawn-scout, --spawn-maintenance, --queue, --review, and --integrate are separate single-shot lanes (one per invocation)"
+    die "--spawn-helper, --spawn-scout, --spawn-maintenance, --queue, --review, --integrate, and --recover are separate single-shot lanes (one per invocation)"
 fi
 if [ -n "$SPAWN_MAINT" ] && [ "$HELPER_MODE" != "read-only" ]; then
     die "--helper-mode does not apply to --spawn-maintenance (helpers only)"
@@ -228,6 +243,11 @@ fi
 export WAYFINDER_MAX_WORKERS="$MAX"
 export WAYFINDER_WORKER_REGISTRY="$REGISTRY"
 export WAYFINDER_ROLE=chief
+# Recovery identity (ticket #741): every worker spawn records the owning map
+# (always) and the chief generation (parallel deployments set
+# WAYFINDER_GENERATION per chief session; empty stays legal for the sequential
+# fallback). The worker seam defaults from these env values.
+export WAYFINDER_MAP="$MAP"
 [ -x "$WORKER" ] || die "worker seam not executable: $WORKER"
 [ -x "$SCOUT" ] || die "scout contract not executable: $SCOUT"
 [ -x "$MAINT" ] || die "maintenance contract not executable: $MAINT"
@@ -260,8 +280,10 @@ collect_results() {
     rows="$(awk -F'\t' '$6 == "done" || $6 == "blocked" || $6 == "failed" { print $1 }' "$REGISTRY")"
     [ -n "$rows" ] || return 0
     local name row tmp
+    # Same-dir staging (ticket #741): the atomic rename publishes only
+    # complete views (see the worker seam).
+    mkdir -p "$(dirname "$REGISTRY")"
     if command -v flock >/dev/null 2>&1; then
-        mkdir -p "$(dirname "$REGISTRY")"
         exec {WAYFINDER_CHIEF_REG_FD}>"$REGISTRY.lock"
         flock -w 60 "$WAYFINDER_CHIEF_REG_FD" \
             || { printf 'wayfinder-chief: cannot lock registry: %s.lock\n' "$REGISTRY" >&2; return 1; }
@@ -269,7 +291,7 @@ collect_results() {
     while IFS= read -r name; do
         [ -n "$name" ] || continue
         row="$(awk -F'\t' -v n="$name" '$1 == n { print; exit }' "$REGISTRY")"
-        tmp="$(mktemp)"
+        tmp="$(mktemp -p "$(dirname "$REGISTRY")" reg.XXXXXX)"
         awk -F'\t' -v n="$name" -v now="$(date '+%F %T')" 'BEGIN { OFS = "\t" } $1 == n { $6 = "ready-for-review"; $8 = now; $9 = ($9 == "" ? "awaiting chief review (#740 queue)" : $9 " | awaiting chief review (#740 queue)") } { print }' \
             "$REGISTRY" > "$tmp"
         mv "$tmp" "$REGISTRY"
@@ -706,6 +728,16 @@ integrate_lane() { # single-writer integration; single-shot, no fill.
     "$REVIEW" "${args[@]}"
 }
 
+recover_lane() { # crash-restart recovery; single-shot, no fill.
+    # A recovered chief reconciles existing workers BEFORE dispatching new
+    # work (ticket #741): live workers survive the chief crash, salvageable
+    # results stay queued for review, and the quiescence verdict tells the
+    # operator whether a successor generation may advance. Never fills.
+    [ -x "$RECOVER" ] || die "recovery lane not executable: $RECOVER"
+    WAYFINDER_WORKER_REGISTRY="$REGISTRY" "$RECOVER" reconcile
+    WAYFINDER_WORKER_REGISTRY="$REGISTRY" "$RECOVER" orphans || true
+}
+
 pass() {
     log "pass start (map #$MAP, max=$MAX)"
     if [ -z "$DRY_RUN" ]; then
@@ -781,6 +813,11 @@ fi
 
 if [ -n "$INTEGRATE_WORKER" ]; then
     integrate_lane || exit $?
+    exit 0
+fi
+
+if [ -n "$RECOVER_LANE" ]; then
+    recover_lane || exit $?
     exit 0
 fi
 

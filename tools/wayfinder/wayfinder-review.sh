@@ -196,11 +196,13 @@ row_field() { # <row> <n> — print TSV field n.
 }
 
 # reg_set <name> <status> <note-append> — move one row, appending to its note.
+# Same-dir staging (ticket #741): the atomic rename publishes only complete
+# views to lock-free readers. The lock mkdirs the registry dir first.
 reg_set() {
     local name="$1" status="$2" append="$3" tmp
     append="$(printf '%s' "$append" | tr '\t\n' '  ')"
     with_registry_lock
-    tmp="$(mktemp)"
+    tmp="$(mktemp -p "$(dirname "$REGISTRY")" reg.XXXXXX)"
     awk -F'\t' -v n="$name" -v s="$status" -v a="$append" -v now="$(date '+%F %T')" \
         'BEGIN { OFS = "\t" } $1 == n { $6 = s; $8 = now; $9 = ($9 == "" ? a : $9 " | " a) } { print }' \
         "$REGISTRY" > "$tmp"

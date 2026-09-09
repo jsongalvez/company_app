@@ -28,6 +28,17 @@
 #   WAYFINDER_GH_BIN       gh executable used for red-verdict tracker writes
 #   WAYFINDER_GH_REPO      repository for tracker writes (default from origin)
 #   WAYFINDER_MAP_ISSUE    map the repair issue attaches to as a child (default 533)
+#   WAYFINDER_QUIESCENCE_GATE parallel-generation handoff gate (default on;
+#                          reconcile-then-gate before every successor spawn:
+#                          successor sessions wait while unmanaged live agents
+#                          exist or wayfinder-recover.sh quiescence reports
+#                          BLOCKED; empty/missing worker registry always reads
+#                          QUIESCENT so the sequential chain spawns
+#                          immediately; bypass only with the exact value off;
+#                          a missing recover script with non-empty registry
+#                          fails closed)
+#   WAYFINDER_WORKER_REGISTRY worker registry the quiescence gate reads
+#                          (default <repo>/.wayfinder/workers.tsv)
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -768,6 +779,86 @@ is_transient_failure() {
   esac
 }
 
+# Generation quiescence gate (map #697 #741): a successor handoff must not
+# start the next Wayfinder generation while writable parallel workers or
+# reviewable results from the previous generation remain unsafe/unresolved
+# (see tools/wayfinder/wayfinder-recover.sh quiescence). Composition is
+# reconcile-then-gate: each pass reconciles worker + provider state through
+# their seams, treats live Wayfinder agents the registry never saw as blocking
+# until adopted or stopped, then reads the quiescence verdict. Only the
+# Wayfinder `wf-*` agent namespace gates: an operator's unrelated Herdr agents
+# never pause the chain, and a machine without a Herdr runtime at all falls
+# back to the registry-only verdict. Resolution runbook while paused:
+# chief --recover, review dispositions, integrate, worker + provider cleanup,
+# orphan claim release (see wayfinder-recover.sh orphans). Bypass only with
+# the exact value WAYFINDER_QUIESCENCE_GATE=off; any other value (including
+# garbage) keeps the gate on with a warning. A missing recover script with
+# parallel state fails closed (pause + re-notify): unknown state is unsafe.
+quiescence_gate() {
+  local doc="$1" recover="$REPO/tools/wayfinder/wayfinder-recover.sh" verdict notified=0 pauses=0
+  local registry="${WAYFINDER_WORKER_REGISTRY:-$REPO/.wayfinder/workers.tsv}"
+  case "${WAYFINDER_QUIESCENCE_GATE:-on}" in
+    off) return 0 ;;
+    on) ;;
+    *) log "WARNING: WAYFINDER_QUIESCENCE_GATE='${WAYFINDER_QUIESCENCE_GATE:-}' is not on/off — keeping the gate on" ;;
+  esac
+  if [ ! -x "$recover" ]; then
+    [ -s "$registry" ] || return 0
+    log "spawn paused for $doc — parallel worker state exists but $recover is missing (fail closed)"
+    notify "wayfinder paused" "worker registry is non-empty but wayfinder-recover.sh is missing — restore the script or clear the registry deliberately, then the chain resumes"
+    while [ ! -x "$recover" ]; do
+      sleep 60
+      pauses=$((pauses + 1))
+      if [ $((pauses % 10)) -eq 0 ]; then
+        notify "wayfinder still paused" "successor $doc still gated (recover script missing) — restore tools/wayfinder/wayfinder-recover.sh"
+      fi
+    done
+    log "recover script restored — spawn resumes for $doc"
+  fi
+  local rec_out unmanaged herdr_present=0
+  # Herdr presence decides the discovery depth: without the runtime there is
+  # no live set to enumerate, so the registry-only verdict rules (sequential
+  # machines spawn immediately); with it, reconcile failures fail closed
+  # because unknown liveness is unsafe state.
+  command -v "${HERDR_BIN:-herdr}" >/dev/null 2>&1 && herdr_present=1
+  while :; do
+    verdict=""; unmanaged=""
+    if [ "$herdr_present" -eq 1 ]; then
+      if rec_out="$(WAYFINDER_WORKER_REGISTRY="$registry" "$recover" reconcile 2>&1)"; then
+        # Wayfinder namespace only (wf-*): unrelated Herdr agents never gate.
+        unmanaged="$(printf '%s\n' "$rec_out" | grep '^unmanaged: wf-' || true)"
+        if [ -n "$unmanaged" ]; then
+          verdict="BLOCKED: unmanaged live agents ($(printf '%s\n' "$unmanaged" | awk '{ print $2 }' | tr '\n' ' ' | sed 's/ $//')) — adopt or stop before the successor starts"
+        else
+          # Registry predicate (exit 1 while BLOCKED): stdout carries the
+          # verdict either way, so || true keeps this under set -e.
+          verdict="$(WAYFINDER_WORKER_REGISTRY="$registry" "$recover" quiescence 2>/dev/null || true)"
+        fi
+      else
+        verdict="BLOCKED: worker state unknown (reconcile failed) — inspect the daemon log, then run chief --recover"
+      fi
+    else
+      verdict="$(WAYFINDER_WORKER_REGISTRY="$registry" "$recover" quiescence 2>/dev/null || true)"
+    fi
+    case "$verdict" in
+      QUIESCENT*)
+        [ "$notified" -eq 0 ] || log "generation quiescent ($verdict) — spawn resumes for $doc"
+        return 0
+        ;;
+    esac
+    if [ "$notified" -eq 0 ]; then
+      log "spawn paused for $doc — previous generation not quiescent: $verdict"
+      notify "wayfinder paused" "previous parallel generation unresolved ($verdict) — run chief --recover, disposition the review queue, cleanup workspaces, release orphan claims; the successor waits"
+      notified=1
+    fi
+    sleep 30
+    pauses=$((pauses + 1))
+    if [ $((pauses % 10)) -eq 0 ]; then
+      notify "wayfinder still paused" "successor $doc still gated ($verdict) — runbook: chief --recover, review queue, cleanup"
+    fi
+  done
+}
+
 spawn_session() {
   local doc="$1" sid
   if [ -n "$DRY_RUN" ]; then
@@ -782,6 +873,7 @@ spawn_session() {
       wait_for_clean_handoff "$doc"
     fi
   fi
+  quiescence_gate "$doc"
   local model_ref="null" pid model_id model_provider
   if [ -n "${WAYFINDER_MODEL:-}" ]; then
     # Split on the FIRST slash only: model ids may contain slashes.

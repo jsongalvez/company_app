@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wayfinder-worker.sh — Herdr worker-control seam for the Wayfinder map chief (map #697, tickets #735 #737).
+# wayfinder-worker.sh — Herdr worker-control seam for the Wayfinder map chief (map #697, tickets #735 #737 #741).
 #
 # Hides direct Herdr CLI details behind one small boundary so the chief
 # scheduler (wayfinder-chief.sh) and later tickets never parse Herdr output
@@ -8,6 +8,7 @@
 #   spawn     --role R --ticket N --workspace DIR [--name N] [--pane P]
 #             [--kind K] [--prompt-file F | --prompt TEXT]
 #             [--parent WORKER --scope TEXT] (helper only)
+#             [--map M] [--generation G] (recovery identity, ticket #741)
 #   prompt    <name> [--text-file F | --text TEXT]
 #   status    <name>
 #   wait      <name> [--timeout MS] [--until STATE]...
@@ -46,9 +47,21 @@
 #   ticket, maintenance, bug-scout, helper.
 # - Concurrency is bounded: spawn refuses when running rows reach
 #   WAYFINDER_MAX_WORKERS (default 1 — the sequential fallback).
-# - Stable identity for crash recovery (sibling ticket #741): the Herdr agent
-#   name is the registry key; reconcile adopts live state and marks missing
-#   rows gone without deleting salvageable rows.
+# - Stable identity for crash recovery (tickets #735 #741): the Herdr agent
+#   name is the registry key — chief-driven spawns name it deterministically
+#   per map+ticket (wf-<map>-<ticket>) so a daemon/chief restart reconciles
+#   the same name instead of spawning a duplicate (spawn refuses an
+#   already-registered name; replacement spawns only after the previous row
+#   is cleaned). reconcile adopts live Herdr state, re-adopts gone/stopped
+#   rows whose agent is live again, and marks missing rows gone without
+#   deleting salvageable rows (an unrecognizable listing fails closed instead
+#   of mass-marking gone). Worker-reported done|blocked|failed never move
+#   backwards on Herdr lag; an orphaned revision (agent gone mid-rework)
+#   converges to failed with the workspace preserved. Every spawn records the
+#   owning map and chief generation (columns 11-12, diagnostic identity —
+#   nothing filters on them; duplication safety comes from the name key, not
+#   the generation); unmanaged live agents are reported, never auto-adopted —
+#   explicit adoption lives in wayfinder-recover.sh.
 # - No Git integration lives here: no merge/cherry-pick/stage/commit, and no
 #   workspace creation (sibling ticket #736 owns the WorkspaceProvider — the
 #   workspace dir must already exist and is only recorded).
@@ -60,11 +73,21 @@
 #   WAYFINDER_WORKER_ARGS  extra args appended after -- on agent start
 #   WAYFINDER_ROLE         caller role; leaf roles cannot orchestrate
 #   WAYFINDER_WORKER_REGISTRY  registry file (default: <repo>/.wayfinder/workers.tsv)
+#   WAYFINDER_MAP            owning map number recorded on spawn (default: empty)
+#   WAYFINDER_GENERATION     chief session/generation recorded on spawn (default: empty)
 #
 # Registry (TSV, runtime state under gitignored .wayfinder/):
-#   name role ticket workspace pane status created updated note parent
+#   name role ticket workspace pane status created updated note parent map generation
 # Parent (column 10, ticket #737) names the parent worker for helper rows and
 # is empty for all other roles. Older 9-column rows read as parent-empty.
+# Map (column 11, ticket #741) records the owning Wayfinder map number so a
+# restarted daemon/chief can reconstruct which map each worker belongs to
+# without re-querying the tracker. Generation (column 12, ticket #741)
+# records the chief session/generation that spawned the worker
+# (WAYFINDER_GENERATION, e.g. a chief start timestamp; empty stays legal for
+# the sequential fallback — duplication safety comes from the deterministic
+# name key, generation is diagnostic identity for operators). Older rows
+# without map/generation read as empty and are adopted on next reconcile.
 # Status flow: spawning -> running -> done|blocked|failed -> ready-for-review
 # (-> revision-requested: live rework, still stoppable; the worker's
 #  re-report returns via done|blocked|failed -> ready-for-review for a fresh
@@ -154,17 +177,22 @@ with_registry_unlock() {
     fi
 }
 
-# reg_upsert <name> <role> <ticket> <workspace> <pane> <status> <note> [parent]
+# reg_upsert <name> <role> <ticket> <workspace> <pane> <status> <note> [parent [map [generation]]]
 # The optional parent (column 10, helper rows) defaults to preserving the
 # existing row's parent so status updates (stop/reconcile) never drop the
-# helper association; new rows default to empty (non-helper).
+# helper association; new rows default to empty (non-helper). Map (column 11)
+# and generation (column 12, ticket #741) likewise preserve the existing row
+# when the caller passes empty, so reconcile/stop never drop recovery
+# identity; new rows default to empty (pre-#741 rows).
 reg_upsert() {
     local name="$1" role="$2" ticket="$3" workspace="$4" pane="$5" status="$6" note="$7"
-    local parent="${8:-}"
+    local parent="${8:-}" map="${9:-}" generation="${10:-}"
     local now existing created tmp
     now="$(date '+%F %T')"
     note="$(printf '%s' "$note" | tr '\t\n' '  ')"
     parent="$(printf '%s' "$parent" | tr '\t\n' '  ')"
+    map="$(printf '%s' "$map" | tr '\t\n' '  ')"
+    generation="$(printf '%s' "$generation" | tr '\t\n' '  ')"
     reg_init
     existing="$(reg_row "$name")"
     if [ -n "$existing" ]; then
@@ -173,14 +201,24 @@ reg_upsert() {
         if [ -z "$parent" ]; then
             parent="$(printf '%s' "$existing" | awk -F'\t' '{ print $10 }')"
         fi
+        if [ -z "$map" ]; then
+            map="$(printf '%s' "$existing" | awk -F'\t' '{ print $11 }')"
+        fi
+        if [ -z "$generation" ]; then
+            generation="$(printf '%s' "$existing" | awk -F'\t' '{ print $12 }')"
+        fi
     else
         created="$now"
     fi
-    tmp="$(mktemp)"
+    # Same-dir staging (ticket #741): the atomic rename publishes only
+    # complete views to lock-free readers (quiescence, counts). A bare mktemp
+    # in $TMPDIR risks a cross-filesystem copy+unlink that can tear the
+    # recovery-critical registry on crash.
+    tmp="$(mktemp -p "$(dirname "$REGISTRY")" reg.XXXXXX)"
     with_registry_lock
     awk -F'\t' -v name="$name" '$1 != name' "$REGISTRY" > "$tmp"
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$name" "$role" "$ticket" "$workspace" "$pane" "$status" "$created" "$now" "$note" "$parent" >> "$tmp"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$name" "$role" "$ticket" "$workspace" "$pane" "$status" "$created" "$now" "$note" "$parent" "$map" "$generation" >> "$tmp"
     mv "$tmp" "$REGISTRY"
     with_registry_unlock
 }
@@ -203,7 +241,7 @@ alloc_pane() {
 cmd_spawn() {
     require_chief "worker_spawn"
     local role="" ticket="" workspace="" name="" pane="" kind="$WORKER_KIND_DEFAULT"
-    local prompt_text="" prompt_file="" parent="" scope=""
+    local prompt_text="" prompt_file="" parent="" scope="" map="" generation=""
     while [ $# -gt 0 ]; do
         case "$1" in
             --role) role="${2:-}"; shift 2 ;;
@@ -216,12 +254,25 @@ cmd_spawn() {
             --prompt-file) prompt_file="${2:-}"; shift 2 ;;
             --parent) parent="${2:-}"; shift 2 ;;
             --scope) scope="${2:-}"; shift 2 ;;
+            --map) map="${2:-}"; shift 2 ;;
+            --generation) generation="${2:-}"; shift 2 ;;
             -h|--help) usage ;;
             *) usage_err "spawn: unknown flag $1" ;;
         esac
     done
     valid_role "$role" || usage_err "spawn: --role must be one of: $VALID_ROLES"
     [[ "$ticket" =~ ^[0-9]+$ ]] || usage_err "spawn: --ticket must be a numeric issue number"
+    [ -n "$map" ] || map="${WAYFINDER_MAP:-}"
+    [ -n "$generation" ] || generation="${WAYFINDER_GENERATION:-}"
+    case "$map" in
+        "") ;;
+        *[!0-9]*) usage_err "spawn: --map must be a numeric map issue number" ;;
+    esac
+    case "$generation" in
+        ""|*[!a-zA-Z0-9_:@.-]*)
+            [ -z "$generation" ] || usage_err "spawn: --generation must match [a-zA-Z0-9_:@.-]+"
+            ;;
+    esac
     [ -n "$workspace" ] || usage_err "spawn: --workspace is required (provider-owned dir; never created here)"
     case "$workspace" in
         *$'\t'*|*$'\n'*) die "spawn: workspace path must not contain tabs or newlines" ;;
@@ -240,6 +291,9 @@ cmd_spawn() {
         [ "$ticket" = "$parent_ticket" ] || die "spawn: helper ticket #$ticket must match parent '$parent' ticket #$parent_ticket"
         parent_workspace="$(printf '%s' "$parent_row" | cut -f4)"
         [ "$workspace" != "$parent_workspace" ] || die "spawn: helper workspace must differ from parent '$parent' workspace (writable helpers need their own isolated workspace)"
+        if [ -z "$map" ]; then
+            map="$(printf '%s' "$parent_row" | cut -f11)"
+        fi
         if [ -z "$name" ]; then
             local n=1
             name="${parent}-h${n}"
@@ -284,17 +338,17 @@ cmd_spawn() {
     if [ -n "$prompt_text" ]; then
         if ! out="$("$HERDR_BIN" agent prompt "$name" "$prompt_text" 2>&1)"; then
             if [ "$role" = "helper" ]; then
-                reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "helper for $parent: $scope; initial prompt failed: $out" "$parent"
+                reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "helper for $parent: $scope; initial prompt failed: $out" "$parent" "$map" "$generation"
             else
-                reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "started; initial prompt failed: $out" "$parent"
+                reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "started; initial prompt failed: $out" "$parent" "$map" "$generation"
             fi
             die "agent prompt failed for $name (worker kept as running): $out"
         fi
     fi
     if [ "$role" = "helper" ]; then
-        reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "helper for $parent: $scope (kind=$kind)" "$parent"
+        reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "helper for $parent: $scope (kind=$kind)" "$parent" "$map" "$generation"
     else
-        reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "spawned kind=$kind" "$parent"
+        reg_upsert "$name" "$role" "$ticket" "$workspace" "$pane" "running" "spawned kind=$kind" "$parent" "$map" "$generation"
     fi
     printf 'spawned %s (role=%s ticket=#%s pane=%s)\n' "$name" "$role" "$ticket" "$pane"
 }
@@ -419,12 +473,14 @@ cmd_cleanup() {
             # Unreviewed or salvageable result (ticket #740): an explicit
             # chief disposition (review accept/revision/reject, then
             # integrate) precedes cleanup — never drop reviewable work
-            # silently. Terminal integrated/rejected/cancelled rows clean
-            # freely; --force overrides for operator recovery.
+            # silently. Terminal integrated/rejected/cancelled/stopped/gone
+            # rows clean freely; --force overrides for operator recovery.
             [ "$force" -eq 1 ] || die "cleanup: worker $name is $status — unreviewed or salvageable result; record a review disposition first (pass --force to override)"
             ;;
+        integrated|rejected|cancelled|stopped|gone) ;;
+        *) die "cleanup: worker $name carries an unknown status '$status' — refusing (inspect the registry before removing)" ;;
     esac
-    tmp="$(mktemp)"
+    tmp="$(mktemp -p "$(dirname "$REGISTRY")" reg.XXXXXX)"
     with_registry_lock
     awk -F'\t' -v name="$name" '$1 != name' "$REGISTRY" > "$tmp"
     mv "$tmp" "$REGISTRY"
@@ -440,11 +496,50 @@ cmd_reconcile() {
     out="$("$HERDR_BIN" agent list 2>&1)" \
         || die "agent list failed: $out"
     # Tolerant across Herdr response shapes: collect name/status pairs.
-    live="$(herdr_field "$out" '[.. | objects | select(has("name") and has("status")) | "\(.name)\t\(.status)"] | unique | .[]')"
+    # The `|| true` keeps the shape guard below reachable: under `set -e`, a
+    # failing jq would abort with a bare code before any diagnostic.
+    live="$(herdr_field "$out" '[.. | objects | select(has("name") and has("status")) | "\(.name)\t\(.status)"] | unique | .[]' || true)"
+    if [ -z "$live" ]; then
+        # Fail closed (ticket #741): an empty parsed set is ambiguous between
+        # "no live agents" and "unrecognized/broken listing". Only a listing
+        # that positively carries agent arrays holding zero entries may mark
+        # rows gone: `{"agents":null}`, stray "agents" strings, entries
+        # without usable identity, and unparseable output all refuse instead
+        # of mass-marking live workers gone (a lying registry invites cleanup
+        # of workers that may be alive).
+        agent_counts="$(printf '%s' "$out" | jq -r '[.. | objects | select(has("agents") and (.agents | type == "array")) | .agents] | {lists: length, entries: ([.[].[]?] | length)} | "\(.lists)/\(.entries)"' 2>/dev/null || printf 'INVALID')"
+        case "$agent_counts" in
+            INVALID) die "agent list returned unparseable output — refusing to mark workers gone" ;;
+            0/*) die "agent list returned no recognizable agent list — refusing to mark workers gone" ;;
+            */0) ;;
+            *) die "agent list holds entries without usable identity ($agent_counts) — refusing to mark workers gone" ;;
+        esac
+    fi
     names="$(printf '%s' "$live" | cut -f1)"
-    local kept=0 gone=0 updated=0
-    while IFS=$'\t' read -r name _role _ticket _ws _pane status _c _u _note _parent; do
+    local kept=0 gone=0 updated=0 readopted=0
+    while IFS=$'\t' read -r name _role _ticket _ws _pane status _c _u _note _parent _map _generation _rest; do
         [ -n "$name" ] || continue
+        # Re-adopt (ticket #741): a row previously marked gone/stopped whose
+        # Herdr agent is live again is adopted back instead of respawned — a
+        # daemon/chief restart must adopt live workers, never duplicate them.
+        # The workspace result is preserved; the note records the adoption.
+        case "$status" in
+            gone|stopped)
+                herdr_status="$(printf '%s' "$live" | awk -F'\t' -v n="$name" '$1 == n { print $2; exit }')"
+                case "$herdr_status" in
+                    running|working|idle)
+                        reg_upsert "$name" "$_role" "$_ticket" "$_ws" "$_pane" "running" "re-adopted live worker after restart (was $status)"
+                        readopted=$((readopted + 1))
+                        ;;
+                    done|blocked|failed)
+                        reg_upsert "$name" "$_role" "$_ticket" "$_ws" "$_pane" "$herdr_status" "re-adopted reported $herdr_status after restart (was $status)"
+                        readopted=$((readopted + 1))
+                        ;;
+                    *) kept=$((kept + 1)) ;;
+                esac
+                continue
+                ;;
+        esac
         case "$status" in
             ready-for-review|accepted-awaiting-integration|integrated|rejected|cancelled)
                 # Waiting disposition or terminal (ticket #740): Herdr
@@ -459,17 +554,32 @@ cmd_reconcile() {
         if [ "$status" = "revision-requested" ]; then
             # Live rework: adopt the worker's re-report so the revision
             # round-trips via done|blocked|failed back to the chief collect
-            # for a fresh disposition. A missing pane keeps the revision
-            # (the workspace still holds the rework) instead of stranding it.
+            # for a fresh disposition. A vanished agent can never re-report,
+            # so the orphaned rework converges to failed (workspace preserved
+            # for review) instead of stranding every later disposition.
             case "$herdr_status" in
                 done|blocked|failed)
                     reg_upsert "$name" "$_role" "$_ticket" "$_ws" "$_pane" "$herdr_status" "rework reported $herdr_status — back to chief review"
+                    updated=$((updated + 1))
+                    ;;
+                "")
+                    reg_upsert "$name" "$_role" "$_ticket" "$_ws" "$_pane" "failed" "rework orphaned: agent gone mid-revision — workspace preserved for review"
                     updated=$((updated + 1))
                     ;;
                 *) kept=$((kept + 1)) ;;
             esac
             continue
         fi
+        case "$status" in
+            done|blocked|failed)
+                # Worker-reported states never move backwards (ticket #741):
+                # a lagging Herdr listing that still says running must not
+                # erase a pending report — forward motion belongs to the chief
+                # collect into ready-for-review.
+                kept=$((kept + 1))
+                continue
+                ;;
+        esac
         if [ -z "$herdr_status" ]; then
             case "$status" in
                 spawning|running)
@@ -494,8 +604,12 @@ cmd_reconcile() {
             fi
         fi
     done < "$REGISTRY"
-    # Live agents the registry never saw are reported, never adopted here —
-    # adoption across a chief restart is sibling ticket #741's recovery path.
+    # Live agents the registry never saw are reported, never auto-adopted here:
+    # explicit adoption is the recover lane's job (wayfinder-recover.sh adopt),
+    # so a restart can never silently attach an unrelated live agent to a
+    # ticket. Advancement discipline is reconcile-first: the daemon gate
+    # reconciles before reading the verdict and treats reported unmanaged
+    # agents as blocking until an operator adopts or stops them.
     if [ -n "$names" ]; then
         while IFS= read -r name; do
             [ -n "$name" ] || continue
@@ -505,7 +619,11 @@ cmd_reconcile() {
             fi
         done <<< "$names"
     fi
-    printf 'reconciled: %d kept, %d updated, %d gone\n' "$kept" "$updated" "$gone"
+    if [ "$readopted" -gt 0 ]; then
+        printf 'reconciled: %d kept, %d updated, %d gone, %d re-adopted\n' "$kept" "$updated" "$gone" "$readopted"
+    else
+        printf 'reconciled: %d kept, %d updated, %d gone\n' "$kept" "$updated" "$gone"
+    fi
 }
 
 [ $# -ge 1 ] || usage
