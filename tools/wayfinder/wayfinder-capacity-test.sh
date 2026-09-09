@@ -38,6 +38,7 @@ chmod +x "$WORK/bin/herdr"
 
 export HERDR_BIN="$WORK/bin/herdr" PATH="$WORK/bin:$PATH" WORK
 export WAYFINDER_GH_REPO=fixture/repo WAYFINDER_WORKER_KIND=opencode
+export WAYFINDER_PARALLEL=on # parallel-era chief passes opt into parallel dispatch (map #697 #743)
 export WAYFINDER_ROLE=chief
 
 fresh() { # fresh <tag> — isolated registries for one case.

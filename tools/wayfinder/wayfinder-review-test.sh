@@ -66,6 +66,7 @@ chmod +x "$WORK/bin/gh"
 
 export HERDR_BIN="$WORK/bin/herdr" WAYFINDER_GH_BIN="$WORK/bin/gh"
 export WAYFINDER_GH_REPO=fixture/repo WAYFINDER_WORKER_KIND=opencode
+export WAYFINDER_PARALLEL=on # parallel-era chief passes opt into parallel dispatch (map #697 #743)
 export PATH="$WORK/bin:$PATH" WORK
 export WAYFINDER_WORKER_REGISTRY="$WORK/workers.tsv"
 export WAYFINDER_INTEGRATION_GATE="$WORK/integration-gate"

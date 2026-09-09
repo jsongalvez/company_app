@@ -30,6 +30,53 @@ seen-doc fingerprints, retries, hosted-CI verdict/repair mappings),
 - The daemon never stages, commits, or stashes — worktree hygiene belongs to
   the sessions.
 
+## Parallel supervision (map #697)
+
+One orchestration layer per active map: the **map chief** (`tools/wayfinder/wayfinder-chief.sh`)
+schedules, reviews, integrates, and advances the map through a bounded pool of
+**leaf workers** driven over Herdr (`tools/wayfinder/wayfinder-worker.sh`).
+Leaf workers implement exactly one assigned ticket each and report back; they
+never claim successor work, advance the map, or spawn unmanaged descendants.
+
+```text
+Wayfinder daemon -> map chief -> ticket workers (one ticket each, writable)
+                               maintenance worker (red-CI repair, writable)
+                               bug scouts (whole-repo audit, read-only)
+                               helpers (chief-mediated bounded subtasks)
+```
+
+Separation of concerns: Wayfinder decides *what* runs and when; Herdr tracks
+*which* agents/panes run; GitHub stays the durable work/tracker authority
+(blockers, priority, claims, repair issues); the WorkspaceProvider
+(`tools/wayfinder/wayfinder-workspace.sh`, default git-worktree) decides
+*where* each isolated worker runs; the chief owns review, disposition, and
+the single-writer integration queue (`tools/wayfinder/wayfinder-review.sh`).
+Crash recovery reconciles recorded workers/workspaces before new dispatch
+(`tools/wayfinder/wayfinder-recover.sh`); successors wait while quiescence
+reports BLOCKED. Role-aware capacity ceilings and heavy-job coordination live
+in `tools/wayfinder/wayfinder-capacity.sh`. Contract suite:
+`tools/wayfinder/wayfinder-parallel-test.sh` over the deterministic
+`tools/wayfinder/fake-herdr.sh` stub plus the `fake` workspace provider —
+no live panes, sessions, or CoW filesystem required.
+
+## Rollout (ticket #743)
+
+Parallel dispatch is gated behind `WAYFINDER_PARALLEL=on` (default off =
+sequential fallback: the chief clamps fill width to 1 with a log line).
+Single-shot chief lanes (helper/scout/maintenance spawn, review queue,
+recover, status) stay available in both modes as explicit bounded actions.
+
+- Enable: set `WAYFINDER_PARALLEL=on` alongside `WAYFINDER_MAX_WORKERS>1`
+  (plus the role ceilings) in the chief/daemon environment, then restart the
+  daemon so new sessions pick it up. Shipping the implementation never
+  restarts the running daemon itself.
+- Rollback: unset `WAYFINDER_PARALLEL` (or set `off`) and restart. No state
+  surgery: worker rows keep their map/generation recovery identity,
+  quiescence still gates handoffs, and registries stay readable in both
+  modes.
+- Defaults stay conservative (`off`, `MAX_WORKERS=1`) until the contract
+  suite is green.
+
 ## Pending verdicts (CI-wait hold removed, ref #702)
 
 No hold exists: the daemon spawns on every new packet immediately and never

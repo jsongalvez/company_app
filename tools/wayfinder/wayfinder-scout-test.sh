@@ -188,6 +188,7 @@ chmod +x "$WORK/bin/gh"
 
 export HERDR_BIN="$WORK/bin/herdr" WAYFINDER_GH_BIN="$WORK/bin/gh"
 export WAYFINDER_GH_REPO=fixture/repo WAYFINDER_WORKER_KIND=opencode
+export WAYFINDER_PARALLEL=on # parallel-era scout lanes opt into parallel dispatch (map #697 #743)
 export WAYFINDER_WORKER_REGISTRY="$WORK/workers.tsv"
 : > "$WAYFINDER_WORKER_REGISTRY"
 export PATH="$WORK/bin:$PATH"

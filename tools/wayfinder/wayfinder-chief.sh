@@ -131,6 +131,19 @@
 # Dispatch/collect/disposition milestones emit structured events best-effort
 # (a failed emit never breaks scheduling; --dry-run emits nothing).
 #
+# Parallel rollout (ticket #743): parallel dispatch is gated behind the
+# explicit WAYFINDER_PARALLEL=on switch (default off = sequential fallback:
+# fill width clamped to 1 with a log line). Enabling parallel mode is a
+# deliberate configuration change (set WAYFINDER_PARALLEL=on alongside
+# WAYFINDER_MAX_WORKERS>1 in the chief/daemon environment, then restart the
+# daemon so new sessions pick it up); single-shot lanes (--spawn-helper,
+# --spawn-scout, --spawn-maintenance, --queue/--review/--integrate,
+# --recover, --status) stay available in both modes as explicit bounded
+# actions. Rollback is the same knob in reverse (unset or =off + restart):
+# no registry/state surgery — worker rows keep their map/generation
+# recovery identity and quiescence still gates handoffs. This script never
+# restarts the running daemon itself.
+#
 # Usage: wayfinder-chief.sh --map N [--once] [--max-workers N] [--dry-run]
 #          [--workspace DIR] [--workspace-base DIR] [--pane PANE]
 #          [--registry PATH] [--interval SECS] [--base SHA]
@@ -146,7 +159,9 @@
 #          [--recover]
 #          [--status [--machine]]
 #
-# Env: WAYFINDER_MAX_WORKERS (default 1), WAYFINDER_MAX_MAINTENANCE_WORKERS
+# Env: WAYFINDER_PARALLEL (on|off, default off — the explicit parallel-mode
+#   switch; off clamps fill width to the sequential fallback of 1),
+#   WAYFINDER_MAX_WORKERS (default 1), WAYFINDER_MAX_MAINTENANCE_WORKERS
 #   (default 1, live maintenance rows only), WAYFINDER_MAX_BUG_SCOUTS
 #   (default 1, live scout rows only, 0 disables), WAYFINDER_MAX_HELPERS
 #   (default 2, live helper rows only, 0 disables), WAYFINDER_MAX_HEAVY_JOBS
@@ -169,6 +184,7 @@ CAPACITY="$SCRIPT_DIR/wayfinder-capacity.sh"
 
 MAP="" ONCE=0 DRY_RUN=""
 MAX="${WAYFINDER_MAX_WORKERS:-1}"
+PARALLEL="${WAYFINDER_PARALLEL:-off}"
 MAX_MAINT="${WAYFINDER_MAX_MAINTENANCE_WORKERS:-1}"
 MAX_SCOUTS="${WAYFINDER_MAX_BUG_SCOUTS:-1}"
 MAX_HELPERS="${WAYFINDER_MAX_HELPERS:-2}"
@@ -256,6 +272,14 @@ while [ $# -gt 0 ]; do
 done
 [[ "$MAP" =~ ^[0-9]+$ ]] || { printf 'wayfinder-chief: --map N is required\n' >&2; exit 2; }
 [[ "$MAX" =~ ^[0-9]+$ ]] && [ "$MAX" -ge 1 ] || die "--max-workers must be >= 1 (got '$MAX')"
+case "$PARALLEL" in
+    on|off) ;;
+    *) die "WAYFINDER_PARALLEL must be on or off (got '$PARALLEL')" ;;
+esac
+if [ "$PARALLEL" != "on" ] && [ "$MAX" -gt 1 ]; then
+    printf '%s [chief] sequential fallback (WAYFINDER_PARALLEL=%s): clamping --max-workers %s to 1 — set WAYFINDER_PARALLEL=on for parallel dispatch\n' "$(date '+%F %T')" "$PARALLEL" "$MAX"
+    MAX=1
+fi
 [[ "$MAX_MAINT" =~ ^[0-9]+$ ]] && [ "$MAX_MAINT" -ge 1 ] || die "WAYFINDER_MAX_MAINTENANCE_WORKERS must be >= 1 (got '$MAX_MAINT')"
 [[ "$MAX_SCOUTS" =~ ^[0-9]+$ ]] || die "WAYFINDER_MAX_BUG_SCOUTS must be >= 0 (got '$MAX_SCOUTS')"
 [[ "$MAX_HELPERS" =~ ^[0-9]+$ ]] || die "WAYFINDER_MAX_HELPERS must be >= 0 (got '$MAX_HELPERS')"

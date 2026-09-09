@@ -39,6 +39,14 @@
 #                          fails closed)
 #   WAYFINDER_WORKER_REGISTRY worker registry the quiescence gate reads
 #                          (default <repo>/.wayfinder/workers.tsv)
+#   WAYFINDER_PARALLEL   parallel-supervision master switch (on|off, default
+#                          off = sequential fallback: the map chief clamps
+#                          fill width to 1; set on alongside
+#                          WAYFINDER_MAX_WORKERS>1, then restart the daemon so
+#                          new sessions pick it up — this script never
+#                          restarts the running daemon itself; rollback is the
+#                          same knob in reverse with no state surgery, see
+#                          "Parallel supervision" in docs/agents/wayfinder-loop.md)
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -1242,6 +1250,19 @@ wait_for_doc() {
 [ -n "$OC_BIN" ] || die "opencode2 binary not found"
 [ -d "$HANDOFF_DIR" ] || die ".wayfinder/handoffs not found at $HANDOFF_DIR (create it; handoff packets are gitignored runtime state)"
 command -v jq >/dev/null 2>&1 || die "jq not found"
+
+# Parallel-supervision rollout (map #697 #743): the daemon only observes this
+# switch — dispatch width is enforced by the map chief inside sessions. Log
+# the mode once per start so the log shows which model the chain runs under.
+case "${WAYFINDER_PARALLEL:-off}" in
+    on|off) ;;
+    *) die "WAYFINDER_PARALLEL must be on or off (got '$WAYFINDER_PARALLEL')" ;;
+esac
+if [ "${WAYFINDER_PARALLEL:-off}" = "on" ]; then
+    log "parallel supervision: ON (chief fill width follows WAYFINDER_MAX_WORKERS)"
+else
+    log "parallel supervision: off — sequential fallback (chief fill width 1)"
+fi
 
 load_state
 normalize_seen_docs

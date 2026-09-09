@@ -18,7 +18,10 @@ start → hydrate → reconcile CI (once) → claim → work → resolve → han
 A fresh session starts from `/wayfinder <handoff>`: load the map and packet,
 then follow Ticket claim order below — hydrate, reconcile CI exactly once, claim
 exactly one ticket, work it to resolution, write the successor packet, exit.
-A ticket may span sessions.
+A ticket may span sessions. This is the sequential mode; under parallel
+supervision (`docs/agents/wayfinder-loop.md`, "Parallel supervision") the map
+chief holds the map claim and dispatches bounded one-ticket workers instead —
+each worker still owns exactly one ticket.
 
 ## Ticket claim order (start-of-loop)
 
@@ -56,14 +59,16 @@ flowchart TD
    GitHub outranks the packet ("Hydration contract" below).
 2. **Continue** — the packet names an open unfinished ticket assigned to the
    driver, or the tracker shows a crash-orphaned claim: resume it; selection
-   ends here, one claim per session ("Recovery" below).
+   ends here, one claim per sequential session ("Recovery" below; parallel
+   chiefs hold the map claim and supervise one-ticket workers instead).
 3. **Reconcile CI once** — fresh starts only, never on recovery. RED HEAD →
    repair directly on master, push, handoff, stop (root `AGENTS.md`,
    "Performance").
 4. **Frontier** — run the tracker frontier query; on a hit, claim the winner
    assign-first and work it ("Claim" in `docs/agents/issue-tracker.md`).
 5. **Gate** — empty frontier with a claimable external blocker outside the map
-   subtree: claim the nearest one; it is the session's one claim ("Frontier
+   subtree: claim the nearest one; it is the session's one claim in sequential
+   mode ("Frontier
    query" gate rule).
 6. **Chain end** — no claimable gate and zero open maps: claim one takeable
    AFK task ("Chain-end fallback"); nothing qualifies → exit starved with gate
@@ -185,7 +190,7 @@ dedupe and burns a full-context worker per minute (the map #668 / ticket
    awaited SHA plus its acceptance predicate in the successor packet, and
    direct the successor at exactly one pivot target taken under the normal
    claim order (chain-end fallback, then map audit). That pickup is the
-   successor's one claim. The pending ticket's resolution belongs to
+   successor's one claim in sequential mode. The pending ticket's resolution belongs to
    whichever later session reconciles its verdict: reconcile the recorded
    awaited SHA as well as HEAD (HEAD may have moved under AFK pushes) —
    GREEN resolves it, RED repairs the named leg.

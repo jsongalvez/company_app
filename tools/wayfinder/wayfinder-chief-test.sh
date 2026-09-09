@@ -64,6 +64,7 @@ chmod +x "$WORK/bin/gh"
 
 export HERDR_BIN="$WORK/bin/herdr" WAYFINDER_GH_BIN="$WORK/bin/gh"
 export WAYFINDER_GH_REPO=fixture/repo WAYFINDER_WORKER_KIND=opencode
+export WAYFINDER_PARALLEL=on
 export PATH="$WORK/bin:$PATH"
 
 mkissue() { # <n> <state> <blocked> <assignees-json> <labels-json>
@@ -212,6 +213,21 @@ chief --map 697 --once --max-workers 2
     && ok "failed spawn left no row and filled nothing further" || bad "fill miscounted: $(cat "$WAYFINDER_WORKER_REGISTRY")"
 grep -q 'spawn refused for ticket #1001' "$WORK/out" && ok "refusal logged, fill stopped" || bad "no refusal log: $(cat "$WORK/out")"
 rm -f "$WORK"/fail-start-*
+
+echo "11. parallel rollout gate: WAYFINDER_PARALLEL=off clamps fill to sequential (map #697 #743)"
+fresh_reg 11
+printf '[{"number":1101},{"number":1102}]' >"$WORK/sub-697.json"
+mkissue 1101 open 0 '[]' "$LBL_TASK"; mkissue 1102 open 0 '[]' "$LBL_TASK"
+WAYFINDER_PARALLEL=off bash "$CHIEF" --map 697 --once --max-workers 2 >"$WORK/out" 2>"$WORK/err" \
+    || bad "clamped pass failed: $(cat "$WORK/err")"
+[ "$(grep -c '^wf-697-' "$WAYFINDER_WORKER_REGISTRY")" -eq 1 ] \
+    && ok "off clamps parallel fill to exactly one worker" || bad "clamp wrong: $(cat "$WAYFINDER_WORKER_REGISTRY")"
+grep -q 'sequential fallback' "$WORK/out" && ok "clamp logged with opt-in pointer" || bad "no clamp log: $(cat "$WORK/out")"
+if WAYFINDER_PARALLEL=bogus bash "$CHIEF" --map 697 --once >"$WORK/out" 2>"$WORK/err"; then
+    bad "bogus WAYFINDER_PARALLEL accepted"
+else ok "bogus WAYFINDER_PARALLEL refused"; fi
+WAYFINDER_PARALLEL=off bash "$CHIEF" --map 697 --spawn-helper wf-ghost --scope "x" --helper-workspace "$WORK/helper-ws" >"$WORK/out" 2>"$WORK/err" \
+    && bad "clamp leaked into single-shot lane validation" || ok "single-shot lanes stay available when parallel is off"
 
 echo
 if [ $fail -eq 0 ]; then echo "chief-contract: OK"; else echo "chief-contract: FAILURES PRESENT"; exit 1; fi

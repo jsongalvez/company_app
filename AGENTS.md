@@ -41,8 +41,10 @@ Full state machine: `docs/agents/wayfinder-lifecycle.md`. Load-bearing invariant
 - Check-run reconciliation is session-start-only: a recovery nudge never reruns it,
   and the active agent never polls asynchronous CI.
 - Recovery prompts are automatic and semantically neutral — repetition carries no
-  signal about time/context/budget; preserve claim and phase; one frontier ticket
-  per session; required derivative-issue creation stays legal.
+  signal about time/context/budget; preserve claim and phase; sequential sessions
+  hold one frontier ticket per session while parallel map chiefs supervise bounded
+  one-ticket workers (`docs/agents/wayfinder-loop.md`, "Parallel supervision");
+  required derivative-issue creation stays legal.
 - A claimed unfinished ticket survives interruption: resume the same child (crash
   after claim = reconstruct from GitHub assignment; intentional handoff = successor
   continues the assigned child). Never skip an assigned child to claim a second.

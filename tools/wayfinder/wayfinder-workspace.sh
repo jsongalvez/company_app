@@ -57,7 +57,11 @@
 # implementation task (sibling #740 owns the review gate).
 #
 # CoW compatibility: a future provider adds one `cow)` branch beside
-# `git-worktree)` below plus its detail format. Scheduler code (chief, worker
+# `git-worktree)` below plus its detail format. The `fake` provider (plain
+# directories, no git worktrees or branches) exists for contract tests that
+# must exercise lifecycle logic without depending on actual CoW filesystems
+# (ticket #743): same registry shape, same isolation guarantees, none of the
+# git mechanics. Scheduler code (chief, worker
 # seam) must keep treating workspaces as opaque dirs + neutral metadata — no
 # provider-specific branching there. Do not introduce OpenCode, Rift, or Lane
 # dependencies to satisfy this ticket.
@@ -76,7 +80,9 @@
 #   complete views.
 #
 # Env:
-#   WAYFINDER_WORKSPACE_PROVIDER  provider name (default: git-worktree)
+#   WAYFINDER_WORKSPACE_PROVIDER  provider name (default: git-worktree;
+#                               `fake` = plain directories for contract
+#                               tests, no git worktrees or branches)
 #   WAYFINDER_WORKSPACE_ROOT      workspace root dir (default: <repo>-workspaces sibling)
 #   WAYFINDER_WORKSPACE_REGISTRY  registry file (default: <repo>/.wayfinder/workspaces.tsv)
 #   WAYFINDER_REPO                canonical checkout (default: repo containing this script)
@@ -226,7 +232,7 @@ gen_id() { # <registry> <canon> <provider> <root> <purpose> <short> — unique w
     cand="$base" n=0
     while [ -n "$(reg_row "$registry" "$cand")" ] \
         || [ -e "$root/$cand" ] \
-        || git -C "$canon" rev-parse --verify --quiet "refs/heads/wf/$cand" >/dev/null 2>&1; do
+        || { [ "$provider" = "git-worktree" ] && git -C "$canon" rev-parse --verify --quiet "refs/heads/wf/$cand" >/dev/null 2>&1; }; do
         n=$((n + 1))
         cand="${base}-${n}"
         [ "$n" -lt 1000 ] || die "cannot allocate a free workspace id for '$base'"
@@ -254,8 +260,8 @@ cmd_create() {
     [ -n "$root" ] || root="$(default_root "$canon")"
     valid_root "$root"
     case "$provider" in
-        git-worktree) ;;
-        *) die "create: unknown provider '$provider' (want git-worktree; add a future CoW adapter beside it without changing scheduler semantics)" ;;
+        git-worktree|fake) ;;
+        *) die "create: unknown provider '$provider' (want git-worktree or fake; add a future CoW adapter beside it without changing scheduler semantics)" ;;
     esac
     local sha short registry
     sha="$(resolve_base "$canon" "$base")"
@@ -269,15 +275,34 @@ cmd_create() {
         valid_id "$id" || die "create: invalid workspace id '$id' (want [a-z][a-z0-9_-]{0,63})"
         [ -z "$(reg_row "$registry" "$id")" ] || die "create: workspace id already registered: $id"
         [ ! -e "$root/$id" ] || die "create: workspace path already exists: $root/$id"
-        git -C "$canon" rev-parse --verify --quiet "refs/heads/wf/$id" >/dev/null 2>&1 \
-            && die "create: branch already exists: wf/$id" || true
+        if [ "$provider" = "git-worktree" ]; then
+            git -C "$canon" rev-parse --verify --quiet "refs/heads/wf/$id" >/dev/null 2>&1 \
+                && die "create: branch already exists: wf/$id" || true
+        fi
     fi
     local path branch out
     mkdir -p "$root"
     root="$(cd "$root" && pwd)" # absolute: reconcile compares worktree-list paths
     path="$root/$id"
-    branch="wf/$id"
+    case "$provider" in
+        git-worktree) branch="wf/$id" ;;
+        fake) branch="fake:$id" ;; # no git branch; detail stays opaque to schedulers
+    esac
     reg_upsert "$registry" "$id" "$provider" "$path" "$sha" "creating" "$purpose" "$branch" "allocating $provider workspace"
+    case "$provider" in
+        fake)
+            if mkdir -p "$path" 2>/dev/null; then
+                printf '%s\n' "$sha" >"$path/.base" 2>/dev/null || true
+                reg_upsert "$registry" "$id" "$provider" "$path" "$sha" "ready" "$purpose" "$branch" "created at $short"
+                workspace_emit "$registry" workspace-created --workspace "$path" --detail "id=$id provider=$provider base=$sha purpose=$purpose"
+                printf 'created %s provider=%s path=%s base=%s\n' "$id" "$provider" "$path" "$sha"
+            else
+                reg_remove "$registry" "$id"
+                die "create: fake provider mkdir failed for $id"
+            fi
+            return 0
+            ;;
+    esac
     if out="$(git -C "$canon" worktree add -b "$branch" "$path" "$sha" 2>&1)"; then
         reg_upsert "$registry" "$id" "$provider" "$path" "$sha" "ready" "$purpose" "$branch" "created at $short"
         workspace_emit "$registry" workspace-created --workspace "$path" --detail "id=$id provider=$provider base=$sha purpose=$purpose"
@@ -370,6 +395,22 @@ cmd_reconcile() {
         # Liveness is provider-dispatched: a future CoW adapter adds its own
         # branch here without changing scheduler semantics.
         case "$provider" in
+            fake)
+                if [ -d "$path" ]; then
+                    if [ "$state" = "creating" ]; then
+                        reg_upsert "$registry" "$id" "$provider" "$path" "$base" "ready" "$purpose" "$detail" "adopted after interrupted create"
+                    fi
+                    kept=$((kept + 1))
+                else
+                    case "$state" in
+                        ready|creating)
+                            reg_upsert "$registry" "$id" "$provider" "$path" "$base" "gone" "$purpose" "$detail" "path missing — result may be salvageable"
+                            gone=$((gone + 1))
+                            ;;
+                        *) kept=$((kept + 1)) ;;
+                    esac
+                fi
+                ;;
             git-worktree)
                 if [ -d "$path" ] && printf '%s\n' "$live" | grep -qxF "$path"; then
                     if [ "$state" = "creating" ]; then
@@ -436,6 +477,14 @@ cmd_cleanup() {
     : "$force" # cleanup is deterministic by default: --force is accepted for
     # symmetry with the worker seam but changes nothing (dirty checkouts still go).
     case "$provider" in
+        fake)
+            # No git identity to delete: the directory is the workspace.
+            # Accepted, rejected, failed, and cancelled converge here.
+            case "$path" in
+                *$'\t'*|*$'\n'*) die "cleanup: refusing to remove a path with control characters for '$id'" ;;
+            esac
+            rm -rf "$path" 2>/dev/null || true
+            ;;
         git-worktree)
             # Deterministic removal: dirty worktrees still go (accepted,
             # rejected, failed, and cancelled converge here). Sibling #740
