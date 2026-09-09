@@ -62,6 +62,7 @@ import java.util.UUID
         OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<ReliefAccessResponse>::class)]),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 @OpenApi(

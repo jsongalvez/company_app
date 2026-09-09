@@ -24,6 +24,7 @@ import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.junit.ClassRule
+import java.time.LocalDate
 import java.util.UUID
 import java.util.function.Consumer
 import kotlin.test.Test
@@ -132,13 +133,19 @@ class ReliefAccessRoutesTest : BasePostgresTest() {
     fun `list is scoped to one branch day and requires the query param`() {
         val requestId = TestFixtures.uuid()
         insertRequest(requestId, requester, branchDayId)
+        val emptyDayId = TestFixtures.uuid()
+        insertBranchDay(emptyDayId, branchId, TestFixtures.today.plusDays(9))
 
         testServer.client.let { client ->
-            val otherDay = client.get("${ApiRoutes.RELIEF_ACCESS}?branchDayId=${TestFixtures.uuid()}", asUser(memberId))
-            assertEquals(200, otherDay.code)
+            // #722 — unknown branch-day id 404s instead of returning an empty list.
+            val unknown = client.get("${ApiRoutes.RELIEF_ACCESS}?branchDayId=${TestFixtures.uuid()}", asUser(memberId))
+            assertEquals(404, unknown.code)
+
+            val emptyDay = client.get("${ApiRoutes.RELIEF_ACCESS}?branchDayId=$emptyDayId", asUser(memberId))
+            assertEquals(200, emptyDay.code)
             assertEquals(
                 "[]",
-                otherDay.body
+                emptyDay.body
                     .string()
                     .orEmpty()
                     .trim(),
@@ -186,12 +193,13 @@ class ReliefAccessRoutesTest : BasePostgresTest() {
     private fun insertBranchDay(
         id: UUID,
         dayBranchId: UUID,
+        dayDate: LocalDate = TestFixtures.today,
     ) {
         transaction {
             BranchDayTable.insert {
                 it[BranchDayTable.id] = id
                 it[BranchDayTable.branchId] = dayBranchId
-                it[BranchDayTable.date] = TestFixtures.today
+                it[BranchDayTable.date] = dayDate
                 it[BranchDayTable.status] = DayStatus.OPEN
             }
         }
