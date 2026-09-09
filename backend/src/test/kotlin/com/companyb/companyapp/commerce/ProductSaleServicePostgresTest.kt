@@ -356,6 +356,64 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `sell with unknown client returns not found without writes`() {
+        val saleId = TestFixtures.uuid()
+        val unknownClientId = TestFixtures.uuid()
+
+        assertFailsWith<NotFoundException> {
+            ProductSaleService.sell(
+                callerId = callerId,
+                id = saleId,
+                branchDayId = branchDayId,
+                sessionId = null,
+                clientId = unknownClientId,
+                isWalkIn = true,
+                productId = productId,
+                quantity = 1,
+                expectedVersion = 1,
+            )
+        }
+
+        assertEquals(20, currentStock())
+        assertEquals(
+            0,
+            transaction { ProductSaleTable.selectAll().where { ProductSaleTable.id eq saleId }.count() },
+        )
+        assertEquals(
+            0,
+            transaction {
+                InventoryMovementTable.selectAll().where { InventoryMovementTable.productSaleId eq saleId }.count()
+            },
+        )
+        assertEquals(
+            0,
+            transaction { AuditLogTable.selectAll().where { AuditLogTable.recordId eq saleId }.count() },
+        )
+    }
+
+    @Test
+    fun `sell with known client succeeds`() {
+        val saleId = TestFixtures.uuid()
+
+        val sale =
+            ProductSaleService.sell(
+                callerId = callerId,
+                id = saleId,
+                branchDayId = branchDayId,
+                sessionId = null,
+                clientId = clientId,
+                isWalkIn = true,
+                productId = productId,
+                quantity = 1,
+                expectedVersion = 1,
+            )
+
+        assertNotNull(sale)
+        assertEquals(clientId, sale.clientId)
+        assertEquals(19, currentStock())
+    }
+
+    @Test
     fun `sell with insufficient stock returns bad request`() {
         assertFailsWith<ValidationException> {
             ProductSaleService.sell(

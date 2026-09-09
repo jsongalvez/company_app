@@ -3,6 +3,7 @@ import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.client.ClientReads
 import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
@@ -71,6 +72,8 @@ object ProductSaleService {
                 val product = requireActiveProduct(productId)
 
                 requireSessionInDay(sessionId, branchDayId)
+
+                requireClientExistsInTransaction(clientId)
 
                 val params =
                     SellProductParams(
@@ -159,6 +162,16 @@ object ProductSaleService {
         if (session.branchDayId != branchDayId) {
             throw NotFoundException("Session not found for this branch day")
         }
+    }
+
+    /**
+     * #684 — client existence gate for sell (runs on the caller's command
+     * transaction): unknown clientId fails closed with 404 before the insert,
+     * so the FK never surfaces as a 500. Null stays allowed (anonymous walk-in).
+     */
+    private fun requireClientExistsInTransaction(clientId: UUID?) {
+        if (clientId == null) return
+        ClientReads.acquireLockInTransaction(clientId) ?: throw NotFoundException("Client not found")
     }
 }
 
