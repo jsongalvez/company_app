@@ -27,6 +27,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
@@ -184,6 +185,41 @@ class CommissionServicePostgresTest : BasePostgresTest() {
                 reason = null,
             )
         }
+    }
+
+    @Test
+    fun `create inclusion throws 404 for unknown user with no row written`() {
+        val unknownUserId = TestFixtures.uuid()
+        val blockedId = TestFixtures.uuid()
+
+        assertFailsWith<NotFoundException> {
+            CommissionService.createManualInclusion(
+                callerId = callerId,
+                id = blockedId,
+                productSaleId = productSaleId,
+                userId = unknownUserId,
+                isIncluded = true,
+                reason = null,
+            )
+        }
+        val stored =
+            transaction {
+                CommissionManualInclusionTable
+                    .selectAll()
+                    .where { CommissionManualInclusionTable.id eq blockedId }
+                    .singleOrNull()
+            }
+        assertNull(stored)
+        val auditCount =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq CommissionManualInclusionTable.tableName) and
+                            (AuditLogTable.recordId eq blockedId)
+                    }.count()
+            }
+        assertEquals(0, auditCount)
     }
 
     @Test

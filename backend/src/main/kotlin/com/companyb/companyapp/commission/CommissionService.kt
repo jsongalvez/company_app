@@ -7,6 +7,7 @@ import com.companyb.companyapp.commerce.CommerceReads
 import com.companyb.companyapp.commerce.ProductSale
 import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.identity.AccountReads
 import com.companyb.companyapp.workforce.AttendanceWindow
 import com.companyb.companyapp.workforce.WorkforceReads
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -105,10 +106,14 @@ object CommissionService {
         userId: UUID,
         isIncluded: Boolean,
         reason: String?,
-    ): CommissionManualInclusion =
-        transaction {
+    ): CommissionManualInclusion {
+        if (!AccountReads.userExists(userId)) {
+            throw NotFoundException("User not found")
+        }
+        return transaction {
             createManualInclusionInTransaction(callerId, id, productSaleId, userId, isIncluded, reason)
         }
+    }
 
     // #596: private transaction body mirrors the public 6-param command per ADR-0024; stays whole with it.
     @Suppress("LongParameterList") // #596
