@@ -75,6 +75,11 @@ private const val TAG = "ReliefPlanningSection"
  * - keyed mirrors retain lists across background refresh failures with a section Retry,
  *   kept separate from the action errors so a failed refresh never reads as a failed send;
  * - Requests and Invitations carry separate concise empty states.
+ * #729 — scope-explicit labels without merging workflows: the header orients to
+ * branch/current day without claiming a master date; Requests names the active
+ * operational date, Invite names the selected invitation date (candidate search only),
+ * and history names the branch-wide all-dates scope. No state-owner rewrites — the
+ * separate state scopes stay the product model.
  */
 @Composable
 fun ReliefPlanningTabContent(
@@ -96,6 +101,8 @@ fun ReliefPlanningTabContent(
         PlanningRequestsSection(
             accessViewModel = accessViewModel,
             branchDayId = branchDayId,
+            branchName = branchName,
+            activeDate = viewedDate,
             currentUserId = currentUserId,
             isReliefUser = isReliefUser,
         )
@@ -188,9 +195,14 @@ fun ReliefInvitePlanningContent(
             modifier = Modifier.fillMaxWidth().padding(Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            Text(text = "Invite staff for relief", style = MaterialTheme.typography.titleSmall)
+            Text(text = reliefInviteHeading(dateText), style = MaterialTheme.typography.titleSmall)
             Text(
-                text = "${branchName?.ifBlank { null } ?: "Branch"} — ${planningDateLabel(dateText)}",
+                text = "${reliefPlanningBranchLabel(branchName)} · candidate search only",
+                style = MaterialTheme.typography.bodySmall,
+                color = InkSubtle,
+            )
+            Text(
+                text = "Changing this date does not affect Requests or history.",
                 style = MaterialTheme.typography.bodySmall,
                 color = InkSubtle,
             )
@@ -291,6 +303,7 @@ fun ReliefInvitePlanningContent(
                 },
             )
 
+            PlanningHistoryHeader(branchName = branchName)
             PlanningSentSection(branchId = branchId, inviteViewModel = inviteViewModel)
             PlanningAcceptedSection(branchId = branchId, inviteViewModel = inviteViewModel)
             PlanningInvitationsEmpty(
@@ -313,9 +326,22 @@ private fun PlanningBranchDateHeader(
             color = InkSubtle,
         )
         Text(
-            text = "${branchName?.ifBlank { null } ?: "Branch"} — ${viewedDate ?: "today"}",
+            text = reliefPlanningBranchLabel(branchName),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
+        )
+        // #729 — the top header orients to branch/current day without claiming a master
+        // date: each section below names its own date authority.
+        val orientation =
+            if (viewedDate.isNullOrBlank()) {
+                "Requests use the active day below; invitations use their own date."
+            } else {
+                "Current day $viewedDate — sections below use their own dates."
+            }
+        Text(
+            text = orientation,
+            style = MaterialTheme.typography.bodySmall,
+            color = InkSubtle,
         )
     }
 }
@@ -325,11 +351,16 @@ private fun PlanningBranchDateHeader(
  * existing access card (Grant/Deny/Cancel/Withdraw stay explicit contextual actions).
  * Refresh failures keep the retained list with their own Retry, separate from the action
  * errors the card surfaces; an empty day states so concisely, apart from Invitations.
+ * #729 — the heading names the active operational date (never the invite form date) and
+ * persists across loading/error/empty so scope never degrades to a generic message.
+ * No active branchDayId renders nothing (fail-closed — never fabricate a Requests date).
  */
 @Composable
 private fun PlanningRequestsSection(
     accessViewModel: ReliefAccessViewModel,
     branchDayId: String?,
+    branchName: String?,
+    activeDate: String?,
     currentUserId: String?,
     isReliefUser: Boolean,
 ) {
@@ -337,6 +368,45 @@ private fun PlanningRequestsSection(
     val requestsState by accessViewModel.requests.collectAsState()
     val freshest by accessViewModel.freshestRequests.collectAsState()
 
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
+    ) {
+        Text(
+            text = reliefRequestsHeading(activeDate),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = Spacing.md),
+        )
+        Text(
+            text =
+                "Active branch day · ${reliefPlanningBranchLabel(branchName)} — " +
+                    "invite date changes do not affect this list.",
+            style = MaterialTheme.typography.bodySmall,
+            color = InkSubtle,
+            modifier = Modifier.padding(horizontal = Spacing.md),
+        )
+        PlanningRequestsBody(
+            accessViewModel = accessViewModel,
+            dayId = dayId,
+            requestsState = requestsState,
+            freshest = freshest,
+            currentUserId = currentUserId,
+            isReliefUser = isReliefUser,
+        )
+    }
+}
+
+/** #729 — the Requests body under the persistent scope heading (loading/error/empty/rows). */
+@Composable
+private fun PlanningRequestsBody(
+    accessViewModel: ReliefAccessViewModel,
+    dayId: String,
+    requestsState: UiState<List<ReliefAccessResponse>>,
+    freshest: List<ReliefAccessResponse>?,
+    currentUserId: String?,
+    isReliefUser: Boolean,
+) {
     Column(modifier = Modifier.fillMaxWidth()) {
         if (requestsState is UiState.Loading && freshest == null) {
             InlineStatus(message = "Loading requests…", kind = InlineStatusKind.UPDATING)
@@ -357,12 +427,6 @@ private fun PlanningRequestsSection(
             rows != null && requestsState !is UiState.Loading &&
                 (rows.isEmpty() || nothingForMember)
         if (showRequestsEmpty) {
-            Text(
-                text = "Requests",
-                style = MaterialTheme.typography.labelSmall,
-                color = InkSubtle,
-                modifier = Modifier.padding(horizontal = Spacing.md),
-            )
             Text(
                 text = PLANNING_EMPTY_REQUESTS,
                 style = MaterialTheme.typography.bodySmall,
@@ -557,6 +621,28 @@ private fun PlanningLoadError(
         onRetry = onRetry,
         retryLabel = retryLabel,
     )
+}
+
+/**
+ * #729 — the branch-wide history scope header. Renders always (above the sent/accepted
+ * mirrors) so loading/error/empty never degrade to an ambiguous generic message, and
+ * establishes that the lists span all dates and are not filtered by the invite form date.
+ * Rows keep their own date below.
+ */
+@Composable
+private fun PlanningHistoryHeader(branchName: String?) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+        Text(
+            text = reliefHistoryHeading(branchName),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = "Not filtered by the invite date above — each row shows its own date.",
+            style = MaterialTheme.typography.bodySmall,
+            color = InkSubtle,
+        )
+    }
 }
 
 @Composable
@@ -836,15 +922,16 @@ fun PlanningDayInvites(
                         color = InkSubtle,
                     )
                 } else {
-                    Text("Invites", style = MaterialTheme.typography.titleSmall)
                     val today = currentOperationalDate()
                     toReliefDayInviteRows(state.data, today).forEach { row -> PlanningDayInviteRow(row) }
                 }
             }
 
-            UiState.Loading,
-            UiState.Idle,
-            -> {}
+            is UiState.Loading -> {
+                Text("Loading…", style = MaterialTheme.typography.bodySmall, color = InkSubtle)
+            }
+
+            UiState.Idle -> {}
         }
     }
 }

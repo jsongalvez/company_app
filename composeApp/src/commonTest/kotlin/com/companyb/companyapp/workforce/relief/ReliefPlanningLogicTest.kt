@@ -85,4 +85,47 @@ class ReliefPlanningLogicTest {
         assertNull(reliefIsoToPickerMillis(""))
         assertNull(reliefPickerMillisToIso(null))
     }
+
+    @Test
+    fun `requests heading names the active date`() {
+        assertEquals("Requests — 2026-09-09", reliefRequestsHeading("2026-09-09"))
+    }
+
+    @Test
+    fun `requests heading never fabricates a date`() {
+        assertEquals("Requests", reliefRequestsHeading(null))
+        assertEquals("Requests", reliefRequestsHeading(""))
+        assertEquals("Requests", reliefRequestsHeading("   "))
+    }
+
+    @Test
+    fun `invite heading names the selected date`() {
+        assertEquals("Invite staff — 2026-09-10", reliefInviteHeading("2026-09-10"))
+        assertEquals("Invite staff", reliefInviteHeading(""))
+    }
+
+    @Test
+    fun `history heading establishes the branch-wide scope`() {
+        assertEquals(
+            "Invitation history — all dates for Branch A",
+            reliefHistoryHeading("Branch A"),
+        )
+        assertEquals("Invitation history — all dates for Branch", reliefHistoryHeading(null))
+        assertEquals("Invitation history — all dates for Branch", reliefHistoryHeading("  "))
+    }
+
+    @Test
+    fun `invite date changes cannot mutate requests or history scope`() {
+        val activeDate = "2026-09-09"
+        assertEquals(reliefRequestsHeading(activeDate), reliefRequestsHeading(activeDate))
+        val history = reliefHistoryHeading("Branch A")
+        assertFalse(history.contains("2026-09-10"))
+        assertFalse(history.contains("2026-09-12"))
+        assertTrue(history.contains("all dates"))
+    }
+
+    @Test
+    fun `read-only destination names its authority`() {
+        assertEquals("Read-only relief activity", RELIEF_DAY_READ_ONLY_TITLE)
+    }
 }

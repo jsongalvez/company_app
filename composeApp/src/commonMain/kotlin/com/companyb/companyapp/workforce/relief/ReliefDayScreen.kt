@@ -22,6 +22,9 @@ import com.companyb.companyapp.workforce.relief.ReliefDayViewModel
  * the today dashboard stays the clock-in-gated live surface). Loading/empty/error states
  * per the ticket acceptance; authorization is server-side row scoping (view-only relief
  * users stay view-only — there are no actions here).
+ * #729 — the destination names its read-only authority ([RELIEF_DAY_READ_ONLY_TITLE])
+ * with the exact branch/date and a restrained pointer to the live planner; section
+ * labels persist across loading/error/empty and no planner actions render here.
  */
 @Composable
 fun ReliefDayScreen(
@@ -42,9 +45,16 @@ fun ReliefDayScreen(
         modifier = modifier.fillMaxSize().padding(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        Text("Relief duty", style = MaterialTheme.typography.titleLarge)
+        Text(RELIEF_DAY_READ_ONLY_TITLE, style = MaterialTheme.typography.titleLarge)
         Text(
             text = "${branchName ?: "Branch"} — $date",
+            style = MaterialTheme.typography.bodySmall,
+            color = InkSubtle,
+        )
+        // #729 — restrained orientation: management lives in the live planner; this
+        // destination stays read-only and promises nothing to viewers without authority.
+        Text(
+            text = "Management actions live in Sessions → Team → Relief.",
             style = MaterialTheme.typography.bodySmall,
             color = InkSubtle,
         )
@@ -54,7 +64,14 @@ fun ReliefDayScreen(
         // tab) with no actions — the deep link selects the exact branch/day read-only.
         // #399 — this panel IS one branch day; past-operational-date PENDING rows
         // render Expired (resolved statuses keep their raw enum text).
+        // #729 — section labels persist across loading/error/empty (never a bare
+        // generic message) and never expose planner actions.
         val dayPast = parseInviteDate(date)?.let { it < currentOperationalDate() } == true
+        Text(
+            text = "Requests",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
         PlanningDayRequests(
             state = requestsState,
             dayPast = dayPast,
@@ -64,6 +81,11 @@ fun ReliefDayScreen(
         // #401 — the day's invites under the requests: invite-sourced taps (accepted /
         // declined / revoked / reminder) render the tapped entity's true state instead of
         // dying as an empty day. Own leg — a failure here never touches the requests above.
+        Text(
+            text = "Invites",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
         PlanningDayInvites(
             state = invitesState,
             onRetry = viewModel::reloadInvites,

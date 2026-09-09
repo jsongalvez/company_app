@@ -38,6 +38,31 @@ fun isPlanningDateEligible(
 /** The actually chosen date, always visible next to the picker (#680). */
 fun planningDateLabel(dateText: String): String = "Invite date: $dateText"
 
+/**
+ * #729 — scope-explicit section labels. Each heading carries its own date authority so
+ * the invite form date can never read as a master filter:
+ * - Requests names the active operational branch-day (not the invite form date);
+ * - Invite names the selected invitation date (candidate search only);
+ * - History names the branch and establishes the all-dates scope (never filtered by
+ *   the invite form date).
+ * Pure so presentation tests pin the scope separation without a Compose harness.
+ */
+fun reliefRequestsHeading(activeDate: String?): String =
+    if (activeDate.isNullOrBlank()) "Requests" else "Requests — $activeDate"
+
+fun reliefInviteHeading(selectedDate: String): String =
+    if (selectedDate.isBlank()) "Invite staff" else "Invite staff — $selectedDate"
+
+fun reliefHistoryHeading(branchName: String?): String {
+    val branch = branchName?.ifBlank { null } ?: "Branch"
+    return "Invitation history — all dates for $branch"
+}
+
+fun reliefPlanningBranchLabel(branchName: String?): String = branchName?.ifBlank { null } ?: "Branch"
+
+/** #729 — the exact-day deep-link destination names its read-only authority. */
+const val RELIEF_DAY_READ_ONLY_TITLE = "Read-only relief activity"
+
 private fun tomorrow(today: LocalDate): LocalDate = today.plus(1, DateTimeUnit.DAY)
 
 /**
