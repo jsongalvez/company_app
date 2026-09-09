@@ -608,23 +608,32 @@ cmd_reconcile() {
     out="$("$HERDR_BIN" agent list 2>&1)" \
         || die "agent list failed: $out"
     # Tolerant across Herdr response shapes: collect name/status pairs.
-    # The `|| true` keeps the shape guard below reachable: under `set -e`, a
-    # failing jq would abort with a bare code before any diagnostic.
-    live="$(herdr_field "$out" '[.. | objects | select(has("name") and has("status")) | "\(.name)\t\(.status)"] | unique | .[]' || true)"
+    # Herdr 0.9.0 uses `name` (named workers only) + `agent_status`
+    # (working/idle/blocked/done/unknown); unnamed sessions carry only
+    # `agent` (kind) with no `name` and are not workers. The `|| true`
+    # keeps the shape guard below reachable: under `set -e`, a failing
+    # jq would abort with a bare code before any diagnostic.
+    live="$(herdr_field "$out" '[.. | objects | select(has("name")) | "\(.name)\t\(.status // .agent_status // empty)" | select(test("\t.+"))] | unique | .[]' || true)"
     if [ -z "$live" ]; then
         # Fail closed (ticket #741): an empty parsed set is ambiguous between
         # "no live agents" and "unrecognized/broken listing". Only a listing
         # that positively carries agent arrays holding zero entries may mark
-        # rows gone: `{"agents":null}`, stray "agents" strings, entries
-        # without usable identity, and unparseable output all refuse instead
-        # of mass-marking live workers gone (a lying registry invites cleanup
-        # of workers that may be alive).
+        # rows gone: stray "agents" strings and unparseable output refuse
+        # instead of mass-marking live workers gone (a lying registry invites
+        # cleanup of workers that may be alive). Entries without a `name`
+        # are unnamed non-worker sessions (Herdr 0.9.0 chief panes) — when
+        # the registry holds no running rows there is nothing to mark gone,
+        # so succeed instead of blocking chief dispatch (map #755).
         agent_counts="$(printf '%s' "$out" | jq -r '[.. | objects | select(has("agents") and (.agents | type == "array")) | .agents] | {lists: length, entries: ([.[].[]?] | length)} | "\(.lists)/\(.entries)"' 2>/dev/null || printf 'INVALID')"
         case "$agent_counts" in
             INVALID) die "agent list returned unparseable output — refusing to mark workers gone" ;;
             0/*) die "agent list returned no recognizable agent list — refusing to mark workers gone" ;;
             */0) ;;
-            *) die "agent list holds entries without usable identity ($agent_counts) — refusing to mark workers gone" ;;
+            *)
+                if [ -f "$REGISTRY" ] && grep -qP '^(?:[^\t]*\t){5}(?:spawning|running)(?:\t|$)' "$REGISTRY" 2>/dev/null; then
+                    die "agent list holds entries without usable identity ($agent_counts) — refusing to mark workers gone"
+                fi
+                ;;
         esac
     fi
     names="$(printf '%s' "$live" | cut -f1)"
