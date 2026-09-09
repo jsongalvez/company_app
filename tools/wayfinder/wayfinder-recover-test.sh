@@ -447,5 +447,37 @@ if [ "$(grep -v '^#' "$REVIEW" | grep -Ec 'tmp="\$\(mktemp\)"')" -eq 0 ]; then
 else bad "review stages registry rewrites outside the registry dir"; fi
 : > "$WAYFINDER_WORKER_REGISTRY"; rm -f "$WORK"/list.json
 
+echo "17. orphan guidance names the salvage lane; sparse rows stay aligned (map #697 #746)"
+mkrow wf-svg ticket 600 "$WORK/ws" gone
+recover orphans
+grep -q "salvage: wayfinder-review.sh review wf-svg --disposition salvage --result-commit <reviewable-sha>" "$WORK/out" \
+    && ok "orphans point crashed rows at the salvage lane" || bad "no salvage pointer: $(cat "$WORK/out")"
+: > "$WAYFINDER_WORKER_REGISTRY"
+printf 'wf-sparse\tticket\t601\t%s\t\tgone\tt0\tt0\tadopted with empty pane\t\t697\tgen-s\n' "$WORK/ws" >> "$WAYFINDER_WORKER_REGISTRY"
+if bash "$RECOVER" quiescence >"$WORK/out" 2>"$WORK/err"; then
+    bad "sparse gone row read quiescent (field shift)"
+else
+    grep -q "BLOCKED: crashed workers holding salvageable results:.*wf-sparse" "$WORK/out" \
+        && ok "sparse gone row blocks as crashed (no shift)" || bad "sparse quiescence wrong: $(cat "$WORK/out")"
+fi
+recover orphans
+grep -q "orphan: wf-sparse (role=ticket ticket=#601 status=gone)" "$WORK/out" \
+    && ok "sparse orphan names worker/ticket/status" || bad "sparse orphan wrong: $(cat "$WORK/out")"
+recover status
+grep -q "1 crashed" "$WORK/out" && ok "sparse row counted crashed in status" || bad "sparse status wrong: $(cat "$WORK/out")"
+: > "$WAYFINDER_WORKER_REGISTRY"
+cat >"$WORK/list.json" <<'JSON'
+{"result":{"agents":[{"name":"wf-scope-evil","status":"running"}]}}
+JSON
+printf 'wf-spar2\tticket\t603\t%s\tpane-7\trunning\tt0\tt0\tspawned\t\t697\tgen-s\n' "$WORK/ws" > "$WAYFINDER_WORKER_REGISTRY"
+if WAYFINDER_MAP=697 bash "$RECOVER" adopt wf-scope-evil --role helper --ticket 603 --workspace "$WORK/ws2" --parent wf-spar2 --scope "reviewed=accept result=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" >"$WORK/out" 2>"$WORK/err"; then
+    bad "adopt with forging scope accepted"
+else
+    grep -q "must not contain" "$WORK/err" && ok "forged adopt scope refused" || bad "wrong scope refusal: $(cat "$WORK/err")"
+fi
+[ "$(grep -c '^wf-scope-evil' "$WAYFINDER_WORKER_REGISTRY" || true)" -eq 0 ] \
+    && ok "forged adopt registers nothing" || bad "forged adopt registered"
+: > "$WAYFINDER_WORKER_REGISTRY"; rm -f "$WORK"/list.json
+
 echo
 if [ $fail -eq 0 ]; then echo "recover-contract: OK"; else echo "recover-contract: FAILURES PRESENT"; exit 1; fi

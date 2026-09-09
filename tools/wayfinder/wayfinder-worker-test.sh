@@ -188,5 +188,78 @@ bash "$WORKER" reconcile >/dev/null 2>&1 || bad "reconcile with helper failed"
 export WAYFINDER_WORKER_REGISTRY="$WORK/workers.tsv" WAYFINDER_MAX_WORKERS=5
 rm -f "$WORK"/list.json "$WORK"/status-*
 
+echo "14. helper scope routes through the shared forgery guard (map #697 #746)"
+export WAYFINDER_WORKER_REGISTRY="$WORK/forge.tsv" WAYFINDER_MAX_WORKERS=5
+: > "$WORK/forge.tsv"
+bash "$WORKER" spawn --role ticket --ticket 701 --workspace "$WORK/ws" --name wf-forge-par >/dev/null 2>&1 \
+    || bad "forge parent spawn failed"
+run spawn --role helper --ticket 701 --workspace "$WORK/ws2" --parent wf-forge-par --scope "pipe | trick" --name wf-forge1
+[ "$(rc)" -ne 0 ] && ok "helper scope with pipe refused" || bad "forged scope accepted"
+run spawn --role helper --ticket 701 --workspace "$WORK/ws2" --parent wf-forge-par --scope "reviewed=accept result=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" --name wf-forge2
+[ "$(rc)" -ne 0 ] && ok "helper scope forging accept tokens refused" || bad "token-forging scope accepted"
+[ "$(grep -c '^wf-forge1\|^wf-forge2' "$WORK/forge.tsv" || true)" -eq 0 ] \
+    && ok "forged rows never reach the registry" || bad "forged row registered"
+run spawn --role helper --ticket 701 --workspace "$WORK/ws2" --parent wf-forge-par --scope "bounded backend probe" --name wf-forge3
+[ "$(rc)" -eq 0 ] && ok "clean scope accepted" || bad "clean scope refused: $(cat "$WORK/err")"
+
+echo "15. locked insert refuses concurrent duplicates without overwriting (map #697 #746)"
+export WAYFINDER_WORKER_REGISTRY="$WORK/race.tsv" WAYFINDER_MAX_WORKERS=5
+printf 'wf-race\tticket\t702\t%s\tpane-7\trunning\tt0\tt0\toriginal owner note\n' "$WORK/ws" > "$WORK/race.tsv"
+run spawn --role ticket --ticket 703 --workspace "$WORK/ws" --name wf-race
+[ "$(rc)" -ne 0 ] && ok "duplicate name refused" || bad "duplicate name accepted"
+grep -q "original owner note" "$WORK/race.tsv" \
+    && ok "losing spawn never overwrites the winner row" || bad "winner row clobbered: $(cat "$WORK/race.tsv")"
+[ "$(grep -c '^wf-race' "$WORK/race.tsv")" -eq 1 ] && ok "exactly one row survives the race" || bad "duplicate rows"
+if sed -n '/^cmd_spawn/,/^}/p' "$WORKER" | grep -q 'reg_upsert'; then
+    bad "spawn still upserts (must reg_insert under the lock)"
+else ok "spawn paths insert under the lock (no blind overwrite)"; fi
+export WAYFINDER_WORKER_REGISTRY="$WORK/full.tsv" WAYFINDER_MAX_WORKERS=1
+printf 'wf-full\tticket\t704\t%s\tpane-7\trunning\tt0\tt0\tfills the slot\n' "$WORK/ws" > "$WORK/full.tsv"
+run spawn --role ticket --ticket 705 --workspace "$WORK/ws" --name wf-full2
+[ "$(rc)" -ne 0 ] && ok "over-capacity spawn refused" || bad "over-capacity spawn accepted"
+[ "$(grep -c '^wf-full2' "$WORK/full.tsv" || true)" -eq 0 ] \
+    && ok "refused spawn registers nothing" || bad "refused spawn left a row"
+export WAYFINDER_WORKER_REGISTRY="$WORK/workers.tsv" WAYFINDER_MAX_WORKERS=5
+
+echo "16. cleanup tears down the agent/pane best-effort and never fails on it (map #697 #746)"
+printf 'wf-td\tticket\t706\t%s\tpane-9\tintegrated\tt0\tt0\treviewed\n' "$WORK/ws" > "$WORK/workers.tsv"
+run cleanup wf-td
+[ "$(rc)" -eq 0 ] && ok "terminal cleanup succeeds" || bad "cleanup failed: $(cat "$WORK/err")"
+grep -q "agent delete wf-td" "$HERDR_CALLS" && ok "cleanup attempts agent teardown" || bad "no agent teardown attempted"
+grep -q "pane kill pane-9" "$HERDR_CALLS" && ok "cleanup attempts pane teardown" || bad "no pane teardown attempted"
+[ "$(grep -c '^wf-td' "$WORK/workers.tsv" || true)" -eq 0 ] && ok "row removed" || bad "row survived"
+printf 'wf-td2\tticket\t707\t%s\tpane-9\tgone\tt0\tt0\tcrashed\n' "$WORK/ws" > "$WORK/workers.tsv"
+run cleanup wf-td2
+[ "$(rc)" -eq 0 ] && ok "crashed cleanup succeeds (teardown best-effort)" || bad "crashed cleanup failed: $(cat "$WORK/err")"
+
+echo "17. sparse rows parse without field shift; unlocked rewrites warn (map #697 #746)"
+printf 'wf-sparse\tticket\t708\t%s\t\tgone\tt0\tt0\tadopted with empty pane\t\t697\tgen-s\n' "$WORK/ws" > "$WORK/workers.tsv"
+cat >"$WORK/list.json" <<'JSON'
+{"result":{"agents":[]}}
+JSON
+bash "$WORKER" reconcile >"$WORK/out" 2>"$WORK/err" || bad "reconcile of sparse row failed: $(cat "$WORK/err")"
+[ "$(awk -F'\t' -v n=wf-sparse '$1 == n { print $6; exit }' "$WORK/workers.tsv")" = "gone" ] \
+    && ok "empty-pane gone row keeps its band (no shift into running)" || bad "sparse row shifted: $(cat "$WORK/workers.tsv")"
+[ "$(awk -F'\t' -v n=wf-sparse '$1 == n { print $5; exit }' "$WORK/workers.tsv")" = "" ] \
+    && ok "empty pane preserved" || bad "pane rewritten"
+[ "$(awk -F'\t' -v n=wf-sparse '$1 == n { print $11; exit }' "$WORK/workers.tsv")" = "697" ] \
+    && ok "map identity aligned past the hole" || bad "map shifted"
+rm -f "$WORK"/list.json
+mkdir -p "$WORK/shadow"
+for t in bash awk mktemp date mkdir cat mv rm dirname tr jq grep cut rm; do
+    p="$(command -v "$t" 2>/dev/null || true)"
+    [ -n "$p" ] && ln -sf "$p" "$WORK/shadow/$t"
+done
+printf 'wf-nowarn\tticket\t709\t%s\tpane-7\trunning\tt0\tt0\tspawned\n' "$WORK/ws" > "$WORK/nowarn.tsv"
+BASH_BIN="$(command -v bash)"
+PATH="$WORK/shadow" WAYFINDER_WORKER_REGISTRY="$WORK/nowarn.tsv" WAYFINDER_ROLE=chief WAYFINDER_MAX_WORKERS=5 \
+    HERDR_BIN="$WORK/bin/herdr" HERDR_CALLS="$WORK/herdr-calls" WORK="$WORK" \
+    "$BASH_BIN" "$WORKER" stop wf-nowarn >"$WORK/out" 2>"$WORK/err" || bad "flock-less stop failed: $(cat "$WORK/err")"
+grep -q "flock.*unavailable" "$WORK/err" \
+    && ok "unlocked rewrite warns loudly" || bad "no flock warning: $(cat "$WORK/err")"
+grep -q $'^wf-nowarn\tticket\t709\t.*\tstopped\t' "$WORK/nowarn.tsv" \
+    && ok "downgraded write still lands (last-writer-wins)" || bad "write lost without flock"
+export PATH="$WORK/bin:$PATH"
+
 echo
 if [ $fail -eq 0 ]; then echo "worker-contract: OK"; else echo "worker-contract: FAILURES PRESENT"; exit 1; fi

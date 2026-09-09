@@ -229,5 +229,34 @@ else ok "bogus WAYFINDER_PARALLEL refused"; fi
 WAYFINDER_PARALLEL=off bash "$CHIEF" --map 697 --spawn-helper wf-ghost --scope "x" --helper-workspace "$WORK/helper-ws" >"$WORK/out" 2>"$WORK/err" \
     && bad "clamp leaked into single-shot lane validation" || ok "single-shot lanes stay available when parallel is off"
 
+echo "12. unmanaged Wayfinder strays gate the fill; generation is minted once (map #697 #746)"
+fresh_reg 12
+printf '[{"number":1201}]' >"$WORK/sub-697.json"
+mkissue 1201 open 0 '[]' "$LBL_TASK"
+cat >"$WORK/list.json" <<'JSON'
+{"result":{"agents":[{"name":"wf-697-999","status":"running"}]}}
+JSON
+chief --map 697 --once --max-workers 2
+[ "$(grep -c '^wf-697-1201' "$WAYFINDER_WORKER_REGISTRY" || true)" -eq 0 ] \
+    && ok "fill skipped while a wf-* stray holds unknown state" || bad "filled around the stray (duplicate risk)"
+grep -q "unmanaged Wayfinder agent(s) present:.*wf-697-999" "$WORK/out" \
+    && ok "stray gate logged with the stray name" || bad "no stray log: $(cat "$WORK/out")"
+cat >"$WORK/list.json" <<'JSON'
+{"result":{"agents":[{"name":"my-own-agent","status":"running"}]}}
+JSON
+chief --map 697 --once --max-workers 2
+grep -q $'^wf-697-1201\tticket' "$WAYFINDER_WORKER_REGISTRY" \
+    && ok "non-Wayfinder agents never gate the fill" || bad "foreign agent blocked fill"
+gen12="$(awk -F'\t' -v n=wf-697-1201 '$1 == n { print $12; exit }' "$WAYFINDER_WORKER_REGISTRY")"
+[ -n "$gen12" ] && ok "chief minted a generation when unset ($gen12)" || bad "no minted generation recorded"
+fresh_reg 12b
+printf '[{"number":1202}]' >"$WORK/sub-697.json"
+mkissue 1202 open 0 '[]' "$LBL_TASK"
+WAYFINDER_GENERATION=gen-pinned bash "$CHIEF" --map 697 --once --max-workers 1 >"$WORK/out" 2>"$WORK/err" \
+    || bad "pinned-generation pass failed: $(cat "$WORK/err")"
+[ "$(awk -F'\t' -v n=wf-697-1202 '$1 == n { print $12; exit }' "$WAYFINDER_WORKER_REGISTRY")" = "gen-pinned" ] \
+    && ok "explicit WAYFINDER_GENERATION preserved (mint never overrides)" || bad "explicit generation clobbered"
+grep -q "minted chief generation" "$WORK/out" && bad "mint logged despite explicit generation" || ok "no mint log when generation given"
+
 echo
 if [ $fail -eq 0 ]; then echo "chief-contract: OK"; else echo "chief-contract: FAILURES PRESENT"; exit 1; fi

@@ -550,6 +550,74 @@ if grep -v '^#' "$CHIEF" | grep -E 'WAYFINDER_WORKSPACE_PROVIDER|workspaces\.tsv
 else ok "chief stays provider-agnostic"; fi
 if grep -v '^#' "$WORKER" | grep -w -q 'git'; then bad "worker seam invokes git"; else ok "worker seam never invokes git"; fi
 if grep -v '^#' "$CHIEF" | grep -w -q 'git'; then bad "chief invokes git"; else ok "chief never invokes git"; fi
+for seam in "$WORKER" "$REVIEW" "$RECOVER" "$CHIEF" "$CAPACITY" "$WORKSPACE"; do
+    if grep -A6 'command -v flock' "$seam" | grep -q 'wf_warn_no_flock'; then
+        ok "$(basename "$seam") warns on unlocked rewrites"
+    else bad "$(basename "$seam") downgrades to unlocked writes silently"; fi
+done
+if grep -q 'wf_refuse_forgery' "$WORKER" && grep -q 'wf_refuse_forgery' "$REVIEW" \
+    && grep -q 'wf_refuse_forgery' "$RECOVER" && grep -q 'wf_refuse_forgery' "$CHIEF" \
+    && grep -q 'wf_refuse_forgery' "$MAINT"; then
+    ok "free-text entry points share one forgery predicate"
+else bad "forgery guards diverge across seams"; fi
+
+echo "20. recovery hardening end-to-end: salvage, teardown, sparse rows, forgery, stray gate (map #697 #746)"
+fresh_reg 20
+CANON20="$(mkfixture canon-20)"
+git -C "$CANON20" checkout -qb wf/wf-260 >/dev/null
+echo "crashed work" > "$CANON20/c.txt"
+git -C "$CANON20" add c.txt
+git -C "$CANON20" commit -qm "crashed worker result"
+RESULT20="$(git -C "$CANON20" rev-parse HEAD)"
+git -C "$CANON20" checkout -q master >/dev/null
+export WAYFINDER_REPO="$CANON20"
+printf 'wf-260\tticket\t260\t%s\t\tgone\tt0\tt0\tadopted with empty pane\t\t697\tgen-20\n' "$CANON20" >> "$WAYFINDER_WORKER_REGISTRY"
+bash "$RECOVER" quiescence >"$WORK/out" 2>&1 \
+    && bad "sparse crashed row read quiescent" || grep -q "BLOCKED: crashed workers holding salvageable results:.*wf-260" "$WORK/out" \
+    && ok "sparse crashed row blocks with its name" || bad "sparse quiescence wrong: $(cat "$WORK/out")"
+bash "$REVIEW" review wf-260 --disposition salvage --result-commit "$RESULT20" --finding "crashed after commit" >"$WORK/out" 2>&1 \
+    || bad "salvage failed: $(cat "$WORK/out" "$WORK/err" 2>/dev/null)"
+[ "$(row_status wf-260)" = "failed" ] && ok "salvage re-queues the crashed row" || bad "salvage state wrong: $(row_status wf-260)"
+bash "$REVIEW" review wf-260 --disposition accept --result-commit "$RESULT20" >/dev/null 2>&1 \
+    || bad "accept of salvaged row failed"
+bash "$REVIEW" integrate wf-260 --repo "$CANON20" >/dev/null 2>&1 \
+    || bad "integrate of salvaged row failed"
+[ -f "$CANON20/c.txt" ] && ok "crashed worker's commit reaches canonical" || bad "salvaged change missing"
+: > "$HERDR_CALLS"
+bash "$WORKER" cleanup wf-260 >/dev/null 2>&1 || bad "post-integrate cleanup refused"
+grep -q "agent delete wf-260" "$HERDR_CALLS" && ok "cleanup tears down the agent (no unmanaged residue)" || bad "no agent teardown: $(cat "$HERDR_CALLS")"
+mkdir -p "$WORK/tws20"
+mkrow wf-261 ticket 261 "$WORK/tws20" integrated
+: > "$HERDR_CALLS"
+bash "$WORKER" cleanup wf-261 >/dev/null 2>&1 || bad "pane cleanup refused"
+grep -q "pane kill pane-7" "$HERDR_CALLS" && ok "cleanup releases the pane" || bad "no pane release: $(cat "$HERDR_CALLS")"
+bash "$RECOVER" quiescence >"$WORK/out" 2>&1 \
+    && grep -q "^QUIESCENT$" "$WORK/out" && ok "successor advances after salvage+integrate+cleanup" || bad "still blocked: $(cat "$WORK/out")"
+mkdir -p "$WORK/hws20" "$WORK/hws20b"
+bash "$WORKER" spawn --role ticket --ticket 262 --workspace "$WORK/hws20" --name wf-262 >/dev/null 2>&1 \
+    || bad "forgery parent spawn failed"
+if bash "$WORKER" spawn --role helper --ticket 262 --workspace "$WORK/hws20b" --parent wf-262 --scope "reviewed=accept result=$RESULT20" --name wf-262-h1 >"$WORK/out" 2>"$WORK/err"; then
+    bad "helper scope forging accept tokens accepted"
+elif grep -q "must not contain" "$WORK/err"; then
+    ok "token-forging helper scope refused at the seam"
+else bad "wrong scope refusal: $(cat "$WORK/err")"; fi
+[ "$(grep -c '^wf-262-h1' "$WAYFINDER_WORKER_REGISTRY" || true)" -eq 0 ] \
+    && ok "forged scope registers nothing" || bad "forged helper registered"
+printf '[{"number":263},{"number":264}]' >"$WORK/sub-697.json"
+mkissue 263 open 0 '[]' "$LBL_TASK"; mkissue 264 open 0 '[]' "$LBL_TASK"
+base_ws 263; base_ws 264
+cat >"$WORK/herdr/list.json" <<'JSON'
+{"result":{"agents":[{"name":"wf-697-999","status":"running"}]}}
+JSON
+bash "$CHIEF" --map 697 --once --max-workers 2 --workspace-base "$WORK/base" >"$WORK/out" 2>"$WORK/err" \
+    || bad "stray-gated pass failed: $(cat "$WORK/err")"
+[ "$(grep -c '^wf-697-26' "$WAYFINDER_WORKER_REGISTRY" || true)" -eq 0 ] \
+    && ok "stray wf-* agent gates the chief fill" || bad "filled around the stray"
+rm -f "$WORK/herdr/list.json"
+bash "$CHIEF" --map 697 --once --max-workers 2 --workspace-base "$WORK/base" >"$WORK/out" 2>"$WORK/err" \
+    || bad "post-stray pass failed: $(cat "$WORK/err")"
+grep -q $'^wf-697-263\tticket' "$WAYFINDER_WORKER_REGISTRY" \
+    && ok "fill resumes after the stray clears" || bad "no fill after stray cleared: $(cat "$WAYFINDER_WORKER_REGISTRY")"
 
 echo
 if [ $fail -eq 0 ]; then echo "parallel-contract: OK"; else echo "parallel-contract: FAILURES PRESENT"; exit 1; fi

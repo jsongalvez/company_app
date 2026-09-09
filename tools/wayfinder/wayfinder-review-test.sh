@@ -412,5 +412,46 @@ if grep -v '^#' "$REVIEW" | grep -Eq 'gh (issue|api)|herdr agent (start|list|wai
     bad "review talks to tracker/herdr directly"
 else ok "review uses the worker seam for prompts, never the tracker"; fi
 
+echo "18. salvage re-queues crashed workers with a verified commit (map #697 #746)"
+CANON_S="$(mkfixture canon-s)"
+git -C "$CANON_S" checkout -qb wf/wf-salv >/dev/null
+echo "salvaged work" > "$CANON_S/s.txt"
+git -C "$CANON_S" add s.txt
+git -C "$CANON_S" commit -qm "crashed worker result"
+RESULT_S="$(git -C "$CANON_S" rev-parse HEAD)"
+git -C "$CANON_S" checkout -q master >/dev/null
+export WAYFINDER_REPO="$CANON_S" # object-store fallback for the plain-workspace salvages below
+WS_S="$WORK/ws-salv"
+git clone -qb master "$CANON_S" "$WS_S" >/dev/null 2>&1
+git -C "$WS_S" config user.email test@test.test
+git -C "$WS_S" config user.name test
+git -C "$WS_S" fetch -q origin wf/wf-salv >/dev/null 2>&1
+git -C "$WS_S" checkout -q wf/wf-salv >/dev/null 2>&1
+mkrow wf-salv ticket 760 "$WS_S" gone "missing from herdr agent list"
+review review wf-salv --disposition salvage --result-commit "$RESULT_S" --finding "crashed after commit, before report"
+[ "$(row_status wf-salv)" = "failed" ] && ok "salvage re-enters the queue as failed" || bad "salvage state wrong: $(row_status wf-salv)"
+grep -q "salvaged result=$RESULT_S" "$WAYFINDER_WORKER_REGISTRY" && ok "salvaged commit recorded" || bad "salvage note missing"
+grep -q "salvage ticket=#760" "$WORK/logs/wf-salv.log" && ok "salvage logged" || bad "salvage log missing"
+review review wf-salv --disposition accept --result-commit "$RESULT_S" >/dev/null
+[ "$(row_status wf-salv)" = "accepted-awaiting-integration" ] && ok "salvaged row reaches accept" || bad "salvage accept wrong"
+review integrate wf-salv --repo "$CANON_S" >/dev/null
+[ "$(row_status wf-salv)" = "integrated" ] && ok "salvaged result integrates" || bad "salvage integrate wrong"
+[ -f "$CANON_S/s.txt" ] && ok "crashed worker's change lands in canonical" || bad "salvaged change missing"
+mkdir -p "$WORK/ws-salv-plain"
+mkrow wf-salv2 ticket 761 "$WORK/ws-salv-plain" stopped "interrupted via send-keys"
+review review wf-salv2 --disposition salvage --result-commit "$RESULT_S" >/dev/null
+[ "$(row_status wf-salv2)" = "failed" ] && ok "canonical object store backs salvage when the workspace is plain" || bad "object-store salvage wrong"
+review_expect_fail review wf-salv2 --disposition salvage --result-commit "$RESULT_S" && ok "salvage of queued row refused" || true
+mkrow wf-live ticket 762 "$WORK/ws-salv-plain" running
+review_expect_fail review wf-live --disposition salvage --result-commit "$RESULT_S" && ok "salvage of live worker refused" || true
+review_expect_fail review wf-salv2 --disposition salvage && ok "salvage without --result-commit refused" || true
+BOGUS_S="$(printf 'dead%.0s' 1 2 3 4 5 6 7 8 9 10)"
+mkrow wf-bogussalv ticket 763 "$WORK/ws-salv-plain" gone "missing from herdr agent list"
+WAYFINDER_REPO="$CANON_S" bash "$REVIEW" review wf-bogussalv --disposition salvage --result-commit "$BOGUS_S" >"$WORK/out" 2>"$WORK/err" \
+    && bad "salvage of unresolvable commit accepted" || grep -q "resolves in neither" "$WORK/err" && ok "unresolvable commit refused" || bad "wrong salvage refusal: $(cat "$WORK/err")"
+mkrow wf-helpsalv helper 760 "$WORK/ws-h" gone "crashed helper" wf-par
+review_expect_fail review wf-helpsalv --disposition salvage --result-commit "$RESULT_S" && ok "helper salvage refused (integrates via parent)" || true
+review_expect_fail review wf-salv2 --disposition salvage --result-commit "$RESULT_S" --finding "pipe | trick" && ok "salvage finding with pipe refused" || true
+
 echo
 if [ $fail -eq 0 ]; then echo "review-contract: OK"; else echo "review-contract: FAILURES PRESENT"; exit 1; fi
