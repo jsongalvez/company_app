@@ -1020,6 +1020,7 @@ style:
     # #532 parity: mirrors detekt-anti-slop.yml effective policy (strict).
     allowedNames: '^$'
     excludes:
+      - '**/composeApp/src/androidMain/kotlin/com/companyb/companyapp/session/dashboard/DashboardEmptyState.android.kt' #672 expect/actual signature keeps onRefresh in toolbar; #695 suppress-to-exclude migration
   UnusedPrivateClass:
     active: true
   UnusedPrivateMember:
