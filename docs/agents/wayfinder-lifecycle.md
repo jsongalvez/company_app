@@ -16,10 +16,62 @@ start → hydrate → reconcile CI (once) → claim → work → resolve → han
 ```
 
 A fresh session starts from `/wayfinder <handoff>`: load the map and packet,
-hydrate, reconcile CI exactly once, claim one frontier child — an external gate
-when the home frontier is empty (`docs/agents/issue-tracker.md`, "Frontier query") — work it to
-resolution, write the successor packet, exit. One frontier ticket per
-session; a ticket may span sessions.
+then follow Ticket claim order below — hydrate, reconcile CI exactly once, claim
+exactly one ticket, work it to resolution, write the successor packet, exit.
+A ticket may span sessions.
+
+## Ticket claim order (start-of-loop)
+
+Central decision flow for what a session works on. The map, the packet, and the
+tracker mechanics are inputs; this section is the authoritative order. Query
+mechanics (dependency wiring, priority ranks, takeability) live in
+`docs/agents/issue-tracker.md` ("Wayfinding operations") and are not restated here.
+
+```mermaid
+flowchart TD
+    S([start]) --> H[hydrate GitHub authority]
+    H --> C{claimed or orphaned ticket?}
+    C -- yes --> W[continue same ticket]
+    C -- no --> R[reconcile CI once]
+    R --> RD{HEAD red?}
+    RD -- yes --> F[repair HEAD direct, push, handoff]
+    RD -- no --> Q[frontier query]
+    Q --> FH{frontier hit?}
+    FH -- yes --> CL[claim winner assign-first]
+    FH -- no --> G{claimable external gate?}
+    G -- yes --> CL
+    G -- no --> Z{zero open maps?}
+    Z -- yes --> T{takeable AFK task?}
+    T -- yes --> CL
+    T -- no --> SV[exit starved, gate refs named]
+    Z -- no --> A[map audit]
+    A --> AC{candidate?}
+    AC -- yes --> N[create children, claim one]
+    AC -- no --> SV
+    CL --> W
+    W --> RS[resolve → handoff → exit]
+```
+
+1. **Hydrate** — refresh map, packet ticket, and blocker/human-decision state;
+   GitHub outranks the packet ("Hydration contract" below).
+2. **Continue** — the packet names an open unfinished ticket assigned to the
+   driver, or the tracker shows a crash-orphaned claim: resume it; selection
+   ends here, one claim per session ("Recovery" below).
+3. **Reconcile CI once** — fresh starts only, never on recovery. RED HEAD →
+   repair directly on master, push, handoff, stop (root `AGENTS.md`,
+   "Performance").
+4. **Frontier** — run the tracker frontier query; on a hit, claim the winner
+   assign-first and work it ("Claim" in `docs/agents/issue-tracker.md`).
+5. **Gate** — empty frontier with a claimable external blocker outside the map
+   subtree: claim the nearest one; it is the session's one claim ("Frontier
+   query" gate rule).
+6. **Chain end** — no claimable gate and zero open maps: claim one takeable
+   AFK task ("Chain-end fallback"); nothing qualifies → exit starved with gate
+   refs named.
+7. **Audit** — an open map stands with no claimable gate: run the map's
+   required focused/full audit; on candidates create the children and claim
+   exactly one; on none, record the clean audit and stop ("Session lifecycle"
+   in `docs/agents/issue-tracker.md`).
 
 ## Hydration contract (map #329)
 
