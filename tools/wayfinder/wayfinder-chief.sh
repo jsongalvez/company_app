@@ -472,6 +472,49 @@ claim_watchdog() {
     done < "$REGISTRY"
 }
 
+# stall_watchdog — resume workers wedged on transient provider errors
+# (server_error / failed-response turns leave the agent idle mid-task with
+# uncommitted work — harvest can't adopt it, no commit exists). A
+# running row qualifies only when ALL hold: ticket open, Herdr idle persisted
+# >=10min (harvest.tsv first-seen, same clock harvest uses), recent transcript
+# matches a provider-error pattern, workspace not harvestable. Action is a
+# short continue-nudge (never a full re-prompt mid-work), at most one per
+# worker per 30min (nudged.tsv). Best-effort: failures log and continue.
+stall_watchdog() {
+    [ -f "$REGISTRY" ] || return 0
+    local nudged proprio now
+    nudged="$(dirname "$REGISTRY")/nudged.tsv"
+    [ -f "$nudged" ] || : > "$nudged"
+    proprio="$(dirname "$REGISTRY")/harvest.tsv"
+    now="$(date +%s)"
+    local line name ticket ws status first last txt
+    while IFS= read -r line; do
+        name="$(printf '%s' "$line" | cut -f1)"
+        ticket="$(printf '%s' "$line" | cut -f3)"
+        ws="$(printf '%s' "$line" | cut -f4)"
+        status="$(printf '%s' "$line" | cut -f6)"
+        [ -n "$name" ] || continue
+        case "$status" in spawning|running) ;; *) continue ;; esac
+        payload="$("$GH_BIN" api "repos/$GH_REPO/issues/$ticket" --jq '{state: .state}' 2>/dev/null)" || continue
+        [ "$(printf '%s' "$payload" | jq -r '.state')" = "open" ] || continue
+        first="$(awk -F'\t' -v n="$name" '$1 == n { print $2; exit }' "$proprio" 2>/dev/null)"
+        case "$first" in ''|*[!0-9]*) continue ;; esac
+        if [ $((now - first)) -lt 600 ]; then continue; fi
+        last="$(awk -F'\t' -v n="$name" '$1 == n { print $2; exit }' "$nudged" 2>/dev/null)"
+        case "$last" in ''|*[!0-9]*) last=0 ;; esac
+        if [ $((now - last)) -lt 1800 ]; then continue; fi
+        txt="$("$WORKER" read "$name" --lines 40 2>/dev/null | tr -d '\000' || true)"
+        printf '%s' "$txt" | grep -aqi "server_error\|failed to generate\|rate.limit\|overloaded\|truncated\|invalid.output\|model failed" || continue
+        if "$WORKER" prompt "$name" --text "Your last turn died on a transient provider error — resume ticket #$ticket exactly where you left off (verify workspace state first, do not restart)." >/dev/null 2>&1; then
+            awk -F'\t' -v n="$name" '$1 != n' "$nudged" > "$nudged.tmp" && mv "$nudged.tmp" "$nudged"
+            printf '%s\t%s\n' "$name" "$now" >> "$nudged"
+            log "stall_watchdog: nudged $name (ticket #$ticket, provider-error stall)"
+        else
+            log "stall_watchdog: nudge failed for $name (ticket #$ticket)"
+        fi
+    done < "$REGISTRY"
+}
+
 # query_frontier — ordered open/unblocked/unclaimed/non-deferred child numbers.
 query_frontier() {
     local numbers n payload state blocked assignees labels rank
@@ -955,6 +998,7 @@ pass() {
         # never block the fill — log and continue, unlike reconcile above.
         harvest_out="$("$WORKER" harvest 2>&1)" && printf '%s\n' "$harvest_out" || log "harvest failed (continuing without it): $harvest_out"
         claim_watchdog
+        stall_watchdog
         collect_results
     fi
     queue_depths
