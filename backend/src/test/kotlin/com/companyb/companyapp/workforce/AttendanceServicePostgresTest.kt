@@ -2,6 +2,7 @@ package com.companyb.companyapp.workforce
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.exception.ConflictException
@@ -382,6 +383,29 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             AttendanceService.clockOut(unknownId, userId)
         }
+    }
+
+    @Test
+    fun `clockIn throws 404 for unknown branch with no rows written`() {
+        val unknownBranchId = TestFixtures.uuid()
+        val attendanceId = TestFixtures.uuid()
+
+        assertFailsWith<NotFoundException> {
+            AttendanceService.clockIn(attendanceId, unknownBranchId, userId)
+        }
+
+        assertEquals(0L, attendanceCount(attendanceId), "no attendance row for unknown branch")
+        assertEquals(0L, auditEntryCount(attendanceId), "no audit row for unknown branch")
+        assertEquals(
+            0L,
+            transaction {
+                BranchDayTable
+                    .selectAll()
+                    .where { BranchDayTable.branchId eq unknownBranchId }
+                    .count()
+            },
+            "resolveOrCreate must not leave a branch_day row for an unknown branch",
+        )
     }
 
     private fun branchDayAssignmentExists(attendanceId: UUID): UUID? =

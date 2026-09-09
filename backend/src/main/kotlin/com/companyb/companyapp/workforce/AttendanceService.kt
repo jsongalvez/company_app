@@ -2,6 +2,7 @@ package com.companyb.companyapp.workforce
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.exception.ConflictException
@@ -261,8 +262,12 @@ object AttendanceService {
         attendanceId: UUID,
         branchId: UUID,
         callerId: UUID,
-    ): AttendanceServiceResult =
-        transaction {
+    ): AttendanceServiceResult {
+        // #704 — 404 precedence for an unknown branch before the command transaction:
+        // resolveOrCreate would otherwise hit the branch_day.branch_id FK and surface
+        // 500 (same class as #692/#694/#696/#703; getToday precedent).
+        BranchService.findById(branchId)
+        return transaction {
             retryOutcomeOrNull(attendanceId, branchId, callerId, callerId)?.let { return@transaction it }
 
             val today = BranchDayService.currentOperationalDate()
@@ -313,6 +318,7 @@ object AttendanceService {
 
             AttendanceServiceResult(attendance, wasCreated, isRelief)
         }
+    }
 
     /**
      * The idempotent-retry outcome for an attendance id that already exists, or null when
