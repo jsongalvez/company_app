@@ -170,6 +170,23 @@ Before any exit the worktree is clean: commit coherent slices normally
 `tools/wayfinder/wayfinder-park.sh <note>` and record the exact stash ref. Successors
 pop only the stash their packet names — no unrelated stash is touched.
 
+### CI-wait packets (pending verdict, zero delta)
+
+When session-start CI reconciliation reports PENDING and the session did no
+work (no commit, no tracker write owed), do NOT mint another numbered packet:
+numbered `*-pendingN-*` chains defeat the daemon's fingerprint dedupe — every
+new filename reads as new work and burns a full-context worker per minute
+(the map #668 / ticket #695 pending9→pending15 spin). Instead:
+
+- If a `<!-- wayfinder-ci-wait: <full-head-sha> -->` packet for this HEAD
+  already exists, stop with NO new packet — the chain rests on that hold.
+- Else write exactly one `wayfinder-<map>-<shortsha>-ciwait-handoff.md`
+  packet carrying the marker and stop.
+
+The daemon holds the spawn on that marker until hosted CI concludes
+(GREEN/RED wakes exactly one session; UNKNOWN or unreachable CI proceeds),
+and real progress in any newer unmarked packet preempts the wait.
+
 After the packet is recorded and the worktree is clean, stop: hosted CI owns
 broad verification asynchronously and each fresh session's start-of-session
 reconciliation consumes its verdict (the daemon repair watch is disabled, ref #652)

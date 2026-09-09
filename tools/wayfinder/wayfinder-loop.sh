@@ -23,6 +23,9 @@
 #                          declares a session exited (default 3; blip protection #657)
 #   WAYFINDER_DRY_RUN      non-empty = log transitions, never spawn
 #   WAYFINDER_CI_WATCH_SECS hosted check-runs poll interval (default 300)
+#   WAYFINDER_CIWAIT      pending-verdict hold on/off (default on; marker
+#                          packets only — normal packets spawn immediately)
+#   WAYFINDER_CIWAIT_SECS pending-verdict re-poll interval (default 60)
 #   WAYFINDER_CI_REPAIR    hosted-CI repair-ticket watch on/off (default off;
 #                          session-start CI reconciliation is the repair signal)
 #   WAYFINDER_GH_BIN       gh executable used for red-verdict tracker writes
@@ -53,6 +56,12 @@ GH_REPO="${WAYFINDER_GH_REPO:-}"
 # the API; the one-shot probe bypasses it.
 CI_WATCH_SECS="${WAYFINDER_CI_WATCH_SECS:-300}"
 CI_REPAIR_ENABLED="${WAYFINDER_CI_REPAIR:-off}"
+# CI-wait hold (pending-verdict packets) — ON by default. Unlike the repair
+# watch above this mints nothing and writes no tracker state: it only defers
+# spawning a worker while hosted CI is still in flight for the awaited SHA.
+# Normal (unmarked) packets never touch this path.
+CIWAIT_ENABLED="${WAYFINDER_CIWAIT:-on}"
+CIWAIT_SECS="${WAYFINDER_CIWAIT_SECS:-60}"
 ci_last_poll=0
 REPAIR_MARKER="wayfinder-ci-repair"
 # Free-disk floor in GiB — below it the chain pings instead of silently wedging
@@ -289,6 +298,82 @@ ci_hosted_verdict() {
     return 0
   fi
   printf 'GREEN'
+}
+
+# CI-wait hold: a pending-verdict packet carries
+# `<!-- wayfinder-ci-wait: <full-sha> -->` (lifecycle: session-start CI
+# reconcile PENDING with zero work delta — one canonical packet per HEAD,
+# never numbered pendingN files). Spawning a worker on it immediately burns a
+# full-context session that rehydrates, re-reconciles PENDING, and mints
+# another packet — the pending9→pending15 spin class on map #668 / ticket
+# #695. The gate holds the spawn until hosted CI concludes for the awaited
+# SHA; real progress in any newer unmarked packet preempts the wait. It never
+# writes tracker state (ref #652 concerns do not apply) and fails open:
+# unmarked docs, UNKNOWN verdicts, and unusable gh all proceed to spawn.
+ciwait_sha_for() {
+  local sha=""
+  [ -f "$HANDOFF_DIR/$1" ] || return 1
+  sha="$(sed -n 's/.*<!--[[:space:]]*wayfinder-ci-wait:[[:space:]]*\([0-9a-fA-F]\{40,64\}\)[[:space:]]*-->.*/\1/p' "$HANDOFF_DIR/$1" | head -1)"
+  [ -n "$sha" ] || return 1
+  printf '%s' "$sha"
+}
+
+# Newest unprocessed packet that is NOT itself a hold (other than $1): real
+# progress preempts the wait, so a stale hold never blocks the chain.
+ciwait_preempted_by() {
+  local doc="$1" d
+  for d in $(handoff_docs); do
+    [ "$d" = "$doc" ] && continue
+    if is_new_doc "$d"; then
+      if ciwait_sha_for "$d" >/dev/null 2>&1; then
+        continue
+      fi
+      printf '%s' "$d"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Returns 0 (spawn), 2 (preempted — caller re-derives newest), 3 (HOLD, only
+# when CIWAIT_ONCE=1 for the `--ciwait-probe` fixture).
+ciwait_gate() {
+  local doc="$1" sha verdict repo preemptor
+  [ "$CIWAIT_ENABLED" = "on" ] || return 0
+  sha="$(ciwait_sha_for "$doc" || true)"
+  [ -n "$sha" ] || return 0
+  valid_sha "$sha" || return 0
+  [ -n "$GH_BIN" ] || return 0
+  repo="$(tracker_repo)"
+  while :; do
+    if ! verdict="$(ci_hosted_verdict "$sha" "$repo")"; then
+      log "ciwait $doc: hosted verdict unavailable — proceeding to spawn (session reconciles)"
+      return 0
+    fi
+    case "$verdict" in
+      GREEN | UNKNOWN)
+        log "ciwait $doc: HEAD $sha verdict $verdict — proceeding to spawn"
+        return 0
+        ;;
+      RED*)
+        log "ciwait $doc: HEAD $sha verdict RED (${verdict#*$'\t'}) — proceeding to spawn for repair"
+        return 0
+        ;;
+      PENDING)
+        if preemptor="$(ciwait_preempted_by "$doc" || true)"; then
+          if [ -n "$preemptor" ]; then
+            log "ciwait $doc: preempted by $preemptor — re-deriving newest"
+            return 2
+          fi
+        fi
+        if [ "${CIWAIT_ONCE:-}" = "1" ]; then
+          return 3
+        fi
+        log "ciwait $doc: HEAD $sha still PENDING — holding spawn ${CIWAIT_SECS}s"
+        sleep "$CIWAIT_SECS"
+        ;;
+    esac
+  done
 }
 
 tracker_repo() {
@@ -851,10 +936,20 @@ is_transient_failure() {
 }
 
 spawn_session() {
-  local doc="$1" sid
+  local doc="$1" sid gate_rc=0
   if [ -n "$DRY_RUN" ]; then
     log "DRY-RUN: would spawn session for $doc"
     return 1
+  fi
+  # CI-wait hold runs before any side effect (dirty-tree nudges, model
+  # lookup, session creation): a held doc costs one gh poll per CIWAIT_SECS,
+  # never a worker. Return 2 tells the caller a newer actionable packet
+  # preempted the wait — re-derive newest instead of spawning.
+  ciwait_gate "$doc" || gate_rc=$?
+  if [ "$gate_rc" -eq 2 ]; then
+    return 2
+  elif [ "$gate_rc" -ne 0 ]; then
+    die "ciwait gate failed for $doc (rc=$gate_rc)"
   fi
   if [ -z "${WAYFINDER_ALLOW_DIRTY:-}" ]; then
     if [ -n "$session_id" ]; then
@@ -926,7 +1021,7 @@ supervise_session() {
   # produced no ping). Every tick checks completion/forms/perms fresh, so a
   # pending question pings within TICK_SECS even if answered moments later.
   local notified=0 notified_perm=0 outages=0 idle_secs=0 last_prog=0 last_updated=0
-  local upd prog d f p sess stop_message not_alive_ticks=0 disk_notified=0 free_gb="" last_stop_message="" last_err_id="" stop_nudges=0
+  local upd prog d f p sess stop_message not_alive_ticks=0 disk_notified=0 free_gb="" last_stop_message="" last_err_id="" stop_nudges=0 spawn_rc=0
   # work_msg_id = newest-message id recorded when the latest recovery prompt
   # fired. Any completed tool-call turn after it proves the nudge bought real
   # work and clears the fruitless-attempt budget — see the reset block below.
@@ -966,7 +1061,17 @@ supervise_session() {
       last_doc="$pending_doc"
       pending_doc=""
       save_state
-      spawn_session "$last_doc" || { log "dry-run: chain would continue"; exit 0; }
+      spawn_rc=0
+      spawn_session "$last_doc" || spawn_rc=$?
+      if [ "$spawn_rc" -eq 2 ]; then
+        log "ciwait preempted $last_doc — re-deriving newest"
+        notified=0; notified_perm=0; outages=0; idle_secs=0; last_prog=0; last_updated=0; not_alive_ticks=0; disk_notified=0; last_stop_message=""; last_err_id=""; stop_nudges=0
+        work_msg_id=""
+        continue
+      elif [ "$spawn_rc" -ne 0 ]; then
+        log "dry-run: chain would continue"
+        exit 0
+      fi
       # keep supervising the freshly spawned session (the old `return 0` left it
       # to wait_for_doc, which only picks sessions up after their handoff lands —
       # session-176 ran ~5h unsupervised until a manual daemon restart)
@@ -1168,7 +1273,7 @@ session_dead() {
   # that is a wedge or a poison packet: pause the chain and page the operator instead
   # of nudging forever (the 2026-08-23 parked-ticket nudge loop ran 570 cycles before
   # a human noticed).
-  local mode="${1:-fresh}"
+  local mode="${1:-fresh}" respawn_rc=0
   if [ "$mode" = "resume" ]; then
     if [ "${retries:-0}" -ge 2 ]; then
       log "chain paused: $session_id stalled after $retries resume attempts"
@@ -1195,11 +1300,18 @@ session_dead() {
   save_state
   log "session died without handoff — respawn for $last_doc (retry $retries/2)"
   notify "wayfinder retrying" "session died — spawning a fresh session for $last_doc (retry $retries/2)"
-  spawn_session "$last_doc" || { log "dry-run retry"; exit 0; }
+  spawn_session "$last_doc" || respawn_rc=$?
+  if [ "$respawn_rc" -eq 2 ]; then
+    log "ciwait preempted respawn for $last_doc — supervise loop re-derives"
+    return 0
+  elif [ "$respawn_rc" -ne 0 ]; then
+    log "dry-run retry"
+    exit 0
+  fi
 }
 
 wait_for_doc() {
-  local d
+  local d pick_rc=0
   while :; do
     ensure_ci_watch
     d="$(newest_unprocessed || true)"
@@ -1209,11 +1321,32 @@ wait_for_doc() {
       last_doc="$d"
       mark_seen "$d"
       save_state
-      if spawn_session "$d"; then
+      spawn_session "$d" || pick_rc=$?
+      if [ "$pick_rc" -eq 0 ]; then
         return 0
+      elif [ "$pick_rc" -eq 2 ]; then
+        log "ciwait preempted $d — resuming doc poll"
+        pick_rc=0
+        continue
       fi
       log "dry-run: would continue supervising $d"
       exit 0
+    fi
+    # Plain restarts land here with the hold already fingerprinted: no new doc
+    # will ever fire, so re-enter the gate on the recorded hold instead of
+    # idling past the CI verdict.
+    if [ -n "${last_doc:-}" ] && ciwait_sha_for "$last_doc" >/dev/null 2>&1; then
+      spawn_session "$last_doc" || pick_rc=$?
+      if [ "$pick_rc" -eq 0 ]; then
+        return 0
+      elif [ "$pick_rc" -eq 2 ]; then
+        log "ciwait preempted $last_doc — resuming doc poll"
+      else
+        log "dry-run: would continue supervising $last_doc"
+        exit 0
+      fi
+      pick_rc=0
+      continue
     fi
     sleep "$POLL_SECS"
   done
@@ -1232,6 +1365,26 @@ normalize_seen_docs
 if [ "${1:-}" = "--ci-watch-once" ]; then
   ensure_ci_watch --once
   save_state
+  exit 0
+fi
+
+# One-shot fixture probe used by the CI-wait contract test. It exercises the
+# spawn gate without creating a session: PROCEED (spawn), HOLD (CI still in
+# flight — the live daemon would sleep and re-poll), PREEMPT (a newer
+# actionable packet arrived).
+if [ "${1:-}" = "--ciwait-probe" ]; then
+  [ $# -ge 2 ] || die "--ciwait-probe requires <doc> (a .wayfinder/handoffs/ packet filename)"
+  doc="${2##*/}"
+  [ -f "$HANDOFF_DIR/$doc" ] || die "ciwait probe doc not found: $HANDOFF_DIR/$doc"
+  CIWAIT_ONCE=1
+  probe_rc=0
+  ciwait_gate "$doc" || probe_rc=$?
+  case "$probe_rc" in
+    0) printf 'PROCEED\n' ;;
+    2) printf 'PREEMPT\n' ;;
+    3) printf 'HOLD\n' ;;
+    *) die "ciwait probe unexpected rc $probe_rc" ;;
+  esac
   exit 0
 fi
 
@@ -1255,11 +1408,18 @@ if [ "${1:-}" = "--bootstrap" ]; then
   retries=0
   save_state
   log "bootstrap with $doc — spawning first session"
-  if ! spawn_session "$doc"; then
+  boot_rc=0
+  spawn_session "$doc" || boot_rc=$?
+  if [ "$boot_rc" -eq 2 ]; then
+    log "ciwait preempted bootstrap $doc — entering doc poll"
+    wait_for_doc
+    supervise_session
+  elif [ "$boot_rc" -ne 0 ]; then
     log "dry-run bootstrap complete"
     exit 0
+  else
+    supervise_session
   fi
-  supervise_session
 elif [ "${1:-}" = "--resume" ]; then
   if [ $# -ge 2 ]; then
     session_id="$2"
@@ -1286,8 +1446,17 @@ elif [ "${1:-}" = "--retry" ]; then
   retries=0
   save_state
   log "manual retry for $last_doc (prior session confirmed gone)"
-  spawn_session "$last_doc" || exit 0
-  supervise_session
+  retry_rc=0
+  spawn_session "$last_doc" || retry_rc=$?
+  if [ "$retry_rc" -eq 2 ]; then
+    log "ciwait preempted retry $last_doc — entering doc poll"
+    wait_for_doc
+    supervise_session
+  elif [ "$retry_rc" -ne 0 ]; then
+    exit 0
+  else
+    supervise_session
+  fi
 else
   [ -n "$last_doc" ] || die "no state — first run needs: --bootstrap <doc>"
   if [ -n "$session_id" ]; then

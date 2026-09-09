@@ -30,6 +30,29 @@ seen-doc fingerprints, retries, hosted-CI verdict/repair mappings),
 - The daemon never stages, commits, or stashes — worktree hygiene belongs to
   the sessions.
 
+## CI-wait hold (pending-verdict packets)
+
+A session whose session-start CI reconciliation reports PENDING with zero
+work delta writes one canonical `wayfinder-<map>-<shortsha>-ciwait-handoff.md`
+packet carrying `<!-- wayfinder-ci-wait: <full-head-sha> -->` and stops
+(lifecycle: "CI-wait packets"). The daemon holds the spawn on that marker
+instead of burning a worker per minute: it polls the awaited SHA's hosted
+check-runs at most every `WAYFINDER_CIWAIT_SECS` (default 60s) and only then:
+
+| Hosted verdict | Daemon action |
+|---|---|
+| PENDING | hold; one quiet log line per poll, no session, no tokens |
+| GREEN / RED | spawn exactly one session on the hold (resolve / repair) |
+| UNKNOWN (CI never ran this HEAD) or gh unusable | spawn — the session-side reconcile stays the authority |
+
+A newer unmarked packet preempts the wait (real progress never queues behind
+a stale hold); a second hold never preempts the first. The hold writes no
+tracker state and mints no issues — it is spawn gating only, independent of
+the disabled repair watch below (`WAYFINDER_CI_REPAIR`). `WAYFINDER_CIWAIT=off`
+restores immediate spawning. Never write numbered `*-pendingN-*` chains: every
+new filename defeats fingerprint dedupe and re-creates the spin this hold
+replaces (map #668 / ticket #695 pending9→pending15).
+
 ## Hosted-CI repair watch (ref #627; replaces the retired local-CI watchdog #577) — DISABLED by default (ref #652)
 
 The watch is off: `WAYFINDER_CI_REPAIR` defaults to `off`, so the daemon performs no hosted check-runs polling and mints no repair tickets. Session-start CI reconciliation (root `AGENTS.md`, "Performance") is the repair signal — a RED HEAD is repaired first by the session that observes it. Set `WAYFINDER_CI_REPAIR=on` in the daemon environment to restore the reconciling behavior described below.
@@ -120,6 +143,7 @@ routes human decisions through tracker issues (`needs-info` /
 | `spawn paused … clean worktree` | owner session is gone with a dirty tree | commit or `wayfinder-park.sh`; resumes automatically |
 | `waiting for session … to exit` | normal supervision, worker alive | check the session's tokens via `/api/session/<id>` before assuming stall |
 | `stalled … resuming` | zombie detector firing | unbounded — every stall gets the NUDGE forever; a wedged session is the operator's call |
+| `ciwait … still PENDING — holding spawn` | pending-verdict hold active, no worker burned | none — one session spawns on GREEN/RED |
 | `chain paused` | terminal assistant error (auth/quota-class) or config failure | fix cause, then restart (below) |
 | `transient provider error — sent recovery prompt` | truncated model stream (`provider.invalid-output`), rate-limit throttle, or server-aborted step | none — daemon nudges every new failed turn, never pauses; a failed worker also holds the exit-wait instead of reading as an exit |
 | session died without handoff | worker gone before writing its packet | none — daemon respawns fresh for the same packet, unbounded; repeated notifications on one packet = poison packet, inspect manually |
