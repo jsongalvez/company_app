@@ -179,6 +179,15 @@ complexity:
       - 'use'
       - 'with'
     excludes:
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientDetailScreen.kt' #673 detail orchestration stays whole per #535; #695 Cyclomatic burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/catalog/ProductCatalogScreen.kt' #683 catalog orchestration stays whole per #535; #695 Cyclomatic burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/ProductSaleDialogs.kt' #676 sale dialogs stay whole per #535; #695 Cyclomatic burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/notification/NotificationsScreen.kt' #679 queue orchestration stays whole per #535; #695 Cyclomatic burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateScreen.kt' #674 intake orchestration stays whole per #535; #695 Cyclomatic burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateActionBar.kt' #674 bar legs stay whole per #535; #695 Cyclomatic burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/detail/SessionDetailPane.kt' #675 pane orchestration stays whole per #535; #695 Cyclomatic burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/rates/BaseRatesScreen.kt' #685 rates orchestration stays whole per #535; #695 Cyclomatic burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/ReliefPlanningSection.kt' #680 planning orchestration stays whole per #535; #695 Cyclomatic burndown
   LabeledExpression:
     active: false
     ignoredLabels: []
@@ -192,6 +201,31 @@ complexity:
     threshold: 60
     excludes:
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/rates/BaseRatesScreen.kt' #685 screen orchestrator stays whole per #535; #695 suppress-to-exclude migration
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/App.kt' #671 app shell stays whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/auth/LoginScreen.kt' #670 login form stays whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/navigation/MobileAppNavHost.kt' #671 nav host stays whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientDetailContentBody.kt' #673 section bodies stay whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientDetailScreen.kt' #673 detail orchestration stays whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientFieldEditor.kt' #673 field editors stay whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/catalog/ProductCatalogScreen.kt' #683 catalog sections stay whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/InventoryScreen.kt' #676 inventory body stays whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/ProductSaleDialogs.kt' #676 sale dialogs stay whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/notification/NotificationsList.kt' #679 queue rows stay whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/notification/NotificationsScreen.kt' #679 queue orchestration stays whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailPickers.kt' #677 pickers stay whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailReceipt.kt' #677 receipt stays whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailScreen.kt' #677 detail body stays whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailSections.kt' #677 workspace stays whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateScreen.kt' #674 intake sections stay whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/dashboard/MobileSessionList.kt' #672 session cards stay whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/dashboard/SessionDashboardScreen.kt' #672 dashboard workspace stays whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/detail/SessionDetailActionBar.kt' #675 action bar stays whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/detail/SessionDetailPane.kt' #675 pane stays whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/contract/OperationalDialog.kt' #670 dialog shell stays whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/branch/BranchSelectScreen.kt' #669 shift entry stays whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/ReliefPlanningSection.kt' #680 planning sections stay whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/TeamPeopleSection.kt' #681 people sections stay whole per #535; #695 LongMethod burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserManagementScreen.kt' #681 member dialogs stay whole per #535; #695 LongMethod burndown
   LongParameterList:
     # #535: design signal, not a mandate for arbitrary DTO wrappers — coherent
     # state-owner and declarative-UI signatures stay whole; bundle only on a real
@@ -209,6 +243,23 @@ complexity:
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateActionBar.kt' #674 bar signatures stay whole per #535; #695 suppress-to-exclude migration
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/contract/OperationalDialog.kt' #670 dialog shell stays whole per #535; #695 suppress-to-exclude migration
       - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/InventoryScreen.kt' #676 header/body/list stay whole per #535; #695 suppress-to-exclude migration
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/drawer/DrawerContent.kt' #671 drawer sections stay whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/navigation/NavigationContextStore.kt' #671 state-owner retain stays whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientDetailContentBody.kt' #673 section signatures stay whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientDetailScreen.kt' #673 detail content stays whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientFieldEditor.kt' #673 field editors stay whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientPicker.kt' #673 picker rows stay whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/catalog/ProductCatalogScreen.kt' #683 catalog header stays whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/InventoryDialogs.kt' #676 movement fields stay whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/ProductSaleDialogs.kt' #676 sale fields stay whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/notification/NotificationsList.kt' #679 queue rows stay whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailPickers.kt' #677 pickers stay whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailScreen.kt' #677 workspace host stays whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/detail/SessionDetailPane.kt' #675 pane/dialogs stay whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/detail/SessionDetailStatusPolicy.kt' #675 policy signatures stay whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/contract/OperationalActions.kt' #670 action row stays whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/branch/BranchSelectScreen.kt' #669 shift entry stays whole per #535; #695 LongParameterList burndown
+      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/TeamPeopleSection.kt' #681 people list stays whole per #535; #695 LongParameterList burndown
   MethodOverloading:
     active: true
     threshold: 6
