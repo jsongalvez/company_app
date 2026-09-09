@@ -8,6 +8,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.companyb.companyapp.app.App
+import com.companyb.companyapp.proto.client360.ProtoClient360App
 
 private fun detectProjectRoot(dir: java.io.File): String {
     val markers = listOf(".git", "settings.gradle.kts")
@@ -25,18 +26,23 @@ fun main() {
     }
     java.io.File(System.getProperty("companyApp.logDir")).mkdirs()
     application {
+        val protoClient360 = System.getenv("COMPANYAPP_PROTO_CLIENT_360") == "true"
         val windowState =
             rememberWindowState(
-                size = DpSize(1024.dp, 768.dp),
+                size = if (protoClient360) DpSize(1280.dp, 800.dp) else DpSize(1024.dp, 768.dp),
                 position = WindowPosition(Alignment.Center),
             )
 
         Window(
             onCloseRequest = ::exitApplication,
-            title = "CompanyApp",
+            title = if (protoClient360) "CompanyApp — Client 360 Prototype" else "CompanyApp",
             state = windowState,
         ) {
-            App()
+            if (protoClient360) {
+                ProtoClient360App(onBack = ::exitApplication)
+            } else {
+                App()
+            }
         }
     }
 }
