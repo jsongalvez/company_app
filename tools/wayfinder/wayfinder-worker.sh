@@ -16,6 +16,7 @@
 #   stop      <name>
 #   cleanup   <name> [--force]
 #   reconcile
+#   harvest   (idle-finisher adoption: report files + idle+branch evidence)
 #
 # Contract notes (tickets #735 #737 acceptance):
 # - Only the map chief creates/schedules workers. spawn/prompt/stop/cleanup/
@@ -494,8 +495,104 @@ cmd_status() {
     local out state
     out="$("$HERDR_BIN" agent get "$name" 2>&1)" \
         || die "agent get failed for $name: $out"
-    state="$(herdr_field "$out" '.result.agent.status // .result.status // .status // empty')"
+    state="$(herdr_field "$out" '.result.agent.agent_status // .result.agent.status // .result.status // .status // empty')"
     printf 'worker=%s registry=%s herdr=%s\n' "$name" "$(printf '%s' "$row" | cut -f6)" "${state:-unknown}"
+}
+
+# cmd_harvest — adopt finished workers Herdr reports as merely idle (map #755).
+#
+# opencode leaf workers end their turn `idle` with the completion report in
+# their transcript; Herdr almost never reports them `done`, so the chief's
+# collect lane (done|blocked|failed -> ready-for-review) waits forever while
+# execution slots stay occupied. Harvest converts workspace evidence into
+# registry motion without parsing transcripts (alternate-screen scrollback is
+# unreliable):
+#
+# - Signal A (strong): `$workspace/.wayfinder/report-<ticket>.md` carrying a
+#   `STATUS: done|blocked|failed` line (plus `COMMIT:`) — written by the
+#   worker per its ticket prompt. Adopted immediately.
+# - Signal B (fallback): Herdr named status `idle` persisted across passes
+#   (>=600s, tracked in harvest.tsv beside the registry) AND the workspace
+#   sits on a `prototype/*` branch (never master) AND holds commits ahead of
+#   its recorded base AND has a clean tree. A worker idle mid-build with no
+#   commit is never harvested; a worker that committed to master is never
+#   harvested (left for the operator).
+#
+# Chief-only like reconcile; safe no-op when nothing qualifies.
+cmd_harvest() {
+    require_chief "worker_harvest"
+    need_herdr
+    reg_init
+    local wsreg="$REPO/.wayfinder/workspaces.tsv"
+    local state_file
+    state_file="$(dirname "$REGISTRY")/harvest.tsv"
+    [ -f "$state_file" ] || : > "$state_file"
+    local now out live harvested=0 skipped=0
+    now="$(date +%s)"
+    out="$("$HERDR_BIN" agent list 2>&1)" \
+        || die "agent list failed: $out"
+    live="$(herdr_field "$out" '[.. | objects | select(has("name")) | "\(.name)\t\(.status // .agent_status // empty)" | select(test("\t.+"))] | unique | .[]' || true)"
+    local line name role ticket ws pane status
+    while IFS= read -r line; do
+        name="$(wf_tsv_field "$line" 1)"
+        role="$(wf_tsv_field "$line" 2)"
+        ticket="$(wf_tsv_field "$line" 3)"
+        ws="$(wf_tsv_field "$line" 4)"
+        pane="$(wf_tsv_field "$line" 5)"
+        status="$(wf_tsv_field "$line" 6)"
+        [ -n "$name" ] || continue
+        case "$status" in spawning|running) ;; *) continue ;; esac
+        report="$ws/.wayfinder/report-$ticket.md"
+        if [ -f "$report" ]; then
+            st="$(grep -a -m1 -i '^STATUS:' "$report" 2>/dev/null | sed 's/^[^:]*:[[:space:]]*//' | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+            cm="$(grep -a -m1 -i '^COMMIT:' "$report" 2>/dev/null | sed 's/^[^:]*:[[:space:]]*//' | tr -d '[:space:]')"
+            case "$st" in
+                done|blocked|failed)
+                    reg_upsert "$name" "$role" "$ticket" "$ws" "$pane" "$st" "harvested report file (commit ${cm:-none})"
+                    printf 'harvested %s via report file -> %s\n' "$name" "$st"
+                    harvested=$((harvested + 1))
+                    continue
+                    ;;
+            esac
+        fi
+        herdr_status="$(printf '%s' "$live" | awk -F'\t' -v n="$name" '$1 == n { print $2; exit }')"
+        case "$herdr_status" in
+            idle|done) ;;
+            *)
+                if awk -F'\t' -v n="$name" '$1 == n { found = 1; exit } END { exit !found }' "$state_file" 2>/dev/null; then
+                    awk -F'\t' -v n="$name" '$1 != n' "$state_file" > "$state_file.tmp" && mv "$state_file.tmp" "$state_file"
+                fi
+                continue
+                ;;
+        esac
+        first="$(awk -F'\t' -v n="$name" '$1 == n { print $2; exit }' "$state_file")"
+        case "$first" in
+            ''|*[!0-9]*)
+                awk -F'\t' -v n="$name" '$1 != n' "$state_file" > "$state_file.tmp" && mv "$state_file.tmp" "$state_file"
+                printf '%s\t%s\n' "$name" "$now" >> "$state_file"
+                continue
+                ;;
+        esac
+        if [ $((now - first)) -lt 600 ]; then continue; fi
+        if [ ! -d "$ws" ]; then skipped=$((skipped + 1)); continue; fi
+        br="$(git -C "$ws" branch --show-current 2>/dev/null || true)"
+        case "$br" in
+            prototype/*) ;;
+            *) skipped=$((skipped + 1)); continue ;;
+        esac
+        if [ -n "$(git -C "$ws" status --porcelain 2>/dev/null | head -n 1)" ]; then skipped=$((skipped + 1)); continue; fi
+        wid="wf-$ticket"
+        base="$(awk -F'\t' -v w="$wid" '$1 == w { print $4; exit }' "$wsreg" 2>/dev/null)"
+        if [ -z "$base" ]; then skipped=$((skipped + 1)); continue; fi
+        ahead="$(git -C "$ws" rev-list --count "$base"..HEAD 2>/dev/null || printf '0')"
+        case "$ahead" in ''|*[!0-9]*) ahead=0 ;; esac
+        if [ "$ahead" -le 0 ]; then skipped=$((skipped + 1)); continue; fi
+        headsha="$(git -C "$ws" rev-parse HEAD 2>/dev/null || printf 'none')"
+        reg_upsert "$name" "$role" "$ticket" "$ws" "$pane" "done" "harvested: idle 600s+ with $ahead commit(s) on $br ($headsha)"
+        printf 'harvested %s via idle+branch evidence -> done (%s %s)\n' "$name" "$br" "$headsha"
+        harvested=$((harvested + 1))
+    done < "$REGISTRY"
+    printf 'harvest: %d harvested, %d skipped\n' "$harvested" "$skipped"
 }
 
 cmd_wait() {
@@ -770,6 +867,7 @@ case "$sub" in
     stop) cmd_stop "$@" ;;
     cleanup) cmd_cleanup "$@" ;;
     reconcile) cmd_reconcile "$@" ;;
+    harvest) cmd_harvest "$@" ;;
     -h|--help|help) usage ;;
     *) usage_err "unknown subcommand '$sub'" ;;
 esac

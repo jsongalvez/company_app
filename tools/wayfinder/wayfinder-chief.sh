@@ -523,6 +523,10 @@ WORKSPACE: $ws
 BASE: <full 40-char HEAD you verified in $ws>
 COMMIT: <sha of your reviewable commit in $ws, or none>
 
+Also write the STATUS and COMMIT lines to $ws/.wayfinder/report-$ticket.md
+(one line each, e.g. `STATUS: done` + `COMMIT: <sha>`) the moment you finish —
+the chief harvests that file even if your session goes idle first.
+
 SUMMARY:
 <what changed and why>
 
@@ -895,7 +899,7 @@ status_lane() { # compact operator view; single-shot, no fill.
 
 pass() {
     log "pass start (map #$MAP, max=$MAX)"
-    local reconcile_out=""
+    local reconcile_out="" harvest_out=""
     if [ -z "$DRY_RUN" ]; then
         reconcile_out="$("$WORKER" reconcile 2>&1)" || { printf '%s\n' "$reconcile_out"; return 1; }
         printf '%s\n' "$reconcile_out"
@@ -903,6 +907,9 @@ pass() {
         log "dry-run: skip worker reconcile"
     fi
     if [ -z "$DRY_RUN" ]; then
+        # Harvest is best-effort evidence adoption (map #755): a failure must
+        # never block the fill — log and continue, unlike reconcile above.
+        harvest_out="$("$WORKER" harvest 2>&1)" && printf '%s\n' "$harvest_out" || log "harvest failed (continuing without it): $harvest_out"
         collect_results
     fi
     queue_depths
