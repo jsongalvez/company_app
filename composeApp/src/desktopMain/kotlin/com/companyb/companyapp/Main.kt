@@ -8,6 +8,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.companyb.companyapp.app.App
+import com.companyb.companyapp.proto.monthclose.MonthCloseProtoApp
 
 private fun detectProjectRoot(dir: java.io.File): String {
     val markers = listOf(".git", "settings.gradle.kts")
@@ -25,18 +26,23 @@ fun main() {
     }
     java.io.File(System.getProperty("companyApp.logDir")).mkdirs()
     application {
+        val protoMonthClose = System.getenv("COMPANYAPP_PROTO_MONTH_CLOSE") == "true"
         val windowState =
             rememberWindowState(
-                size = DpSize(1024.dp, 768.dp),
+                size = if (protoMonthClose) DpSize(1280.dp, 800.dp) else DpSize(1024.dp, 768.dp),
                 position = WindowPosition(Alignment.Center),
             )
 
         Window(
             onCloseRequest = ::exitApplication,
-            title = "CompanyApp",
+            title = if (protoMonthClose) "CompanyApp — Month Close Prototype" else "CompanyApp",
             state = windowState,
         ) {
-            App()
+            if (protoMonthClose) {
+                MonthCloseProtoApp(onBack = ::exitApplication)
+            } else {
+                App()
+            }
         }
     }
 }
