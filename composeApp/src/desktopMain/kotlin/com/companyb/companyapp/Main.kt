@@ -8,6 +8,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.companyb.companyapp.app.App
+import com.companyb.companyapp.proto.textonly.ProtoTextOnlyApp
 
 private fun detectProjectRoot(dir: java.io.File): String {
     val markers = listOf(".git", "settings.gradle.kts")
@@ -25,18 +26,23 @@ fun main() {
     }
     java.io.File(System.getProperty("companyApp.logDir")).mkdirs()
     application {
+        val protoTextOnly = System.getenv("COMPANYAPP_PROTO_TEXT_ONLY") == "true"
         val windowState =
             rememberWindowState(
-                size = DpSize(1024.dp, 768.dp),
+                size = if (protoTextOnly) DpSize(1280.dp, 800.dp) else DpSize(1024.dp, 768.dp),
                 position = WindowPosition(Alignment.Center),
             )
 
         Window(
             onCloseRequest = ::exitApplication,
-            title = "CompanyApp",
+            title = if (protoTextOnly) "CompanyApp — Text-Only Prototype" else "CompanyApp",
             state = windowState,
         ) {
-            App()
+            if (protoTextOnly) {
+                ProtoTextOnlyApp(onBack = ::exitApplication)
+            } else {
+                App()
+            }
         }
     }
 }
