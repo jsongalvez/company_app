@@ -435,7 +435,9 @@ collect_results() {
 # >5min (healthy claim lands in ~2-3min; the margin only covers slow agent
 # boot — the assign-first race check, not the timer, guards duplicates),
 # workspace HEAD equals its recorded base (no commits = nothing to lose).
-# Re-prompt preserves agent/workspace (cheaper than respawn).
+# Re-prompt preserves agent/workspace (cheaper than respawn); at most one
+# re-prompt per worker per 30min (nudged.tsv, shared with stall_watchdog) —
+# a deaf worker must not be shouted at every pass.
 claim_watchdog() {
     [ -f "$REGISTRY" ] || return 0
     local now line name ticket ws status created created_epoch age
@@ -452,6 +454,11 @@ claim_watchdog() {
         case "$created_epoch" in ''|*[!0-9]*) continue ;; esac
         age=$((now - created_epoch))
         if [ "$age" -le 300 ]; then continue; fi
+        nudged="$(dirname "$REGISTRY")/nudged.tsv"
+        [ -f "$nudged" ] || : > "$nudged"
+        last="$(awk -F'\t' -v n="$name" '$1 == n { print $2; exit }' "$nudged" 2>/dev/null)"
+        case "$last" in ''|*[!0-9]*) last=0 ;; esac
+        if [ $((now - last)) -lt 1800 ]; then continue; fi
         payload="$("$GH_BIN" api "repos/$GH_REPO/issues/$ticket" --jq '{state: .state, assignees: [.assignees[].login]}' 2>/dev/null)" || continue
         [ "$(printf '%s' "$payload" | jq -r '.state')" = "open" ] || continue
         [ "$(printf '%s' "$payload" | jq -r '.assignees | length')" -eq 0 ] || continue
@@ -464,6 +471,8 @@ claim_watchdog() {
         prompt_file="$(mktemp)"
         ticket_prompt "$ticket" "$ws" > "$prompt_file"
         if "$WORKER" prompt "$name" --text-file "$prompt_file" >/dev/null 2>&1; then
+            awk -F'\t' -v n="$name" '$1 != n' "$nudged" > "$nudged.tmp" && mv "$nudged.tmp" "$nudged"
+            printf '%s\t%s\n' "$name" "$now" >> "$nudged"
             log "claim_watchdog: re-prompted $name (ticket #$ticket unclaimed, no work, age ${age}s)"
         else
             log "claim_watchdog: re-prompt failed for $name (ticket #$ticket)"
