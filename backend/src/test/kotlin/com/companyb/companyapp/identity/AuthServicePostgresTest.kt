@@ -1,4 +1,7 @@
 package com.companyb.companyapp.identity
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.RegistrationConflictException
@@ -15,12 +18,14 @@ import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.slf4j.LoggerFactory
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class AuthServicePostgresTest : BasePostgresTest() {
     private val userId = TestFixtures.uuid()
@@ -68,6 +73,27 @@ class AuthServicePostgresTest : BasePostgresTest() {
         val token =
             (result as? LoginResult.Success)?.token ?: error("login must succeed after logout for an ACTIVE user")
         assertNotNull(JwtService.verifyToken(token), "fresh token issued after logout must verify")
+    }
+
+    @Test
+    fun `failed login never logs the attempted username`() {
+        // #898 — attempted usernames are an identifier-enumeration feed in logs; outcome is the signal.
+        val probe = "pii-probe-nouser-${userId.toString().take(8)}"
+        val logger = LoggerFactory.getLogger(AuthService::class.java) as Logger
+        val appender = ListAppender<ILoggingEvent>()
+        appender.start()
+        logger.addAppender(appender)
+        try {
+            val result = AuthService.login(probe, "wrong-password", "203.0.113.99")
+
+            assertTrue(result is LoginResult.InvalidCredentials, "unknown user must fail closed")
+        } finally {
+            logger.detachAppender(appender)
+            appender.stop()
+        }
+        val messages = appender.list.map { it.formattedMessage }
+        assertTrue(messages.any { it.contains(LOGIN_LOG_MARKER) }, "expected login log lines, got: $messages")
+        assertTrue(messages.none { it.contains(probe) }, "attempted username leaked into logs: $messages")
     }
 
     @Test
@@ -131,4 +157,8 @@ class AuthServicePostgresTest : BasePostgresTest() {
                         (AuditLogTable.changedBy eq userId)
                 }.count()
         }
+
+    private companion object {
+        const val LOGIN_LOG_MARKER = "[LOGIN]"
+    }
 }

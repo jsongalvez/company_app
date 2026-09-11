@@ -62,7 +62,7 @@ object AuthService {
         password: String,
         ip: String,
     ): LoginResult {
-        logger.info { "[LOGIN] Login attempt for $username from $ip" }
+        logger.info { "[LOGIN] Login attempt from $ip" }
 
         if (!RateLimiter.isAllowed(ip)) {
             logger.warn { "[LOGIN] Rate limiting $ip" }
@@ -76,7 +76,7 @@ object AuthService {
         val userId = appUser?.let { runCatching { UUID.fromString(it.id) }.getOrNull() }
         val preliminaryOk = appUser != null && isVerified && userId != null
         if (!preliminaryOk) {
-            logger.warn { "[LOGIN] Failed login attempt for user: $username" }
+            logger.warn { "[LOGIN] Failed login attempt" }
         }
 
         // #505 — bind issuance to the exact credential verified: lock the account,
@@ -105,7 +105,7 @@ object AuthService {
             }
         return if (!preliminaryOk || token == null) {
             if (preliminaryOk) {
-                logger.warn { "[LOGIN] Credential rotated or account inactive for user: $username" }
+                logger.warn { "[LOGIN] Credential rotated or account inactive" }
             }
             LoginResult.InvalidCredentials
         } else {

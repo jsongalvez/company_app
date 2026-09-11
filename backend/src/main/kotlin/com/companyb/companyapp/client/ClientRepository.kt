@@ -256,7 +256,7 @@ internal object ClientRepository {
                     ClientTable.firstName to SortOrder.ASC,
                 ).limit(SEARCH_LIMIT)
                 .map { it.toClient() }
-        }.also { logger.info { "[SEARCH-CLIENTS] Matched ${it.size} result(s) for query '$query'" } }
+        }.also { logger.info { "[SEARCH-CLIENTS] Matched ${it.size} result(s)" } }
 
     /** Total session history per client for authoritative client read models. */
     fun countSessions(clientIds: Collection<UUID>): Map<UUID, Int> {

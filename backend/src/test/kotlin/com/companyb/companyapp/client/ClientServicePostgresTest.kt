@@ -1,4 +1,7 @@
 package com.companyb.companyapp.client
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.contracts.client.Gender
 import com.companyb.companyapp.contracts.session.SessionStatus
@@ -17,6 +20,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.slf4j.LoggerFactory
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -222,6 +226,33 @@ class ClientServicePostgresTest : BasePostgresTest() {
         assertTrue(results.any { it.id == clientBId }, "Exact ILIKE match 'John' should match 'John Bravo'")
         assertTrue(results.any { it.id == clientAId }, "Fuzzy match 'Jon Smith' should match via trigram for 'John'")
         assertEquals(clientBId, results.first().id, "Exact match should rank first")
+    }
+
+    @Test
+    fun `search never logs the raw query`() {
+        // #898 — the query is client PII (name/phone fragments); the match count is the signal.
+        createClient(callerId, clientAId, lastName = SEARCH_PII_PROBE)
+        val logger = LoggerFactory.getLogger(ClientRepository::class.java) as Logger
+        val appender = ListAppender<ILoggingEvent>()
+        appender.start()
+        logger.addAppender(appender)
+        try {
+            val results = ClientService.search(SEARCH_PII_PROBE)
+
+            assertTrue(results.any { it.id == clientAId })
+        } finally {
+            logger.detachAppender(appender)
+            appender.stop()
+        }
+        val messages = appender.list.map { it.formattedMessage }
+        assertTrue(
+            messages.any { it.startsWith(SEARCH_LOG_PREFIX) },
+            "expected a search-count log line, got: $messages",
+        )
+        assertTrue(
+            messages.none { it.contains(SEARCH_PII_PROBE) },
+            "raw search query leaked into logs: $messages",
+        )
     }
 
     @Test
@@ -591,5 +622,10 @@ class ClientServicePostgresTest : BasePostgresTest() {
                 it[SessionVoidTable.voidReason] = "Test void"
             }
         }
+    }
+
+    private companion object {
+        const val SEARCH_PII_PROBE = "PiiProbeSurnameQwx"
+        const val SEARCH_LOG_PREFIX = "[SEARCH-CLIENTS]"
     }
 }
