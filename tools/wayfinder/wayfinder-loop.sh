@@ -554,6 +554,10 @@ wait_for_session_exit() {
     if [ -z "$snap" ]; then
       outages=$((outages + 1))
       log "exit-wait for $session_id: /active unreachable (outage $outages) — holding, not exiting"
+      if [ "$outages" -eq 3 ]; then
+        notify "opencode2 API unstable in exit-wait" "exit-wait for $session_id holding handoff $pending_doc — retrying, check 'opencode2 service status'"
+        outages=0
+      fi
       sleep "$TICK_SECS"
       continue
     fi
