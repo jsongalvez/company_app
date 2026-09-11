@@ -17,7 +17,10 @@ class MissionPricePolicyTest {
     fun `every non-mission type keeps the price editable`() {
         val nonMissionTypes = SessionType.entries - SessionType.MEDICAL_MISSION
 
-        assertEquals(4, nonMissionTypes.size)
+        // #893 — #876 added the UNKNOWN forward-compat sentinel, the fifth non-mission
+        // entry; it stays editable client-side (the server normalizes authoritatively
+        // per #405), so only MEDICAL_MISSION locks the price.
+        assertEquals(5, nonMissionTypes.size)
         nonMissionTypes.forEach { type -> assertFalse(missionPriceLocked(type)) }
     }
 }
