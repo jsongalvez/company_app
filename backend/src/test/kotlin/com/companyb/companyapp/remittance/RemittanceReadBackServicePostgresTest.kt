@@ -279,7 +279,8 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
 
         assertEquals(1, result.size)
         assertEquals(psId, result[0].id)
-        assertEquals("Test Product", result[0].productName)
+        // #903 — the sale name defaults to the product card ("Prod ..."), not the retired literal.
+        assertTrue(result[0].productName.startsWith("Prod "))
         assertEquals(BigDecimal("100.00"), result[0].totalAmountAtTime)
     }
 
