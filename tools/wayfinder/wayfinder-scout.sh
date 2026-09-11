@@ -334,7 +334,8 @@ cmd_prompt() { # <slice> --map N --workspace DIR [--base SHA]
     cat <<EOF
 ROLE: bug-scout worker under Wayfinder map #$map (chief-spawned; you are not an orchestrator).
 SLICE: $slice — $(slice_scope "$slice").
-MAP: #$map — file findings as normal GitHub issues under this map's flow; the chief routes them to ticket workers.
+MAP: #$map (supervision anchor) — file findings as native sub-issues of bug map #863 via tools/wayfinder/wayfinder-create-child.sh 863 task <title> <body-file>; map #755 is at GitHub's 100-child cap and rejects new links, so nothing files there.
+SCOPE: master tree at BASE only. Prototype branches (prototype/*) are out of scope — do not audit them, do not chase their commits, do not file on them.
 WORKSPACE: $workspace — read-only. Work only inside this workspace and never modify another worker's workspace.
 $base_line
 
@@ -353,7 +354,7 @@ DUPLICATION CHECK (before filing anything):
 TICKET QUALITY (every filed issue must carry):
 - user/system impact; concrete evidence with file/symbol/route references; why the behavior is wrong or risky; reproduction/falsification where practical; scope boundaries; acceptance criteria; targeted verification guidance; duplication-check note; dependency/blocker notes when known.
 - Do not file speculative low-signal tickets to maximize count.
-- File with tools/wayfinder/wayfinder-create-child.sh $map task <title> <body-file> so the issue attaches as a native sub-issue of map #$map: the chief's frontier only sees native sub-issues, and a plain unlinked issue never reaches a ticket worker.
+- File with tools/wayfinder/wayfinder-create-child.sh 863 task <title> <body-file> so the issue attaches as a native sub-issue of bug map #863: the chief's frontier only sees native sub-issues, and a plain unlinked issue never reaches a ticket worker. (Map #755 is at the 100-child cap — never file there.)
 
 EXPERIMENTAL MUTATION (only if an investigation genuinely requires it):
 - Ask the chief for a disposable isolated workspace (provider purpose scout-$slice). Mutations there are experimental only and are never integrated. Your durable output remains the ticket.
