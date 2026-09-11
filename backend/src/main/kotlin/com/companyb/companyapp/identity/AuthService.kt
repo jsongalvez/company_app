@@ -177,8 +177,10 @@ object AuthService {
      * 24h PASSWORD_RESET token; any of its outstanding reset codes are invalidated first
      * (#350 re-invite pattern). False means the caller's IP exceeded its rate budget.
      *
-     * Delivery happens after the token transaction commits. Missing configuration uses the
-     * existing operator log relay; SMTP failures do not change token or rate-limit semantics.
+     * Delivery happens after the token transaction commits. Without SMTP the code stays valid
+     * for retry but is never logged (#897 fail-closed; the server-log relay needs the explicit
+     * dev-only PASSWORD_RESET_DEV_RELAY opt-in). SMTP failures do not change token or rate-limit
+     * semantics.
      */
     fun requestPasswordReset(
         identifier: String,

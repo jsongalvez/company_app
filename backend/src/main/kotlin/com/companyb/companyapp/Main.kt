@@ -328,7 +328,7 @@ fun main(config: AppConfig) {
 
     JwtService.init(config)
     Password.init(config.authDummyPassword)
-    PasswordResetDelivery.configure(config.smtp)
+    PasswordResetDelivery.configure(config.smtp, config.passwordResetDevRelay)
     IncidentDelivery.configure(config.githubIssue)
 
     DatabaseConfig.initialize(config)

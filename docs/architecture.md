@@ -464,7 +464,9 @@ TZ=Asia/Manila
 ```
 
 All `SMTP_*` values are required for email delivery. If absent or incomplete, password-reset
-codes use the server-log relay and startup emits a warning.
+delivery fails closed (#897): codes stay valid for retry but neither the code nor the account
+identifier reaches the logs, and startup emits a warning. The server-log relay is dev-only
+behind the explicit `PASSWORD_RESET_DEV_RELAY=true` opt-in — never enable it where logs ship.
 
 ---
 

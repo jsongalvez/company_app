@@ -26,25 +26,51 @@ internal fun interface PasswordResetSender {
 }
 
 internal object PasswordResetDelivery {
+    /** Explicit dev-only opt-in for the server-log relay; never enable where logs ship. */
+    const val DEV_RELAY_ENV = "PASSWORD_RESET_DEV_RELAY"
+
     private val logger = KotlinLogging.logger {}
     private var senderExecutor: ThreadPoolExecutor? = null
 
     @Volatile
     private var configuredSender: PasswordResetSender? = null
 
-    /** Selects SMTP delivery once during application startup. Null keeps the log relay active. */
+    @Volatile
+    private var allowLogRelay = false
+
+    /**
+     * #897 — selects SMTP delivery once during application startup. Null keeps delivery
+     * fail-closed: reset codes stay valid for retry but neither the code nor the account
+     * identifier reaches the logs. The server-log relay is dev-only and needs the explicit
+     * [allowLogRelay] opt-in (`PASSWORD_RESET_DEV_RELAY=true`); SMTP takes precedence when set.
+     */
     @Synchronized
-    fun configure(config: SmtpConfig?) {
+    fun configure(
+        config: SmtpConfig?,
+        allowLogRelay: Boolean = false,
+    ) {
         senderExecutor?.shutdownNow()
         configuredSender = config?.let(::SmtpPasswordResetSender)
         senderExecutor = config?.let { createSenderExecutor() }
+        this.allowLogRelay = allowLogRelay
         if (config == null) {
-            logger.warn {
-                "[PASSWORD-RESET] SMTP delivery is not configured; using server-log relay. " +
-                    "Set SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, and SMTP_FROM."
+            if (allowLogRelay) {
+                logger.warn {
+                    "[PASSWORD-RESET] SMTP delivery is not configured; using dev-only server-log relay " +
+                        "($DEV_RELAY_ENV=true). Never enable where logs are shipped or retained."
+                }
+            } else {
+                logger.warn {
+                    "[PASSWORD-RESET] SMTP delivery is not configured; reset codes stay valid for retry. " +
+                        "Set SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, and SMTP_FROM."
+                }
             }
         }
     }
+
+    /** Returns true only for an explicit opt-in value; absent or anything else stays fail-closed. */
+    internal fun parseDevRelay(environment: Map<String, String?>): Boolean =
+        environment[DEV_RELAY_ENV]?.trim().equals("true", ignoreCase = true)
 
     /** Stops queued delivery during application shutdown; reset tokens remain redeemable. */
     @Synchronized
@@ -52,6 +78,7 @@ internal object PasswordResetDelivery {
         senderExecutor?.shutdownNow()
         senderExecutor = null
         configuredSender = null
+        allowLogRelay = false
     }
 
     /** Delivery happens after token transaction commits; failures never invalidate the token. */
@@ -62,10 +89,14 @@ internal object PasswordResetDelivery {
         validityHours: Long,
         senderOverride: PasswordResetSender? = null,
     ) {
-        // #601 max-2: log-relay, override-direct, and executor-queued legs share one if-else exit.
+        // #601 max-2: fail-closed/dev-relay, override-direct, and executor-queued legs share one if-else exit.
         val sender = senderOverride ?: configuredSender
         if (sender == null) {
-            logRelay(identifier, rawCode, validityHours)
+            if (allowLogRelay) {
+                logRelay(identifier, rawCode, validityHours)
+            } else {
+                logFailClosed()
+            }
         } else if (senderOverride != null) {
             sendSafely(sender, recipient, rawCode, validityHours)
         } else {
@@ -103,6 +134,17 @@ internal object PasswordResetDelivery {
         }
     }
 
+    /**
+     * #897 — fail-closed leg: the minted code stays redeemable via a later SMTP retry, but
+     * neither the code nor the account identifier reaches the logs (log lines cannot be
+     * consumed or revoked, unlike the token row).
+     */
+    private fun logFailClosed() {
+        logger.error { "[PASSWORD-RESET] SMTP delivery is not configured; reset code remains valid for retry" }
+    }
+
+    // #897 — dev-only console relay behind the explicit PASSWORD_RESET_DEV_RELAY opt-in: the
+    // only log line that may carry a live code, never enabled where logs are shipped.
     private fun logRelay(
         identifier: String,
         rawCode: String,

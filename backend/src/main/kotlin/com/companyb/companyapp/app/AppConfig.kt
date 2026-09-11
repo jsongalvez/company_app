@@ -1,5 +1,6 @@
 package com.companyb.companyapp.app
 
+import com.companyb.companyapp.identity.PasswordResetDelivery
 import com.companyb.companyapp.identity.SmtpConfig
 import com.companyb.companyapp.observability.GithubIssueConfig
 import io.github.cdimascio.dotenv.dotenv
@@ -16,6 +17,7 @@ data class AppConfig(
     val jwtAudience: String,
     val authDummyPassword: String,
     val smtp: SmtpConfig? = null,
+    val passwordResetDevRelay: Boolean = false,
     val githubIssue: GithubIssueConfig? = null,
 ) {
     companion object {
@@ -47,6 +49,12 @@ data class AppConfig(
                             SmtpConfig.USERNAME_ENV to env[SmtpConfig.USERNAME_ENV],
                             SmtpConfig.PASSWORD_ENV to env[SmtpConfig.PASSWORD_ENV],
                             SmtpConfig.FROM_ENV to env[SmtpConfig.FROM_ENV],
+                        ),
+                    ),
+                passwordResetDevRelay =
+                    PasswordResetDelivery.parseDevRelay(
+                        mapOf(
+                            PasswordResetDelivery.DEV_RELAY_ENV to env[PasswordResetDelivery.DEV_RELAY_ENV],
                         ),
                     ),
                 githubIssue =
