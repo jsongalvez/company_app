@@ -13,6 +13,12 @@ source_env
 
 DB_NAME="$(test_db_name)"
 DB_USER="${POSTGRES_USER:-company_user}"
+APP_DB="${POSTGRES_DB:-company_app}"
+
+if [ "$DB_NAME" = "$APP_DB" ]; then
+    printf "refusing to run clean-test-db against application database (test DB '%s' == application DB '%s')\n" "$DB_NAME" "$APP_DB" >&2
+    exit 1
+fi
 
 log clean-test-db "Truncating user-data tables in test DB '$DB_NAME'..."
 
