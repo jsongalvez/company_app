@@ -191,6 +191,15 @@ if [ $((backend + shared + compose + buildlogic + deadcode)) -eq 0 ]; then
   exit 0
 fi
 
+# Mixed code+tool change (ref #888): the shell leg was previously dropped on
+# this path — run_shell_validation's only call site was the shell-only branch
+# above. Run it first, record the status, then continue to the Gradle leg;
+# either leg failing fails the run. The shell-only fast path above is unchanged.
+shell_status=0
+if [ $shell -eq 1 ]; then
+  run_shell_validation || shell_status=$?
+fi
+
 check_detekt_governance
 
 if [ $buildlogic -eq 1 ]; then
@@ -233,4 +242,8 @@ fi
 echo "validate: ${tasks[*]}"
 start=$SECONDS
 ./gradlew "${tasks[@]}"
+if [ "$shell_status" -ne 0 ]; then
+  echo "validate: shell/tool checks FAILED (mixed change) — Gradle leg passed" >&2
+  exit "$shell_status"
+fi
 echo "validate: OK in $((SECONDS - start))s"
