@@ -96,10 +96,14 @@ object ClientRoutes {
 
     fun register(config: JavalinConfig) {
         // #653 exact-segment lesson (#114): before(CLIENTS) does NOT fire on child
-        // segments — item + anonymize routes need their own GLOBAL EDIT_BRANCH_DATA
-        // guards (PII-destruction stays under the same gate: no narrower code exists).
+        // segments — item + anonymize routes need their own guards.
+        // #896: clients are global records with no branch context, so the gate accepts
+        // EDIT_BRANCH_DATA in any context (BRANCH/BRANCH_DAY/GLOBAL) — the #660 concern-catalog
+        // precedent and the #104 D6 any-context policy (AuditLogReadScope "client" agrees).
+        // A GLOBAL-only gate 403'd every role-derived branch holder (EDIT_BRANCH_DATA never
+        // derives GLOBAL). Relief day-grants satisfy for their windowed day (any day).
         config.routes.before(ApiRoutes.CLIENTS) { context ->
-            CapabilityFilter.requireGlobalCapability(
+            CapabilityFilter.requireAnyContextCapability(
                 context,
                 CapabilityCodes.EDIT_BRANCH_DATA,
                 "EDIT_BRANCH_DATA capability required to manage clients",
@@ -107,7 +111,7 @@ object ClientRoutes {
         }
 
         config.routes.before(ApiRoutes.CLIENT_PATH) { context ->
-            CapabilityFilter.requireGlobalCapability(
+            CapabilityFilter.requireAnyContextCapability(
                 context,
                 CapabilityCodes.EDIT_BRANCH_DATA,
                 "EDIT_BRANCH_DATA capability required to manage clients",
@@ -115,7 +119,7 @@ object ClientRoutes {
         }
 
         config.routes.before(ApiRoutes.CLIENT_ANONYMIZE_PATH) { context ->
-            CapabilityFilter.requireGlobalCapability(
+            CapabilityFilter.requireAnyContextCapability(
                 context,
                 CapabilityCodes.EDIT_BRANCH_DATA,
                 "EDIT_BRANCH_DATA capability required to manage clients",
