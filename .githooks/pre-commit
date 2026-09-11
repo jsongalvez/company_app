@@ -36,16 +36,16 @@ else
 
     if [ -n "$KTLINT_CMD" ]; then
         log pre-commit "Formatting staged Kotlin file(s) with $KTLINT_CMD..."
-        echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r "$KTLINT_CMD" --format 2>&1 | tail -3
+        echo "$KT_FILES" | tr '\n' '\0' | xargs -0 "$KTLINT_CMD" --format 2>&1 | tail -3
         log pre-commit "Re-staging formatted files..."
-        echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r git add
+        echo "$KT_FILES" | tr '\n' '\0' | xargs -0 git add
         log pre-commit "Formatting complete."
     else
         # Never fall back to project-wide Gradle formatting: a missing formatter
         # must not turn a commit into a multi-minute build. Formatting debt is
         # caught by asynchronous ktlintCheck in CI.
         log pre-commit "WARNING: ktlint not found — skipping staged Kotlin formatting."
-        log pre-commit "Run 'bash scripts/setup-hooks.sh' to install ktlint."
+        log pre-commit "Run 'bash tools/quality/setup-hooks.sh' to install ktlint."
     fi
 fi
 

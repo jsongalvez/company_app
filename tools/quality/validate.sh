@@ -17,8 +17,8 @@ check_detekt_governance() {
   local bad_excludes
   bad_excludes=$(
     git diff HEAD -U0 -- 'config/detekt/*' 2>/dev/null \
-      | grep -P '^\+\s*-\s*.*\*\*' \
-      | grep -vP '#\d+' || true
+      | grep -E '^\+[[:space:]]*-[[:space:]]*.*\*\*' \
+      | grep -vE '#[0-9]+' || true
   )
   if [ -n "$bad_excludes" ]; then
     echo "validate: new config/detekt excludes entries must link a ticket (#<n>), ref #465:" >&2
@@ -30,7 +30,7 @@ check_detekt_governance() {
     {
       git ls-files
       git ls-files --others --exclude-standard
-    } | grep -P '(^|/)lint\.xml$|baseline[^/]*\.xml$' | grep -vP '(^|/)build/' || true
+    } | grep -E '(^|/)lint\.xml$|baseline[^/]*\.xml$' | grep -vE '(^|/)build/' || true
   )
   if [ -n "$banned" ]; then
     echo "validate: baseline/lint.xml escape hatches are banned (ref #465):" >&2
@@ -62,6 +62,7 @@ run_shell_validation() {
   local t
   for t in \
     "$root/tools/quality/test-hooks-no-expensive-commands.sh" \
+    "$root/tools/quality/test-shell-portability.sh" \
     "$root/tools/quality/pre-commit-docs-only-test.sh" \
     "$root/tools/quality/pre-commit-formatter-status-test.sh" \
     "$root/tools/quality/test-commit-msg-hook.sh" \
