@@ -1,9 +1,14 @@
 package com.companyb.companyapp.session.dashboard
+import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.commission.CommissionManualInclusionRepository
 import com.companyb.companyapp.commission.CommissionManualInclusionUpsertParams
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.identity.RoleTable
+import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.notification.NotificationService
 import com.companyb.companyapp.session.SessionPractitionerTable
 import com.companyb.companyapp.session.SessionVoidTable
@@ -14,8 +19,15 @@ import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import com.companyb.companyapp.workforce.AttendanceService
+import com.companyb.companyapp.workforce.UserBranchAssignmentTable
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.util.UUID
 import kotlin.test.Test
@@ -195,6 +207,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     fun `getSessionDetail returns enriched session for notification bearer`() {
         SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         seedNotification(sessionId, callerId, branchId)
+        grantBranchView(callerId, branchId)
         seedPractitioner(sessionId, practitionerId)
 
         val data = DashboardService.getSessionDetail(callerId, sessionId)
@@ -213,6 +226,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     fun `getSessionDetail marks voided sessions`() {
         SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         seedNotification(sessionId, callerId, branchId)
+        grantBranchView(callerId, branchId)
         seedVoid(sessionId)
 
         val data = DashboardService.getSessionDetail(callerId, sessionId)
@@ -224,6 +238,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     fun `getSessionDetail accepts read notifications`() {
         SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         val notification = seedNotification(sessionId, callerId, branchId)
+        grantBranchView(callerId, branchId)
         NotificationService.markRead(callerId, notification.id)
 
         val data = DashboardService.getSessionDetail(callerId, sessionId)
@@ -234,6 +249,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     @Test
     fun `getSessionDetail throws 404 when no notification exists for the session`() {
         SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
+        grantBranchView(callerId, branchId)
 
         assertFailsWith<NotFoundException> {
             DashboardService.getSessionDetail(callerId, sessionId)
@@ -244,9 +260,151 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     fun `getSessionDetail throws 404 when caller is not the notification bearer`() {
         SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         seedNotification(sessionId, otherUserId, branchId)
+        grantBranchView(callerId, branchId)
 
         assertFailsWith<NotFoundException> {
             DashboardService.getSessionDetail(callerId, sessionId)
+        }
+    }
+
+    @Test
+    fun `getSessionDetail throws 404 when bearer holds no branch view`() {
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
+        seedNotification(sessionId, callerId, branchId)
+
+        assertFailsWith<NotFoundException> {
+            DashboardService.getSessionDetail(callerId, sessionId)
+        }
+    }
+
+    @Test
+    fun `getSessionDetail allows global view holder with bearer`() {
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
+        seedNotification(sessionId, callerId, branchId)
+        IdentityFixtures.grantCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = TestFixtures.uuid(),
+        )
+
+        val data = DashboardService.getSessionDetail(callerId, sessionId)
+
+        assertEquals(sessionId, data.session.id)
+    }
+
+    @Test
+    fun `getSessionDetail revokes after direct grant removal while bearer row survives`() {
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
+        seedNotification(sessionId, callerId, branchId)
+        grantBranchView(callerId, branchId)
+
+        val before = DashboardService.getSessionDetail(callerId, sessionId)
+        assertEquals(sessionId, before.session.id)
+
+        IdentityFixtures.revokeAllCapabilities(callerId)
+
+        assertFailsWith<NotFoundException> {
+            DashboardService.getSessionDetail(callerId, sessionId)
+        }
+    }
+
+    @Test
+    fun `getSessionDetail revokes after role-derived assignment ends`() {
+        val coordinator = TestFixtures.uuid()
+        IdentityFixtures.insertTestUser(coordinator, "revoked-coord")
+        assignRole(coordinator, "COORDINATOR")
+        BranchWorkforceFixtures.insertTestAssignment(
+            userId = coordinator,
+            branchId = branchId,
+            slot = 1,
+            assignedBy = coordinator,
+        )
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
+        seedNotification(sessionId, coordinator, branchId)
+
+        val before = DashboardService.getSessionDetail(coordinator, sessionId)
+        assertEquals(sessionId, before.session.id)
+
+        endAssignment(coordinator, branchId)
+
+        assertFailsWith<NotFoundException> {
+            DashboardService.getSessionDetail(coordinator, sessionId)
+        }
+    }
+
+    @Test
+    fun `getSessionDetail revokes after coordinator role removal`() {
+        val coordinator = TestFixtures.uuid()
+        IdentityFixtures.insertTestUser(coordinator, "role-stripped")
+        assignRole(coordinator, "COORDINATOR")
+        BranchWorkforceFixtures.insertTestAssignment(
+            userId = coordinator,
+            branchId = branchId,
+            slot = 1,
+            assignedBy = coordinator,
+        )
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
+        seedNotification(sessionId, coordinator, branchId)
+
+        val before = DashboardService.getSessionDetail(coordinator, sessionId)
+        assertEquals(sessionId, before.session.id)
+
+        transaction {
+            UserRoleTable.deleteWhere { UserRoleTable.userId eq coordinator }
+        }
+
+        assertFailsWith<NotFoundException> {
+            DashboardService.getSessionDetail(coordinator, sessionId)
+        }
+    }
+
+    private fun grantBranchView(
+        userId: UUID,
+        branchId: UUID,
+    ) {
+        IdentityFixtures.grantCapability(
+            userId = userId,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = TestFixtures.uuid(),
+        )
+    }
+
+    private fun assignRole(
+        userId: UUID,
+        roleName: String,
+    ) {
+        val roleId =
+            transaction {
+                RoleTable
+                    .selectAll()
+                    .where { RoleTable.name eq roleName }
+                    .single()[RoleTable.id]
+            }
+        transaction {
+            UserRoleTable.insert {
+                it[UserRoleTable.userId] = userId
+                it[UserRoleTable.roleId] = roleId
+            }
+        }
+    }
+
+    private fun endAssignment(
+        userId: UUID,
+        branchId: UUID,
+    ) {
+        transaction {
+            UserBranchAssignmentTable.update(
+                {
+                    (UserBranchAssignmentTable.userId eq userId) and
+                        (UserBranchAssignmentTable.branchId eq branchId)
+                },
+            ) {
+                it[UserBranchAssignmentTable.endedAt] = CurrentTimestampWithTimeZone
+            }
         }
     }
 

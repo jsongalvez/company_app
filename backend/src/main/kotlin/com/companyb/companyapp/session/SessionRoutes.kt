@@ -369,9 +369,10 @@ object SessionRoutes {
         val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
 
-        // #152 — notifications-path session detail (#151): bearer-only gate (the notification
-        // row IS the authorization), no capability/day-state filters, 404 for both non-bearer
-        // and missing sessions. Byte-identical rendering with the dashboard path (Q3).
+        // #152 — notifications-path session detail (#151) with the #907 lifetime bound:
+        // bearer row for (sessionId, caller) AND a current VIEW_BRANCH_DATA window at the
+        // session's branch (BRANCH or GLOBAL); revoked readers 404 like non-bearers.
+        // Byte-identical rendering with the dashboard path (Q3).
         val data = DashboardService.getSessionDetail(callerId, sessionId)
         context.json(
             mapDashboardSession(

@@ -1,6 +1,8 @@
 package com.companyb.companyapp.session.dashboard
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -28,15 +30,14 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * #152 session-detail GET authz: bearer-only read gate (#151 Q1/Q5) — the caller may fetch
- * iff a notification row exists for (sessionId, caller), any read state; 404 for both
- * non-bearer and missing sessions. No capability filters — the notification IS the
- * authorization, so a bearer needs zero grants (the primary case: an alerted coordinator
- * without VIEW_BRANCH_DATA must still open the pushed session).
+ * #152 session-detail GET authz with the #907 lifetime bound: bearer row for
+ * (sessionId, caller) AND a current VIEW_BRANCH_DATA window at the session's branch
+ * (BRANCH or GLOBAL); revoked readers 404 like non-bearers. Read state never matters.
  */
 class SessionDetailAuthzTest : BasePostgresTest() {
     private val bearerUser = TestFixtures.uuid()
     private val otherUser = TestFixtures.uuid()
+    private val revokedUser = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
     private val sessionId = TestFixtures.uuid()
@@ -45,6 +46,7 @@ class SessionDetailAuthzTest : BasePostgresTest() {
     override fun initTestData() {
         IdentityFixtures.insertTestUser(bearerUser, "detail-bearer")
         IdentityFixtures.insertTestUser(otherUser, "detail-other")
+        IdentityFixtures.insertTestUser(revokedUser, "detail-revoked")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Branch ${branchId.toString().take(8)}")
         SessionClientFixtures.insertTestClient(clientId)
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
@@ -53,6 +55,13 @@ class SessionDetailAuthzTest : BasePostgresTest() {
             clientId = clientId,
             branchDayId = branchDayId,
             sessionStatus = SessionStatus.COMPLETED,
+        )
+        IdentityFixtures.grantCapability(
+            userId = bearerUser,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = TestFixtures.uuid(),
         )
     }
 
@@ -120,6 +129,14 @@ class SessionDetailAuthzTest : BasePostgresTest() {
         seedNotification(sessionId, otherUser, branchId)
         testServer.client.let { client ->
             assertEquals(404, client.get("/api/sessions/$sessionId", asUser(bearerUser)).code)
+        }
+    }
+
+    @Test
+    fun `bearer without branch view gets 404 even with notification row`() {
+        seedNotification(sessionId, revokedUser, branchId)
+        testServer.client.let { client ->
+            assertEquals(404, client.get("/api/sessions/$sessionId", asUser(revokedUser)).code)
         }
     }
 

@@ -1,7 +1,10 @@
 package com.companyb.companyapp.session.dashboard
 
+import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.commission.CommissionService
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.notification.NotificationReads
@@ -101,17 +104,22 @@ object DashboardService {
     }
 
     /**
-     * #152 single-session detail read for the notifications bearer path (#151 Q1/Q4/Q5): the
-     * caller may fetch iff a notification row exists for `(sessionId, caller)` — any read state.
-     * The notification IS the authorization (the #141 markRead ownership shape). 404 for both
-     * non-bearer and missing sessions — one UI fallback, UUIDs are not guessable. No day-state
-     * gate: the #138 `checkBranchDayReadable` rule governs capability-gated browsing surfaces;
-     * notified sessions are COMPLETED with `nextAppointmentDate = today+2`, so their branch day
-     * is today-or-past and a PAST/REMITTED `EDIT_PAST_DAY` requirement would 403 the primary
-     * case (#151 Q2).
+     * #152 single-session detail read for the notifications bearer path (#151 Q1/Q4/Q5) with the
+     * #907 lifetime bound: the caller may fetch iff a notification row exists for
+     * `(sessionId, caller)` — any read state — AND the caller still holds
+     * `VIEW_BRANCH_DATA` at the session's branch (BRANCH) or everywhere (GLOBAL, the #131
+     * all-branches window). The bearer is a delivery event, not a durable grant: ending the
+     * branch assignment or removing the role revokes the BRANCH leg via the
+     * `active_user_capabilities` view, so the read fails closed. 404 for non-bearer, missing
+     * sessions, missing days, and revoked readers alike — one UI fallback, UUIDs are not
+     * guessable. No day-state gate: the #138 `checkBranchDayReadable` rule governs
+     * capability-gated browsing surfaces; notified sessions are COMPLETED with
+     * `nextAppointmentDate = today+2`, so their branch day is today-or-past and a
+     * PAST/REMITTED `EDIT_PAST_DAY` requirement would 403 the primary case (#151 Q2).
      *
-     * @throws NotFoundException if no notification row exists for (sessionId, caller) or the
-     * session does not exist. The missing-session half is defensive: the `session_id` FK keeps
+     * @throws NotFoundException if no notification row exists for (sessionId, caller), the
+     * session does not exist, its day/branch is missing, or the caller holds no current
+     * VIEW at the branch. The missing-session half is defensive: the `session_id` FK keeps
      * dangling notifications out of a consistent DB, but the lookup still fails closed.
      */
     fun getSessionDetail(
@@ -125,6 +133,17 @@ object DashboardService {
         val session =
             SessionReads.findById(sessionId)
                 ?: throw NotFoundException("Session not found")
+
+        // #907 — read-time re-check (mailbox rows are never deleted): the bearer alone no
+        // longer authorizes. Resolve the owning branch find-only and require a current read
+        // window; a revoked/transferred/demoted caller keeps the history row but loses the
+        // VIEW leg, so this 404s exactly where the old bearer-only gate returned 200.
+        val branchId =
+            BranchDayService.findById(session.branchDayId)?.branchId
+                ?: throw NotFoundException("Session not found")
+        if (!hasBranchView(callerId, branchId)) {
+            throw NotFoundException("Session not found")
+        }
 
         val clientNames = DashboardRepository.findClientNames(listOf(session.clientId))
         val voidedSessionIds = DashboardRepository.findVoidedSessionIds(listOf(sessionId))
@@ -141,11 +160,36 @@ object DashboardService {
                 session.requestedPractitionerId?.let {
                     DashboardRepository.findUserDisplayNames(listOf(it))
                 } ?: emptyMap(),
-            // #382 — the detail read has no route branch context; resolve it from the day.
-            branchIdBySession =
-                BranchDayService.findById(session.branchDayId)?.let {
-                    mapOf(session.id to it.branchId)
-                } ?: emptyMap(),
+            // #382 — the detail read has no route branch context; reuse the resolved branch.
+            branchIdBySession = mapOf(session.id to branchId),
+        )
+    }
+
+    /**
+     * #907 — current-read window for the bearer detail: BRANCH `VIEW_BRANCH_DATA` at
+     * [branchId] OR GLOBAL `VIEW_BRANCH_DATA` (the #131 all-branches window, e.g.
+     * Owner/Accountant). The `active_user_capabilities` view already excludes INACTIVE users
+     * and out-of-window grants, so assignment end / role removal revokes without a cleanup
+     * path and mailbox history stays intact.
+     */
+    private fun hasBranchView(
+        callerId: UUID,
+        branchId: UUID,
+    ): Boolean {
+        if (CapabilityService.hasCapability(
+                callerId,
+                CapabilityCodes.VIEW_BRANCH_DATA,
+                CapabilityContextType.BRANCH,
+                branchId,
+            )
+        ) {
+            return true
+        }
+        return CapabilityService.hasCapability(
+            callerId,
+            CapabilityCodes.VIEW_BRANCH_DATA,
+            CapabilityContextType.GLOBAL,
+            CapabilityService.GLOBAL_CONTEXT_ID,
         )
     }
 }

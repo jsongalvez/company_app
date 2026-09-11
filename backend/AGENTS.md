@@ -400,9 +400,10 @@ PENDING guard (`hasActivePendingSession`) — retries with the same UUID must no
 Dashboard read (`GET /api/branches/{branchId}/dashboard/today`) is universal post-clock-in
 (`AttendanceService.hasActiveClockIn`) and deliberately NOT capability-gated; commission is
 computed live, never read from `commission_split` rows (a forced recalc on a PAST day would
-serve stale splits). Session detail read (`GET /api/sessions/{sessionId}`, #152) is bearer-only:
-a notification row for `(sessionId, caller)` IS the authorization (404 for non-bearer and
-missing alike; no day-state gate).
+serve stale splits). Session detail read (`GET /api/sessions/{sessionId}`, #152 with the #907
+lifetime bound) is bearer-plus-read-window: a notification row for `(sessionId, caller)` AND a
+current `VIEW_BRANCH_DATA` window at the session's branch (BRANCH or GLOBAL per #131); revoked
+readers 404 like non-bearers and missing alike (no day-state gate).
 
 Concurrency gotchas: the partial unique index `idx_client_one_pending_session` backstops the
 PENDING pre-check; `Query.forUpdate()` executes only with a terminal op (`.singleOrNull()`) —

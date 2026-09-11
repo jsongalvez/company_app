@@ -167,9 +167,11 @@ internal object NotificationRepository {
                 .toInt()
         }
 
-    // #152 bearer check for the session-detail read (#151 Q1): the notification row IS the
-    // authorization — any read state. Served by idx_notification_session_user (#508), so the
-    // lookup is one indexed hit.
+    // #152 bearer check for the session-detail read (#151 Q1) with the #907 lifetime bound:
+    // the notification row is necessary but not sufficient — any read state satisfies this
+    // half, and DashboardService requires a current VIEW_BRANCH_DATA window at the session's
+    // branch on top. Served by idx_notification_session_user (#508), so the lookup is one
+    // indexed hit.
     fun existsForSessionAndUser(
         sessionId: UUID,
         userId: UUID,
