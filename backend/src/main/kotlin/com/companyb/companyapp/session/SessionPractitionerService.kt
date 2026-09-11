@@ -4,6 +4,8 @@ import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.client.ClientReads
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.AccountReads
 import com.companyb.companyapp.workforce.WorkforceReads
@@ -156,6 +158,17 @@ internal object SessionPractitionerService {
         reason: String?,
     ): Triple<Session, BranchDay, Boolean> {
         val session = SessionRepository.findByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
+        // #910 — client-first lock order (the #509 precedent): serialize with
+        // ClientService.anonymize on the client row so a practitioner write can
+        // never commit inside the anonymize census-to-redaction window. Writes
+        // for anonymized clients 409 (sticky anonymization, the session-create
+        // #692 and PENDING-reopen 409 precedent) instead of reintroducing the
+        // free text #908 scrubs; reads stay open via getForSession.
+        val client =
+            ClientReads.acquireLockInTransaction(session.clientId) ?: throw NotFoundException("Client not found")
+        if (client.deletedAt != null) {
+            throw ConflictException("Cannot modify session practitioners for an anonymized client")
+        }
         val (branchDay, isRemitted) =
             BranchDayService.checkBranchDayEditableInTransaction(callerId, session.branchDayId, reason)
         return Triple(session, branchDay, isRemitted)
