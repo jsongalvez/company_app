@@ -84,6 +84,12 @@ internal fun lineLabel(
             productSaleLabels[line.productSaleId]
                 ?: "Product sale"
         }
+
+        // #876 — forward-compat sentinel: a newer server line type degrades the label,
+        // never the row.
+        com.companyb.companyapp.contracts.remittance.RemittanceLineType.UNKNOWN -> {
+            "Unknown"
+        }
     }
 
 /** D4 — one day row: tick glyph + date + status; already-added/remitted rows grey out. */

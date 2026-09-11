@@ -54,11 +54,20 @@ import kotlin.uuid.Uuid
 internal fun reasonLabel(reason: InventoryMovementReason): String =
     when (reason) {
         InventoryMovementReason.TESTER -> "Tester"
+
         InventoryMovementReason.SAMPLE -> "Sample"
+
         InventoryMovementReason.MISSING -> "Missing"
+
         InventoryMovementReason.ADJUSTMENT -> "Adjustment"
+
         InventoryMovementReason.RESTOCK -> "Restock"
+
         InventoryMovementReason.SALE -> "Sale"
+
+        // #876 — forward-compat sentinel: a newer server reason degrades the label,
+        // never the row.
+        InventoryMovementReason.UNKNOWN -> "Unknown"
     }
 
 @Composable

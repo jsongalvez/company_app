@@ -53,6 +53,12 @@ internal fun statusLabel(branch: MeBranchResponse): String =
         BranchClockInStatus.NOT_CLOCKED_IN -> {
             "Not clocked in"
         }
+
+        // #876 — forward-compat sentinel: an unknown clock-in state degrades the label;
+        // no clock-in action is offered for it, so the row stays inert.
+        BranchClockInStatus.UNKNOWN -> {
+            "Unknown"
+        }
     }
 
 /** Branch card identity block: name, type, and clock-in status lines. */
@@ -73,8 +79,13 @@ internal fun BranchCardInfo(
             text =
                 when (branch.branchType) {
                     BranchType.CLINIC -> "Clinic"
+
                     BranchType.PROVINCIAL_TOUR -> "Provincial Tour"
+
                     BranchType.MEDICAL_MISSION -> "Medical Mission"
+
+                    // #876 — forward-compat sentinel: degrades the label, never the card.
+                    BranchType.UNKNOWN -> "Unknown"
                 },
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

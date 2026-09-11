@@ -34,6 +34,11 @@ private fun statusTargetAllowed(
     isVoided: Boolean = false,
 ): Boolean =
     when {
+        // #876 — the forward-compat sentinel is never a legal transition target; it is
+        // rejected on input and degraded rows stay read-only (shared helpers also exclude
+        // it — this branch keeps the UI policy explicit).
+        target == SessionStatus.UNKNOWN -> false
+
         // #690 — void freezes status: the row keeps its current value for display,
         // but no transition target is offered. Unvoid toggles the options back.
         isVoided && target != currentStatus -> false

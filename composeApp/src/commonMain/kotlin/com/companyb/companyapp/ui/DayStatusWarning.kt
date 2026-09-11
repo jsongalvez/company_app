@@ -14,8 +14,14 @@ internal fun DayStatusWarning(dayStatus: DayStatus) {
     val message =
         when (dayStatus) {
             DayStatus.PAST -> "Past branch day: only Coordinators can edit."
+
             DayStatus.REMITTED -> "Remitted branch day: Coordinator edits require a reason."
+
             DayStatus.OPEN -> null
+
+            // #876 — forward-compat sentinel: an unknown day state makes no claim here;
+            // edit gates comparing against OPEN already fail closed, so the row stays read-only.
+            DayStatus.UNKNOWN -> null
         }
     if (message != null) {
         Text(

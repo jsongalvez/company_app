@@ -2,8 +2,13 @@ package com.companyb.companyapp.contracts.commerce
 
 import kotlinx.serialization.Serializable
 
+/**
+ * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * `shared/AGENTS.md`): old clients decode newer server values as UNKNOWN instead of failing
+ * the whole response. Never persisted, never sent.
+ */
 @Serializable
-enum class InventoryMovementReason { RESTOCK, SALE, TESTER, SAMPLE, MISSING, ADJUSTMENT }
+enum class InventoryMovementReason { RESTOCK, SALE, TESTER, SAMPLE, MISSING, ADJUSTMENT, UNKNOWN }
 
 @Serializable
 data class CreateProductSaleRequest(
@@ -90,7 +95,7 @@ data class InventoryMovementResponse(
     val productId: String,
     val branchId: String,
     val branchDayId: String,
-    val reason: InventoryMovementReason,
+    val reason: InventoryMovementReason = InventoryMovementReason.UNKNOWN,
     val quantityChange: Int,
     val movedBy: String,
     val movedAt: String,

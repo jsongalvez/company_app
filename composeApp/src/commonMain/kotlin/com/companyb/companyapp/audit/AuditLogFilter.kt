@@ -497,4 +497,6 @@ private val DATE_PATTERN = Regex("""\d{4}-\d{2}-\d{2}""")
 // #116 precedent: backend enums serialize as name strings; the frontend mirrors the vocabulary
 // in one place so the dropdown, pill colors, and diff rendering share it (D4's "never hardcode
 // labels" targets table labels; the action list is the backend enum contract).
-private val AUDIT_ACTIONS = AuditAction.entries.map { it.name }
+// #876 — the forward-compat sentinel is never a valid filter: selecting it would only 400
+// against the strict backend, so it stays out of the options.
+private val AUDIT_ACTIONS = AuditAction.entries.filter { it != AuditAction.UNKNOWN }.map { it.name }

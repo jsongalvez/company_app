@@ -203,6 +203,8 @@ class AuditLogDiffTest {
         assertEquals("Created", auditOperationLabel(AuditAction.INSERT))
         assertEquals("Updated", auditOperationLabel(AuditAction.UPDATE))
         assertEquals("Deleted", auditOperationLabel(AuditAction.DELETE))
+        // #876 — a newer server action degrades the pill text, never the row.
+        assertEquals("Unknown", auditOperationLabel(AuditAction.UNKNOWN))
     }
 
     @Test

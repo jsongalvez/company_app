@@ -17,7 +17,9 @@ A global person record shared across all branches. Has at most one PENDING sessi
 _Avoid_: Patient, customer
 
 **Gender**:
-A domain enumeration (`M`, `F`) used in client records.
+A domain enumeration (`M`, `F`) used in client records. The wire enum also carries an
+`UNKNOWN` forward-compat sentinel (#876) — a newer server value this client predates,
+never a recorded gender: it is never sent, never persisted, and degrades the row read-only.
 _Avoid_: sex, gender-string
 
 **Practitioner**:

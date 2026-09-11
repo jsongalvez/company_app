@@ -181,9 +181,23 @@ object ExportService {
 
     private fun branchTypeName(branchType: BranchType): String =
         when (branchType) {
-            BranchType.PROVINCIAL_TOUR -> "Provincial Tour"
-            BranchType.MEDICAL_MISSION -> "Medical Mission"
-            BranchType.CLINIC -> throw ValidationException("Use branch-specific export for clinic branches")
+            BranchType.PROVINCIAL_TOUR -> {
+                "Provincial Tour"
+            }
+
+            BranchType.MEDICAL_MISSION -> {
+                "Medical Mission"
+            }
+
+            BranchType.CLINIC -> {
+                throw ValidationException("Use branch-specific export for clinic branches")
+            }
+
+            // #876 — unreachable: the Postgres enum column carries no UNKNOWN label, so row
+            // mapping fails before this runs. Fail closed, never export under a wrong heading.
+            BranchType.UNKNOWN -> {
+                throw ValidationException("Unknown branch type")
+            }
         }
 
     private fun fetchBranchTypeSummaries(

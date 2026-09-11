@@ -143,8 +143,12 @@ fun List<UserCapabilityResponse>.hasCapability(
 /**
  * #156 — the #92 Q3 "some branch" route-gate semantics: true iff [code] is held at
  * any context (any contextType/contextId). Backend precedent: `CapabilityRepository.hasCapabilityAnyContext`.
+ * #876 — fail-closed on the forward-compat sentinel: a row whose contextType coerced to
+ * UNKNOWN (a newer server context this client predates) grants nothing here, so future
+ * contexts never open route gates on old installs.
  */
-fun List<UserCapabilityResponse>.hasCapabilityAnyContext(code: String): Boolean = any { it.capabilityCode == code }
+fun List<UserCapabilityResponse>.hasCapabilityAnyContext(code: String): Boolean =
+    any { it.capabilityCode == code && it.contextType != CapabilityContextType.UNKNOWN }
 
 /**
  * #158 — true iff [code] is held at [contextType] with any contextId. The relief

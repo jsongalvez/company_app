@@ -163,6 +163,10 @@ object ExpenseRoutes {
         val amount = parsePositiveBigDecimal(request.amount, "amount")
         val category =
             ExpenseCategory.valueOf(request.category.name)
+        // #876 — the forward-compat sentinel is never valid input; the strict transport
+        // rejects unknown strings, and this rejects a literal UNKNOWN before it can persist
+        // (the Postgres enum column carries no such label).
+        if (category == ExpenseCategory.UNKNOWN) throw BadRequestResponse("Unknown expense category")
 
         val expense =
             ExpenseService.create(
@@ -187,6 +191,8 @@ object ExpenseRoutes {
         val amount = parsePositiveBigDecimal(request.amount, "amount")
         val category =
             ExpenseCategory.valueOf(request.category.name)
+        // #876 — the forward-compat sentinel is never valid input (see handleCreate).
+        if (category == ExpenseCategory.UNKNOWN) throw BadRequestResponse("Unknown expense category")
 
         val expense =
             ExpenseService.update(

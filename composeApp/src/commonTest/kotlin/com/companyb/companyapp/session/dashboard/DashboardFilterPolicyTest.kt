@@ -47,6 +47,8 @@ class DashboardFilterPolicyTest {
         assertTrue(!DashboardFilter.PENDING.matches(SessionStatus.COMPLETED))
         assertTrue(!DashboardFilter.PENDING.matches(SessionStatus.NO_SHOW))
         assertTrue(!DashboardFilter.PENDING.matches(SessionStatus.CANCELLED))
+        // #876 — the sentinel is filter-exclusive: degraded rows surface under All only.
+        assertTrue(!DashboardFilter.PENDING.matches(SessionStatus.UNKNOWN))
     }
 
     @Test
@@ -55,6 +57,8 @@ class DashboardFilterPolicyTest {
         assertTrue(DashboardFilter.COMPLETED.matches(SessionStatus.COMPLETED))
         assertTrue(DashboardFilter.COMPLETED.matches(SessionStatus.NO_SHOW))
         assertTrue(DashboardFilter.COMPLETED.matches(SessionStatus.CANCELLED))
+        // #876 — the sentinel is filter-exclusive: degraded rows surface under All only.
+        assertTrue(!DashboardFilter.COMPLETED.matches(SessionStatus.UNKNOWN))
     }
 
     @Test

@@ -9,6 +9,7 @@ import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.session.RateResponse
+import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.contracts.session.SetRateRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
@@ -76,6 +77,9 @@ object SessionBaseRateRoutes {
             val request = context.bodyAsClass<SetRateRequest>()
             val rateId = uuidOrThrow(request.id, "rate id")
             val rate = parseNonNegativeBigDecimal(request.rate, "rate")
+            // #876 — the forward-compat sentinel is never valid input (rates key real session
+            // types). Unknown strings still 400 at decode.
+            if (request.sessionType == SessionType.UNKNOWN) throw BadRequestResponse("Unknown session type")
 
             val result =
                 SessionBaseRateService.setRate(

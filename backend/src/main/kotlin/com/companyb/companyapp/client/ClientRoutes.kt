@@ -8,6 +8,7 @@ import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.client.ClientPatchField
 import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.contracts.client.CreateClientRequest
+import com.companyb.companyapp.contracts.client.Gender
 import com.companyb.companyapp.contracts.client.UpdateClientRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.exception.ValidationException
@@ -138,6 +139,7 @@ object ClientRoutes {
         // #599: create guards split into named checks (ThrowsCount budget is 2 per function).
         requireCreateNames(firstName, lastName)
         requireCreateBpPair(request.systolicBp, request.diastolicBp)
+        requireKnownGender(request.gender)
 
         val result =
             ClientService.create(
@@ -210,6 +212,9 @@ object ClientRoutes {
      */
     private fun validateClientPatch(request: UpdateClientRequest) {
         val clears = request.clearFields
+        // #876 — the forward-compat sentinel is never valid input (the column carries no
+        // such label). Unknown strings still 400 at decode.
+        if (request.gender == Gender.UNKNOWN) throw BadRequestResponse("Unknown gender")
         // Colocated clear-set policy (#541): the command owns the shape, the route only
         // maps its error to the route's existing BadRequestResponse shape.
         try {
@@ -282,6 +287,14 @@ object ClientRoutes {
                 "Both systolic and diastolic blood pressure must be provided together or not at all",
             )
         }
+    }
+
+    /**
+     * #876: sentinel guard split into a named check (ThrowsCount budget is 2 per function).
+     * The forward-compat sentinel is never valid input — the column carries no such label.
+     */
+    private fun requireKnownGender(gender: Gender) {
+        if (gender == Gender.UNKNOWN) throw BadRequestResponse("Unknown gender")
     }
 
     private fun Client.toResponse(sessionCount: Int): ClientResponse =

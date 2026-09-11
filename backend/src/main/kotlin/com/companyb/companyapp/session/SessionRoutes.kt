@@ -21,6 +21,7 @@ import com.companyb.companyapp.contracts.session.RemoveSessionConcernRequest
 import com.companyb.companyapp.contracts.session.SessionPractitionerResponse
 import com.companyb.companyapp.contracts.session.SessionPreviewResponse
 import com.companyb.companyapp.contracts.session.SessionResponse
+import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.SessionVoidResponse
 import com.companyb.companyapp.contracts.session.UnvoidSessionRequest
 import com.companyb.companyapp.contracts.session.UpdatePractitionerRemarksRequest
@@ -448,6 +449,10 @@ object SessionRoutes {
         val request = context.bodyAsClass<UpdateSessionStatusRequest>()
 
         val newStatus = request.status
+        // #876 — the forward-compat sentinel is never valid input; without this it would
+        // pass transition checks as a routine mark and persist (the Postgres enum column
+        // carries no such label). Unknown strings still 400 at decode.
+        if (newStatus == SessionStatus.UNKNOWN) throw BadRequestResponse("Unknown session status")
 
         val updated = SessionService.updateStatus(callerId, sessionId, newStatus, request.version, request.reason)
 

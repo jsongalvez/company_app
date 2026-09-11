@@ -296,9 +296,12 @@ class UserViewModel(
         userId: String,
         status: UserStatus,
     ): Boolean {
-        when (status) {
+        // #876 — the forward-compat sentinel has no mutation: the dispatch is skipped
+        // (false = retain target, per #681), never sent.
+        if (status == UserStatus.UNKNOWN) return false
+        return when (status) {
             UserStatus.INACTIVE -> {
-                return runMutation(
+                runMutation(
                     MutationRequest(
                         key = "deactivate:$userId",
                         operation = "deactivateUser",
@@ -311,7 +314,7 @@ class UserViewModel(
             }
 
             UserStatus.ACTIVE -> {
-                return runMutation(
+                runMutation(
                     MutationRequest(
                         key = "reactivate:$userId",
                         operation = "reactivateUser",
@@ -321,6 +324,11 @@ class UserViewModel(
                         statusMessage = { "Reactivate failed: ${it.value}" },
                     ),
                 )
+            }
+
+            // #876 — unreachable: rejected by the guard above; present to keep the when exhaustive.
+            UserStatus.UNKNOWN -> {
+                false
             }
         }
     }
@@ -457,6 +465,12 @@ private fun UserSummaryResponse.withStatus(status: UserStatus): UserSummaryRespo
 
         UserStatus.ACTIVE -> {
             copy(status = UserStatus.ACTIVE, deactivatedAt = null)
+        }
+
+        // #876 — forward-compat sentinel: unreachable via setUserStatus (the dispatch
+        // skips UNKNOWN), so the row keeps its timestamps and only marks the status.
+        UserStatus.UNKNOWN -> {
+            copy(status = UserStatus.UNKNOWN)
         }
     }
 

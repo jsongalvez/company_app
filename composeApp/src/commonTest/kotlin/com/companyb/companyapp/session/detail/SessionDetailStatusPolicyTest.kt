@@ -165,6 +165,9 @@ class SessionDetailStatusPolicyTest {
         assertEquals("Mark no-show", SessionStatus.NO_SHOW.detailActionLabel())
         assertEquals("Cancel session", SessionStatus.CANCELLED.detailActionLabel())
         assertEquals("Reopen as pending", SessionStatus.PENDING.detailActionLabel())
+        // #876 — the sentinel is never a legal target; the branch only keeps the when
+        // exhaustive and must never render as an offered action.
+        assertEquals("Unknown", SessionStatus.UNKNOWN.detailActionLabel())
     }
 
     @Test

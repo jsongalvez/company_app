@@ -115,6 +115,19 @@ class AppSessionCapabilityMatcherTest {
         assertFalse(emptyList<UserCapabilityResponse>().hasCapabilityAnyContext("MANAGE_USERS"))
     }
 
+    @Test
+    fun anyContext_ignores_unknown_sentinel_rows() {
+        // #876 — a newer server context coerces to UNKNOWN client-side; it must not
+        // open any-context route gates (fail-closed), while known rows still grant.
+        val unknownRows = rows + row("ASSIGN_COMPENSATION", CapabilityContextType.UNKNOWN)
+        assertFalse(unknownRows.hasCapabilityAnyContext("ASSIGN_COMPENSATION"))
+        assertTrue(unknownRows.hasCapabilityAnyContext("MANAGE_USERS"))
+        assertFalse(
+            unknownRows.hasCapabilityAtContextType("ASSIGN_COMPENSATION", CapabilityContextType.BRANCH),
+            "UNKNOWN rows match no known context type",
+        )
+    }
+
     // ─────────────────────────── at-context-type (#158) ───────────────────────────
 
     @Test

@@ -70,8 +70,14 @@ internal fun FlagBadge() {
 internal fun auditOperationLabel(action: AuditAction): String =
     when (action) {
         AuditAction.INSERT -> "Created"
+
         AuditAction.UPDATE -> "Updated"
+
         AuditAction.DELETE -> "Deleted"
+
+        // #876 — forward-compat sentinel: a newer server action degrades the pill text,
+        // never the row.
+        AuditAction.UNKNOWN -> "Unknown"
     }
 
 // #686 — human-readable identifiers: underscores become spaces, camelCase splits, then

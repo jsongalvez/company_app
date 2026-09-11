@@ -395,6 +395,11 @@ object RemittanceService {
                     }
                     sale.branchDayId
                 }
+
+                // #876 — the forward-compat sentinel is never valid input.
+                RemittanceLineType.UNKNOWN -> {
+                    throw ValidationException("Unknown remittance line type")
+                }
             }
         // #483 — the pickers only offer the loaded range, so an out-of-range source is a
         // stale-client or forged write; the branch check stays 404 (indistinguishable),
@@ -551,6 +556,12 @@ object RemittanceService {
                                     ),
                             )?.branchDayId ?: throw NotFoundException("Product sale not found")
                     }
+
+                    // #876 — unreachable: the Postgres enum column carries no UNKNOWN label,
+                    // so row mapping fails before this runs. Fail closed, never silently skip.
+                    RemittanceLineType.UNKNOWN -> {
+                        throw ValidationException("Unknown remittance line type")
+                    }
                 }
             }
         RemittancePolicy.assertLinesCoveredByBreakdowns(breakdownIds, lineSourceDayIds)
@@ -585,6 +596,12 @@ object RemittanceService {
                                         "productSaleId is required for PRODUCT_SALE line type",
                                     ),
                             )?.branchDayId ?: throw NotFoundException("Product sale not found")
+                    }
+
+                    // #876 — unreachable: the Postgres enum column carries no UNKNOWN label,
+                    // so row mapping fails before this runs. Fail closed, never silently skip.
+                    RemittanceLineType.UNKNOWN -> {
+                        throw ValidationException("Unknown remittance line type")
                     }
                 }
             val date =

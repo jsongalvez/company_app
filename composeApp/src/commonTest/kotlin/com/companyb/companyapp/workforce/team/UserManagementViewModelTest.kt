@@ -940,6 +940,28 @@ class UserManagementViewModelTest {
         }
 
     @Test
+    fun setUserStatus_unknown_sentinel_skips_dispatch() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+
+            // #876 — the forward-compat sentinel has no mutation: the dispatch is skipped
+            // (false = retain target, per #681) and nothing is sent.
+            vm.loadUsers()
+            advanceUntilIdle()
+            assertEquals(expected = false, actual = vm.setUserStatus("u1", UserStatus.UNKNOWN))
+            advanceUntilIdle()
+
+            assertEquals(expected = 0, actual = harness.deactivateCount)
+            assertEquals(expected = 1, actual = harness.usersGetCount)
+            val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
+            assertEquals(
+                expected = UserStatus.ACTIVE,
+                actual = state.data.first { it.id == "u1" }.status,
+            )
+        }
+
+    @Test
     fun loadRoles_double_call_while_loading_fires_single_request() =
         runTest(testScheduler) {
             val harness = UserHarness()

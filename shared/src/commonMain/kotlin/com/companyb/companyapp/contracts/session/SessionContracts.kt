@@ -2,11 +2,22 @@ package com.companyb.companyapp.contracts.session
 
 import kotlinx.serialization.Serializable
 
+/**
+ * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * `shared/AGENTS.md`): old clients decode newer server values as UNKNOWN instead of failing
+ * the whole response. Never persisted, never sent.
+ */
 @Serializable
-enum class SessionType { REGULAR, SECOND_SESSION, SUBSEQUENT, PROVINCIAL_FIRST, MEDICAL_MISSION }
+enum class SessionType { REGULAR, SECOND_SESSION, SUBSEQUENT, PROVINCIAL_FIRST, MEDICAL_MISSION, UNKNOWN }
 
+/**
+ * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * `shared/AGENTS.md`): old clients decode newer server values as UNKNOWN and degrade the row
+ * instead of failing the whole response. Never persisted, never sent: the lifecycle helpers
+ * below never observe it from backend data, and the backend rejects it on input.
+ */
 @Serializable
-enum class SessionStatus { PENDING, COMPLETED, NO_SHOW, CANCELLED }
+enum class SessionStatus { PENDING, COMPLETED, NO_SHOW, CANCELLED, UNKNOWN }
 
 /**
  * #425 - the session status correction vocabulary (owner ruling 2026-08-26), shared so the
@@ -27,13 +38,18 @@ enum class SessionStatus { PENDING, COMPLETED, NO_SHOW, CANCELLED }
 fun isRoutineStatusMark(
     from: SessionStatus,
     to: SessionStatus,
-): Boolean = from == SessionStatus.PENDING && to != SessionStatus.PENDING
+): Boolean =
+    from == SessionStatus.PENDING && to != SessionStatus.PENDING &&
+        // #876 — the forward-compat sentinel is never a legal transition endpoint: it is
+        // rejected on input, so no stored status is ever UNKNOWN and no mark may target it.
+        to != SessionStatus.UNKNOWN
 
 fun isStatusCorrection(
     from: SessionStatus,
     to: SessionStatus,
 ): Boolean =
-    from != to && from != SessionStatus.COMPLETED && to != SessionStatus.COMPLETED &&
+    from != SessionStatus.UNKNOWN && to != SessionStatus.UNKNOWN &&
+        from != to && from != SessionStatus.COMPLETED && to != SessionStatus.COMPLETED &&
         !isRoutineStatusMark(from, to)
 
 private val WALK_IN_FORBIDDEN_STATUS_VALUES = setOf(SessionStatus.NO_SHOW, SessionStatus.CANCELLED)
@@ -103,9 +119,9 @@ data class SessionResponse(
     val clientId: String,
     val branchDayId: String,
     val requestedPractitionerId: String?,
-    val sessionType: SessionType,
+    val sessionType: SessionType = SessionType.UNKNOWN,
     val isWalkIn: Boolean,
-    val sessionStatus: SessionStatus,
+    val sessionStatus: SessionStatus = SessionStatus.UNKNOWN,
     val basePrice: String,
     val finalPrice: String,
     val remarks: String?,
@@ -152,6 +168,6 @@ data class SessionPractitionerResponse(
  */
 @Serializable
 data class SessionPreviewResponse(
-    val sessionType: SessionType,
+    val sessionType: SessionType = SessionType.UNKNOWN,
     val basePrice: String,
 )

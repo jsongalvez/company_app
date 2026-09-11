@@ -361,6 +361,8 @@ object BranchInventoryRoutes {
 
             InventoryMovementReason.ADJUSTMENT -> MovementType.Adjustment
 
+            InventoryMovementReason.UNKNOWN -> throw BadRequestResponse("Unknown movement reason")
+
             InventoryMovementReason.RESTOCK,
             InventoryMovementReason.SALE,
             -> throw BadRequestResponse("Invalid movement reason for this endpoint")

@@ -367,20 +367,29 @@ object RemittanceRoutes {
     }
 
     private fun parseRemittanceType(raw: String): RemittanceType =
-        runCatching { RemittanceType.valueOf(raw.uppercase()) }
-            .getOrElse {
-                throw BadRequestResponse(
-                    "Invalid remittance type: must be SESSION or PRODUCT",
-                )
+        runCatching {
+            RemittanceType.valueOf(raw.uppercase()).also {
+                // #876 — the forward-compat sentinel is never valid input; folding the
+                // rejection into the runCatching keeps the exact existing 400 shape.
+                require(it != RemittanceType.UNKNOWN) { "sentinel" }
             }
+        }.getOrElse {
+            throw BadRequestResponse(
+                "Invalid remittance type: must be SESSION or PRODUCT",
+            )
+        }
 
     private fun parseRemittanceMethod(raw: String): RemittanceMethod =
-        runCatching { RemittanceMethod.valueOf(raw.uppercase()) }
-            .getOrElse {
-                throw BadRequestResponse(
-                    "Invalid remittance method: must be BANK_TRANSFER or HANDED_TO_ACCOUNTANT",
-                )
+        runCatching {
+            RemittanceMethod.valueOf(raw.uppercase()).also {
+                // #876 — the forward-compat sentinel is never valid input (same shape).
+                require(it != RemittanceMethod.UNKNOWN) { "sentinel" }
             }
+        }.getOrElse {
+            throw BadRequestResponse(
+                "Invalid remittance method: must be BANK_TRANSFER or HANDED_TO_ACCOUNTANT",
+            )
+        }
 
     private fun parseHeaderDate(
         raw: String,
@@ -407,10 +416,15 @@ object RemittanceRoutes {
                 }
 
                 else -> {
-                    runCatching { RemittanceStatus.valueOf(rawStatus.uppercase()) }
-                        .getOrElse {
-                            throw BadRequestResponse("Invalid status: must be DRAFT, SUBMITTED or ALL")
+                    runCatching {
+                        RemittanceStatus.valueOf(rawStatus.uppercase()).also {
+                            // #876 — the forward-compat sentinel is never a valid filter;
+                            // folding into the runCatching keeps the exact existing 400 shape.
+                            require(it != RemittanceStatus.UNKNOWN) { "sentinel" }
                         }
+                    }.getOrElse {
+                        throw BadRequestResponse("Invalid status: must be DRAFT, SUBMITTED or ALL")
+                    }
                 }
             }
 
@@ -453,6 +467,11 @@ object RemittanceRoutes {
 
             RemittanceLineType.PRODUCT_SALE -> {
                 requireProductSaleLinePayload(sessionId, productSaleId)
+            }
+
+            // #876 — the forward-compat sentinel is never valid input.
+            RemittanceLineType.UNKNOWN -> {
+                throw BadRequestResponse("Unknown remittance line type")
             }
         }
 

@@ -35,6 +35,11 @@ internal fun breakdownFromMovements(movements: List<InventoryMovement>): Invento
             InventoryMovementReason.MISSING -> missing += -movement.quantityChange
 
             InventoryMovementReason.ADJUSTMENT -> adjustment += movement.quantityChange
+
+            // #876 — unreachable: the Postgres enum column carries no UNKNOWN label, so
+            // row mapping fails before this runs. Fail closed so a future value is handled
+            // deliberately, never silently bucketed.
+            InventoryMovementReason.UNKNOWN -> throw IllegalArgumentException("Unknown movement reason")
         }
     }
     return InventoryBreakdown(

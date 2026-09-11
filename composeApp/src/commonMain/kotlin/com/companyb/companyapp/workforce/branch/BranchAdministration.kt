@@ -282,8 +282,14 @@ private data class UserAssignmentPickerState(
 private fun branchTypeLabel(type: BranchType): String =
     when (type) {
         BranchType.CLINIC -> "Clinic"
+
         BranchType.PROVINCIAL_TOUR -> "Provincial tour"
+
         BranchType.MEDICAL_MISSION -> "Medical mission"
+
+        // #876 — forward-compat sentinel: a newer server branch type degrades the label,
+        // never the row.
+        BranchType.UNKNOWN -> "Unknown"
     }
 
 private fun assignmentUserLabel(
@@ -417,7 +423,7 @@ private fun BranchTypePicker(
             expanded = expanded,
             onDismissRequest = { onExpandedChange(false) },
         ) {
-            BranchType.entries.forEach { type ->
+            BranchType.entries.filter { it != BranchType.UNKNOWN }.forEach { type ->
                 DropdownMenuItem(
                     text = { Text(branchTypeLabel(type)) },
                     onClick = {

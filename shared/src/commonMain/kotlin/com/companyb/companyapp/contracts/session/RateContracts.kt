@@ -13,7 +13,7 @@ data class SetRateRequest(
 data class RateResponse(
     val id: String,
     val branchId: String,
-    val sessionType: SessionType,
+    val sessionType: SessionType = SessionType.UNKNOWN,
     val rate: String,
     val effectiveFrom: String,
     val effectiveUntil: String,

@@ -104,9 +104,16 @@ private fun detailPrimary(
 internal fun SessionStatus.detailActionLabel(): String =
     when (this) {
         SessionStatus.COMPLETED -> "Mark completed"
+
         SessionStatus.NO_SHOW -> "Mark no-show"
+
         SessionStatus.CANCELLED -> "Cancel session"
+
         SessionStatus.PENDING -> "Reopen as pending"
+
+        // #876 — forward-compat sentinel: never a legal action target, so this never
+        // renders; the branch exists to keep the when exhaustive (fail-closed).
+        SessionStatus.UNKNOWN -> "Unknown"
     }
 
 /**

@@ -2,15 +2,19 @@ package com.companyb.companyapp.contracts.identity
 
 import kotlinx.serialization.Serializable
 
+/**
+ * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * `shared/AGENTS.md`). Never persisted, never sent.
+ */
 @Serializable
-enum class UserStatus { ACTIVE, INACTIVE }
+enum class UserStatus { ACTIVE, INACTIVE, UNKNOWN }
 
 @Serializable
 data class MeResponse(
     val id: String,
     val username: String,
     val displayName: String,
-    val status: UserStatus,
+    val status: UserStatus = UserStatus.UNKNOWN,
     val createdAt: String,
 )
 
@@ -19,7 +23,7 @@ data class UserSummaryResponse(
     val id: String,
     val username: String,
     val displayName: String,
-    val status: UserStatus,
+    val status: UserStatus = UserStatus.UNKNOWN,
     val deactivatedAt: String? = null,
     val assignments: List<UserAssignmentResponse> = emptyList(),
     val roles: List<String> = emptyList(),

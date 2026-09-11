@@ -101,4 +101,25 @@ class StatusOptionsForTest {
             statusEditAllowed(false, SessionStatus.NO_SHOW, true, DayStatus.PAST, isVoided = true),
         )
     }
+
+    @Test
+    fun `unknown sentinel is never offered as a target`() {
+        val options =
+            statusOptionsFor(
+                false,
+                SessionStatus.PENDING,
+                hasCorrectionAuthority = true,
+                dayStatus = DayStatus.OPEN,
+            )
+        assertFalse("UNKNOWN" in options, "UNKNOWN must never be a transition target, got: $options")
+    }
+
+    @Test
+    fun `unknown current status offers no edit`() {
+        assertEquals(
+            emptyList(),
+            statusOptionsFor(false, SessionStatus.UNKNOWN, true, DayStatus.OPEN),
+        )
+        assertFalse(statusEditAllowed(false, SessionStatus.UNKNOWN, true, DayStatus.OPEN))
+    }
 }

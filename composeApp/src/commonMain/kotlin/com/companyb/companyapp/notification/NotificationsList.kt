@@ -456,7 +456,16 @@ private fun NeedsInviteRow(
 
             expired || invite.status != ReliefInviteStatus.PENDING -> {
                 Text(
-                    text = if (expired) "Expired" else invite.status.name,
+                    text =
+                        if (expired) {
+                            "Expired"
+                        } else if (invite.status == ReliefInviteStatus.UNKNOWN) {
+                            // #876 — forward-compat sentinel: a newer server status
+                            // degrades the label, never the row.
+                            "Unknown"
+                        } else {
+                            invite.status.name
+                        },
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -213,8 +213,13 @@ object AuditLogRoutes {
 
     private fun parseAction(raw: String?): AuditAction? {
         if (raw == null) return null
-        return runCatching { AuditAction.valueOf(raw) }
-            .getOrElse { throw BadRequestResponse("Invalid action: $raw") }
+        return runCatching {
+            AuditAction.valueOf(raw).also {
+                // #876 — the forward-compat sentinel is never a valid filter; folding into
+                // the runCatching keeps the exact existing 400 shape.
+                require(it != AuditAction.UNKNOWN) { "sentinel" }
+            }
+        }.getOrElse { throw BadRequestResponse("Invalid action: $raw") }
     }
 
     /** Date params are inclusive Manila calendar days (`yyyy-MM-dd`). */

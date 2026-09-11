@@ -467,7 +467,11 @@ internal fun PeopleRow(
 internal fun peopleStatusLine(user: UserSummaryResponse): String =
     when (user.status) {
         UserStatus.ACTIVE -> "Active"
+
         UserStatus.INACTIVE -> "Inactive"
+
+        // #876 — forward-compat sentinel: degrades the line, never the row.
+        UserStatus.UNKNOWN -> "Unknown"
     }
 
 /**

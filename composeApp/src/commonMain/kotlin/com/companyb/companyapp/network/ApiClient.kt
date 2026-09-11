@@ -105,6 +105,11 @@ class ApiClient(
                         ignoreUnknownKeys = true
                         isLenient = true
                         encodeDefaults = true
+                        // #876 — forward-compat reads: unknown wire-enum values coerce
+                        // to the response DTOs' UNKNOWN sentinel defaults (degraded row)
+                        // instead of failing the whole response. The backend transport
+                        // stays strict (no flag), so unknown input still 400s there.
+                        coerceInputValues = true
                     },
                 )
             }

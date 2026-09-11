@@ -4,17 +4,34 @@ import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.contracts.session.SessionStatus
 import kotlinx.serialization.Serializable
 
+/**
+ * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * `shared/AGENTS.md`): old clients decode newer server values as UNKNOWN instead of failing
+ * the whole response. Never persisted, never sent.
+ */
 @Serializable
-enum class RemittanceType { SESSION, PRODUCT }
+enum class RemittanceType { SESSION, PRODUCT, UNKNOWN }
 
+/**
+ * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * `shared/AGENTS.md`). Never persisted, never sent.
+ */
 @Serializable
-enum class RemittanceMethod { BANK_TRANSFER, HANDED_TO_ACCOUNTANT }
+enum class RemittanceMethod { BANK_TRANSFER, HANDED_TO_ACCOUNTANT, UNKNOWN }
 
+/**
+ * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * `shared/AGENTS.md`). Never persisted, never sent.
+ */
 @Serializable
-enum class RemittanceStatus { DRAFT, SUBMITTED }
+enum class RemittanceStatus { DRAFT, SUBMITTED, UNKNOWN }
 
+/**
+ * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * `shared/AGENTS.md`). Never persisted, never sent.
+ */
 @Serializable
-enum class RemittanceLineType { SESSION, PRODUCT_SALE }
+enum class RemittanceLineType { SESSION, PRODUCT_SALE, UNKNOWN }
 
 @Serializable
 data class CreateRemittanceDraftRequest(
@@ -29,10 +46,10 @@ data class CreateRemittanceDraftRequest(
 @Serializable
 data class RemittanceResponse(
     val id: String,
-    val type: RemittanceType,
-    val status: RemittanceStatus,
+    val type: RemittanceType = RemittanceType.UNKNOWN,
+    val status: RemittanceStatus = RemittanceStatus.UNKNOWN,
     val branchId: String,
-    val method: RemittanceMethod,
+    val method: RemittanceMethod = RemittanceMethod.UNKNOWN,
     val submittedDate: String,
     val submittedAt: String? = null,
     val submittedBy: String,
@@ -56,7 +73,7 @@ data class CreateRemittanceLineRequest(
 data class RemittanceLineResponse(
     val id: String,
     val remittanceId: String,
-    val type: RemittanceLineType,
+    val type: RemittanceLineType = RemittanceLineType.UNKNOWN,
     val sessionId: String?,
     val productSaleId: String?,
     val createdBy: String,
@@ -102,10 +119,10 @@ data class UpdateRemittanceHeaderRequest(
 @Serializable
 data class RemittanceSubmitResponse(
     val id: String,
-    val type: RemittanceType,
-    val status: RemittanceStatus,
+    val type: RemittanceType = RemittanceType.UNKNOWN,
+    val status: RemittanceStatus = RemittanceStatus.UNKNOWN,
     val branchId: String,
-    val method: RemittanceMethod,
+    val method: RemittanceMethod = RemittanceMethod.UNKNOWN,
     val submittedDate: String,
     val submittedAt: String? = null,
     val submittedBy: String,
@@ -122,10 +139,10 @@ data class RemittanceSubmitResponse(
 @Serializable
 data class RemittanceDetailResponse(
     val id: String,
-    val type: RemittanceType,
-    val status: RemittanceStatus,
+    val type: RemittanceType = RemittanceType.UNKNOWN,
+    val status: RemittanceStatus = RemittanceStatus.UNKNOWN,
     val branchId: String,
-    val method: RemittanceMethod,
+    val method: RemittanceMethod = RemittanceMethod.UNKNOWN,
     val submittedDate: String,
     val submittedAt: String? = null,
     val submittedBy: String,
@@ -162,7 +179,7 @@ data class RemittanceSessionPickerEntryResponse(
     val id: String,
     val clientName: String?,
     val bookedAt: String?,
-    val sessionStatus: SessionStatus,
+    val sessionStatus: SessionStatus = SessionStatus.UNKNOWN,
     val finalPrice: String,
 )
 
@@ -179,5 +196,5 @@ data class RemittanceProductSalePickerEntryResponse(
 data class RemittanceDayPickerEntryResponse(
     val id: String,
     val date: String,
-    val status: DayStatus,
+    val status: DayStatus = DayStatus.UNKNOWN,
 )

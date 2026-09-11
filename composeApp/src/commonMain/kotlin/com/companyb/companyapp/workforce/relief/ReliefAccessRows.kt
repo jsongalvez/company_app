@@ -89,6 +89,12 @@ internal fun OutgoingRequestRow(row: ReliefAccessResponse) {
         ReliefAccessStatus.CANCELLED -> {
             RequestLine("Cancelled. You can ask again.", InkSubtle)
         }
+
+        // #876 — forward-compat sentinel: a newer server outcome degrades the line with
+        // no actions, never the row.
+        ReliefAccessStatus.UNKNOWN -> {
+            RequestLine("Unknown status. Refresh or update the app.", InkSubtle)
+        }
     }
 }
 

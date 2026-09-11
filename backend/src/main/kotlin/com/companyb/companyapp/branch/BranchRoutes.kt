@@ -7,6 +7,7 @@ import com.companyb.companyapp.authorization.BranchReadScope
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.branch.BranchResponse
+import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.branch.CreateBranchRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
@@ -129,6 +130,9 @@ object BranchRoutes {
             val branchId = uuidOrThrow(request.id, "branch id")
             val name = request.name.trim()
             if (name.isBlank()) throw BadRequestResponse("Branch name is required")
+            // #876 — the forward-compat sentinel is never valid input (the Postgres enum
+            // column carries no such label). Unknown strings still 400 at decode.
+            if (request.branchType == BranchType.UNKNOWN) throw BadRequestResponse("Unknown branch type")
             val result =
                 BranchService.create(
                     callerId = callerId,

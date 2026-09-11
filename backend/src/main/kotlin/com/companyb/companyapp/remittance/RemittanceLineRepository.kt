@@ -269,6 +269,12 @@ internal object RemittanceLineRepository {
                         ?: throw ValidationException("productSaleId is required for PRODUCT_SALE line type")
                 RemittanceLineTable.productSaleId eq productSaleId
             }
+
+            // #876 — the forward-compat sentinel is never valid input; the strict transport
+            // rejects unknown strings before this runs, and this rejects a literal UNKNOWN.
+            RemittanceLineType.UNKNOWN -> {
+                throw ValidationException("Unknown remittance line type")
+            }
         }
 
     private fun duplicateMessage(type: RemittanceLineType): String =
@@ -276,8 +282,18 @@ internal object RemittanceLineRepository {
 
     private fun entityLabel(type: RemittanceLineType): String =
         when (type) {
-            RemittanceLineType.SESSION -> "Session"
-            RemittanceLineType.PRODUCT_SALE -> "Product sale"
+            RemittanceLineType.SESSION -> {
+                "Session"
+            }
+
+            RemittanceLineType.PRODUCT_SALE -> {
+                "Product sale"
+            }
+
+            // #876 — the forward-compat sentinel is never valid input.
+            RemittanceLineType.UNKNOWN -> {
+                throw ValidationException("Unknown remittance line type")
+            }
         }
 
     private fun ResultRow.toRemittanceLine(): RemittanceLine =
