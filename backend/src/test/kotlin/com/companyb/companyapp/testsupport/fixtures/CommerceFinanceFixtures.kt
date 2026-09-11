@@ -89,12 +89,14 @@ object CommerceFinanceFixtures {
         userId: UUID,
         amount: BigDecimal,
         assignedBy: UUID,
+        workBranchDayId: UUID = branchDayId,
+        payingBranchDayId: UUID = branchDayId,
     ) {
         transaction {
             CompensationTable.insert {
                 it[CompensationTable.id] = TestFixtures.uuid()
-                it[CompensationTable.workBranchDayId] = branchDayId
-                it[CompensationTable.payingBranchDayId] = branchDayId
+                it[CompensationTable.workBranchDayId] = workBranchDayId
+                it[CompensationTable.payingBranchDayId] = payingBranchDayId
                 it[CompensationTable.userId] = userId
                 it[CompensationTable.amount] = amount
                 it[CompensationTable.assignedBy] = assignedBy

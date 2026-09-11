@@ -164,6 +164,30 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `attributes split relief compensation to paying day not work day`() {
+        grantViewBranchData(callerId)
+        val payingDayId = TestFixtures.uuid()
+        val payingDate = today.plusDays(1)
+        insertBranchDay(payingDayId, branchId, payingDate)
+        val userId = TestFixtures.uuid()
+        IdentityFixtures.insertTestUser(userId, "summary-user")
+        CommerceFinanceFixtures.insertTestCompensation(
+            branchDayId,
+            userId,
+            BigDecimal("500.00"),
+            assignedBy = callerId,
+            workBranchDayId = branchDayId,
+            payingBranchDayId = payingDayId,
+        )
+
+        val workSummary = DailySalesSummaryService.getDailySummary(branchId, today)
+        val payingSummary = DailySalesSummaryService.getDailySummary(branchId, payingDate)
+
+        assertEquals(0, BigDecimal.ZERO.compareTo(workSummary.totalCompensation))
+        assertEquals(0, BigDecimal("500.00").compareTo(payingSummary.totalCompensation))
+    }
+
+    @Test
     fun `returns correct total expenses excluding deleted`() {
         grantViewBranchData(callerId)
         val userId = TestFixtures.uuid()
