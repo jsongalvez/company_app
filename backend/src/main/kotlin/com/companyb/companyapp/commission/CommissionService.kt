@@ -153,7 +153,12 @@ object CommissionService {
             CommissionAudit.updated(context, mutation.existing, mutation.inclusion)
         }
 
-        recalculateInTransaction(sale.branchDayId)
+        // #892 (#687 precedent) — PAST/REMITTED inclusions force the recalc: the day gate above
+        // already required EDIT_PAST_DAY (+reason on REMITTED), so the caller holds the same
+        // authority the manual-recalculate route requires; joining the splits in this
+        // transaction keeps persisted commission_split equal to liveCommissions
+        // instead of stale-until-manual. OPEN-day behavior is unchanged (force is a no-op there).
+        recalculateInTransaction(sale.branchDayId, force = true)
 
         logger.info {
             "[COMMISSION-INCLUSION] Created inclusion ${mutation.inclusion.id} for productSale=$productSaleId " +

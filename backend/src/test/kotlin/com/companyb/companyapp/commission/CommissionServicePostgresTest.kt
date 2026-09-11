@@ -223,6 +223,36 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `create on lazily-PAST day persists splits without manual recalculate`() {
+        val pastDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, TestFixtures.today.minusDays(1))
+        val pastSaleId = TestFixtures.uuid()
+        CommerceFinanceFixtures.insertTestProductSale(
+            id = pastSaleId,
+            branchDayId = pastDayId,
+            productId = productId,
+            handledBy = callerId,
+        )
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+
+        CommissionService.createManualInclusion(
+            callerId = callerId,
+            id = TestFixtures.uuid(),
+            productSaleId = pastSaleId,
+            userId = targetUserId,
+            isIncluded = true,
+            reason = null,
+        )
+
+        val splits = CommissionService.getByBranchDayId(pastDayId)
+        assertTrue(splits.isNotEmpty(), "PAST-day inclusion must persist splits, not wait for manual recalc")
+        val targetSplit = splits.find { it.userId == targetUserId }
+        assertNotNull(targetSplit)
+        assertTrue(targetSplit.amount > BigDecimal.ZERO)
+        val live = CommissionService.liveCommissions(pastDayId)
+        assertEquals(live[targetUserId]?.amount, targetSplit.amount)
+    }
+
+    @Test
     fun `create triggers commission recalculation and creates split`() {
         val inclusionId = TestFixtures.uuid()
 
