@@ -4,6 +4,7 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.commerce.CommerceReads
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.commission.CommissionInclusionResponse
 import com.companyb.companyapp.contracts.commission.CommissionSplitResponse
@@ -12,7 +13,9 @@ import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
+import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
+import io.javalin.http.NotFoundResponse
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
@@ -59,8 +62,15 @@ import java.util.UUID
 object CommissionRoutes {
     fun register(config: JavalinConfig) {
         config.routes.before(ApiRoutes.COMMISSION_INCLUSIONS) { context ->
-            CapabilityFilter.requireGlobalCapability(
+            if (context.method() != HandlerType.POST) return@before
+            val request = context.bodyAsClass<CreateCommissionInclusionRequest>()
+            val productSaleId = uuidOrThrow(request.productSaleId, "product sale id")
+            val sale =
+                CommerceReads.findSaleById(productSaleId)
+                    ?: throw NotFoundResponse("Product sale not found")
+            CapabilityFilter.requireBranchCapability(
                 context,
+                sale.branchDayId,
                 CapabilityCodes.ASSIGN_COMPENSATION,
             )
         }
