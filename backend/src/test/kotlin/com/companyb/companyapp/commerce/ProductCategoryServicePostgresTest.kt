@@ -2,6 +2,7 @@ package com.companyb.companyapp.commerce
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.commerce.ProductCategory
 import com.companyb.companyapp.commerce.ProductCategoryTable
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -14,6 +15,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -56,6 +58,20 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
 
         assertEquals(cat1Name, duplicate.name)
         assertEquals(1L, auditEntryCount(cat1Id))
+    }
+
+    @Test
+    fun `duplicate category name with fresh id is rejected`() {
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
+
+        ProductCategoryService.create(callerId, cat1Id, cat1Name)
+
+        val failure =
+            assertFailsWith<ConflictException> {
+                ProductCategoryService.create(callerId, TestFixtures.uuid(), cat1Name)
+            }
+
+        assertEquals("A product category with this name already exists", failure.message)
     }
 
     @Test

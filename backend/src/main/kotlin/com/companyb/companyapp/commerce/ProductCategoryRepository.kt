@@ -1,5 +1,6 @@
 package com.companyb.companyapp.commerce
 
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.logging.maskUUID
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -25,7 +26,17 @@ internal object ProductCategoryRepository {
                 }.insertedCount
         val category =
             findByIdInTransaction(id)
-                ?: error("product_category row not found after idempotent insert for $id")
+                ?: run {
+                    val duplicate =
+                        ProductCategoryTable
+                            .selectAll()
+                            .where { ProductCategoryTable.name eq name }
+                            .singleOrNull()
+                    if (duplicate != null) {
+                        throw ConflictException("A product category with this name already exists")
+                    }
+                    error("product_category row not found after idempotent insert for $id")
+                }
         return category to (insertedCount > 0)
     }
 
