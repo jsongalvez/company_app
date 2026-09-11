@@ -401,8 +401,15 @@ object SessionService {
                 SessionRepository.findByIdInTransaction(sessionId)
                     ?: throw NotFoundException("Session not found")
             // Client-first lock order serializes a PENDING void with create and anonymize guards.
-            ClientReads.acquireLockInTransaction(initial.clientId)
-                ?: throw NotFoundException("Client not found")
+            // #911 — sticky anonymization (the #910 practitioner/concern precedent): void writes
+            // operator free text (#909 scrub class), so an anonymized client's sessions 409
+            // instead of reintroducing it.
+            val client =
+                ClientReads.acquireLockInTransaction(initial.clientId)
+                    ?: throw NotFoundException("Client not found")
+            if (client.deletedAt != null) {
+                throw ConflictException("Cannot void a session for an anonymized client")
+            }
             val session =
                 SessionRepository.acquireLockInTransaction(sessionId)
                     ?: throw NotFoundException("Session not found")
@@ -461,8 +468,14 @@ object SessionService {
                 SessionRepository.findByIdInTransaction(sessionId)
                     ?: throw NotFoundException("Session not found")
             // Client-first lock order matches create, anonymize, status, and void commands.
-            ClientReads.acquireLockInTransaction(initial.clientId)
-                ?: throw NotFoundException("Client not found")
+            // #911 — sticky anonymization (the #910 precedent): unvoid writes operator free
+            // text (#909 scrub class), so an anonymized client's sessions 409.
+            val client =
+                ClientReads.acquireLockInTransaction(initial.clientId)
+                    ?: throw NotFoundException("Client not found")
+            if (client.deletedAt != null) {
+                throw ConflictException("Cannot unvoid a session for an anonymized client")
+            }
             val session =
                 SessionRepository.acquireLockInTransaction(sessionId)
                     ?: throw NotFoundException("Session not found")

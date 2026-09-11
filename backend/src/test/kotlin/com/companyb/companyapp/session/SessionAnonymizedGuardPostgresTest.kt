@@ -158,6 +158,29 @@ class SessionAnonymizedGuardPostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `voidSession on anonymized client session is rejected`() {
+        createClient()
+        createCompletedSession()
+        ClientService.anonymize(callerId, clientId)
+
+        assertFailsWith<ConflictException> {
+            SessionService.voidSession(callerId, sessionId, TestFixtures.uuid(), "late void")
+        }
+    }
+
+    @Test
+    fun `unvoidSession on anonymized client session is rejected`() {
+        createClient()
+        createCompletedSession()
+        SessionService.voidSession(callerId, sessionId, TestFixtures.uuid(), "pre-anonymize void")
+        ClientService.anonymize(callerId, clientId)
+
+        assertFailsWith<ConflictException> {
+            SessionService.unvoidSession(callerId, sessionId, "late unvoid")
+        }
+    }
+
+    @Test
     fun `reads still serve anonymized client sessions`() {
         createClient()
         createSessionWithPractitioner()
