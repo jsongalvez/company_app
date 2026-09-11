@@ -46,6 +46,25 @@ run_case regressed 1 \
     'Benchmark                      Mode  Cnt  Score   Error  Units' \
     'SessionTypeBenchmark.computeMedicalMission  thrpt  5  70  1  ops/s' \
     'SessionTypeBenchmark.computeProvincialFirst  thrpt  5  100  1  ops/s'
+run_case new-benchmark 0 \
+    'Benchmark                      Mode  Cnt  Score   Error  Units' \
+    'SessionTypeBenchmark.computeMedicalMission  thrpt  5  100  1  ops/s' \
+    'SessionTypeBenchmark.computeProvincialFirst  thrpt  5  100  1  ops/s' \
+    'SessionTypeBenchmark.computeNewBenchmark  thrpt  5  100  1  ops/s'
+
+cat > "$WORK_DIR/unparseable-baseline.md" <<'EOF'
+| Benchmark | Score (ops/s) | Range |
+|---|---|---|
+| `SessionTypeBenchmark.computeMedicalMission` | **100** | 90 – 110 |
+| `SessionTypeBenchmark.computeProvincialFirst` | **100** | 90 – 110 |
+EOF
+
+unparseable_status=0
+BASELINE="$WORK_DIR/unparseable-baseline.md" bash "$CHECKER" "$WORK_DIR/complete.log" >/dev/null 2>&1 || unparseable_status=$?
+if [ "$unparseable_status" -ne 2 ]; then
+    printf 'case unparseable-baseline: expected status 2, got %s\n' "$unparseable_status" >&2
+    exit 1
+fi
 
 missing_log_status=0
 BASELINE="$WORK_DIR/baseline.md" bash "$CHECKER" "$WORK_DIR/does-not-exist.log" >/dev/null 2>&1 || missing_log_status=$?

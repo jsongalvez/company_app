@@ -72,10 +72,15 @@ parse_baseline() {
 }
 
 # Build baseline lookup
-declare -A BASELINES
+declare -A BASELINES=()
 while IFS=' ' read -r name score; do
     BASELINES["$name"]="$score"
 done < <(parse_baseline)
+
+if [ "${#BASELINES[@]}" -eq 0 ]; then
+    log baselines "ERROR: no parseable baseline benchmarks in $BASELINE"
+    exit 2
+fi
 
 if ! parse_jmh; then
     exit 2
