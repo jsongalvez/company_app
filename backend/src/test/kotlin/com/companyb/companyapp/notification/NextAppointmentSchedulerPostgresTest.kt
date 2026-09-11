@@ -9,7 +9,6 @@ import com.companyb.companyapp.notification.NotificationCreateParams
 import com.companyb.companyapp.notification.NotificationRepository
 import com.companyb.companyapp.notification.NotificationTable
 import com.companyb.companyapp.session.SessionBaseRateRepository
-import com.companyb.companyapp.session.SessionBaseRateService
 import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
@@ -74,9 +73,19 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         IdentityFixtures.grantEditBranchData(callerId, sourceId)
         allTestUsers.forEach { userId ->
         }
-        insertSessionBaseRate()
-        insertSessionBaseRate(secondSessionRateId, SessionType.SECOND_SESSION)
-        insertSessionBaseRate(subsequentRateId, SessionType.SUBSEQUENT)
+        SessionClientFixtures.insertTestBaseRate(rateId, branchId, callerId)
+        SessionClientFixtures.insertTestBaseRate(
+            secondSessionRateId,
+            branchId,
+            callerId,
+            SessionType.SECOND_SESSION,
+        )
+        SessionClientFixtures.insertTestBaseRate(
+            subsequentRateId,
+            branchId,
+            callerId,
+            SessionType.SUBSEQUENT,
+        )
     }
 
     @Test
@@ -365,13 +374,6 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
             contextId = branchId,
             sourceId = sourceId,
         )
-    }
-
-    private fun insertSessionBaseRate(
-        id: UUID = rateId,
-        sessionType: SessionType = SessionType.REGULAR,
-    ) {
-        SessionBaseRateService.setRate(callerId, id, branchId, sessionType, BigDecimal("2500.00"))
     }
 
     private fun insertUserBranchAssignment(

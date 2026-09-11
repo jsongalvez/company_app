@@ -5,6 +5,7 @@ import com.companyb.companyapp.contracts.client.Gender
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.notification.NotificationTable
+import com.companyb.companyapp.session.SessionBaseRateService
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.eq
@@ -17,10 +18,29 @@ import java.util.UUID
 /**
  * Session and client fixtures for map #533 (#552).
  *
- * Owns session, client and notification rows only.
+ * Owns session, client, notification and base-rate rows only.
  */
 object SessionClientFixtures {
     private const val TEST_CLIENT_AGE = 30
+    private const val DEFAULT_TEST_BASE_RATE = "2500.00"
+
+    /**
+     * Seeds one session base rate through the production command (#901).
+     *
+     * Delegates to [SessionBaseRateService.setRate] so fixtures inherit the branch
+     * lock, previous-rate rotation, overlap-conflict translation, MEDICAL_MISSION
+     * ₱0 normalization, audit writes, and the FAR_FUTURE window — direct
+     * base-rate table inserts bypass all six.
+     */
+    fun insertTestBaseRate(
+        id: UUID,
+        branchId: UUID,
+        setBy: UUID,
+        sessionType: SessionType = SessionType.REGULAR,
+        rate: BigDecimal = BigDecimal(DEFAULT_TEST_BASE_RATE),
+    ) {
+        SessionBaseRateService.setRate(setBy, id, branchId, sessionType, rate)
+    }
 
     /**
      * Inserts a PENDING REGULAR session row directly against [branchDayId] (bypasses

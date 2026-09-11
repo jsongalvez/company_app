@@ -51,11 +51,49 @@ class TestSupportOwnershipTest {
         assertTrue("SessionTable" in sessionClient, "session/client fixtures must own session rows")
         assertTrue("ClientTable" in sessionClient, "session/client fixtures must own client rows")
         assertTrue("NotificationTable" in sessionClient, "session/client fixtures must own notification rows")
+        assertTrue("insertTestBaseRate" in sessionClient, "session/client fixtures must own base-rate seeding (#901)")
+        assertTrue(
+            "SessionBaseRateService" in sessionClient,
+            "base-rate seeding must go through the production command (#901)",
+        )
 
         val commerceFinance = testSource("testsupport/fixtures/CommerceFinanceFixtures.kt")
         assertTrue("ProductTable" in commerceFinance, "commerce/finance fixtures must own product rows")
         assertTrue("ExpenseTable" in commerceFinance, "commerce/finance fixtures must own expense rows")
         assertTrue("CompensationTable" in commerceFinance, "commerce/finance fixtures must own compensation rows")
+    }
+
+    /**
+     * Base-rate seeding path parity (#901): all six consumers seed through the shared
+     * service-path helper — no private direct-insert copies, no direct table or
+     * service touches in test bodies.
+     */
+    @Test
+    fun `base-rate seeding converges on the shared service-path helper`() {
+        val consumers =
+            listOf(
+                "audit/AuditFieldCoveragePostgresTest.kt",
+                "session/ConcernServicePostgresTest.kt",
+                "session/SessionReadsPostgresTest.kt",
+                "session/SessionServicePostgresTest.kt",
+                "notification/NextAppointmentSchedulerPostgresTest.kt",
+                "remittance/RemittanceLineServicePostgresTest.kt",
+            )
+        for (path in consumers) {
+            val source = testSource(path)
+            assertTrue(
+                "SessionClientFixtures.insertTestBaseRate" in source,
+                "$path must seed rates via the shared helper",
+            )
+            assertTrue("SessionBaseRateTable" !in source, "$path must not touch the rate table directly")
+            assertTrue("SessionBaseRateService" !in source, "$path must not call the rate service directly")
+            assertTrue(
+                "private fun insertSessionBaseRate" !in source,
+                "$path must not keep a private rate copy",
+            )
+        }
+        val reads = testSource("session/SessionReadsPostgresTest.kt")
+        assertTrue("private fun insertRate" !in reads, "SessionReads must not keep a private rate copy")
     }
 
     @Test

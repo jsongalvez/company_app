@@ -16,7 +16,6 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.integration.LockBarrier
-import com.companyb.companyapp.session.SessionBaseRateTable
 import com.companyb.companyapp.session.SessionPractitionerRepository
 import com.companyb.companyapp.session.SessionPractitionerService
 import com.companyb.companyapp.session.SessionPractitionerTable
@@ -37,7 +36,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -81,9 +79,19 @@ class SessionServicePostgresTest : BasePostgresTest() {
         IdentityFixtures.grantEditBranchData(callerId, sourceId)
         IdentityFixtures.grantVoidSession(callerId, sourceId)
 
-        insertSessionBaseRate()
-        insertSessionBaseRate(id = secondSessionRateId, sessionType = SessionType.SECOND_SESSION)
-        insertSessionBaseRate(id = subsequentRateId, sessionType = SessionType.SUBSEQUENT)
+        SessionClientFixtures.insertTestBaseRate(rateId, branchId, callerId)
+        SessionClientFixtures.insertTestBaseRate(
+            secondSessionRateId,
+            branchId,
+            callerId,
+            SessionType.SECOND_SESSION,
+        )
+        SessionClientFixtures.insertTestBaseRate(
+            subsequentRateId,
+            branchId,
+            callerId,
+            SessionType.SUBSEQUENT,
+        )
 
         insertAssignment(practitionerId)
     }
@@ -426,7 +434,12 @@ class SessionServicePostgresTest : BasePostgresTest() {
         SessionClientFixtures.insertTestClient(mmClientId)
         val mmSessionId = TestFixtures.uuid()
         val mmRateId = TestFixtures.uuid()
-        insertSessionBaseRate(mmRateId, mmBranchId, SessionType.MEDICAL_MISSION)
+        SessionClientFixtures.insertTestBaseRate(
+            mmRateId,
+            mmBranchId,
+            callerId,
+            SessionType.MEDICAL_MISSION,
+        )
 
         val result =
             SessionService.create(
@@ -450,7 +463,12 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val mmBranchId = TestFixtures.uuid()
         BranchWorkforceFixtures.insertTestBranch(mmBranchId, branchType = BranchType.MEDICAL_MISSION)
         val mmRateId = TestFixtures.uuid()
-        insertSessionBaseRate(mmRateId, mmBranchId, SessionType.MEDICAL_MISSION)
+        SessionClientFixtures.insertTestBaseRate(
+            mmRateId,
+            mmBranchId,
+            callerId,
+            SessionType.MEDICAL_MISSION,
+        )
         val mmSessionId = TestFixtures.uuid()
 
         val mmResult =
@@ -489,7 +507,12 @@ class SessionServicePostgresTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(mmBranchId, branchType = BranchType.MEDICAL_MISSION)
         SessionClientFixtures.insertTestClient(mmClientId)
         val mmRateId = TestFixtures.uuid()
-        insertSessionBaseRate(mmRateId, mmBranchId, SessionType.MEDICAL_MISSION)
+        SessionClientFixtures.insertTestBaseRate(
+            mmRateId,
+            mmBranchId,
+            callerId,
+            SessionType.MEDICAL_MISSION,
+        )
         val mmSessionId = TestFixtures.uuid()
 
         // #405 — the caller sends a full clinic price; the invariant (BR §Session types)
@@ -514,7 +537,12 @@ class SessionServicePostgresTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(mmBranchId, branchType = BranchType.MEDICAL_MISSION)
         SessionClientFixtures.insertTestClient(mmClientId)
         val mmRateId = TestFixtures.uuid()
-        insertSessionBaseRate(mmRateId, mmBranchId, SessionType.MEDICAL_MISSION)
+        SessionClientFixtures.insertTestBaseRate(
+            mmRateId,
+            mmBranchId,
+            callerId,
+            SessionType.MEDICAL_MISSION,
+        )
         val mmSessionId = TestFixtures.uuid()
 
         createSession(callerId, mmSessionId, clientId = mmClientId, branchId = mmBranchId, finalPrice = BigDecimal.ZERO)
@@ -1342,24 +1370,6 @@ class SessionServicePostgresTest : BasePostgresTest() {
                     assignedBy = callerId,
                 ),
             )
-        }
-    }
-
-    private fun insertSessionBaseRate(
-        id: UUID = rateId,
-        branchId: UUID = this.branchId,
-        sessionType: SessionType = SessionType.REGULAR,
-    ) {
-        transaction {
-            SessionBaseRateTable.insert {
-                it[SessionBaseRateTable.id] = id
-                it[SessionBaseRateTable.setBy] = callerId
-                it[SessionBaseRateTable.branchId] = branchId
-                it[SessionBaseRateTable.sessionType] = sessionType
-                it[SessionBaseRateTable.rate] = BigDecimal("2500.00")
-                it[SessionBaseRateTable.effectiveFrom] = TestFixtures.now.minusDays(1)
-                it[SessionBaseRateTable.effectiveUntil] = TestFixtures.now.plusDays(365)
-            }
         }
     }
 

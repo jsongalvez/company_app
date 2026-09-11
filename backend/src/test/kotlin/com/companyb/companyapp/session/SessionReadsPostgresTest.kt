@@ -4,7 +4,6 @@ import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.session.SessionBaseRateTable
 import com.companyb.companyapp.session.SessionPractitionerRepository
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.session.SessionVoidTable
@@ -39,8 +38,20 @@ class SessionReadsPostgresTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(callerId, "session-reads-caller")
         BranchWorkforceFixtures.insertTestBranch(branchId)
 
-        insertRate(regularRateId, SessionType.REGULAR, "2500.00")
-        insertRate(secondSessionRateId, SessionType.SECOND_SESSION, "2000.00")
+        SessionClientFixtures.insertTestBaseRate(
+            regularRateId,
+            branchId,
+            callerId,
+            SessionType.REGULAR,
+            BigDecimal("2500.00"),
+        )
+        SessionClientFixtures.insertTestBaseRate(
+            secondSessionRateId,
+            branchId,
+            callerId,
+            SessionType.SECOND_SESSION,
+            BigDecimal("2000.00"),
+        )
 
         // Today's day row — the practitioners read gates on its readability.
         BranchDayService.resolveOrCreate(branchId, TestFixtures.today)
@@ -109,7 +120,13 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     @Test
     fun `free last session defaults preview price to SUBSEQUENT base rate`() {
         val subsequentRateId = TestFixtures.uuid()
-        insertRate(subsequentRateId, SessionType.SUBSEQUENT, "1500.00")
+        SessionClientFixtures.insertTestBaseRate(
+            subsequentRateId,
+            branchId,
+            callerId,
+            SessionType.SUBSEQUENT,
+            BigDecimal("1500.00"),
+        )
         val clientId = SessionClientFixtures.insertTestClient()
         insertPriorSession(
             TestFixtures.uuid(),
@@ -129,7 +146,13 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     @Test
     fun `mission session as most recent visit never triggers the SUBSEQUENT default`() {
         val subsequentRateId = TestFixtures.uuid()
-        insertRate(subsequentRateId, SessionType.SUBSEQUENT, "1500.00")
+        SessionClientFixtures.insertTestBaseRate(
+            subsequentRateId,
+            branchId,
+            callerId,
+            SessionType.SUBSEQUENT,
+            BigDecimal("1500.00"),
+        )
         val clientId = SessionClientFixtures.insertTestClient()
         insertPriorSession(
             TestFixtures.uuid(),
@@ -154,7 +177,13 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     @Test
     fun `voided free session does not trigger the SUBSEQUENT default`() {
         val subsequentRateId = TestFixtures.uuid()
-        insertRate(subsequentRateId, SessionType.SUBSEQUENT, "1500.00")
+        SessionClientFixtures.insertTestBaseRate(
+            subsequentRateId,
+            branchId,
+            callerId,
+            SessionType.SUBSEQUENT,
+            BigDecimal("1500.00"),
+        )
         val clientId = SessionClientFixtures.insertTestClient()
         insertPriorSession(
             TestFixtures.uuid(),
@@ -188,7 +217,13 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     @Test
     fun `create after free session persists SUBSEQUENT base price while override wins`() {
         val subsequentRateId = TestFixtures.uuid()
-        insertRate(subsequentRateId, SessionType.SUBSEQUENT, "1500.00")
+        SessionClientFixtures.insertTestBaseRate(
+            subsequentRateId,
+            branchId,
+            callerId,
+            SessionType.SUBSEQUENT,
+            BigDecimal("1500.00"),
+        )
         val clientId = SessionClientFixtures.insertTestClient()
         insertPriorSession(
             TestFixtures.uuid(),
@@ -257,24 +292,6 @@ class SessionReadsPostgresTest : BasePostgresTest() {
     @Test
     fun `practitioners read 404s for a missing session`() {
         assertFailsWith<NotFoundException> { SessionPractitionerService.getForSession(callerId, TestFixtures.uuid()) }
-    }
-
-    private fun insertRate(
-        id: UUID,
-        sessionType: SessionType,
-        rate: String,
-    ) {
-        transaction {
-            SessionBaseRateTable.insert {
-                it[SessionBaseRateTable.id] = id
-                it[SessionBaseRateTable.setBy] = callerId
-                it[SessionBaseRateTable.branchId] = this@SessionReadsPostgresTest.branchId
-                it[SessionBaseRateTable.sessionType] = sessionType
-                it[SessionBaseRateTable.rate] = BigDecimal(rate)
-                it[SessionBaseRateTable.effectiveFrom] = TestFixtures.now.minusDays(1)
-                it[SessionBaseRateTable.effectiveUntil] = TestFixtures.now.plusDays(365)
-            }
-        }
     }
 
     /**

@@ -24,7 +24,6 @@ import com.companyb.companyapp.remittance.RemittanceDayBreakdownTable
 import com.companyb.companyapp.remittance.RemittanceLineTable
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.remittance.RemittanceTable
-import com.companyb.companyapp.session.SessionBaseRateService
 import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.test.TestFixtures
@@ -87,9 +86,19 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
 
         SessionClientFixtures.insertTestClient(clientId)
 
-        insertSessionBaseRate()
-        insertSessionBaseRate(secondSessionRateId, SessionType.SECOND_SESSION)
-        insertSessionBaseRate(subsequentRateId, SessionType.SUBSEQUENT)
+        SessionClientFixtures.insertTestBaseRate(rateId, branchId, callerId)
+        SessionClientFixtures.insertTestBaseRate(
+            secondSessionRateId,
+            branchId,
+            callerId,
+            SessionType.SECOND_SESSION,
+        )
+        SessionClientFixtures.insertTestBaseRate(
+            subsequentRateId,
+            branchId,
+            callerId,
+            SessionType.SUBSEQUENT,
+        )
 
         ensureBranchDay()
     }
@@ -1387,19 +1396,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 it[BranchInventoryTable.version] = card.version + 1
             }
         }
-    }
-
-    private fun insertSessionBaseRate(
-        id: UUID = rateId,
-        sessionType: SessionType = SessionType.REGULAR,
-    ) {
-        SessionBaseRateService.setRate(
-            callerId = callerId,
-            id = id,
-            branchId = branchId,
-            sessionType = sessionType,
-            rate = BigDecimal("2500.00"),
-        )
     }
 
     private fun insertProductCategory() {

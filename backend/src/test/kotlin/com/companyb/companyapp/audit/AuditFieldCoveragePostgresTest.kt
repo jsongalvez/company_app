@@ -9,10 +9,8 @@ import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.client.ClientPatchField
 import com.companyb.companyapp.contracts.client.Gender
 import com.companyb.companyapp.contracts.finance.ExpenseCategory
-import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.finance.ExpenseService
 import com.companyb.companyapp.finance.ExpenseTable
-import com.companyb.companyapp.session.SessionBaseRateTable
 import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.session.SessionVoidTable
@@ -29,7 +27,6 @@ import kotlinx.serialization.json.jsonObject
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -86,25 +83,7 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
                 ),
             )
         }
-        insertSessionBaseRate()
-    }
-
-    private fun insertSessionBaseRate(
-        id: UUID = rateId,
-        branchId: UUID = this.branchId,
-        sessionType: SessionType = SessionType.REGULAR,
-    ) {
-        transaction {
-            SessionBaseRateTable.insert {
-                it[SessionBaseRateTable.id] = id
-                it[SessionBaseRateTable.setBy] = callerId
-                it[SessionBaseRateTable.branchId] = branchId
-                it[SessionBaseRateTable.sessionType] = sessionType
-                it[SessionBaseRateTable.rate] = BigDecimal("2500.00")
-                it[SessionBaseRateTable.effectiveFrom] = TestFixtures.now.minusDays(1)
-                it[SessionBaseRateTable.effectiveUntil] = TestFixtures.now.plusDays(365)
-            }
-        }
+        SessionClientFixtures.insertTestBaseRate(rateId, branchId, callerId)
     }
 
     @Test

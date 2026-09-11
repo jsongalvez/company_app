@@ -1,11 +1,9 @@
 package com.companyb.companyapp.session
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
-import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.session.ConcernTable
-import com.companyb.companyapp.session.SessionBaseRateTable
 import com.companyb.companyapp.session.SessionConcernService
 import com.companyb.companyapp.session.SessionConcernTable
 import com.companyb.companyapp.session.SessionRepository
@@ -50,7 +48,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         SessionClientFixtures.insertTestClient(clientId)
         SessionClientFixtures.insertTestClient(promotedClientId)
         IdentityFixtures.grantEditBranchData(callerId, sourceId)
-        insertSessionBaseRate()
+        SessionClientFixtures.insertTestBaseRate(rateId, branchId, callerId)
         createSession(callerId, sessionId)
         createSession(callerId, promotedSessionId, clientId = promotedClientId)
         insertSystemConcern()
@@ -359,24 +357,6 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         otherConcerns = null,
         nextAppointmentDate = null,
     )
-
-    private fun insertSessionBaseRate(
-        id: UUID = rateId,
-        branchId: UUID = this.branchId,
-        sessionType: SessionType = SessionType.REGULAR,
-    ) {
-        transaction {
-            SessionBaseRateTable.insert {
-                it[SessionBaseRateTable.id] = id
-                it[SessionBaseRateTable.setBy] = callerId
-                it[SessionBaseRateTable.branchId] = branchId
-                it[SessionBaseRateTable.sessionType] = sessionType
-                it[SessionBaseRateTable.rate] = BigDecimal("2500.00")
-                it[SessionBaseRateTable.effectiveFrom] = TestFixtures.now.minusDays(1)
-                it[SessionBaseRateTable.effectiveUntil] = TestFixtures.now.plusDays(365)
-            }
-        }
-    }
 
     private fun insertSystemConcern() {
         transaction {
