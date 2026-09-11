@@ -42,12 +42,19 @@ object TestFixtures {
     fun extractJsonField(
         jsonString: String,
         field: String,
-    ): String {
+    ): String = extractJsonFieldOrNull(jsonString, field).orEmpty()
+
+    /**
+     * Strict presence read (#905): missing fields return null so audit-diff assertions
+     * distinguish absent from present-empty. JSON null reads as "null" (AuditValues.NULL),
+     * matching [extractJsonField]; only absence is null.
+     */
+    fun extractJsonFieldOrNull(
+        jsonString: String,
+        field: String,
+    ): String? {
         val jsonElement = json.parseToJsonElement(jsonString)
-        return jsonElement
-            .jsonObject[field]
-            ?.jsonPrimitive
-            ?.content
-            .orEmpty()
+        val value = jsonElement.jsonObject[field] ?: return null
+        return value.jsonPrimitive.content
     }
 }

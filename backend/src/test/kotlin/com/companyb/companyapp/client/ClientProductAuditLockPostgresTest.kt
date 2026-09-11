@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -74,8 +75,8 @@ class ClientProductAuditLockPostgresTest : BasePostgresTest() {
             val (oldJson, newJson) = updates.single()
             assertEquals(ORIG_LAST, TestFixtures.extractJsonField(oldJson, "lastName"))
             assertEquals(CONTENDER_LAST, TestFixtures.extractJsonField(newJson, "lastName"))
-            assertEquals("", TestFixtures.extractJsonField(oldJson, "firstName"))
-            assertEquals("", TestFixtures.extractJsonField(newJson, "firstName"))
+            assertNull(TestFixtures.extractJsonFieldOrNull(oldJson, "firstName"))
+            assertNull(TestFixtures.extractJsonFieldOrNull(newJson, "firstName"))
         } finally {
             latches.releaseHolder.countDown()
             holder.join(JOIN_MILLIS)
@@ -155,8 +156,8 @@ class ClientProductAuditLockPostgresTest : BasePostgresTest() {
             val (oldJson, newJson) = updates.single()
             assertEquals(ORIG_PRICE, TestFixtures.extractJsonField(oldJson, "unitPrice"))
             assertEquals(CONTENDER_PRICE_STRING, TestFixtures.extractJsonField(newJson, "unitPrice"))
-            assertEquals("", TestFixtures.extractJsonField(oldJson, "name"))
-            assertEquals("", TestFixtures.extractJsonField(newJson, "name"))
+            assertNull(TestFixtures.extractJsonFieldOrNull(oldJson, "name"))
+            assertNull(TestFixtures.extractJsonFieldOrNull(newJson, "name"))
         } finally {
             latches.releaseHolder.countDown()
             holder.join(JOIN_MILLIS)
