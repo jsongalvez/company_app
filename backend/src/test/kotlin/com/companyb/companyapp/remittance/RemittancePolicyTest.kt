@@ -207,4 +207,25 @@ class RemittancePolicyTest {
             RemittancePolicy.assertDateInRange(LocalDate.of(2026, 7, 16), start, end, "Branch day")
         }
     }
+
+    // ===== submit coverage (#866) =====
+
+    @Test
+    fun `coverage guard rejects empty breakdowns`() {
+        assertFailsWith<ValidationException> {
+            RemittancePolicy.assertNonEmptyCoverage(emptyList())
+        }
+        RemittancePolicy.assertNonEmptyCoverage(listOf(UUID.randomUUID()))
+    }
+
+    @Test
+    fun `coverage guard rejects line sources outside breakdowns`() {
+        val covered = UUID.randomUUID()
+        val uncovered = UUID.randomUUID()
+        assertFailsWith<ValidationException> {
+            RemittancePolicy.assertLinesCoveredByBreakdowns(listOf(covered), listOf(covered, uncovered))
+        }
+        RemittancePolicy.assertLinesCoveredByBreakdowns(listOf(covered), listOf(covered))
+        RemittancePolicy.assertLinesCoveredByBreakdowns(listOf(covered, uncovered), emptyList())
+    }
 }

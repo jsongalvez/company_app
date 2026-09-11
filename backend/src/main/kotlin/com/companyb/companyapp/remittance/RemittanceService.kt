@@ -65,6 +65,11 @@ object RemittanceService {
                     // transition (same sorted order as #507 undo; the later
                     // markDaysRemittedInTransaction re-lock is a no-op).
                     BranchDayService.lockDaysInTransaction(breakdownIds)
+                    // #866 — lines and breakdowns must describe the same days before the
+                    // immutable snapshot freezes gross (lines) with comp/expenses
+                    // (breakdowns); all reads stay `*InTransaction` on this SERIALIZABLE
+                    // transaction and run before any state change.
+                    assertSubmitCoverageInTransaction(remittanceId, breakdownIds)
                     val grossIncome = RemittanceRepository.sumGrossIncomeInTransaction(remittanceId)
                     val totalCompensation = RemittanceRepository.sumCompensationsInTransaction(breakdownIds)
                     val totalExpenses = RemittanceRepository.sumExpensesInTransaction(breakdownIds)
@@ -505,6 +510,42 @@ object RemittanceService {
 
         logger.info { "[DELETE-REMITTANCE-BREAKDOWN] Day breakdown $breakdownId removed from remittance $remittanceId" }
         return breakdown
+    }
+
+    /**
+     * #866 — submit-time reconciliation: gross is summed over lines while comp/expenses are
+     * summed over day breakdowns, so every active line's source branch day must sit in the
+     * breakdown set and the set itself must be non-empty. All reads are `*InTransaction`
+     * on the caller's open SERIALIZABLE transaction and run before any state change.
+     */
+    private fun assertSubmitCoverageInTransaction(
+        remittanceId: UUID,
+        breakdownIds: List<UUID>,
+    ) {
+        RemittancePolicy.assertNonEmptyCoverage(breakdownIds)
+        val lineSourceDayIds =
+            RemittanceLineRepository.findByRemittanceIdInTransaction(remittanceId).map { line ->
+                when (line.type) {
+                    RemittanceLineType.SESSION -> {
+                        SessionReads
+                            .findByIdInTransaction(
+                                line.sessionId
+                                    ?: throw ValidationException("sessionId is required for SESSION line type"),
+                            )?.branchDayId ?: throw NotFoundException("Session not found")
+                    }
+
+                    RemittanceLineType.PRODUCT_SALE -> {
+                        CommerceReads
+                            .findSaleByIdInTransaction(
+                                line.productSaleId
+                                    ?: throw ValidationException(
+                                        "productSaleId is required for PRODUCT_SALE line type",
+                                    ),
+                            )?.branchDayId ?: throw NotFoundException("Product sale not found")
+                    }
+                }
+            }
+        RemittancePolicy.assertLinesCoveredByBreakdowns(breakdownIds, lineSourceDayIds)
     }
 
     /**

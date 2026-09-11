@@ -381,9 +381,12 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     fun `submit without SUBMIT_REMITTANCE is allowed at service layer`() {
         val remittanceId = TestFixtures.uuid()
         createDraftRemittance(remittanceId)
+        // #866 — submit now requires non-empty coverage; the authz intent stays the same.
+        addDayBreakdown(remittanceId, TestFixtures.uuid(), resolveBranchDay())
         IdentityFixtures.revokeAllCapabilities(callerId)
 
-        val result = RemittanceService.submit(callerId, remittanceId, 1)
+        val version = RemittanceService.getRemittance(remittanceId).remittance.version
+        val result = RemittanceService.submit(callerId, remittanceId, version)
 
         assertNotNull(result)
         assertEquals(RemittanceStatus.SUBMITTED, result.remittance.status)
@@ -564,17 +567,19 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `submit with no day breakdowns succeeds with zero calculations`() {
+    fun `submit with no day breakdowns is rejected before any state change`() {
         val remittanceId = TestFixtures.uuid()
         createDraftRemittance(remittanceId)
+        val auditsBefore = callerAuditCount()
 
-        val result = RemittanceService.submit(callerId, remittanceId, 1)
-
-        assertNotNull(result)
-        assertEquals(BigDecimal.ZERO, result.grossIncome)
-        assertEquals(BigDecimal.ZERO, result.totalCompensation)
-        assertEquals(BigDecimal.ZERO, result.totalExpenses)
-        assertEquals(BigDecimal.ZERO, result.netIncome)
+        // #866 — an empty submit would freeze a zero snapshot while consuming the day's
+        // submitted slot and arming the SUBMITTED-only overlap exclusion.
+        assertFailsWith<ValidationException> {
+            RemittanceService.submit(callerId, remittanceId, 1)
+        }
+        assertEquals(RemittanceStatus.DRAFT, RemittanceService.getRemittance(remittanceId).remittance.status)
+        assertNull(RemittanceService.getRemittance(remittanceId).snapshot)
+        assertEquals(auditsBefore, callerAuditCount(), "rejected empty submit writes no audit rows")
     }
 
     // ===== #320 contract proofs — command-owned SERIALIZABLE submission (ADR-0024) =====
