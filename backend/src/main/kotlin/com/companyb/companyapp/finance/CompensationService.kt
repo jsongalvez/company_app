@@ -57,7 +57,9 @@ object CompensationService {
         note: String?,
         reason: String? = null,
     ): Compensation {
-        val workDay = BranchDayService.requireBranchDayExists(workBranchDayId)
+        // Fast-fail existence check before the transaction; the in-transaction locked
+        // gate below re-reads the work day for editability (#859).
+        BranchDayService.requireBranchDayExists(workBranchDayId)
 
         if (!AccountReads.userExists(userId)) {
             throw NotFoundException("User not found")
@@ -67,10 +69,11 @@ object CompensationService {
             replayIfExistsInTransaction(id, workBranchDayId, payingBranchDayId, userId, callerId)?.let {
                 return@transaction it
             }
-            // Locked day read: serializes this create with remittance's REMITTED transition.
-            val (payingDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(callerId, payingBranchDayId, reason)
-            assertPayingMatchesWork(workDay, payingDay)
+            // #859: gate BOTH legs — the work day carries the duty being priced, so a
+            // REMITTED work day needs the same reason discipline even when the paying day is OPEN.
+            val gate =
+                checkWorkAndPayingDaysEditableInTransaction(callerId, workBranchDayId, payingBranchDayId, reason)
+            assertPayingMatchesWork(gate.workDay, gate.payingDay)
 
             val result =
                 CompensationRepository.createInTransaction(
@@ -86,7 +89,7 @@ object CompensationService {
                 )
             if (result.created) {
                 CompensationAudit.inserted(
-                    AuditContext(callerId, payingDay.branchId, isRemitted, reason),
+                    AuditContext(callerId, gate.payingDay.branchId, gate.isRemitted, reason),
                     result.compensation,
                 )
             }
@@ -97,6 +100,34 @@ object CompensationService {
             }
         }
     }
+
+    /**
+     * #859 — locked editability gate for both compensation legs. Days lock in stable
+     * sorted-UUID order (the same order remittance submit uses), so a concurrent REMITTED
+     * transition serializes with this command instead of deadlocking. Either leg REMITTED
+     * flags the audit row. Uses the same `requiresEditPastDay = false` shape as the
+     * paying-day gate: PAST needs EDIT_PAST_DAY, REMITTED needs EDIT_PAST_DAY plus a reason.
+     */
+    private fun checkWorkAndPayingDaysEditableInTransaction(
+        callerId: UUID,
+        workBranchDayId: UUID,
+        payingBranchDayId: UUID,
+        reason: String?,
+    ): WorkPayingGate {
+        val gated =
+            listOf(workBranchDayId, payingBranchDayId).sorted().distinct().associateWith { dayId ->
+                BranchDayService.checkBranchDayEditableInTransaction(callerId, dayId, reason)
+            }
+        val (workDay, workIsRemitted) = gated.getValue(workBranchDayId)
+        val (payingDay, payingIsRemitted) = gated.getValue(payingBranchDayId)
+        return WorkPayingGate(workDay, payingDay, workIsRemitted || payingIsRemitted)
+    }
+
+    private data class WorkPayingGate(
+        val workDay: BranchDay,
+        val payingDay: BranchDay,
+        val isRemitted: Boolean,
+    )
 
     /**
      * #511 — in-tx replay classification before the day gate (mirrors #509/#510):
@@ -139,24 +170,24 @@ object CompensationService {
                 CompensationRepository.findByIdInTransaction(compensationId)
                     ?: throw NotFoundException("Compensation not found")
 
-            val (payingDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(
+            // #859: gate BOTH stored legs — the work day was previously re-read for the
+            // same-branch invariant only, never for editability.
+            val gate =
+                checkWorkAndPayingDaysEditableInTransaction(
                     callerId,
+                    before.workBranchDayId,
                     before.payingBranchDayId,
                     reason,
                 )
             // Same-branch invariant on the stored record too (#421): a legacy row whose days
-            // span branches must not stay updatable through the work day's gate alone.
-            assertPayingMatchesWork(
-                BranchDayService.requireBranchDayExists(before.workBranchDayId),
-                payingDay,
-            )
+            // span branches must not stay updatable through either day's gate alone.
+            assertPayingMatchesWork(gate.workDay, gate.payingDay)
 
             val after =
                 CompensationRepository.updateInTransaction(compensationId, amount, note, expectedVersion)
 
             CompensationAudit.updated(
-                AuditContext(callerId, payingDay.branchId, isRemitted, reason),
+                AuditContext(callerId, gate.payingDay.branchId, gate.isRemitted, reason),
                 before,
                 after,
             )

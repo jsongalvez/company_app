@@ -3,6 +3,7 @@ import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.finance.CompensationTable
@@ -81,6 +82,166 @@ class CompensationServicePostgresTest : BasePostgresTest() {
             }
         assertEquals(true, audit[AuditLogTable.isFlagged])
         assertEquals("Coordinator correction", audit[AuditLogTable.reason])
+    }
+
+    @Test
+    fun `create with REMITTED work day and OPEN paying day without EDIT_PAST_DAY is rejected`() {
+        val remittedWorkDayId =
+            BranchWorkforceFixtures.createRemittedBranchDay(
+                branchId,
+                TestFixtures.today.minusDays(3),
+            )
+        val compId = TestFixtures.uuid()
+
+        assertFailsWith<ForbiddenException> {
+            CompensationService.create(
+                callerId = callerId,
+                id = compId,
+                workBranchDayId = remittedWorkDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("1500.00"),
+                note = null,
+            )
+        }
+        val stored = transaction { CompensationRepository.findByIdInTransaction(compId) }
+        assertNull(stored)
+    }
+
+    @Test
+    fun `create with REMITTED work day and OPEN paying day without reason is rejected`() {
+        val remittedWorkDayId =
+            BranchWorkforceFixtures.createRemittedBranchDay(
+                branchId,
+                TestFixtures.today.minusDays(3),
+            )
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+
+        assertFailsWith<ValidationException> {
+            CompensationService.create(
+                callerId = callerId,
+                id = TestFixtures.uuid(),
+                workBranchDayId = remittedWorkDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("1500.00"),
+                note = null,
+            )
+        }
+    }
+
+    @Test
+    fun `create with REMITTED work day and OPEN paying day with reason succeeds and flags audit entry`() {
+        val remittedWorkDayId =
+            BranchWorkforceFixtures.createRemittedBranchDay(
+                branchId,
+                TestFixtures.today.minusDays(3),
+            )
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        val compId = TestFixtures.uuid()
+
+        val comp =
+            CompensationService.create(
+                callerId = callerId,
+                id = compId,
+                workBranchDayId = remittedWorkDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("1500.00"),
+                note = null,
+                reason = "Coordinator correction",
+            )
+
+        assertNotNull(comp)
+        val audit =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq CompensationTable.tableName) and
+                            (AuditLogTable.recordId eq compId)
+                    }.single()
+            }
+        assertEquals(true, audit[AuditLogTable.isFlagged])
+        assertEquals("Coordinator correction", audit[AuditLogTable.reason])
+    }
+
+    @Test
+    fun `update with REMITTED work day and OPEN paying day without reason is rejected`() {
+        val remittedWorkDayId =
+            BranchWorkforceFixtures.createRemittedBranchDay(
+                branchId,
+                TestFixtures.today.minusDays(3),
+            )
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        val compId = TestFixtures.uuid()
+        val created =
+            CompensationService.create(
+                callerId = callerId,
+                id = compId,
+                workBranchDayId = remittedWorkDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("1500.00"),
+                note = null,
+                reason = "Initial correction",
+            )
+
+        assertFailsWith<ValidationException> {
+            CompensationService.update(
+                callerId = callerId,
+                compensationId = compId,
+                amount = BigDecimal("2000.00"),
+                note = null,
+                expectedVersion = created.version,
+            )
+        }
+    }
+
+    @Test
+    fun `update with REMITTED work day and OPEN paying day with reason succeeds and flags audit entry`() {
+        val remittedWorkDayId =
+            BranchWorkforceFixtures.createRemittedBranchDay(
+                branchId,
+                TestFixtures.today.minusDays(3),
+            )
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        val compId = TestFixtures.uuid()
+        val created =
+            CompensationService.create(
+                callerId = callerId,
+                id = compId,
+                workBranchDayId = remittedWorkDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("1500.00"),
+                note = null,
+                reason = "Initial correction",
+            )
+
+        val updated =
+            CompensationService.update(
+                callerId = callerId,
+                compensationId = compId,
+                amount = BigDecimal("2000.00"),
+                note = "Updated note",
+                expectedVersion = created.version,
+                reason = "Follow-up correction",
+            )
+
+        assertEquals(0, BigDecimal("2000.00").compareTo(updated.amount))
+        val audit =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq CompensationTable.tableName) and
+                            (AuditLogTable.recordId eq compId) and
+                            (AuditLogTable.action eq AuditAction.UPDATE)
+                    }.single()
+            }
+        assertEquals(true, audit[AuditLogTable.isFlagged])
+        assertEquals("Follow-up correction", audit[AuditLogTable.reason])
     }
 
     @Test
