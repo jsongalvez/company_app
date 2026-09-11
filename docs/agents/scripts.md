@@ -8,7 +8,10 @@ them before first use.
 
 `<name>-test.sh` files are self-tests for their sibling (`check-baselines-test.sh` guards
 `check-baselines.sh`, …). Plain bash fixtures — no Gradle, database, or network. Run the
-relevant self-test whenever you edit its sibling.
+relevant self-test whenever you edit its sibling. Async CI backstops this discipline:
+the `shell-tests` job in `.github/workflows/quality.yml` runs every DB-free self-test
+on each verification (#906) — keep its test list in sync with `run_shell_validation`
+in `tools/quality/validate.sh` when adding a new self-test.
 
 ## Validation and diagnostics
 

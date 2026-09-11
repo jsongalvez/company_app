@@ -1,7 +1,10 @@
 name: quality
 
 # Asynchronous quality verification (#333): never waited on by the active agent.
-# Path-scoped so ordinary docs/scripts/handoff pushes launch nothing. OpenAPI
+# Path-scoped so ordinary docs/handoff pushes launch nothing. Owned shell-tool
+# files (tools/quality, tools/performance, scripts) trigger this workflow for
+# the lightweight shell-tests job below (#906); docs/handoffs and the wayfinder
+# daemon stay excluded. OpenAPI
 # contract verification runs in the same job to pay checkout/JDK/Gradle setup once.
 
 on:
@@ -23,6 +26,9 @@ on:
       - '.githooks/**'
       - 'tools/database/**'
       - 'tools/quality/lib/**'
+      - 'tools/quality/*.sh'
+      - 'tools/performance/**'
+      - 'scripts/**'
       - 'config/deadcode/**'
       - 'docker/**'
       - '.github/workflows/quality.yml'
@@ -42,6 +48,9 @@ on:
       - '.githooks/**'
       - 'tools/database/**'
       - 'tools/quality/lib/**'
+      - 'tools/quality/*.sh'
+      - 'tools/performance/**'
+      - 'scripts/**'
       - 'config/deadcode/**'
       - 'docker/**'
       - '.github/workflows/quality.yml'
@@ -143,6 +152,38 @@ jobs:
       # analyzer binds sources directly. Hooks stay untouched (#329).
       - name: Dead-code gate (#530)
         run: ./gradlew deadCodeCheck
+
+  # DB-free shell contract suite (#906): every self-test that run_shell_validation
+  # in tools/quality/validate.sh runs locally, wired into async CI so tooling
+  # edits verify without author discipline. Ubuntu-only, seconds, no Gradle/DB
+  # or network beyond checkout. The live-DB disposable discovery test stays
+  # manual. Keep the test list in sync with run_shell_validation.
+  shell-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax-check owned shell files
+        run: |
+          for f in tools/quality/*.sh tools/quality/lib/*.sh tools/database/*.sh tools/database/lib/*.sh tools/performance/*.sh scripts/*.sh .githooks/commit-msg .githooks/pre-commit .githooks/pre-push; do
+            [ -f "$f" ] || continue
+            bash -n "$f"
+          done
+
+      - name: Run DB-free shell self-tests
+        run: |
+          bash tools/quality/test-hooks-no-expensive-commands.sh
+          bash tools/quality/test-shell-portability.sh
+          bash tools/quality/test-setup-hooks-download.sh
+          bash tools/quality/pre-commit-docs-only-test.sh
+          bash tools/quality/pre-commit-formatter-status-test.sh
+          bash tools/quality/test-commit-msg-hook.sh
+          bash tools/quality/wrapper-contract.test.sh
+          bash tools/database/test-db-name-test.sh
+          bash tools/database/test-db-discovery-test.sh
+          bash tools/database/source-env-test.sh
+          bash tools/performance/check-baselines-test.sh
 
   compose-compile:
     runs-on: ubuntu-latest
