@@ -2,6 +2,7 @@ package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.contracts.remittance.RemittanceDetailResponse
 import com.companyb.companyapp.contracts.remittance.RemittanceResponse
+import com.companyb.companyapp.domain.OperationalDay
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -58,7 +59,9 @@ internal fun submittedSessionNet(raw: RemittanceResponse): String? =
 
 // #677 — single Manila-zone source for the remittance date helpers below
 // (the picker speaks Manila calendar dates; the Undo window is Manila-anchored).
-internal val ManilaZone: TimeZone = TimeZone.of("Asia/Manila")
+// #875 — the zone id is owned by shared OperationalDay; this stays a thin
+// platform-specific wrapper because the time API needs a TimeZone, not a String.
+internal val ManilaZone: TimeZone = TimeZone.of(OperationalDay.MANILA_ZONE_ID)
 
 // D2 — create popup defaults the range to today (Manila business day, matching the backend's
 // branch-day calendar).

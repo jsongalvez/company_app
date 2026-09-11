@@ -1,5 +1,6 @@
 package com.companyb.companyapp.util
 
+import com.companyb.companyapp.domain.OperationalDay
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.format
@@ -17,7 +18,9 @@ import kotlin.time.Instant
 // timestamp formatter: relative under 24h ("2m ago", "3h ago"), absolute date past 24h ("Aug 4").
 // Absolute format renders in Asia/Manila — the backend writes all domain timestamps in this
 // zone (see backend/AGENTS.md), so a device outside Manila still sees the business date.
-private val displayZone = TimeZone.of("Asia/Manila")
+// #875 — the zone id is owned by shared OperationalDay; this stays a thin platform-specific
+// wrapper because the time API needs a TimeZone, not a String.
+private val displayZone = TimeZone.of(OperationalDay.MANILA_ZONE_ID)
 
 private val absoluteFormat: DateTimeFormat<LocalDateTime> =
     LocalDateTime.Format {

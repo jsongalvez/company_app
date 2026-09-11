@@ -4,7 +4,10 @@ import com.companyb.companyapp.contracts.workforce.ReliefAccessResponse
 import com.companyb.companyapp.contracts.workforce.ReliefAccessStatus
 import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
 import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
+import com.companyb.companyapp.domain.OperationalDay
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -105,6 +108,31 @@ class ReliefInviteLogicTest {
             LocalDate(2026, 8, 15),
             currentOperationalDate(Instant.parse("2026-08-15T09:30:00Z")),
         )
+    }
+
+    @Test
+    fun `operational date agrees with the shared rule on boundary vectors`() {
+        // #875 — adapter-vs-shared agreement: perturbing either cutoff without the other fails here.
+        val zone = TimeZone.of(OperationalDay.MANILA_ZONE_ID)
+        val vectors =
+            listOf(
+                // 00:00 Manila Aug-15 -> Aug-14.
+                "2026-08-14T16:00:00Z" to LocalDate(2026, 8, 14),
+                // 03:59 Manila Aug-15 -> Aug-14.
+                "2026-08-14T19:59:00Z" to LocalDate(2026, 8, 14),
+                // 04:00 Manila Aug-15 -> Aug-15.
+                "2026-08-14T20:00:00Z" to LocalDate(2026, 8, 15),
+                // 17:30 Manila Aug-15 -> Aug-15.
+                "2026-08-15T09:30:00Z" to LocalDate(2026, 8, 15),
+            )
+        for ((raw, expected) in vectors) {
+            val at = Instant.parse(raw)
+            val manila = at.toLocalDateTime(zone)
+            assertEquals(expected, currentOperationalDate(at))
+            val viaShared: Long = OperationalDay.operationalEpochDay(manila.hour, manila.date.toEpochDays())
+            val viaAdapter: Long = currentOperationalDate(at).toEpochDays()
+            assertEquals(viaShared, viaAdapter)
+        }
     }
 
     @Test

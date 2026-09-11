@@ -367,8 +367,8 @@ class SemanticOwnershipArchitectureTest {
         assertEquals(1, sites.size, "exactly one ZoneId site must exist: $sites")
         assertEquals("branchday", owner(sites.single()))
         assertTrue(
-            "Asia/Manila" in sources.getValue(sites.single()),
-            "the sole ZoneId site must construct the Manila zone",
+            "OperationalDay.MANILA_ZONE_ID" in sources.getValue(sites.single()),
+            "the sole ZoneId site must build the zone from the shared OperationalDay rule (#875)",
         )
     }
 

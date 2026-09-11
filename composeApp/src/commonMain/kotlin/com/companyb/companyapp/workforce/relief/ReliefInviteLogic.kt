@@ -4,6 +4,7 @@ import com.companyb.companyapp.contracts.workforce.ReliefAccessResponse
 import com.companyb.companyapp.contracts.workforce.ReliefAccessStatus
 import com.companyb.companyapp.contracts.workforce.ReliefInviteResponse
 import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
+import com.companyb.companyapp.domain.OperationalDay
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -11,29 +12,22 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 
 /**
- * The current operational business date in Asia/Manila (rolls over at [DAY_BOUNDARY_HOUR]
- * local).
+ * The current operational business date in Asia/Manila (rolls over at 04:00 local).
  *
  * #160 owns pure relief presentation logic; #399 extends it: the client's "today" is the
- * operational date, not the calendar one — mirroring the backend 04:00 Asia/Manila roll
- * (BranchDayService.currentOperationalDate, the sole authority for that boundary).
+ * operational date, not the calendar one — delegating to the shared [OperationalDay] rule
+ * (#875) so client and server can never fork "today" in the 00:00–04:00 window.
  * Calendar-midnight comparisons marked 00:00–03:59 rows expired while their branch day was
  * still OPEN.
  */
 fun currentOperationalDate(at: Instant): LocalDate {
-    val manilaNow = at.toLocalDateTime(TimeZone.of("Asia/Manila"))
-    return if (manilaNow.hour < DAY_BOUNDARY_HOUR) {
-        LocalDate.fromEpochDays(manilaNow.date.toEpochDays() - ONE_DAY)
-    } else {
-        manilaNow.date
-    }
+    val manilaNow = at.toLocalDateTime(TimeZone.of(OperationalDay.MANILA_ZONE_ID))
+    val epochDay = OperationalDay.operationalEpochDay(manilaNow.hour, manilaNow.date.toEpochDays())
+    return LocalDate.fromEpochDays(epochDay.toInt())
 }
 
 /** Convenience overload resolving [currentOperationalDate] at the current instant. */
 fun currentOperationalDate(): LocalDate = currentOperationalDate(Clock.System.now())
-
-private const val DAY_BOUNDARY_HOUR = 4
-private const val ONE_DAY = 1
 
 fun parseInviteDate(date: String?): LocalDate? = runCatching { LocalDate.parse(date ?: return null) }.getOrNull()
 

@@ -5,6 +5,7 @@ import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.domain.OperationalDay
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
@@ -23,16 +24,16 @@ import java.util.UUID
  *
  * Day state is lazily evaluated against the current operational date: a day that is still OPEN
  * but whose date precedes [currentOperationalDate] is treated as PAST. The operational day rolls
- * over at [DAY_BOUNDARY_HOUR] 04:00 Asia/Manila, not at calendar midnight — this service is the
- * sole authority for that boundary; consumers must never derive it independently.
+ * over at 04:00 Asia/Manila, not at calendar midnight — the pure cutoff rule lives in shared
+ * [OperationalDay] (#875, the single owner both sides delegate to); this service is the backend
+ * authority applying it, and consumers must never derive it independently.
  */
 object BranchDayService {
     private val logger = KotlinLogging.logger {}
 
-    private const val DAY_BOUNDARY_HOUR = 4
     private const val ONE_DAY = 1L
 
-    val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
+    val manilaZone: ZoneId = ZoneId.of(OperationalDay.MANILA_ZONE_ID)
 
     /**
      * Pure operational-date policy: the business day whose 04:00 Asia/Manila rollover contains
@@ -42,8 +43,9 @@ object BranchDayService {
      */
     fun currentOperationalDate(at: Instant): LocalDate {
         val manilaNow = at.atZone(manilaZone)
-        val beforeCutoff = manilaNow.toLocalTime() < LocalTime.of(DAY_BOUNDARY_HOUR, 0)
-        return if (beforeCutoff) manilaNow.toLocalDate().minusDays(ONE_DAY) else manilaNow.toLocalDate()
+        return LocalDate.ofEpochDay(
+            OperationalDay.operationalEpochDay(manilaNow.hour, manilaNow.toLocalDate().toEpochDay()),
+        )
     }
 
     /** Convenience overload resolving [currentOperationalDate] at the current instant. */
@@ -387,7 +389,7 @@ object BranchDayService {
     fun expirationUtc(branchDate: LocalDate): OffsetDateTime =
         branchDate
             .plusDays(ONE_DAY)
-            .atTime(LocalTime.of(DAY_BOUNDARY_HOUR, 0))
+            .atTime(LocalTime.of(OperationalDay.DAY_BOUNDARY_HOUR, 0))
             .atZone(manilaZone)
             .toOffsetDateTime()
             .withOffsetSameInstant(ZoneOffset.UTC)

@@ -1,6 +1,7 @@
 package com.companyb.companyapp.branchday
 
 import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.domain.OperationalDay
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
 import java.time.Instant
@@ -99,6 +100,35 @@ class BranchDayServiceTest {
                 BranchDayService.currentOperationalDate(afterCutoff),
             ),
         )
+    }
+
+    // ---- shared-rule agreement (#875) ----
+
+    @Test
+    fun `manila zone is built from the shared zone id`() {
+        assertEquals(OperationalDay.MANILA_ZONE_ID, BranchDayService.manilaZone.id)
+    }
+
+    @Test
+    fun `operational date agrees with the shared rule on boundary vectors`() {
+        val vectors =
+            listOf(
+                LocalTime.of(0, 0) to LocalDate.of(2026, 6, 26),
+                LocalTime.of(2, 30) to LocalDate.of(2026, 6, 26),
+                LocalTime.of(3, 59, 59) to LocalDate.of(2026, 6, 26),
+                LocalTime.of(4, 0) to LocalDate.of(2026, 6, 27),
+                LocalTime.of(15, 0) to LocalDate.of(2026, 6, 27),
+            )
+        for ((time, expected) in vectors) {
+            val at = manilaInstant(LocalDate.of(2026, 6, 27), time)
+            val manilaNow = at.atZone(BranchDayService.manilaZone)
+            assertEquals(expected, BranchDayService.currentOperationalDate(at))
+            assertEquals(
+                OperationalDay.operationalEpochDay(manilaNow.hour, manilaNow.toLocalDate().toEpochDay()),
+                BranchDayService.currentOperationalDate(at).toEpochDay(),
+                "adapter and shared rule disagree at $time",
+            )
+        }
     }
 
     @Test
