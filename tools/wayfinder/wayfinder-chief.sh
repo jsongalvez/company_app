@@ -147,7 +147,50 @@
 # recovery identity and quiescence still gates handoffs. This script never
 # restarts the running daemon itself.
 #
+# Resident watch (ticket #900): `chief --map N --watch` runs the
+# observability primitives on the chief's behalf between sessions —
+# loop { pass -> integrate sweep -> cleanup sweep -> event wait }.
+# Each iteration runs the normal pass (reconcile -> harvest -> watchdogs
+# -> collect -> fill), then sweeps the two mechanical queues: accepted
+# rows integrate via the single-writer lane (gate respected, never
+# --allow-gated), terminal rows release via `worker cleanup` (which also
+# frees the Herdr pane). The wait phase parks one background `worker wait
+# --until done|blocked|failed --timeout <check-in>` per live worker and
+# wakes on the first completion; a wait wake or timeout always triggers a
+# full pass, never a targeted shortcut — events are the fast path,
+# reconcile+harvest stay the truth (Herdr rarely reports `done`). With no
+# live workers there is nothing to wait on, so the loop sleeps one
+# check-in interval (frontier changes arrive via the next pass).
+#
+# Implementer's choice, recorded (ticket #900 gave lane-vs-daemon-hook
+# latitude): the watch lives here, not as a daemon tick hook. The daemon
+# supervises chain sessions and never commands workers (structural guard:
+# no spawn/prompt/stop/cleanup/integrate path in wayfinder-loop.sh), so a
+# daemon hook would breach its supervisor-only role and need a daemon
+# restart to deploy; the chief lane reuses the pass/collect/review-queue
+# seams with no restart and no new authority. Review dispositions stay
+# chief-session-owned by design: accept/revision/reject needs result
+# verification judgment no loop can own, so the watch integrates only
+# already-accepted rows and cleans only terminal rows, and surfaces
+# ready-for-review depth as an operator event instead of judging it.
+#
+# Single-supervisor guard: the watch holds an exclusive flock on
+# `<registry-dir>/watch.lock` for its lifetime (a second watcher refuses);
+# the chain daemon needs no exclusion because it never issues worker
+# commands (it only reconciles state and gates successor spawn), and chief
+# single-shot passes stay safe alongside the watch because every shared
+# write takes the registry flock and every lane re-validates under its
+# lock (collect skips moved rows, integrate re-validates in-lock).
+#
+# Operator audibility: raw transitions stay below the operator. Exactly
+# four `operator:` log lines (plus best-effort capacity events) escape —
+# a worker needs a decision (blocked/failed collected), a ticket
+# integrated, a worker died with salvageable work (gone observed), the map
+# finished (empty frontier, no live workers, no pending rows — the watch
+# then exits; restart it when new work files).
+#
 # Usage: wayfinder-chief.sh --map N [--once] [--max-workers N] [--dry-run]
+#          [--watch [--watch-passes N]]
 #          [--workspace DIR] [--workspace-base DIR] [--pane PANE]
 #          [--registry PATH] [--interval SECS] [--base SHA]
 #          [--spawn-helper PARENT --scope TEXT --helper-workspace DIR
@@ -174,7 +217,10 @@
 #   WAYFINDER_WORKER_ARGS, WAYFINDER_GH_BIN (default gh), WAYFINDER_GH_REPO
 #   (default from origin), HERDR_BIN, WAYFINDER_GENERATION (recorded on spawn —
 #   minted once per chief session when unset, ticket #746; explicit values
-#   preserved), WAYFINDER_ROLE=chief (set automatically).
+#   preserved), WAYFINDER_ROLE=chief (set automatically). --watch runs the
+#   resident loop: --interval SECS doubles as the check-in (agent-wait
+#   timeout); --watch-passes N bounds iterations (unset = unbounded,
+#   --dry-run forces one pass with no waits and no writes).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -208,6 +254,7 @@ REVIEW_WORKER="" REVIEW_DISP="" REVIEW_FINDING="" REVIEW_COMMIT=""
 INTEGRATE_WORKER="" INTEGRATE_GATED=""
 RECOVER_LANE=""
 STATUS_LANE="" STATUS_MACHINE=""
+WATCH_LANE="" WATCH_PASSES=""
 
 usage() { sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 log() { printf '%s [chief] %s\n' "$(date '+%F %T')" "$*"; }
@@ -275,6 +322,8 @@ while [ $# -gt 0 ]; do
         --recover) RECOVER_LANE=1; shift ;;
         --status) STATUS_LANE=1; shift ;;
         --machine) STATUS_MACHINE=1; shift ;;
+        --watch) WATCH_LANE=1; shift ;;
+        --watch-passes) WATCH_PASSES="${2:-}"; shift 2 ;;
         -h|--help) usage ;;
         *) die "unknown flag $1" ;;
     esac
@@ -302,8 +351,19 @@ lanes=0
 [ -n "$INTEGRATE_WORKER" ] && lanes=$((lanes + 1))
 [ -n "$RECOVER_LANE" ] && lanes=$((lanes + 1))
 [ -n "$STATUS_LANE" ] && lanes=$((lanes + 1))
+[ -n "$WATCH_LANE" ] && lanes=$((lanes + 1))
 if [ "$lanes" -gt 1 ]; then
-    die "--spawn-helper, --spawn-scout, --spawn-maintenance, --queue, --review, --integrate, --recover, and --status are separate single-shot lanes (one per invocation)"
+    die "--spawn-helper, --spawn-scout, --spawn-maintenance, --queue, --review, --integrate, --recover, --status, and --watch are separate single-shot lanes (one per invocation)"
+fi
+if [ -n "$WATCH_LANE" ] && [ "$ONCE" -eq 1 ]; then
+    die "--watch and --once are exclusive (watch is resident; bound it with --watch-passes N instead)"
+fi
+if [ -z "$WATCH_LANE" ] && [ -n "$WATCH_PASSES" ]; then
+    die "--watch-passes requires --watch"
+fi
+if [ -n "$WATCH_PASSES" ]; then
+    [[ "$WATCH_PASSES" =~ ^[0-9]+$ ]] && [ "$WATCH_PASSES" -ge 1 ] \
+        || die "--watch-passes must be >= 1 (got '$WATCH_PASSES')"
 fi
 if [ -n "$SPAWN_MAINT" ] && [ "$HELPER_MODE" != "read-only" ]; then
     die "--helper-mode does not apply to --spawn-maintenance (helpers only)"
@@ -993,6 +1053,274 @@ status_lane() { # compact operator view; single-shot, no fill.
         "$CAPACITY" "${args[@]}"
 }
 
+# Resident watch (ticket #900) — implementation for the header's watch
+# lane. pass() stays the per-iteration truth; the sweeps only move rows
+# through mechanical states (accepted -> integrated, terminal -> cleaned)
+# and the notifier only reports transitions. No git, no tracker writes,
+# no review dispositions here — judgment stays with chief sessions.
+
+# watch_snapshot — print `name<TAB>ticket<TAB>status` for every row.
+watch_snapshot() {
+    [ -f "$REGISTRY" ] || return 0
+    awk -F'\t' 'NF >= 6 { print $1 "\t" $3 "\t" $6 }' "$REGISTRY"
+}
+
+# watch_operator <event> <worker> <ticket> <detail> — the only lines that
+# escape to the operator, plus a best-effort capacity event. Raw
+# transitions never call this; exactly four call sites do (blocked/failed
+# needs a decision, ticket integrated, worker died salvageable, map
+# finished).
+watch_operator() {
+    local event="$1" worker="$2" ticket="$3" detail="$4"
+    log "operator: $detail"
+    if [ -z "$DRY_RUN" ]; then
+        capacity_emit "$event" --worker "$worker" --ticket "$ticket" --detail "$detail"
+    fi
+    return 0
+}
+
+# integrate_sweep — integrate already-accepted rows through the
+# single-writer lane. The gate is respected (never --allow-gated:
+# overrides stay chief-explicit); refusals keep the row queued and log.
+integrate_sweep() {
+    [ -f "$REGISTRY" ] || return 0
+    local names name out line
+    names="$(awk -F'\t' '$6 == "accepted-awaiting-integration" { print $1 }' "$REGISTRY")"
+    [ -n "$names" ] || return 0
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        if [ -n "$DRY_RUN" ]; then
+            log "dry-run: would integrate $name (already accepted)"
+            continue
+        fi
+        if out="$("$REVIEW" integrate "$name" 2>&1)"; then
+            log "watch: integrated $name"
+        else
+            line="$(printf '%s' "$out" | tail -n 1 | tr '\t\n' '  ')"
+            log "watch: integrate refused for $name — stays queued: $line"
+        fi
+    done <<< "$names"
+    return 0
+}
+
+# cleanup_sweep — release terminal rows (`worker cleanup` also frees the
+# Herdr agent/pane best-effort). Only terminal states: unreviewed or
+# salvageable rows stay for chief disposition (cleanup refuses them
+# without --force, which the watch never passes).
+cleanup_sweep() {
+    [ -f "$REGISTRY" ] || return 0
+    local rows name was out line
+    rows="$(awk -F'\t' '$6 == "integrated" || $6 == "rejected" || $6 == "cancelled" || $6 == "stopped" || $6 == "gone" { print $1 "\t" $6 }' "$REGISTRY")"
+    [ -n "$rows" ] || return 0
+    while IFS= read -r line; do
+        name="${line%%$'\t'*}"; was="${line#*$'\t'}"
+        [ -n "$name" ] || continue
+        if [ -n "$DRY_RUN" ]; then
+            log "dry-run: would cleanup $name (was $was)"
+            continue
+        fi
+        if out="$("$WORKER" cleanup "$name" 2>&1)"; then
+            log "watch: released $name (was $was)"
+        else
+            line="$(printf '%s' "$out" | tail -n 1 | tr '\t\n' '  ')"
+            log "watch: cleanup refused for $name (was $was) — row kept: $line"
+        fi
+    done <<< "$rows"
+    return 0
+}
+
+# watch_needs_decision <name> <ticket> — true when a newly-collected row
+# needs an operator decision: Herdr still reports blocked, or the
+# worker's report file records STATUS blocked (harvest path — Herdr may
+# already read idle). Best-effort: any lookup failure reads as quiet (the
+# chief session still owns the review either way).
+watch_needs_decision() {
+    local name="$1" ticket="$2" ws="" st="" out=""
+    ws="$(awk -F'\t' -v n="$name" '$1 == n { print $4; exit }' "$REGISTRY" 2>/dev/null)"
+    out="$("$WORKER" status "$name" 2>/dev/null)" || out=""
+    case "$out" in
+        *"herdr=blocked"*) return 0 ;;
+    esac
+    if [ -n "$ws" ] && [ -f "$ws/.wayfinder/report-$ticket.md" ]; then
+        st="$(grep -a -m1 -i '^STATUS:' "$ws/.wayfinder/report-$ticket.md" 2>/dev/null \
+            | sed 's/^[^:]*:[[:space:]]*//' | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+        [ "$st" = "blocked" ] && return 0
+    fi
+    return 1
+}
+
+# watch_notify <before> <after> — edge-triggered operator events for one
+# iteration over name/ticket/status snapshots. Cleaned rows are absent
+# from <after> and report via their own sweep lines, never here.
+watch_notify() {
+    local before="$1" mid="$2"
+    local name ticket was now
+    while IFS=$'\t' read -r name ticket was; do
+        [ -n "$name" ] || continue
+        now="$(awk -F'\t' -v n="$name" '$1 == n { print $3; exit }' "$mid")"
+        [ -n "$now" ] || continue
+        case "$was->$now" in
+            blocked-\>ready-for-review)
+                watch_operator watch-blocked "$name" "$ticket" \
+                    "worker $name (ticket #$ticket) needs a decision — blocked, collected for review" ;;
+            failed-\>ready-for-review)
+                watch_operator watch-failed "$name" "$ticket" \
+                    "worker $name (ticket #$ticket) failed — result needs chief triage" ;;
+            accepted-awaiting-integration-\>integrated)
+                watch_operator watch-integrated "$name" "$ticket" \
+                    "ticket #$ticket integrated (worker $name)" ;;
+            spawning-\>gone|running-\>gone)
+                watch_operator watch-worker-gone "$name" "$ticket" \
+                    "worker $name (ticket #$ticket) died with salvageable work — reconcile before cleanup" ;;
+            spawning-\>ready-for-review|running-\>ready-for-review|done-\>ready-for-review)
+                # Same-pass collect: the row was never observed blocked,
+                # so ask Herdr/report truth whether this one needs a
+                # decision; quiet completions stay below the operator.
+                if watch_needs_decision "$name" "$ticket"; then
+                    watch_operator watch-blocked "$name" "$ticket" \
+                        "worker $name (ticket #$ticket) needs a decision — blocked, collected for review"
+                fi
+                ;;
+        esac
+    done < "$before"
+    return 0
+}
+
+# watch_finished_check — true (exit-worthy) when the map holds nothing
+# watchable: no live workers, no pending rows, empty frontier. The
+# frontier query is last so a busy map never pays for it here (the pass
+# already queried during fill).
+watch_finished_check() {
+    [ -f "$REGISTRY" ] || return 1
+    local running pending frontier
+    running="$(awk -F'\t' '$6 == "spawning" || $6 == "running" || $6 == "revision-requested" { n++ } END { print n + 0 }' "$REGISTRY")"
+    [ "$running" -eq 0 ] || return 1
+    pending="$(awk -F'\t' 'NF >= 6 && $6 != "integrated" && $6 != "rejected" && $6 != "cancelled" && $6 != "stopped" { n++ } END { print n + 0 }' "$REGISTRY")"
+    [ "$pending" -eq 0 ] || return 1
+    if [ -n "$DRY_RUN" ]; then
+        log "dry-run: map looks finished (no live workers, no pending rows) — frontier query skipped"
+        return 1
+    fi
+    frontier="$(query_frontier 2>/dev/null)" || { log "watch: frontier query failed — stay resident"; return 1; }
+    [ -z "$frontier" ] || return 1
+    watch_operator watch-finished "-" "$MAP" \
+        "map #$MAP finished — no live workers, no pending rows, empty frontier; watch exiting"
+    return 0
+}
+
+# watch_wait — park one background `worker wait` per live worker (bounded
+# check-in wait, wake on done|blocked|failed); the first completion ends
+# the wait and the next pass re-derives everything. No busy poll: this
+# blocks in `wait -n` until Herdr reports or the check-in timeout
+# expires. With no live workers there is nothing to wait on, so sleep one
+# check-in interval (frontier changes arrive via the next pass).
+watch_wait() {
+    local ms live name tmpdir pids
+    ms=$((INTERVAL * 1000))
+    live="$(awk -F'\t' '$6 == "spawning" || $6 == "running" || $6 == "revision-requested" { print $1 }' "$REGISTRY" 2>/dev/null)"
+    if [ -z "$live" ]; then
+        log "watch: no live workers — sleep ${INTERVAL}s (frontier changes arrive via the next pass)"
+        sleep "$INTERVAL"
+        return 0
+    fi
+    if [ -n "$DRY_RUN" ]; then
+        log "dry-run: would wait on: $(printf '%s' "$live" | tr '\n' ' ')"
+        return 0
+    fi
+    tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/wayfinder-watch.XXXXXX")"
+    pids=""
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        "$WORKER" wait "$name" --timeout "$ms" --until "done" --until "blocked" --until "failed" \
+            >"$tmpdir/$name.out" 2>&1 &
+        pids="$pids $!"
+    done <<< "$live"
+    if [ -n "$pids" ]; then
+        # shellcheck disable=SC2086
+        wait -n $pids 2>/dev/null || true
+        # shellcheck disable=SC2086
+        kill $pids 2>/dev/null || true
+        wait 2>/dev/null || true
+    fi
+    rm -rf "$tmpdir"
+    log "watch: wait woke — next pass"
+    return 0
+}
+
+# watch_lock — exclusive single-supervisor guard for the resident loop. A
+# second watcher refuses instead of double-commanding workers; the chain
+# daemon needs no exclusion (it never issues worker commands).
+watch_lock() {
+    local lock
+    lock="$(dirname "$REGISTRY")/watch.lock"
+    mkdir -p "$(dirname "$REGISTRY")"
+    if command -v flock >/dev/null 2>&1; then
+        exec {WAYFINDER_WATCH_LOCK_FD}>"$lock" \
+            || die "watch: cannot open lock $lock"
+        flock -n "$WAYFINDER_WATCH_LOCK_FD" \
+            || die "watch: another chief watch already owns $lock — refuse to double-command workers"
+    else
+        wf_warn_no_flock "chief watch supervision"
+    fi
+    return 0
+}
+
+# watch_loop — resident supervision: pass -> integrate sweep -> notify ->
+# cleanup sweep -> finished-check -> event wait, until --watch-passes or
+# the map ends. A failed pass (tracker/Herdr outage) holds for one
+# check-in interval instead of exiting — the watch is the backstop.
+watch_loop() {
+    [[ "$INTERVAL" =~ ^[0-9]+$ ]] && [ "$INTERVAL" -ge 1 ] \
+        || die "--interval must be >= 1 second for --watch (got '$INTERVAL')"
+    local max_passes="${WATCH_PASSES:-0}" passes=0
+    if [ -n "$DRY_RUN" ]; then
+        max_passes=1
+        log "dry-run: watch would supervise map #$MAP (one bounded pass, no waits, no writes)"
+    else
+        watch_lock
+        log "watch starting (map #$MAP, max=$MAX, check-in=${INTERVAL}s)"
+        capacity_emit watch-started --ticket "$MAP" --detail "map #$MAP max=$MAX check-in=${INTERVAL}s"
+    fi
+    local tmpdir pass_ok
+    tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/wayfinder-watch.XXXXXX")"
+    trap 'rm -rf "$tmpdir"; log "chief watch stopping"; exit 0' TERM INT
+    while :; do
+        passes=$((passes + 1))
+        pass_ok=""
+        watch_snapshot >"$tmpdir/before.tsv"
+        if pass; then
+            pass_ok=1
+            integrate_sweep
+            watch_snapshot >"$tmpdir/mid.tsv"
+            if [ -z "$DRY_RUN" ]; then
+                watch_notify "$tmpdir/before.tsv" "$tmpdir/mid.tsv"
+            fi
+            cleanup_sweep
+            if [ -z "$DRY_RUN" ] && watch_finished_check; then
+                rm -rf "$tmpdir"
+                trap - TERM INT
+                exit 0
+            fi
+        else
+            log "watch: pass $passes failed (tracker/Herdr outage?) — holding for the next check-in"
+        fi
+        if [ "$max_passes" -gt 0 ] && [ "$passes" -ge "$max_passes" ]; then
+            log "watch: pass bound reached ($passes/$max_passes) — exiting"
+            break
+        fi
+        if [ -z "$DRY_RUN" ]; then
+            if [ -n "$pass_ok" ]; then
+                watch_wait
+            else
+                sleep "$INTERVAL"
+            fi
+        fi
+    done
+    rm -rf "$tmpdir"
+    trap - TERM INT
+    return 0
+}
+
 pass() {
     log "pass start (map #$MAP, max=$MAX)"
     local reconcile_out="" harvest_out=""
@@ -1103,6 +1431,11 @@ fi
 
 if [ -n "$STATUS_LANE" ]; then
     status_lane || exit $?
+    exit 0
+fi
+
+if [ -n "$WATCH_LANE" ]; then
+    watch_loop || exit $?
     exit 0
 fi
 

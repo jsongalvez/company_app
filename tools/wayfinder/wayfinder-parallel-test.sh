@@ -619,5 +619,124 @@ bash "$CHIEF" --map 697 --once --max-workers 2 --workspace-base "$WORK/base" >"$
 grep -q $'^wf-697-263\tticket' "$WAYFINDER_WORKER_REGISTRY" \
     && ok "fill resumes after the stray clears" || bad "no fill after stray cleared: $(cat "$WAYFINDER_WORKER_REGISTRY")"
 
+echo "21. watch integrates accepted rows, releases terminal rows, then exits on a finished map"
+fresh_reg 21
+unset WAYFINDER_REPO
+mkdir -p "$WORK/tws21"
+CANON_W="$(mkfixture canon-watch)"
+git -C "$CANON_W" checkout -qb wf/wf-697-301 >/dev/null
+echo "watched feature" > "$CANON_W/w.txt"; git -C "$CANON_W" add w.txt; git -C "$CANON_W" commit -qm "watched change"
+RESULT_W="$(git -C "$CANON_W" rev-parse HEAD)"
+git -C "$CANON_W" checkout -q master >/dev/null
+mkrow wf-697-301 ticket 301 "$WORK/tws21" ready-for-review
+mkrow wf-697-302 ticket 302 "$WORK/tws21" integrated
+bash "$REVIEW" review wf-697-301 --disposition accept --result-commit "$RESULT_W" >/dev/null 2>&1 \
+    || bad "accept failed"
+printf '[]' >"$WORK/sub-697.json"
+if WAYFINDER_REPO="$CANON_W" bash "$CHIEF" --map 697 --watch --watch-passes 1 --max-workers 2 >"$WORK/out" 2>"$WORK/err"; then
+    ok "bounded watch exits 0"
+else bad "bounded watch failed: $(cat "$WORK/err")"; fi
+[ "$(row_status wf-697-301)" = "" ] && [ -f "$CANON_W/w.txt" ] \
+    && ok "accepted row integrated then released with its pane" || bad "sweep wrong: $(cat "$WAYFINDER_WORKER_REGISTRY")"
+[ "$(grep -c '^wf-697-30' "$WAYFINDER_WORKER_REGISTRY" || true)" -eq 0 ] \
+    && ok "terminal rows converge to released" || bad "terminal rows linger"
+grep -q "operator: ticket #301 integrated" "$WORK/out" \
+    && ok "integration escapes to the operator" || bad "no integrate event: $(cat "$WORK/out")"
+grep -q "operator: map #697 finished" "$WORK/out" \
+    && ok "finished map reported, watch exits" || bad "no finished event: $(cat "$WORK/out")"
+grep -q "agent delete wf-697-301" "$HERDR_CALLS" && grep -q "pane kill pane-7" "$HERDR_CALLS" \
+    && ok "release tears down agent + pane via the worker seam" || bad "no seam teardown: $(cat "$HERDR_CALLS")"
+unset WAYFINDER_REPO
+
+echo "22. watch waits event-driven: one bounded wait per live worker, wake triggers a full pass"
+fresh_reg 22
+unset WAYFINDER_REPO
+base_ws 311
+printf '[{"number":311}]' >"$WORK/sub-697.json"
+mkissue 311 open 0 '[]' "$LBL_TASK"
+if bash "$CHIEF" --map 697 --watch --watch-passes 2 --interval 1 --max-workers 1 --workspace-base "$WORK/base" >"$WORK/out" 2>"$WORK/err"; then
+    ok "two-pass watch exits 0"
+else bad "event watch failed: $(cat "$WORK/err")"; fi
+[ "$(grep -c 'pass start' "$WORK/out")" -eq 2 ] \
+    && ok "wait wake triggered a full second pass" || bad "no second pass: $(cat "$WORK/out")"
+grep -q "agent wait wf-697-311" "$HERDR_CALLS" \
+    && ok "one agent wait parked for the live worker" || bad "no parked wait: $(cat "$HERDR_CALLS")"
+grep -q 'agent wait wf-697-311 --until done --until blocked --until failed --timeout 1000' "$HERDR_CALLS" \
+    && ok "wait is bounded (check-in timeout) on done|blocked|failed" || bad "wait shape wrong: $(grep 'agent wait' "$HERDR_CALLS")"
+grep -E 'agent (start|prompt)' "$HERDR_CALLS" | grep -E -- '--wait' >"$WORK/wait-leak22.out" \
+    && bad "--wait leaked into dispatch: $(cat "$WORK/wait-leak22.out")" || ok "dispatch stays async under watch"
+grep -q "watch: wait woke" "$WORK/out" && ok "wake logged" || bad "no wake log"
+grep -q "operator: worker wf-697-311 (ticket #311) died with salvageable work" "$WORK/out" \
+    && ok "vanished worker reported salvageable" || bad "no gone event: $(cat "$WORK/out")"
+
+echo "23. watch single-supervisor guard, lane validation, daemon owns no worker commands"
+fresh_reg 23
+unset WAYFINDER_REPO
+printf '[]' >"$WORK/sub-697.json"
+exec {WATCH_T}>"$WORK/watch.lock"
+flock -n "$WATCH_T" || bad "test setup: cannot hold watch lock"
+bash "$CHIEF" --map 697 --watch --watch-passes 1 --registry "$WORK/workers-23.tsv" >"$WORK/out" 2>"$WORK/err" \
+    && bad "second watcher past the lock accepted" || grep -q "already owns" "$WORK/err" \
+    && ok "second watcher refuses instead of double-commanding" || bad "wrong lock refusal: $(cat "$WORK/err")"
+eval "exec $WATCH_T>&-" || true
+if bash "$CHIEF" --map 697 --watch --watch-passes 1 --registry "$WORK/workers-23.tsv" >"$WORK/out" 2>"$WORK/err"; then
+    ok "watch proceeds once the lock releases"
+else bad "watch failed after lock release: $(cat "$WORK/err")"; fi
+if bash "$CHIEF" --map 697 --watch --once >"$WORK/out" 2>"$WORK/err"; then
+    bad "--watch --once accepted"
+else ok "--watch and --once are exclusive"; fi
+if bash "$CHIEF" --map 697 --watch-passes 3 >"$WORK/out" 2>"$WORK/err"; then
+    bad "stray --watch-passes accepted"
+else ok "--watch-passes requires --watch"; fi
+if bash "$CHIEF" --map 697 --watch --watch-passes 0 >"$WORK/out" 2>"$WORK/err"; then
+    bad "--watch-passes 0 accepted"
+else ok "--watch-passes validated"; fi
+if bash "$CHIEF" --map 697 --watch --queue >"$WORK/out" 2>"$WORK/err"; then
+    bad "--watch --queue accepted"
+else ok "watch is exclusive with single-shot lanes"; fi
+if grep -v '^#' "$LOOP" | grep -E 'tools/wayfinder/wayfinder-(worker|review)\.sh' >/dev/null; then
+    bad "daemon gained a worker/review command path"
+else ok "daemon holds no worker/review command path (watch owns worker commands)"; fi
+
+echo "24. watch dry-run is side-effect free"
+fresh_reg 24
+unset WAYFINDER_REPO
+mkdir -p "$WORK/tws24"
+mkrow wf-697-331 ticket 331 "$WORK/tws24" accepted-awaiting-integration
+mkrow wf-697-332 ticket 332 "$WORK/tws24" integrated
+printf '[]' >"$WORK/sub-697.json"
+before24="$(sha256sum "$WAYFINDER_WORKER_REGISTRY" | awk '{print $1}')"
+: > "$HERDR_CALLS"
+bash "$CHIEF" --map 697 --watch --dry-run >"$WORK/out" 2>"$WORK/err" \
+    || bad "dry-run watch failed: $(cat "$WORK/err")"
+[ "$(sha256sum "$WAYFINDER_WORKER_REGISTRY" | awk '{print $1}')" = "$before24" ] \
+    && ok "registry untouched" || bad "dry-run wrote registry"
+grep -q 'agent wait' "$HERDR_CALLS" && bad "dry-run parked a wait" || ok "dry-run parks no waits"
+grep -q 'dry-run: watch would supervise' "$WORK/out" && ok "dry-run logs the plan" || bad "no dry-run plan"
+grep -q 'would integrate wf-697-331' "$WORK/out" && ok "dry-run names the sweep" || bad "no sweep plan"
+
+echo "25. watch reports blocked workers for a decision; quiet completions stay below the operator"
+fresh_reg 25
+unset WAYFINDER_REPO
+base_ws 321; base_ws 322
+printf 'wf-697-321\tticket\t321\t%s\tpane-7\trunning\tt0\tt0\tspawned\t\t697\tgen-25\n' "$WORK/base/wf-321" > "$WAYFINDER_WORKER_REGISTRY"
+printf 'wf-697-322\tticket\t322\t%s\tpane-7\trunning\tt0\tt0\tspawned\t\t697\tgen-25\n' "$WORK/base/wf-322" >> "$WAYFINDER_WORKER_REGISTRY"
+printf '[{"number":321},{"number":322}]' >"$WORK/sub-697.json"
+mkissue 321 open 0 '[]' "$LBL_TASK"; mkissue 322 open 0 '[]' "$LBL_TASK"
+cat >"$WORK/herdr/list.json" <<'JSON'
+{"result":{"agents":[{"name":"wf-697-321","status":"blocked"},{"name":"wf-697-322","status":"done"}]}}
+JSON
+printf 'blocked' > "$WORK/herdr/status-wf-697-321"
+printf 'done' > "$WORK/herdr/status-wf-697-322"
+if bash "$CHIEF" --map 697 --watch --watch-passes 1 --max-workers 2 --workspace-base "$WORK/base" >"$WORK/out" 2>"$WORK/err"; then
+    ok "decision watch exits 0"
+else bad "decision watch failed: $(cat "$WORK/err")"; fi
+[ "$(row_status wf-697-321)" = "ready-for-review" ] && [ "$(row_status wf-697-322)" = "ready-for-review" ] \
+    && ok "both workers collected" || bad "collect wrong: $(cat "$WAYFINDER_WORKER_REGISTRY")"
+grep -q "operator: worker wf-697-321 (ticket #321) needs a decision" "$WORK/out" \
+    && ok "blocked worker escapes to the operator" || bad "no decision event: $(cat "$WORK/out")"
+grep -q "operator:.*322" "$WORK/out" \
+    && bad "quiet completion pinged the operator: $(grep 'operator:' "$WORK/out")" || ok "quiet completion stays below the operator"
+
 echo
 if [ $fail -eq 0 ]; then echo "parallel-contract: OK"; else echo "parallel-contract: FAILURES PRESENT"; exit 1; fi
