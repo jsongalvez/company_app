@@ -159,6 +159,7 @@ Relief duty applies when any user — Practitioner or Coordinator — checks int
 - Anonymized records are marked with `deleted_at` and a canonical name marker.
 - Audit redaction on anonymization (#524 — the single exception to audit-payload immutability): retained client audit payloads keep event identity (actor, timestamp, action, record, changed-field keys) while identifying first/last-name values become `[redacted]`; uniform `null`s keep their shape. Financial snapshots and demographic aggregates are never rewritten.
 - Session free-text scrub on anonymization (#908): operator-entered `session.remarks`/`otherConcerns` and `session_practitioner.remarks` for the anonymized client's sessions are nulled live and rewritten to `[redacted]` in retained session audit payloads (same no-new-events precedent as #524); the dashboard list, bearer session detail, and audit history then serve the scrubbed state. Session prices, status, and financial snapshots are retained, never rewritten.
+- Void-reason scrub on anonymization (#909): operator-entered `session_void.voidReason`/`unvoidedReason` for the anonymized client's sessions become `[redacted]` live (`void_reason` is NOT NULL and the unvoid triple is CHECK-bound, so null is impossible; never-unvoided rows keep their null `unvoidedReason` shape) and in retained void audit payloads, and the duplicated `audit_log.reason` on those void rows becomes `[redacted]` — same no-new-events precedent as #524. REMITTED-day reasons on non-void tables are unchanged (pre-existing #524 blind spot, still open).
 
 ---
 

@@ -179,6 +179,15 @@ object AuditLog {
         practitionerIds: Collection<UUID>,
     ): Int = AuditLogStore.redactSessionTextInTransaction(sessionIds, practitionerIds)
 
+    /**
+     * Void-reason redaction (#909) — anonymize-command companion to
+     * [redactSessionTextInTransaction]: rewrites void/unvoid free text plus
+     * the duplicated audit reason column for one anonymized client's void
+     * rows. Runs on the caller's command transaction.
+     */
+    fun redactVoidReasonInTransaction(voidIds: Collection<UUID>): Int =
+        AuditLogStore.redactVoidReasonInTransaction(voidIds)
+
     fun jsonField(
         key: String,
         value: String?,

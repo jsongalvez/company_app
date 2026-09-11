@@ -170,13 +170,16 @@ object ClientService {
                 val after =
                     ClientRepository.findByIdInTransaction(clientId)
                         ?: error("client not found after anonymize")
-                // Redact-then-record (#524, extended #908): session free text is
-                // in-scope anonymization residue, so the live rows are nulled and
-                // the matching session audit payloads scrubbed before the
-                // anonymization event lands — the removed text never sits in a
-                // new payload and the whole command stays atomic.
+                // Redact-then-record (#524, extended #908-#909): session free text
+                // and void/unvoid reasons are in-scope anonymization residue, so
+                // the live rows are scrubbed and the matching audit payloads
+                // (plus the duplicated audit reason column on void rows) are
+                // rewritten before the anonymization event lands — the removed
+                // text never sits in a new payload and the whole command stays
+                // atomic.
                 val scrub = SessionReads.scrubSessionTextForClientInTransaction(clientId)
                 AuditLog.redactSessionTextInTransaction(scrub.sessionIds, scrub.practitionerIds)
+                AuditLog.redactVoidReasonInTransaction(scrub.voidIds)
                 AuditLog.redactClientNamesInTransaction(clientId)
                 ClientAudit.anonymized(callerId, before, after)
             } else {

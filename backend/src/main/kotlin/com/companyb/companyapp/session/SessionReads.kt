@@ -23,28 +23,34 @@ object SessionReads {
     ): Boolean = SessionRepository.hasActivePendingSessionInTransaction(clientId, excludedSessionId)
 
     /**
-     * Scrubbed free-text census for one client's anonymization (#908): the
-     * live session ids nulled plus the practitioner-row ids whose audit
-     * payloads the caller must redact (removed rows join via history census).
+     * Scrubbed free-text census for one client's anonymization (#908, extended
+     * #909 with the void rows): the live session ids nulled plus the
+     * practitioner-row and void-row ids whose audit payloads the caller must
+     * redact (removed practitioner rows join via history census; void rows are
+     * one stable row per session).
      */
     data class SessionTextScrub(
         val sessionIds: List<UUID>,
         val practitionerIds: List<UUID>,
+        val voidIds: List<UUID>,
     )
 
     /**
-     * Anonymization free-text scrub (#908) — nulls session + practitioner free
-     * text for every session of one client on the caller's command
+     * Anonymization free-text scrub (#908, extended #909 with void/unvoid
+     * reasons) — nulls session + practitioner free text and marks void/unvoid
+     * reasons for every session of one client on the caller's command
      * transaction. Writes no audit row of its own (the #524 no-new-events
-     * precedent); the caller redacts the matching session audit payloads
-     * through the audit seam before recording the anonymization event.
+     * precedent); the caller redacts the matching audit payloads through the
+     * audit seam before recording the anonymization event.
      */
     fun scrubSessionTextForClientInTransaction(clientId: UUID): SessionTextScrub {
         val sessionIds = SessionRepository.findSessionIdsForClientInTransaction(clientId)
         val practitionerIds = SessionPractitionerRepository.findIdsForSessionsInTransaction(sessionIds)
+        val voidIds = SessionVoidRepository.findIdsForSessionsInTransaction(sessionIds)
         SessionRepository.scrubFreeTextForClientInTransaction(clientId)
         SessionPractitionerRepository.scrubRemarksForSessionsInTransaction(sessionIds)
-        return SessionTextScrub(sessionIds, practitionerIds)
+        SessionVoidRepository.scrubReasonsForSessionsInTransaction(sessionIds)
+        return SessionTextScrub(sessionIds, practitionerIds, voidIds)
     }
 
     /**

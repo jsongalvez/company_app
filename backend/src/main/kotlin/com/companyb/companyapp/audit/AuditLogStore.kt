@@ -8,6 +8,7 @@ import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.session.SessionPractitionerTable
 import com.companyb.companyapp.session.SessionTable
+import com.companyb.companyapp.session.SessionVoidTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
@@ -257,6 +258,48 @@ internal object AuditLogStore {
         val historicPractitionerIds = findPractitionerIdsForSessionsInHistory(sessionIds)
         return redactTextRows(SessionTable.tableName, sessionIds) +
             redactTextRows(SessionPractitionerTable.tableName, practitionerIds + historicPractitionerIds)
+    }
+
+    /**
+     * Void-reason redaction (#909) — the anonymize-command companion to
+     * [redactSessionTextInTransaction]. Rewrites operator-entered void/unvoid
+     * free text (`voidReason`/`unvoidedReason`) in retained `session_void`
+     * audit rows for one anonymized client's sessions, in place, on the
+     * caller's command transaction (no new events; event identity preserved,
+     * the #524 precedent). Scopes by void record id — one stable row per
+     * session (the #514 invariant), so same-record rows of other tables
+     * survive untouched (the #548 pin). Also scrubs the duplicated
+     * `audit_log.reason` column on those rows: the void/unvoid commands stamp
+     * the operator reason there verbatim.
+     */
+    fun redactVoidReasonInTransaction(voidIds: Collection<UUID>): Int {
+        if (voidIds.isEmpty()) return 0
+        val rows =
+            AuditLogTable
+                .selectAll()
+                .where {
+                    (AuditLogTable.auditTableName eq SessionVoidTable.tableName) and
+                        (AuditLogTable.recordId inList voidIds)
+                }.toList()
+        var redacted = 0
+        for (row in rows) {
+            val oldValue = row[AuditLogTable.oldValue]
+            val newValue = row[AuditLogTable.newValue]
+            val reason = row[AuditLogTable.reason]
+            val scrubbedOld = redactVoidReason(oldValue)
+            val scrubbedNew = redactVoidReason(newValue)
+            val scrubbedReason = if (reason != null) AuditValues.REDACTED else null
+            if (scrubbedOld != oldValue || scrubbedNew != newValue || scrubbedReason != reason) {
+                val rowId = row[AuditLogTable.id]
+                AuditLogTable.update({ AuditLogTable.id eq rowId }) {
+                    it[AuditLogTable.oldValue] = scrubbedOld
+                    it[AuditLogTable.newValue] = scrubbedNew
+                    it[AuditLogTable.reason] = scrubbedReason
+                }
+                redacted++
+            }
+        }
+        return redacted
     }
 
     /**
@@ -547,6 +590,27 @@ private fun redactClientNames(raw: String?): String? =
  * from a scrubbed one — the marker itself carries no identity.
  */
 private fun redactSessionText(raw: String?): String? = redactKeys(raw, SESSION_TEXT_KEYS, emptySet())
+
+/**
+ * Void-reason keys scrubbed on anonymize (BR §Privacy and Cleanup, #909):
+ * operator-entered void/unvoid text that may carry client identity typed
+ * outside any validated field. Other void payload keys (ids, actors,
+ * timestamps) are non-identifying event context and stay.
+ */
+private val VOID_REASON_KEYS =
+    setOf(
+        "voidReason",
+        "unvoidedReason",
+    )
+
+/**
+ * One audit payload's void-reason redaction (#909): operator-entered void
+ * text becomes the uniform [AuditValues.REDACTED] marker, with the same shape
+ * rules as session-text redaction — nulls, historical `"null"` sentinels,
+ * existing markers, non-object shapes, and unparseable payloads pass through
+ * untouched.
+ */
+private fun redactVoidReason(raw: String?): String? = redactKeys(raw, VOID_REASON_KEYS, emptySet())
 
 private fun redactKeys(
     raw: String?,

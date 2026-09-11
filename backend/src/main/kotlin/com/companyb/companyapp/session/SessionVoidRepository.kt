@@ -1,12 +1,15 @@
 package com.companyb.companyapp.session
 
+import com.companyb.companyapp.audit.AuditValues
 import com.companyb.companyapp.exception.ConflictException
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -109,6 +112,45 @@ internal object SessionVoidRepository {
         }
 
         return findByIdInTransaction(sessionVoidId)
+    }
+
+    /**
+     * In-transaction store read (#909) — void-row ids attached to the given
+     * sessions, for the anonymize audit redaction. One stable row per session
+     * (the #514 single-row invariant), so this census covers all void history.
+     */
+    fun findIdsForSessionsInTransaction(sessionIds: Collection<UUID>): List<UUID> =
+        if (sessionIds.isEmpty()) {
+            emptyList()
+        } else {
+            SessionVoidTable
+                .select(SessionVoidTable.id)
+                .where { SessionVoidTable.sessionId inList sessionIds }
+                .map { it[SessionVoidTable.id] }
+        }
+
+    /**
+     * In-transaction store operation (#909) — replaces operator-entered
+     * void/unvoid free text on every void row of one anonymized client's
+     * sessions with the audit redaction marker. `void_reason` is NOT NULL and
+     * the unvoid triple is CHECK-bound, so the marker (not null) is the scrub
+     * value; never-unvoided rows keep their null `unvoided_reason` shape.
+     * Same no-new-events precedent as the session scrub: the client's
+     * anonymization event is the command's audit.
+     */
+    fun scrubReasonsForSessionsInTransaction(sessionIds: Collection<UUID>): Int {
+        if (sessionIds.isEmpty()) return 0
+        val voidScrubbed =
+            SessionVoidTable.update({ SessionVoidTable.sessionId inList sessionIds }) {
+                it[SessionVoidTable.voidReason] = AuditValues.REDACTED
+            }
+        val unvoidScrubbed =
+            SessionVoidTable.update({
+                (SessionVoidTable.sessionId inList sessionIds) and (SessionVoidTable.unvoidedReason.isNotNull())
+            }) {
+                it[SessionVoidTable.unvoidedReason] = AuditValues.REDACTED
+            }
+        return voidScrubbed + unvoidScrubbed
     }
 
     private fun findByIdInTransaction(id: UUID): SessionVoid? =
