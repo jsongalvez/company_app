@@ -77,7 +77,12 @@ object CommissionRoutes {
 
         config.routes.before(ApiRoutes.COMMISSION_SPLITS_PATH) { context ->
             val branchDayId = context.pathParamAsUuid("branchDayId")
-            CapabilityFilter.requireBranchCapability(context, branchDayId, CapabilityCodes.VIEW_BRANCH_DATA)
+            val branchId = CapabilityFilter.resolveBranchIdFromBranchDay(branchDayId)
+            CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
+                context,
+                branchId,
+                CapabilityCodes.VIEW_BRANCH_DATA,
+            )
         }
 
         config.routes.before(ApiRoutes.COMMISSION_RECALCULATE_PATH) { context ->
