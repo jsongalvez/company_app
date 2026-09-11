@@ -349,6 +349,9 @@ SLICE DISCIPLINE (bounded, not whole-repo browsing):
 
 DUPLICATION CHECK (before filing anything):
 - Search open and closed issues for the same defect (gh issue list --search, gh issue view).
+- Check the shared findings registry FIRST: tools/wayfinder/wayfinder-findings.sh check <area:short-kebab> — a filed row means stop (note it as duplicate), an investigating row by a live scout means pick a different suspect or note the overlap in your report instead of double-diving.
+- Before deep-diving a suspect, claim it: tools/wayfinder/wayfinder-findings.sh claim <fingerprint> <your-agent-name> "<note>" (exit 3 with the existing row means someone owns it — back off).
+- After filing: tools/wayfinder/wayfinder-findings.sh filed <fingerprint> <issue-number> <your-agent-name>. If the issue already exists: tools/wayfinder/wayfinder-findings.sh dupe <fingerprint> <issue-number> <your-agent-name> and do not file.
 - A duplicate is never re-filed: note the existing issue number in your report instead.
 
 TICKET QUALITY (every filed issue must carry):
