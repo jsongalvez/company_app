@@ -17,6 +17,7 @@ class PasswordResetDeliveryTest {
     fun resetDelivery() {
         PasswordResetDelivery.configure(null)
     }
+
     @Test
     fun `reset message is plain text with code validity and request framing`() {
         val message = PasswordResetEmail.render("reset-code", 24)
