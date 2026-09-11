@@ -538,33 +538,38 @@ object RemittanceService {
         RemittancePolicy.assertNonEmptyCoverage(breakdownIds)
         val lineSourceDayIds =
             RemittanceLineRepository.findByRemittanceIdInTransaction(remittanceId).map { line ->
-                when (line.type) {
-                    RemittanceLineType.SESSION -> {
-                        SessionReads
-                            .findByIdInTransaction(
-                                line.sessionId
-                                    ?: throw ValidationException("sessionId is required for SESSION line type"),
-                            )?.branchDayId ?: throw NotFoundException("Session not found")
-                    }
-
-                    RemittanceLineType.PRODUCT_SALE -> {
-                        CommerceReads
-                            .findSaleByIdInTransaction(
-                                line.productSaleId
-                                    ?: throw ValidationException(
-                                        "productSaleId is required for PRODUCT_SALE line type",
-                                    ),
-                            )?.branchDayId ?: throw NotFoundException("Product sale not found")
-                    }
-
-                    // #876 — unreachable: the Postgres enum column carries no UNKNOWN label,
-                    // so row mapping fails before this runs. Fail closed, never silently skip.
-                    RemittanceLineType.UNKNOWN -> {
-                        throw ValidationException("Unknown remittance line type")
-                    }
-                }
+                lineSourceBranchDayIdInTransaction(line)
             }
         RemittancePolicy.assertLinesCoveredByBreakdowns(breakdownIds, lineSourceDayIds)
+    }
+
+    /**
+     * Line-to-day dispatcher extracted so [assertSubmitCoverageInTransaction] stays
+     * under the ThrowsCount gate (RED repair on 84079f7). All reads stay
+     * `*InTransaction` on the caller's open transaction.
+     */
+    private fun lineSourceBranchDayIdInTransaction(line: RemittanceLine): UUID =
+        when (line.type) {
+            RemittanceLineType.SESSION -> sessionLineBranchDayIdInTransaction(line.sessionId)
+
+            RemittanceLineType.PRODUCT_SALE -> productSaleLineBranchDayIdInTransaction(line.productSaleId)
+
+            // #876 — unreachable: the Postgres enum column carries no UNKNOWN label,
+            // so row mapping fails before this runs. Fail closed, never silently skip.
+            RemittanceLineType.UNKNOWN -> throw ValidationException("Unknown remittance line type")
+        }
+
+    private fun sessionLineBranchDayIdInTransaction(sessionId: UUID?): UUID {
+        val id = sessionId ?: throw ValidationException("sessionId is required for SESSION line type")
+        return SessionReads.findByIdInTransaction(id)?.branchDayId ?: throw NotFoundException("Session not found")
+    }
+
+    private fun productSaleLineBranchDayIdInTransaction(productSaleId: UUID?): UUID {
+        val id =
+            productSaleId
+                ?: throw ValidationException("productSaleId is required for PRODUCT_SALE line type")
+        return CommerceReads.findSaleByIdInTransaction(id)?.branchDayId
+            ?: throw NotFoundException("Product sale not found")
     }
 
     /**
@@ -578,32 +583,7 @@ object RemittanceService {
         rangeEnd: LocalDate,
     ) {
         RemittanceLineRepository.findByRemittanceIdInTransaction(remittanceId).forEach { line ->
-            val sourceBranchDayId =
-                when (line.type) {
-                    RemittanceLineType.SESSION -> {
-                        SessionReads
-                            .findByIdInTransaction(
-                                line.sessionId
-                                    ?: throw ValidationException("sessionId is required for SESSION line type"),
-                            )?.branchDayId ?: throw NotFoundException("Session not found")
-                    }
-
-                    RemittanceLineType.PRODUCT_SALE -> {
-                        CommerceReads
-                            .findSaleByIdInTransaction(
-                                line.productSaleId
-                                    ?: throw ValidationException(
-                                        "productSaleId is required for PRODUCT_SALE line type",
-                                    ),
-                            )?.branchDayId ?: throw NotFoundException("Product sale not found")
-                    }
-
-                    // #876 — unreachable: the Postgres enum column carries no UNKNOWN label,
-                    // so row mapping fails before this runs. Fail closed, never silently skip.
-                    RemittanceLineType.UNKNOWN -> {
-                        throw ValidationException("Unknown remittance line type")
-                    }
-                }
+            val sourceBranchDayId = lineSourceBranchDayIdInTransaction(line)
             val date =
                 BranchDayService.findByIdInTransaction(sourceBranchDayId)?.date
                     ?: throw NotFoundException("Branch day not found")

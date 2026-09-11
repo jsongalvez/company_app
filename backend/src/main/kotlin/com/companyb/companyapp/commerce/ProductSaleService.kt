@@ -174,6 +174,14 @@ object ProductSaleService {
         if (session.branchDayId != branchDayId) {
             throw NotFoundException("Session not found for this branch day")
         }
+        requireSessionNotVoided(sessionId)
+    }
+
+    /**
+     * #858 void gate extracted so [requireSessionInDay] stays under the
+     * ThrowsCount gate (RED repair on 84079f7).
+     */
+    private fun requireSessionNotVoided(sessionId: UUID) {
         if (SessionReads.isVoidedInTransaction(sessionId)) {
             throw ValidationException("Session is voided")
         }
