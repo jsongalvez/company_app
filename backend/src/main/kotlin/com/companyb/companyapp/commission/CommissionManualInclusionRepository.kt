@@ -1,5 +1,6 @@
 package com.companyb.companyapp.commission
 
+import com.companyb.companyapp.exception.ConflictException
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -70,7 +71,11 @@ internal object CommissionManualInclusionRepository {
         if (inserted.insertedCount == 0) {
             val existing =
                 findByProductSaleAndUserInTransaction(params.productSaleId, params.userId)
-                    ?: error("commission_manual_inclusion conflict row not found")
+                    // #894 (#865 precedent) — the id is owned by another (sale, user)
+                    // pair, so this is a client conflict (409), never a 500.
+                    ?: throw ConflictException(
+                        "Commission inclusion ${params.id} is already used by another sale",
+                    )
             return updateInclusion(existing, isIncluded, reason, assignedBy)
         }
 

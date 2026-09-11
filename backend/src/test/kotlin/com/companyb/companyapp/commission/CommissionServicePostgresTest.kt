@@ -4,6 +4,7 @@ import com.companyb.companyapp.commerce.BranchInventoryTable
 import com.companyb.companyapp.commerce.ProductSaleService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.test.TestFixtures
@@ -152,6 +153,36 @@ class CommissionServicePostgresTest : BasePostgresTest() {
                     .count()
             }
         assertEquals(1, count)
+    }
+
+    @Test
+    fun `create with id reused on different sale and user conflicts`() {
+        val reusedId = TestFixtures.uuid()
+        CommissionService.createManualInclusion(
+            callerId = callerId,
+            id = reusedId,
+            productSaleId = productSaleId,
+            userId = targetUserId,
+            isIncluded = true,
+            reason = null,
+        )
+
+        val otherSaleId = createProductSale(branchDayId, expectedVersion = 2)
+        val otherUserId = TestFixtures.uuid()
+        IdentityFixtures.insertTestUser(otherUserId, "commission-other")
+
+        // #894 (#865 precedent) — an id owned by another (sale, user) pair is a
+        // client conflict (409), never a 500.
+        assertFailsWith<ConflictException> {
+            CommissionService.createManualInclusion(
+                callerId = callerId,
+                id = reusedId,
+                productSaleId = otherSaleId,
+                userId = otherUserId,
+                isIncluded = true,
+                reason = null,
+            )
+        }
     }
 
     @Test
@@ -420,7 +451,10 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         }
     }
 
-    private fun createProductSale(branchDayId: UUID): UUID {
+    private fun createProductSale(
+        branchDayId: UUID,
+        expectedVersion: Int = 1,
+    ): UUID {
         val saleId = TestFixtures.uuid()
         ProductSaleService.sell(
             callerId = callerId,
@@ -431,7 +465,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
             isWalkIn = true,
             productId = productId,
             quantity = 2,
-            expectedVersion = 1,
+            expectedVersion = expectedVersion,
         )
         return saleId
     }
