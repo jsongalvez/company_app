@@ -30,4 +30,26 @@ if FAKE_DOCKER_FAIL=1 test_data_tables test_user company_app_test >/dev/null 2>&
     exit 1
 fi
 
+# No-transport refusal (ref #887): no container and no psql on PATH fails
+# closed naming both, instead of an unbound-variable abort. The inner shell
+# runs on a stub PATH (dirname only) so psql stays unresolvable; sourcing
+# needs nothing else at source time.
+stub_dir="$(mktemp -d)"
+ln -s "$(command -v dirname)" "$stub_dir/dirname"
+bash_bin="$(command -v bash)"
+if env -u TEST_DB_CONTAINER PATH="$stub_dir" "$bash_bin" -c "source \"$ROOT_DIR/tools/database/lib/db-common.sh\"; test_db_psql test_user company_app_test -t -A -c 'SELECT 1'" >/dev/null 2>&1; then
+    printf 'no-transport invocation unexpectedly succeeded\n' >&2
+    rm -rf "$stub_dir"
+    exit 1
+fi
+refusal_output="$(env -u TEST_DB_CONTAINER PATH="$stub_dir" "$bash_bin" -c "source \"$ROOT_DIR/tools/database/lib/db-common.sh\"; test_db_psql test_user company_app_test -t -A -c 'SELECT 1'" 2>&1 || true)"
+rm -rf "$stub_dir"
+case "$refusal_output" in
+    *TEST_DB_CONTAINER*psql*|*psql*TEST_DB_CONTAINER*) ;;
+    *)
+        printf 'no-transport refusal names neither transport: %s\n' "$refusal_output" >&2
+        exit 1
+        ;;
+esac
+
 printf 'test DB discovery tests passed\n'

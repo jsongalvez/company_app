@@ -30,14 +30,17 @@ test_db_psql() {
     local db_user="$1"
     local db_name="$2"
     shift 2
-    if [ -n "${TEST_DB_CONTAINER:-}" ] || ! command -v psql >/dev/null 2>&1; then
+    if [ -n "${TEST_DB_CONTAINER:-}" ]; then
         docker exec "$TEST_DB_CONTAINER" psql -U "$db_user" -d "$db_name" "$@"
-    else
+    elif command -v psql >/dev/null 2>&1; then
         PGPASSWORD="${POSTGRES_PASSWORD:-}" psql \
             -h "${DB_HOST:-localhost}" \
             -p "${DB_PORT:-5432}" \
             -U "$db_user" \
             -d "$db_name" "$@"
+    else
+        printf '%s\n' "test_db_psql: no transport: TEST_DB_CONTAINER is unset and psql is not in PATH" >&2
+        return 1
     fi
 }
 
