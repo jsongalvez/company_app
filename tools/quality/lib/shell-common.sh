@@ -29,9 +29,35 @@ ensure_root_dir() {
 
 # --- source_env ---
 # Sources .env from ROOT_DIR if it exists. Silent no-op when missing.
+# Export-preserving: variables the caller already set (e.g. an operator's
+# TEST_DB_NAME override exported for a k6 run) keep the caller's value — .env
+# only fills genuinely-unset vars. This matches the backend dotenv-kotlin
+# precedence (process environment wins over .env), so boot and cleanup resolve
+# the same database within one run.
 source_env() {
     ensure_root_dir
+    [ -f .env ] || return 0
+    local _source_env_key _source_env_decl
+    local -A _source_env_saved=()
+    local -A _source_env_exported=()
+    while IFS= read -r _source_env_key || [ -n "$_source_env_key" ]; do
+        [ -n "$_source_env_key" ] || continue
+        case "$_source_env_key" in _source_env_*) continue ;; esac
+        if _source_env_decl="$(declare -p "$_source_env_key" 2>/dev/null)"; then
+            _source_env_saved["$_source_env_key"]="${!_source_env_key}"
+            case "$_source_env_decl" in declare\ -*x*) _source_env_exported["$_source_env_key"]=1 ;; esac
+        fi
+    done < <(sed -n 's/^[[:space:]]*\(export[[:space:]][[:space:]]*\)\{0,1\}\([A-Za-z_][A-Za-z0-9_]*\)[[:space:]]*=.*/\2/p' .env | sort -u)
+    # shellcheck disable=SC1091
     source .env 2>/dev/null || true
+    # Restore every caller-set value the file just overwrote.
+    [ "${#_source_env_saved[@]}" -eq 0 ] || for _source_env_key in "${!_source_env_saved[@]}"; do
+        if [ -n "${_source_env_exported[$_source_env_key]+x}" ]; then
+            export "$_source_env_key=${_source_env_saved[$_source_env_key]}" || true
+        else
+            printf -v "$_source_env_key" '%s' "${_source_env_saved[$_source_env_key]}" || true
+        fi
+    done
 }
 
 # --- port_is_listening PORT ---

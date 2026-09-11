@@ -58,6 +58,7 @@ quality scripts source `shell-common.sh` directly.
 | `tools/database/clean-test-db.sh` | Truncates `public` user-data tables preserving seeds, then re-runs the cleanliness check as proof. Run after k6 sessions. Backend focused tests need no cleanup — each worker mints a fresh owned schema per JVM. |
 | `tools/database/test-db-name-test.sh` | Fixtures for `test_db_name` derivation/override plus the k6 default. |
 | `tools/database/test-db-discovery-test.sh` | Mocked-transport fixtures for `test_data_tables` discovery, quoting, empty-DB, and failure-propagation (failure-to-discover stays an error). |
+| `tools/database/source-env-test.sh` | Fixtures for `source_env` export preservation: pre-exported caller values survive `.env`, unset vars are still filled, missing `.env` stays a silent no-op. |
 | `tools/database/test-db-discovery-disposable-test.sh` | Live-DB disposable fixture: real-table discovery, `clean-test-db.sh` truncation proof, and unsafe-identifier rejection. Needs a running database and refuses the application DB — manual verification, never auto-run by `validate.sh`. |
 
 ## OpenAPI contract gate (#495 contract, #496 old-pipeline deletion)

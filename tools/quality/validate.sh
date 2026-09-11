@@ -68,6 +68,7 @@ run_shell_validation() {
     "$root/tools/quality/wrapper-contract.test.sh" \
     "$root/tools/database/test-db-name-test.sh" \
     "$root/tools/database/test-db-discovery-test.sh" \
+    "$root/tools/database/source-env-test.sh" \
     "$root/tools/performance/check-baselines-test.sh"; do
     [ -f "$t" ] || continue
     bash "$t" || status=1
