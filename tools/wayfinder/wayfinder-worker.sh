@@ -578,10 +578,17 @@ cmd_harvest() {
         if [ $((now - first)) -lt 120 ]; then continue; fi
         if [ ! -d "$ws" ]; then skipped=$((skipped + 1)); continue; fi
         br="$(git -C "$ws" branch --show-current 2>/dev/null || true)"
-        case "$br" in
-            prototype/*) ;;
-            *) skipped=$((skipped + 1)); continue ;;
-        esac
+        rowmap="$(wf_tsv_field "$line" 11)"
+        if [ "$rowmap" = "755" ]; then
+            case "$br" in
+                prototype/*) ;;
+                *) skipped=$((skipped + 1)); continue ;;
+            esac
+        else
+            # Fix lanes (e.g. bug map #863): any branch except master —
+            # review/integration stays chief-owned either way.
+            case "$br" in ''|master) skipped=$((skipped + 1)); continue ;; esac
+        fi
         if [ -n "$(git -C "$ws" status --porcelain 2>/dev/null | head -n 1)" ]; then skipped=$((skipped + 1)); continue; fi
         wid="wf-$ticket"
         base="$(awk -F'\t' -v w="$wid" '$1 == w { print $4; exit }' "$wsreg" 2>/dev/null)"
