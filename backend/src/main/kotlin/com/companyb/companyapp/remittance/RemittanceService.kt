@@ -370,8 +370,17 @@ object RemittanceService {
                     val sourceId =
                         productSaleId
                             ?: throw ValidationException("productSaleId is required for PRODUCT_SALE line type")
-                    CommerceReads.findSaleByIdInTransaction(sourceId)?.branchDayId
-                        ?: throw NotFoundException("Product sale not found")
+                    val sale =
+                        CommerceReads.findSaleByIdInTransaction(sourceId)
+                            ?: throw NotFoundException("Product sale not found")
+                    // #858 — voided-session sales are excluded from all financial
+                    // calculations, so attaching one is an explicit 400 (same as
+                    // SESSION #750; unknown sale stays 404 above).
+                    val linkedSessionId = sale.sessionId
+                    if (linkedSessionId != null && SessionReads.isVoidedInTransaction(linkedSessionId)) {
+                        throw ValidationException("Product sale's session is voided")
+                    }
+                    sale.branchDayId
                 }
             }
         // #483 — the pickers only offer the loaded range, so an out-of-range source is a

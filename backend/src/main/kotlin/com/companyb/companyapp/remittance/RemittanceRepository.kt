@@ -441,11 +441,17 @@ internal object RemittanceRepository {
         transaction {
             ProductSaleTable
                 .innerJoin(BranchDayTable, { ProductSaleTable.branchDayId }, { BranchDayTable.id })
+                // #858 — voided-session sales are excluded from all financial
+                // calculations: a null session link never joins, so walk-in sales
+                // without a session pass the IS NULL filter; an unvoided session
+                // drops out of the view and its sales return to the picker.
+                .leftJoin(ActiveSessionVoidsView, { ProductSaleTable.sessionId }, { ActiveSessionVoidsView.sessionId })
                 .selectAll()
                 .where {
                     (BranchDayTable.branchId eq branchId) and
                         (BranchDayTable.date greaterEq from) and
-                        (BranchDayTable.date lessEq to)
+                        (BranchDayTable.date lessEq to) and
+                        (ActiveSessionVoidsView.sessionId.isNull())
                 }.orderBy(
                     BranchDayTable.date to SortOrder.ASC,
                     ProductSaleTable.soldAt to SortOrder.ASC,

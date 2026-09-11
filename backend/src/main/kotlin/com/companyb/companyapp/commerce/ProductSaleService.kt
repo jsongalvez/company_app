@@ -155,16 +155,27 @@ object ProductSaleService {
         return product
     }
 
+    /**
+     * #858 — same-day + void gate for sell (runs on the caller's command
+     * transaction): the in-transaction reads join the sale's atomic commit, so a
+     * void committed before this transaction's snapshot is observed. A concurrent
+     * void racing the insert stays tolerable: the sale then lands linked to a
+     * voided session and is excluded everywhere financial (daily totals, picker,
+     * PRODUCT lines, commission) by the same rule — no ledger diverges.
+     */
     private fun requireSessionInDay(
         sessionId: UUID?,
         branchDayId: UUID,
     ) {
         if (sessionId == null) return
         val session =
-            SessionReads.findById(sessionId)
+            SessionReads.findByIdInTransaction(sessionId)
                 ?: throw NotFoundException("Session not found")
         if (session.branchDayId != branchDayId) {
             throw NotFoundException("Session not found for this branch day")
+        }
+        if (SessionReads.isVoidedInTransaction(sessionId)) {
+            throw ValidationException("Session is voided")
         }
     }
 
