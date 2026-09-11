@@ -26,9 +26,17 @@ if [ -x "$KTLINT_PATH" ]; then
 elif command -v java &>/dev/null; then
     mkdir -p "$KTLINT_DIR"
     echo "Downloading ktlint $KTLINT_VERSION to $KTLINT_PATH..."
-    curl -sSLo "$KTLINT_PATH" "https://github.com/pinterest/ktlint/releases/download/$KTLINT_VERSION/ktlint"
-    chmod +x "$KTLINT_PATH"
-    echo "ktlint $KTLINT_VERSION cached at $KTLINT_PATH."
+    tmp_path="$(mktemp "$KTLINT_DIR/.ktlint.XXXXXX")"
+    if curl -fSsLo "$tmp_path" --retry 3 "https://github.com/pinterest/ktlint/releases/download/$KTLINT_VERSION/ktlint"; then
+        chmod +x "$tmp_path"
+        mv "$tmp_path" "$KTLINT_PATH"
+        echo "ktlint $KTLINT_VERSION cached at $KTLINT_PATH."
+    else
+        rc=$?
+        rm -f "$tmp_path"
+        echo "ERROR: failed to download ktlint $KTLINT_VERSION (curl exit $rc)." >&2
+        exit "$rc"
+    fi
 else
     echo "WARNING: java not found — cannot run ktlint standalone jar."
     echo "Pre-commit will warn and skip Kotlin formatting; CI ktlintCheck still applies."

@@ -63,6 +63,7 @@ run_shell_validation() {
   for t in \
     "$root/tools/quality/test-hooks-no-expensive-commands.sh" \
     "$root/tools/quality/test-shell-portability.sh" \
+    "$root/tools/quality/test-setup-hooks-download.sh" \
     "$root/tools/quality/pre-commit-docs-only-test.sh" \
     "$root/tools/quality/pre-commit-formatter-status-test.sh" \
     "$root/tools/quality/test-commit-msg-hook.sh" \
