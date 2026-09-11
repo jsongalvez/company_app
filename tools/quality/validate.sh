@@ -103,11 +103,27 @@ if [ -z "$changed" ]; then
   exit 1
 fi
 
-backend=0 shared=0 compose=0 buildlogic=0 docs=0 shell=0
+backend=0 shared=0 compose=0 buildlogic=0 docs=0 shell=0 deadcode=0 backend_dev=0 other=0
 tasks=()
 focused=()
 while IFS= read -r f; do
   case "$f" in
+    config/deadcode/*)
+      # Live gate inputs, not docs — the *.txt docs arm below must not
+      # swallow these (ref #884). The gate fails on stale entry-points
+      # lines or a changed unanalyzed set (config/deadcode/README.md).
+      deadcode=1
+      ;;
+    gradle.properties|gradlew|gradlew.bat)
+      # Wrapper/build-cache inputs gate every build (ref #884).
+      buildlogic=1
+      ;;
+    backend/src/dev/*)
+      # Dev sourceset (backend/build.gradle.kts sourceSets dev) compiles
+      # via compileDevKotlin, not the main-only compile (ref #884).
+      backend=1
+      backend_dev=1
+      ;;
     *.md|docs/*|*.txt)
       docs=1
       ;;
@@ -151,15 +167,27 @@ while IFS= read -r f; do
       [ -n "$pkg" ] && focused+=("$pkg.$(basename "$f" .kt)")
       ;;
     composeApp/*) compose=1 ;;
+    "")
+      # Empty line (e.g. trailing herestring newline) — owns nothing.
+      ;;
+    *)
+      # No narrow task owns this path (e.g. docker/*, config/inspection/*).
+      # Tracked so the fallback below stays honest (ref #884).
+      other=1
+      ;;
   esac
 done <<< "$changed"
 
-if [ $((backend + shared + compose + buildlogic)) -eq 0 ]; then
+if [ $((backend + shared + compose + buildlogic + deadcode)) -eq 0 ]; then
   if [ $shell -eq 1 ]; then
     run_shell_validation
     exit $?
   fi
-  echo "validate: docs-only change — no build validation needed"
+  if [ $docs -eq 1 ] && [ $other -eq 0 ]; then
+    echo "validate: docs-only change — no build validation needed"
+    exit 0
+  fi
+  echo "validate: unrecognized change — no targeted task; pass Gradle tasks explicitly (e.g. tools/quality/validate.sh <tasks>)"
   exit 0
 fi
 
@@ -168,6 +196,8 @@ check_detekt_governance
 if [ $buildlogic -eq 1 ]; then
   # Build logic touches every module's configuration; compile one target per module.
   tasks+=(:backend:compileKotlin :shared:compileKotlinJvm :composeApp:compileKotlinDesktop)
+  # A dev-sourceset change alongside build logic still needs its own compile.
+  [ $backend_dev -eq 1 ] && tasks+=(:backend:compileDevKotlin)
 elif [ ${#focused[@]} -gt 0 ]; then
   # Focused --tests filters configure only Test tasks — a compile task in the same
   # invocation fails ("Unknown command-line option '--tests'"). Test tasks compile
@@ -178,6 +208,9 @@ elif [ ${#focused[@]} -gt 0 ]; then
 else
   if [ $backend -eq 1 ]; then
     tasks+=(:backend:compileKotlin)
+    # Dev sourceset compiles separately (compileDevKotlin); the main-only
+    # compile never touches src/dev (ref #884).
+    [ $backend_dev -eq 1 ] && tasks+=(:backend:compileDevKotlin)
   fi
   if [ $shared -eq 1 ]; then
     tasks+=(:shared:compileKotlinJvm :shared:jvmTest)
@@ -186,6 +219,11 @@ else
     tasks+=(:composeApp:compileKotlinDesktop :composeApp:desktopTest)
   fi
 fi
+
+# Dead-code gate inputs changed — run the gate itself (ref #884). Outside
+# the branch above so combined changes (e.g. gate inputs + module sources)
+# still gate in the same invocation.
+[ $deadcode -eq 1 ] && tasks+=(deadCodeCheck)
 
 # Focused --tests filters ride the last test task in the invocation (Gradle ORs them).
 if [ ${#focused[@]} -gt 0 ]; then
