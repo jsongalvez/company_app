@@ -8,6 +8,7 @@ import com.companyb.companyapp.contracts.remittance.RemittanceLineType
 import com.companyb.companyapp.contracts.remittance.RemittanceMethod
 import com.companyb.companyapp.contracts.remittance.RemittanceStatus
 import com.companyb.companyapp.contracts.remittance.RemittanceType
+import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
@@ -367,6 +368,13 @@ object RemittanceService {
                     // calculations, so attaching one is an explicit 400 (branch mismatch stays 404).
                     if (SessionReads.isVoidedInTransaction(sourceId)) {
                         throw ValidationException("Session is voided")
+                    }
+                    // #857 — PENDING income is unrealized and NO_SHOW/CANCELLED sessions
+                    // produce no income, while daily_sales_summary.gross_income counts only
+                    // COMPLETED sessions: attaching any other status is an explicit 400 so
+                    // the frozen snapshot can never diverge from the reporting view.
+                    if (session.sessionStatus != SessionStatus.COMPLETED) {
+                        throw ValidationException("Only COMPLETED sessions can be added to a remittance")
                     }
                     session.branchDayId
                 }

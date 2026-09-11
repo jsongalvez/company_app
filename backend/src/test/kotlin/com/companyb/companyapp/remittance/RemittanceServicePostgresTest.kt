@@ -24,6 +24,7 @@ import com.companyb.companyapp.remittance.RemittanceRepository
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.remittance.RemittanceSubmissionResult
 import com.companyb.companyapp.remittance.RemittanceTable
+import com.companyb.companyapp.reporting.DailySalesSummaryService
 import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
@@ -362,6 +363,55 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val snapshot = RemittanceService.getRemittance(remittanceId).snapshot
         assertNotNull(snapshot)
         assertEquals(BigDecimal("400.00"), snapshot.grossIncome)
+    }
+
+    @Test
+    fun `submit snapshot gross matches daily summary for a controlled day`() {
+        val remittanceId = TestFixtures.uuid()
+        createDraftRemittance(remittanceId)
+        val branchDayId = resolveCurrentBranchDay()
+        addDayBreakdown(remittanceId, TestFixtures.uuid(), branchDayId)
+        ensureClientExists()
+        val completedSessionId = TestFixtures.uuid()
+        SessionClientFixtures.insertTestSession(
+            id = completedSessionId,
+            clientId = clientId,
+            branchDayId = branchDayId,
+            sessionStatus = SessionStatus.COMPLETED,
+            finalPrice = BigDecimal("2500.00"),
+        )
+        // Non-COMPLETED sessions on the same day carry no realizable income: the picker
+        // hides them, the guard rejects them, and both gross authorities must exclude them.
+        listOf(SessionStatus.PENDING, SessionStatus.NO_SHOW, SessionStatus.CANCELLED).forEach { status ->
+            SessionClientFixtures.insertTestSession(
+                id = TestFixtures.uuid(),
+                clientId = SessionClientFixtures.insertTestClient(),
+                branchDayId = branchDayId,
+                sessionStatus = status,
+                finalPrice = BigDecimal("9999.00"),
+            )
+        }
+        RemittanceService.addLine(
+            callerId = callerId,
+            remittanceId = remittanceId,
+            id = TestFixtures.uuid(),
+            type = RemittanceLineType.SESSION,
+            sessionId = completedSessionId,
+            productSaleId = null,
+            amount = BigDecimal("2500.00"),
+        )
+
+        val version = RemittanceService.getRemittance(remittanceId).remittance.version
+        val result = RemittanceService.submit(callerId, remittanceId, version)
+
+        assertEquals(BigDecimal("2500.00"), result.grossIncome)
+        val summary = DailySalesSummaryService.getDailySummary(branchId, TestFixtures.today)
+        assertEquals(0, BigDecimal("2500.00").compareTo(summary.grossIncome))
+        assertEquals(0, result.grossIncome.compareTo(summary.grossIncome))
+        assertEquals(
+            listOf(completedSessionId),
+            RemittanceService.findSessionsInRange(branchId, TestFixtures.today, TestFixtures.today).map { it.id },
+        )
     }
 
     @Test
@@ -861,6 +911,9 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
             id = sId,
             clientId = clientId,
             branchDayId = branchDayId,
+            // #857 — only COMPLETED sessions are remittable; the submit happy paths
+            // exercise the guarded (allowed) state.
+            sessionStatus = SessionStatus.COMPLETED,
         )
         sessionId = sId
         sessionCreated = true

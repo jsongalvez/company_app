@@ -288,9 +288,17 @@ internal object RemittanceRepository {
             .toSet()
     }
 
+    /**
+     * Snapshot gross (#857): SESSION line amounts for live lines whose session is still
+     * COMPLETED and non-voided — the same membership as
+     * `daily_sales_summary.gross_income`. The addLine guard admits only COMPLETED sessions
+     * and COMPLETED is immutable outside void/unvoid, so the status join is defense-in-depth
+     * for legacy rows and status races; voided lines stay silently excluded per #750.
+     */
     fun sumGrossIncomeInTransaction(remittanceId: UUID): BigDecimal =
         RemittancePolicy.sum(
             RemittanceLineTable
+                .innerJoin(SessionTable, { RemittanceLineTable.sessionId }, { SessionTable.id })
                 .leftJoin(
                     ActiveSessionVoidsView,
                     { RemittanceLineTable.sessionId },
@@ -300,7 +308,8 @@ internal object RemittanceRepository {
                     (RemittanceLineTable.remittanceId eq remittanceId) and
                         (RemittanceLineTable.type eq RemittanceLineType.SESSION) and
                         RemittanceLineTable.deletedAt.isNull() and
-                        (ActiveSessionVoidsView.sessionId.isNull())
+                        (ActiveSessionVoidsView.sessionId.isNull()) and
+                        (SessionTable.sessionStatus eq SessionStatus.COMPLETED)
                 }.map { it[RemittanceLineTable.amount] },
         )
 
@@ -396,6 +405,11 @@ internal object RemittanceRepository {
                 }
         }
 
+    /**
+     * Session picker (#857): offers only COMPLETED non-voided sessions — the same membership
+     * the addLine guard enforces and the submit aggregation counts, so the picker never
+     * offers what the guard would reject.
+     */
     fun findSessionsInRange(
         branchId: UUID,
         from: LocalDate,
@@ -411,6 +425,7 @@ internal object RemittanceRepository {
                     (BranchDayTable.branchId eq branchId) and
                         (BranchDayTable.date greaterEq from) and
                         (BranchDayTable.date lessEq to) and
+                        (SessionTable.sessionStatus eq SessionStatus.COMPLETED) and
                         (ActiveSessionVoidsView.sessionId.isNull())
                 }.orderBy(
                     BranchDayTable.date to SortOrder.ASC,

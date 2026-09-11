@@ -230,6 +230,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             id = outOfRangeSessionId,
             clientId = clientId,
             branchDayId = outOfRangeDay.id,
+            sessionStatus = SessionStatus.COMPLETED,
         )
 
         val error =
@@ -329,6 +330,81 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
 
         assertNotNull(line)
         assertEquals(sessionId, line.sessionId)
+    }
+
+    @Test
+    fun `add SESSION line rejects non-COMPLETED source statuses`() {
+        val remittance = createDraftRemittance()
+        val statuses =
+            listOf(
+                SessionStatus.PENDING,
+                SessionStatus.NO_SHOW,
+                SessionStatus.CANCELLED,
+            )
+        statuses.forEach { status ->
+            val statusClientId = SessionClientFixtures.insertTestClient()
+            val statusSessionId = TestFixtures.uuid()
+            SessionClientFixtures.insertTestSession(
+                id = statusSessionId,
+                clientId = statusClientId,
+                branchDayId = branchDayId,
+                sessionStatus = status,
+            )
+
+            val error =
+                assertFailsWith<ValidationException> {
+                    RemittanceService.addLine(
+                        callerId = callerId,
+                        remittanceId = remittance.id,
+                        id = TestFixtures.uuid(),
+                        type = RemittanceLineType.SESSION,
+                        sessionId = statusSessionId,
+                        productSaleId = null,
+                        amount = BigDecimal("1500.00"),
+                    )
+                }
+            assertTrue(
+                checkNotNull(error.message).contains("COMPLETED"),
+                "expected COMPLETED-only rejection for $status, got: ${error.message}",
+            )
+        }
+
+        assertEquals(remittance.version, RemittanceService.getRemittance(remittance.id).remittance.version)
+        assertTrue(RemittanceService.getRemittance(remittance.id).lines.isEmpty())
+        assertEquals(0, remittanceLineAuditCount())
+    }
+
+    @Test
+    fun `session picker excludes non-COMPLETED sessions`() {
+        val completedClientId = SessionClientFixtures.insertTestClient()
+        val completedSessionId = TestFixtures.uuid()
+        SessionClientFixtures.insertTestSession(
+            id = completedSessionId,
+            clientId = completedClientId,
+            branchDayId = branchDayId,
+            sessionStatus = SessionStatus.COMPLETED,
+        )
+        listOf(
+            SessionStatus.PENDING,
+            SessionStatus.NO_SHOW,
+            SessionStatus.CANCELLED,
+        ).forEach { status ->
+            SessionClientFixtures.insertTestSession(
+                id = TestFixtures.uuid(),
+                clientId = SessionClientFixtures.insertTestClient(),
+                branchDayId = branchDayId,
+                sessionStatus = status,
+            )
+        }
+
+        val result =
+            RemittanceService.findSessionsInRange(
+                branchId = branchId,
+                from = LocalDate.of(2026, 7, 1),
+                to = TestFixtures.today,
+            )
+
+        assertEquals(listOf(completedSessionId), result.map { it.id })
     }
 
     @Test
@@ -1278,6 +1354,9 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             otherConcerns = null,
             nextAppointmentDate = null,
         )
+        // #857 — only COMPLETED sessions are remittable; complete the fixture so the
+        // legacy happy-path tests exercise the guarded (allowed) state.
+        completeSession(sid)
     }
 
     private fun createProductSale() {

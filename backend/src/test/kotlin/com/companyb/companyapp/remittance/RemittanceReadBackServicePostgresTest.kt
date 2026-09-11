@@ -207,6 +207,8 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
             id = anonSessionId,
             clientId = anonymizedClientId,
             branchDayId = dayId,
+            // #857 — the picker only offers COMPLETED sessions.
+            sessionStatus = SessionStatus.COMPLETED,
         )
         transaction {
             ClientTable.update({ ClientTable.id eq anonymizedClientId }) {
@@ -684,6 +686,8 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
             id = sId,
             clientId = clientId,
             branchDayId = dayId,
+            // #857 — only COMPLETED sessions are remittable/pickable.
+            sessionStatus = SessionStatus.COMPLETED,
         )
         sessionId = sId
         sessionCreated = true

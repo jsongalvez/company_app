@@ -89,6 +89,8 @@ class RemittanceAuthzTest : BasePostgresTest() {
             id = sessionId,
             clientId = clientId,
             branchDayId = dayId,
+            // #857 — only COMPLETED sessions are remittable.
+            sessionStatus = com.companyb.companyapp.contracts.session.SessionStatus.COMPLETED,
         )
 
         val catId = TestFixtures.uuid()
