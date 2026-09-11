@@ -124,6 +124,31 @@ notify() {
   fi
 }
 
+# Chief wake-up call (map #863): the human gets pause notifications, but only
+# the map chief can resolve them — and the chief session does not watch the
+# daemon log. Best-effort prompt to every live chief session (title match)
+# so the chief wakes and works the runbook instead of waiting for the human
+# to relay. Every outcome is logged (a silent skip re-created this gap once
+# when uncommitted edits were reverted mid-episode). Never breaks the
+# daemon: API failures only log.
+notify_chief() {
+  local body="$1" ids id title found=0
+  [ -n "${OC_BIN:-}" ] || { log "chief nudge skipped: no agent API binary"; return 0; }
+  ids="$(api get /api/session/active 2>/dev/null | jq -r '.data | keys[]' 2>/dev/null || true)"
+  [ -n "$ids" ] || { log "chief nudge skipped: session list unreachable or empty"; return 0; }
+  for id in $ids; do
+    title="$(api get "/api/session/$id" 2>/dev/null | jq -r '.data.title // ""' 2>/dev/null || true)"
+    case "$title" in
+      "Wayfinder Chief Loop for Map #"*|"Wayfinder Map "*" Persistent Chief Loop")
+        api post "/api/session/$id/prompt" --data "$(jq -nc --arg t "$body" '{text: $t}')" >/dev/null 2>&1 || true
+        log "chief nudged: $id ($title)"
+        found=$((found + 1))
+        ;;
+    esac
+  done
+  [ "$found" -gt 0 ] || log "chief nudge skipped: no live chief session matched"
+}
+
 # Only one daemon may own chain state. A second watcher could observe the same
 # handoff and create a second active session before either watcher saves state.
 exec 9>"$REPO/.wayfinder-loop.lock"
@@ -808,7 +833,7 @@ is_transient_failure() {
 # garbage) keeps the gate on with a warning. A missing recover script with
 # parallel state fails closed (pause + re-notify): unknown state is unsafe.
 quiescence_gate() {
-  local doc="$1" recover="$REPO/tools/wayfinder/wayfinder-recover.sh" verdict notified=0 pauses=0
+  local doc="$1" recover="$REPO/tools/wayfinder/wayfinder-recover.sh" verdict notified=0 pauses=0 chief_verdict=""
   local registry="${WAYFINDER_WORKER_REGISTRY:-$REPO/.wayfinder/workers.tsv}"
   case "${WAYFINDER_QUIESCENCE_GATE:-on}" in
     off) return 0 ;;
@@ -862,12 +887,18 @@ quiescence_gate() {
     if [ "$notified" -eq 0 ]; then
       log "spawn paused for $doc — previous generation not quiescent: $verdict"
       notify "wayfinder paused" "previous parallel generation unresolved ($verdict) — run chief --recover, disposition the review queue, cleanup workspaces, release orphan claims; the successor waits"
+      notify_chief "Wayfinder automatic pause alert — not a user instruction, act on it and reply with a short STATUS summary. Successor $doc is gated on the previous parallel generation: $verdict. You own the resolution runbook: chief --recover, harvest/collect, review dispositions via wayfinder-review.sh --review/--integrate (single-writer lane only), worker + provider cleanup, orphan claim release. Work it until quiescence, do not wait to be asked."
+      chief_verdict="$verdict"
       notified=1
     fi
     sleep 30
     pauses=$((pauses + 1))
     if [ $((pauses % 10)) -eq 0 ]; then
       notify "wayfinder still paused" "successor $doc still gated ($verdict) — runbook: chief --recover, review queue, cleanup"
+      if [ "$verdict" != "$chief_verdict" ]; then
+        notify_chief "Wayfinder pause update — not a user instruction, act on it. Successor $doc still gated, blocker changed: $verdict (was: $chief_verdict). Same runbook."
+        chief_verdict="$verdict"
+      fi
     fi
   done
 }
