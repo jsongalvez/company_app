@@ -152,7 +152,7 @@ object BranchInventoryRoutes {
         // (#730 SessionBaseRateRoutes precedent; #711/#715/#724 class):
         // requireBranchCapabilityForBranchId alone conflates "unknown branch" with
         // "known but non-member". BranchService.findById throws NotFoundException.
-        config.routes.before("/api/branches/{branchId}/inventory") { context ->
+        config.routes.before(ApiRoutes.BRANCH_INVENTORY_PATH) { context ->
             val branchId = requireKnownBranchId(context)
             val required =
                 if (context.method() == HandlerType.POST) {
@@ -167,7 +167,7 @@ object BranchInventoryRoutes {
             )
         }
 
-        config.routes.before("/api/branches/{branchId}/inventory/low-stock") { context ->
+        config.routes.before(ApiRoutes.BRANCH_INVENTORY_LOW_STOCK_PATH) { context ->
             val branchId = requireKnownBranchId(context)
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
@@ -176,7 +176,7 @@ object BranchInventoryRoutes {
             )
         }
 
-        config.routes.before("/api/branches/{branchId}/inventory/movements") { context ->
+        config.routes.before(ApiRoutes.BRANCH_INVENTORY_MOVEMENTS_PATH) { context ->
             val branchId = requireKnownBranchId(context)
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
@@ -185,7 +185,7 @@ object BranchInventoryRoutes {
             )
         }
 
-        config.routes.before("/api/branches/{branchId}/inventory/{productId}/restock") { context ->
+        config.routes.before(ApiRoutes.BRANCH_INVENTORY_RESTOCK_PATH) { context ->
             val branchId = requireKnownBranchId(context)
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
@@ -194,7 +194,7 @@ object BranchInventoryRoutes {
             )
         }
 
-        config.routes.before("/api/branches/{branchId}/inventory/{productId}/movement") { context ->
+        config.routes.before(ApiRoutes.BRANCH_INVENTORY_MOVEMENT_PATH) { context ->
             val branchId = requireKnownBranchId(context)
             val request = context.bodyAsClass<InventoryMovementRequest>()
             val reason = validateMovementReason(request.reason)

@@ -56,7 +56,7 @@ object SessionBaseRateRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
 
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/branches/{branchId}/rates") { context ->
+        config.routes.before(ApiRoutes.BRANCH_RATES_PATH) { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             // #730 — 404 precedence for an unknown branch before the capability gate:
             // requireBranchCapabilityForBranchId alone conflates "unknown branch" with

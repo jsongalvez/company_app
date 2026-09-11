@@ -314,11 +314,11 @@ object SessionRoutes {
         config.routes.post(ApiRoutes.SESSION_UNVOID_PATH, ::handleUnvoidSession)
         config.routes.post(ApiRoutes.SESSION_PRACTITIONERS_PATH, ::handleAddPractitioner)
         config.routes.patch(
-            "/api/sessions/{sessionId}/practitioners/{practitionerId}",
+            ApiRoutes.SESSION_PRACTITIONER_PATH,
             ::handleUpdatePractitionerRemarks,
         )
         config.routes.delete(
-            "/api/sessions/{sessionId}/practitioners/{practitionerId}",
+            ApiRoutes.SESSION_PRACTITIONER_PATH,
             ::handleRemovePractitioner,
         )
         config.routes.get(ApiRoutes.CONCERNS, ::handleGetConcerns)
@@ -715,7 +715,7 @@ private fun registerPractitionerGates(config: JavalinConfig) {
         )
     }
 
-    config.routes.before("/api/sessions/{sessionId}/practitioners/{practitionerId}") { context ->
+    config.routes.before(ApiRoutes.SESSION_PRACTITIONER_PATH) { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
         SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
             context,
@@ -758,7 +758,7 @@ private fun registerConcernGates(config: JavalinConfig) {
         )
     }
 
-    config.routes.before("/api/sessions/{sessionId}/promote-concern") { context ->
+    config.routes.before(ApiRoutes.SESSION_PROMOTE_CONCERN_PATH) { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
         SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
             context,
