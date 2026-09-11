@@ -261,13 +261,36 @@ internal object SessionRepository {
             .empty()
             .not()
 
-    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
+    /** In-transaction store read for command-owned flows — runs on the caller's open transaction. */
     fun findByIdInTransaction(id: UUID): Session? =
         SessionTable
             .selectAll()
             .where { SessionTable.id eq id }
             .singleOrNull()
             ?.toSession()
+
+    /**
+     * In-transaction store read (#908) — ids of every session holding one
+     * client's operator-entered free text, any status.
+     */
+    fun findSessionIdsForClientInTransaction(clientId: UUID): List<UUID> =
+        SessionTable
+            .select(SessionTable.id)
+            .where { SessionTable.clientId eq clientId }
+            .map { it[SessionTable.id] }
+
+    /**
+     * In-transaction store operation (#908) — nulls operator-entered free text
+     * on every session of one anonymized client. Runs on the caller's command
+     * transaction with no audit row of its own: the client's anonymization
+     * event is the command's audit, and a scrub event would re-persist the
+     * removed text (the #524 no-new-events precedent).
+     */
+    fun scrubFreeTextForClientInTransaction(clientId: UUID): Int =
+        SessionTable.update({ SessionTable.clientId eq clientId }) {
+            it[SessionTable.remarks] = null
+            it[SessionTable.otherConcerns] = null
+        }
 
     fun hasActivePendingSessionInTransaction(
         clientId: UUID,

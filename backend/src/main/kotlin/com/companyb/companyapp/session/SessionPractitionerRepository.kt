@@ -5,6 +5,7 @@ import com.companyb.companyapp.exception.VersionMismatchException
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.select
@@ -135,6 +136,34 @@ internal object SessionPractitionerRepository {
                 .map { it.toSessionPractitioner() }
         }.also {
             logger.info { "[FIND-PRACTITIONERS-BY-SESSION] Found ${it.size} practitioners for session $sessionId" }
+        }
+
+    /**
+     * In-transaction store read (#908) — practitioner-row ids attached to the
+     * given sessions, for the anonymize audit redaction.
+     */
+    fun findIdsForSessionsInTransaction(sessionIds: Collection<UUID>): List<UUID> =
+        if (sessionIds.isEmpty()) {
+            emptyList()
+        } else {
+            SessionPractitionerTable
+                .select(SessionPractitionerTable.id)
+                .where { SessionPractitionerTable.sessionId inList sessionIds }
+                .map { it[SessionPractitionerTable.id] }
+        }
+
+    /**
+     * In-transaction store operation (#908) — nulls practitioner remarks on
+     * the given sessions. Same no-new-events precedent as the session scrub:
+     * the client's anonymization event is the command's audit.
+     */
+    fun scrubRemarksForSessionsInTransaction(sessionIds: Collection<UUID>): Int =
+        if (sessionIds.isEmpty()) {
+            0
+        } else {
+            SessionPractitionerTable.update({ SessionPractitionerTable.sessionId inList sessionIds }) {
+                it[SessionPractitionerTable.remarks] = null
+            }
         }
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toSessionPractitioner(): SessionPractitioner =

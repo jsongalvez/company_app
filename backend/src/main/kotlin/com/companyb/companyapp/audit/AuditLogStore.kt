@@ -6,6 +6,8 @@ import com.companyb.companyapp.client.DEFAULT_CLIENT_ADDRESS
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.session.SessionPractitionerTable
+import com.companyb.companyapp.session.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
@@ -240,6 +242,86 @@ internal object AuditLogStore {
     }
 
     /**
+     * Session-text redaction (#908) — the anonymize-command companion to
+     * [redactClientNamesInTransaction]. Rewrites operator-entered free text
+     * (`remarks`/`otherConcerns`) in retained session + session-practitioner
+     * audit rows for one anonymized client's sessions, in place, on the
+     * caller's command transaction (no new events; event identity preserved,
+     * the #524 precedent). Scopes by record id, so same-record rows of other
+     * tables survive untouched (the #548 pin).
+     */
+    fun redactSessionTextInTransaction(
+        sessionIds: Collection<UUID>,
+        practitionerIds: Collection<UUID>,
+    ): Int {
+        val historicPractitionerIds = findPractitionerIdsForSessionsInHistory(sessionIds)
+        return redactTextRows(SessionTable.tableName, sessionIds) +
+            redactTextRows(SessionPractitionerTable.tableName, practitionerIds + historicPractitionerIds)
+    }
+
+    /**
+     * History census (#908): practitioner rows removed before anonymize leave
+     * no live row, but their INSERT/UPDATE/DELETE audit payloads still carry
+     * the session's free text keyed by the removed row id. Those payloads
+     * embed the owning `sessionId`, so every practitioner-table audit row
+     * naming one of this client's sessions joins the redaction set.
+     * Rare-command scan over one table's audit rows — anonymize is
+     * infrequent, and a JSON predicate in SQL is outside the Exposed-DSL rule.
+     */
+    private fun findPractitionerIdsForSessionsInHistory(sessionIds: Collection<UUID>): Set<UUID> {
+        if (sessionIds.isEmpty()) return setOf()
+        val wanted = sessionIds.toSet()
+        return AuditLogTable
+            .selectAll()
+            .where { AuditLogTable.auditTableName eq SessionPractitionerTable.tableName }
+            .toList()
+            .mapNotNull { row ->
+                val namesSession =
+                    listOf(row[AuditLogTable.oldValue], row[AuditLogTable.newValue]).any { payload ->
+                        payloadSessionId(payload)?.let { it in wanted } == true
+                    }
+                if (namesSession) row[AuditLogTable.recordId] else null
+            }.toSet()
+    }
+
+    private fun payloadSessionId(raw: String?): UUID? {
+        val element =
+            raw?.let { runCatching { Json.parseToJsonElement(it) }.getOrNull() } as? JsonObject
+        val sessionId = (element?.get("sessionId") as? JsonPrimitive)?.content
+        return sessionId?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+    }
+
+    private fun redactTextRows(
+        tableName: String,
+        recordIds: Collection<UUID>,
+    ): Int {
+        if (recordIds.isEmpty()) return 0
+        val rows =
+            AuditLogTable
+                .selectAll()
+                .where {
+                    (AuditLogTable.auditTableName eq tableName) and
+                        (AuditLogTable.recordId inList recordIds)
+                }.toList()
+        var redacted = 0
+        for (row in rows) {
+            val oldValue = row[AuditLogTable.oldValue]
+            val newValue = row[AuditLogTable.newValue]
+            val scrubbedOld = redactSessionText(oldValue)
+            val scrubbedNew = redactSessionText(newValue)
+            if (scrubbedOld != oldValue || scrubbedNew != newValue) {
+                val rowId = row[AuditLogTable.id]
+                AuditLogTable.update({ AuditLogTable.id eq rowId }) {
+                    it[AuditLogTable.oldValue] = scrubbedOld
+                    it[AuditLogTable.newValue] = scrubbedNew
+                }
+                redacted++
+            }
+        }
+        return redacted
+    }
+
+    /**
      * Scope predicate: branch rows must be in the caller's window (null window =
      * all branches — GLOBAL VIEW_BRANCH_DATA holder); NULL-branch rows are
      * readable when their table passes the branchless policy or the caller holds
@@ -433,13 +515,44 @@ private val CLIENT_IDENTIFYING_KEYS =
     )
 
 /**
+ * Session free-text keys scrubbed on anonymize (BR §Privacy and Cleanup,
+ * #908): operator-entered notes that may carry client identity typed outside
+ * any validated field. Other session payload keys (ids, prices, status, type,
+ * dates, flags) are non-identifying event context and stay.
+ */
+private val SESSION_TEXT_KEYS =
+    setOf(
+        "remarks",
+        "otherConcerns",
+    )
+
+/**
  * One audit payload's PII redaction (#524, extended #525): identifying values
  * become the uniform [AuditValues.REDACTED] marker; JSON nulls, historical
  * `"null"` sentinels, existing markers, the `N/A` address default, non-object
  * shapes, and unparseable payloads pass through untouched so cleared-state
  * history keeps its shape.
  */
-private fun redactClientNames(raw: String?): String? {
+private fun redactClientNames(raw: String?): String? =
+    redactKeys(raw, CLIENT_IDENTIFYING_KEYS, setOf(DEFAULT_CLIENT_ADDRESS))
+
+/**
+ * One audit payload's session-text redaction (#908): operator-entered free
+ * text becomes the uniform [AuditValues.REDACTED] marker. Nulls, historical
+ * `"null"` sentinels, existing markers, non-object shapes, and unparseable
+ * payloads pass through untouched — the same shape rules as client redaction,
+ * minus the client `N/A` address exemption (a session note is never an
+ * address default, so exact-`N/A` text is scrubbed like any other value).
+ * A scrubbed null stays null, so a never-noted session stays distinguishable
+ * from a scrubbed one — the marker itself carries no identity.
+ */
+private fun redactSessionText(raw: String?): String? = redactKeys(raw, SESSION_TEXT_KEYS, emptySet())
+
+private fun redactKeys(
+    raw: String?,
+    keys: Set<String>,
+    extraKeeps: Set<String>,
+): String? {
     if (raw == null) return null
     // #601 max-2: unparseable and non-object sides share one passthrough exit.
     val element = runCatching { Json.parseToJsonElement(raw) }.getOrNull() as? JsonObject ?: return raw
@@ -448,11 +561,11 @@ private fun redactClientNames(raw: String?): String? {
         buildJsonObject {
             element.forEach { (key, value) ->
                 val keep =
-                    key !in CLIENT_IDENTIFYING_KEYS ||
+                    key !in keys ||
                         value is JsonNull ||
                         value == JsonPrimitive(AuditValues.NULL) ||
                         value == JsonPrimitive(AuditValues.REDACTED) ||
-                        value == JsonPrimitive(DEFAULT_CLIENT_ADDRESS)
+                        extraKeeps.any { keep -> value == JsonPrimitive(keep) }
                 if (keep) {
                     put(key, value)
                 } else {

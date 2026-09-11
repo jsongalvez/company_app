@@ -158,6 +158,7 @@ Relief duty applies when any user — Practitioner or Coordinator — checks int
 - Gender and age are retained for aggregate reporting.
 - Anonymized records are marked with `deleted_at` and a canonical name marker.
 - Audit redaction on anonymization (#524 — the single exception to audit-payload immutability): retained client audit payloads keep event identity (actor, timestamp, action, record, changed-field keys) while identifying first/last-name values become `[redacted]`; uniform `null`s keep their shape. Financial snapshots and demographic aggregates are never rewritten.
+- Session free-text scrub on anonymization (#908): operator-entered `session.remarks`/`otherConcerns` and `session_practitioner.remarks` for the anonymized client's sessions are nulled live and rewritten to `[redacted]` in retained session audit payloads (same no-new-events precedent as #524); the dashboard list, bearer session detail, and audit history then serve the scrubbed state. Session prices, status, and financial snapshots are retained, never rewritten.
 
 ---
 

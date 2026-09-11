@@ -169,6 +169,16 @@ object AuditLog {
      */
     fun redactClientNamesInTransaction(recordId: UUID): Int = AuditLogStore.redactClientNamesInTransaction(recordId)
 
+    /**
+     * Session-text redaction (#908) — anonymize-command companion to
+     * [redactClientNamesInTransaction]: rewrites session free text for one
+     * anonymized client's sessions. Runs on the caller's command transaction.
+     */
+    fun redactSessionTextInTransaction(
+        sessionIds: Collection<UUID>,
+        practitionerIds: Collection<UUID>,
+    ): Int = AuditLogStore.redactSessionTextInTransaction(sessionIds, practitionerIds)
+
     fun jsonField(
         key: String,
         value: String?,
