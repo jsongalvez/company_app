@@ -32,6 +32,5 @@ object OperationalDay {
     fun operationalEpochDay(
         manilaHour: Int,
         manilaCalendarEpochDay: Long,
-    ): Long =
-        if (isBeforeCutoff(manilaHour)) manilaCalendarEpochDay - 1 else manilaCalendarEpochDay
+    ): Long = if (isBeforeCutoff(manilaHour)) manilaCalendarEpochDay - 1 else manilaCalendarEpochDay
 }
