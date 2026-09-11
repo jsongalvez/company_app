@@ -9,7 +9,6 @@ import com.companyb.companyapp.finance.ExpenseTable
 import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.util.UUID
@@ -25,7 +24,7 @@ object CommerceFinanceFixtures {
         name: String = "Test Category ${id.toString().take(8)}",
     ) {
         transaction {
-            ProductCategoryTable.insertIgnore {
+            ProductCategoryTable.insert {
                 it[ProductCategoryTable.id] = id
                 it[ProductCategoryTable.name] = name
             }
@@ -42,7 +41,7 @@ object CommerceFinanceFixtures {
         reorderPoint: Int? = null,
     ) {
         transaction {
-            ProductTable.insertIgnore {
+            ProductTable.insert {
                 it[ProductTable.id] = id
                 it[ProductTable.name] = name
                 it[ProductTable.productCategoryId] = categoryId
@@ -68,7 +67,7 @@ object CommerceFinanceFixtures {
         isWalkIn: Boolean = true,
     ) {
         transaction {
-            ProductSaleTable.insertIgnore {
+            ProductSaleTable.insert {
                 it[ProductSaleTable.id] = id
                 it[ProductSaleTable.branchDayId] = branchDayId
                 it[ProductSaleTable.productId] = productId

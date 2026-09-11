@@ -9,7 +9,6 @@ import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -39,7 +38,7 @@ object SessionClientFixtures {
         finalPrice: BigDecimal = BigDecimal("2500.00"),
     ) {
         transaction {
-            SessionTable.insertIgnore {
+            SessionTable.insert {
                 it[SessionTable.id] = id
                 it[SessionTable.clientId] = clientId
                 it[SessionTable.branchDayId] = branchDayId
@@ -54,7 +53,7 @@ object SessionClientFixtures {
 
     fun insertTestClient(id: UUID = TestFixtures.uuid()): UUID {
         transaction {
-            ClientTable.insertIgnore {
+            ClientTable.insert {
                 it[ClientTable.id] = id
                 it[ClientTable.firstName] = "Test"
                 it[ClientTable.lastName] = "Client"

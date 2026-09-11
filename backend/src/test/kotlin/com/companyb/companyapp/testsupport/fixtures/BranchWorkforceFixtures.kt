@@ -74,6 +74,13 @@ object BranchWorkforceFixtures {
 
     fun createBranchDayForToday(branchId: UUID): UUID = createBranchDayForDate(branchId, TestFixtures.today)
 
+    /**
+     * Intentional idempotent find-or-create keyed by the (branch_id, date) natural key (#878):
+     * the deliberate exception to the loud-insert fixture policy. Callers routinely resolve
+     * the same day twice in one setup (e.g. work + paying day) and expect the existing row
+     * back, so `insertIgnore` + re-read is correct here. Every other fixture helper inserts
+     * PK-addressed setup rows with plain `insert` so a conflicting setup fails fast.
+     */
     fun createBranchDayForDate(
         branchId: UUID,
         date: LocalDate,
@@ -124,7 +131,7 @@ object BranchWorkforceFixtures {
         userId: UUID,
     ) {
         transaction {
-            AttendanceTable.insertIgnore {
+            AttendanceTable.insert {
                 it[AttendanceTable.id] = TestFixtures.uuid()
                 it[AttendanceTable.branchDayId] = branchDayId
                 it[AttendanceTable.userId] = userId
