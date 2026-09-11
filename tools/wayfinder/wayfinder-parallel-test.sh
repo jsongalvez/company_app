@@ -585,12 +585,12 @@ bash "$REVIEW" integrate wf-260 --repo "$CANON20" >/dev/null 2>&1 \
 [ -f "$CANON20/c.txt" ] && ok "crashed worker's commit reaches canonical" || bad "salvaged change missing"
 : > "$HERDR_CALLS"
 bash "$WORKER" cleanup wf-260 >/dev/null 2>&1 || bad "post-integrate cleanup refused"
-grep -q "agent delete wf-260" "$HERDR_CALLS" && ok "cleanup tears down the agent (no unmanaged residue)" || bad "no agent teardown: $(cat "$HERDR_CALLS")"
+if grep -q "agent delete\|pane kill" "$HERDR_CALLS"; then bad "cleanup still calls a nonexistent verb: $(cat "$HERDR_CALLS")"; else ok "cleanup invokes no nonexistent verbs (empty-pane row, nothing to close)"; fi
 mkdir -p "$WORK/tws20"
 mkrow wf-261 ticket 261 "$WORK/tws20" integrated
 : > "$HERDR_CALLS"
 bash "$WORKER" cleanup wf-261 >/dev/null 2>&1 || bad "pane cleanup refused"
-grep -q "pane kill pane-7" "$HERDR_CALLS" && ok "cleanup releases the pane" || bad "no pane release: $(cat "$HERDR_CALLS")"
+grep -q "pane close pane-7" "$HERDR_CALLS" && ok "cleanup releases the pane" || bad "no pane release: $(cat "$HERDR_CALLS")"
 bash "$RECOVER" quiescence >"$WORK/out" 2>&1 \
     && grep -q "^QUIESCENT$" "$WORK/out" && ok "successor advances after salvage+integrate+cleanup" || bad "still blocked: $(cat "$WORK/out")"
 mkdir -p "$WORK/hws20" "$WORK/hws20b"
@@ -644,8 +644,8 @@ grep -q "operator: ticket #301 integrated" "$WORK/out" \
     && ok "integration escapes to the operator" || bad "no integrate event: $(cat "$WORK/out")"
 grep -q "operator: map #697 finished" "$WORK/out" \
     && ok "finished map reported, watch exits" || bad "no finished event: $(cat "$WORK/out")"
-grep -q "agent delete wf-697-301" "$HERDR_CALLS" && grep -q "pane kill pane-7" "$HERDR_CALLS" \
-    && ok "release tears down agent + pane via the worker seam" || bad "no seam teardown: $(cat "$HERDR_CALLS")"
+grep -q "pane close pane-7" "$HERDR_CALLS" && ! grep -q "agent delete\|pane kill" "$HERDR_CALLS" \
+    && ok "release closes the pane via the worker seam (no nonexistent verbs)" || bad "no seam teardown: $(cat "$HERDR_CALLS")"
 unset WAYFINDER_REPO
 
 echo "22. watch waits event-driven: one bounded wait per live worker, wake triggers a full pass"

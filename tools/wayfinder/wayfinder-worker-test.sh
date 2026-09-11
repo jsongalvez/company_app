@@ -36,6 +36,7 @@ case "${1:-} ${2:-}" in
     "agent wait") printf '{"result":{"agent":{"name":"%s","status":"done"}}}' "$3"; exit 0 ;;
     "agent read") printf 'screen-output\n'; exit 0 ;;
     "agent send-keys") exit 0 ;;
+    "pane close") exit 0 ;;
 esac
 printf 'unexpected: %s\n' "$*" >&2; exit 1
 EOF
@@ -225,8 +226,9 @@ echo "16. cleanup tears down the agent/pane best-effort and never fails on it (m
 printf 'wf-td\tticket\t706\t%s\tpane-9\tintegrated\tt0\tt0\treviewed\n' "$WORK/ws" > "$WORK/workers.tsv"
 run cleanup wf-td
 [ "$(rc)" -eq 0 ] && ok "terminal cleanup succeeds" || bad "cleanup failed: $(cat "$WORK/err")"
-grep -q "agent delete wf-td" "$HERDR_CALLS" && ok "cleanup attempts agent teardown" || bad "no agent teardown attempted"
-grep -q "pane kill pane-9" "$HERDR_CALLS" && ok "cleanup attempts pane teardown" || bad "no pane teardown attempted"
+grep -q "pane close pane-9" "$HERDR_CALLS" && ok "cleanup releases the pane via pane close" || bad "no pane teardown attempted"
+if grep -q "agent delete" "$HERDR_CALLS"; then bad "cleanup still calls nonexistent agent delete"; else ok "no nonexistent agent verb invoked"; fi
+if grep -q "pane kill" "$HERDR_CALLS"; then bad "cleanup still calls nonexistent pane kill"; else ok "no nonexistent pane verb invoked"; fi
 [ "$(grep -c '^wf-td' "$WORK/workers.tsv" || true)" -eq 0 ] && ok "row removed" || bad "row survived"
 printf 'wf-td2\tticket\t707\t%s\tpane-9\tgone\tt0\tt0\tcrashed\n' "$WORK/ws" > "$WORK/workers.tsv"
 run cleanup wf-td2

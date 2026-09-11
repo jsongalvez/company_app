@@ -294,30 +294,32 @@ reg_insert() {
 
 # teardown_agent <name> <pane> — best-effort Herdr release after a safe
 # terminal disposition or a refused spawn (ticket #746). A cleaned row
-# must not leave a live agent that reappears as `unmanaged` and blocks
-# the next successor gate. The delete/kill verbs are best-effort: an
-# unknown verb or an already-gone agent warns on stderr and never fails
-# the caller (cleanup of a crashed worker whose agent is already gone is
+# must not leave a live pane that reappears as `unmanaged` and blocks
+# the next successor gate. The pane close is best-effort: an
+# already-gone pane warns on stderr and never fails
+# the caller (cleanup of a crashed worker whose pane is already gone is
 # the normal case, not an error). The warning names the exact manual
 # equivalent so an unrecognized runtime stays actionable.
+# There is intentionally no separate agent teardown: the installed Herdr
+# CLI offers no `agent delete` verb (verified 2026-09-12: list/get/read/
+# send-keys/prompt/rename/focus/wait/attach/start/explain only) — the
+# agent lives in its pane (agent start requires an existing pane) and
+# dies with it, so `pane close` is the whole release (ticket #899).
 teardown_agent() {
     local name="${1:-}" pane="${2:-}" out
     [ -n "$name" ] || return 0
+    if [ -z "$pane" ]; then
+        printf 'wayfinder-worker: warning: no pane recorded for agent %s — nothing to close (operator equivalent: herdr pane list, then herdr pane close <pane_id>)\n' "$name" >&2
+        return 0
+    fi
     command -v "$HERDR_BIN" >/dev/null 2>&1 || {
-        printf 'wayfinder-worker: warning: herdr binary not found (%s) — agent %s left for the operator (herdr agent delete %s)\n' "$HERDR_BIN" "$name" "$name" >&2
+        printf 'wayfinder-worker: warning: herdr binary not found (%s) — pane %s left for the operator (herdr pane close %s)\n' "$HERDR_BIN" "$pane" "$pane" >&2
         return 0
     }
-    if out="$("$HERDR_BIN" agent delete "$name" 2>&1)"; then
-        printf 'wayfinder-worker: tore down agent %s\n' "$name" >&2
+    if out="$("$HERDR_BIN" pane close "$pane" 2>&1)"; then
+        printf 'wayfinder-worker: tore down pane %s (agent %s)\n' "$pane" "$name" >&2
     else
-        printf 'wayfinder-worker: warning: agent teardown for %s reported: %s (operator equivalent: herdr agent delete %s)\n' "$name" "$out" "$name" >&2
-    fi
-    if [ -n "$pane" ]; then
-        if out="$("$HERDR_BIN" pane kill "$pane" 2>&1)"; then
-            printf 'wayfinder-worker: tore down pane %s\n' "$pane" >&2
-        else
-            printf 'wayfinder-worker: warning: pane teardown for %s reported: %s (operator equivalent: herdr pane kill %s)\n' "$pane" "$out" "$pane" >&2
-        fi
+        printf 'wayfinder-worker: warning: pane teardown for %s reported: %s (operator equivalent: herdr pane close %s)\n' "$pane" "$out" "$pane" >&2
     fi
     return 0
 }
