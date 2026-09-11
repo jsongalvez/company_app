@@ -112,7 +112,7 @@ jobs:
 
       - name: Run backend quality, shared Detekt, shared JVM compilation, and OpenAPI contract
         run: >-
-          ./gradlew :backend:detekt :backend:ktlintCheck :backend:test
+          ./gradlew :backend:detekt :backend:ktlintCheck :shared:ktlintCheck :composeApp:ktlintCheck :backend:test
           :detekt-rules:detekt :detekt-rules:test
           :shared:detektMetadataCommonMain
           :shared:detektJvmMain :shared:detektJvmTest
