@@ -86,11 +86,19 @@ internal object CompensationRepository {
         ) {
             throw NotFoundException("Compensation not found for this branch day")
         }
-        if (existing.userId != params.userId || existing.assignedBy != params.assignedBy) {
+        if (existing.userId != params.userId ||
+            existing.assignedBy != params.assignedBy ||
+            !samePayload(existing, params)
+        ) {
             throw ConflictException("Compensation id already belongs to another create request")
         }
         return existing
     }
+
+    private fun samePayload(
+        existing: Compensation,
+        params: CompensationCreateParams,
+    ): Boolean = existing.amount.compareTo(params.amount) == 0 && existing.note == params.note
 
     /**
      * In-transaction store operation (#323, ADR-0024) — optimistic-version write on the caller's

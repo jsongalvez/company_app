@@ -53,7 +53,7 @@ internal object ExpenseRepository {
         if (expense.branchDayId != params.branchDayId) {
             throw NotFoundException("Expense not found for this branch day")
         }
-        if (expense.createdBy != params.createdBy) {
+        if (expense.createdBy != params.createdBy || !samePayload(expense, params)) {
             throw ConflictException("Expense id already belongs to another create request")
         }
 
@@ -62,6 +62,14 @@ internal object ExpenseRepository {
         logger.info { "[CREATE-EXPENSE] Expense ${params.id.toString().maskUUID()} created=${result.created}" }
         return result
     }
+
+    private fun samePayload(
+        existing: Expense,
+        params: ExpenseCreateParams,
+    ): Boolean =
+        existing.amount.compareTo(params.amount) == 0 &&
+            existing.category == params.category &&
+            existing.notes == params.notes
 
     fun softDeleteInTransaction(
         expenseId: UUID,

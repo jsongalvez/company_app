@@ -119,6 +119,33 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `create rejects same id with divergent amount`() {
+        val compId = TestFixtures.uuid()
+
+        CompensationService.create(
+            callerId = callerId,
+            id = compId,
+            workBranchDayId = workBranchDayId,
+            payingBranchDayId = payingBranchDayId,
+            userId = targetUserId,
+            amount = BigDecimal("1500.00"),
+            note = "First",
+        )
+
+        assertFailsWith<ConflictException> {
+            CompensationService.create(
+                callerId = callerId,
+                id = compId,
+                workBranchDayId = workBranchDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("9999.00"),
+                note = "First",
+            )
+        }
+    }
+
+    @Test
     fun `create rejects duplicate user and paying day`() {
         val firstId = TestFixtures.uuid()
         CompensationService.create(

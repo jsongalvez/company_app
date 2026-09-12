@@ -41,7 +41,10 @@ object AllowanceService {
                 if (existing.branchDayId != branchDayId) {
                     throw NotFoundException("Allowance not found for this branch day")
                 }
-                if (existing.userId != userId || existing.assignedBy != callerId) {
+                if (existing.userId != userId ||
+                    existing.assignedBy != callerId ||
+                    existing.amount.compareTo(amount) != 0
+                ) {
                     throw ConflictException("Allowance id already belongs to another create request")
                 }
                 return@transaction existing

@@ -40,7 +40,7 @@ object ExpenseService {
                 if (existing.branchDayId != branchDayId) {
                     throw NotFoundException("Expense not found for this branch day")
                 }
-                if (existing.createdBy != callerId) {
+                if (existing.createdBy != callerId || !samePayload(existing, amount, category, notes)) {
                     throw ConflictException("Expense id already belongs to another create request")
                 }
                 return@transaction existing
@@ -68,6 +68,17 @@ object ExpenseService {
             }
             result.expense
         }
+
+    @Suppress("LongParameterList") // #922: replay payload comparison stays whole with create
+    private fun samePayload(
+        existing: Expense,
+        amount: BigDecimal,
+        category: ExpenseCategory,
+        notes: String?,
+    ): Boolean =
+        existing.amount.compareTo(amount) == 0 &&
+            existing.category == category &&
+            existing.notes == notes
 
     // #596: 7-param update command stays whole per #535; bundle only on a real ownership decision.
     @Suppress("LongParameterList") // #596

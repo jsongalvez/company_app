@@ -1,6 +1,7 @@
 package com.companyb.companyapp.finance
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.finance.AllowanceTable
@@ -121,6 +122,29 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
             )
 
         assertEquals(first.id, second.id)
+    }
+
+    @Test
+    fun `create rejects same id with divergent amount`() {
+        val allowanceId = TestFixtures.uuid()
+
+        AllowanceService.create(
+            callerId = callerId,
+            id = allowanceId,
+            branchDayId = branchDayId,
+            userId = targetUserId,
+            amount = BigDecimal("500.00"),
+        )
+
+        assertFailsWith<ConflictException> {
+            AllowanceService.create(
+                callerId = callerId,
+                id = allowanceId,
+                branchDayId = branchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("999.00"),
+            )
+        }
     }
 
     @Test

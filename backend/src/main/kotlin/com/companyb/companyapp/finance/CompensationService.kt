@@ -66,7 +66,7 @@ object CompensationService {
         }
 
         return transaction {
-            replayIfExistsInTransaction(id, workBranchDayId, payingBranchDayId, userId, callerId)?.let {
+            replayIfExistsInTransaction(id, workBranchDayId, payingBranchDayId, userId, callerId, amount, note)?.let {
                 return@transaction it
             }
             // #859: gate BOTH legs — the work day carries the duty being priced, so a
@@ -135,12 +135,15 @@ object CompensationService {
      * after a day transition still ack; a foreign row fails closed.
      * Extracted so [create] stays under the ThrowsCount gate (#695 repair).
      */
+    @Suppress("LongParameterList") // #922: replay must compare full payload (amount/note)
     private fun replayIfExistsInTransaction(
         id: UUID,
         workBranchDayId: UUID,
         payingBranchDayId: UUID,
         userId: UUID,
         callerId: UUID,
+        amount: BigDecimal,
+        note: String?,
     ): Compensation? {
         val existing = CompensationRepository.findByIdInTransaction(id) ?: return null
         if (existing.workBranchDayId != workBranchDayId ||
@@ -148,11 +151,20 @@ object CompensationService {
         ) {
             throw NotFoundException("Compensation not found for this branch day")
         }
-        if (existing.userId != userId || existing.assignedBy != callerId) {
+        if (existing.userId != userId ||
+            existing.assignedBy != callerId ||
+            !samePayload(existing, amount, note)
+        ) {
             throw ConflictException("Compensation id already belongs to another create request")
         }
         return existing
     }
+
+    private fun samePayload(
+        existing: Compensation,
+        amount: BigDecimal,
+        note: String?,
+    ): Boolean = existing.amount.compareTo(amount) == 0 && existing.note == note
 
     // #596: 6-param update command stays whole per #535; bundle only on a real ownership decision.
     @Suppress("LongParameterList") // #596

@@ -55,11 +55,19 @@ internal object AllowanceRepository {
         if (existing.branchDayId != params.branchDayId) {
             throw NotFoundException("Allowance not found for this branch day")
         }
-        if (existing.userId != params.userId || existing.assignedBy != params.assignedBy) {
+        if (existing.userId != params.userId ||
+            existing.assignedBy != params.assignedBy ||
+            !sameAmount(existing, params)
+        ) {
             throw ConflictException("Allowance id already belongs to another create request")
         }
         return existing
     }
+
+    private fun sameAmount(
+        existing: Allowance,
+        params: AllowanceCreateParams,
+    ): Boolean = existing.amount.compareTo(params.amount) == 0
 
     fun findByBranchDayId(branchDayId: UUID): List<Allowance> =
         transaction {

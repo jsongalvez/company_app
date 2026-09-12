@@ -126,6 +126,31 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `create rejects same id with divergent payload`() {
+        val expenseId = TestFixtures.uuid()
+
+        ExpenseService.create(
+            callerId = callerId,
+            id = expenseId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("500.00"),
+            category = ExpenseCategory.PANTRY,
+            notes = "First",
+        )
+
+        assertFailsWith<ConflictException> {
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("999.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = "First",
+            )
+        }
+    }
+
+    @Test
     fun `create rejects same UUID for another branch day`() {
         val otherBranchId = TestFixtures.uuid()
         val otherSourceId = TestFixtures.uuid()
