@@ -3,6 +3,7 @@ package com.companyb.companyapp.commerce
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -53,6 +54,14 @@ internal object BranchInventoryRepository {
         }
 
         val newStock = oldCard.currentStock + delta
+        // Service-level floor for the `current_stock >= 0` CHECK: over-deducting
+        // movements must fail as a 400 (same message as the sell path), not as a
+        // 500 constraint violation. Runs on the caller's command transaction, so the
+        // version predicate below still closes the concurrent-deduct race (409).
+        if (newStock < 0) {
+            throw ValidationException("Insufficient stock")
+        }
+
         val updatedCount =
             BranchInventoryTable.update({
                 (BranchInventoryTable.branchId eq oldCard.branchId) and

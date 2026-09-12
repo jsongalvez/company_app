@@ -902,6 +902,66 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `recordMovement over-deducting stock throws without writes`() {
+        InventoryService.ensureCard(callerId, branchId, productId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        restock(productId, branchDayId, 5)
+        val movementId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            InventoryService.recordMovement(
+                callerId = callerId,
+                movementId = movementId,
+                branchId = branchId,
+                productId = productId,
+                movementType = MovementType.Missing,
+                quantityChange = -10,
+                notes = "Over-counted shrinkage",
+                branchDayId = branchDayId,
+            )
+        }
+
+        val cards = InventoryService.getStock(branchId)
+        assertEquals(5, cards.single().inventory.currentStock)
+        assertEquals(
+            0,
+            transaction {
+                InventoryMovementTable.selectAll().where { InventoryMovementTable.id eq movementId }.count()
+            },
+        )
+    }
+
+    @Test
+    fun `recordMovement zero-quantity adjustment throws without writes`() {
+        InventoryService.ensureCard(callerId, branchId, productId)
+        val branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        restock(productId, branchDayId, 5)
+        val movementId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            InventoryService.recordMovement(
+                callerId = callerId,
+                movementId = movementId,
+                branchId = branchId,
+                productId = productId,
+                movementType = MovementType.Adjustment,
+                quantityChange = 0,
+                notes = "No-op correction",
+                branchDayId = branchDayId,
+            )
+        }
+
+        val cards = InventoryService.getStock(branchId)
+        assertEquals(5, cards.single().inventory.currentStock)
+        assertEquals(
+            0,
+            transaction {
+                InventoryMovementTable.selectAll().where { InventoryMovementTable.id eq movementId }.count()
+            },
+        )
+    }
+
+    @Test
     fun `recordMovement without MANAGE_PRODUCTS is allowed at service layer`() {
         InventoryService.ensureCard(callerId, branchId, productId)
         InventoryService.recordMovement(

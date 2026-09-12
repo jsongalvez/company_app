@@ -25,6 +25,7 @@ internal object StockValidator {
         val (_, isRemitted) = BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason)
 
         requireSign(movementType, quantityChange)
+        requireNonZeroQuantity(quantityChange)
         requireMissingNotes(movementType, notes)
 
         return isRemitted
@@ -46,6 +47,15 @@ internal object StockValidator {
 
             MovementType.Sign.ANY -> { /* either sign allowed */ }
         }
+    }
+
+    /**
+     * Zero-quantity movements are no-ops that would still bump the card version and
+     * write audit rows — and violate the `quantity_change != 0` CHECK at the DB.
+     * Rejected here so the caller gets a 400 instead of a 500.
+     */
+    private fun requireNonZeroQuantity(quantityChange: Int) {
+        if (quantityChange == 0) throw ValidationException("Quantity change must not be zero")
     }
 
     private fun requireMissingNotes(
