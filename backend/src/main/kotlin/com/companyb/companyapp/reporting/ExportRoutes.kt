@@ -275,8 +275,8 @@ object ExportRoutes {
         context: io.javalin.http.Context,
         branchType: BranchType,
     ) {
-        val year = context.queryParam("year")?.toIntOrNull()
-        val month = context.queryParam("month")?.toIntOrNull()
+        val year = parseOptionalInt(context, "year")
+        val month = parseOptionalInt(context, "month")
         validateOptionalMonth(year, month)
         val format = parseFormat(context.queryParam("format"))
 
@@ -308,6 +308,15 @@ object ExportRoutes {
         val param =
             context.queryParam(paramName)
                 ?: throw BadRequestResponse("$paramName query param is required")
+        return runCatching { param.toInt() }
+            .getOrElse { throw BadRequestResponse("Invalid $paramName format") }
+    }
+
+    private fun parseOptionalInt(
+        context: io.javalin.http.Context,
+        paramName: String,
+    ): Int? {
+        val param = context.queryParam(paramName) ?: return null
         return runCatching { param.toInt() }
             .getOrElse { throw BadRequestResponse("Invalid $paramName format") }
     }

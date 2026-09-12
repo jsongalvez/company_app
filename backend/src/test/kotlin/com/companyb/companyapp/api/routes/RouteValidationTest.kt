@@ -1010,6 +1010,36 @@ class RouteValidationTest : BasePostgresTest() {
         }
     }
 
+    @Test
+    fun `GET branch-type export malformed year returns 400`() {
+        testServer.client.let { client ->
+            assertEquals(
+                400,
+                client.get("/api/branches/export/provincial?year=abc&format=csv").code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET branch-type export malformed month returns 400`() {
+        testServer.client.let { client ->
+            assertEquals(
+                400,
+                client.get("/api/branches/export/medical-mission?month=xyz&format=csv").code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET branch-type export malformed year and month returns 400`() {
+        testServer.client.let { client ->
+            assertEquals(
+                400,
+                client.get("/api/branches/export/provincial?year=abc&month=xyz&format=csv").code,
+            )
+        }
+    }
+
     // ──────────────────────────────────────────────
     // DailySalesSummaryRoutes — paged daily-summaries feed
     // ──────────────────────────────────────────────
