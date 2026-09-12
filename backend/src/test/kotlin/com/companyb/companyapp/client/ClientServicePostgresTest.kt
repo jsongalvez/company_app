@@ -8,6 +8,7 @@ import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
@@ -105,6 +106,69 @@ class ClientServicePostgresTest : BasePostgresTest() {
         val persisted = persistedClient(clientAId)
         assertEquals(130.toShort(), persisted.systolicBp)
         assertEquals(85.toShort(), persisted.diastolicBp)
+    }
+
+    @Test
+    fun `create rejects out-of-range age bp and phone with validation error`() {
+        assertFailsWith<ValidationException> { createClient(callerId, TestFixtures.uuid(), age = -1) }
+        assertFailsWith<ValidationException> { createClient(callerId, TestFixtures.uuid(), age = 121) }
+        assertFailsWith<ValidationException> {
+            createClient(callerId, TestFixtures.uuid(), systolicBp = 39.toShort(), diastolicBp = 80.toShort())
+        }
+        assertFailsWith<ValidationException> {
+            createClient(callerId, TestFixtures.uuid(), systolicBp = 301.toShort(), diastolicBp = 80.toShort())
+        }
+        assertFailsWith<ValidationException> {
+            createClient(callerId, TestFixtures.uuid(), systolicBp = 120.toShort(), diastolicBp = 19.toShort())
+        }
+        assertFailsWith<ValidationException> {
+            createClient(callerId, TestFixtures.uuid(), systolicBp = 120.toShort(), diastolicBp = 201.toShort())
+        }
+        assertFailsWith<ValidationException> {
+            createClient(callerId, TestFixtures.uuid(), phoneNumber = "123456789012345678901")
+        }
+    }
+
+    @Test
+    fun `create accepts boundary range values`() {
+        val min =
+            createClient(
+                callerId,
+                TestFixtures.uuid(),
+                age = 0,
+                systolicBp = 40.toShort(),
+                diastolicBp = 20.toShort(),
+                phoneNumber = "12345678901234567890",
+            )
+
+        assertTrue(min.created)
+        assertEquals(0, persistedClient(min.client.id).age)
+
+        val max =
+            createClient(
+                callerId,
+                TestFixtures.uuid(),
+                age = 120,
+                systolicBp = 300.toShort(),
+                diastolicBp = 200.toShort(),
+            )
+
+        assertTrue(max.created)
+        assertEquals(120, persistedClient(max.client.id).age)
+    }
+
+    @Test
+    fun `update rejects out-of-range fields with validation error`() {
+        createClient(callerId, clientAId)
+
+        assertFailsWith<ValidationException> { updateRanges(clientAId, age = 999) }
+        assertFailsWith<ValidationException> {
+            updateRanges(clientAId, systolicBp = 10.toShort(), diastolicBp = 80.toShort())
+        }
+        assertFailsWith<ValidationException> {
+            updateRanges(clientAId, systolicBp = 120.toShort(), diastolicBp = 10.toShort())
+        }
+        assertFailsWith<ValidationException> { updateRanges(clientAId, phoneNumber = "123456789012345678901") }
     }
 
     @Test
@@ -563,6 +627,29 @@ class ClientServicePostgresTest : BasePostgresTest() {
             systolicBp = systolicBp,
             diastolicBp = diastolicBp,
             medicalConditions = medicalConditions,
+        )
+
+    private fun updateRanges(
+        clientId: UUID,
+        age: Int? = null,
+        systolicBp: Short? = null,
+        diastolicBp: Short? = null,
+        phoneNumber: String? = null,
+    ): Client =
+        ClientService.update(
+            callerId = callerId,
+            clientId = clientId,
+            firstName = null,
+            lastName = null,
+            middleName = null,
+            suffix = null,
+            phoneNumber = phoneNumber,
+            address = null,
+            gender = null,
+            age = age,
+            systolicBp = systolicBp,
+            diastolicBp = diastolicBp,
+            medicalConditions = null,
         )
 
     private fun persistedClient(clientId: UUID): com.companyb.companyapp.client.Client =

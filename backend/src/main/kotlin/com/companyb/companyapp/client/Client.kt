@@ -25,6 +25,20 @@ data class Client(
 
 private const val PHONE_COLUMN_WIDTH = 20
 
+/**
+ * Persisted-field bounds (#923): mirrors the `client` table CHECKs
+ * (`V1__full_schema.sql`: age 0–120, systolic 40–300, diastolic 20–200) and
+ * the `phone_number` varchar width. Route + service pre-gates reference these
+ * so out-of-range input fails closed with 400 before Postgres surfaces a 500.
+ */
+internal const val CLIENT_AGE_MIN = 0
+internal const val CLIENT_AGE_MAX = 120
+internal const val CLIENT_SYSTOLIC_MIN: Short = 40
+internal const val CLIENT_SYSTOLIC_MAX: Short = 300
+internal const val CLIENT_DIASTOLIC_MIN: Short = 20
+internal const val CLIENT_DIASTOLIC_MAX: Short = 200
+internal const val CLIENT_PHONE_MAX_LENGTH = PHONE_COLUMN_WIDTH
+
 /** Empty address representation (#523): clears reset here, matching create + column default. */
 const val DEFAULT_CLIENT_ADDRESS = "N/A"
 

@@ -44,6 +44,10 @@ object ClientService {
         medicalConditions: String?,
     ): ClientCreateResult =
         transaction {
+            // #923: range pre-gate (mirrors the client CHECKs / varchar width) —
+            // fail closed with 400 before the insert instead of surfacing the DB
+            // violation as a 500 (#475 auto-file). Same class as #912/#921.
+            validateClientRanges(age, systolicBp, diastolicBp, phoneNumber)
             val result =
                 ClientRepository.createInTransaction(
                     ClientCreateParams(
@@ -97,6 +101,10 @@ object ClientService {
         clearFields: Set<String> = emptySet(),
     ): Client =
         transaction {
+            // #923: same range pre-gate as create — age/BP/phone bypass patch
+            // shape resolution as raw values, so the update command owns the
+            // bounds for direct callers too (route mirrors with BadRequestResponse).
+            validateClientRanges(age, systolicBp, diastolicBp, phoneNumber)
             // Locked before-state (#522): SELECT FOR UPDATE serializes concurrent
             // writers so the audit diff attributes only this actor's changes.
             val before =
@@ -217,6 +225,36 @@ internal data class ResolvedClientPatch(
 
 private const val BP_PAIR_MESSAGE =
     "Both systolic and diastolic blood pressure must be provided together or not at all"
+
+/**
+ * Persisted-range pre-gate (#923): every DB-bounded client field is checked
+ * before the write so violations return 400 instead of an ExposedSQLException
+ * 500. Nulls are absent values (unchanged on PATCH, unset on create) and pass;
+ * the BP both-or-none shape stays owned by the pair guards. Throws
+ * [ValidationException] so HTTP callers get 400 through the centralized
+ * handler; routes mirror with [BadRequestResponse][io.javalin.http.BadRequestResponse]
+ * via the `checkClearShape` try/catch precedent.
+ */
+internal fun validateClientRanges(
+    age: Int?,
+    systolicBp: Short?,
+    diastolicBp: Short?,
+    phoneNumber: String?,
+) {
+    if (age != null && (age < CLIENT_AGE_MIN || age > CLIENT_AGE_MAX)) {
+        throw ValidationException("Age must be between $CLIENT_AGE_MIN and $CLIENT_AGE_MAX")
+    }
+    if (systolicBp != null && (systolicBp < CLIENT_SYSTOLIC_MIN || systolicBp > CLIENT_SYSTOLIC_MAX)) {
+        throw ValidationException("Systolic BP must be between $CLIENT_SYSTOLIC_MIN and $CLIENT_SYSTOLIC_MAX")
+    }
+    if (diastolicBp != null && (diastolicBp < CLIENT_DIASTOLIC_MIN || diastolicBp > CLIENT_DIASTOLIC_MAX)) {
+        throw ValidationException("Diastolic BP must be between $CLIENT_DIASTOLIC_MIN and $CLIENT_DIASTOLIC_MAX")
+    }
+    val trimmedPhone = phoneNumber?.trim().orEmpty()
+    if (trimmedPhone.isNotEmpty() && trimmedPhone.length > CLIENT_PHONE_MAX_LENGTH) {
+        throw ValidationException("Phone number must be at most $CLIENT_PHONE_MAX_LENGTH characters")
+    }
+}
 
 /** BP pair's three-state resolution (#523): set together, cleared together, or unchanged. */
 internal data class BpPatch(

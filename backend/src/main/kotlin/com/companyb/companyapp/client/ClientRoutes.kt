@@ -144,6 +144,7 @@ object ClientRoutes {
         requireCreateNames(firstName, lastName)
         requireCreateBpPair(request.systolicBp, request.diastolicBp)
         requireKnownGender(request.gender)
+        requireClientRanges(request.age, request.systolicBp, request.diastolicBp, request.phoneNumber)
 
         val result =
             ClientService.create(
@@ -254,6 +255,7 @@ object ClientRoutes {
             ClientPatchField.SYSTOLIC_BP in clears,
             ClientPatchField.DIASTOLIC_BP in clears,
         )
+        requireClientRanges(request.age, request.systolicBp, request.diastolicBp, request.phoneNumber)
     }
 
     private fun handleAnonymize(context: Context) {
@@ -299,6 +301,25 @@ object ClientRoutes {
      */
     private fun requireKnownGender(gender: Gender) {
         if (gender == Gender.UNKNOWN) throw BadRequestResponse("Unknown gender")
+    }
+
+    /**
+     * #923: persisted-range mirror split into a named check (same ThrowsCount
+     * budget). The service owns the bounds ([validateClientRanges]); this maps
+     * the ValidationException to the route's BadRequestResponse shape, same as
+     * the clear-shape mapping in [validateClientPatch].
+     */
+    private fun requireClientRanges(
+        age: Int?,
+        systolicBp: Short?,
+        diastolicBp: Short?,
+        phoneNumber: String?,
+    ) {
+        try {
+            validateClientRanges(age, systolicBp, diastolicBp, phoneNumber)
+        } catch (e: ValidationException) {
+            throw BadRequestResponse(e.message ?: "Invalid client fields").apply { initCause(e) }
+        }
     }
 
     private fun Client.toResponse(sessionCount: Int): ClientResponse =

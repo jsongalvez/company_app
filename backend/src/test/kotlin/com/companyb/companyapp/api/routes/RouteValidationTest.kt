@@ -420,6 +420,54 @@ class RouteValidationTest : BasePostgresTest() {
     }
 
     @Test
+    fun `POST client out-of-range age returns 400`() {
+        testServer.client.let { client ->
+            val body =
+                mapOf(
+                    "id" to TestFixtures.uuid().toString(),
+                    "firstName" to "John",
+                    "lastName" to "Doe",
+                    "gender" to "M",
+                    "age" to 999,
+                )
+            assertEquals(400, client.post("/api/clients", body).code)
+        }
+    }
+
+    @Test
+    fun `POST client out-of-range BP returns 400`() {
+        testServer.client.let { client ->
+            val body =
+                mapOf(
+                    "id" to TestFixtures.uuid().toString(),
+                    "firstName" to "John",
+                    "lastName" to "Doe",
+                    "gender" to "M",
+                    "age" to 25,
+                    "systolicBp" to 10,
+                    "diastolicBp" to 80,
+                )
+            assertEquals(400, client.post("/api/clients", body).code)
+        }
+    }
+
+    @Test
+    fun `POST client overlong phone returns 400`() {
+        testServer.client.let { client ->
+            val body =
+                mapOf(
+                    "id" to TestFixtures.uuid().toString(),
+                    "firstName" to "John",
+                    "lastName" to "Doe",
+                    "gender" to "M",
+                    "age" to 25,
+                    "phoneNumber" to "123456789012345678901",
+                )
+            assertEquals(400, client.post("/api/clients", body).code)
+        }
+    }
+
+    @Test
     fun `GET clients blank search query returns 400`() {
         testServer.client.let { client ->
             assertEquals(400, client.get("/api/clients?q=%20%20").code)
@@ -463,6 +511,29 @@ class RouteValidationTest : BasePostgresTest() {
     fun `PATCH client partial BP returns 400`() {
         testServer.client.let { client ->
             assertEquals(400, client.patch("/api/clients/$testClientId", mapOf("systolicBp" to 120)).code)
+        }
+    }
+
+    @Test
+    fun `PATCH client out-of-range age returns 400`() {
+        testServer.client.let { client ->
+            assertEquals(400, client.patch("/api/clients/$testClientId", mapOf("age" to 999)).code)
+        }
+    }
+
+    @Test
+    fun `PATCH client out-of-range BP returns 400`() {
+        testServer.client.let { client ->
+            val body = mapOf("systolicBp" to 120, "diastolicBp" to 10)
+            assertEquals(400, client.patch("/api/clients/$testClientId", body).code)
+        }
+    }
+
+    @Test
+    fun `PATCH client overlong phone returns 400`() {
+        testServer.client.let { client ->
+            val body = mapOf("phoneNumber" to "123456789012345678901")
+            assertEquals(400, client.patch("/api/clients/$testClientId", body).code)
         }
     }
 
