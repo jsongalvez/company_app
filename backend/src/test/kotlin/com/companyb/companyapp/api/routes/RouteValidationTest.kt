@@ -753,6 +753,22 @@ class RouteValidationTest : BasePostgresTest() {
     }
 
     @Test
+    fun `POST product sale quantity over smallint range returns 400`() {
+        testServer.client.let { client ->
+            val body =
+                mapOf(
+                    "id" to TestFixtures.uuid().toString(),
+                    "branchDayId" to testBranchDayId.toString(),
+                    "isWalkIn" to true,
+                    "productId" to testProductId.toString(),
+                    "quantity" to 40000,
+                    "expectedVersion" to 0,
+                )
+            assertEquals(400, client.post("/api/product-sales", body).code)
+        }
+    }
+
+    @Test
     fun `POST product sale sessionId plus clientId returns 400`() {
         testServer.client.let { client ->
             val body =

@@ -833,6 +833,31 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertTrue(sale.isWalkIn)
     }
 
+    @Test
+    fun `sell rejects quantity over smallint range without inserting`() {
+        val saleId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            ProductSaleService.sell(
+                callerId = callerId,
+                id = saleId,
+                branchDayId = branchDayId,
+                sessionId = null,
+                clientId = null,
+                isWalkIn = true,
+                productId = productId,
+                quantity = 40000,
+                expectedVersion = 1,
+            )
+        }
+
+        val saleCount =
+            transaction {
+                ProductSaleTable.selectAll().where { ProductSaleTable.id eq saleId }.count()
+            }
+        assertEquals(0, saleCount)
+    }
+
     private fun ensureInventoryCard(
         branchId: UUID,
         productId: UUID,

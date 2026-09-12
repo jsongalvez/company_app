@@ -37,6 +37,12 @@ object ProductSaleService {
         expectedVersion: Int,
         reason: String? = null,
     ): ProductSale {
+        // #921: product_sale.quantity is SMALLINT (V1:412) while the wire type is
+        // Int — fail closed with 400 before the insert instead of surfacing the
+        // DB range violation as a 500 (#475 auto-file). Widening the column to
+        // INT is a separate migration decision (chief/human).
+        if (quantity > Short.MAX_VALUE) throw ValidationException("Quantity exceeds maximum supported value")
+
         val retryParams =
             RetryProductSaleParams(
                 id = id,

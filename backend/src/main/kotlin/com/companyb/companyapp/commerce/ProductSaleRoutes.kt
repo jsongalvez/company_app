@@ -55,7 +55,9 @@ object ProductSaleRoutes {
             val clientId = request.clientId?.let { uuidOrThrow(it, "client id") }
             val productId = uuidOrThrow(request.productId, "product id")
 
-            if (request.quantity < 1) throw BadRequestResponse("Quantity must be at least 1")
+            if (request.quantity < 1 || request.quantity > Short.MAX_VALUE) {
+                throw BadRequestResponse("Quantity must be between 1 and ${Short.MAX_VALUE}")
+            }
 
             validateSaleLinks(sessionId, clientId, request.isWalkIn)
 
