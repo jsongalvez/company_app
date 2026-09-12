@@ -33,7 +33,8 @@ object AuthService {
     private val logger = KotlinLogging.logger { }
     private const val TOKEN_TABLE_NAME = "credential_token"
     private const val WEAK_PASSWORD_MESSAGE =
-        "Password does not meet the policy (minimum length ${PasswordPolicy.MIN_LENGTH})"
+        "Password does not meet the policy (minimum length ${PasswordPolicy.MIN_LENGTH}, " +
+            "maximum ${Password.MAX_PASSWORD_BYTES} bytes)"
     private const val INVITE_INVALID_MESSAGE = "This invite code is invalid"
     private const val INVITE_USED_MESSAGE =
         "This invite code has already been used. Ask an administrator for a new one."
@@ -124,7 +125,7 @@ object AuthService {
         rawCode: String,
         newPassword: String,
     ) {
-        if (!PasswordPolicy.isValid(newPassword)) {
+        if (!PasswordPolicy.isValid(newPassword) || Password.exceedsMaxBytes(newPassword)) {
             throw ValidationException(WEAK_PASSWORD_MESSAGE)
         }
         val consumedUserId: UUID =
@@ -298,7 +299,7 @@ object AuthService {
         rawCode: String,
         newPassword: String,
     ) {
-        if (!PasswordPolicy.isValid(newPassword)) {
+        if (!PasswordPolicy.isValid(newPassword) || Password.exceedsMaxBytes(newPassword)) {
             throw ValidationException(WEAK_PASSWORD_MESSAGE)
         }
         val resetUserId: UUID =

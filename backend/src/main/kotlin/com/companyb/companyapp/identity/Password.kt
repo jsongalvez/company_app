@@ -4,13 +4,15 @@ import at.favre.lib.crypto.bcrypt.BCrypt
 
 object Password {
     private const val BCRYPT_COST = 12
-    private const val MAX_PASSWORD_BYTES = 72
+    internal const val MAX_PASSWORD_BYTES = 72
 
     private var dummyHash: String = ""
 
     fun init(authDummyPassword: String) {
         dummyHash = BCrypt.withDefaults().hashToString(BCRYPT_COST, authDummyPassword.toCharArray())
     }
+
+    fun exceedsMaxBytes(raw: String): Boolean = raw.encodeToByteArray().size > MAX_PASSWORD_BYTES
 
     fun create(raw: String): String {
         require(raw.encodeToByteArray().size <= MAX_PASSWORD_BYTES) {

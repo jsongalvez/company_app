@@ -162,6 +162,17 @@ class InviteFlowPostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `an over-long password is a 400 and does not consume a live code ref #915`() {
+        val minted = mint("invitee-overlong", "invitee-overlong@example.test")
+        val overlong = "a".repeat(Password.MAX_PASSWORD_BYTES + 1)
+        val rejected =
+            assertFailsWith<ValidationException> { AuthService.acceptInvite(minted.inviteCode, overlong) }
+        assertTrue(rejected.message!!.contains("policy"), "got: ${rejected.message}")
+        // The code survived the failed attempt.
+        AuthService.acceptInvite(minted.inviteCode, "valid-password")
+    }
+
+    @Test
     fun `re-invite recovers the existing account, kills the old code, and applies the new roles`() {
         val first = mint("invitee-5", "invitee-5@example.test", roles = listOf("PRACTITIONER"))
         val userId = UUID.fromString(first.userId)

@@ -132,6 +132,18 @@ class PasswordResetFlowPostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `an over-long password is a 400 and does not consume a live code ref #915`() {
+        val userId = newUser("reset-overlong")
+        val code = assertNotNull(AuthService.mintResetCode(username(userId)))
+        val overlong = "a".repeat(Password.MAX_PASSWORD_BYTES + 1)
+        val rejected =
+            assertFailsWith<ValidationException> { AuthService.resetPassword(code, overlong) }
+        assertTrue(rejected.message!!.contains("policy"), "got: ${rejected.message}")
+        // The code survived the failed attempt.
+        AuthService.resetPassword(code, "valid-password")
+    }
+
+    @Test
     fun `re-request supersedes outstanding codes`() {
         val userId = newUser("reset-supersede")
         val first = assertNotNull(AuthService.mintResetCode(username(userId)))
