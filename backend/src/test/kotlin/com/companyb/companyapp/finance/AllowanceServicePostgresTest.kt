@@ -364,4 +364,37 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
             }
         assertTrue(auditCount > 0)
     }
+
+    // #925 persisted-range pre-gate (the #924 fail-closed class):
+    // NUMERIC(10,2) overflow must 400 before the write, never 500 from Postgres.
+
+    @Test
+    fun `create allowance rejects amount over NUMERIC(10,2) range with no row written`() {
+        val blockedId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            AllowanceService.create(
+                callerId = callerId,
+                id = blockedId,
+                branchDayId = branchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("9999999999.99"),
+            )
+        }
+        assertNull(transaction { AllowanceRepository.findByIdInTransaction(blockedId) })
+    }
+
+    @Test
+    fun `create allowance persists boundary max money amount`() {
+        val allowance =
+            AllowanceService.create(
+                callerId = callerId,
+                id = TestFixtures.uuid(),
+                branchDayId = branchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("99999999.99"),
+            )
+
+        assertEquals("99999999.99", allowance.amount.toPlainString())
+    }
 }

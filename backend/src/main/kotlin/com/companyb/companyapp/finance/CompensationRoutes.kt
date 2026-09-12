@@ -3,6 +3,7 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.api.routes.requireMoneyAmount
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
@@ -130,6 +131,7 @@ object CompensationRoutes {
             val payingBranchDayId = uuidOrThrow(request.payingBranchDayId, "paying branch day id")
             val userId = uuidOrThrow(request.userId, "user id")
             val amount = parseNonNegativeBigDecimal(request.amount, "amount")
+            requireMoneyAmount(amount, "amount")
 
             val compensation =
                 CompensationService.create(
@@ -153,6 +155,7 @@ object CompensationRoutes {
             val request = context.bodyAsClass<UpdateCompensationRequest>()
 
             val amount = parseNonNegativeBigDecimal(request.amount, "amount")
+            requireMoneyAmount(amount, "amount")
 
             val compensation =
                 CompensationService.update(

@@ -13,6 +13,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.session.SessionReads
+import com.companyb.companyapp.utils.validateMoneyAmount
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -78,6 +79,16 @@ object RemittanceService {
 
                     val insertedSnapshot =
                         if (RemittancePolicy.requiresSnapshot(before.type)) {
+                            // #925 — aggregate persisted-range pre-gate (SESSION snapshots only;
+                            // PRODUCT remittances freeze nothing, so their sums stay ungated):
+                            // individually legal rows can still sum past NUMERIC(10,2), so the
+                            // frozen snapshot must 400 here instead of 500ing on the insert
+                            // below (widening the snapshot columns is a separate migration
+                            // decision for chief/human).
+                            validateMoneyAmount(grossIncome, "grossIncome")
+                            validateMoneyAmount(totalCompensation, "totalCompensation")
+                            validateMoneyAmount(totalExpenses, "totalExpenses")
+                            validateMoneyAmount(netIncome, "netIncome")
                             RemittanceFinancialSnapshotRepository.insertInTransaction(
                                 RemittanceFinancialSnapshotCreateParams(
                                     remittanceId = remittanceId,
@@ -315,6 +326,9 @@ object RemittanceService {
         productSaleId: UUID?,
         amount: BigDecimal,
     ): RemittanceLine {
+        // #925 — persisted-range pre-gate (the #924 fail-closed class): remittance_line.amount
+        // is NUMERIC(10,2) and caller-chosen, so overflow must 400 before the write.
+        validateMoneyAmount(amount, "amount")
         val line =
             transaction {
                 // #506 — parent lock first so the draft check, range check, and version

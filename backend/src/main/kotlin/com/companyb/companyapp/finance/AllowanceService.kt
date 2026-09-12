@@ -7,6 +7,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.AccountReads
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.utils.validateMoneyAmount
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -33,6 +34,9 @@ object AllowanceService {
         if (!AccountReads.userExists(userId)) {
             throw NotFoundException("User not found")
         }
+        // #925 — persisted-range pre-gate (the #924 fail-closed class): allowance.amount
+        // is NUMERIC(10,2), so overflow must 400 before the write, never 500 from Postgres.
+        validateMoneyAmount(amount, "amount")
         return transaction {
             // In-tx replay classification before the day gate (mirrors #509/#510/#511):
             // a same-id row already committed acks without gating so retries landing

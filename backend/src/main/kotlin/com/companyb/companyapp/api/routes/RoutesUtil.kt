@@ -1,5 +1,7 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.utils.validateMoneyAmount
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
 import java.math.BigDecimal
@@ -70,4 +72,21 @@ fun parsePositiveBigDecimal(
             .getOrElse { throw BadRequestResponse("Invalid $name amount: $value") }
     if (result <= BigDecimal.ZERO) throw BadRequestResponse("$name must be positive")
     return result
+}
+
+/**
+ * Persisted-range route mirror (#925, the #924 requireSessionMoney shape shared): the owning
+ * service validates the same bound, this maps its ValidationException to BadRequestResponse
+ * so HTTP callers get 400 before the write. NUMERIC(10,2) money legs call it right after
+ * parsing; wider NUMERIC(15,4) legs never call it.
+ */
+fun requireMoneyAmount(
+    amount: BigDecimal,
+    field: String,
+) {
+    try {
+        validateMoneyAmount(amount, field)
+    } catch (e: ValidationException) {
+        throw BadRequestResponse(e.message ?: "Invalid amount").apply { initCause(e) }
+    }
 }

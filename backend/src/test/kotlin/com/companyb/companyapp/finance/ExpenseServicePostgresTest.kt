@@ -1277,6 +1277,65 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 .count()
         }
 
+    // #925 persisted-range pre-gate (the #924 fail-closed class):
+    // NUMERIC(10,2) overflow must 400 before the write, never 500 from Postgres.
+
+    @Test
+    fun `create expense rejects amount over NUMERIC(10,2) range with no row written`() {
+        val blockedId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            ExpenseService.create(
+                callerId = callerId,
+                id = blockedId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("9999999999.99"),
+                category = ExpenseCategory.PANTRY,
+                notes = null,
+            )
+        }
+        assertNull(ExpenseRepository.findById(blockedId))
+    }
+
+    @Test
+    fun `create expense persists boundary max money amount`() {
+        val expense =
+            ExpenseService.create(
+                callerId = callerId,
+                id = TestFixtures.uuid(),
+                branchDayId = branchDayId,
+                amount = BigDecimal("99999999.99"),
+                category = ExpenseCategory.PANTRY,
+                notes = null,
+            )
+
+        assertEquals("99999999.99", expense.amount.toPlainString())
+    }
+
+    @Test
+    fun `update expense rejects amount over NUMERIC(10,2) range`() {
+        val expenseId = TestFixtures.uuid()
+        ExpenseService.create(
+            callerId = callerId,
+            id = expenseId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("500.00"),
+            category = ExpenseCategory.PANTRY,
+            notes = null,
+        )
+
+        assertFailsWith<ValidationException> {
+            ExpenseService.update(
+                callerId = callerId,
+                expenseId = expenseId,
+                amount = BigDecimal("100000000"),
+                category = ExpenseCategory.PANTRY,
+                notes = null,
+                expectedVersion = 1,
+            )
+        }
+    }
+
     private fun grantEditBranchData(userId: UUID) {
         IdentityFixtures.grantCapability(
             userId = userId,

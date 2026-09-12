@@ -3,6 +3,7 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.api.routes.requireMoneyAmount
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.contracts.commerce.CreateProductRequest
@@ -133,6 +134,8 @@ object ProductRoutes {
         if (name.isBlank()) throw BadRequestResponse("Product name is required")
         val unitPrice = parseNonNegativeBigDecimal(request.unitPrice, "price")
         val commissionAmount = parseNonNegativeBigDecimal(request.commissionAmount, "commission")
+        requireMoneyAmount(unitPrice, "unitPrice")
+        requireMoneyAmount(commissionAmount, "commissionAmount")
         val result =
             ProductService.create(
                 callerId = callerId,
@@ -158,6 +161,8 @@ object ProductRoutes {
         val categoryId = request.productCategoryId?.let { uuidOrThrow(it, "product category id") }
         val unitPrice = request.unitPrice?.let { parseNonNegativeBigDecimal(it, "price") }
         val commissionAmount = request.commissionAmount?.let { parseNonNegativeBigDecimal(it, "commission amount") }
+        unitPrice?.let { requireMoneyAmount(it, "unitPrice") }
+        commissionAmount?.let { requireMoneyAmount(it, "commissionAmount") }
         val result =
             ProductService.update(
                 callerId = callerId,

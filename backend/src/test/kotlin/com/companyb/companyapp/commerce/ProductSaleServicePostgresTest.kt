@@ -36,6 +36,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 // #597 scenario coverage stays whole (same precedent as SessionServicePostgresTest #593).
@@ -882,4 +883,37 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
                         (BranchInventoryTable.productId eq productId)
                 }.single()[BranchInventoryTable.currentStock]
         }
+
+    // #925 persisted-range pre-gate (the #924 fail-closed class): the sale snapshots
+    // unit_price_at_time and the computed total into NUMERIC(10,2) — a max-legal price
+    // times quantity 2 overflows the total, so it must 400 before the insert.
+
+    @Test
+    fun `sell rejects computed total over NUMERIC(10,2) range with no row written`() {
+        val maxProductId = TestFixtures.uuid()
+        CommerceFinanceFixtures.insertTestProduct(
+            maxProductId,
+            "Max Price Product",
+            categoryId,
+            unitPrice = BigDecimal("99999999.99"),
+            commissionAmount = BigDecimal("10.00"),
+        )
+        ensureInventoryCard(branchId, maxProductId, 20)
+
+        val blockedId = TestFixtures.uuid()
+        assertFailsWith<ValidationException> {
+            ProductSaleService.sell(
+                callerId = callerId,
+                id = blockedId,
+                branchDayId = branchDayId,
+                sessionId = null,
+                clientId = null,
+                isWalkIn = true,
+                productId = maxProductId,
+                quantity = 2,
+                expectedVersion = 1,
+            )
+        }
+        assertNull(ProductSaleRepository.findById(blockedId))
+    }
 }

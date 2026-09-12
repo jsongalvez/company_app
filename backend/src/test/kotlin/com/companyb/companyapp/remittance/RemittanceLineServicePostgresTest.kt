@@ -1337,6 +1337,29 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         assertTrue(auditCount > 0)
     }
 
+    // #925 persisted-range pre-gate (the #924 fail-closed class): remittance_line.amount
+    // is NUMERIC(10,2) and caller-chosen, so overflow must 400 before the write.
+
+    @Test
+    fun `add SESSION line rejects amount over NUMERIC(10,2) range with no row written`() {
+        val remittance = createDraftRemittance()
+        createSession()
+        val blockedId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            RemittanceService.addLine(
+                callerId = callerId,
+                remittanceId = remittance.id,
+                id = blockedId,
+                type = RemittanceLineType.SESSION,
+                sessionId = sessionId,
+                productSaleId = null,
+                amount = BigDecimal("9999999999.99"),
+            )
+        }
+        assertTrue(RemittanceService.getRemittance(remittance.id).lines.isEmpty())
+    }
+
     private fun createDraftRemittance(type: RemittanceType = RemittanceType.SESSION) =
         RemittanceService.createDraft(
             callerId = callerId,

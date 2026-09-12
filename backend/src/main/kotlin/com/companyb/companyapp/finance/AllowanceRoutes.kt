@@ -2,6 +2,7 @@ package com.companyb.companyapp.finance
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
+import com.companyb.companyapp.api.routes.requireMoneyAmount
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
@@ -77,6 +78,7 @@ object AllowanceRoutes {
             val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
             val userId = uuidOrThrow(request.userId, "user id")
             val amount = parseNonNegativeBigDecimal(request.amount, "amount")
+            requireMoneyAmount(amount, "amount")
 
             val allowance =
                 AllowanceService.create(

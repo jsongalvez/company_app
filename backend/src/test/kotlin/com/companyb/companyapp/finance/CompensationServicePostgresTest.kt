@@ -591,4 +591,65 @@ class CompensationServicePostgresTest : BasePostgresTest() {
             }
         assertTrue(updateAuditCount > 0)
     }
+
+    // #925 persisted-range pre-gate (the #924 fail-closed class):
+    // NUMERIC(10,2) overflow must 400 before the write, never 500 from Postgres.
+
+    @Test
+    fun `create compensation rejects amount over NUMERIC(10,2) range with no row written`() {
+        val blockedId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            CompensationService.create(
+                callerId = callerId,
+                id = blockedId,
+                workBranchDayId = workBranchDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("9999999999.99"),
+                note = null,
+            )
+        }
+        assertNull(CompensationRepository.findById(blockedId))
+    }
+
+    @Test
+    fun `create compensation persists boundary max money amount`() {
+        val comp =
+            CompensationService.create(
+                callerId = callerId,
+                id = TestFixtures.uuid(),
+                workBranchDayId = workBranchDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("99999999.99"),
+                note = null,
+            )
+
+        assertEquals("99999999.99", comp.amount.toPlainString())
+    }
+
+    @Test
+    fun `update compensation rejects amount over NUMERIC(10,2) range`() {
+        val compId = TestFixtures.uuid()
+        CompensationService.create(
+            callerId = callerId,
+            id = compId,
+            workBranchDayId = workBranchDayId,
+            payingBranchDayId = payingBranchDayId,
+            userId = targetUserId,
+            amount = BigDecimal("1500.00"),
+            note = null,
+        )
+
+        assertFailsWith<ValidationException> {
+            CompensationService.update(
+                callerId = callerId,
+                compensationId = compId,
+                amount = BigDecimal("100000000"),
+                note = null,
+                expectedVersion = 1,
+            )
+        }
+    }
 }

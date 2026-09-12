@@ -3,6 +3,7 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.parsePositiveBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.api.routes.requireMoneyAmount
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
@@ -459,6 +460,7 @@ object RemittanceRoutes {
         val sessionId = request.sessionId?.let { uuidOrThrow(it, "session id") }
         val productSaleId = request.productSaleId?.let { uuidOrThrow(it, "product sale id") }
         val amount = parsePositiveBigDecimal(request.amount, "amount")
+        requireMoneyAmount(amount, "amount")
 
         when (type) {
             RemittanceLineType.SESSION -> {

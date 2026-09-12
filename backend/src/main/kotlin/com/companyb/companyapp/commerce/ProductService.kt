@@ -2,6 +2,7 @@ package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.utils.validateMoneyAmount
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -30,6 +31,11 @@ object ProductService {
         if (!categoryExists) {
             throw NotFoundException("Product category not found")
         }
+
+        // #925 — persisted-range pre-gate (the #924 fail-closed class): product.unit_price
+        // and commission_amount are NUMERIC(10,2), so overflow must 400 before the write.
+        validateMoneyAmount(unitPrice, "unitPrice")
+        validateMoneyAmount(commissionAmount, "commissionAmount")
 
         return transaction {
             val result =
@@ -72,6 +78,10 @@ object ProductService {
         if (productCategoryId != null && ProductCategoryRepository.findById(productCategoryId) == null) {
             throw NotFoundException("Product category not found")
         }
+
+        // #925 — same persisted-range pre-gate as create (nullable legs only when present).
+        unitPrice?.let { validateMoneyAmount(it, "unitPrice") }
+        commissionAmount?.let { validateMoneyAmount(it, "commissionAmount") }
 
         return transaction {
             // Locked before-state (#522): SELECT FOR UPDATE serializes concurrent

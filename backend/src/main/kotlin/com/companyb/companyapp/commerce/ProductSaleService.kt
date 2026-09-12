@@ -8,8 +8,10 @@ import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.session.SessionReads
+import com.companyb.companyapp.utils.validateMoneyAmount
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.math.BigDecimal
 import java.util.UUID
 
 /**
@@ -76,6 +78,16 @@ object ProductSaleService {
                 BranchService.findById(branchDay.branchId)
 
                 val product = requireActiveProduct(productId)
+
+                // #925 — persisted-range pre-gate (the #924 fail-closed class): the sale
+                // snapshots unit_price_at_time and the computed total_amount_at_time into
+                // NUMERIC(10,2) columns, so a max-legal product price times quantity can
+                // still overflow the total — 400 before the insert, never 500 from Postgres.
+                validateMoneyAmount(product.unitPrice, "unitPrice")
+                validateMoneyAmount(
+                    product.unitPrice.multiply(BigDecimal.valueOf(quantity.toLong())),
+                    "totalAmount",
+                )
 
                 requireSessionInDay(sessionId, branchDayId)
 

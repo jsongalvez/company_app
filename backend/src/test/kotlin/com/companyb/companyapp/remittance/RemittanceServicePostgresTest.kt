@@ -828,6 +828,84 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         )
     }
 
+    // #925 aggregate persisted-range pre-gate (the #924 fail-closed class): individually
+    // legal lines can still sum past NUMERIC(10,2) — the frozen snapshot must 400 at
+    // submit instead of 500ing on the insert.
+
+    @Test
+    fun `submit rejects snapshot sums over NUMERIC(10,2) range`() {
+        val remittanceId = TestFixtures.uuid()
+
+        createDraftRemittance(remittanceId)
+        val branchDayId = resolveBranchDay()
+        addDayBreakdown(remittanceId, TestFixtures.uuid(), branchDayId)
+        addSessionLine(remittanceId, TestFixtures.uuid(), BigDecimal("99999999.99"))
+        // A second line needs its own session (duplicate-source guard 409s a repeat).
+        val secondSessionId = TestFixtures.uuid()
+        SessionClientFixtures.insertTestSession(
+            id = secondSessionId,
+            clientId = clientId,
+            branchDayId = branchDayId,
+            sessionStatus = SessionStatus.COMPLETED,
+        )
+        RemittanceService.addLine(
+            callerId = callerId,
+            remittanceId = remittanceId,
+            id = TestFixtures.uuid(),
+            type = RemittanceLineType.SESSION,
+            sessionId = secondSessionId,
+            productSaleId = null,
+            amount = BigDecimal("99999999.99"),
+        )
+
+        val actualVersion = RemittanceService.getRemittance(remittanceId).remittance.version
+
+        assertFailsWith<ValidationException> {
+            RemittanceService.submit(callerId, remittanceId, actualVersion)
+        }
+    }
+
+    // #925 aggregate-guard scoping pin: PRODUCT remittances freeze no snapshot, so an
+    // over-range aggregate must still submit (the SESSION-only guard above must not leak).
+
+    @Test
+    fun `submit PRODUCT remittance with over-range aggregate still succeeds without snapshot`() {
+        val remittanceId = TestFixtures.uuid()
+
+        createDraftProductRemittance(remittanceId)
+        val branchDayId = resolveBranchDay()
+        addDayBreakdown(remittanceId, TestFixtures.uuid(), branchDayId)
+        addProductLine(remittanceId, TestFixtures.uuid(), BigDecimal("99999999.99"))
+        // Second line needs its own sale (duplicate-source guard 409s a repeat).
+        val secondSaleId = TestFixtures.uuid()
+        val secondCatId = TestFixtures.uuid()
+        val secondProdId = TestFixtures.uuid()
+        CommerceFinanceFixtures.insertTestCategory(secondCatId, "Cat ${secondSaleId.toString().take(8)}")
+        CommerceFinanceFixtures.insertTestProduct(secondProdId, "Prod ${secondSaleId.toString().take(8)}", secondCatId)
+        CommerceFinanceFixtures.insertTestProductSale(
+            id = secondSaleId,
+            branchDayId = branchDayId,
+            productId = secondProdId,
+            handledBy = callerId,
+        )
+        RemittanceService.addLine(
+            callerId = callerId,
+            remittanceId = remittanceId,
+            id = TestFixtures.uuid(),
+            type = RemittanceLineType.PRODUCT_SALE,
+            sessionId = null,
+            productSaleId = secondSaleId,
+            amount = BigDecimal("99999999.99"),
+        )
+
+        val actualVersion = RemittanceService.getRemittance(remittanceId).remittance.version
+
+        val result = RemittanceService.submit(callerId, remittanceId, actualVersion)
+
+        assertEquals(RemittanceStatus.SUBMITTED, result.remittance.status)
+        assertNull(RemittanceService.getRemittance(remittanceId).snapshot)
+    }
+
     private fun createDraftProductRemittance(remittanceId: UUID) {
         RemittanceService.createDraft(
             callerId = callerId,

@@ -3,6 +3,7 @@ import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.commerce.ProductTable
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
@@ -18,6 +19,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ProductServicePostgresTest : BasePostgresTest() {
@@ -312,6 +314,67 @@ class ProductServicePostgresTest : BasePostgresTest() {
                         (AuditLogTable.recordId eq productId)
                 }.count()
         }
+
+    // #925 persisted-range pre-gate (the #924 fail-closed class):
+    // NUMERIC(10,2) overflow must 400 before the write, never 500 from Postgres.
+
+    @Test
+    fun `create product rejects unitPrice over NUMERIC(10,2) range with no row written`() {
+        val blockedId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            ProductService.create(
+                callerId = callerId,
+                id = blockedId,
+                name = "Over Max Product",
+                productCategoryId = categoryId,
+                unitPrice = BigDecimal("9999999999.99"),
+                commissionAmount = BigDecimal("25.00"),
+            )
+        }
+        assertNull(ProductRepository.findById(blockedId))
+    }
+
+    @Test
+    fun `create product persists boundary max money amounts`() {
+        val result =
+            ProductService.create(
+                callerId = callerId,
+                id = TestFixtures.uuid(),
+                name = "Max Product",
+                productCategoryId = categoryId,
+                unitPrice = BigDecimal("99999999.99"),
+                commissionAmount = BigDecimal("99999999.99"),
+            )
+
+        assertTrue(result.created)
+        assertEquals("99999999.99", result.product.unitPrice.toPlainString())
+        assertEquals("99999999.99", result.product.commissionAmount.toPlainString())
+    }
+
+    @Test
+    fun `update product rejects unitPrice over NUMERIC(10,2) range`() {
+        ProductService.create(
+            callerId = callerId,
+            id = productId,
+            name = "Test Product",
+            productCategoryId = categoryId,
+            unitPrice = BigDecimal("250.00"),
+            commissionAmount = BigDecimal("25.00"),
+        )
+
+        assertFailsWith<ValidationException> {
+            ProductService.update(
+                callerId = callerId,
+                productId = productId,
+                name = null,
+                productCategoryId = null,
+                unitPrice = BigDecimal("100000000"),
+                commissionAmount = null,
+                isActive = null,
+            )
+        }
+    }
 
     private fun auditActiveStateChanges(
         productId: UUID,

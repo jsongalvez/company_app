@@ -7,6 +7,7 @@ import com.companyb.companyapp.contracts.finance.ExpenseCategory
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.utils.validateMoneyAmount
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -31,8 +32,11 @@ object ExpenseService {
         category: ExpenseCategory,
         notes: String?,
         reason: String? = null,
-    ): Expense =
-        transaction {
+    ): Expense {
+        // #925 — persisted-range pre-gate (the #924 fail-closed class): expense.amount is
+        // NUMERIC(10,2), so overflow must 400 before the write, never 500 from Postgres.
+        validateMoneyAmount(amount, "amount")
+        return transaction {
             // #510 — in-tx replay classification before the day gate (mirrors #509): a same-id
             // row already committed acks without gating so retries landing after a day transition
             // still ack; ownership matches createInTransaction below.
@@ -68,6 +72,7 @@ object ExpenseService {
             }
             result.expense
         }
+    }
 
     @Suppress("LongParameterList") // #922: replay payload comparison stays whole with create
     private fun samePayload(
@@ -90,8 +95,10 @@ object ExpenseService {
         notes: String?,
         expectedVersion: Int,
         reason: String? = null,
-    ): Expense =
-        transaction {
+    ): Expense {
+        // #925 — same persisted-range pre-gate as create.
+        validateMoneyAmount(amount, "amount")
+        return transaction {
             // Transaction-local before-state (ADR-0019): read inside the command's transaction,
             // never held across a method boundary where a concurrent write could stale it.
             val before =
@@ -115,6 +122,7 @@ object ExpenseService {
             )
             after
         }
+    }
 
     fun softDelete(
         callerId: UUID,

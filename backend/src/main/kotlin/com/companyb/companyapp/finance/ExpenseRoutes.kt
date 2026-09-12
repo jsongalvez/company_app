@@ -3,6 +3,7 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.parsePositiveBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.api.routes.requireMoneyAmount
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
@@ -161,6 +162,7 @@ object ExpenseRoutes {
         val id = uuidOrThrow(request.id, "expense id")
         val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
         val amount = parsePositiveBigDecimal(request.amount, "amount")
+        requireMoneyAmount(amount, "amount")
         val category =
             ExpenseCategory.valueOf(request.category.name)
         // #876 — the forward-compat sentinel is never valid input; the strict transport
@@ -189,6 +191,7 @@ object ExpenseRoutes {
         val request = context.bodyAsClass<UpdateExpenseRequest>()
 
         val amount = parsePositiveBigDecimal(request.amount, "amount")
+        requireMoneyAmount(amount, "amount")
         val category =
             ExpenseCategory.valueOf(request.category.name)
         // #876 — the forward-compat sentinel is never valid input (see handleCreate).

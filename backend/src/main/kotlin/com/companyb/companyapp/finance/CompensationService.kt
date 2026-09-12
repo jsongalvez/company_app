@@ -9,6 +9,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AccountReads
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.utils.validateMoneyAmount
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -65,6 +66,9 @@ object CompensationService {
             throw NotFoundException("User not found")
         }
 
+        // #925 — persisted-range pre-gate (the #924 fail-closed class): compensation.amount
+        // is NUMERIC(10,2), so overflow must 400 before the write, never 500 from Postgres.
+        validateMoneyAmount(amount, "amount")
         return transaction {
             replayIfExistsInTransaction(id, workBranchDayId, payingBranchDayId, userId, callerId, amount, note)?.let {
                 return@transaction it
@@ -175,8 +179,10 @@ object CompensationService {
         note: String?,
         expectedVersion: Int,
         reason: String? = null,
-    ): Compensation =
-        transaction {
+    ): Compensation {
+        // #925 — same persisted-range pre-gate as create.
+        validateMoneyAmount(amount, "amount")
+        return transaction {
             // Transaction-local before-state (ADR-0019): read inside the command's transaction.
             val before =
                 CompensationRepository.findByIdInTransaction(compensationId)
@@ -207,6 +213,7 @@ object CompensationService {
         }.also {
             logger.info { "[UPDATE-COMPENSATION] Compensation ${compensationId.toString().maskUUID()} updated" }
         }
+    }
 }
 
 /**

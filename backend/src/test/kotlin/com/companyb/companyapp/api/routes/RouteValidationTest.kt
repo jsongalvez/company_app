@@ -208,6 +208,20 @@ class RouteValidationTest : BasePostgresTest() {
     }
 
     @Test
+    fun `POST allowance overflowing amount returns 400`() {
+        testServer.client.let { client ->
+            val body =
+                mapOf(
+                    "id" to TestFixtures.uuid().toString(),
+                    "branchDayId" to testBranchDayId.toString(),
+                    "userId" to TestFixtures.uuid().toString(),
+                    "amount" to "9999999999.99",
+                )
+            assertEquals(400, client.post("/api/allowances", body).code)
+        }
+    }
+
+    @Test
     fun `POST allowance invalid branchDayId UUID returns 400`() {
         testServer.client.let { client ->
             val body =
@@ -250,6 +264,21 @@ class RouteValidationTest : BasePostgresTest() {
                     "payingBranchDayId" to testBranchDayId.toString(),
                     "userId" to TestFixtures.uuid().toString(),
                     "amount" to "abc",
+                )
+            assertEquals(400, client.post("/api/compensation", body).code)
+        }
+    }
+
+    @Test
+    fun `POST compensation overflowing amount returns 400`() {
+        testServer.client.let { client ->
+            val body =
+                mapOf(
+                    "id" to TestFixtures.uuid().toString(),
+                    "workBranchDayId" to testBranchDayId.toString(),
+                    "payingBranchDayId" to testBranchDayId.toString(),
+                    "userId" to TestFixtures.uuid().toString(),
+                    "amount" to "9999999999.99",
                 )
             assertEquals(400, client.post("/api/compensation", body).code)
         }
@@ -739,6 +768,21 @@ class RouteValidationTest : BasePostgresTest() {
         }
     }
 
+    @Test
+    fun `POST product overflowing price returns 400`() {
+        testServer.client.let { client ->
+            val body =
+                mapOf(
+                    "id" to TestFixtures.uuid().toString(),
+                    "name" to "Test Product",
+                    "productCategoryId" to testCategoryId.toString(),
+                    "unitPrice" to "9999999999.99",
+                    "commissionAmount" to "10.00",
+                )
+            assertEquals(400, client.post("/api/products", body).code)
+        }
+    }
+
     // ──────────────────────────────────────────────
     // BranchInventoryRoutes
     // ──────────────────────────────────────────────
@@ -1010,6 +1054,38 @@ class RouteValidationTest : BasePostgresTest() {
                             "id" to TestFixtures.uuid().toString(),
                             "type" to "SESSION",
                             "amount" to "100.00",
+                        ),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `POST remittance SESSION line overflowing amount returns 400`() {
+        val remittanceId = TestFixtures.uuid()
+        transaction {
+            RemittanceTable.insert {
+                it[RemittanceTable.id] = remittanceId
+                it[RemittanceTable.type] = RemittanceType.SESSION
+                it[RemittanceTable.branchId] = testBranchId
+                it[RemittanceTable.method] = RemittanceMethod.BANK_TRANSFER
+                it[RemittanceTable.submittedDate] = LocalDate.of(2024, 1, 15)
+                it[RemittanceTable.dateRangeStart] = LocalDate.of(2024, 1, 1)
+                it[RemittanceTable.dateRangeEnd] = LocalDate.of(2024, 1, 15)
+                it[RemittanceTable.submittedBy] = testUserId
+            }
+        }
+        testServer.client.let { client ->
+            assertEquals(
+                400,
+                client
+                    .post(
+                        "/api/remittances/$remittanceId/lines",
+                        mapOf(
+                            "id" to TestFixtures.uuid().toString(),
+                            "type" to "SESSION",
+                            "sessionId" to testSessionId.toString(),
+                            "amount" to "9999999999.99",
                         ),
                     ).code,
             )
@@ -1356,6 +1432,20 @@ class RouteValidationTest : BasePostgresTest() {
                     "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
                     "amount" to "0.00",
+                    "category" to "MISCELLANEOUS",
+                )
+            assertEquals(400, client.post("/api/expenses", body).code)
+        }
+    }
+
+    @Test
+    fun `POST expense overflowing amount returns 400`() {
+        testServer.client.let { client ->
+            val body =
+                mapOf(
+                    "id" to TestFixtures.uuid().toString(),
+                    "branchDayId" to testBranchDayId.toString(),
+                    "amount" to "9999999999.99",
                     "category" to "MISCELLANEOUS",
                 )
             assertEquals(400, client.post("/api/expenses", body).code)
