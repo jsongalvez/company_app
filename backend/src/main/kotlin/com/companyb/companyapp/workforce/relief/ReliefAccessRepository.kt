@@ -12,6 +12,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.less
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -108,6 +109,32 @@ internal object ReliefAccessRepository {
                 }.singleOrNull()
                 ?.toReliefAccess()
         }
+
+    /**
+     * #913 — in-transaction sibling-duty read: any GRANTED row for
+     * ([requestedBy], [branchDayId]) other than [excludeId] (null excludes
+     * nothing — the creation path has no self row yet). Runs on the caller's
+     * command transaction after the day lock, so the check+write are atomic:
+     * a second grant 409s instead of hitting idx_one_grant_per_day as a 500.
+     */
+    fun findSiblingGrantedInTransaction(
+        requestedBy: UUID,
+        branchDayId: UUID,
+        excludeId: UUID?,
+    ): ReliefAccess? {
+        var condition =
+            (GrantReliefAccessTable.requestedBy eq requestedBy) and
+                (GrantReliefAccessTable.branchDayId eq branchDayId) and
+                (GrantReliefAccessTable.requestStatus eq ReliefAccessStatus.GRANTED)
+        if (excludeId != null) {
+            condition = condition and (GrantReliefAccessTable.id neq excludeId)
+        }
+        return GrantReliefAccessTable
+            .selectAll()
+            .where { condition }
+            .singleOrNull()
+            ?.toReliefAccess()
+    }
 
     /**
      * In-transaction store operation (#323, ADR-0024) — runs on the caller's command

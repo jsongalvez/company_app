@@ -99,6 +99,12 @@ object ReliefAccessService {
                 val (branchDay, isRemitted) =
                     BranchDayService.checkBranchDayEditableInTransaction(callerId, request.branchDayId, reason)
 
+                // #913 — one duty per person per day (idx_one_grant_per_day backstop):
+                // a sibling GRANTED for the same requester/day turns this grant into
+                // a 409 instead of a unique-violation 500. Day-lock serialized with
+                // the sibling's grant, so the check+flip are atomic.
+                requireNoSiblingGrantedInTransaction(request.requestedBy, request.branchDayId, requestId)
+
                 val mutation =
                     ReliefAccessRepository.grantInTransaction(
                         GrantWithCapabilityParams(
@@ -107,6 +113,14 @@ object ReliefAccessService {
                         ),
                     ) ?: error("Grant failed: relief access request not found in transaction")
 
+                // #913 — granting an already-decided ask is a 409, not a silent 200
+                // carrying the wrong status (the deny/cancel decided-state discipline).
+                // The GRANTED replay leg stays idempotent (updated=false, after=GRANTED).
+                if (!mutation.updated && mutation.after.requestStatus != ReliefAccessStatus.GRANTED) {
+                    throw ConflictException(
+                        "This relief request was already decided (${mutation.after.requestStatus})",
+                    )
+                }
                 if (mutation.updated) {
                     AuthorizationGrants.grantReliefCapabilityInTransaction(
                         GrantReliefCapabilityParams(
@@ -293,6 +307,12 @@ object ReliefAccessService {
                 val (lockedDay, isRemitted) =
                     BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDay.id, reason)
 
+                // #913 — per-person duty guard (mirrors the invite create guard): the
+                // requester must not already hold the day (a GRANTED request or an
+                // active day grant incl. the invite path). Without it a second grant
+                // would hit idx_one_grant_per_day as a 500.
+                requireNoExistingDutyInTransaction(callerId, lockedDay.id)
+
                 val pair =
                     ReliefAccessRepository.insertRequestInTransaction(
                         id = requestId,
@@ -383,6 +403,39 @@ object ReliefAccessService {
         }
         if (existing.requestedBy != callerId) {
             throw ConflictException("Relief request id already belongs to another request")
+        }
+    }
+
+    /**
+     * #913 — grant-path sibling guard (ThrowsCount split): the requester must not
+     * already hold a GRANTED row for the day under a different request id.
+     */
+    private fun requireNoSiblingGrantedInTransaction(
+        requestedBy: UUID,
+        branchDayId: UUID,
+        excludeRequestId: UUID,
+    ) {
+        if (
+            ReliefAccessRepository.findSiblingGrantedInTransaction(requestedBy, branchDayId, excludeRequestId) != null
+        ) {
+            throw ConflictException("This user already holds relief duty for the day")
+        }
+    }
+
+    /**
+     * #913 — creation-path duty guard (ThrowsCount split): the requester must hold
+     * neither a GRANTED request nor an active day grant (either path's grant writes
+     * the same day-scoped capability) for the day.
+     */
+    private fun requireNoExistingDutyInTransaction(
+        requesterId: UUID,
+        branchDayId: UUID,
+    ) {
+        if (
+            ReliefAccessRepository.findSiblingGrantedInTransaction(requesterId, branchDayId, null) != null ||
+            ReliefInviteRepository.hasActiveGrantInTransaction(requesterId, branchDayId)
+        ) {
+            throw ConflictException("This user already holds relief duty for the day")
         }
     }
 }

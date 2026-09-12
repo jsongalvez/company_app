@@ -501,6 +501,65 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         }
     }
 
+    // ──────────────────────────────────────────────
+    // One-duty-per-day guards (#913)
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `re-requesting an already granted day fails with 409`() {
+        val firstId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(firstId, branchId, TestFixtures.today, reliefUserId)
+        ReliefAccessService.grantAccess(firstId, memberId)
+
+        assertFailsWith<ConflictException> {
+            ReliefAccessService.requestReliefAccess(TestFixtures.uuid(), branchId, TestFixtures.today, reliefUserId)
+        }
+    }
+
+    @Test
+    fun `granting a second pending for a granted user fails with 409 instead of 500`() {
+        val firstId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(firstId, branchId, TestFixtures.today, reliefUserId)
+        ReliefAccessService.grantAccess(firstId, memberId)
+
+        // A PENDING row predating the grant (seeded directly so the
+        // creation-time guard cannot see the future duty). Distinct-name local:
+        // inside insert{}, a bare branchDayId would resolve to the table COLUMN
+        // via the implicit table receiver (the #356 lesson).
+        val secondId = TestFixtures.uuid()
+        val seededDay = branchDayId
+        transaction {
+            GrantReliefAccessTable.insert {
+                it[GrantReliefAccessTable.id] = secondId
+                it[GrantReliefAccessTable.branchDayId] = seededDay
+                it[GrantReliefAccessTable.requestedBy] = reliefUserId
+                it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.PENDING
+            }
+        }
+
+        assertFailsWith<ConflictException> {
+            ReliefAccessService.grantAccess(secondId, memberId)
+        }
+        assertEquals(ReliefAccessStatus.PENDING, ReliefAccessRepository.findById(secondId)?.requestStatus)
+    }
+
+    @Test
+    fun `granting a denied or cancelled request fails with 409`() {
+        val deniedId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(deniedId, branchId, TestFixtures.today, reliefUserId)
+        ReliefAccessService.denyAccess(deniedId, memberId)
+        assertFailsWith<ConflictException> {
+            ReliefAccessService.grantAccess(deniedId, memberId)
+        }
+
+        val cancelledId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(cancelledId, branchId, TestFixtures.today.plusDays(2), reliefUserId)
+        ReliefAccessService.cancelRequest(cancelledId, reliefUserId)
+        assertFailsWith<ConflictException> {
+            ReliefAccessService.grantAccess(cancelledId, memberId)
+        }
+    }
+
     @Test
     fun `cancel on non-existent request fails with 404`() {
         assertFailsWith<NotFoundException> {

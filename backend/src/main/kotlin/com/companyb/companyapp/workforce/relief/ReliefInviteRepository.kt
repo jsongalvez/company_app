@@ -119,6 +119,30 @@ internal object ReliefInviteRepository {
         }
 
     /**
+     * #913 — in-transaction twin of [hasActiveGrant]: true when [userId] holds an
+     * ACTIVE day-scoped grant for [branchDayId] (either path's grant — both write
+     * the same capability). Runs on the caller's command transaction after the day
+     * lock, so the per-person duty check commits atomically with the insert it gates.
+     */
+    fun hasActiveGrantInTransaction(
+        userId: UUID,
+        branchDayId: UUID,
+    ): Boolean =
+        ActiveUserCapabilitiesView
+            .innerJoin(
+                CapabilityTable,
+                { ActiveUserCapabilitiesView.capabilityId },
+                { CapabilityTable.id },
+            ).selectAll()
+            .where {
+                (ActiveUserCapabilitiesView.userId eq userId) and
+                    (CapabilityTable.code eq CapabilityCodes.EDIT_BRANCH_DATA) and
+                    (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH_DAY) and
+                    (ActiveUserCapabilitiesView.contextId eq branchDayId)
+            }.empty()
+            .not()
+
+    /**
      * #359 — ACCEPTED invites whose duty day is [dutyDate]: the reminder-job scan set.
      * Suppression lives in current state, not events — declined/retracted/revoked/expired
      * rows are other statuses and never appear here; a revocation (#374) suppresses by
