@@ -156,6 +156,107 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `create draft rejects same id with divergent type`() {
+        val remittanceId = TestFixtures.uuid()
+        val dateRangeStart = LocalDate.of(2026, 7, 1)
+        val dateRangeEnd = LocalDate.of(2026, 7, 15)
+
+        RemittanceService.createDraft(
+            callerId = callerId,
+            id = remittanceId,
+            type = RemittanceType.SESSION,
+            branchId = branchId,
+            method = RemittanceMethod.BANK_TRANSFER,
+            dateRangeStart = dateRangeStart,
+            dateRangeEnd = dateRangeEnd,
+        )
+
+        // #927 — same-UUID divergent header must 409, never ack the stale row (#922 class).
+        assertFailsWith<ConflictException> {
+            RemittanceService.createDraft(
+                callerId = callerId,
+                id = remittanceId,
+                type = RemittanceType.PRODUCT,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = dateRangeStart,
+                dateRangeEnd = dateRangeEnd,
+            )
+        }
+    }
+
+    @Test
+    fun `create draft rejects same id with divergent method and range`() {
+        val remittanceId = TestFixtures.uuid()
+
+        RemittanceService.createDraft(
+            callerId = callerId,
+            id = remittanceId,
+            type = RemittanceType.SESSION,
+            branchId = branchId,
+            method = RemittanceMethod.BANK_TRANSFER,
+            dateRangeStart = LocalDate.of(2026, 7, 1),
+            dateRangeEnd = LocalDate.of(2026, 7, 15),
+        )
+
+        // #927 — method divergence alone 409s.
+        assertFailsWith<ConflictException> {
+            RemittanceService.createDraft(
+                callerId = callerId,
+                id = remittanceId,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
+                dateRangeStart = LocalDate.of(2026, 7, 1),
+                dateRangeEnd = LocalDate.of(2026, 7, 15),
+            )
+        }
+
+        // #927 — range divergence alone 409s.
+        assertFailsWith<ConflictException> {
+            RemittanceService.createDraft(
+                callerId = callerId,
+                id = remittanceId,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = LocalDate.of(2026, 7, 2),
+                dateRangeEnd = LocalDate.of(2026, 7, 16),
+            )
+        }
+    }
+
+    @Test
+    fun `create draft rejects same id with different caller`() {
+        val remittanceId = TestFixtures.uuid()
+        val otherCallerId = TestFixtures.uuid()
+        IdentityFixtures.insertTestUser(otherCallerId, "remittance-other-caller")
+
+        RemittanceService.createDraft(
+            callerId = callerId,
+            id = remittanceId,
+            type = RemittanceType.SESSION,
+            branchId = branchId,
+            method = RemittanceMethod.BANK_TRANSFER,
+            dateRangeStart = LocalDate.of(2026, 7, 1),
+            dateRangeEnd = LocalDate.of(2026, 7, 15),
+        )
+
+        // #927 — UUID ownership includes the submitting caller (#922 precedent).
+        assertFailsWith<ConflictException> {
+            RemittanceService.createDraft(
+                callerId = otherCallerId,
+                id = remittanceId,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = LocalDate.of(2026, 7, 1),
+                dateRangeEnd = LocalDate.of(2026, 7, 15),
+            )
+        }
+    }
+
+    @Test
     fun `create draft without SUBMIT_REMITTANCE is allowed at service layer`() {
         IdentityFixtures.revokeAllCapabilities(callerId)
 

@@ -152,9 +152,9 @@ internal object RemittanceRepository {
     fun createDraftInTransaction(params: CreateDraftParams): RemittanceCreateResult {
         val existing = findByIdInTransaction(params.id)
         if (existing != null) {
-            if (existing.branchId != params.branchId) {
-                throw ConflictException("Remittance UUID belongs to another branch")
-            }
+            // #927 — same-UUID replay must match the full header (#922 finance precedent);
+            // branch-only ack let divergent type/method/range silently return the old row.
+            assertCreateReplayMatches(existing, params)
             return RemittanceCreateResult(existing, created = false)
         }
 
@@ -173,9 +173,8 @@ internal object RemittanceRepository {
 
         val created =
             findByIdInTransaction(params.id) ?: error("remittance not found after insert for ${params.id}")
-        if (created.branchId != params.branchId) {
-            throw ConflictException("Remittance UUID belongs to another branch")
-        }
+        // #927 — raced replay shares the same payload-identity exit as the fast path.
+        assertCreateReplayMatches(created, params)
         // #601 max-2: raced-replay and fresh-draft share one exit.
         return if (!inserted) {
             RemittanceCreateResult(created, created = false)
@@ -186,6 +185,34 @@ internal object RemittanceRepository {
             RemittanceCreateResult(created, created = true)
         }
     }
+
+    /**
+     * #927 — payload-identity for draft replays (#922 class): the UUID owner is the
+     * branch plus the full caller-controlled header (type/method/range) plus the
+     * submitting caller. Server-stamped fields (submittedDate/status/version) are
+     * excluded — retries across the operational-day boundary must still ack.
+     */
+    private fun assertCreateReplayMatches(
+        existing: Remittance,
+        params: CreateDraftParams,
+    ) {
+        if (existing.branchId != params.branchId) {
+            throw ConflictException("Remittance UUID belongs to another branch")
+        }
+        if (!sameCreatePayload(existing, params)) {
+            throw ConflictException("Remittance id already belongs to another create request")
+        }
+    }
+
+    private fun sameCreatePayload(
+        existing: Remittance,
+        params: CreateDraftParams,
+    ): Boolean =
+        existing.type == params.type &&
+            existing.method == params.method &&
+            existing.dateRangeStart == params.dateRangeStart &&
+            existing.dateRangeEnd == params.dateRangeEnd &&
+            existing.submittedBy == params.submittedBy
 
     /**
      * Atomically finalizes the submission: status → SUBMITTED, version bump, operational-date
