@@ -216,6 +216,38 @@ class InviteFlowPostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `mint rejects blank username and displayName without writing users ref #919`() {
+        assertFailsWith<ValidationException> {
+            mint("", "blank-user@example.test")
+        }
+        assertFailsWith<ValidationException> {
+            mint("blank-spaces", "blank-spaces@example.test", displayName = "   ")
+        }
+        assertFailsWith<ValidationException> {
+            mint("   ", "blank-username-spaces@example.test")
+        }
+        assertNull(UserRepository.findByUsername(""))
+        assertNull(UserRepository.findByUsername("blank-spaces"))
+        assertNull(UserRepository.findByUsername("   "))
+    }
+
+    @Test
+    fun `mint rejects overlong identity fields without writing users ref #919`() {
+        assertFailsWith<ValidationException> {
+            mint("u".repeat(256), "overlong-u@example.test")
+        }
+        assertFailsWith<ValidationException> {
+            mint("overlong-e", "e".repeat(41) + "@example.test")
+        }
+        assertFailsWith<ValidationException> {
+            mint("overlong-d", "overlong-d@example.test", displayName = "d".repeat(51))
+        }
+        assertNull(UserRepository.findByUsername("u".repeat(256)))
+        assertNull(UserRepository.findByUsername("overlong-e"))
+        assertNull(UserRepository.findByUsername("overlong-d"))
+    }
+
+    @Test
     fun `mint rejects SUPERUSER bundles and unknown roles without writing users`() {
         assertFailsWith<ValidationException> {
             mint("guarded-su", "guarded-su@example.test", roles = listOf("SUPERUSER"))

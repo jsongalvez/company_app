@@ -47,6 +47,14 @@ object UserService {
     private const val SUPERUSER_GUARD_MESSAGE =
         "$SUPERUSER_ROLE cannot be granted or removed through the API"
     private const val INVALID_EMAIL_MESSAGE = "Email is invalid"
+    private const val BLANK_USERNAME_MESSAGE = "Username is required"
+    private const val BLANK_DISPLAY_NAME_MESSAGE = "Display name is required"
+    private const val USERNAME_MAX_LENGTH = 255
+    private const val EMAIL_MAX_LENGTH = 50
+    private const val DISPLAY_NAME_MAX_LENGTH = 50
+    private const val USERNAME_TOO_LONG_MESSAGE = "Username must be at most 255 characters"
+    private const val EMAIL_TOO_LONG_MESSAGE = "Email must be at most 50 characters"
+    private const val DISPLAY_NAME_TOO_LONG_MESSAGE = "Display name must be at most 50 characters"
     private const val INVITE_VALID_DAYS = 7L
     private const val TOKEN_TABLE_NAME = "credential_token"
 
@@ -70,6 +78,24 @@ object UserService {
         }
         if (request.roles.contains(SUPERUSER_ROLE)) {
             throw ValidationException(SUPERUSER_GUARD_MESSAGE)
+        }
+        // Identity bounds mirror the app_user varchar widths (#919): blank names
+        // would persist as empty strings and overlong fields would surface as
+        // unmapped 500s — fail closed with 400 before the transaction instead.
+        if (request.username.isBlank()) {
+            throw ValidationException(BLANK_USERNAME_MESSAGE)
+        }
+        if (request.displayName.isBlank()) {
+            throw ValidationException(BLANK_DISPLAY_NAME_MESSAGE)
+        }
+        if (request.username.length > USERNAME_MAX_LENGTH) {
+            throw ValidationException(USERNAME_TOO_LONG_MESSAGE)
+        }
+        if (request.email.length > EMAIL_MAX_LENGTH) {
+            throw ValidationException(EMAIL_TOO_LONG_MESSAGE)
+        }
+        if (request.displayName.length > DISPLAY_NAME_MAX_LENGTH) {
+            throw ValidationException(DISPLAY_NAME_TOO_LONG_MESSAGE)
         }
         // Invite validity is credential lifecycle (#322): the auth cluster owns JVM-clock reads.
         val expiresAt =
