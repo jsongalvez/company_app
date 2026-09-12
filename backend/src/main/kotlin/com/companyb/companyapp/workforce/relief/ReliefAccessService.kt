@@ -121,6 +121,16 @@ object ReliefAccessService {
                         "This relief request was already decided (${mutation.after.requestStatus})",
                     )
                 }
+                // #918 — cross-path twin of the sibling guard (fresh flips only; the
+                // GRANTED replay leg above returns its own grant, which the view
+                // check would otherwise mistake for another path's duty):
+                // an ACCEPTED invite for the same user/day already wrote the
+                // day-scoped grant (same capability, other table), so a fresh
+                // grant here would stack a second active row. Post-mutation throw
+                // rolls the flip back — the request stays PENDING.
+                if (mutation.updated) {
+                    requireNoInviteDutyInTransaction(request.requestedBy, request.branchDayId)
+                }
                 if (mutation.updated) {
                     AuthorizationGrants.grantReliefCapabilityInTransaction(
                         GrantReliefCapabilityParams(
@@ -418,6 +428,21 @@ object ReliefAccessService {
         if (
             ReliefAccessRepository.findSiblingGrantedInTransaction(requestedBy, branchDayId, excludeRequestId) != null
         ) {
+            throw ConflictException("This user already holds relief duty for the day")
+        }
+    }
+
+    /**
+     * #918 — grant-path invite guard (ThrowsCount split): the requester must not
+     * already hold the day through the invite path (an ACCEPTED invite writes the
+     * same day-scoped capability under another table, invisible to the sibling
+     * guard above).
+     */
+    private fun requireNoInviteDutyInTransaction(
+        requestedBy: UUID,
+        branchDayId: UUID,
+    ) {
+        if (ReliefInviteRepository.hasActiveGrantInTransaction(requestedBy, branchDayId)) {
             throw ConflictException("This user already holds relief duty for the day")
         }
     }

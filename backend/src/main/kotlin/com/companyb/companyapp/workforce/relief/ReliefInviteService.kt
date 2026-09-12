@@ -194,6 +194,15 @@ object ReliefInviteService {
                 }
                 val validTo = BranchDayService.expirationUtc(branchDay.date)
 
+                // #918 — one duty per person per day (the #913 rule, cross-path
+                // twin): the invitee must not already hold the day through either
+                // path (a GRANTED request or any active day grant). Without it an
+                // accepted invite stacks a second active capability row next to
+                // the request grant. Runs after the day lock, atomic with the
+                // accept below. Revoked/expired duties hold no grant, so
+                // re-invites still pass.
+                requireNoExistingDutyInTransaction(callerId, branchDay.id)
+
                 val mutation =
                     ReliefInviteRepository.acceptInTransaction(id = inviteId)
                         ?: throw ConflictException("This invite was already responded to")
@@ -426,6 +435,24 @@ object ReliefInviteService {
             ReliefInviteRepository.hasActiveGrant(inviteeUserId, branchDayId)
         ) {
             throw ConflictException("This user already has a pending invite or active grant for the day")
+        }
+    }
+
+    /**
+     * #918 — accept-path duty guard (ThrowsCount split, #598): mirrors the
+     * request creation guard — the invitee must hold neither a GRANTED request
+     * nor an active day grant (either path's grant writes the same day-scoped
+     * capability) for the day.
+     */
+    private fun requireNoExistingDutyInTransaction(
+        userId: UUID,
+        branchDayId: UUID,
+    ) {
+        if (
+            ReliefAccessRepository.findSiblingGrantedInTransaction(userId, branchDayId, null) != null ||
+            ReliefInviteRepository.hasActiveGrantInTransaction(userId, branchDayId)
+        ) {
+            throw ConflictException("This user already holds relief duty for the day")
         }
     }
 }

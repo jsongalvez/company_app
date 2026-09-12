@@ -8,6 +8,7 @@ import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.workforce.ReliefAccessStatus
+import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -541,6 +542,48 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
             ReliefAccessService.grantAccess(secondId, memberId)
         }
         assertEquals(ReliefAccessStatus.PENDING, ReliefAccessRepository.findById(secondId)?.requestStatus)
+    }
+
+    @Test
+    fun `granting a request after the user accepted an invite for the day fails with 409`() {
+        val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
+        val invite = ReliefInviteService.createInvite(memberId, branchId, reliefUserId, TestFixtures.today)
+        ReliefInviteService.acceptInvite(reliefUserId, invite.id)
+        assertTrue(
+            ReliefInviteRepository.hasActiveGrant(reliefUserId, branchDayId),
+            "precondition: invite path holds the day",
+        )
+
+        assertFailsWith<ConflictException> {
+            ReliefAccessService.grantAccess(requestId, memberId)
+        }
+        assertEquals(ReliefAccessStatus.PENDING, ReliefAccessRepository.findById(requestId)?.requestStatus)
+    }
+
+    @Test
+    fun `accepting an invite after the user was granted for the day fails with 409`() {
+        val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
+        ReliefAccessService.grantAccess(requestId, memberId)
+
+        // A PENDING invite predating the grant (seeded directly so the
+        // creation-time advisory cannot see the future duty).
+        val inviteId = TestFixtures.uuid()
+        val seededDay = branchDayId
+        transaction {
+            ReliefInviteRepository.insertInTransaction(
+                id = inviteId,
+                branchDayId = seededDay,
+                invitedBy = memberId,
+                invitee = reliefUserId,
+            )
+        }
+
+        assertFailsWith<ConflictException> {
+            ReliefInviteService.acceptInvite(reliefUserId, inviteId)
+        }
+        assertEquals(ReliefInviteStatus.PENDING, ReliefInviteRepository.findById(inviteId)?.status)
     }
 
     @Test
