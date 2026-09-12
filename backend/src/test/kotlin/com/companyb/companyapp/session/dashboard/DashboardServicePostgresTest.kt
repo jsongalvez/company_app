@@ -1,5 +1,6 @@
 package com.companyb.companyapp.session.dashboard
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.commission.CommissionManualInclusionRepository
 import com.companyb.companyapp.commission.CommissionManualInclusionUpsertParams
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -185,6 +186,14 @@ class DashboardServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ForbiddenException> {
             DashboardService.getToday(callerId, branchId)
         }
+    }
+
+    @Test
+    fun `getToday leaves no branch-day row behind on clock-in 403`() {
+        assertFailsWith<ForbiddenException> {
+            DashboardService.getToday(callerId, otherBranchId)
+        }
+        assertEquals(null, BranchDayService.findToday(otherBranchId))
     }
 
     @Test

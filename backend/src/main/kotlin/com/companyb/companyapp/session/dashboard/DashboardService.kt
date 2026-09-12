@@ -1,6 +1,7 @@
 package com.companyb.companyapp.session.dashboard
 
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -68,7 +69,12 @@ object DashboardService {
         callerId: UUID,
         branchId: UUID,
     ): DashboardData {
-        val branchDay = BranchDayService.getToday(branchId)
+        BranchService.findById(branchId)
+        // Find-only day resolution (#920): a 403'd attempt must not leave a day row
+        // behind. A missing day means no active clock-in can exist for it.
+        val branchDay =
+            BranchDayService.findToday(branchId)
+                ?: throw ForbiddenException("You are not clocked in at this branch")
 
         if (!AttendanceService.hasActiveClockIn(callerId, branchDay.id)) {
             throw ForbiddenException("You are not clocked in at this branch")
