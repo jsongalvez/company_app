@@ -24,6 +24,8 @@ import kotlin.test.assertFailsWith
  * client is anonymized, every practitioner/concern mutation on the retained
  * sessions 409s (the session-create #692 and PENDING-reopen 409 precedent),
  * so no later write can reintroduce the free text #908 scrubs.
+ * #917 — price and status-correction writes are sticky too (void/unvoid #911
+ * precedent): only reads stay open.
  */
 class SessionAnonymizedGuardPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
@@ -178,6 +180,43 @@ class SessionAnonymizedGuardPostgresTest : BasePostgresTest() {
         assertFailsWith<ConflictException> {
             SessionService.unvoidSession(callerId, sessionId, "late unvoid")
         }
+    }
+
+    @Test
+    fun `updateFinalPrice on anonymized client session is rejected`() {
+        createClient()
+        createCompletedSession()
+        ClientService.anonymize(callerId, clientId)
+
+        assertFailsWith<ConflictException> {
+            SessionService.updateFinalPrice(callerId, sessionId, BigDecimal("3000.00"), expectedVersion = 2)
+        }
+        assertEquals(BigDecimal("2500.00"), SessionRepository.findById(sessionId)?.finalPrice)
+    }
+
+    @Test
+    fun `status correction on anonymized client session is rejected`() {
+        createClient()
+        SessionService.create(
+            callerId = callerId,
+            id = sessionId,
+            clientId = clientId,
+            branchId = branchId,
+            isWalkIn = false,
+            requestedPractitionerId = null,
+            finalPrice = BigDecimal("2500.00"),
+            remarks = null,
+            otherConcerns = null,
+            nextAppointmentDate = null,
+        )
+        SessionService.updateStatus(callerId, sessionId, SessionStatus.NO_SHOW, expectedVersion = 1)
+        ClientService.anonymize(callerId, clientId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, TestFixtures.uuid())
+
+        assertFailsWith<ConflictException> {
+            SessionService.updateStatus(callerId, sessionId, SessionStatus.CANCELLED, expectedVersion = 2)
+        }
+        assertEquals(SessionStatus.NO_SHOW, SessionRepository.findById(sessionId)?.sessionStatus)
     }
 
     @Test

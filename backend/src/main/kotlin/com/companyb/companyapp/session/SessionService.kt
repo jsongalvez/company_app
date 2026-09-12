@@ -306,6 +306,15 @@ object SessionService {
                 )
             }
 
+            // #917 — sticky anonymization (the #910 practitioner/concern and #911
+            // void/unvoid precedent): status writes audit reason free text (#909 scrub
+            // class), so every status write on an anonymized client's sessions 409
+            // instead of reintroducing it. Placed before the day gate like void: the
+            // anonymize verdict never depends on the caller's day grants.
+            if (client.deletedAt != null) {
+                throw ConflictException("Cannot update the status of a session for an anonymized client")
+            }
+
             val requiresEditPastDay = isStatusCorrection(session.sessionStatus, newStatus)
             val (branchDay, isRemitted) =
                 BranchDayService.checkBranchDayEditableInTransaction(
@@ -314,10 +323,6 @@ object SessionService {
                     reason,
                     requiresEditPastDay,
                 )
-
-            if (newStatus == SessionStatus.PENDING && client.deletedAt != null) {
-                throw ConflictException("Cannot reopen a session for an anonymized client")
-            }
 
             if (newStatus == SessionStatus.PENDING &&
                 SessionRepository.hasActivePendingSessionInTransaction(session.clientId, sessionId)
@@ -354,8 +359,15 @@ object SessionService {
                 SessionRepository.findByIdInTransaction(sessionId)
                     ?: throw NotFoundException("Session not found")
             // Keep every session mutation's lock order client -> session -> branch day.
-            ClientReads.acquireLockInTransaction(initial.clientId)
-                ?: throw NotFoundException("Client not found")
+            // #917 — sticky anonymization (the #910 practitioner/concern and #911
+            // void/unvoid precedent): price writes audit reason free text (#909 scrub
+            // class), so an anonymized client's sessions 409 instead of reintroducing it.
+            val client =
+                ClientReads.acquireLockInTransaction(initial.clientId)
+                    ?: throw NotFoundException("Client not found")
+            if (client.deletedAt != null) {
+                throw ConflictException("Cannot update the price of a session for an anonymized client")
+            }
             val session =
                 SessionRepository.acquireLockInTransaction(sessionId)
                     ?: throw NotFoundException("Session not found")
