@@ -129,6 +129,18 @@ internal object UserRepository {
         }
 
     /**
+     * ACTIVE-status check on the caller's command transaction (#926 — roster-path
+     * parity with create-path #366): status-only, never membership, so the deliberate
+     * relief-999 fallback for ACTIVE outsiders is preserved.
+     */
+    fun isActiveUserInTransaction(userId: UUID): Boolean =
+        AppUserTable
+            .select(AppUserTable.id)
+            .where { (AppUserTable.id eq userId) and (AppUserTable.status eq UserStatus.ACTIVE) }
+            .empty()
+            .not()
+
+    /**
      * Display names for notification copy (#358, merged from the retired `UserDisplayNames`
      * helper): relief broadcast messages name the people in them. Keeps its transaction
      * wrapper (ADR-0024 rule 6); called inside a command it joins the ambient transaction.

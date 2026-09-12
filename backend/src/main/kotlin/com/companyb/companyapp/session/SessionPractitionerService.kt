@@ -7,6 +7,7 @@ import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.client.ClientReads
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AccountReads
 import com.companyb.companyapp.workforce.WorkforceReads
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -52,6 +53,11 @@ internal object SessionPractitionerService {
         }
         return transaction {
             val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason)
+
+            // #926 — status-only INACTIVE guard (#366 parity): unknown users 404 above,
+            // deactivated users 400 here before the slot snapshot. Never a membership
+            // check — ACTIVE outsiders (relief) stay eligible for the 999 fallback.
+            requireActivePractitionerInTransaction(practitionerId)
 
             val existing =
                 SessionPractitionerRepository.findBySessionAndPractitionerInTransaction(
@@ -149,6 +155,16 @@ internal object SessionPractitionerService {
             )
 
             logger.info { "[REMOVE-PRACTITIONER] Removed practitioner $practitionerId from session $sessionId" }
+        }
+    }
+
+    /**
+     * #926 — status-only practitioner guard (runs on the caller's command transaction):
+     * INACTIVE targets fail closed with 400 before any slot snapshot or row write.
+     */
+    private fun requireActivePractitionerInTransaction(practitionerId: UUID) {
+        if (!AccountReads.isActiveUserInTransaction(practitionerId)) {
+            throw ValidationException("Practitioner is not active")
         }
     }
 

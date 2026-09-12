@@ -1272,6 +1272,99 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertEquals(0L, auditEntryCount(SessionPractitionerTable.tableName, requestId))
     }
 
+    // #926 — status-only INACTIVE guard (#366 parity): unknown users 404 above,
+    // deactivated users 400 here before any slot snapshot or row write.
+    @Test
+    fun `add practitioner rejects INACTIVE practitioner with assignment and writes nothing`() {
+        createSession(callerId, practitionerSessionId)
+        val inactiveId = TestFixtures.uuid()
+        IdentityFixtures.insertUser(
+            id = inactiveId,
+            username = "inactive-${inactiveId.toString().take(8)}",
+            passwordHash = "test-password-hash",
+            email = "${inactiveId.toString().take(8)}@t.st",
+            displayName = "Test inactive",
+            status = UserStatus.INACTIVE,
+        )
+        insertAssignment(inactiveId)
+        val requestId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            SessionPractitionerService.addPractitioner(
+                callerId = callerId,
+                id = requestId,
+                sessionId = practitionerSessionId,
+                practitionerId = inactiveId,
+                remarks = null,
+            )
+        }
+        val stored =
+            transaction {
+                SessionPractitionerRepository.findBySessionAndPractitionerInTransaction(
+                    practitionerSessionId,
+                    inactiveId,
+                )
+            }
+        assertNull(stored)
+        assertEquals(0L, auditEntryCount(SessionPractitionerTable.tableName, requestId))
+    }
+
+    // #926 — the 999-fallback leg: an INACTIVE outsider (no assignment) must also 400,
+    // never 201 slot-999.
+    @Test
+    fun `add practitioner rejects INACTIVE outsider with no assignment and writes nothing`() {
+        createSession(callerId, practitionerSessionId)
+        val inactiveOutsiderId = TestFixtures.uuid()
+        IdentityFixtures.insertUser(
+            id = inactiveOutsiderId,
+            username = "inactive-out-${inactiveOutsiderId.toString().take(8)}",
+            passwordHash = "test-password-hash",
+            email = "out-${inactiveOutsiderId.toString().take(8)}@t.st",
+            displayName = "Test inactive outsider",
+            status = UserStatus.INACTIVE,
+        )
+        val requestId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            SessionPractitionerService.addPractitioner(
+                callerId = callerId,
+                id = requestId,
+                sessionId = practitionerSessionId,
+                practitionerId = inactiveOutsiderId,
+                remarks = null,
+            )
+        }
+        val stored =
+            transaction {
+                SessionPractitionerRepository.findBySessionAndPractitionerInTransaction(
+                    practitionerSessionId,
+                    inactiveOutsiderId,
+                )
+            }
+        assertNull(stored)
+        assertEquals(0L, auditEntryCount(SessionPractitionerTable.tableName, requestId))
+    }
+
+    // #926 — narrow-guard non-goal pin: an ACTIVE outsider (relief) still gets 201 slot-999.
+    @Test
+    fun `add practitioner accepts ACTIVE outsider with relief 999`() {
+        createSession(callerId, practitionerSessionId)
+        val outsiderId = TestFixtures.uuid()
+        IdentityFixtures.insertTestUser(outsiderId, "session-relief-outsider")
+
+        val result =
+            SessionPractitionerService.addPractitioner(
+                callerId = callerId,
+                id = TestFixtures.uuid(),
+                sessionId = practitionerSessionId,
+                practitionerId = outsiderId,
+                remarks = null,
+            )
+
+        assertTrue(result.created)
+        assertEquals(999, result.practitioner.slotAtTime.toInt())
+    }
+
     @Test
     fun `update practitioner remarks succeeds and increments session version and writes audit`() {
         createSession(callerId, practitionerSessionId)
