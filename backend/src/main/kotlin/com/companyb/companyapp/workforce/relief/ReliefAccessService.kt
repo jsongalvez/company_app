@@ -169,19 +169,13 @@ object ReliefAccessService {
         callerId: UUID,
         reason: String? = null,
     ): ReliefAccess {
-        // Non-locking entry read (the #513 discipline — no lock widening): the PENDING
-        // fast-paths below are advisory; the store's conditional update arbitrates races.
+        // Non-locking entry read (the #513 discipline — no lock widening): the store's
+        // conditional update arbitrates races. No pre-transaction decided-state
+        // fast-path (#928): the membership + day gates below must run on every leg
+        // so non-members get 403 on DENIED/GRANTED rows instead of a 200/400 oracle.
         val request =
             ReliefAccessRepository.findById(requestId)
                 ?: throw NotFoundException("Relief access request not found")
-
-        if (request.requestStatus == ReliefAccessStatus.DENIED) {
-            return request
-        }
-
-        if (request.requestStatus == ReliefAccessStatus.GRANTED) {
-            throw ValidationException("Cannot deny a request that has already been granted")
-        }
 
         val result =
             transaction {

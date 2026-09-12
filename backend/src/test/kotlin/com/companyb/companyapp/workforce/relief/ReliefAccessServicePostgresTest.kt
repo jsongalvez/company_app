@@ -377,6 +377,32 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `deny decided DENIED row by a non-member fails with 403`() {
+        val outsider = TestFixtures.uuid()
+        IdentityFixtures.insertTestUser(outsider, "decided-outsider")
+        val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
+        ReliefAccessService.denyAccess(requestId, memberId)
+
+        assertFailsWith<ForbiddenException> {
+            ReliefAccessService.denyAccess(requestId, outsider)
+        }
+    }
+
+    @Test
+    fun `deny decided GRANTED row by a non-member fails with 403`() {
+        val outsider = TestFixtures.uuid()
+        IdentityFixtures.insertTestUser(outsider, "granted-outsider")
+        val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
+        ReliefAccessService.grantAccess(requestId, memberId)
+
+        assertFailsWith<ForbiddenException> {
+            ReliefAccessService.denyAccess(requestId, outsider)
+        }
+    }
+
+    @Test
     fun `grant and deny on non-existent requests fail with 404`() {
         assertFailsWith<NotFoundException> { ReliefAccessService.grantAccess(TestFixtures.uuid(), memberId) }
         assertFailsWith<NotFoundException> { ReliefAccessService.denyAccess(TestFixtures.uuid(), memberId) }
