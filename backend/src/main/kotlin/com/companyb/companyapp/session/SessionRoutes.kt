@@ -30,6 +30,7 @@ import com.companyb.companyapp.contracts.session.UpdateSessionStatusRequest
 import com.companyb.companyapp.contracts.session.VoidSessionRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.session.dashboard.DashboardService
 import com.companyb.companyapp.session.dashboard.DashboardSessionEnrichment
 import com.companyb.companyapp.session.dashboard.mapDashboardSession
@@ -48,6 +49,7 @@ import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiRequestBody
 import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
 
@@ -58,6 +60,22 @@ import java.util.UUID
  * (no day row existed — no BRANCH_DAY grant possible).
  */
 private const val GATED_BRANCH_DAY_ATTR = "gatedBranchDayId"
+
+/**
+ * #924: persisted-range mirror (the #923 requireClientRanges shape). The service
+ * owns the bound ([validateSessionMoney]); this maps the ValidationException to
+ * the route's BadRequestResponse so HTTP callers get 400 before the write.
+ */
+private fun requireSessionMoney(
+    amount: BigDecimal,
+    field: String,
+) {
+    try {
+        validateSessionMoney(amount, field)
+    } catch (e: ValidationException) {
+        throw BadRequestResponse(e.message ?: "Invalid amount").apply { initCause(e) }
+    }
+}
 
 @OpenApi(
     path = ApiRoutes.CONCERNS,
@@ -401,6 +419,7 @@ object SessionRoutes {
         val practitionerId =
             request.requestedPractitionerId?.let { uuidOrThrow(it, "practitioner id") }
         val finalPrice = parseNonNegativeBigDecimal(request.finalPrice, "finalPrice")
+        requireSessionMoney(finalPrice, "finalPrice")
         val nextAppt =
             request.nextAppointmentDate?.let {
                 runCatching { LocalDate.parse(it) }
@@ -467,6 +486,7 @@ object SessionRoutes {
         val request = context.bodyAsClass<UpdateSessionFinalPriceRequest>()
 
         val newPrice = parseNonNegativeBigDecimal(request.finalPrice, "finalPrice")
+        requireSessionMoney(newPrice, "finalPrice")
 
         val updated = SessionService.updateFinalPrice(callerId, sessionId, newPrice, request.version, request.reason)
 

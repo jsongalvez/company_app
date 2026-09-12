@@ -5,6 +5,7 @@ import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.session.SessionBaseRateRepository
 import com.companyb.companyapp.session.SessionBaseRateService
 import com.companyb.companyapp.session.SessionBaseRateTable
@@ -82,6 +83,37 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         assertEquals(SessionType.REGULAR, result.rate.sessionType)
         assertEquals("2500.00", result.rate.rate.toPlainString())
         assertEquals(branchId, result.rate.branchId)
+    }
+
+    @Test
+    fun `set rate rejects amount over NUMERIC(10,2) range`() {
+        val blockedId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            SessionBaseRateService.setRate(
+                callerId,
+                blockedId,
+                branchId,
+                SessionType.REGULAR,
+                BigDecimal("9999999999.99"),
+            )
+        }
+        assertEquals(0L, auditEntryCount(blockedId))
+    }
+
+    @Test
+    fun `set rate persists boundary max money amount`() {
+        val result =
+            SessionBaseRateService.setRate(
+                callerId,
+                rateId,
+                branchId,
+                SessionType.REGULAR,
+                BigDecimal("99999999.99"),
+            )
+
+        assertTrue(result.created)
+        assertEquals("99999999.99", result.rate.rate.toPlainString())
     }
 
     @Test

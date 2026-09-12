@@ -315,6 +315,33 @@ class RouteValidationTest : BasePostgresTest() {
     }
 
     @Test
+    fun `POST session overflowing finalPrice returns 400`() {
+        // Seed a base rate so an unguarded request reaches the write (pre-fix 500)
+        // instead of failing earlier on the missing rate; the route pre-gate 400s first.
+        SessionClientFixtures.insertTestBaseRate(TestFixtures.uuid(), testBranchId, testUserId)
+        val freshClientId = SessionClientFixtures.insertTestClient()
+        testServer.client.let { client ->
+            val body =
+                mapOf(
+                    "id" to TestFixtures.uuid().toString(),
+                    "clientId" to freshClientId.toString(),
+                    "branchId" to testBranchId.toString(),
+                    "isWalkIn" to false,
+                    "finalPrice" to "9999999999.99",
+                )
+            assertEquals(400, client.post("/api/sessions", body).code)
+        }
+    }
+
+    @Test
+    fun `PATCH session final-price overflowing returns 400`() {
+        testServer.client.let { client ->
+            val body = mapOf("finalPrice" to "9999999999.99", "version" to 1)
+            assertEquals(400, client.patch("/api/sessions/$testSessionId/final-price", body).code)
+        }
+    }
+
+    @Test
     fun `POST void session blank voidReason returns 400`() {
         testServer.client.let { client ->
             val body = mapOf("id" to TestFixtures.uuid().toString(), "voidReason" to "  ")

@@ -4,6 +4,7 @@ import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.SessionType
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
@@ -37,6 +38,33 @@ data class Session(
 
 private const val PRECISION = 10
 private const val SCALE = 2
+
+/**
+ * Largest storable session money amount (#924): session base/final price and the
+ * base rate share NUMERIC(10,2) columns with no CHECK, so the pre-gate below owns
+ * the bound and violations return 400 instead of an ExposedSQLException 500.
+ * Every session money entry point (create/update final price, base-rate set)
+ * calls it; basePrice rows inherit the bound transitively through the gated rates.
+ */
+internal const val SESSION_MONEY_MAX_PLAIN = "99999999.99"
+
+internal val SESSION_MONEY_MAX: BigDecimal = BigDecimal(SESSION_MONEY_MAX_PLAIN)
+
+/**
+ * Persisted-range pre-gate (#924): every NUMERIC(10,2) session money write is
+ * checked before the insert/update so overflow returns 400 instead of a Postgres
+ * numeric overflow 500 + #475 auto-file (the #912/#921/#923 fail-closed class).
+ * Callers validate the mission-normalized effective amount, never the raw input —
+ * a MEDICAL_MISSION ₱0 normalization must not reject (#405 invariant).
+ */
+internal fun validateSessionMoney(
+    amount: BigDecimal,
+    field: String,
+) {
+    if (amount > SESSION_MONEY_MAX) {
+        throw ValidationException("$field must be at most $SESSION_MONEY_MAX_PLAIN")
+    }
+}
 
 internal object SessionTable : Table("session") {
     val id = javaUUID("id").autoGenerate()

@@ -941,6 +941,47 @@ class SessionServicePostgresTest : BasePostgresTest() {
         }
     }
 
+    // #924 persisted-range pre-gate (the #912/#921/#923 fail-closed class):
+    // NUMERIC(10,2) overflow must 400 before the write, never 500 from Postgres.
+
+    @Test
+    fun `create session rejects finalPrice over NUMERIC(10,2) range with no row written`() {
+        val blockedId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            createSession(callerId, blockedId, finalPrice = BigDecimal("9999999999.99"))
+        }
+        assertNull(SessionRepository.findById(blockedId))
+        assertEquals(0L, auditEntryCount(SessionTable.tableName, blockedId))
+    }
+
+    @Test
+    fun `create session persists boundary max money amount`() {
+        val result = createSession(callerId, sessionId, finalPrice = BigDecimal("99999999.99"))
+
+        assertTrue(result.created)
+        assertEquals("99999999.99", result.session.finalPrice.toPlainString())
+    }
+
+    @Test
+    fun `update final price rejects amount over NUMERIC(10,2) range`() {
+        createSession(callerId, sessionId)
+
+        assertFailsWith<ValidationException> {
+            SessionService.updateFinalPrice(callerId, sessionId, BigDecimal("100000000"), 1)
+        }
+    }
+
+    @Test
+    fun `update final price persists boundary max money amount`() {
+        createSession(callerId, sessionId)
+
+        val updated = SessionService.updateFinalPrice(callerId, sessionId, BigDecimal("99999999.99"), 1)
+
+        assertEquals("99999999.99", updated.finalPrice.toPlainString())
+        assertEquals(2, updated.version)
+    }
+
     // #149 count-0 misfire pins (deterministic, no interleave — the #136 discipline): the
     // repo's conditional UPDATE must 409 on a stale version itself; a concurrent commit
     // between the service pre-check and the UPDATE would otherwise read back the other

@@ -12,6 +12,7 @@ import com.companyb.companyapp.contracts.session.RateResponse
 import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.contracts.session.SetRateRequest
 import com.companyb.companyapp.dto.ErrorResponse
+import com.companyb.companyapp.exception.ValidationException
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
@@ -23,6 +24,7 @@ import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiRequestBody
 import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
+import java.math.BigDecimal
 import java.util.UUID
 
 @OpenApi(
@@ -77,6 +79,7 @@ object SessionBaseRateRoutes {
             val request = context.bodyAsClass<SetRateRequest>()
             val rateId = uuidOrThrow(request.id, "rate id")
             val rate = parseNonNegativeBigDecimal(request.rate, "rate")
+            requireSessionMoney(rate, "rate")
             // #876 — the forward-compat sentinel is never valid input (rates key real session
             // types). Unknown strings still 400 at decode.
             if (request.sessionType == SessionType.UNKNOWN) throw BadRequestResponse("Unknown session type")
@@ -110,4 +113,19 @@ object SessionBaseRateRoutes {
             effectiveFrom = effectiveFrom.toString(),
             effectiveUntil = effectiveUntil.toString(),
         )
+
+    /**
+     * #924: persisted-range mirror (same shape as SessionRoutes.requireSessionMoney,
+     * kept per-route like #923 — the service owns the bound).
+     */
+    private fun requireSessionMoney(
+        amount: BigDecimal,
+        field: String,
+    ) {
+        try {
+            validateSessionMoney(amount, field)
+        } catch (e: ValidationException) {
+            throw BadRequestResponse(e.message ?: "Invalid amount").apply { initCause(e) }
+        }
+    }
 }
