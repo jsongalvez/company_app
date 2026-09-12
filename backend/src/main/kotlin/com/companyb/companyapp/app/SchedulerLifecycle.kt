@@ -26,14 +26,16 @@ class SchedulerLifecycle(
 ) {
     private var executor: ScheduledExecutorService? = null
 
-    @Suppress("TooGenericExceptionCaught") // #600 best-effort sweep must not kill the scheduler
+    @Suppress("TooGenericExceptionCaught") // #600 best-effort sweep must not kill the scheduler:
+    // scheduleAtFixedRate suppresses all future runs once its Runnable throws, so catch
+    // Exception (not just RuntimeException) — Errors still propagate. ref #914
     private fun runTask(
         name: String,
         block: () -> Unit,
     ) {
         try {
             block()
-        } catch (e: RuntimeException) {
+        } catch (e: Exception) {
             logger.error(e) { "[SCHEDULER] $name task failed" }
         }
     }

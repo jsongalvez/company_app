@@ -3,6 +3,7 @@ package com.companyb.companyapp.app
 import com.companyb.companyapp.notification.NextAppointmentScheduler
 import com.companyb.companyapp.workforce.relief.ReliefInviteReminderJob
 import com.companyb.companyapp.workforce.relief.ReliefRequestExpiryJob
+import java.io.IOException
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.concurrent.ScheduledFuture
@@ -61,6 +62,34 @@ class SchedulerLifecycleTest {
     @Test
     fun `stop is safe when scheduler was never started`() {
         SchedulerLifecycle(now = { startTime }, jobs = productionJobs()).stop()
+    }
+
+    @Test
+    fun `checked task exception is swallowed and never reaches the executor`() {
+        val executor = RecordingExecutor()
+        val lifecycle =
+            SchedulerLifecycle(
+                executorFactory = { executor },
+                now = { startTime },
+                jobs =
+                    listOf(
+                        ScheduledJob(
+                            name = "Boom",
+                            initialDelayMs = { NO_DELAY_MS },
+                            task = { throw IOException("boom") },
+                        ),
+                    ),
+            )
+
+        lifecycle.start()
+        try {
+            assertEquals(EXPECTED_JOB_COUNT, executor.calls.size)
+            // Must not throw: an escaping throw would complete the fixed-rate
+            // future exceptionally and silently cancel all future runs. ref #914
+            executor.commands.single().run()
+        } finally {
+            lifecycle.stop()
+        }
     }
 
     @Test
@@ -212,6 +241,7 @@ class SchedulerLifecycleTest {
 
     private class RecordingExecutor : ScheduledThreadPoolExecutor(THREAD_COUNT) {
         val calls = mutableListOf<ScheduleCall>()
+        val commands = mutableListOf<Runnable>()
 
         override fun scheduleAtFixedRate(
             command: Runnable,
@@ -220,6 +250,7 @@ class SchedulerLifecycleTest {
             unit: TimeUnit,
         ): ScheduledFuture<*> {
             calls.add(ScheduleCall(initialDelay, period, unit))
+            commands.add(command)
             return object : ScheduledFuture<Any> {
                 override fun compareTo(other: java.util.concurrent.Delayed): Int = 0
 
@@ -244,5 +275,7 @@ class SchedulerLifecycleTest {
     private companion object {
         private const val THREAD_COUNT = 1
         private const val EXPECTED_EXECUTOR_COUNT = 1
+        private const val EXPECTED_JOB_COUNT = 1
+        private const val NO_DELAY_MS = 0L
     }
 }
