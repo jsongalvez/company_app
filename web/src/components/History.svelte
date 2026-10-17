@@ -1,7 +1,7 @@
 <script lang="ts">
     import { api, ok } from "../api/client";
     import { Query } from "../lib/cache.svelte";
-    import { dateTime, label } from "../lib/format";
+    import { dateTime, label, changeText } from "../lib/format";
     import State from "./State.svelte";
 
     let { table, id }: { table: string; id: string } = $props();
@@ -14,22 +14,11 @@
     $effect(() => {
         if (shown) q.load(key, () => get(table, id));
     });
-
-    function diff(oldV: string | null | undefined, newV: string | null | undefined): string {
-        try {
-            const o = oldV ? JSON.parse(oldV) : {};
-            const n = newV ? JSON.parse(newV) : {};
-            const keys = [...new Set([...Object.keys(o), ...Object.keys(n)])].filter((k) => JSON.stringify(o[k]) !== JSON.stringify(n[k]));
-            return keys.map((k) => `${k}: ${o[k] ?? "∅"} → ${n[k] ?? "∅"}`).join("; ");
-        } catch {
-            return newV ?? "";
-        }
-    }
 </script>
 
 <section class="panel">
     <header>
-        <h2>History</h2>
+        <h2>Change history</h2>
         <span class="spacer"></span>
         <button class="sm" onclick={() => (shown = !shown)}>{shown ? "Hide" : "Show"}</button>
     </header>
@@ -45,9 +34,9 @@
                                 <td>{dateTime(e.changedAt)}</td>
                                 <td>{e.changedByName ?? ""}</td>
                                 <td
-                                    >{label(e.action)}{#if e.isFlagged}<span class="mark warn">Flagged</span>{/if}</td
+                                    >{label(e.action)}{#if e.isFlagged}<span class="mark warn">Needs review</span>{/if}</td
                                 >
-                                <td class="wrap mono">{e.action === "UPDATE" ? diff(e.oldValue, e.newValue) : ""}</td>
+                                <td class="wrap mono">{e.action === "UPDATE" ? changeText(e.oldValue, e.newValue) : ""}</td>
                                 <td class="wrap">{e.reason ?? ""}</td>
                             </tr>
                         {/each}

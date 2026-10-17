@@ -42,7 +42,7 @@
     }
 </script>
 
-<dialog bind:this={el} onclose={() => (open = false)} style="width: min({width}px, calc(100vw - 16px))">
+<dialog aria-label={title} bind:this={el} onclose={() => (open = false)} style="width: min({width}px, calc(100vw - 16px))">
     {#if open}
         <form onsubmit={submit} class="panel">
             <header>

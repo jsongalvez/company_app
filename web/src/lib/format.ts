@@ -123,3 +123,36 @@ export function clientName(c: { firstName?: string | null; lastName?: string | n
     if (!c.firstName && !c.lastName) return "(details erased)";
     return [c.firstName, c.middleName ? `${c.middleName[0]}.` : null, c.lastName, c.suffix].filter(Boolean).join(" ");
 }
+
+/** "sessionStatus" / "session_status" -> "Session status". */
+export function fieldName(k: string): string {
+    const w = k
+        .replace(/_/g, " ")
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .toLowerCase()
+        .replace(/\bid\b/g, "")
+        .trim();
+    return w.charAt(0).toUpperCase() + w.slice(1);
+}
+
+/** One recorded value, in app words. */
+export function fieldValue(v: unknown): string {
+    if (v === null || v === undefined || v === "") return "–";
+    if (typeof v === "boolean") return v ? "Yes" : "No";
+    if (typeof v === "string" && /^[A-Z][A-Z_]+$/.test(v)) return label(v);
+    return typeof v === "object" ? JSON.stringify(v) : String(v);
+}
+
+/** Changed fields between two JSON snapshots, as "Field: old → new; …". */
+export function changeText(oldV: string | null | undefined, newV: string | null | undefined): string {
+    try {
+        const o = oldV ? JSON.parse(oldV) : {};
+        const n = newV ? JSON.parse(newV) : {};
+        return Object.keys({ ...o, ...n })
+            .filter((k) => JSON.stringify(o[k]) !== JSON.stringify(n[k]) && !/version|updated_?at/i.test(k))
+            .map((k) => `${fieldName(k)}: ${fieldValue(o[k])} → ${fieldValue(n[k])}`)
+            .join("; ");
+    } catch {
+        return "";
+    }
+}

@@ -38,6 +38,20 @@ After changing an API endpoint, regenerate the web app's types:
 cd web && npm run check && npm run lint
 ```
 
+Browser tests use [e2e](https://tester.army/e2e) and live in `web/tests/`. They
+run against a backend serving the built web app with the dev seed logins:
+
+```bash
+cd web && npm run build
+./gradlew :backend:run          # from the repo root, with WEB_DIR=web/dist in .env
+cd web && npm run e2e           # APP_URL defaults to http://localhost:18080
+```
+
+## Words
+
+`CONTEXT.md` is the word list: what each thing is called on screen, what it
+means, and what the code calls it. Screens use only the app words.
+
 ## Deploy
 
 Coolify builds `backend/Dockerfile` from the repo root. The image contains the

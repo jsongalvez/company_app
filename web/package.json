@@ -10,11 +10,14 @@
     "check": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
     "gen:api": "openapi-typescript ../backend/build/openapi/openapi-canonical.json -o src/api/schema.d.ts",
     "format": "prettier --write src",
-    "lint": "prettier --check src"
+    "lint": "prettier --check src",
+    "e2e": "e2e run"
   },
   "devDependencies": {
+    "@e2e-dev/web": "^0.15.2",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@types/node": "^24.19.2",
+    "e2e": "^0.21.2",
     "openapi-typescript": "^7.13.0",
     "prettier": "^3.9.10",
     "prettier-plugin-svelte": "^4.1.1",
