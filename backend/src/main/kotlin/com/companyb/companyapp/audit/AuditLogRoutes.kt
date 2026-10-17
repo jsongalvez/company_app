@@ -21,6 +21,7 @@ import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.util.UUID
 
@@ -199,9 +200,9 @@ object AuditLogRoutes {
         dateToRaw: String?,
     ) {
         if (dateFromRaw != null && dateToRaw != null) {
-            val from = parseLocalDate(dateFromRaw)
-            val to = parseLocalDate(dateToRaw)
-            if (from.isAfter(to)) throw BadRequestResponse("dateFrom must be before dateTo")
+            val from = parseStartOfDay(dateFromRaw)!!
+            val to = parseExclusiveEndOfDay(dateToRaw)!!
+            if (!from.isBefore(to)) throw BadRequestResponse("dateFrom must be before dateTo")
         }
     }
 
@@ -222,19 +223,42 @@ object AuditLogRoutes {
         }.getOrElse { throw BadRequestResponse("Invalid action: $raw") }
     }
 
-    /** Date params are inclusive Manila calendar days (`yyyy-MM-dd`). */
+    /** A day (YYYY-MM-DD) starts at midnight; a time (YYYY-MM-DDTHH:mm[:ss]) is taken as is. Manila time. */
     private fun parseStartOfDay(raw: String?): OffsetDateTime? {
         if (raw == null) return null
-        val date = parseLocalDate(raw)
-        return date.atStartOfDay(BranchDayService.manilaZone).toOffsetDateTime()
+        parseLocalDateTime(raw)?.let {
+            return it
+                .atZone(BranchDayService.manilaZone)
+                .toOffsetDateTime()
+        }
+        return parseLocalDate(raw)
+            .atStartOfDay(BranchDayService.manilaZone)
+            .toOffsetDateTime()
     }
 
-    /** Upper bound is exclusive — the day after `dateTo`, start of day. */
+    /** Upper bound is exclusive: the day after a `dateTo` day, or one second after a `dateTo` time. */
     private fun parseExclusiveEndOfDay(raw: String?): OffsetDateTime? {
         if (raw == null) return null
-        val date = parseLocalDate(raw)
-        return date.plusDays(1).atStartOfDay(BranchDayService.manilaZone).toOffsetDateTime()
+        parseLocalDateTime(raw)?.let {
+            return it
+                .withNano(0)
+                .plusSeconds(1)
+                .atZone(BranchDayService.manilaZone)
+                .toOffsetDateTime()
+        }
+        return parseLocalDate(raw)
+            .plusDays(1)
+            .atStartOfDay(BranchDayService.manilaZone)
+            .toOffsetDateTime()
     }
+
+    private fun parseLocalDateTime(raw: String): LocalDateTime? =
+        if (raw.contains('T')) {
+            runCatching { LocalDateTime.parse(raw) }
+                .getOrElse { throw BadRequestResponse("Invalid time: $raw") }
+        } else {
+            null
+        }
 
     private fun parseLocalDate(raw: String): LocalDate =
         runCatching { LocalDate.parse(raw) }

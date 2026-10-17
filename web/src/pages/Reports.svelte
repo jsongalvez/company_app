@@ -5,8 +5,9 @@
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
     import { go, route } from "../lib/router.svelte";
-    import { peso, day, sum, operationalDate, monthStart } from "../lib/format";
+    import { peso, day, sum, operationalDate, monthStart, addDays } from "../lib/format";
     import PageHead from "../components/PageHead.svelte";
+    import RangePicker, { type Preset } from "../components/RangePicker.svelte";
     import State from "../components/State.svelte";
 
     const bid = $derived(app.branchId);
@@ -32,6 +33,15 @@
     const rows = $derived([...(daily.data?.entries ?? [])].sort((a, b) => b.date.localeCompare(a.date)));
     const total = (k: keyof S["DailySalesSummaryResponse"]) => peso(sum(rows.map((r) => r[k] as string)));
 
+    const lastMonthStart = monthStart(addDays(monthStart(today), -1));
+    const presets: Preset[] = [
+        { key: "today", label: "Today", range: () => ({ from: today, to: today }) },
+        { key: "yesterday", label: "Yesterday", range: () => ({ from: addDays(today, -1), to: addDays(today, -1) }) },
+        { key: "7d", label: "Last 7 days", range: () => ({ from: addDays(today, -6), to: today }) },
+        { key: "30d", label: "Last 30 days", range: () => ({ from: addDays(today, -29), to: today }) },
+        { key: "month", label: "This month", range: () => ({ from: monthStart(today), to: today }) },
+        { key: "lastmonth", label: "Last month", range: () => ({ from: lastMonthStart, to: addDays(monthStart(today), -1) }) },
+    ];
     function setRange(f: string, t: string) {
         go("/reports", { from: f, to: t });
     }
@@ -55,10 +65,8 @@
 
 <PageHead title="Sales reports" sub={branchName(bid)}>
     <button onclick={() => shiftMonth(-1)} title="Previous month">‹</button>
-    <button onclick={() => setRange(monthStart(today), today)}>This month</button>
+    <RangePicker mode="day" {from} {to} {presets} max={today} clearable={false} onchange={(r) => setRange(r.from || r.to, r.to || r.from)} />
     <button onclick={() => shiftMonth(1)} title="Next month" disabled={to >= today}>›</button>
-    <input type="date" value={from} max={to} onchange={(e) => setRange(e.currentTarget.value || from, to)} aria-label="From" />
-    <input type="date" value={to} min={from} max={today} onchange={(e) => setRange(from, e.currentTarget.value || to)} aria-label="To" />
 </PageHead>
 
 {#if wholeMonth && monthly.data}

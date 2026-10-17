@@ -4,8 +4,9 @@
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
     import { go, route } from "../lib/router.svelte";
-    import { dateTime, label, changeText } from "../lib/format";
+    import { dateTime, label, changeText, manilaTime } from "../lib/format";
     import PageHead from "../components/PageHead.svelte";
+    import RangePicker, { type Preset, type Range } from "../components/RangePicker.svelte";
     import State from "../components/State.svelte";
 
     type E = S["AuditLogEntryResponse"];
@@ -14,27 +15,56 @@
     const tableLabel = $derived(Object.fromEntries((tables.data ?? []).map((t) => [t.tableName, t.label])));
     const open = $derived((flagged.data ?? []).filter((e) => !e.acknowledgedAt));
 
-    function orderedRange(a: string, b: string) {
-        return a && b && a > b ? { dateFrom: b, dateTo: a } : { dateFrom: a, dateTo: b };
-    }
+    // Relative spans stay relative: "last 1 hour" means the hour before each load.
+    const SPANS: Record<string, number> = {
+        "15m": 15 * 60,
+        "1h": 3600,
+        "3h": 3 * 3600,
+        "12h": 12 * 3600,
+        "1d": 86400,
+        "3d": 3 * 86400,
+        "1w": 7 * 86400,
+        "30d": 30 * 86400,
+    };
+    const presets: Preset[] = [
+        { key: "15m", label: "Last 15 min" },
+        { key: "1h", label: "Last hour" },
+        { key: "3h", label: "Last 3 hours" },
+        { key: "12h", label: "Last 12 hours" },
+        { key: "1d", label: "Last 24 hours" },
+        { key: "3d", label: "Last 3 days" },
+        { key: "1w", label: "Last 7 days" },
+        { key: "30d", label: "Last 30 days" },
+    ];
+
     // Filters live in the URL so a view can be shared or reloaded.
     const qp = $derived(route.current.query);
     const f = $derived({
         tableName: qp.get("table") ?? "",
         action: qp.get("action") ?? "",
         callerName: qp.get("who") ?? "",
-        ...orderedRange(qp.get("from") ?? "", qp.get("to") ?? ""),
+        last: SPANS[qp.get("last") ?? ""] ? qp.get("last")! : "",
+        from: qp.get("from") ?? "",
+        to: qp.get("to") ?? "",
+    });
+    const params = () => ({
+        table: f.tableName || null,
+        action: f.action || null,
+        who: f.callerName || null,
+        from: f.from || null,
+        to: f.to || null,
+        last: f.last || null,
     });
     function setF(k: string, v: string) {
-        const next: Record<string, string | null> = { table: f.tableName, action: f.action, who: f.callerName, from: f.dateFrom, to: f.dateTo };
-        next[k] = v || null;
-        go("/audit", next);
+        go("/audit", { ...params(), [k]: v || null });
     }
-
-    // A date range: if the two ends are picked backwards, swap them instead of failing.
-    function setRange(from: string, to: string) {
-        const r = orderedRange(from, to);
-        go("/audit", { table: f.tableName || null, action: f.action || null, who: f.callerName || null, from: r.dateFrom || null, to: r.dateTo || null });
+    function setRange(r: Range) {
+        go("/audit", { ...params(), from: r.from || null, to: r.to || null, last: r.last || null });
+    }
+    function bounds() {
+        if (f.last) return { dateFrom: manilaTime(new Date(Date.now() - SPANS[f.last]! * 1000)), dateTo: undefined };
+        const [a, b] = f.from && f.to && f.from > f.to ? [f.to, f.from] : [f.from, f.to];
+        return { dateFrom: a || undefined, dateTo: b || undefined };
     }
 
     let entries = $state<E[]>([]);
@@ -48,8 +78,7 @@
             tableName: f.tableName || undefined,
             action: f.action || undefined,
             callerName: f.callerName || undefined,
-            dateFrom: f.dateFrom || undefined,
-            dateTo: f.dateTo || undefined,
+            ...bounds(),
             cursor: reset ? undefined : (cursor ?? undefined),
             limit: "100",
         };
@@ -116,12 +145,7 @@
         <option value="DELETE">Removed</option>
     </select>
     <input type="search" placeholder="Person" value={f.callerName} onchange={(e) => setF("who", e.currentTarget.value.trim())} aria-label="Person" />
-    <span class="daynav range">
-        <span class="muted">Between</span>
-        <input type="date" value={f.dateFrom} max={f.dateTo || undefined} onchange={(e) => setRange(e.currentTarget.value, f.dateTo)} aria-label="From day" />
-        <span class="muted">and</span>
-        <input type="date" value={f.dateTo} min={f.dateFrom || undefined} onchange={(e) => setRange(f.dateFrom, e.currentTarget.value)} aria-label="To day" />
-    </span>
+    <RangePicker from={f.from} to={f.to} last={f.last} {presets} max={manilaTime()} onchange={setRange} />
     {#if Object.values(f).some(Boolean)}<button onclick={() => go("/audit")}>Clear</button>{/if}
 </div>
 

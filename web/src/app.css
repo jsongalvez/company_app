@@ -521,11 +521,3 @@ table.grid tfoot td {
 .daynav input[type="date"] {
     min-width: 0;
 }
-.daynav.range {
-    flex: 1 1 320px;
-    max-width: 100%;
-}
-.daynav.range input[type="date"] {
-    flex: 1 1 0;
-    width: 0;
-}

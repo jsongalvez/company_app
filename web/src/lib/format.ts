@@ -156,3 +156,36 @@ export function changeText(oldV: string | null | undefined, newV: string | null 
         return "";
     }
 }
+
+/** Now (or a moment) as a Manila wall-clock time "2026-10-18T14:30:05". */
+export function manilaTime(at = new Date()): string {
+    return new Intl.DateTimeFormat("sv-SE", {
+        timeZone: TZ,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23",
+    })
+        .format(at)
+        .replace(" ", "T");
+}
+/** "2026-10-18T14:30:05" (Manila) shown as "Oct 18, 2026, 2:30:05 PM"; a plain day as day(). */
+export function wallTime(v: string): string {
+    if (!v.includes("T")) return day(v);
+    const [d, t] = v.split("T");
+    const [y, m, dd] = d!.split("-").map(Number);
+    const [hh, mm, ss] = t!.split(":").map(Number);
+    const at = new Date(Date.UTC(y!, m! - 1, dd!, hh!, mm!, ss ?? 0));
+    return new Intl.DateTimeFormat("en-PH", {
+        timeZone: "UTC",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        ...(ss ? { second: "2-digit" } : {}),
+    }).format(at);
+}
