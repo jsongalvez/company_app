@@ -414,13 +414,13 @@ table.grid tfoot td {
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     border: 1px solid var(--line);
     background: var(--panel);
+    overflow: hidden;
 }
+/* Each cell draws its right line 1px past its edge; the box clips the last column's. */
 .stats > div {
     padding: 6px 10px;
     border-right: 1px solid var(--line);
-}
-.stats > div:last-child {
-    border-right: 0;
+    margin-right: -1px;
 }
 .stats .k {
     font-size: 11px;

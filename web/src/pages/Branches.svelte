@@ -190,13 +190,13 @@
                 <State q={staff} empty={!!staff.data && activeStaff.length === 0} emptyText="No one works here yet." />
                 {#if activeStaff.length}
                     <table class="grid">
-                        <thead><tr><th class="num">Order</th><th>Name</th><th>Since</th><th></th></tr></thead>
+                        <thead><tr><th class="num">Order</th><th>Name</th><th class="hide-sm">Since</th><th></th></tr></thead>
                         <tbody>
                             {#each activeStaff as a, i (a.id)}
                                 <tr>
-                                    <td class="num faint">{a.slot}</td>
+                                    <td class="num faint">{i + 1}</td>
                                     <td>{nameOf[a.userId] ?? "…"}</td>
-                                    <td class="muted">{dateTime(a.assignedAt)}</td>
+                                    <td class="muted hide-sm">{dateTime(a.assignedAt)}</td>
                                     <td class="right nowrap">
                                         {#if manageUsers}
                                             <button class="sm" onclick={() => move(i, -1)} disabled={i === 0} title="Move up">↑</button>

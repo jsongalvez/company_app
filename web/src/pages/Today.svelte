@@ -214,7 +214,7 @@
                                         {s.practitioners.map((p) => p.displayName).join(", ")}
                                     {:else if s.requestedPractitionerName}
                                         <span class="faint">Req: {s.requestedPractitionerName}</span>
-                                    {:else}<span class="faint">None</span>{/if}
+                                    {:else}<span class="faint">No practitioner yet</span>{/if}
                                 </td>
                                 <td class="ellipsis cc muted hide-sm">{s.concerns?.map((c) => c.label).join(", ") ?? ""}</td>
                                 <td class="num">
@@ -259,9 +259,9 @@
         {#if roster.data?.length}
             <table class="grid">
                 <tbody>
-                    {#each roster.data as m (m.assignmentId)}
+                    {#each roster.data as m, i (m.assignmentId)}
                         <tr>
-                            <td class="faint num slot">{m.slot}</td>
+                            <td class="faint num slot">{i + 1}</td>
                             <td class="ellipsis"
                                 >{m.displayName}{#if m.userId === app.me?.id}<span class="faint">&nbsp;(you)</span>{/if}</td
                             >

@@ -14,6 +14,8 @@ export const app = $state({
     branchId: localStorage.getItem("branchId") ?? "",
     today: null as S["BranchDayTodayResponse"] | null,
     shift: null as S["ActiveShiftResponse"] | null,
+    /** False until the first shift check answers, so the clock button never shows a guess. */
+    shiftKnown: false,
     unread: 0,
     toast: null as { text: string; kind: "ok" | "bad" } | null,
 });
@@ -37,7 +39,18 @@ export async function signOut(callServer = true) {
     }
     setToken(null);
     clearCache();
-    Object.assign(app, { signedIn: false, ready: true, me: null, caps: [], branches: [], accessible: [], today: null, shift: null, unread: 0 });
+    Object.assign(app, {
+        signedIn: false,
+        ready: true,
+        me: null,
+        caps: [],
+        branches: [],
+        accessible: [],
+        today: null,
+        shift: null,
+        shiftKnown: false,
+        unread: 0,
+    });
 }
 
 /** Load identity, capabilities and branches; pick a branch. */
@@ -96,6 +109,7 @@ export async function refreshShift() {
     } catch {
         app.shift = null;
     }
+    app.shiftKnown = true;
 }
 
 export async function refreshCaps() {

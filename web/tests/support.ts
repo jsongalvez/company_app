@@ -3,13 +3,19 @@ import { expect } from "e2e";
 type Screen = Parameters<Parameters<typeof import("@e2e-dev/web").test>[1]>[0]["screen"];
 type App = Parameters<Parameters<typeof import("@e2e-dev/web").test>[1]>[0]["app"];
 
+/** Clock in at the current branch unless already on duty. Waits for the top bar to know the shift first. */
+export async function clockInHere(screen: Screen): Promise<void> {
+    await expect(screen.getByRole("button", /Clock (in|out)/).first()).toBeVisible();
+    const clockIn = screen.getByRole("button", "Clock in");
+    if ((await clockIn.count()) > 0) await clockIn.first().tap();
+    await expect(screen.getByRole("button", /Clock out/).first()).toBeVisible();
+}
+
 /** Clock in at the current branch, add a session for a brand-new client, mark it done. Returns the client's name. */
 export async function doneSessionForNewClient(app: App, screen: Screen): Promise<string> {
     const first = `Test${Date.now().toString().slice(-6)}`;
     await app.open("/#/today");
-    const clockIn = screen.getByRole("button", "Clock in");
-    if ((await clockIn.count()) > 0) await clockIn.first().tap();
-    await expect(screen.getByRole("button", /Clock out/)).toBeVisible();
+    await clockInHere(screen);
 
     await screen.getByRole("button", "New session").tap();
     const dialog = screen.getByRole("dialog", "New session");

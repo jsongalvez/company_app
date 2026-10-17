@@ -149,7 +149,7 @@
             <button class="clock" onclick={doClockOut} disabled={clockBusy} title="Clock out of {app.shift?.branchName}"
                 ><span class="dot on"></span>Clock out<span class="hide-sm">&nbsp;of {app.shift?.branchName}</span></button
             >
-        {:else if bid && here}
+        {:else if bid && here && app.shiftKnown}
             <button class="primary" onclick={doClockIn} disabled={clockBusy}>Clock in</button>
         {/if}
 

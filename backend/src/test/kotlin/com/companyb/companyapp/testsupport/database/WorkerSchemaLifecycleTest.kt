@@ -148,12 +148,19 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
             }
             assertTrue(versions.contains("1"), "worker schema must hold baseline V1, found $versions")
             assertTrue(versions.contains("2"), "worker schema must hold seed V2, found $versions")
-            // Retired V5–V6 numbers stay reserved (folded into V1, #370/#461/#548); V3/V4 are the
-            // first legitimate post-squash migrations (#688 monthly PRODUCT revenue, #858 voided-sale exclusion).
+            // Retired V6 stays reserved (folded into V1, #370/#461/#548); V3/V4 are the first legitimate
+            // post-squash migrations (#688 monthly PRODUCT revenue, #858 voided-sale exclusion). V5 was
+            // reused for client earlier visits once every database holding the retired V5 had been wiped.
             assertTrue(
-                versions.none { it in setOf("5", "6") },
-                "retired V5-V6 must stay folded into V1, found $versions",
+                versions.none { it == "6" },
+                "retired V6 must stay folded into V1, found $versions",
             )
+            scripts["5"]?.let { script ->
+                assertTrue(
+                    script.contains("client_earlier_visits"),
+                    "unexpected V5 migration (retired V5 stays folded): $script",
+                )
+            }
             scripts["3"]?.let { script ->
                 assertTrue(
                     script.contains("monthly_remittance_summary_product_revenue"),

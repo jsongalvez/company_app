@@ -755,6 +755,7 @@ object BackendArchitectureOwners {
             ProjectionGrant("session/SessionBaseRateRepository.kt", "BranchTable"),
             ProjectionGrant("session/SessionRepository.kt", "BranchTable"),
             ProjectionGrant("session/SessionRepository.kt", "BranchDayTable"),
+            ProjectionGrant("session/SessionRepository.kt", "ClientTable"),
             ProjectionGrant("session/dashboard/DashboardRepository.kt", "AppUserTable"),
             ProjectionGrant("session/dashboard/DashboardRepository.kt", "ClientTable"),
             ProjectionGrant("workforce/AttendanceRepository.kt", "AppUserTable"),
