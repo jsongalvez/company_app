@@ -744,6 +744,7 @@ object BackendArchitectureOwners {
             ProjectionGrant("notification/NextAppointmentRepository.kt", "UserBranchAssignmentTable"),
             ProjectionGrant("notification/NextAppointmentRepository.kt", "ActiveUserCapabilitiesView"),
             ProjectionGrant("notification/NextAppointmentRepository.kt", "CapabilityTable"),
+            ProjectionGrant("observability/UserFeedbackRepository.kt", "AppUserTable"),
             ProjectionGrant("remittance/RemittanceRepository.kt", "BranchDayTable"),
             ProjectionGrant("remittance/RemittanceRepository.kt", "ClientTable"),
             ProjectionGrant("remittance/RemittanceRepository.kt", "ProductSaleTable"),

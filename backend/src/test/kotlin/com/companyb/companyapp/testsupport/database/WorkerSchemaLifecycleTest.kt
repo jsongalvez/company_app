@@ -152,9 +152,15 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
             // post-squash migrations (#688 monthly PRODUCT revenue, #858 voided-sale exclusion). V5 was
             // reused for client earlier visits once every database holding the retired V5 had been wiped.
             assertTrue(
-                versions.none { it == "6" },
-                "retired V6 must stay folded into V1, found $versions",
+                versions.none { it == "7" },
+                "retired V7 must stay folded into V1, found $versions",
             )
+            scripts["6"]?.let { script ->
+                assertTrue(
+                    script.contains("user_feedback"),
+                    "unexpected V6 migration (retired V6 stays folded): $script",
+                )
+            }
             scripts["5"]?.let { script ->
                 assertTrue(
                     script.contains("client_earlier_visits"),

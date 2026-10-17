@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
-    import { can, canAtBranch, canAnywhere } from "../lib/app.svelte";
+    import { can, canAtBranch, canAnywhere, refreshBranchNames } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
@@ -77,6 +77,26 @@
             invalidate("branches");
             list.refresh();
             go("/branches", { id });
+        }
+    }
+
+    // Rename
+    const ra = new Action();
+    let rOpen = $state(false);
+    let rName = $state("");
+    function openRename() {
+        ra.reset();
+        rName = branch?.name ?? "";
+        rOpen = true;
+    }
+    async function renameBranch() {
+        if (!branch) return;
+        const branchId = branch.id;
+        if (await ra.run(() => ok(api.PATCH("/api/branches/{branchId}", { params: { path: { branchId } }, body: { name: rName.trim() } })), "Branch renamed")) {
+            rOpen = false;
+            invalidate("branches");
+            list.refresh();
+            void refreshBranchNames();
         }
     }
 
@@ -188,7 +208,8 @@
                 <header>
                     <h2>Staff at {branch.name}</h2>
                     <span class="spacer"></span>
-                    {#if manageUsers}<button class="sm" onclick={openStaff}>Add person</button>{/if}
+                    {#if manageUsers}<button class="sm" onclick={openRename}>Rename branch</button><button class="sm" onclick={openStaff}>Add person</button
+                        >{/if}
                 </header>
                 <State q={staff} empty={!!staff.data && activeStaff.length === 0} emptyText="No one works here yet." />
                 {#if activeStaff.length}
@@ -285,6 +306,18 @@
             <option value="MEDICAL_MISSION">Medical mission</option>
         </select>
     </label>
+</Dialog>
+
+<Dialog
+    bind:open={rOpen}
+    title="Rename {branch?.name}"
+    width={400}
+    onsubmit={renameBranch}
+    submitText="Rename"
+    busy={ra.busy || !rName.trim()}
+    error={ra.error}
+>
+    <label class="field"><span class="req">New name</span><input bind:value={rName} maxlength="100" required /></label>
 </Dialog>
 
 <Dialog bind:open={sOpen} title="Add person to {branch?.name}" width={400} onsubmit={addStaff} submitText="Add" busy={sa.busy || !sUser} error={sa.error}>

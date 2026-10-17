@@ -9,6 +9,7 @@ import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.branch.BranchResponse
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.branch.CreateBranchRequest
+import com.companyb.companyapp.contracts.branch.RenameBranchRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
@@ -71,8 +72,25 @@ import java.util.UUID
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
+@OpenApi(
+    path = ApiRoutes.BRANCH_PATH,
+    methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    operationId = "branch_rename",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = RenameBranchRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = BranchResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "409", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
+)
 object BranchRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
+    private const val MAX_NAME_LENGTH = 100
 
     fun register(config: JavalinConfig) {
         config.routes.before(ApiRoutes.BRANCHES) { context ->
@@ -149,10 +167,28 @@ object BranchRoutes {
             context.json(BranchService.findAll().map { it.toResponse() })
         }
 
+        // Rename: same GLOBAL MANAGE_USERS gate as create (the item-path before-filter
+        // above only checks the read window, so the write gate lives here).
+        config.routes.patch(ApiRoutes.BRANCH_PATH) { context -> rename(context) }
+
         config.routes.get(ApiRoutes.BRANCH_PATH) { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             context.json(BranchService.findById(branchId).toResponse())
         }
+    }
+
+    private fun rename(context: io.javalin.http.Context) {
+        CapabilityFilter.requireGlobalCapability(
+            context,
+            CapabilityCodes.MANAGE_USERS,
+            "MANAGE_USERS capability required to manage branches",
+        )
+        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+        val name = context.bodyAsClass<RenameBranchRequest>().name.trim()
+        if (name.isBlank() || name.length > MAX_NAME_LENGTH) {
+            throw BadRequestResponse("Branch name must be 1 to $MAX_NAME_LENGTH characters")
+        }
+        context.json(BranchService.rename(context.callerUuid(), branchId, name).toResponse())
     }
 
     private fun Branch.toResponse(): BranchResponse =

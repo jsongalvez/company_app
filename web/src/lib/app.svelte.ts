@@ -84,6 +84,16 @@ export async function boot() {
     }
 }
 
+/** Re-read branch names after a rename (picker and top bar). */
+export async function refreshBranchNames() {
+    const [branches, accessible] = await Promise.all([
+        ok(api.GET("/api/me/branches")).catch(() => app.branches),
+        ok(api.GET("/api/branches/accessible")).catch(() => app.accessible),
+    ]);
+    app.branches = branches;
+    app.accessible = accessible;
+}
+
 export function selectBranch(id: string) {
     app.branchId = id;
     localStorage.setItem("branchId", id);

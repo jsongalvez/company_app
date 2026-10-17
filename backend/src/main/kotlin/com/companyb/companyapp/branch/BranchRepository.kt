@@ -6,9 +6,11 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -44,6 +46,25 @@ internal object BranchRepository {
                     error("branch row not found after idempotent insert for ${params.id}")
                 }
         return BranchCreateResult(branch, created = insertedCount > 0)
+    }
+
+    /** In-transaction rename; returns the old row, or null when the branch is unknown. */
+    fun renameInTransaction(
+        id: UUID,
+        name: String,
+    ): Branch? {
+        val old = findByIdInTransaction(id) ?: return null
+        val clash =
+            BranchTable
+                .selectAll()
+                .where {
+                    (BranchTable.branchType eq old.branchType) and
+                        (BranchTable.name eq name) and
+                        (BranchTable.id neq id)
+                }.any()
+        if (clash) throw ConflictException("A branch with this name and type already exists")
+        BranchTable.update({ BranchTable.id eq id }) { it[BranchTable.name] = name }
+        return old
     }
 
     fun findById(id: UUID): Branch? =

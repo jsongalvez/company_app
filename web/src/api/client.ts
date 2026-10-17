@@ -20,6 +20,9 @@ export function setUnauthorizedHandler(fn: () => void) {
     onUnauthorized = fn;
 }
 
+/** The last request the server refused, attached to problem reports so they're easy to trace. */
+export const lastError: { value: { at: string; method: string; path: string; status: number } | null } = { value: null };
+
 const auth: Middleware = {
     onRequest({ request }) {
         const t = getToken();
@@ -27,6 +30,9 @@ const auth: Middleware = {
         return request;
     },
     onResponse({ response, request }) {
+        const path = new URL(request.url).pathname;
+        if (response.status >= 400 && response.status !== 401 && path !== "/api/feedback-notes")
+            lastError.value = { at: new Date().toISOString(), method: request.method, path, status: response.status };
         if (response.status === 401 && new URL(request.url).pathname.startsWith("/api/")) onUnauthorized();
         return response;
     },

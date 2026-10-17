@@ -59,3 +59,39 @@ data class FeedbackResponse(
     val packet: IncidentPacket,
     val duplicate: Boolean,
 )
+
+/** A problem or idea someone sends from the app, kept for triage. */
+@Serializable
+enum class FeedbackKind { PROBLEM, IDEA }
+
+@Serializable
+enum class FeedbackStatus { NEW, DONE }
+
+@Serializable
+data class SendFeedbackRequest(
+    val id: String,
+    val kind: FeedbackKind,
+    val message: String,
+    val page: String? = null,
+    val details: String? = null,
+    val appVersion: String? = null,
+)
+
+@Serializable
+data class FeedbackNoteResponse(
+    val id: String,
+    val kind: FeedbackKind,
+    val message: String,
+    val page: String?,
+    val details: String?,
+    val appVersion: String?,
+    val status: FeedbackStatus,
+    val createdAt: String,
+    val userId: String,
+    val userDisplayName: String,
+)
+
+@Serializable
+data class SetFeedbackStatusRequest(
+    val status: FeedbackStatus,
+)

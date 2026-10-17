@@ -68,6 +68,7 @@ CompanyApp:
       - '**/reporting/DailySalesSummaryRoutes.kt' # #547
       - '**/reporting/ExportRoutes.kt' # #547
       - '**/reporting/MonthlyRemittanceSummaryRoutes.kt' # #547
+      - '**/observability/UserFeedbackRoutes.kt' # in-app feedback (same HTTP boundary)
       - '**/notification/NotificationRoutes.kt' # #550
       - '**/observability/FeedbackRoutes.kt' # #551
       - '**/observability/MetricsRoutes.kt' # #551

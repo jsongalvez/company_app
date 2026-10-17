@@ -6,6 +6,7 @@ const backend = `http://localhost:${process.env.APP_PORT ?? "8080"}`;
 
 export default defineConfig({
   plugins: [svelte()],
+  define: { __APP_VERSION__: JSON.stringify(new Date().toISOString().slice(0, 16).replace("T", " ")) },
   server: {
     port: 5173,
     proxy: {

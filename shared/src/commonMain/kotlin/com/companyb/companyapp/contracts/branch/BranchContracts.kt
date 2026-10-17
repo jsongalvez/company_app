@@ -25,6 +25,11 @@ data class CreateBranchRequest(
 )
 
 @Serializable
+data class RenameBranchRequest(
+    val name: String,
+)
+
+@Serializable
 data class BranchResponse(
     val id: String,
     val name: String,

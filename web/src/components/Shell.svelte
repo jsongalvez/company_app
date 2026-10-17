@@ -1,7 +1,9 @@
 <script lang="ts">
     import { app, can, canAnywhere, selectBranch, signOut, clockIn, clockOut } from "../lib/app.svelte";
     import { route, go } from "../lib/router.svelte";
-    import { theme, toggleTheme } from "../lib/theme.svelte";
+    import ThemeIcon from "./ThemeIcon.svelte";
+    import Feedback from "./Feedback.svelte";
+    import FeedbackList from "../pages/FeedbackList.svelte";
     import { load, warm } from "../lib/data";
     import { invalidate } from "../lib/cache.svelte";
     import { day, label, operationalDate } from "../lib/format";
@@ -55,6 +57,7 @@
                 { path: "/users", text: "Users", show: canAnywhere("MANAGE_USERS"), warm: () => warm(load.users()) },
                 { path: "/branches", text: "Branches", show: canAnywhere("MANAGE_USERS") || canAnywhere("ASSIGN_DELEGATE"), warm: () => warm(load.branches()) },
                 { path: "/catalog", text: "Products", show: canAnywhere("MANAGE_CATALOG"), warm: () => warm(load.products()) },
+                { path: "/feedback", text: "Feedback inbox", show: canAnywhere("MANAGE_USERS") },
                 { path: "/audit", text: "Change history", show: true, warm: () => warm(load.auditTables()) },
             ],
         },
@@ -62,6 +65,7 @@
 
     const section = $derived("/" + (route.current.parts[0] ?? ""));
     let menuOpen = $state(false);
+    let feedbackOpen = $state(false);
     $effect(() => {
         void route.current;
         menuOpen = false;
@@ -156,7 +160,8 @@
         <a class="btn" href="#/notifications" title="Alerts" onmouseenter={() => warm(load.notifications())}>
             Alerts{#if app.unread}<b class="count">{app.unread}</b>{/if}
         </a>
-        <button onclick={toggleTheme} title="Switch to {theme.value === 'dark' ? 'day' : 'night'} mode">{theme.value === "dark" ? "Day" : "Night"}</button>
+        <button class="hide-sm" onclick={() => (feedbackOpen = true)}>Feedback</button>
+        <ThemeIcon />
         <span class="user muted ellipsis" title={app.me?.username}>{app.me?.displayName}</span>
         <button class="ghost" onclick={() => signOut()}>Sign out</button>
     </header>
@@ -173,10 +178,12 @@
             {/if}
         {/each}
         <div class="navfoot faint">
-            <button class="ghost sm" onclick={toggleTheme}>{theme.value === "dark" ? "Day mode" : "Night mode"}</button>
+            <button class="ghost sm" onclick={() => (feedbackOpen = true)}>Send feedback</button>
             <button class="ghost sm" onclick={() => signOut()}>Sign out</button>
         </div>
     </nav>
+
+    <Feedback bind:open={feedbackOpen} />
 
     <main>
         {#if !bid && ["/today", "/inventory", "/finance", "/reports", "/remittance"].includes(section)}
@@ -209,6 +216,8 @@
             <Branches />
         {:else if section === "/catalog"}
             <Catalog />
+        {:else if section === "/feedback"}
+            <FeedbackList />
         {:else if section === "/audit"}
             <Audit />
         {:else}

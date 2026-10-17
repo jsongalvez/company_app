@@ -40,6 +40,18 @@ object BranchService {
             logger.info { "[CREATE-BRANCH] Branch ${it.branch.id.toString().maskUUID()} created=${it.created}" }
         }
 
+    fun rename(
+        callerId: UUID,
+        id: UUID,
+        name: String,
+    ): Branch =
+        transaction {
+            val old = BranchRepository.renameInTransaction(id, name) ?: throw NotFoundException("Branch not found")
+            val renamed = old.copy(name = name)
+            if (old.name != name) BranchAudit.renamed(callerId, old, renamed)
+            renamed
+        }.also { logger.info { "[RENAME-BRANCH] Branch ${id.toString().maskUUID()} renamed" } }
+
     fun findAll(): List<Branch> = BranchRepository.findAll()
 
     fun findById(branchId: UUID): Branch =
@@ -63,5 +75,17 @@ internal object BranchAudit {
         recordId = branch.id,
         changedBy = changedBy,
         fields = BranchTable.auditFields(branch),
+    )
+
+    fun renamed(
+        changedBy: UUID,
+        old: Branch,
+        new: Branch,
+    ) = AuditLog.recordUpdate(
+        tableName = BranchTable.tableName,
+        recordId = new.id,
+        oldFields = BranchTable.auditFields(old),
+        newFields = BranchTable.auditFields(new),
+        changedBy = changedBy,
     )
 }

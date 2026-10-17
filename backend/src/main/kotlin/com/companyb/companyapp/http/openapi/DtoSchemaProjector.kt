@@ -7,6 +7,7 @@ import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.contracts.branch.BranchResponse
 import com.companyb.companyapp.contracts.branch.CreateBranchRequest
 import com.companyb.companyapp.contracts.branch.MeBranchResponse
+import com.companyb.companyapp.contracts.branch.RenameBranchRequest
 import com.companyb.companyapp.contracts.branchday.BranchDayTodayResponse
 import com.companyb.companyapp.contracts.branchday.BranchDayUserResponse
 import com.companyb.companyapp.contracts.client.ClientResponse
@@ -49,10 +50,13 @@ import com.companyb.companyapp.contracts.identity.RoleResponse
 import com.companyb.companyapp.contracts.identity.UserAssignmentResponse
 import com.companyb.companyapp.contracts.identity.UserRoleReplaceRequest
 import com.companyb.companyapp.contracts.identity.UserSummaryResponse
+import com.companyb.companyapp.contracts.incident.FeedbackNoteResponse
 import com.companyb.companyapp.contracts.incident.FeedbackRequest
 import com.companyb.companyapp.contracts.incident.FeedbackResponse
 import com.companyb.companyapp.contracts.incident.IncidentPacket
 import com.companyb.companyapp.contracts.incident.PoolSnapshot
+import com.companyb.companyapp.contracts.incident.SendFeedbackRequest
+import com.companyb.companyapp.contracts.incident.SetFeedbackStatusRequest
 import com.companyb.companyapp.contracts.notification.NotificationHistoryResponse
 import com.companyb.companyapp.contracts.notification.NotificationMarkAllReadResponse
 import com.companyb.companyapp.contracts.notification.NotificationResponse
@@ -174,6 +178,7 @@ internal object DtoSchemaProjector {
             "CreateAllowanceRequest" to CreateAllowanceRequest.serializer(),
             "CreateAssignmentRequest" to CreateAssignmentRequest.serializer(),
             "CreateBranchRequest" to CreateBranchRequest.serializer(),
+            "RenameBranchRequest" to RenameBranchRequest.serializer(),
             "CreateClientRequest" to CreateClientRequest.serializer(),
             "CreateCommissionInclusionRequest" to CreateCommissionInclusionRequest.serializer(),
             "CreateCompensationRequest" to CreateCompensationRequest.serializer(),
@@ -198,6 +203,9 @@ internal object DtoSchemaProjector {
             "ExpenseResponse" to ExpenseResponse.serializer(),
             "FeedbackRequest" to FeedbackRequest.serializer(),
             "FeedbackResponse" to FeedbackResponse.serializer(),
+            "FeedbackNoteResponse" to FeedbackNoteResponse.serializer(),
+            "SendFeedbackRequest" to SendFeedbackRequest.serializer(),
+            "SetFeedbackStatusRequest" to SetFeedbackStatusRequest.serializer(),
             "ForgotPasswordRequest" to ForgotPasswordRequest.serializer(),
             "GrantReliefAccessRequest" to GrantReliefAccessRequest.serializer(),
             "IncidentPacket" to IncidentPacket.serializer(),

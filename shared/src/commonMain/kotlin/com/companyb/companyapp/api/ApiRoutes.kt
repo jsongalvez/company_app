@@ -44,6 +44,8 @@ object ApiRoutes {
     const val HEALTH = "/health"
     const val METRICS = "/metrics"
     const val FEEDBACK = "$API_ROOT/feedback"
+    const val FEEDBACK_NOTES = "$API_ROOT/feedback-notes"
+    const val FEEDBACK_NOTE_PATH = "$FEEDBACK_NOTES/{feedbackId}"
     const val BRANCHES_EXPORT = "$BRANCHES/export"
 
     fun user(id: String) = "$USERS/$id"
