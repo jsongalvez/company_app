@@ -17,12 +17,11 @@
     const mine = new Query(load.reliefMine().key, load.reliefMine().fn);
     const invites = new Query(load.reliefInvitesMine().key, load.reliefInvitesMine().fn);
 
-    let date = $state(today);
     const asks = new Query<S["ReliefAccessResponse"][]>();
     const sent = new Query<S["ReliefInviteResponse"][]>();
     $effect(() => {
         if (!member) return;
-        const a = load.reliefForBranch(bid, date);
+        const a = load.reliefUpcoming(bid);
         asks.load(a.key, a.fn);
         const s = load.branchInvites(bid);
         sent.load(s.key, s.fn);
@@ -209,16 +208,15 @@
         <section class="panel">
             <header>
                 <h2>Requests to work here</h2>
-                <span class="spacer"></span>
-                <input type="date" bind:value={date} min={today} aria-label="Day" />
             </header>
-            <State q={asks} empty={!!asks.data && asks.data.length === 0} emptyText="No requests for this day." />
+            <State q={asks} empty={!!asks.data && asks.data.length === 0} emptyText="No upcoming requests." />
             {#if asks.data?.length}
                 <table class="grid stack">
                     <tbody>
                         {#each asks.data as r (r.id)}
                             <tr>
                                 <td class="lead">{r.requesterName ?? ""}</td>
+                                <td>{day(r.date)}</td>
                                 <td><span class="mark {statusClass(r.requestStatus)}">{label(r.requestStatus)}</span></td>
                                 <td class="right nowrap full">
                                     {#if r.requestStatus === "PENDING"}

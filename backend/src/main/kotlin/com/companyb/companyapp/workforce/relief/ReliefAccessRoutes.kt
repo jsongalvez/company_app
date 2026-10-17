@@ -54,7 +54,7 @@ import java.util.UUID
             name = "branchId",
             type = String::class,
             required = true,
-        ), OpenApiParam(name = "date", type = String::class, required = true),
+        ), OpenApiParam(name = "date", type = String::class, required = false),
     ],
     operationId = "relief_access_list",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -174,10 +174,21 @@ object ReliefAccessRoutes {
             // #598: query parsing split into named guards (ThrowsCount budget is 2 per function).
             if (context.queryParam("branchDayId") != null) {
                 context.json(listByBranchDayId(context).toNamedResponses())
+            } else if (context.queryParam("date") == null) {
+                // No day given: every upcoming request at the branch, each with its date.
+                context.json(listUpcoming(context).toNamedDatedResponses())
             } else {
                 context.json(listByDeepLink(context).toNamedResponses())
             }
         }
+    }
+
+    private fun listUpcoming(context: Context): List<ReliefRequestWithBranch> =
+        ReliefAccessService.listUpcomingForBranch(context.callerUuid(), resolveDeepLinkBranchId(context))
+
+    private fun List<ReliefRequestWithBranch>.toNamedDatedResponses(): List<ReliefAccessResponse> {
+        val names = AccountReads.findDisplayNamesByIds(map { it.access.requestedBy })
+        return map { it.toResponse().copy(requesterName = names[it.access.requestedBy]) }
     }
 
     private fun listByBranchDayId(context: Context): List<ReliefAccess> {

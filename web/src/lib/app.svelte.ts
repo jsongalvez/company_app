@@ -104,6 +104,12 @@ export function selectBranch(id: string) {
 export async function refreshBranchDay() {
     if (!app.branchId) return;
     const id = app.branchId;
+    // The server shows a branch's day only to its staff (or a relief grant for a day);
+    // skip the request for branches the person merely oversees.
+    if (!app.caps.some((c) => c.contextType === "BRANCH_DAY" || (c.contextType !== "GLOBAL" && c.contextId === id))) {
+        app.today = null;
+        return;
+    }
     try {
         const t = await ok(api.GET("/api/branches/{branchId}/today", { params: { path: { branchId: id } } }));
         if (app.branchId === id) app.today = t;
@@ -168,7 +174,8 @@ export function toast(text: string, kind: "ok" | "bad" = "ok") {
 export async function clockIn(branchId: string = app.branchId): Promise<boolean> {
     try {
         await ok(api.POST("/api/attendance/clock-in", { body: { attendanceId: uuid(), branchId } }));
-        await Promise.all([refreshShift(), refreshBranchDay(), refreshCaps()]);
+        await Promise.all([refreshShift(), refreshCaps()]);
+        await refreshBranchDay();
         toast("Clocked in");
         return true;
     } catch (e) {

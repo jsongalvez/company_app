@@ -7307,7 +7307,7 @@ export interface operations {
             query: {
                 branchDayId?: string;
                 branchId: string;
-                date: string;
+                date?: string;
             };
             header?: never;
             path?: never;

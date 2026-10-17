@@ -10,6 +10,7 @@
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
     import Dialog from "../components/Dialog.svelte";
+    import PersonPicker from "../components/PersonPicker.svelte";
 
     const list = new Query(load.branches().key, load.branches().fn);
     const sel = $derived(route.current.query.get("id") ?? "");
@@ -321,13 +322,7 @@
 </Dialog>
 
 <Dialog bind:open={sOpen} title="Add person to {branch?.name}" width={400} onsubmit={addStaff} submitText="Add" busy={sa.busy || !sUser} error={sa.error}>
-    <label class="field"
-        ><span class="req">Person</span>
-        <select bind:value={sUser} required>
-            <option value="" disabled>Select</option>
-            {#each unassigned as u (u.id)}<option value={u.id}>{u.displayName}</option>{/each}
-        </select>
-    </label>
+    <div class="field"><span class="req">Person</span><PersonPicker people={unassigned} bind:value={sUser} /></div>
     <label class="field">Order in lists<input class="num" type="number" min="1" bind:value={sSlot} /></label>
 </Dialog>
 
@@ -339,15 +334,12 @@
 </Dialog>
 
 <Dialog bind:open={hOpen} title="Add mission helper" width={400} onsubmit={addHelper} submitText="Add" busy={ha.busy || !hUser} error={ha.error}>
-    <label class="field"
-        ><span class="req">Person</span>
-        <select bind:value={hUser} required>
-            <option value="" disabled>Select</option>
-            {#each users.filter((u) => u.status !== "INACTIVE" && !activeHelpers.some((d) => d.targetUser === u.id)) as u (u.id)}<option value={u.id}
-                    >{u.displayName}</option
-                >{/each}
-        </select>
-    </label>
+    <div class="field">
+        <span class="req">Person</span><PersonPicker
+            people={users.filter((u) => u.status !== "INACTIVE" && !activeHelpers.some((d) => d.targetUser === u.id))}
+            bind:value={hUser}
+        />
+    </div>
 </Dialog>
 
 <style>

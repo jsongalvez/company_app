@@ -53,6 +53,7 @@ export const load = {
     reliefMine: () => L(`relief:mine`, () => ok(api.GET("/api/relief-access/mine"))),
     reliefInvitesMine: () => L(`relief:invites`, () => ok(api.GET("/api/relief-invites"))),
     reliefOptions: () => L(`relief:options`, () => ok(api.GET("/api/relief-access/branch-options"))),
+    reliefUpcoming: (branchId: string) => L(`relief:branch:${branchId}:upcoming`, () => ok(api.GET("/api/relief-access", { params: { query: { branchId } } }))),
     reliefForBranch: (branchId: string, date: string) =>
         L(`relief:branch:${branchId}:${date}`, () => ok(api.GET("/api/relief-access", { params: { query: { branchId, date } } }))),
     branchInvites: (branchId: string) => L(`relief:binv:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/relief-invites", b(branchId)))),

@@ -9,6 +9,7 @@ import com.companyb.companyapp.workforce.AttendanceTable
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.greaterEq
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.less
@@ -74,6 +75,21 @@ internal object ReliefAccessRepository {
                 .selectAll()
                 .where { GrantReliefAccessTable.requestedBy eq userId }
                 .orderBy(BranchDayTable.date to SortOrder.DESC)
+                .map { it.toReliefRequestWithBranch() }
+        }
+
+    /** Requests at one branch for days from [fromDate] on, soonest first (relief page list). */
+    fun findUpcomingForBranch(
+        branchId: UUID,
+        fromDate: LocalDate,
+    ): List<ReliefRequestWithBranch> =
+        transaction {
+            GrantReliefAccessTable
+                .innerJoin(BranchDayTable, { GrantReliefAccessTable.branchDayId }, { BranchDayTable.id })
+                .innerJoin(BranchTable, { BranchDayTable.branchId }, { BranchTable.id })
+                .selectAll()
+                .where { (BranchDayTable.branchId eq branchId) and (BranchDayTable.date greaterEq fromDate) }
+                .orderBy(BranchDayTable.date to SortOrder.ASC)
                 .map { it.toReliefRequestWithBranch() }
         }
 

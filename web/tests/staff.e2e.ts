@@ -35,7 +35,10 @@ test("invite a practitioner, they sign in, add them to a new branch", { session:
     await expect(screen.getByText(`Staff at ${branch}`)).toBeVisible();
     await screen.getByRole("button", "Add person").tap();
     const add = screen.getByRole("dialog", `Add person to ${branch}`);
-    await add.getByLabel(/^Person/).selectOption({ label: name });
+    // Type to find them instead of scrolling a long list.
+    await add.getByLabel("Search people").fill(tag);
+    await add.getByRole("row").filter({ hasText: name }).tap();
+    await expect(add.getByText(username)).toBeVisible();
     await add.getByRole("button", "Add").tap();
     await expect(add).toBeHidden();
     await expect(screen.getByRole("row").filter({ hasText: name })).toBeVisible();
@@ -66,4 +69,28 @@ test("invite a practitioner, they sign in, add them to a new branch", { session:
         await new Promise((r) => setTimeout(r, 700));
     }
     await expect(screen.getByRole("heading", "Pay")).toBeHidden();
+
+    // They ask to work a shift at the owner's branch a few days out.
+    const d = new Date(Date.now() + 5 * 864e5);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    await app.open("/#/relief");
+    await screen.getByRole("button", "Ask for relief").tap();
+    const ask = screen.getByRole("dialog", "Ask for relief");
+    await ask.getByLabel(/^Branch/).selectOption({ label: "K6 Fixture Branch" });
+    await ask.getByLabel(/^Day/).fill(iso);
+    await ask.getByRole("button", "Send request").tap();
+    await expect(ask).toBeHidden();
+
+    // The owner sees it on the relief page without picking that day.
+    await app.clearState();
+    await app.open("/");
+    await screen.getByLabel("Username").fill("owner");
+    await screen.getByLabel("Password").fill(process.env.E2E_OWNER_PASSWORD ?? "owner-dev-pass");
+    await screen.getByRole("button", "Sign in").tap();
+    await expect(screen.getByRole("navigation", "Main")).toBeVisible();
+    await screen.getByLabel("Branch").selectOption({ label: "K6 Fixture Branch" });
+    await app.open("/#/relief");
+    const req = screen.getByRole("row").filter({ hasText: name });
+    await expect(req).toBeVisible();
+    await expect(req.getByRole("button", "Approve")).toBeVisible();
 });

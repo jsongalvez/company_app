@@ -51,6 +51,21 @@ object ReliefAccessService {
         return if (isMember) requests else requests.filter { it.requestedBy == callerId }
     }
 
+    /**
+     * Upcoming requests at a branch (today's operational day on), for branch staff: the
+     * relief page lists them without the caller picking a day. Non-staff see only their own.
+     */
+    fun listUpcomingForBranch(
+        callerId: UUID,
+        branchId: UUID,
+    ): List<ReliefRequestWithBranch> {
+        BranchService.findById(branchId)
+        val today = BranchDayService.currentOperationalDate(java.time.Instant.now())
+        val requests = ReliefAccessRepository.findUpcomingForBranch(branchId, today)
+        val isMember = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId) != null
+        return if (isMember) requests else requests.filter { it.access.requestedBy == callerId }
+    }
+
     /** The caller's own requests across branches/days with branch context (#357). */
     fun listMine(callerId: UUID): List<ReliefRequestWithBranch> = ReliefAccessRepository.findMine(callerId)
 
