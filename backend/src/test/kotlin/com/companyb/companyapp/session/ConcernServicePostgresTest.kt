@@ -8,6 +8,7 @@ import com.companyb.companyapp.session.SessionConcernService
 import com.companyb.companyapp.session.SessionConcernTable
 import com.companyb.companyapp.session.SessionRepository
 import com.companyb.companyapp.session.SessionService
+import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
@@ -19,6 +20,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -217,6 +219,23 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
         val session = SessionRepository.findById(promotedSessionId)!!
         assertNull(session.otherConcerns)
+    }
+
+    @Test
+    fun `add new concern by name links it and keeps the other concerns text`() {
+        transaction {
+            SessionTable.update({ SessionTable.id eq promotedSessionId }) {
+                it[SessionTable.otherConcerns] =
+                    "stiff neck"
+            }
+        }
+
+        val added = SessionConcernService.addNewConcern(callerId, promotedSessionId, TestFixtures.uuid(), "Knee Pain")
+
+        assertEquals("Knee Pain", added.label)
+        assertTrue(SessionConcernService.getForSession(callerId, promotedSessionId).any { it.id == added.id })
+        assertTrue(ConcernService.listAll().any { it.id == added.id })
+        assertEquals("stiff neck", SessionRepository.findById(promotedSessionId)!!.otherConcerns)
     }
 
     @Test

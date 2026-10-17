@@ -80,6 +80,7 @@ internal object ConcernRepository {
         label: String,
         createdBy: UUID,
         sessionId: UUID,
+        clearOtherConcerns: Boolean = true,
     ): PromoteConcernResult {
         val sessionBefore =
             SessionRepository.findByIdInTransaction(sessionId)
@@ -104,8 +105,10 @@ internal object ConcernRepository {
                     it[SessionConcernTable.concernId] = concernId
                 }.insertedCount > 0
 
-        SessionTable.update({ SessionTable.id eq sessionId }) {
-            it[SessionTable.otherConcerns] = null
+        if (clearOtherConcerns) {
+            SessionTable.update({ SessionTable.id eq sessionId }) {
+                it[SessionTable.otherConcerns] = null
+            }
         }
 
         val sessionAfter =

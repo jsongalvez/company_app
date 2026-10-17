@@ -2697,6 +2697,7 @@ export interface components {
             id: string;
             label: string;
             reason?: string | null;
+            clearOtherConcerns?: boolean;
         };
         RateResponse: {
             id: string;

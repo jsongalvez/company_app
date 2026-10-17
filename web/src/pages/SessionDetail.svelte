@@ -158,18 +158,48 @@
             refresh();
     }
 
-    // Concerns
-    let addCid = $state("");
-    async function addConcern() {
-        if (!addCid) return;
-        if (
-            await act(() =>
-                ok(api.POST("/api/sessions/{sessionId}/concerns", { params: { path: { sessionId: id } }, body: { concernId: addCid, reason: r() } })),
-            )
-        ) {
-            addCid = "";
+    // Concerns: type to find one on the shared list, or add a new one by name.
+    let cText = $state("");
+    const cTyped = $derived(cText.trim().replace(/\s+/g, " "));
+    const cMatches = $derived.by(() => {
+        const t = cTyped.toLowerCase();
+        const free = (cq.data ?? []).filter((c) => !sessionConcernIds.has(c.id));
+        const list = t ? free.filter((c) => c.label.toLowerCase().includes(t)) : free;
+        return [...list].sort((a, b) => a.label.localeCompare(b.label)).slice(0, 12);
+    });
+    const cExact = $derived((cq.data ?? []).find((c) => c.label.toLowerCase() === cTyped.toLowerCase()) ?? null);
+    async function addConcern(concernId: string) {
+        if (await act(() => ok(api.POST("/api/sessions/{sessionId}/concerns", { params: { path: { sessionId: id } }, body: { concernId, reason: r() } })))) {
+            cText = "";
             refresh();
         }
+    }
+    async function addNewConcern() {
+        const name = cTyped;
+        if (!name) return;
+        if (
+            await act(
+                () =>
+                    ok(
+                        api.POST("/api/sessions/{sessionId}/promote-concern", {
+                            params: { path: { sessionId: id } },
+                            body: { id: uuid(), label: name, reason: r(), clearOtherConcerns: false },
+                        }),
+                    ),
+                "Concern added",
+            )
+        ) {
+            cText = "";
+            invalidate("concerns");
+            cq.refresh();
+            refresh();
+        }
+    }
+    function concernEnter(e: KeyboardEvent) {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        if (cExact && !sessionConcernIds.has(cExact.id)) addConcern(cExact.id);
+        else if (!cExact && cTyped) addNewConcern();
     }
     async function removeConcern(c: S["ConcernResponse"]) {
         if (
@@ -359,12 +389,27 @@
                     </table>
                 {:else}<div class="body faint">None recorded.</div>{/if}
                 {#if edit && !voided}
-                    <div class="body row">
-                        <select class="grow" bind:value={addCid}>
-                            <option value="">Add concern…</option>
-                            {#each (cq.data ?? []).filter((c) => !sessionConcernIds.has(c.id)) as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
-                        </select>
-                        <button onclick={addConcern} disabled={!addCid}>Add</button>
+                    <div class="body col concern-add">
+                        <input placeholder="Type a concern, e.g. back pain" aria-label="Add concern" bind:value={cText} onkeydown={concernEnter} />
+                        {#if cTyped || cMatches.length}
+                            <div class="table-wrap clist">
+                                <table class="grid">
+                                    <tbody>
+                                        {#each cMatches as c (c.id)}
+                                            <tr class="click" onclick={() => addConcern(c.id)}><td>{c.label}</td><td class="right faint">Add</td></tr>
+                                        {/each}
+                                        {#if cTyped && !cExact}
+                                            <tr class="click" onclick={addNewConcern}
+                                                ><td>Add “{cTyped}” as a new concern</td><td class="right faint">New</td></tr
+                                            >
+                                        {:else if cExact && sessionConcernIds.has(cExact.id)}
+                                            <tr><td class="faint" colspan="2">Already on this session.</td></tr>
+                                        {/if}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {/if}
+                        <div class="faint small">New concerns join the list for everyone.</div>
                     </div>
                 {/if}
             </section>
@@ -394,6 +439,12 @@
 {/if}
 
 <style>
+    .concern-add {
+        gap: 4px;
+    }
+    .clist {
+        max-height: 220px;
+    }
     .cols {
         display: flex;
         gap: 12px;

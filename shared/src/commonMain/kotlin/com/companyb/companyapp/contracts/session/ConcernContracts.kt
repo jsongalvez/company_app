@@ -26,4 +26,6 @@ data class PromoteConcernRequest(
     val id: String,
     val label: String,
     val reason: String? = null,
+    /** False when adding a brand-new concern by name: keeps the session's free-text "other concerns". */
+    val clearOtherConcerns: Boolean = true,
 )

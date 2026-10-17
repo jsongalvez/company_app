@@ -79,6 +79,7 @@ internal object SessionConcernService {
         }
     }
 
+    /** Turns the session's free-text "other concerns" into a listed concern and clears the text. */
     fun promoteConcern(
         callerId: UUID,
         sessionId: UUID,
@@ -87,6 +88,35 @@ internal object SessionConcernService {
         reason: String? = null,
     ): Concern =
         transaction {
+            promoteInTransaction(callerId, sessionId, NewConcern(concernId, label), reason, clearOtherConcerns = true)
+        }
+
+    /** Adds a brand-new concern to the shared list and to this session; leaves "other concerns" alone. */
+    fun addNewConcern(
+        callerId: UUID,
+        sessionId: UUID,
+        concernId: UUID,
+        label: String,
+        reason: String? = null,
+    ): Concern =
+        transaction {
+            promoteInTransaction(callerId, sessionId, NewConcern(concernId, label), reason, clearOtherConcerns = false)
+        }
+
+    private data class NewConcern(
+        val id: UUID,
+        val label: String,
+    )
+
+    private fun promoteInTransaction(
+        callerId: UUID,
+        sessionId: UUID,
+        newConcern: NewConcern,
+        reason: String?,
+        clearOtherConcerns: Boolean,
+    ): Concern =
+        run {
+            val (concernId, label) = newConcern
             val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason)
 
             val result =
@@ -95,6 +125,7 @@ internal object SessionConcernService {
                     label = label,
                     createdBy = callerId,
                     sessionId = sessionId,
+                    clearOtherConcerns = clearOtherConcerns,
                 )
 
             if (result.concernCreated) {
@@ -110,13 +141,17 @@ internal object SessionConcernService {
                     concernId,
                 )
             }
-            SessionConcernAudit.otherConcernsCleared(
-                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                result.sessionBefore,
-                result.sessionAfter,
-            )
+            if (result.sessionBefore != result.sessionAfter) {
+                SessionConcernAudit.otherConcernsCleared(
+                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    result.sessionBefore,
+                    result.sessionAfter,
+                )
+            }
 
-            logger.info { "[PROMOTE-CONCERN] Promoted concern '$label' for session $sessionId, cleared other_concerns" }
+            logger.info {
+                "[PROMOTE-CONCERN] Concern '$label' on session $sessionId, cleared text: $clearOtherConcerns"
+            }
 
             result.concern
         }

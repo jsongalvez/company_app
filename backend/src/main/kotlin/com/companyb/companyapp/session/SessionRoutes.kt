@@ -620,13 +620,23 @@ object SessionRoutes {
         val concernId = uuidOrThrow(request.id, "concern id")
 
         val concern =
-            SessionConcernService.promoteConcern(
-                callerId,
-                sessionId,
-                concernId,
-                request.label,
-                request.reason,
-            )
+            if (request.clearOtherConcerns) {
+                SessionConcernService.promoteConcern(
+                    callerId,
+                    sessionId,
+                    concernId,
+                    request.label.trim(),
+                    request.reason,
+                )
+            } else {
+                SessionConcernService.addNewConcern(
+                    callerId,
+                    sessionId,
+                    concernId,
+                    request.label.trim(),
+                    request.reason,
+                )
+            }
         context.status(HttpStatus.CREATED)
         context.json(concern.toResponse())
     }

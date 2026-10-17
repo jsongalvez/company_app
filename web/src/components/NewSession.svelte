@@ -174,7 +174,9 @@
                     </div>
                 </div>
                 <label class="field wide">Remarks<textarea rows="2" bind:value={remarks}></textarea></label>
-                <label class="field wide">Other concerns<input bind:value={otherConcerns} /></label>
+                <label class="field wide"
+                    >Other concerns<input bind:value={otherConcerns} placeholder="Notes. Pick listed concerns on the session page after saving" /></label
+                >
             </div>
         {/if}
     {/if}
