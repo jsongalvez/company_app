@@ -14,19 +14,27 @@
     const tableLabel = $derived(Object.fromEntries((tables.data ?? []).map((t) => [t.tableName, t.label])));
     const open = $derived((flagged.data ?? []).filter((e) => !e.acknowledgedAt));
 
+    function orderedRange(a: string, b: string) {
+        return a && b && a > b ? { dateFrom: b, dateTo: a } : { dateFrom: a, dateTo: b };
+    }
     // Filters live in the URL so a view can be shared or reloaded.
     const qp = $derived(route.current.query);
     const f = $derived({
         tableName: qp.get("table") ?? "",
         action: qp.get("action") ?? "",
         callerName: qp.get("who") ?? "",
-        dateFrom: qp.get("from") ?? "",
-        dateTo: qp.get("to") ?? "",
+        ...orderedRange(qp.get("from") ?? "", qp.get("to") ?? ""),
     });
     function setF(k: string, v: string) {
         const next: Record<string, string | null> = { table: f.tableName, action: f.action, who: f.callerName, from: f.dateFrom, to: f.dateTo };
         next[k] = v || null;
         go("/audit", next);
+    }
+
+    // A date range: if the two ends are picked backwards, swap them instead of failing.
+    function setRange(from: string, to: string) {
+        const r = orderedRange(from, to);
+        go("/audit", { table: f.tableName || null, action: f.action || null, who: f.callerName || null, from: r.dateFrom || null, to: r.dateTo || null });
     }
 
     let entries = $state<E[]>([]);
@@ -108,8 +116,12 @@
         <option value="DELETE">Removed</option>
     </select>
     <input type="search" placeholder="Person" value={f.callerName} onchange={(e) => setF("who", e.currentTarget.value.trim())} aria-label="Person" />
-    <input type="date" value={f.dateFrom} onchange={(e) => setF("from", e.currentTarget.value)} aria-label="From" />
-    <input type="date" value={f.dateTo} onchange={(e) => setF("to", e.currentTarget.value)} aria-label="To" />
+    <span class="daynav range">
+        <span class="muted">Between</span>
+        <input type="date" value={f.dateFrom} max={f.dateTo || undefined} onchange={(e) => setRange(e.currentTarget.value, f.dateTo)} aria-label="From day" />
+        <span class="muted">and</span>
+        <input type="date" value={f.dateTo} min={f.dateFrom || undefined} onchange={(e) => setRange(f.dateFrom, e.currentTarget.value)} aria-label="To day" />
+    </span>
     {#if Object.values(f).some(Boolean)}<button onclick={() => go("/audit")}>Clear</button>{/if}
 </div>
 

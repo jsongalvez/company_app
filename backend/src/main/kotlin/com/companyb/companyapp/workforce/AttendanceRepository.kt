@@ -14,6 +14,7 @@ import org.jetbrains.exposed.v1.core.greaterEq
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.lessEq
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -83,6 +84,41 @@ internal object AttendanceRepository {
         transaction {
             hasActiveClockInInTransaction(userId, branchDayId)
         }
+
+    /** Serializes concurrent clock-ins of one user across branches (row lock on app_user). */
+    fun lockUserInTransaction(userId: UUID) {
+        AppUserTable
+            .selectAll()
+            .where { AppUserTable.id eq userId }
+            .forUpdate(ForUpdateOption.ForUpdate)
+            .singleOrNull()
+    }
+
+    /** Branch name of an open clock-in on the same date as [branchDayId] at another branch day, if any. */
+    fun openShiftBranchElsewhereInTransaction(
+        userId: UUID,
+        branchDayId: UUID,
+    ): String? {
+        val date =
+            BranchDayTable
+                .selectAll()
+                .where { BranchDayTable.id eq branchDayId }
+                .singleOrNull()
+                ?.get(BranchDayTable.date) ?: return null
+        val row =
+            AttendanceTable
+                .innerJoin(BranchDayTable, { AttendanceTable.branchDayId }, { BranchDayTable.id })
+                .innerJoin(BranchTable, { BranchDayTable.branchId }, { BranchTable.id })
+                .selectAll()
+                .where {
+                    (AttendanceTable.userId eq userId) and
+                        (AttendanceTable.clockOut.isNull()) and
+                        (BranchDayTable.date eq date) and
+                        (AttendanceTable.branchDayId neq branchDayId)
+                }.limit(1)
+                .singleOrNull() ?: return null
+        return row[BranchTable.name]
+    }
 
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
     fun hasActiveClockInInTransaction(

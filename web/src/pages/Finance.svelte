@@ -215,10 +215,12 @@
 </script>
 
 <PageHead title="Expenses & pay" sub={branchName(bid)}>
-    <button onclick={() => setDate(addDays(date, -1))} aria-label="Previous day">◀</button>
-    <input type="date" value={date} max={operationalDate()} onchange={(e) => setDate(e.currentTarget.value || operationalDate())} />
-    <button onclick={() => setDate(addDays(date, 1))} disabled={isToday} aria-label="Next day">▶</button>
-    {#if !isToday}<button onclick={() => setDate(operationalDate())}>Today</button>{/if}
+    <span class="daynav">
+        <button onclick={() => setDate(addDays(date, -1))} aria-label="Previous day">◀</button>
+        <input type="date" value={date} max={operationalDate()} onchange={(e) => setDate(e.currentTarget.value || operationalDate())} />
+        <button onclick={() => setDate(addDays(date, 1))} disabled={isToday} aria-label="Next day">▶</button>
+        <button onclick={() => setDate(operationalDate())} disabled={isToday}>Today</button>
+    </span>
 </PageHead>
 
 <State q={dayQ} />

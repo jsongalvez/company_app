@@ -126,10 +126,12 @@ class MeServiceActiveAttendancePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `getActiveAttendance prefers the most recent window across branches`() {
+    fun `getActiveAttendance follows the shift after moving to another branch`() {
         assignToBranch(branchA)
         assignToBranch(branchB)
-        AttendanceService.clockIn(TestFixtures.uuid(), branchA, userId)
+        val first = TestFixtures.uuid()
+        AttendanceService.clockIn(first, branchA, userId)
+        AttendanceService.clockOut(first, userId)
         AttendanceService.clockIn(TestFixtures.uuid(), branchB, userId)
 
         val shift = MeService.getActiveAttendance(userId).shift

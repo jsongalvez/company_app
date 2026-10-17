@@ -509,3 +509,23 @@ table.grid tfoot td {
         display: none;
     }
 }
+
+/* Day navigator / date range: always stays together on one line. */
+.daynav {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+}
+.daynav input[type="date"] {
+    min-width: 0;
+}
+.daynav.range {
+    flex: 1 1 320px;
+    max-width: 100%;
+}
+.daynav.range input[type="date"] {
+    flex: 1 1 0;
+    width: 0;
+}

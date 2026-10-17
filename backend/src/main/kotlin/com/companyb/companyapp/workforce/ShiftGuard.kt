@@ -14,6 +14,11 @@ internal object ShiftGuard {
         if (activeClockIn) {
             throw ConflictException("User already has an active clock-in for this branch day")
         }
+        // One shift at a time: a person can't be on duty at two branches on the same day.
+        AttendanceRepository.lockUserInTransaction(userId)
+        AttendanceRepository.openShiftBranchElsewhereInTransaction(userId, branchDayId)?.let { name ->
+            throw ConflictException("Already clocked in at $name. Clock out there first.")
+        }
     }
 
     /**

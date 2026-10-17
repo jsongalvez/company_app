@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
-    import { app, can, branchName, refreshBranchDay, clockIn } from "../lib/app.svelte";
+    import { app, can, branchName, refreshBranchDay, clockIn, selectBranch } from "../lib/app.svelte";
     import { Query, invalidate } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
@@ -171,10 +171,13 @@
 
         {#if needClockIn}
             <div class="notice row">
-                <span class="grow">Clock in at {branchName(bid)} to see and log today's sessions.</span>
-                {#if app.branches.some((b) => b.branchId === bid)}<button class="primary" onclick={startShift}>Clock in</button>{:else}<a href="#/relief"
-                        >Request relief duty</a
-                    >{/if}
+                {#if app.shift && app.shift.branchId !== bid}
+                    <span class="grow">You're clocked in at {app.shift.branchName}. Clock out there before clocking in here.</span>
+                    <button onclick={() => selectBranch(app.shift!.branchId)}>Go to {app.shift.branchName}</button>
+                {:else}<span class="grow">Clock in at {branchName(bid)} to see and log today's sessions.</span>{/if}
+                {#if app.shift && app.shift.branchId !== bid}{:else if app.branches.some((b) => b.branchId === bid)}<button class="primary" onclick={startShift}
+                        >Clock in</button
+                    >{:else}<a href="#/relief">Request relief duty</a>{/if}
             </div>
         {:else}
             <State

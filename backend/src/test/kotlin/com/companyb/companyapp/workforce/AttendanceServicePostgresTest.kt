@@ -146,6 +146,26 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `clockIn refuses a second branch while still clocked in at another`() {
+        AttendanceService.clockIn(TestFixtures.uuid(), branchId, userId)
+
+        val ex =
+            assertFailsWith<ConflictException> {
+                AttendanceService.clockIn(TestFixtures.uuid(), otherBranchId, userId)
+            }
+        assertTrue(ex.message!!.contains("Test Branch"))
+    }
+
+    @Test
+    fun `clockIn at another branch works after clocking out`() {
+        val first = TestFixtures.uuid()
+        AttendanceService.clockIn(first, branchId, userId)
+        AttendanceService.clockOut(first, userId)
+
+        AttendanceService.clockIn(TestFixtures.uuid(), otherBranchId, userId)
+    }
+
+    @Test
     fun `clockIn sets isRelief true when no branch assignment exists`() {
         val attendanceId = TestFixtures.uuid()
 
