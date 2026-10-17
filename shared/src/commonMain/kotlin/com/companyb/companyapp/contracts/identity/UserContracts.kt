@@ -14,6 +14,7 @@ data class MeResponse(
     val id: String,
     val username: String,
     val displayName: String,
+    val email: String = "",
     val status: UserStatus = UserStatus.UNKNOWN,
     val createdAt: String,
 )
@@ -67,4 +68,18 @@ data class UserRoleReplaceRequest(
 data class RoleResponse(
     val name: String,
     val capabilities: List<String>,
+)
+
+/** Self-service profile edit: the caller changes their own name and email. */
+@Serializable
+data class UpdateProfileRequest(
+    val displayName: String,
+    val email: String,
+)
+
+/** Self-service password change: proves the current password first. */
+@Serializable
+data class ChangePasswordRequest(
+    val currentPassword: String,
+    val newPassword: String,
 )

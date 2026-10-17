@@ -1,5 +1,6 @@
 package com.companyb.companyapp.identity
 
+import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
@@ -9,8 +10,12 @@ import com.companyb.companyapp.contracts.identity.MeResponse
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.workforce.ActiveAttendanceResponse
 import com.companyb.companyapp.contracts.workforce.ActiveShiftResponse
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.validation.EmailPolicy
 import com.companyb.companyapp.workforce.WorkforceReads
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -25,6 +30,9 @@ private val logger = KotlinLogging.logger {}
  * (#322), and shapes responses. Each read owns one transaction.
  */
 object MeService {
+    private const val NAME_MAX = 50
+    private const val EMAIL_MAX = 50
+
     fun getMe(userId: UUID): MeResponse =
         transaction {
             val user = requireActiveUserInTransaction(userId)
@@ -32,10 +40,47 @@ object MeService {
                 id = user.id.toString(),
                 username = user.username,
                 displayName = user.displayName,
+                email = user.email,
                 status = user.status,
                 createdAt = user.createdAt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
             )
         }.also { logger.info { "[GET-ME] Fetched user $userId" } }
+
+    /** Self-service edit of the caller's own name and email, audited as a user update. */
+    fun updateProfile(
+        userId: UUID,
+        displayName: String,
+        email: String,
+    ): MeResponse {
+        val name = displayName.trim()
+        val mail = email.trim()
+        val problem =
+            when {
+                name.isEmpty() || name.length > NAME_MAX -> "Name must be 1 to $NAME_MAX characters"
+                mail.length > EMAIL_MAX || !EmailPolicy.isValid(mail) -> "Email is invalid"
+                else -> null
+            }
+        if (problem != null) throw ValidationException(problem)
+        val updated =
+            transaction {
+                val before = requireActiveUserInTransaction(userId)
+                if (MeRepository.emailTakenByOther(userId, mail)) {
+                    throw ConflictException("Another account already uses this email")
+                }
+                MeRepository.updateProfileInTransaction(userId, name, mail)
+                ProfileAudit.updated(userId, before, name, mail)
+                before.copy(displayName = name, email = mail)
+            }
+        logger.info { "[UPDATE-ME] Updated profile for user $userId" }
+        return MeResponse(
+            id = updated.id.toString(),
+            username = updated.username,
+            displayName = updated.displayName,
+            email = updated.email,
+            status = updated.status,
+            createdAt = updated.createdAt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+        )
+    }
 
     fun getBranches(userId: UUID): List<MeBranchResponse> {
         val today = BranchDayService.currentOperationalDate()
@@ -100,4 +145,20 @@ object MeService {
         }
         return user
     }
+}
+
+/** Audit seam for self-service profile edits: the user-row table name stays behind it. */
+internal object ProfileAudit {
+    fun updated(
+        userId: UUID,
+        before: MeRepository.MeUser,
+        displayName: String,
+        email: String,
+    ) = AuditLog.recordUpdate(
+        tableName = AppUserTable.tableName,
+        recordId = userId,
+        changedBy = userId,
+        oldFields = mapOf("displayName" to before.displayName, "email" to before.email),
+        newFields = mapOf("displayName" to displayName, "email" to email),
+    )
 }

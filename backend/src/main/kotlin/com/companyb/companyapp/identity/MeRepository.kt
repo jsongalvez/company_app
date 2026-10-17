@@ -13,7 +13,10 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.neq
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.update
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -28,6 +31,7 @@ internal object MeRepository {
         val id: UUID,
         val username: String,
         val displayName: String,
+        val email: String,
         val status: UserStatus,
         val createdAt: OffsetDateTime,
     )
@@ -56,10 +60,41 @@ internal object MeRepository {
                     id = row[AppUserTable.id],
                     username = row[AppUserTable.username],
                     displayName = row[AppUserTable.displayName],
+                    email = row[AppUserTable.email],
                     status = row[AppUserTable.status],
                     createdAt = row[AppUserTable.createdAt],
                 )
             }
+
+    /** True when another account already uses [email] (emails are unique). */
+    fun emailTakenByOther(
+        userId: UUID,
+        email: String,
+    ): Boolean =
+        AppUserTable
+            .select(AppUserTable.id)
+            .where { (AppUserTable.email eq email) and (AppUserTable.id neq userId) }
+            .any()
+
+    /** Write half of the self-service profile edit; runs on the service's transaction. */
+    fun updateProfileInTransaction(
+        userId: UUID,
+        displayName: String,
+        email: String,
+    ) {
+        AppUserTable.update({ AppUserTable.id eq userId }) {
+            it[AppUserTable.displayName] = displayName
+            it[AppUserTable.email] = email
+        }
+    }
+
+    /** The caller's current password hash, for the change-password check. */
+    fun passwordHash(userId: UUID): String? =
+        AppUserTable
+            .select(AppUserTable.passwordHash)
+            .where { AppUserTable.id eq userId }
+            .singleOrNull()
+            ?.get(AppUserTable.passwordHash)
 
     fun findBranchRows(
         userId: UUID,

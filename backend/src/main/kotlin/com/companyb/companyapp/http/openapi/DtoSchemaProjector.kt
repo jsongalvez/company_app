@@ -39,6 +39,7 @@ import com.companyb.companyapp.contracts.finance.RestoreExpenseRequest
 import com.companyb.companyapp.contracts.finance.UpdateCompensationRequest
 import com.companyb.companyapp.contracts.finance.UpdateExpenseRequest
 import com.companyb.companyapp.contracts.identity.AcceptInviteRequest
+import com.companyb.companyapp.contracts.identity.ChangePasswordRequest
 import com.companyb.companyapp.contracts.identity.ForgotPasswordRequest
 import com.companyb.companyapp.contracts.identity.InviteMintRequest
 import com.companyb.companyapp.contracts.identity.InviteMintResponse
@@ -47,6 +48,7 @@ import com.companyb.companyapp.contracts.identity.LoginResponse
 import com.companyb.companyapp.contracts.identity.MeResponse
 import com.companyb.companyapp.contracts.identity.ResetPasswordRequest
 import com.companyb.companyapp.contracts.identity.RoleResponse
+import com.companyb.companyapp.contracts.identity.UpdateProfileRequest
 import com.companyb.companyapp.contracts.identity.UserAssignmentResponse
 import com.companyb.companyapp.contracts.identity.UserRoleReplaceRequest
 import com.companyb.companyapp.contracts.identity.UserSummaryResponse
@@ -218,6 +220,8 @@ internal object DtoSchemaProjector {
             "MarkAttendanceRequest" to MarkAttendanceRequest.serializer(),
             "MeBranchResponse" to MeBranchResponse.serializer(),
             "MeResponse" to MeResponse.serializer(),
+            "UpdateProfileRequest" to UpdateProfileRequest.serializer(),
+            "ChangePasswordRequest" to ChangePasswordRequest.serializer(),
             "MemberAttendanceResponse" to MemberAttendanceResponse.serializer(),
             "MonthlyRemittanceSummaryResponse" to MonthlyRemittanceSummaryResponse.serializer(),
             "NotificationMarkAllReadResponse" to NotificationMarkAllReadResponse.serializer(),

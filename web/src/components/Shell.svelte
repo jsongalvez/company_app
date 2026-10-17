@@ -22,6 +22,7 @@
     import Branches from "../pages/Branches.svelte";
     import Catalog from "../pages/Catalog.svelte";
     import Audit from "../pages/Audit.svelte";
+    import Profile from "../pages/Profile.svelte";
 
     type Item = { path: string; text: string; show: boolean; warm?: () => void };
 
@@ -42,6 +43,7 @@
         {
             title: "Me",
             items: [
+                { path: "/profile", text: "My profile", show: true },
                 { path: "/relief", text: "Relief duty", show: true, warm: () => (warm(load.reliefMine()), warm(load.reliefInvitesMine())) },
                 {
                     path: "/notifications",
@@ -162,7 +164,7 @@
         </a>
         <button class="hide-sm" onclick={() => (feedbackOpen = true)}>Feedback</button>
         <ThemeIcon />
-        <span class="user muted ellipsis" title={app.me?.username}>{app.me?.displayName}</span>
+        <a class="user muted ellipsis" href="#/profile" title="My profile ({app.me?.username})">{app.me?.displayName}</a>
         <button class="ghost" onclick={() => signOut()}>Sign out</button>
     </header>
 
@@ -218,6 +220,8 @@
             <Catalog />
         {:else if section === "/feedback"}
             <FeedbackList />
+        {:else if section === "/profile"}
+            <Profile />
         {:else if section === "/audit"}
             <Audit />
         {:else}
@@ -360,7 +364,8 @@
         .branch {
             max-width: none;
             flex: 1;
-            min-width: 120px;
+            min-width: 0;
+            width: 0;
         }
         .brand {
             display: none;

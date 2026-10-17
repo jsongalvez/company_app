@@ -180,6 +180,8 @@ fun registerAllRoutes(config: io.javalin.config.JavalinConfig) {
     AuthRoutes.resetPassword(config)
     AuthRoutes.logout(config)
     MeRoutes.getMe(config)
+    MeRoutes.updateMe(config)
+    MeRoutes.changePassword(config)
     MeRoutes.getCapabilities(config)
     MeRoutes.getBranches(config)
     MeRoutes.getActiveAttendance(config)

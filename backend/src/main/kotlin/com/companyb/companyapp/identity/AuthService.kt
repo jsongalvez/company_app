@@ -342,6 +342,32 @@ object AuthService {
             }
         logger.info { "[PASSWORD-RESET] Password reset completed for ${resetUserId.toString().maskUUID()}" }
     }
+
+    /**
+     * Self-service password change for a signed-in user: proves the current password,
+     * replaces the hash and advances the revocation boundary, so every session (this one
+     * included) ends and the caller signs in again with the new password.
+     */
+    fun changePassword(
+        userId: UUID,
+        currentPassword: String,
+        newPassword: String,
+    ) {
+        if (!PasswordPolicy.isValid(newPassword) || Password.exceedsMaxBytes(newPassword)) {
+            throw ValidationException(WEAK_PASSWORD_MESSAGE)
+        }
+        transaction {
+            check(UserRepository.acquireLockInTransaction(userId)) { "User not found" }
+            val hash = MeRepository.passwordHash(userId)
+            if (Password.exceedsMaxBytes(currentPassword) || !Password.verify(currentPassword, hash)) {
+                throw ValidationException("Current password is wrong")
+            }
+            UserRepository.setPasswordHashInTransaction(userId, Password.create(newPassword))
+            UserRepository.advanceRevocationBoundaryInTransaction(userId)
+            AuthAudit.passwordSet(recordId = userId, oldLabel = "(previous)", newLabel = "(changed by user)")
+        }
+        logger.info { "[PASSWORD-CHANGE] Password changed for ${userId.toString().maskUUID()}" }
+    }
 }
 
 /** Audit seam for the public auth commands (#324): the user-row table name stays behind it. */

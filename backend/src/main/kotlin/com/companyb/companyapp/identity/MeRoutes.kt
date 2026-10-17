@@ -3,15 +3,19 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.contracts.branch.MeBranchResponse
+import com.companyb.companyapp.contracts.identity.ChangePasswordRequest
 import com.companyb.companyapp.contracts.identity.MeResponse
+import com.companyb.companyapp.contracts.identity.UpdateProfileRequest
 import com.companyb.companyapp.contracts.workforce.ActiveAttendanceResponse
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.identity.MeService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus
+import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
 import io.javalin.openapi.OpenApiContent
+import io.javalin.openapi.OpenApiRequestBody
 import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
@@ -60,7 +64,47 @@ import java.util.UUID
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
+@OpenApi(
+    path = ApiRoutes.ME,
+    methods = [HttpMethod.PATCH],
+    operationId = "me_update",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = UpdateProfileRequest::class)], required = true),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = MeResponse::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "409", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
+)
+@OpenApi(
+    path = ApiRoutes.ME_PASSWORD,
+    methods = [HttpMethod.POST],
+    operationId = "me_change_password",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = ChangePasswordRequest::class)], required = true),
+    responses = [
+        OpenApiResponse(status = "204"),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
+)
 object MeRoutes {
+    fun updateMe(config: JavalinConfig) {
+        config.routes.patch(ApiRoutes.ME) { context ->
+            val request = context.bodyAsClass<UpdateProfileRequest>()
+            context.json(MeService.updateProfile(context.callerUuid(), request.displayName, request.email))
+        }
+    }
+
+    fun changePassword(config: JavalinConfig) {
+        config.routes.post(ApiRoutes.ME_PASSWORD) { context ->
+            val request = context.bodyAsClass<ChangePasswordRequest>()
+            AuthService.changePassword(context.callerUuid(), request.currentPassword, request.newPassword)
+            context.status(HttpStatus.NO_CONTENT)
+        }
+    }
+
     fun getMe(config: JavalinConfig) {
         config.routes.get(ApiRoutes.ME) { context ->
             val callerId = context.callerUuid()

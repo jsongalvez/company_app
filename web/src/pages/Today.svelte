@@ -14,12 +14,17 @@
 
     const bid = $derived(app.branchId);
     const dash = new Query(load.dashboard(app.branchId).key, load.dashboard(app.branchId).fn);
-    const roster = new Query(load.roster(app.branchId).key, load.roster(app.branchId).fn);
+    type Roster = Awaited<ReturnType<ReturnType<typeof load.roster>["fn"]>>;
+    const roster = new Query<Roster>();
+    /** The on-duty list is for the branch's own staff; others get a note instead. */
+    const member = $derived(app.branches.some((b) => b.branchId === bid && !!b.assignmentId));
     $effect(() => {
         const l = load.dashboard(bid);
         dash.load(l.key, l.fn);
-        const r = load.roster(bid);
-        roster.load(r.key, r.fn);
+        if (member) {
+            const r = load.roster(bid);
+            roster.load(r.key, r.fn);
+        }
     });
 
     const edit = $derived(can("EDIT_BRANCH_DATA"));
@@ -255,8 +260,12 @@
             <h2>On duty</h2>
             <span class="spacer"></span><span class="faint">{roster.data?.filter((m) => m.present).length ?? 0} present</span>
         </header>
-        <State q={roster} empty={!!roster.data && roster.data.length === 0} emptyText="No members assigned." />
-        {#if roster.data?.length}
+        {#if !member}
+            <p class="faint note">Only staff of this branch see who's on duty.</p>
+        {:else}
+            <State q={roster} empty={!!roster.data && roster.data.length === 0} emptyText="No members assigned." />
+        {/if}
+        {#if member && roster.data?.length}
             <table class="grid">
                 <tbody>
                     {#each roster.data as m, i (m.assignmentId)}
@@ -325,5 +334,9 @@
         .roster {
             width: auto;
         }
+    }
+    .note {
+        margin: 0;
+        padding: 8px 10px;
     }
 </style>
