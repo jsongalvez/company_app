@@ -137,7 +137,7 @@ Relief duty applies when any user — Practitioner or Coordinator — checks int
 - A client can request a specific practitioner; if unavailable, any available practitioner is assigned
 - Clients can receive discounts or free sessions — remarks are added (e.g. "discount, mcgi")
 - Discounted and free sessions still count toward the client's global session history
-- After a discounted or free session, the client's default pricing tier for their next session is SUBSEQUENT; this can be manually overridden at session creation
+- After a discounted or free session, the next visit is priced like any other: the visit type follows the client's history (never changed by hand), and staff can change the price itself when adding the session
 
 ### Client Fields
 
