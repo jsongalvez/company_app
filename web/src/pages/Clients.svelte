@@ -64,7 +64,7 @@
         <div class="table-wrap">
             <table class="grid">
                 <thead
-                    ><tr><th>Name</th><th>Sex</th><th class="num">Age</th><th>Phone</th><th>Address</th><th>Conditions</th><th class="num">Visits</th></tr
+                    ><tr><th>Name</th><th>Gender</th><th class="num">Age</th><th>Phone</th><th>Address</th><th>Conditions</th><th class="num">Visits</th></tr
                     ></thead
                 >
                 <tbody>

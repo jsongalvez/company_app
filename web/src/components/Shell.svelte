@@ -31,7 +31,7 @@
             items: [
                 { path: "/today", text: "Today", show: view, warm: () => (warm(load.dashboard(bid)), warm(load.roster(bid))) },
                 { path: "/clients", text: "Clients", show: view || canAnywhere("EDIT_BRANCH_DATA") },
-                { path: "/inventory", text: "Inventory", show: view, warm: () => warm(load.inventory(bid)) },
+                { path: "/inventory", text: "Stock", show: view, warm: () => warm(load.inventory(bid)) },
                 { path: "/finance", text: "Expenses & pay", show: view },
                 { path: "/reports", text: "Sales reports", show: view },
                 { path: "/remittance", text: "Remittance", show: view, warm: () => warm(load.remittances(bid)) },
@@ -43,7 +43,7 @@
                 { path: "/relief", text: "Relief duty", show: true, warm: () => (warm(load.reliefMine()), warm(load.reliefInvitesMine())) },
                 {
                     path: "/notifications",
-                    text: app.unread ? `Notifications (${app.unread})` : "Notifications",
+                    text: app.unread ? `Alerts (${app.unread})` : "Alerts",
                     show: true,
                     warm: () => warm(load.notifications()),
                 },
@@ -55,7 +55,7 @@
                 { path: "/users", text: "Users", show: canAnywhere("MANAGE_USERS"), warm: () => warm(load.users()) },
                 { path: "/branches", text: "Branches", show: canAnywhere("MANAGE_USERS") || canAnywhere("ASSIGN_DELEGATE"), warm: () => warm(load.branches()) },
                 { path: "/catalog", text: "Products", show: canAnywhere("MANAGE_CATALOG"), warm: () => warm(load.products()) },
-                { path: "/audit", text: "Audit log", show: true, warm: () => warm(load.auditTables()) },
+                { path: "/audit", text: "Change history", show: true, warm: () => warm(load.auditTables()) },
             ],
         },
     ]);
@@ -132,7 +132,7 @@
             {/if}
         </select>
 
-        <span class="day nowrap" title="Operational day (rolls over at 04:00 Manila)">
+        <span class="day nowrap" title="Business day. It ends at 4 AM.">
             {day(opDate)}
             {#if app.today?.status}
                 <span class="mark {app.today.status === 'OPEN' ? 'ok' : app.today.status === 'REMITTED' ? 'info' : 'plain'}">{label(app.today.status)}</span>
@@ -142,18 +142,18 @@
         <span class="spacer"></span>
 
         {#if clockedHere}
-            <button onclick={doClockOut} disabled={clockBusy} title="On duty here{app.shift?.isRelief ? ' (relief)' : ''}">
-                <span class="dot on"></span>On duty · Clock out
+            <button class="clock" onclick={doClockOut} disabled={clockBusy} title="On duty here{app.shift?.isRelief ? ' (relief)' : ''}">
+                <span class="dot on"></span><span class="hide-sm">On duty ·&nbsp;</span>Clock out
             </button>
         {:else if clockedElsewhere}
-            <button onclick={doClockOut} disabled={clockBusy} title="Clock out of {app.shift?.branchName}"
-                >On duty at {app.shift?.branchName} · Clock out</button
+            <button class="clock" onclick={doClockOut} disabled={clockBusy} title="Clock out of {app.shift?.branchName}"
+                ><span class="dot on"></span>Clock out<span class="hide-sm">&nbsp;of {app.shift?.branchName}</span></button
             >
         {:else if bid && here}
             <button class="primary" onclick={doClockIn} disabled={clockBusy}>Clock in</button>
         {/if}
 
-        <a class="btn" href="#/notifications" title="Notifications" onmouseenter={() => warm(load.notifications())}>
+        <a class="btn" href="#/notifications" title="Alerts" onmouseenter={() => warm(load.notifications())}>
             Alerts{#if app.unread}<b class="count">{app.unread}</b>{/if}
         </a>
         <button onclick={toggleTheme} title="Switch to {theme.value === 'dark' ? 'day' : 'night'} mode">{theme.value === "dark" ? "Day" : "Night"}</button>
@@ -351,6 +351,10 @@
         .branch {
             max-width: none;
             flex: 1;
+            min-width: 120px;
+        }
+        .brand {
+            display: none;
         }
         .day,
         .top > button:not(.menu):not(.primary),
@@ -358,7 +362,7 @@
             display: none;
         }
         .top > button.primary,
-        .top > button:has(.dot) {
+        .top > button.clock:not(.menu) {
             display: inline-flex;
         }
         nav {

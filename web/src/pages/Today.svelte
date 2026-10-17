@@ -133,15 +133,15 @@
         <div class="v">{live.length}</div>
     </div>
     <div>
-        <div class="k">Completed</div>
+        <div class="k">Done</div>
         <div class="v">{completed.length}</div>
     </div>
     <div>
-        <div class="k">Pending</div>
+        <div class="k">Waiting</div>
         <div class="v">{counts.PENDING}</div>
     </div>
     <div>
-        <div class="k">Session sales</div>
+        <div class="k">Session income</div>
         <div class="v">{peso(sum(completed.map((s) => s.finalPrice)))}</div>
     </div>
     <div>
@@ -158,7 +158,7 @@
     <section class="col grow">
         <div class="row wrap">
             <div class="seg" role="group" aria-label="Filter sessions">
-                {#each [["all", "All"], ["PENDING", "Pending"], ["COMPLETED", "Completed"], ["other", "No-show / cancelled"], ["void", "Voided"]] as [k, t] (k)}
+                {#each [["all", "All"], ["PENDING", "Waiting"], ["COMPLETED", "Done"], ["other", "No-show"], ["void", "Voided"]] as [k, t] (k)}
                     <button class:on={filter === k} onclick={() => (filter = k as F)}>{t} <span class="faint">{counts[k as F]}</span></button>
                 {/each}
             </div>
@@ -181,7 +181,7 @@
 
         {#if shown.length}
             <div class="table-wrap">
-                <table class="grid">
+                <table class="grid stack">
                     <thead>
                         <tr>
                             <th>Booked</th>
@@ -198,12 +198,12 @@
                     <tbody>
                         {#each shown as s (s.id)}
                             <tr class="click" class:struck={s.isVoided} onclick={() => go(`/sessions/${s.id}`)}>
-                                <td>{time(s.bookedAt)}</td>
-                                <td class="ellipsis name">
-                                    {s.clientName ?? "(anonymized)"}
+                                <td class="hide-sm">{time(s.bookedAt)}</td>
+                                <td class="ellipsis name lead">
+                                    {s.clientName ?? "(details erased)"}
                                     {#if s.isWalkIn}<span class="mark plain">Walk-in</span>{/if}
                                 </td>
-                                <td class="muted">{label(s.sessionType)}</td>
+                                <td class="muted hide-sm">{label(s.sessionType)}</td>
                                 <td>
                                     {#if s.isVoided}<span class="mark bad">Voided</span>{:else}<span class="mark {statusClass(s.sessionStatus)}"
                                             >{label(s.sessionStatus)}</span
@@ -216,14 +216,14 @@
                                         <span class="faint">Req: {s.requestedPractitionerName}</span>
                                     {:else}<span class="faint">None</span>{/if}
                                 </td>
-                                <td class="ellipsis cc muted">{s.concerns?.map((c) => c.label).join(", ") ?? ""}</td>
+                                <td class="ellipsis cc muted hide-sm">{s.concerns?.map((c) => c.label).join(", ") ?? ""}</td>
                                 <td class="num">
                                     {peso(s.finalPrice)}
-                                    {#if s.finalPrice !== s.basePrice}<span class="faint" title="Base rate {peso(s.basePrice)}">*</span>{/if}
+                                    {#if s.finalPrice !== s.basePrice}<span class="faint" title="List price {peso(s.basePrice)}">*</span>{/if}
                                 </td>
-                                <td class="muted">{s.nextAppointmentDate ? day(s.nextAppointmentDate) : ""}</td>
+                                <td class="muted hide-sm">{s.nextAppointmentDate ? day(s.nextAppointmentDate) : ""}</td>
                                 {#if edit}
-                                    <td class="acts" onclick={(e) => e.stopPropagation()}>
+                                    <td class="acts full" onclick={(e) => e.stopPropagation()}>
                                         {#if !s.isVoided}
                                             {#each allowedTargets(s.sessionStatus as Status, s.isWalkIn, false) as to (to)}
                                                 <button class="sm" class:primary={to === "COMPLETED"} onclick={() => mark(s, to)}
@@ -239,7 +239,7 @@
                     {#if filter === "all" && live.length > 1}
                         <tfoot>
                             <tr>
-                                <td colspan="6">{live.length} sessions, {completed.length} completed</td>
+                                <td colspan="6">{live.length} sessions, {completed.length} done</td>
                                 <td class="num">{peso(sum(completed.map((s) => s.finalPrice)))}</td>
                                 <td colspan={edit ? 2 : 1}></td>
                             </tr>

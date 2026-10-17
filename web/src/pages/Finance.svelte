@@ -179,7 +179,7 @@
                               },
                           }),
                       ),
-            "Compensation saved",
+            "Pay saved",
         );
         if (done) {
             cOpen = false;
@@ -223,7 +223,7 @@
 
 <State q={dayQ} />
 {#if dayQ.data === null}
-    <div class="notice">No branch day on {day(date)}: nothing was recorded that day.</div>
+    <div class="notice">Nothing was recorded on {day(date)}.</div>
 {:else if dayQ.data}
     <div class="row mb wrap">
         <b>{day(date)}</b>
@@ -241,11 +241,11 @@
     {#if summary.data}
         <div class="stats mb">
             <div>
-                <div class="k">Session sales</div>
+                <div class="k">Session income</div>
                 <div class="v">{peso(summary.data.grossIncome)}</div>
             </div>
             <div>
-                <div class="k">Compensation</div>
+                <div class="k">Pay</div>
                 <div class="v">{peso(summary.data.totalCompensation)}</div>
             </div>
             <div>
@@ -309,12 +309,12 @@
 
         <section class="panel">
             <header>
-                <h2>Compensation</h2>
+                <h2>Pay</h2>
                 <span class="faint">{peso(sum((comp.data ?? []).map((c) => c.amount)))}</span>
                 <span class="spacer"></span>
                 {#if pay}<button class="sm primary" onclick={() => openComp(null)}>Add</button>{/if}
             </header>
-            <State q={comp} empty={!!comp.data && comp.data.length === 0} emptyText="No compensation assigned." />
+            <State q={comp} empty={!!comp.data && comp.data.length === 0} emptyText="No pay added for this day." />
             {#if comp.data?.length}
                 <table class="grid">
                     <thead
@@ -360,7 +360,7 @@
 
         <section class="panel">
             <header>
-                <h2>Product commission split</h2>
+                <h2>Commission share</h2>
                 <span class="spacer"></span>
                 {#if edit}<button class="sm" onclick={recalc}>Recalculate</button>{/if}
             </header>
@@ -391,7 +391,7 @@
     </div>
 </Dialog>
 
-<Dialog bind:open={cOpen} title={cEdit ? "Edit compensation" : "Add compensation"} width={400} onsubmit={saveComp} busy={ca.busy} error={ca.error}>
+<Dialog bind:open={cOpen} title={cEdit ? "Edit pay" : "Add pay"} width={400} onsubmit={saveComp} busy={ca.busy} error={ca.error}>
     <div class="form-grid">
         <label class="field wide"
             ><span class="req">Person</span>

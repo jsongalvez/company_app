@@ -452,3 +452,60 @@ table.grid tfoot td {
     z-index: 1;
     font-weight: 600;
 }
+
+/* ---------- Phone ---------- */
+/* Tables marked .stack turn each row into a compact block; cells marked .hide-sm drop out. */
+@media (max-width: 760px) {
+    .seg {
+        display: flex;
+        width: 100%;
+    }
+    .seg > button {
+        flex: 1;
+        padding-left: 4px;
+        padding-right: 4px;
+    }
+    .hide-sm {
+        display: none !important;
+    }
+    table.grid.stack,
+    table.grid.stack tbody {
+        display: block;
+    }
+    table.grid.stack thead {
+        display: none;
+    }
+    table.grid.stack tfoot {
+        display: block;
+    }
+    table.grid.stack tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 2px 8px;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--line);
+    }
+    table.grid.stack td {
+        display: block;
+        height: auto;
+        padding: 0;
+        border: 0;
+        max-width: 100%;
+    }
+    table.grid.stack td.lead {
+        flex: 1 1 60%;
+        font-weight: 600;
+        min-width: 0;
+    }
+    table.grid.stack td.num {
+        margin-left: auto;
+    }
+    table.grid.stack td.full {
+        flex-basis: 100%;
+        white-space: normal;
+    }
+    table.grid.stack td:empty {
+        display: none;
+    }
+}

@@ -236,7 +236,7 @@
     <a class="btn" href="#/today">Back to today</a>
     {#if s && edit && !voided}<button onclick={() => (saleOpen = true)}>Product sale</button>{/if}
     {#if s && can("VOID_SESSION")}
-        <button class="danger" onclick={() => ((voidReason = ""), va.reset(), (voidOpen = true))}>{voided ? "Unvoid" : "Void session"}</button>
+        <button class="danger" onclick={() => ((voidReason = ""), va.reset(), (voidOpen = true))}>{voided ? "Restore session" : "Void session"}</button>
     {/if}
 </PageHead>
 
@@ -373,20 +373,20 @@
 
     <Dialog bind:open={priceOpen} title="Change price" width={340} onsubmit={savePrice} busy={pa.busy} error={pa.error}>
         <label class="field">Final price<input class="num" inputmode="decimal" bind:value={price} required /></label>
-        <div class="faint">Base rate {peso(s.basePrice)}</div>
+        <div class="faint">List price {peso(s.basePrice)}</div>
     </Dialog>
 
     <Dialog
         bind:open={voidOpen}
-        title={voided ? "Unvoid session" : "Void session"}
+        title={voided ? "Restore session" : "Void session"}
         width={400}
         onsubmit={doVoid}
-        submitText={voided ? "Unvoid" : "Void"}
+        submitText={voided ? "Restore" : "Void"}
         danger={!voided}
         busy={va.busy}
         error={va.error}
     >
-        <div class="muted">{voided ? "The session counts toward sales again." : "A voided session stops counting toward sales. It can be unvoided later."}</div>
+        <div class="muted">{voided ? "The session counts toward sales again." : "A voided session stops counting toward sales. It can be restored later."}</div>
         <label class="field"><span class="req">Reason</span><textarea bind:value={voidReason} required></textarea></label>
     </Dialog>
 

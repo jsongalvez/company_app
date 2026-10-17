@@ -145,7 +145,7 @@
                 <label class="field">Session type<input value={preview ? label(preview.sessionType) : previewErr ? "" : "…"} disabled /></label>
                 <label class="field"
                     ><span class="req">Price</span><input class="num" inputmode="decimal" bind:value={price} required />
-                    {#if preview && price !== preview.basePrice}<span class="faint">Base rate {peso(preview.basePrice)}</span>{/if}
+                    {#if preview && price !== preview.basePrice}<span class="faint">List price {peso(preview.basePrice)}</span>{/if}
                 </label>
                 <label class="field">Next visit<input type="date" bind:value={nextDate} min={operationalDate()} /></label>
                 <label class="check walk"><input type="checkbox" bind:checked={walkIn} />Walk-in</label>

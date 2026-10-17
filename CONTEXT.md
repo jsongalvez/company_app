@@ -1,107 +1,115 @@
-# CompanyApp
+# CompanyApp word list
 
-Internal operations app for a multi-branch physical therapy practice. Practitioners log sessions, coordinators handle finance and remittance, owners manage users and branches.
+CompanyApp is the internal app of a physical therapy practice with several branches. Practitioners log sessions, coordinators handle money and remittances, and owners manage people and branches.
 
-## Language
+This list is the shared language between the owner, the developers and the app. The **App word** is exactly what users see on screen. The **Code name** is what the backend and database call it. If you add or rename a word, update this file in the same change.
 
-**Branch**:
-A physical clinic (`CLINIC`), a temporary off-site event (`PROVINCIAL_TOUR`), or a free medical mission event (`MEDICAL_MISSION`). Each holds its own inventory, sessions, and financial records.
-_Avoid_: Location, site, clinic (ambiguous — some branches aren't clinics)
+Rules for app wording:
 
-**Session**:
-One visit by one client at one branch. Has a type (auto-assigned from client history), a status (PENDING → COMPLETED/NO_SHOW/CANCELLED), a final price (defaults to base rate, overridable), and assigned practitioners. Walk-in sessions cannot be marked as NO_SHOW or CANCELLED.
-_Avoid_: Appointment, booking, visit
+- Use the app word on screen. Never show a code name (`EDIT_PAST_DAY`, `PENDING`, `UUID`), a status code, or an issue number.
+- Error messages say what happened and what to do next, for example "This day is closed. Ask a coordinator to edit it."
+- Money is shown in pesos with two decimals and no symbol in tables (`2,500.00`).
 
-**Client**:
-A global person record shared across all branches. Has at most one PENDING session at a time. Can be anonymized (soft-delete + PII nullification) while retaining gender and age for reporting.
-_Avoid_: Patient, customer
+## Places and days
 
-**Gender**:
-A domain enumeration (`M`, `F`) used in client records. The wire enum also carries an
-`UNKNOWN` forward-compat sentinel (#876) — a newer server value this client predates,
-never a recorded gender: it is never sent, never persisted, and degrades the row read-only.
-_Avoid_: sex, gender-string
+| App word | What it means | Code name |
+|---|---|---|
+| Branch | A place where sessions happen: a clinic, a provincial tour, or a medical mission. Each has its own stock, sessions and money. | `branch` |
+| Clinic | A permanent branch. | `CLINIC` |
+| Provincial tour | A temporary trip to a province, run as its own branch. | `PROVINCIAL_TOUR` |
+| Medical mission | A free event, run as its own branch. Every session there costs 0 and doesn't count toward a client's visit history. | `MEDICAL_MISSION` |
+| Day | One business day at one branch. A day ends at **4 AM** Manila time, not midnight, so late work still counts for the same day. | branch day, operational date |
+| Open | Today. Anyone on duty can add and change things. | `OPEN` |
+| Closed | A past day. Only a coordinator can change it. | `PAST` |
+| Remitted | A day whose money was sent in a remittance. Only a coordinator can change it, and must give a reason. | `REMITTED` |
 
-**Practitioner**:
-A user who works on clients during sessions. Logs sessions, manages inventory, views clients. Full access to home branches and any branch checked into that day.
-_Avoid_: Therapist, doctor, staff
+## People and access
 
-**Coordinator**:
-A user who handles finance and remittance for assigned branches. Sole editor of PAST and REMITTED records. A MANAGER is a superset of Coordinator with additional user-management and delegate-assignment powers.
-_Avoid_: Admin, finance officer
+| App word | What it means | Code name |
+|---|---|---|
+| User | Anyone who signs in. | `app_user` |
+| Practitioner | Treats clients and logs sessions. | `PRACTITIONER` |
+| Coordinator | Handles expenses, pay and remittances for their branches. The only one who can change closed days. | `COORDINATOR` |
+| Manager | A coordinator who can also manage users and mission helpers. | `MANAGER` |
+| Owner | Runs the business: users, branches and products. | `OWNER` |
+| Accountant | Can see every branch's numbers but can't change anything. | `ACCOUNTANT` |
+| Superuser | Full access, for setup and support. | `SUPERUSER` |
+| New (no access yet) | Someone who joined with an invite code but hasn't been given a role. They can sign in but see nothing. | `ONBOARDING` |
+| Role | A job title that decides what someone can do. A user can have several. | `role` |
+| Access | What a user is allowed to do where. The app hides what you can't do. The code calls each single permission a "capability". | capability, `user_capability` |
+| Home branch | A branch a user is assigned to. | branch assignment |
+| Order | Where a person appears in staff lists at a branch (1 is first). | slot |
+| Invite code | A one-time code a manager gives a new user so they can set their password. | invite |
+| Deactivate / Reactivate | Block someone from signing in, or let them back in. Nothing they did is deleted. | `INACTIVE` / `ACTIVE` |
+| Mission helper | Someone the owner lets run attendance at a medical mission. | delegate, `ASSIGN_DELEGATE` |
 
-**Accountant**:
-A read-only user who can view sales and data for all branches. No edit capabilities.
-_Avoid_: Auditor, bookkeeper
+## Duty
 
-**ONBOARDING**:
-A freshly registered user with zero capabilities. Functionally locked out even after a branch assignment — the role bundle is empty, so nothing derives — until `MANAGE_USERS` grants a real role.
-_Avoid_: New user, unassigned, pending
+| App word | What it means | Code name |
+|---|---|---|
+| Clock in / Clock out | Start and end your shift at a branch. | attendance |
+| On duty | Clocked in now. | active shift |
+| Relief duty | Working a shift at a branch that isn't your home branch. You can look at first; to make changes the branch must approve you. | relief |
+| Ask for relief | Ask a branch to let you work there on a day. Anyone at that branch can approve or decline. | relief request |
+| Relief invite | A branch asks someone to come work there on a day. That person accepts or declines. | relief invite |
+| Withdraw / Take back / Cancel | The asker cancels their request, the branch takes back an invite before it's answered, or the branch cancels an accepted invite before the shift starts. | cancel / retract / revoke |
 
-**Role**:
-A predefined bundle of capabilities (seeded in V2). GLOBAL-scoped management codes and all-branch `VIEW_BRANCH_DATA` for SUPERUSER, OWNER, and ACCOUNTANT derive from the role through the capability view; branch-scoped codes derive at each branch holding an ACTIVE assignment (V21 leg, folded into the V1 baseline), while V25 adds OWNER's global read (also folded into V1). Relief and delegate remain direct grants.
-_Avoid_: Position, title
+## Clients and sessions
 
-**Deactivate**:
-The act of setting a user INACTIVE: login is blocked immediately (active JWT killed), all capabilities vanish, records and branch assignments are kept. Reversible via Reactivate. The deactivation time is recorded (`deactivated_at`).
-_Avoid_: Disable, ban, delete
+| App word | What it means | Code name |
+|---|---|---|
+| Client | A person who comes for treatment. One record is shared by all branches. | `client` |
+| Erase personal details | Remove a client's name, phone, address and health notes for good. Only gender and age stay, for reports. | anonymize |
+| Session | One visit by one client at one branch. | `session` |
+| Walk-in | A session that wasn't booked. It can't be marked no-show or cancelled. | `isWalkIn` |
+| Waiting | The session is booked or the client is here, not finished yet. A client can only have one waiting session. | `PENDING` |
+| Done | The session happened. Only done sessions count as income. | `COMPLETED` |
+| No-show | The client didn't come. | `NO_SHOW` |
+| Cancelled | The session was called off. | `CANCELLED` |
+| First visit | The client's first paid visit anywhere, at a clinic. | `REGULAR` |
+| First visit (tour) | The client's first paid visit anywhere, on a provincial tour. | `PROVINCIAL_FIRST` |
+| Second visit | The client's second paid visit. | `SECOND_SESSION` |
+| Return visit | The third paid visit or later. | `SUBSEQUENT` |
+| Mission visit | A free visit at a medical mission. | `MEDICAL_MISSION` |
+| Price list | What each kind of visit costs at a branch. A new session starts at this price; it can be changed. | base rates |
+| Concern | What the client came in for, e.g. back pain. | `concern` |
+| Void / Restore | Take a session out of the money totals but keep it on record, with a reason. Restore puts it back. | void / unvoid |
 
-**Reactivate**:
-The act of restoring a deactivated user to ACTIVE. Capabilities return through the capability view; the user logs in fresh (the old JWT stays dead).
-_Avoid_: Re-enable, unban
+## Products and stock
 
-**Relief Duty**:
-When any user clocks into a non-home branch. Starts with view-only access; edit access requires a relief grant (a user-initiated broadcast request approved by any branch member, or branch-initiated via a relief invite). Multiple relief workers may hold edit access at one branch on the same day. Expires at 04:00 Manila the next day. Compensation is paid from the relief branch's drawer.
-_Avoid_: Temporary assignment, loaned staff
+| App word | What it means | Code name |
+|---|---|---|
+| Product | Something the practice sells. The product list is shared by all branches. | `product` |
+| Category | A group of products. | `product_category` |
+| Stock | How many of each product a branch has. | inventory |
+| Restock | Add units that arrived. | restock |
+| Tester / Sample / Missing | Units taken out of stock for a reason other than a sale. | movement reasons |
+| Count fix | Correct the stock count after a recount. | `ADJUSTMENT` |
+| Product sale | Selling products to a client or a walk-in. | `product_sale` |
+| Commission | The fixed amount staff earn for each product sold. | commission |
+| Commission share | A day's commission, split equally among everyone on duty when the sale happened. | commission split |
 
-**Relief Request**:
-The outsider-initiated ask for relief access at one branch for one day (today or a future date). Broadcast to the whole branch — it names no individual. One live request per requester per branch per date; any active branch member grants, denies, or cancels it; the requester withdraws their own. All retraction locks once the requester clocks in as relief.
-_Avoid_: Access request (legacy targeted form), shift request
+## Money
 
-**Relief Invite**:
-The branch-initiated offer of relief access for a single future day. Any user assigned to the branch can invite any active user; the invitee accepts or declines. Accepting writes the day's relief grant. Any active branch member may **revoke** an accepted future duty — removing the day grant atomically and notifying the invitee (branch+date named) plus the whole branch — until the invitee clocks in at that branch day; a revoked invite frees the person to be invited again. Distinct from a relief request, which the relief user initiates.
-_Avoid_: Shift offer, temporary assignment offer
+| App word | What it means | Code name |
+|---|---|---|
+| Income | Money from done sessions. | gross income |
+| Pay | What a staff member earns for a day. | compensation |
+| Allowance | Extra money such as transport. | allowance |
+| Expense | Money spent from the branch's cash, e.g. supplies. | expense |
+| Net | Income minus pay and expenses. | net income |
+| Remittance | Sending a branch's money to the business. There are two kinds: **Sessions** (net session income) and **Product sales**. | remittance |
+| Draft | A remittance still being put together. It can be changed freely. | `DRAFT` |
+| Sent | A submitted remittance. Its totals are frozen, and its days become Remitted. | `SUBMITTED`, snapshot |
+| Undo | Bring a sent remittance back to draft, within 48 hours, with a reason. | undo |
+| Changed since sent | The difference between a sent remittance's frozen totals and today's numbers, caused by later edits. | drift |
+| Bank transfer / Handed to accountant | How the money was sent. | `BANK_TRANSFER` / `HANDED_TO_ACCOUNTANT` |
 
-**Branch Day**:
-One operational business day at one branch, identified by its calendar date. The operational-day boundary is 04:00 Asia/Manila — a branch day stays editable until 04:00 the following morning, then transitions lazily (see Day State). `BranchDayService.currentOperationalDate` is the sole authority for deriving the current operational date; consumers delegate to it and never derive day semantics from the wall clock themselves.
-_Avoid_: Business day, calendar day (ambiguous at the boundary), operating day
+## Records
 
-**Day State**:
-Every branch day has a status. `OPEN` (current day, editable by all on-duty users) transitions lazily to `PAST` at 04:00 AM Manila the following day. `REMITTED` days are covered by a submitted remittance and require Coordinator-only edits with flagged audit entries.
-_Avoid_: Day status, day phase
-
-**Remittance**:
-The act of submitting session income to the business. Two independent flows: SESSION (net income after compensation and expenses) and PRODUCT (unit price × quantity). At submission, an immutable financial snapshot freezes the P&L state. Drafts are unconstrained and can overlap.
-_Avoid_: Payout, cash-out, settlement
-
-**Snapshot**:
-An immutable financial record written at remittance submission time. Cannot be updated or deleted — except by an Undo within 48 hours of submission. Later edits to the underlying session/expense/compensation data do not retroactively change the snapshot.
-_Avoid_: Freeze, archive
-
-**Undo**:
-The act of reverting a submitted remittance within 48 hours of submission: the remittance returns to Draft, the covered days unlock, and the frozen snapshot is deleted. Requires a reason, recorded in the audit trail. Time-limited — after the window closes, the snapshot is permanent.
-_Avoid_: Reverse, cancel, refund
-
-**Void**:
-The act of excluding a session from financial calculations while preserving its record. Requires a reason. Can be undone (unvoided) if done in error. A voided session remains visible with a clear indicator.
-_Avoid_: Delete, remove, cancel
-
-**Commission Split**:
-Product commissions are pooled per branch day and split equally among all practitioners and coordinators clocked in at the `sold_at` time. Manual inclusions/exclusions can override. Separate from compensation and not subject to remittance.
-_Avoid_: Bonus, tip (the term is "commission" per the business)
-
-**Capability**:
-A fine-grained permission code (e.g. `EDIT_BRANCH_DATA`, `SUBMIT_REMITTANCE`) scoped to a context (`BRANCH`, `BRANCH_DAY`, `GLOBAL`). Roles are bundles of capabilities; runtime checks use capabilities, not role names.
-_Avoid_: Permission, right, role-check
-
-**Branch Slot**:
-A cosmetic ordering number (1 = senior) per user per branch assignment. Controls display order in reports and sessions. Relief practitioners sort after home slots.
-_Avoid_: Rank, seniority number
-
-**Notification**:
-An in-app alert delivered to a user's mailbox. Appointment reminders point at one session; relief events (#358) name the branch and the day they concern, are written in the same transaction as the change that causes them, and tap through to that branch day. Every message is stored per recipient with a read/unread status; read rows are kept forever (history).
-_Avoid_: Alert, reminder (the reminder is one event type), push notification
-
-**Audit Log**:
-An immutable record of every mutation in the system — who changed what, when, and (optionally) why. Each entry captures the table name, record id, action (INSERT/UPDATE/DELETE), caller, and before-and-after field snapshots.
-_Avoid_: Change log, history, event log
+| App word | What it means | Code name |
+|---|---|---|
+| Alerts | Messages for you, e.g. a relief request or an upcoming session. | notifications |
+| Change history | Who changed what and when, with old and new values. Nothing in it can be edited. | audit log |
+| Needs review | A change to a closed or remitted day, flagged for the owner to look at. | flagged entry |
+| Mark reviewed | Confirm you've looked at a flagged change. | acknowledge |

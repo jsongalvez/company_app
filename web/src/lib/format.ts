@@ -47,16 +47,79 @@ export function monthStart(d: string): string {
     return d.slice(0, 8) + "01";
 }
 
+/** App words for backend codes. Keep in sync with CONTEXT.md. */
+const WORDS: Record<string, string> = {
+    // Day
+    OPEN: "Open",
+    PAST: "Closed",
+    REMITTED: "Remitted",
+    // Session status
+    PENDING: "Waiting",
+    COMPLETED: "Done",
+    NO_SHOW: "No-show",
+    CANCELLED: "Cancelled",
+    // Session type
+    REGULAR: "First visit",
+    PROVINCIAL_FIRST: "First visit (tour)",
+    SECOND_SESSION: "Second visit",
+    SUBSEQUENT: "Return visit",
+    MEDICAL_MISSION: "Medical mission",
+    // Branch type
+    CLINIC: "Clinic",
+    PROVINCIAL_TOUR: "Provincial tour",
+    // Stock
+    RESTOCK: "Restock",
+    SALE: "Sale",
+    TESTER: "Tester",
+    SAMPLE: "Sample",
+    MISSING: "Missing",
+    ADJUSTMENT: "Count fix",
+    // Remittance
+    DRAFT: "Draft",
+    SUBMITTED: "Sent",
+    SESSION: "Sessions",
+    PRODUCT: "Product sales",
+    PRODUCT_SALE: "Product sale",
+    BANK_TRANSFER: "Bank transfer",
+    HANDED_TO_ACCOUNTANT: "Handed to accountant",
+    // Relief
+    GRANTED: "Approved",
+    DENIED: "Declined",
+    ACCEPTED: "Accepted",
+    DECLINED: "Declined",
+    RETRACTED: "Taken back",
+    REVOKED: "Cancelled",
+    // Users and roles
+    ACTIVE: "Active",
+    INACTIVE: "Deactivated",
+    ONBOARDING: "New (no access yet)",
+    SUPERUSER: "Superuser",
+    OWNER: "Owner",
+    MANAGER: "Manager",
+    COORDINATOR: "Coordinator",
+    PRACTITIONER: "Practitioner",
+    ACCOUNTANT: "Accountant",
+    // Change history
+    INSERT: "Added",
+    UPDATE: "Changed",
+    DELETE: "Removed",
+    UNKNOWN: "Unknown",
+};
+
+/** Plain word for a backend code; unknown codes become "Sentence case". */
 export function label(code: string | null | undefined): string {
     if (!code) return "";
-    return code
-        .toLowerCase()
-        .split("_")
-        .map((w, i) => (i === 0 ? w[0]!.toUpperCase() + w.slice(1) : w))
-        .join(" ");
+    return (
+        WORDS[code] ??
+        code
+            .toLowerCase()
+            .split("_")
+            .map((w, i) => (i === 0 ? w[0]!.toUpperCase() + w.slice(1) : w))
+            .join(" ")
+    );
 }
 
 export function clientName(c: { firstName?: string | null; lastName?: string | null; middleName?: string | null; suffix?: string | null }): string {
-    if (!c.firstName && !c.lastName) return "(anonymized)";
+    if (!c.firstName && !c.lastName) return "(details erased)";
     return [c.firstName, c.middleName ? `${c.middleName[0]}.` : null, c.lastName, c.suffix].filter(Boolean).join(" ");
 }

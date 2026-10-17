@@ -63,7 +63,7 @@
         if (!i) return;
         await a.run(
             async () => {
-                if (!app.today) throw new Error("No branch day today");
+                if (!app.today) throw new Error("Today isn't open at this branch yet. Try again in a moment.");
                 const dayId = app.today.branchDayId;
                 const er = editReason.trim() || null;
                 if (mode === "restock") {
@@ -93,7 +93,7 @@
                 open = false;
                 refresh();
             },
-            mode === "restock" ? "Restocked" : "Stock adjusted",
+            mode === "restock" ? "Restocked" : "Stock count fixed",
         );
     }
 
@@ -127,13 +127,13 @@
     const totalValue = $derived((inv.data ?? []).reduce((s, i) => s + Number(i.unitPrice) * i.currentStock, 0));
 </script>
 
-<PageHead title="Inventory" sub={branchName(bid)}>
+<PageHead title="Stock" sub={branchName(bid)}>
     <input type="search" placeholder="Filter products" bind:value={filter} />
     {#if manage}<button onclick={openAdd}>Add product</button>{/if}
     {#if edit}<button class="primary" onclick={() => (saleOpen = true)}>Product sale</button>{/if}
 </PageHead>
 
-<State q={inv} empty={!!inv.data && inv.data.length === 0} emptyText="No products stocked at this branch." />
+<State q={inv} empty={!!inv.data && inv.data.length === 0} emptyText="This branch has no products in stock yet." />
 {#if rows.length}
     <div class="table-wrap mb">
         <table class="grid">
@@ -146,7 +146,7 @@
                     <th class="num" title="Today">Sold</th>
                     <th class="num" title="Today">Tester/sample</th>
                     <th class="num" title="Today">Missing</th>
-                    <th class="num" title="Today">Adjusted</th>
+                    <th class="num" title="Today">Count fixes</th>
                     {#if edit}<th></th>{/if}
                 </tr>
             </thead>
@@ -167,7 +167,7 @@
                         {#if edit}
                             <td class="right nowrap">
                                 <button class="sm" onclick={() => openFor(i, "restock")}>Restock</button>
-                                <button class="sm" onclick={() => openFor(i, "adjust")}>Adjust</button>
+                                <button class="sm" onclick={() => openFor(i, "adjust")}>Fix count</button>
                             </td>
                         {/if}
                     </tr>
@@ -187,11 +187,11 @@
 
 <section class="panel">
     <header>
-        <h2>Stock movements</h2>
+        <h2>Stock changes</h2>
         <span class="spacer"></span>
         <input type="date" bind:value={date} max={operationalDate()} />
     </header>
-    <State q={moves} empty={!!moves.data && moves.data.length === 0} emptyText="No movements on this day." />
+    <State q={moves} empty={!!moves.data && moves.data.length === 0} emptyText="No stock changes on this day." />
     {#if moves.data?.length}
         <table class="grid">
             <thead><tr><th>Time</th><th>Product</th><th>Type</th><th class="num">Change</th><th>Notes</th></tr></thead>
@@ -212,7 +212,7 @@
 
 <Dialog
     bind:open
-    title={mode === "restock" ? `Restock: ${item?.productName}` : `Adjust: ${item?.productName}`}
+    title={mode === "restock" ? `Restock: ${item?.productName}` : `Fix count: ${item?.productName}`}
     width={400}
     onsubmit={save}
     submitText={mode === "restock" ? "Restock" : "Save"}
@@ -228,7 +228,7 @@
                     <option value="TESTER">Tester (out)</option>
                     <option value="SAMPLE">Sample (out)</option>
                     <option value="MISSING">Missing (out)</option>
-                    <option value="ADJUSTMENT">Count correction</option>
+                    <option value="ADJUSTMENT">Count fix</option>
                 </select>
             </label>
             {#if reason === "ADJUSTMENT"}

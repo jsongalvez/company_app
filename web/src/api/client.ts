@@ -1,3 +1,4 @@
+import { label } from "../lib/format";
 import createClient, { type Middleware } from "openapi-fetch";
 import type { components, paths } from "./schema";
 
@@ -43,15 +44,27 @@ export class ApiError extends Error {
     }
 }
 
+/** Server messages use code words; swap them for the app's words (see CONTEXT.md). */
+export function plain(msg: string): string {
+    const out = msg
+        .replace(/\b[A-Z][A-Z_]{2,}\b/g, (code) => (code === "PII" ? code : label(code)))
+        .replace(/\bbranch[ -]days?\b/gi, (m) => (m.toLowerCase().endsWith("s") ? "days" : "day"))
+        .replace(/\b(UUID|uuid)\b/g, "id")
+        .replace(/\bunvoid(ed)?\b/gi, (_m, ed) => (ed ? "restored" : "restore"))
+        .replace(/\banonymi[sz]ed\b/gi, "with erased details")
+        .replace(/\s*\(#\d+\)/g, "");
+    return out.charAt(0).toUpperCase() + out.slice(1);
+}
+
 function messageFor(status: number, body: unknown): string {
-    if (body && typeof body === "object" && "error" in body && typeof body.error === "string") return body.error;
-    if (status === 0) return "Cannot reach the server";
-    if (status === 401) return "Signed out: please sign in again";
+    if (body && typeof body === "object" && "error" in body && typeof body.error === "string") return plain(body.error);
+    if (status === 0) return "Can't reach the server. Check your connection.";
+    if (status === 401) return "You were signed out. Please sign in again.";
     if (status === 403) return "You don't have access to this";
     if (status === 404) return "Not found";
-    if (status === 409) return "Someone else changed this. Reload and try again";
-    if (status === 429) return "Too many attempts. Wait a minute and retry";
-    return `Server error (${status})`;
+    if (status === 409) return "Someone else changed this just now. Reload and try again.";
+    if (status === 429) return "Too many tries. Wait a minute and try again.";
+    return `Something went wrong on the server (${status}). Try again.`;
 }
 
 /** Unwrap an openapi-fetch result: data, or throw ApiError with the server's message. */

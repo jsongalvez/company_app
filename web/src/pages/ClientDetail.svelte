@@ -54,7 +54,7 @@
 <PageHead title={c ? clientName(c) : "Client"}>
     <a class="btn" href="#/clients">All clients</a>
     {#if c && edit && !anonymized}
-        <button class="danger" onclick={() => ((confirmText = ""), an.reset(), (anonOpen = true))}>Anonymize</button>
+        <button class="danger" onclick={() => ((confirmText = ""), an.reset(), (anonOpen = true))}>Erase personal details</button>
         <button class="primary" onclick={() => ((draft = draftFrom(c)), a.reset(), (open = true))}>Edit</button>
     {/if}
 </PageHead>
@@ -62,11 +62,11 @@
 <State {q} />
 
 {#if c}
-    {#if anonymized}<div class="notice warn mb">This client was anonymized. Only sex and age remain, for reporting.</div>{/if}
+    {#if anonymized}<div class="notice warn mb">This client's personal details were erased. Only gender and age remain, for reports.</div>{/if}
     <section class="panel mb">
         <div class="body">
             <dl class="kv">
-                <dt>Sex / age</dt>
+                <dt>Gender / age</dt>
                 <dd>{c.gender === "M" ? "Male" : c.gender === "F" ? "Female" : ""} · {c.age}</dd>
                 <dt>Phone</dt>
                 <dd>{c.phoneNumber ?? ""}</dd>
@@ -90,16 +90,16 @@
 
 <Dialog
     bind:open={anonOpen}
-    title="Anonymize client"
+    title="Erase personal details"
     width={420}
     onsubmit={anonymize}
-    submitText="Anonymize"
+    submitText="Erase details"
     danger
-    busy={an.busy || confirmText !== "ANONYMIZE"}
+    busy={an.busy || confirmText.trim().toUpperCase() !== "ERASE"}
     error={an.error}
 >
-    <div>This erases the name, phone, address and medical notes for good. Session records stay, with sex and age only. This can't be undone.</div>
-    <label class="field">Type ANONYMIZE to confirm<input bind:value={confirmText} autocomplete="off" /></label>
+    <div>This erases the name, phone, address and medical notes for good. Session records stay, with gender and age only. This can't be undone.</div>
+    <label class="field">Type ERASE to confirm<input bind:value={confirmText} autocomplete="off" /></label>
 </Dialog>
 
 <style>

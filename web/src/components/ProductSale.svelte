@@ -34,7 +34,7 @@
     async function save() {
         await a.run(async () => {
             if (!item) throw new Error("Choose a product");
-            if (!app.today) throw new Error("No open branch day");
+            if (!app.today) throw new Error("Today isn't open at this branch yet. Try again in a moment.");
             const s = sessions.find((x) => x.id === linkSession);
             await ok(
                 api.POST("/api/product-sales", {
@@ -74,7 +74,7 @@
             >Sold during session
             <select bind:value={linkSession}>
                 <option value="">None: walk-in sale</option>
-                {#each sessions as s (s.id)}<option value={s.id}>{s.clientName ?? "(anonymized)"}</option>{/each}
+                {#each sessions as s (s.id)}<option value={s.id}>{s.clientName ?? "(details erased)"}</option>{/each}
             </select>
         </label>
     </div>
