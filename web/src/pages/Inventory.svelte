@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
-    import { app, can, branchName } from "../lib/app.svelte";
+    import { app, can, canAtBranch, branchName } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
@@ -24,7 +24,7 @@
     });
 
     const edit = $derived(can("EDIT_BRANCH_DATA"));
-    const manage = $derived(can("MANAGE_PRODUCTS"));
+    const manage = $derived(canAtBranch("MANAGE_PRODUCTS"));
     const LOW = 5;
     let filter = $state("");
     const rows = $derived((inv.data ?? []).filter((i) => !filter || i.productName.toLowerCase().includes(filter.toLowerCase())));

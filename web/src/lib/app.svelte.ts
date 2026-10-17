@@ -136,6 +136,10 @@ export function can(code: string, branchId: string = app.branchId, branchDayId?:
                 (c.contextType === "BRANCH_DAY" && (!branchDayId || c.contextId === branchDayId) && c.contextId === (branchDayId ?? app.today?.branchDayId))),
     );
 }
+/** Rights the server only honours at a branch the person works at (an all-branch grant doesn't count). */
+export function canAtBranch(code: string, branchId: string = app.branchId): boolean {
+    return app.caps.some((c) => c.capabilityCode === code && c.contextType !== "GLOBAL" && c.contextId === branchId);
+}
 export function canAnywhere(code: string): boolean {
     return app.caps.some((c) => c.capabilityCode === code);
 }

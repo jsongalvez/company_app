@@ -147,12 +147,20 @@
     </div>
 </Dialog>
 
-<Dialog bind:open={iOpen} title="Invite user" width={440} onsubmit={minted ? undefined : invite} submitText="Create invite" busy={ia.busy} error={ia.error}>
+<Dialog
+    bind:open={iOpen}
+    title="Invite user"
+    width={440}
+    onsubmit={minted ? undefined : invite}
+    submitText="Create invite"
+    cancelText={minted ? "Done" : "Cancel"}
+    busy={ia.busy}
+    error={ia.error}
+>
     {#if minted}
         <div>Give {iName} this invite code. They use it on the sign-in page under "Have an invite code?".</div>
         <div class="code row">
-            <b class="mono">{minted.inviteCode}</b>
-            <span class="spacer"></span>
+            <input class="mono grow" readonly value={minted.inviteCode} aria-label="Invite code" onfocus={(e) => e.currentTarget.select()} />
             <button type="button" class="sm" onclick={() => copy(minted?.inviteCode ?? "")}>Copy</button>
         </div>
         <div class="muted">Works until {dateTime(minted.expiresAt)}.</div>

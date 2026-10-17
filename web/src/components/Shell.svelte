@@ -34,7 +34,7 @@
                 { path: "/inventory", text: "Stock", show: view, warm: () => warm(load.inventory(bid)) },
                 { path: "/finance", text: "Expenses & pay", show: view },
                 { path: "/reports", text: "Sales reports", show: view },
-                { path: "/remittance", text: "Remittance", show: view, warm: () => warm(load.remittances(bid)) },
+                { path: "/remittance", text: "Remittance", show: can("SUBMIT_REMITTANCE"), warm: () => warm(load.remittances(bid)) },
             ],
         },
         {

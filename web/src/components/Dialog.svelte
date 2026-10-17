@@ -7,6 +7,7 @@
         width = 480,
         onsubmit,
         submitText = "Save",
+        cancelText = "Cancel",
         danger = false,
         busy = false,
         error = null,
@@ -18,6 +19,7 @@
         width?: number;
         onsubmit?: () => void | Promise<void>;
         submitText?: string;
+        cancelText?: string;
         danger?: boolean;
         busy?: boolean;
         error?: string | null;
@@ -57,7 +59,7 @@
             <footer class="row">
                 {@render extra?.()}
                 <span class="spacer"></span>
-                <button type="button" onclick={() => (open = false)}>Cancel</button>
+                <button type="button" onclick={() => (open = false)}>{cancelText}</button>
                 {#if onsubmit}
                     <button type="submit" class={danger ? "danger" : "primary"} disabled={busy}>{submitText}</button>
                 {/if}

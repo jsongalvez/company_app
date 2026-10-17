@@ -84,7 +84,7 @@
 
             <div class="row">
                 <button class="primary" type="submit" disabled={busy}>
-                    {mode === "forgot-password" ? "Send reset link" : mode === "" || mode === "login" ? "Sign in" : "Set password"}
+                    {mode === "forgot-password" ? "Send reset code" : mode === "reset-password" || mode === "accept-invite" ? "Set password" : "Sign in"}
                 </button>
                 <span class="spacer"></span>
                 {#if mode === "forgot-password" || mode === "reset-password" || mode === "accept-invite"}

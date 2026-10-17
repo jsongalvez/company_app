@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
-    import { can, canAnywhere } from "../lib/app.svelte";
+    import { can, canAtBranch, canAnywhere } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
@@ -20,7 +20,7 @@
 
     const manageUsers = $derived(canAnywhere("MANAGE_USERS"));
     const manageHelpers = $derived(canAnywhere("ASSIGN_DELEGATE"));
-    const manageRates = $derived(!!sel && can("MANAGE_PRODUCTS", sel));
+    const manageRates = $derived(!!sel && canAtBranch("MANAGE_PRODUCTS", sel));
 
     let users = $state<S["UserSummaryResponse"][]>([]);
     $effect(() => {
@@ -39,8 +39,11 @@
         if (!sel) return;
         const a = load.assignments(sel);
         staff.load(a.key, a.fn);
-        const r = load.rates(sel);
-        rates.load(r.key, r.fn);
+        // Prices are only readable where you may change them (staff of that branch).
+        if (manageRates) {
+            const r = load.rates(sel);
+            rates.load(r.key, r.fn);
+        }
         if (branch?.branchType === "MEDICAL_MISSION") {
             const d = load.delegates(sel);
             helpers.load(d.key, d.fn);
@@ -58,7 +61,7 @@
     function refresh(...keys: string[]) {
         invalidate(...keys);
         staff.refresh();
-        rates.refresh();
+        if (manageRates) rates.refresh();
         if (branch?.branchType === "MEDICAL_MISSION") helpers.refresh();
     }
 
@@ -216,23 +219,27 @@
                     <h2>Price list</h2>
                     <span class="spacer"></span><span class="faint">New sessions start at these prices</span>
                 </header>
-                <State q={rates} />
-                <table class="grid">
-                    <tbody>
-                        {#each currentRates as c (c.type)}
-                            <tr>
-                                <td>{label(c.type)}</td>
-                                <td class="num">{c.rate ? peso(c.rate.rate) : "Not set"}</td>
-                                <td class="muted hide-sm">{c.rate ? `since ${day(c.rate.effectiveFrom.slice(0, 10))}` : ""}</td>
-                                <td class="right">
-                                    {#if manageRates && c.type !== "MEDICAL_MISSION"}<button class="sm" onclick={() => openRate(c.type, c.rate?.rate)}
-                                            >Change</button
-                                        >{/if}
-                                </td>
-                            </tr>
-                        {/each}
-                    </tbody>
-                </table>
+                {#if !manageRates}
+                    <div class="muted gap">Only staff of {branch.name} can see and change its prices. Add yourself above to set them.</div>
+                {:else}
+                    <State q={rates} />
+                    <table class="grid">
+                        <tbody>
+                            {#each currentRates as c (c.type)}
+                                <tr>
+                                    <td>{label(c.type)}</td>
+                                    <td class="num">{c.rate ? peso(c.rate.rate) : "Not set"}</td>
+                                    <td class="muted hide-sm">{c.rate ? `since ${day(c.rate.effectiveFrom.slice(0, 10))}` : ""}</td>
+                                    <td class="right">
+                                        {#if manageRates && c.type !== "MEDICAL_MISSION"}<button class="sm" onclick={() => openRate(c.type, c.rate?.rate)}
+                                                >Change</button
+                                            >{/if}
+                                    </td>
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </table>
+                {/if}
             </section>
 
             {#if branch.branchType === "MEDICAL_MISSION"}
@@ -311,6 +318,9 @@
 </Dialog>
 
 <style>
+    .gap {
+        padding: 8px 10px;
+    }
     .layout {
         display: flex;
         gap: 12px;

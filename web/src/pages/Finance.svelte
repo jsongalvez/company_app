@@ -2,7 +2,7 @@
     import { api, ok, uuid, type S } from "../api/client";
     import { app, can, branchName } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
-    import { load } from "../lib/data";
+    import { load, type Loader } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
     import { route, go } from "../lib/router.svelte";
     import { peso, label, day, dateTime, operationalDate, addDays, sum } from "../lib/format";
@@ -36,13 +36,13 @@
     const summary = new Query<S["DailySalesSummaryResponse"]>();
     $effect(() => {
         if (!dayId) return;
-        for (const [q, l] of [
+        // Pay and allowances are only readable with the pay permission.
+        const reads = [
             [exp, load.expenses(dayId)],
-            [comp, load.compensations(dayId)],
-            [allow, load.allowances(dayId)],
             [split, load.commissionSplits(dayId)],
-        ] as const)
-            (q as Query<unknown>).load(l.key, l.fn as () => Promise<unknown>);
+        ] as [Query<unknown>, Loader<unknown>][];
+        if (pay) reads.push([comp, load.compensations(dayId)], [allow, load.allowances(dayId)]);
+        for (const [q, l] of reads) (q as Query<unknown>).load(l.key, l.fn as () => Promise<unknown>);
         const s = load.dailySummary(bid, date);
         summary.load(s.key, s.fn);
     });
@@ -54,7 +54,7 @@
         if (!dayId) return;
         const du = load.dayUsers(dayId);
         const mem = load.members(bid);
-        Promise.all([fetchCached(du.key, du.fn).catch(() => []), fetchCached(mem.key, mem.fn).catch(() => [])]).then(([a, b]) => {
+        Promise.all([pay ? fetchCached(du.key, du.fn).catch(() => []) : [], fetchCached(mem.key, mem.fn).catch(() => [])]).then(([a, b]) => {
             const m = new Map<string, string>();
             for (const u of a as S["BranchDayUserResponse"][]) m.set(u.userId, u.displayName);
             for (const u of b as S["BranchMemberResponse"][]) if (!m.has(u.id)) m.set(u.id, u.displayName);
@@ -307,56 +307,59 @@
             {/if}
         </section>
 
-        <section class="panel">
-            <header>
-                <h2>Pay</h2>
-                <span class="faint">{peso(sum((comp.data ?? []).map((c) => c.amount)))}</span>
-                <span class="spacer"></span>
-                {#if pay}<button class="sm primary" onclick={() => openComp(null)}>Add</button>{/if}
-            </header>
-            <State q={comp} empty={!!comp.data && comp.data.length === 0} emptyText="No pay added for this day." />
-            {#if comp.data?.length}
-                <table class="grid">
-                    <thead
-                        ><tr
-                            ><th>Person</th><th>Note</th><th class="num">Amount</th>{#if pay}<th></th>{/if}</tr
-                        ></thead
-                    >
-                    <tbody>
-                        {#each comp.data as c (c.id)}
-                            <tr>
-                                <td
-                                    >{c.userName ?? nameOf[c.userId] ?? ""}{#if c.workBranchDayId !== c.payingBranchDayId}<span class="mark plain">Relief</span
-                                        >{/if}</td
-                                >
-                                <td class="wrap muted">{c.note ?? ""}</td>
-                                <td class="num">{peso(c.amount)}</td>
-                                {#if pay}<td class="right"><button class="sm" onclick={() => openComp(c)}>Edit</button></td>{/if}
-                            </tr>
-                        {/each}
-                    </tbody>
-                </table>
-            {/if}
-        </section>
+        {#if pay}
+            <section class="panel">
+                <header>
+                    <h2>Pay</h2>
+                    <span class="faint">{peso(sum((comp.data ?? []).map((c) => c.amount)))}</span>
+                    <span class="spacer"></span>
+                    {#if pay}<button class="sm primary" onclick={() => openComp(null)}>Add</button>{/if}
+                </header>
+                <State q={comp} empty={!!comp.data && comp.data.length === 0} emptyText="No pay added for this day." />
+                {#if comp.data?.length}
+                    <table class="grid">
+                        <thead
+                            ><tr
+                                ><th>Person</th><th>Note</th><th class="num">Amount</th>{#if pay}<th></th>{/if}</tr
+                            ></thead
+                        >
+                        <tbody>
+                            {#each comp.data as c (c.id)}
+                                <tr>
+                                    <td
+                                        >{c.userName ?? nameOf[c.userId] ?? ""}{#if c.workBranchDayId !== c.payingBranchDayId}<span class="mark plain"
+                                                >Relief</span
+                                            >{/if}</td
+                                    >
+                                    <td class="wrap muted">{c.note ?? ""}</td>
+                                    <td class="num">{peso(c.amount)}</td>
+                                    {#if pay}<td class="right"><button class="sm" onclick={() => openComp(c)}>Edit</button></td>{/if}
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </table>
+                {/if}
+            </section>
 
-        <section class="panel">
-            <header>
-                <h2>Allowances</h2>
-                <span class="faint">{peso(sum((allow.data ?? []).map((a) => a.amount)))}</span>
-                <span class="spacer"></span>
-                {#if pay}<button class="sm primary" onclick={() => ((aUser = ""), (aAmount = ""), aa.reset(), (aOpen = true))}>Add</button>{/if}
-            </header>
-            <State q={allow} empty={!!allow.data && allow.data.length === 0} emptyText="No allowances." />
-            {#if allow.data?.length}
-                <table class="grid">
-                    <tbody>
-                        {#each allow.data as a (a.id)}
-                            <tr><td>{nameOf[a.userId] ?? ""}</td><td class="num">{peso(a.amount)}</td></tr>
-                        {/each}
-                    </tbody>
-                </table>
-            {/if}
-        </section>
+            <section class="panel">
+                <header>
+                    <h2>Allowances</h2>
+                    <span class="faint">{peso(sum((allow.data ?? []).map((a) => a.amount)))}</span>
+                    <span class="spacer"></span>
+                    {#if pay}<button class="sm primary" onclick={() => ((aUser = ""), (aAmount = ""), aa.reset(), (aOpen = true))}>Add</button>{/if}
+                </header>
+                <State q={allow} empty={!!allow.data && allow.data.length === 0} emptyText="No allowances." />
+                {#if allow.data?.length}
+                    <table class="grid">
+                        <tbody>
+                            {#each allow.data as a (a.id)}
+                                <tr><td>{nameOf[a.userId] ?? ""}</td><td class="num">{peso(a.amount)}</td></tr>
+                            {/each}
+                        </tbody>
+                    </table>
+                {/if}
+            </section>
+        {/if}
 
         <section class="panel">
             <header>
