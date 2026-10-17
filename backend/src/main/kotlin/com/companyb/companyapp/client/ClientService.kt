@@ -39,6 +39,7 @@ object ClientService {
         address: String?,
         gender: Gender,
         age: Int,
+        earlierVisits: Int = 0,
         systolicBp: Short?,
         diastolicBp: Short?,
         medicalConditions: String?,
@@ -48,6 +49,7 @@ object ClientService {
             // fail closed with 400 before the insert instead of surfacing the DB
             // violation as a 500 (#475 auto-file). Same class as #912/#921.
             validateClientRanges(age, systolicBp, diastolicBp, phoneNumber)
+            validateEarlierVisits(earlierVisits)
             val result =
                 ClientRepository.createInTransaction(
                     ClientCreateParams(
@@ -60,6 +62,7 @@ object ClientService {
                         address = address?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_CLIENT_ADDRESS,
                         gender = gender,
                         age = age,
+                        earlierVisits = earlierVisits,
                         systolicBp = systolicBp,
                         diastolicBp = diastolicBp,
                         medicalConditions = medicalConditions?.trim()?.takeIf { it.isNotEmpty() },
@@ -95,6 +98,7 @@ object ClientService {
         address: String?,
         gender: Gender?,
         age: Int?,
+        earlierVisits: Int? = null,
         systolicBp: Short?,
         diastolicBp: Short?,
         medicalConditions: String?,
@@ -105,6 +109,7 @@ object ClientService {
             // shape resolution as raw values, so the update command owns the
             // bounds for direct callers too (route mirrors with BadRequestResponse).
             validateClientRanges(age, systolicBp, diastolicBp, phoneNumber)
+            validateEarlierVisits(earlierVisits)
             // Locked before-state (#522): SELECT FOR UPDATE serializes concurrent
             // writers so the audit diff attributes only this actor's changes.
             val before =
@@ -137,6 +142,7 @@ object ClientService {
                         address = patch.address,
                         gender = gender,
                         age = age,
+                        earlierVisits = earlierVisits,
                         systolicBp = patch.systolicBp,
                         diastolicBp = patch.diastolicBp,
                         medicalConditions = patch.medicalConditions,
@@ -486,3 +492,10 @@ internal object ClientAudit {
 }
 
 private const val ANONYMIZED_REASON = "anonymized"
+
+/** Visits before the app (0 to [CLIENT_EARLIER_VISITS_MAX]); null means unchanged. */
+internal fun validateEarlierVisits(earlierVisits: Int?) {
+    if (earlierVisits != null && (earlierVisits < 0 || earlierVisits > CLIENT_EARLIER_VISITS_MAX)) {
+        throw ValidationException("Earlier visits must be between 0 and $CLIENT_EARLIER_VISITS_MAX")
+    }
+}

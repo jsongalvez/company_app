@@ -71,6 +71,7 @@ Rules for app wording:
 | Second visit | The client's second paid visit. | `SECOND_SESSION` |
 | Return visit | The third paid visit or later. | `SUBSEQUENT` |
 | Mission visit | A free visit at a medical mission. | `MEDICAL_MISSION` |
+| Visits before the app | How many times a client came before we started using the app. Staff enter it on the client, and it counts toward the visit type, so a returning client isn't treated as new. | `earlierVisits` |
 | Price list | What each kind of visit costs at a branch. A new session starts at this price; it can be changed. | base rates |
 | Concern | What the client came in for, e.g. back pain. | `concern` |
 | Void / Restore | Take a session out of the money totals but keep it on record, with a reason. Restore puts it back. | void / unvoid |

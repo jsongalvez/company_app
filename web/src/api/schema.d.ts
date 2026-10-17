@@ -2005,6 +2005,7 @@ export interface components {
             /** @enum {string} */
             gender?: "M" | "F" | "UNKNOWN";
             age: number;
+            earlierVisits?: number;
             systolicBp: number | null;
             diastolicBp: number | null;
             medicalConditions: string | null;
@@ -2021,6 +2022,7 @@ export interface components {
             /** @enum {string} */
             gender: "M" | "F" | "UNKNOWN";
             age: number;
+            earlierVisits?: number;
             systolicBp?: number | null;
             diastolicBp?: number | null;
             medicalConditions?: string | null;
@@ -2035,6 +2037,7 @@ export interface components {
             /** @enum {string|null} */
             gender?: "M" | "F" | "UNKNOWN" | null;
             age?: number | null;
+            earlierVisits?: number | null;
             systolicBp?: number | null;
             diastolicBp?: number | null;
             medicalConditions?: string | null;

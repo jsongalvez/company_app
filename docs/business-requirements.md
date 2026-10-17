@@ -137,7 +137,8 @@ Relief duty applies when any user — Practitioner or Coordinator — checks int
 - A client can request a specific practitioner; if unavailable, any available practitioner is assigned
 - Clients can receive discounts or free sessions — remarks are added (e.g. "discount, mcgi")
 - Discounted and free sessions still count toward the client's global session history
-- After a discounted or free session, the next visit is priced like any other: the visit type follows the client's history (never changed by hand), and staff can change the price itself when adding the session
+- After a discounted or free session, the next visit is priced like any other: the visit type follows the client's history (never picked by hand), and staff can change the price itself when adding the session
+- Clients who came before the app existed get a "visits before the app" number on their record; it counts toward their history, so their visit type is right from their first session in the app
 
 ### Client Fields
 

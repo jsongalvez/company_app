@@ -21,6 +21,8 @@ data class Client(
     val diastolicBp: Short?,
     val medicalConditions: String?,
     val deletedAt: OffsetDateTime?,
+    /** Visits before the app existed; counted toward visit history (sets the visit type). */
+    val earlierVisits: Int = 0,
 )
 
 private const val PHONE_COLUMN_WIDTH = 20
@@ -38,6 +40,7 @@ internal const val CLIENT_SYSTOLIC_MAX: Short = 300
 internal const val CLIENT_DIASTOLIC_MIN: Short = 20
 internal const val CLIENT_DIASTOLIC_MAX: Short = 200
 internal const val CLIENT_PHONE_MAX_LENGTH = PHONE_COLUMN_WIDTH
+internal const val CLIENT_EARLIER_VISITS_MAX = 1000
 
 /** Empty address representation (#523): clears reset here, matching create + column default. */
 const val DEFAULT_CLIENT_ADDRESS = "N/A"
@@ -55,6 +58,7 @@ internal object ClientTable : Table("client") {
     val systolicBp = short("systolic_bp").nullable()
     val diastolicBp = short("diastolic_bp").nullable()
     val medicalConditions = text("medical_conditions").nullable()
+    val earlierVisits = integer("earlier_visits").default(0)
     val deletedAt = timestampWithTimeZone("deleted_at").nullable()
 
     override val primaryKey = PrimaryKey(id)
@@ -79,5 +83,6 @@ internal object ClientTable : Table("client") {
             "systolicBp" to entity.systolicBp?.toString(),
             "diastolicBp" to entity.diastolicBp?.toString(),
             "medicalConditions" to entity.medicalConditions,
+            "earlierVisits" to entity.earlierVisits.toString(),
         )
 }

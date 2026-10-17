@@ -77,7 +77,9 @@
                 <dt>Conditions</dt>
                 <dd class="pre">{c.medicalConditions ?? ""}</dd>
                 <dt>Visits</dt>
-                <dd>{c.sessionCount}</dd>
+                <dd>
+                    {c.sessionCount}{#if c.earlierVisits}, plus {c.earlierVisits} before the app{/if}
+                </dd>
             </dl>
         </div>
     </section>

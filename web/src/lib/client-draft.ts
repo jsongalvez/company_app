@@ -20,6 +20,7 @@ export function emptyDraft(name = ""): ClientDraft {
         address: "",
         gender: "",
         age: "",
+        earlierVisits: "",
         systolicBp: "",
         diastolicBp: "",
         medicalConditions: "",
@@ -36,6 +37,7 @@ export function draftFrom(c: S["ClientResponse"]): ClientDraft {
         address: c.address ?? "",
         gender: c.gender === "M" || c.gender === "F" ? c.gender : "",
         age: String(c.age),
+        earlierVisits: c.earlierVisits ? String(c.earlierVisits) : "",
         systolicBp: c.systolicBp?.toString() ?? "",
         diastolicBp: c.diastolicBp?.toString() ?? "",
         medicalConditions: c.medicalConditions ?? "",
@@ -56,6 +58,7 @@ export function createBody(id: string, d: ClientDraft): S["CreateClientRequest"]
         address: opt(d.address),
         gender: d.gender as "M" | "F",
         age: Number(d.age),
+        earlierVisits: Number(d.earlierVisits) || 0,
         systolicBp: optInt(d.systolicBp),
         diastolicBp: optInt(d.diastolicBp),
         medicalConditions: opt(d.medicalConditions),
@@ -84,6 +87,7 @@ export function updateBody(before: S["ClientResponse"], d: ClientDraft): S["Upda
         if (dia !== null && dia !== before.diastolicBp) body.diastolicBp = dia;
     }
     if (Number(d.age) !== before.age) body.age = Number(d.age);
+    if ((Number(d.earlierVisits) || 0) !== (before.earlierVisits ?? 0)) body.earlierVisits = Number(d.earlierVisits) || 0;
     if (d.gender && d.gender !== before.gender) body.gender = d.gender;
     if (clear.length) body.clearFields = clear;
     return body;

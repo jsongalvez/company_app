@@ -2,6 +2,7 @@ package com.companyb.companyapp.session
 
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayTable
+import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.SessionType
@@ -57,6 +58,18 @@ internal object SessionRepository {
 
     /** In-transaction store read (#751) — runs on the caller's command transaction. */
     fun countPriorNonMedicalMissionSessionsInTransaction(clientId: UUID): Long =
+        earlierVisitsInTransaction(clientId) + countRecordedNonMedicalMissionSessions(clientId)
+
+    /** Visits the client had before the app existed (entered by staff on the client). */
+    private fun earlierVisitsInTransaction(clientId: UUID): Long =
+        ClientTable
+            .select(ClientTable.earlierVisits)
+            .where { ClientTable.id eq clientId }
+            .singleOrNull()
+            ?.get(ClientTable.earlierVisits)
+            ?.toLong() ?: 0L
+
+    private fun countRecordedNonMedicalMissionSessions(clientId: UUID): Long =
         SessionTable
             .leftJoin(
                 ActiveSessionVoidsView,
