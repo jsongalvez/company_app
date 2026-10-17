@@ -2,7 +2,7 @@ name: jmh
 
 # JMH benchmark diagnostics — manual `workflow_dispatch` only (#333/#334):
 # not an integration gate. Run it when a performance question actually exists;
-# ordinary pushes launch nothing and no Wayfinder session waits for or is
+# ordinary pushes launch nothing and nothing waits for or is
 # blocked by JMH results. Hosted runs consume the budgeted Actions allowance
 # (≤55 min/month), so dispatch only when investigating.
 #

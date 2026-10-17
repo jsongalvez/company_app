@@ -41,7 +41,7 @@ intentionally shallow.
 **Public seam:** `currentOperationalDate` · `resolveOrCreate` / `getToday` / `findToday` / `findByBranchAndDate` (resolve-or-create vs find-only discipline matters) · `findById` / `findByIdInTransaction` (find-only reads) · `lockDayInTransaction` / `findLockedDayInTransaction` (in-transaction lock seam, #536) · `requireBranchDayExists` / `requireBranchDayForBranch` · `checkBranchDayEditable` / `checkBranchDayEditableInTransaction` / `checkBranchDayReadable` · `evaluateStatus` · `markDaysRemittedInTransaction` / `releaseDaysFromRemittanceInTransaction` · `expirationUtc` · `manilaZone`.
 **Depends on:** Capability (`EDIT_PAST_DAY`). Consumed by Session, Attendance, Inventory, Product Sales, Finance, Relief, Remittance, summaries.
 **Expansion triggers:** changing rollover time/timezone or day-state semantics; touching `branch_day` schema/locking; a seam change here justifies enumerating consumers at expansion time via `rg 'checkBranchDayEditable|resolveOrCreate|findToday'` — not preloading them.
-**Tests/authority:** pure functions (`evaluateStatus`, `assertEditableState`) are DB-free unit-tested; backend `AGENTS.md` "HTTP errors & day state"; `docs/architecture.md`.
+**Tests/authority:** pure functions (`evaluateStatus`, `assertEditableState`) are DB-free unit-tested; `docs/architecture.md`.
 **Search:** `checkBranchDayEditable`, `findToday`, `branch_day`.
 
 ## Capability (Authorization)
@@ -51,7 +51,7 @@ intentionally shallow.
 **Public seam:** `hasCapability` / `requireCapability` (+ `ForBranchDay` / `AnyContext` variants) · `GLOBAL_CONTEXT_ID` (nil UUID) · `CapabilityFilter.require*` family · `BranchReadScope.windowBranchIds` · grant seams on `AuthorizationGrants` (`grantReliefCapabilityInTransaction` / `deleteReliefGrantBySourceIdInTransaction` / `grantDelegateCapabilityInTransaction` / `closeDelegateCapabilityInTransaction` — workforce commands write grants only through these, supplying target user/branch/day and source identity while the fixed capability/source/context/priority stay authorization-owned (#606); the table and `GrantStore` stay internal to the owner). GLOBAL grants never satisfy day-scoped gates (#131 strictness); inventory is not relief-eligible (#157).
 **Depends on:** nothing upstream semantically; consumed by nearly everything.
 **Expansion triggers:** new context type or source type (schema + view + filter changes); window/priority semantics (`GrantPriorities`; `active_user_capabilities` view — baseline in V1, branch-derived leg widened by V21, OWNER GLOBAL read added by V25); changing which gate a route uses.
-**Tests/authority:** ADR-0007 (route-level gates), ADR-0023; backend `AGENTS.md` "Authorization".
+**Tests/authority:** ADR-0007 (route-level gates), ADR-0023.
 **Search:** `requireBranchOrBranchDayCapability`, `hasCapabilityForBranchDay`.
 
 ## Auth & Credentials
@@ -80,7 +80,7 @@ intentionally shallow.
 **Public seam:** `SessionService` commands (`create` / `updateStatus` / `updateFinalPrice` / `voidSession` / `unvoidSession`) · `computeSessionType` (pure) · `previewSession` · practitioner ops via `SessionPractitionerService` · concern ops via `SessionConcernService` (catalog `ConcernService.listAll` stays distinct) · rate ops via `SessionBaseRateService` · `SessionReads.findById` / `findByIdInTransaction` / `hasActivePendingSessionInTransaction` / `scrubSessionTextForClientInTransaction` (commerce/remittance/dashboard/authz/client reads; the scrub is the anonymize free-text + void-reason step #908-#909).
 **Depends on:** Branch Day (gates + find-only gated-day handoff #157), Client (row lock + existence reads via the `ClientReads` seam — session commands and practitioner/concern resolve paths all lock client-first per #509/#910, with the anonymized-write 409 guard; one-PENDING guard stays session-owned), Workforce membership/slot facts via the `WorkforceReads` seam (ACTIVE member check #366, unended slot lookup).
 **Expansion triggers:** version-bump mechanics (`incrementSessionVersion` count-0 rule); walk-in status CHECK constraint; `idx_client_one_pending_session` backstop; `active_session_voids` view consumers (commission, remittance pickers, scheduler, dashboard).
-**Tests/authority:** `docs/engines.md`; backend `AGENTS.md` "Sessions".
+**Tests/authority:** `docs/engines.md`.
 **Search:** `computeSessionType`, `SessionReads` (cross-owner boundary; `SessionRepository` direct imports from other owners stay banned), `VersionMismatchException`, `session_void`.
 
 ## Workforce (Attendance · Assignments)
@@ -117,7 +117,7 @@ intentionally shallow.
 **Public seam:** `FinanceReads.findExpenseById(InTransaction)` / `findCompensationById(InTransaction)` (authz + compensation-gate reads; service-to-service, no allowlist).
 **Depends on:** Branch Day (locks), Capability (route gates via `ExpenseAuthz` over `CapabilityFilter`).
 **Expansion triggers:** expense soft-delete/restore + reason vocabulary; compensation paying/work-branch authority + uniqueness; allowance P&L exclusion.
-**Tests/authority:** `docs/business-requirements.md` (Finance and Compensation); backend `AGENTS.md` "Authorization".
+**Tests/authority:** `docs/business-requirements.md` (Finance and Compensation).
 **Search:** `FinanceReads`, `ExpenseAuthz`.
 
 ## Commission
@@ -147,7 +147,7 @@ intentionally shallow.
 **Public seam:** `ReliefAccessService` commands (request/grant/deny/cancel/list) · `ReliefInviteService` commands (create/accept/decline/retract/search) · `MedicalMissionDelegateService.assignDelegate` / `revokeDelegate` · `ReliefNotifications.*` (command-transaction broadcasts).
 **Depends on:** Branch Day (day-open gate, `expirationUtc`), Workforce membership/cutoff (`BranchMemberRepository`, `UserBranchAssignmentRepository`, `ShiftGuard`), Capability view, Notifications.
 **Expansion triggers:** partial unique indexes `idx_one_live_relief_request` / `idx_one_pending_accepted_invite`; job re-run safety via UNIQUE `(dedup_key, user_id)` (#508); accepted-invite revocation follow-up (#363 pending).
-**Tests/authority:** relief-cluster rules live in code comments (#159/#352/#357/#358); backend `AGENTS.md` day-scoped gate section.
+**Tests/authority:** relief-cluster rules live in code comments (#159/#352/#357/#358).
 **Search:** `AuthorizationGrants`, `hasPendingOrAcceptedInvite`, `ReliefNotifications.`
 
 ## Audit
@@ -157,7 +157,7 @@ intentionally shallow.
 **Public seam:** `AuditLog.recordInsert` / `recordUpdate` / `recordDelete` / `record` + `redactClientNamesInTransaction` / `redactSessionTextInTransaction` / `redactVoidReasonInTransaction` (anonymize redactions #524/#908/#909) — must run inside the caller's command transaction · browse/find/acknowledge reads via `AuditLogService` · `AuditLogTableRegistry.tables` (register every newly audited table there or it is invisible to the UI).
 **Depends on:** Capability (read windows via `BranchReadScope`).
 **Expansion triggers:** read-scope policy changes (`BRANCHLESS_POLICY` map, global-view fallback); cursor format; flag acknowledgment rules.
-**Tests/authority:** ADR-0014 (audit field mapping), ADR-0019 (before-state capture); backend `AGENTS.md` "Audit logging".
+**Tests/authority:** ADR-0014 (audit field mapping), ADR-0019 (before-state capture).
 **Search:** `AuditLogTableRegistry`, `auditFields`, `recordUpdate(`.
 
 ## Session Dashboard
@@ -167,7 +167,7 @@ intentionally shallow.
 **Public seam:** `DashboardService.getToday` / `getSessionDetail`.
 **Depends on:** Attendance (post-clock-in gate), Commission (live eligibility replication), Notification (bearer check via `NotificationReads.existsForSessionAndUser`).
 **Expansion triggers:** enrichment shape (`mapDashboardSession`); bearer rule (#141 ownership-in-WHERE).
-**Tests/authority:** backend `AGENTS.md` "Sessions" (dashboard + detail gate exceptions).
+**Tests/authority:** `DashboardService` (dashboard + detail gate exceptions).
 **Search:** `mapDashboardSession`, `getSessionDetail`.
 
 ## Notification Mailbox

@@ -1,0 +1,440 @@
+<script lang="ts">
+    import { api, ok, uuid, type S } from "../api/client";
+    import { app, can } from "../lib/app.svelte";
+    import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
+    import { load } from "../lib/data";
+    import { act, Action } from "../lib/act.svelte";
+    import { peso, dateTime, day, label, clientName } from "../lib/format";
+    import { allowedTargets, isCorrection, statusClass, type Status } from "../lib/rules";
+    import PageHead from "../components/PageHead.svelte";
+    import State from "../components/State.svelte";
+    import Dialog from "../components/Dialog.svelte";
+    import History from "../components/History.svelte";
+    import ProductSale from "../components/ProductSale.svelte";
+
+    let { id }: { id: string } = $props();
+
+    const sq = new Query<S["DashboardSessionResponse"]>();
+    const cq = new Query<S["ConcernResponse"][]>(load.concerns().key, load.concerns().fn);
+    const client = new Query<S["ClientResponse"]>();
+
+    $effect(() => {
+        const l = load.session(id, app.branchId);
+        sq.load(l.key, l.fn);
+    });
+    $effect(() => {
+        const cid = sq.data?.clientId;
+        if (cid) {
+            const l = load.client(cid);
+            client.load(l.key, l.fn);
+        }
+    });
+
+    const s = $derived(sq.data);
+    // A session is "today" when it is on today's dashboard; the response has no branchDayId.
+    const dash = new Query<S["DashboardResponse"]>();
+    $effect(() => {
+        const l = load.dashboard(app.branchId);
+        dash.load(l.key, l.fn);
+    });
+    const isToday = $derived(!!dash.data?.sessions.some((x) => x.id === id));
+
+    // Who can be added: today's staff (incl. relief) + branch members.
+    let staff = $state<{ id: string; name: string }[]>([]);
+    $effect(() => {
+        const dayId = isToday ? app.today?.branchDayId : undefined;
+        const du = dayId ? load.dayUsers(dayId) : null;
+        const mem = load.members(app.branchId);
+        Promise.all([du ? fetchCached(du.key, du.fn).catch(() => []) : Promise.resolve([]), fetchCached(mem.key, mem.fn).catch(() => [])]).then(([a, b]) => {
+            const map = new Map<string, string>();
+            for (const u of a as S["BranchDayUserResponse"][]) map.set(u.userId, u.displayName);
+            for (const u of b as S["BranchMemberResponse"][]) if (!map.has(u.id)) map.set(u.id, u.displayName);
+            staff = [...map].map(([id, name]) => ({ id, name })).sort((x, y) => x.name.localeCompare(y.name));
+        });
+    });
+    const voided = $derived(s?.isVoided ?? false);
+    const dayStatus = $derived(isToday ? app.today?.status : "PAST");
+    const edit = $derived(can("EDIT_BRANCH_DATA") || can("EDIT_PAST_DAY"));
+    const correct = $derived(can("EDIT_PAST_DAY"));
+    const needReason = $derived(dayStatus !== "OPEN");
+    let reason = $state("");
+    const r = () => (reason.trim() ? reason.trim() : null);
+
+    function refresh() {
+        invalidate(`session:${id}`, "dash:", `audit:session:${id}`);
+        sq.refresh();
+    }
+
+    async function setStatus(to: Status) {
+        if (!s) return;
+        const from = s.sessionStatus as Status;
+        if (isCorrection(from, to) && !r()) {
+            alert("A correction needs a reason. Fill in the reason box first.");
+            return;
+        }
+        if (
+            await act(
+                () =>
+                    ok(
+                        api.PATCH("/api/sessions/{sessionId}/status", {
+                            params: { path: { sessionId: id } },
+                            body: { status: to, version: s.version, reason: r() },
+                        }),
+                    ),
+                `Marked ${label(to)}`,
+            )
+        )
+            refresh();
+    }
+
+    // Price
+    const pa = new Action();
+    let priceOpen = $state(false);
+    let price = $state("");
+    async function savePrice() {
+        if (!s) return;
+        if (
+            await pa.run(
+                () =>
+                    ok(
+                        api.PATCH("/api/sessions/{sessionId}/final-price", {
+                            params: { path: { sessionId: id } },
+                            body: { finalPrice: price.trim(), version: s.version, reason: r() },
+                        }),
+                    ),
+                "Price updated",
+            )
+        ) {
+            priceOpen = false;
+            refresh();
+        }
+    }
+
+    // Practitioners
+    let addPid = $state("");
+    async function addPractitioner() {
+        if (!addPid) return;
+        if (
+            await act(() =>
+                ok(
+                    api.POST("/api/sessions/{sessionId}/practitioners", {
+                        params: { path: { sessionId: id } },
+                        body: { id: uuid(), practitionerId: addPid, reason: r() },
+                    }),
+                ),
+            )
+        ) {
+            addPid = "";
+            refresh();
+        }
+    }
+    async function removePractitioner(p: S["DashboardPractitionerResponse"]) {
+        if (!confirm(`Remove ${p.displayName} from this session?`)) return;
+        if (
+            await act(() =>
+                ok(
+                    api.DELETE("/api/sessions/{sessionId}/practitioners/{practitionerId}", {
+                        params: { path: { sessionId: id, practitionerId: p.practitionerId } },
+                        body: { reason: r() },
+                    }),
+                ),
+            )
+        )
+            refresh();
+    }
+    async function editRemarks(p: S["DashboardPractitionerResponse"]) {
+        const v = prompt(`Remarks for ${p.displayName}`, p.remarks ?? "");
+        if (v === null) return;
+        if (
+            await act(() =>
+                ok(
+                    api.PATCH("/api/sessions/{sessionId}/practitioners/{practitionerId}", {
+                        params: { path: { sessionId: id, practitionerId: p.practitionerId } },
+                        body: { remarks: v.trim() || null, reason: r() },
+                    }),
+                ),
+            )
+        )
+            refresh();
+    }
+
+    // Concerns
+    let addCid = $state("");
+    async function addConcern() {
+        if (!addCid) return;
+        if (
+            await act(() =>
+                ok(api.POST("/api/sessions/{sessionId}/concerns", { params: { path: { sessionId: id } }, body: { concernId: addCid, reason: r() } })),
+            )
+        ) {
+            addCid = "";
+            refresh();
+        }
+    }
+    async function removeConcern(c: S["ConcernResponse"]) {
+        if (
+            await act(() =>
+                ok(
+                    api.DELETE("/api/sessions/{sessionId}/concerns/{concernId}", {
+                        params: { path: { sessionId: id, concernId: c.id } },
+                        body: { reason: r() },
+                    }),
+                ),
+            )
+        )
+            refresh();
+    }
+    async function promote() {
+        const v = prompt("New concern label (added to the list for everyone)", s?.otherConcerns ?? "");
+        if (!v?.trim()) return;
+        if (
+            await act(
+                () =>
+                    ok(
+                        api.POST("/api/sessions/{sessionId}/promote-concern", {
+                            params: { path: { sessionId: id } },
+                            body: { id: uuid(), label: v.trim(), reason: r() },
+                        }),
+                    ),
+                "Concern added",
+            )
+        ) {
+            invalidate("concerns");
+            cq.refresh();
+            refresh();
+        }
+    }
+
+    // Void
+    const va = new Action();
+    let voidOpen = $state(false);
+    let voidReason = $state("");
+    async function doVoid() {
+        const done = await va.run(
+            () =>
+                voided
+                    ? ok(api.POST("/api/sessions/{sessionId}/unvoid", { params: { path: { sessionId: id } }, body: { unvoidedReason: voidReason.trim() } }))
+                    : ok(
+                          api.POST("/api/sessions/{sessionId}/void", {
+                              params: { path: { sessionId: id } },
+                              body: { id: uuid(), voidReason: voidReason.trim() },
+                          }),
+                      ),
+            voided ? "Session restored" : "Session voided",
+        );
+        if (done) {
+            voidOpen = false;
+            refresh();
+        }
+    }
+
+    let saleOpen = $state(false);
+    const sessionConcernIds = $derived(new Set(s?.concerns?.map((c) => c.id) ?? []));
+</script>
+
+<PageHead title={client.data ? clientName(client.data) : "Session"} sub={s ? `${label(s.sessionType)} · ${dateTime(s.bookedAt)}` : ""}>
+    <a class="btn" href="#/today">Back to today</a>
+    {#if s && edit && !voided}<button onclick={() => (saleOpen = true)}>Product sale</button>{/if}
+    {#if s && can("VOID_SESSION")}
+        <button class="danger" onclick={() => ((voidReason = ""), va.reset(), (voidOpen = true))}>{voided ? "Unvoid" : "Void session"}</button>
+    {/if}
+</PageHead>
+
+<State q={sq} />
+
+{#if s}
+    <div class="cols">
+        <div class="col grow">
+            <section class="panel">
+                <header>
+                    <h2>Session</h2>
+                    {#if voided}<span class="mark bad">Voided</span>{:else}<span class="mark {statusClass(s.sessionStatus)}">{label(s.sessionStatus)}</span
+                        >{/if}
+                    {#if s.isWalkIn}<span class="mark plain">Walk-in</span>{/if}
+                    <span class="spacer"></span>
+                    {#if edit && !voided}
+                        {#each allowedTargets(s.sessionStatus as Status, s.isWalkIn, correct) as to (to)}
+                            <button class="sm" class:primary={to === "COMPLETED"} onclick={() => setStatus(to)}>{label(to)}</button>
+                        {/each}
+                    {/if}
+                </header>
+                <div class="body">
+                    {#if needReason && edit}
+                        <label class="field reason"
+                            >Reason for changes ({dayStatus === "REMITTED" ? "required, day is remitted" : "recommended, day is closed"})<input
+                                bind:value={reason}
+                                placeholder="Why this is being changed"
+                            /></label
+                        >
+                    {/if}
+                    <dl class="kv">
+                        <dt>Client</dt>
+                        <dd>
+                            {#if client.data}<a href="#/clients/{s.clientId}">{clientName(client.data)}</a> · {client.data.gender === "UNKNOWN"
+                                    ? ""
+                                    : client.data.gender}
+                                {client.data.age}{/if}
+                        </dd>
+                        <dt>Price</dt>
+                        <dd>
+                            <b>{peso(s.finalPrice)}</b>
+                            {#if s.finalPrice !== s.basePrice}<span class="muted">(base {peso(s.basePrice)})</span>{/if}
+                            {#if edit && !voided}<button class="sm" onclick={() => ((price = s.finalPrice), pa.reset(), (priceOpen = true))}>Change</button
+                                >{/if}
+                        </dd>
+                        <dt>Booked</dt>
+                        <dd>{dateTime(s.bookedAt)}</dd>
+                        <dt>Next visit</dt>
+                        <dd>{s.nextAppointmentDate ? day(s.nextAppointmentDate) : "None"}</dd>
+                        <dt>Remarks</dt>
+                        <dd class="pre">{s.remarks ?? ""}</dd>
+                        <dt>Other concerns</dt>
+                        <dd>
+                            {s.otherConcerns ?? ""}
+                            {#if s.otherConcerns && edit && !voided}<button class="sm" onclick={promote}>Add to concern list</button>{/if}
+                        </dd>
+                    </dl>
+                </div>
+            </section>
+
+            <History table="session" {id} />
+        </div>
+
+        <div class="col side">
+            <section class="panel">
+                <header><h2>Practitioners</h2></header>
+                {#if s.practitioners?.length}
+                    <table class="grid">
+                        <tbody>
+                            {#each s.practitioners as p (p.practitionerId)}
+                                <tr>
+                                    <td class="faint num">{p.slotAtTime}</td>
+                                    <td
+                                        >{p.displayName}
+                                        <div class="faint small">{p.remarks ?? ""}</div></td
+                                    >
+                                    {#if edit && !voided}
+                                        <td class="right nowrap">
+                                            <button class="sm" onclick={() => editRemarks(p)}>Remarks</button>
+                                            <button class="sm" onclick={() => removePractitioner(p)} aria-label="Remove">×</button>
+                                        </td>
+                                    {/if}
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </table>
+                {:else}
+                    <div class="body faint">
+                        Nobody assigned.{#if s.requestedPractitionerName}
+                            Requested: {s.requestedPractitionerName}.{/if}
+                    </div>
+                {/if}
+                {#if edit && !voided}
+                    <div class="body row">
+                        <select class="grow" bind:value={addPid}>
+                            <option value="">Add practitioner…</option>
+                            {#each staff.filter((x) => !s.practitioners?.some((p) => p.practitionerId === x.id)) as x (x.id)}<option value={x.id}
+                                    >{x.name}</option
+                                >{/each}
+                        </select>
+                        <button onclick={addPractitioner} disabled={!addPid}>Add</button>
+                    </div>
+                {/if}
+            </section>
+
+            <section class="panel">
+                <header><h2>Concerns</h2></header>
+                {#if s.concerns?.length}
+                    <table class="grid">
+                        <tbody>
+                            {#each s.concerns as c (c.id)}
+                                <tr>
+                                    <td>{c.label}</td>
+                                    {#if edit && !voided}<td class="right"
+                                            ><button class="sm" onclick={() => removeConcern(c)} aria-label="Remove">×</button></td
+                                        >{/if}
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </table>
+                {:else}<div class="body faint">None recorded.</div>{/if}
+                {#if edit && !voided}
+                    <div class="body row">
+                        <select class="grow" bind:value={addCid}>
+                            <option value="">Add concern…</option>
+                            {#each (cq.data ?? []).filter((c) => !sessionConcernIds.has(c.id)) as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
+                        </select>
+                        <button onclick={addConcern} disabled={!addCid}>Add</button>
+                    </div>
+                {/if}
+            </section>
+        </div>
+    </div>
+
+    <Dialog bind:open={priceOpen} title="Change price" width={340} onsubmit={savePrice} busy={pa.busy} error={pa.error}>
+        <label class="field">Final price<input class="num" inputmode="decimal" bind:value={price} required /></label>
+        <div class="faint">Base rate {peso(s.basePrice)}</div>
+    </Dialog>
+
+    <Dialog
+        bind:open={voidOpen}
+        title={voided ? "Unvoid session" : "Void session"}
+        width={400}
+        onsubmit={doVoid}
+        submitText={voided ? "Unvoid" : "Void"}
+        danger={!voided}
+        busy={va.busy}
+        error={va.error}
+    >
+        <div class="muted">{voided ? "The session counts toward sales again." : "A voided session stops counting toward sales. It can be unvoided later."}</div>
+        <label class="field"><span class="req">Reason</span><textarea bind:value={voidReason} required></textarea></label>
+    </Dialog>
+
+    <ProductSale bind:open={saleOpen} sessionId={id} onsaved={refresh} />
+{/if}
+
+<style>
+    .cols {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+    }
+    .side {
+        width: 320px;
+        flex: none;
+    }
+    .kv {
+        display: grid;
+        grid-template-columns: 110px 1fr;
+        gap: 6px 10px;
+        margin: 0;
+    }
+    .kv dt {
+        color: var(--text-2);
+    }
+    .kv dd {
+        margin: 0;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .pre {
+        white-space: pre-wrap;
+    }
+    .reason {
+        margin-bottom: 10px;
+    }
+    .small {
+        font-size: 12px;
+    }
+    @media (max-width: 900px) {
+        .cols {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .side {
+            width: auto;
+        }
+    }
+</style>

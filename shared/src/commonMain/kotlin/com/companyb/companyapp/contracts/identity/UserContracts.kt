@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `shared/AGENTS.md`). Never persisted, never sent.
+ * `docs/architecture.md`). Never persisted, never sent.
  */
 @Serializable
 enum class UserStatus { ACTIVE, INACTIVE, UNKNOWN }

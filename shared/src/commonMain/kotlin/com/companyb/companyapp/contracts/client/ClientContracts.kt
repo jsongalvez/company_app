@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `shared/AGENTS.md`), not a third gender: it marks a server value this client predates.
+ * `docs/architecture.md`), not a third gender: it marks a server value this client predates.
  * Never persisted, never sent.
  */
 @Serializable

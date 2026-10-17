@@ -63,6 +63,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
 import io.javalin.http.HttpStatus
 import io.javalin.http.UnauthorizedResponse
+import io.javalin.http.staticfiles.Location
 import io.javalin.openapi.plugin.OpenApiPlugin
 import io.javalin.openapi.plugin.swagger.SwaggerPlugin
 
@@ -83,6 +84,7 @@ fun initializeJavalin(config: AppConfig) {
     Javalin
         .create { cfg ->
             configureJavalin(cfg)
+            config.webDir?.let { configureWebApp(cfg, it) }
         }.start(config.appPort)
     logger.info { "[INITIALIZE-JAVALIN] Application started" }
 }
@@ -97,6 +99,14 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     registerExceptionHandlers(config)
     registerServerErrorHandler(config)
     registerAllRoutes(config)
+}
+
+private fun configureWebApp(
+    config: io.javalin.config.JavalinConfig,
+    webDir: String,
+) {
+    config.staticFiles.add(webDir, Location.EXTERNAL)
+    config.spaRoot.addFile("/", "$webDir/index.html", Location.EXTERNAL)
 }
 
 private fun configurePlugins(config: io.javalin.config.JavalinConfig) {

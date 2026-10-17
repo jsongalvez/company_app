@@ -1,0 +1,439 @@
+<script lang="ts">
+    import { api, ok, uuid, type S } from "../api/client";
+    import { app, can, branchName } from "../lib/app.svelte";
+    import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
+    import { load } from "../lib/data";
+    import { Action, act } from "../lib/act.svelte";
+    import { route, go } from "../lib/router.svelte";
+    import { peso, label, day, dateTime, operationalDate, addDays, sum } from "../lib/format";
+    import { EXPENSE_CATEGORIES } from "../lib/rules";
+    import PageHead from "../components/PageHead.svelte";
+    import State from "../components/State.svelte";
+    import Dialog from "../components/Dialog.svelte";
+
+    const bid = $derived(app.branchId);
+    const date = $derived(route.current.query.get("date") ?? operationalDate());
+    const isToday = $derived(date === operationalDate());
+
+    // Resolve the branch day for the chosen date.
+    const dayQ = new Query<S["RemittanceDayPickerEntryResponse"] | null>();
+    $effect(() => {
+        const b = bid,
+            d = date;
+        dayQ.load(`bday:${b}:${d}`, async () => {
+            if (d === operationalDate() && app.today) return { id: app.today.branchDayId, date: d, status: app.today.status };
+            const r = await ok(api.GET("/api/branches/{branchId}/remittance-days", { params: { path: { branchId: b }, query: { from: d, to: d } } }));
+            return r[0] ?? null;
+        });
+    });
+    const dayId = $derived(dayQ.data?.id ?? "");
+    const status = $derived(dayQ.data?.status);
+
+    const exp = new Query<S["ExpenseResponse"][]>();
+    const comp = new Query<S["CompensationResponse"][]>();
+    const allow = new Query<S["AllowanceResponse"][]>();
+    const split = new Query<S["CommissionSplitResponse"][]>();
+    const summary = new Query<S["DailySalesSummaryResponse"]>();
+    $effect(() => {
+        if (!dayId) return;
+        for (const [q, l] of [
+            [exp, load.expenses(dayId)],
+            [comp, load.compensations(dayId)],
+            [allow, load.allowances(dayId)],
+            [split, load.commissionSplits(dayId)],
+        ] as const)
+            (q as Query<unknown>).load(l.key, l.fn as () => Promise<unknown>);
+        const s = load.dailySummary(bid, date);
+        summary.load(s.key, s.fn);
+    });
+
+    // Names for user ids.
+    let people = $state<{ id: string; name: string }[]>([]);
+    const nameOf = $derived(Object.fromEntries(people.map((p) => [p.id, p.name])));
+    $effect(() => {
+        if (!dayId) return;
+        const du = load.dayUsers(dayId);
+        const mem = load.members(bid);
+        Promise.all([fetchCached(du.key, du.fn).catch(() => []), fetchCached(mem.key, mem.fn).catch(() => [])]).then(([a, b]) => {
+            const m = new Map<string, string>();
+            for (const u of a as S["BranchDayUserResponse"][]) m.set(u.userId, u.displayName);
+            for (const u of b as S["BranchMemberResponse"][]) if (!m.has(u.id)) m.set(u.id, u.displayName);
+            people = [...m].map(([id, name]) => ({ id, name })).sort((x, y) => x.name.localeCompare(y.name));
+        });
+    });
+
+    const closed = $derived(status !== undefined && status !== "OPEN");
+    const edit = $derived(closed ? can("EDIT_PAST_DAY") : can("EDIT_BRANCH_DATA"));
+    const pay = $derived(can("ASSIGN_COMPENSATION"));
+    let reason = $state("");
+    const r = () => reason.trim() || null;
+
+    function refresh() {
+        invalidate(`exp:${dayId}`, `comp:${dayId}`, `allow:${dayId}`, `split:${dayId}`, `dsum:${bid}:${date}`);
+        exp.refresh();
+        comp.refresh();
+        allow.refresh();
+        split.refresh();
+        summary.refresh();
+    }
+
+    // ---- Expense dialog ----
+    const ea = new Action();
+    let eOpen = $state(false);
+    let eEdit = $state<S["ExpenseResponse"] | null>(null);
+    let eAmount = $state("");
+    let eCat = $state<(typeof EXPENSE_CATEGORIES)[number]>("PANTRY");
+    let eNotes = $state("");
+    function openExpense(e: S["ExpenseResponse"] | null) {
+        eEdit = e;
+        eAmount = e?.amount ?? "";
+        eCat = (e?.category as typeof eCat) ?? "PANTRY";
+        eNotes = e?.notes ?? "";
+        ea.reset();
+        eOpen = true;
+    }
+    async function saveExpense() {
+        const body = { amount: eAmount.trim(), category: eCat, notes: eNotes.trim() || null, reason: r() };
+        const done = await ea.run(
+            () =>
+                eEdit
+                    ? ok(
+                          api.PATCH("/api/expenses/{expenseId}", {
+                              params: { path: { expenseId: eEdit!.id } },
+                              body: { ...body, expectedVersion: eEdit!.version },
+                          }),
+                      )
+                    : ok(api.POST("/api/expenses", { body: { ...body, id: uuid(), branchDayId: dayId } })),
+            eEdit ? "Expense updated" : "Expense added",
+        );
+        if (done) {
+            eOpen = false;
+            refresh();
+        }
+    }
+    async function deleteExpense(e: S["ExpenseResponse"]) {
+        const why = prompt("Reason for deleting this expense (required)", reason);
+        if (!why?.trim()) return;
+        if (
+            await act(
+                () =>
+                    ok(
+                        api.DELETE("/api/expenses/{expenseId}", {
+                            params: { path: { expenseId: e.id } },
+                            body: { reason: why.trim(), expectedVersion: e.version },
+                        }),
+                    ),
+                "Expense deleted",
+            )
+        )
+            refresh();
+    }
+    async function restoreExpense(e: S["ExpenseResponse"]) {
+        if (
+            await act(
+                () => ok(api.POST("/api/expenses/{expenseId}/restore", { params: { path: { expenseId: e.id } }, body: { reason: r() } })),
+                "Expense restored",
+            )
+        )
+            refresh();
+    }
+    let showDeleted = $state(false);
+    const expenses = $derived((exp.data ?? []).filter((e) => showDeleted || !e.deletedAt));
+    const liveExpenses = $derived((exp.data ?? []).filter((e) => !e.deletedAt));
+
+    // ---- Compensation dialog ----
+    const ca = new Action();
+    let cOpen = $state(false);
+    let cEdit = $state<S["CompensationResponse"] | null>(null);
+    let cUser = $state("");
+    let cAmount = $state("");
+    let cNote = $state("");
+    function openComp(c: S["CompensationResponse"] | null) {
+        cEdit = c;
+        cUser = c?.userId ?? "";
+        cAmount = c?.amount ?? "";
+        cNote = c?.note ?? "";
+        ca.reset();
+        cOpen = true;
+    }
+    async function saveComp() {
+        const done = await ca.run(
+            () =>
+                cEdit
+                    ? ok(
+                          api.PATCH("/api/compensation/{compensationId}", {
+                              params: { path: { compensationId: cEdit!.id } },
+                              body: { amount: cAmount.trim(), expectedVersion: cEdit!.version, note: cNote.trim() || null, reason: r() },
+                          }),
+                      )
+                    : ok(
+                          api.POST("/api/compensation", {
+                              body: {
+                                  id: uuid(),
+                                  workBranchDayId: dayId,
+                                  payingBranchDayId: dayId,
+                                  userId: cUser,
+                                  amount: cAmount.trim(),
+                                  note: cNote.trim() || null,
+                                  reason: r(),
+                              },
+                          }),
+                      ),
+            "Compensation saved",
+        );
+        if (done) {
+            cOpen = false;
+            refresh();
+        }
+    }
+
+    // ---- Allowance dialog ----
+    const aa = new Action();
+    let aOpen = $state(false);
+    let aUser = $state("");
+    let aAmount = $state("");
+    async function saveAllowance() {
+        if (
+            await aa.run(
+                () => ok(api.POST("/api/allowances", { body: { id: uuid(), branchDayId: dayId, userId: aUser, amount: aAmount.trim(), reason: r() } })),
+                "Allowance added",
+            )
+        ) {
+            aOpen = false;
+            refresh();
+        }
+    }
+
+    async function recalc() {
+        if (await act(() => ok(api.POST("/api/commission/recalculate/{branchDayId}", { params: { path: { branchDayId: dayId } } })), "Commission recalculated"))
+            refresh();
+    }
+
+    function setDate(d: string) {
+        go("/finance", { date: d === operationalDate() ? null : d });
+    }
+</script>
+
+<PageHead title="Expenses & pay" sub={branchName(bid)}>
+    <button onclick={() => setDate(addDays(date, -1))} aria-label="Previous day">◀</button>
+    <input type="date" value={date} max={operationalDate()} onchange={(e) => setDate(e.currentTarget.value || operationalDate())} />
+    <button onclick={() => setDate(addDays(date, 1))} disabled={isToday} aria-label="Next day">▶</button>
+    {#if !isToday}<button onclick={() => setDate(operationalDate())}>Today</button>{/if}
+</PageHead>
+
+<State q={dayQ} />
+{#if dayQ.data === null}
+    <div class="notice">No branch day on {day(date)}: nothing was recorded that day.</div>
+{:else if dayQ.data}
+    <div class="row mb wrap">
+        <b>{day(date)}</b>
+        <span class="mark {status === 'OPEN' ? 'ok' : status === 'REMITTED' ? 'info' : 'plain'}">{label(status)}</span>
+        {#if closed}
+            <span class="muted">{edit ? "Coordinator edit." : "Read only."}</span>
+            {#if edit}<input
+                    class="grow reason"
+                    bind:value={reason}
+                    placeholder={status === "REMITTED" ? "Reason for changes (required)" : "Reason for changes"}
+                />{/if}
+        {/if}
+    </div>
+
+    {#if summary.data}
+        <div class="stats mb">
+            <div>
+                <div class="k">Session sales</div>
+                <div class="v">{peso(summary.data.grossIncome)}</div>
+            </div>
+            <div>
+                <div class="k">Compensation</div>
+                <div class="v">{peso(summary.data.totalCompensation)}</div>
+            </div>
+            <div>
+                <div class="k">Expenses</div>
+                <div class="v">{peso(summary.data.totalExpenses)}</div>
+            </div>
+            <div>
+                <div class="k">Net</div>
+                <div class="v">{peso(summary.data.netIncome)}</div>
+            </div>
+            <div>
+                <div class="k">Product sales</div>
+                <div class="v">{peso(summary.data.totalProductSales)}</div>
+            </div>
+            <div>
+                <div class="k">Commission</div>
+                <div class="v">{peso(summary.data.totalCommission)}</div>
+            </div>
+        </div>
+    {/if}
+
+    <div class="cols">
+        <section class="panel">
+            <header>
+                <h2>Expenses</h2>
+                <span class="faint">{peso(sum(liveExpenses.map((e) => e.amount)))}</span>
+                <span class="spacer"></span>
+                <label class="check faint"><input type="checkbox" bind:checked={showDeleted} />Show deleted</label>
+                {#if edit}<button class="sm primary" onclick={() => openExpense(null)}>Add</button>{/if}
+            </header>
+            <State q={exp} empty={!!exp.data && expenses.length === 0} emptyText="No expenses." />
+            {#if expenses.length}
+                <table class="grid">
+                    <thead
+                        ><tr
+                            ><th>Category</th><th>Notes</th><th class="num">Amount</th>{#if edit}<th></th>{/if}</tr
+                        ></thead
+                    >
+                    <tbody>
+                        {#each expenses as e (e.id)}
+                            <tr class:struck={!!e.deletedAt} title={e.deletedAt ? `Deleted ${dateTime(e.deletedAt)}: ${e.deletedReason ?? ""}` : ""}>
+                                <td>{label(e.category)}</td>
+                                <td class="wrap muted">{e.notes ?? ""}</td>
+                                <td class="num">{peso(e.amount)}</td>
+                                {#if edit}
+                                    <td class="right nowrap">
+                                        {#if e.deletedAt}
+                                            <button class="sm" onclick={() => restoreExpense(e)}>Restore</button>
+                                        {:else}
+                                            <button class="sm" onclick={() => openExpense(e)}>Edit</button>
+                                            <button class="sm" onclick={() => deleteExpense(e)} aria-label="Delete">×</button>
+                                        {/if}
+                                    </td>
+                                {/if}
+                            </tr>
+                        {/each}
+                    </tbody>
+                </table>
+            {/if}
+        </section>
+
+        <section class="panel">
+            <header>
+                <h2>Compensation</h2>
+                <span class="faint">{peso(sum((comp.data ?? []).map((c) => c.amount)))}</span>
+                <span class="spacer"></span>
+                {#if pay}<button class="sm primary" onclick={() => openComp(null)}>Add</button>{/if}
+            </header>
+            <State q={comp} empty={!!comp.data && comp.data.length === 0} emptyText="No compensation assigned." />
+            {#if comp.data?.length}
+                <table class="grid">
+                    <thead
+                        ><tr
+                            ><th>Person</th><th>Note</th><th class="num">Amount</th>{#if pay}<th></th>{/if}</tr
+                        ></thead
+                    >
+                    <tbody>
+                        {#each comp.data as c (c.id)}
+                            <tr>
+                                <td
+                                    >{c.userName ?? nameOf[c.userId] ?? ""}{#if c.workBranchDayId !== c.payingBranchDayId}<span class="mark plain">Relief</span
+                                        >{/if}</td
+                                >
+                                <td class="wrap muted">{c.note ?? ""}</td>
+                                <td class="num">{peso(c.amount)}</td>
+                                {#if pay}<td class="right"><button class="sm" onclick={() => openComp(c)}>Edit</button></td>{/if}
+                            </tr>
+                        {/each}
+                    </tbody>
+                </table>
+            {/if}
+        </section>
+
+        <section class="panel">
+            <header>
+                <h2>Allowances</h2>
+                <span class="faint">{peso(sum((allow.data ?? []).map((a) => a.amount)))}</span>
+                <span class="spacer"></span>
+                {#if pay}<button class="sm primary" onclick={() => ((aUser = ""), (aAmount = ""), aa.reset(), (aOpen = true))}>Add</button>{/if}
+            </header>
+            <State q={allow} empty={!!allow.data && allow.data.length === 0} emptyText="No allowances." />
+            {#if allow.data?.length}
+                <table class="grid">
+                    <tbody>
+                        {#each allow.data as a (a.id)}
+                            <tr><td>{nameOf[a.userId] ?? ""}</td><td class="num">{peso(a.amount)}</td></tr>
+                        {/each}
+                    </tbody>
+                </table>
+            {/if}
+        </section>
+
+        <section class="panel">
+            <header>
+                <h2>Product commission split</h2>
+                <span class="spacer"></span>
+                {#if edit}<button class="sm" onclick={recalc}>Recalculate</button>{/if}
+            </header>
+            <State q={split} empty={!!split.data && split.data.length === 0} emptyText="No commission to split." />
+            {#if split.data?.length}
+                <table class="grid">
+                    <tbody>
+                        {#each split.data as s (s.id)}
+                            <tr><td>{nameOf[s.userId] ?? ""}</td><td class="num">{peso(s.amount)}</td></tr>
+                        {/each}
+                    </tbody>
+                </table>
+            {/if}
+        </section>
+    </div>
+{/if}
+
+<Dialog bind:open={eOpen} title={eEdit ? "Edit expense" : "Add expense"} width={400} onsubmit={saveExpense} busy={ea.busy} error={ea.error}>
+    <div class="form-grid">
+        <label class="field"
+            >Category
+            <select bind:value={eCat}>
+                {#each EXPENSE_CATEGORIES as c (c)}<option value={c}>{label(c)}</option>{/each}
+            </select>
+        </label>
+        <label class="field"><span class="req">Amount</span><input class="num" inputmode="decimal" bind:value={eAmount} required /></label>
+        <label class="field wide">Notes<input bind:value={eNotes} /></label>
+    </div>
+</Dialog>
+
+<Dialog bind:open={cOpen} title={cEdit ? "Edit compensation" : "Add compensation"} width={400} onsubmit={saveComp} busy={ca.busy} error={ca.error}>
+    <div class="form-grid">
+        <label class="field wide"
+            ><span class="req">Person</span>
+            <select bind:value={cUser} required disabled={!!cEdit}>
+                <option value="" disabled>Select</option>
+                {#each people as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
+            </select>
+        </label>
+        <label class="field"><span class="req">Amount</span><input class="num" inputmode="decimal" bind:value={cAmount} required /></label>
+        <label class="field wide">Note<input bind:value={cNote} /></label>
+    </div>
+</Dialog>
+
+<Dialog bind:open={aOpen} title="Add allowance" width={400} onsubmit={saveAllowance} busy={aa.busy} error={aa.error}>
+    <div class="form-grid">
+        <label class="field wide"
+            ><span class="req">Person</span>
+            <select bind:value={aUser} required>
+                <option value="" disabled>Select</option>
+                {#each people as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
+            </select>
+        </label>
+        <label class="field"><span class="req">Amount</span><input class="num" inputmode="decimal" bind:value={aAmount} required /></label>
+    </div>
+</Dialog>
+
+<style>
+    .mb {
+        margin-bottom: 10px;
+    }
+    .reason {
+        max-width: 420px;
+    }
+    .cols {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+        gap: 12px;
+        align-items: start;
+    }
+    @media (max-width: 760px) {
+        .cols {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>

@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `shared/AGENTS.md`): old clients decode newer server values as UNKNOWN instead of failing
+ * `docs/architecture.md`): old clients decode newer server values as UNKNOWN instead of failing
  * the whole response. Never persisted, never sent.
  */
 @Serializable
@@ -14,21 +14,21 @@ enum class RemittanceType { SESSION, PRODUCT, UNKNOWN }
 
 /**
  * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `shared/AGENTS.md`). Never persisted, never sent.
+ * `docs/architecture.md`). Never persisted, never sent.
  */
 @Serializable
 enum class RemittanceMethod { BANK_TRANSFER, HANDED_TO_ACCOUNTANT, UNKNOWN }
 
 /**
  * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `shared/AGENTS.md`). Never persisted, never sent.
+ * `docs/architecture.md`). Never persisted, never sent.
  */
 @Serializable
 enum class RemittanceStatus { DRAFT, SUBMITTED, UNKNOWN }
 
 /**
  * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `shared/AGENTS.md`). Never persisted, never sent.
+ * `docs/architecture.md`). Never persisted, never sent.
  */
 @Serializable
 enum class RemittanceLineType { SESSION, PRODUCT_SALE, UNKNOWN }

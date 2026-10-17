@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `shared/AGENTS.md`): old clients decode newer server values (e.g. a future FUEL category)
+ * `docs/architecture.md`): old clients decode newer server values (e.g. a future FUEL category)
  * as UNKNOWN and degrade the row instead of failing the whole response.
  * Never persisted, never sent.
  */

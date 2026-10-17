@@ -26,12 +26,11 @@ declaration fails with no write-baseline path. The analyzer's former
 
 ## Scope
 
-Candidates (reported when dead): `shared/commonMain`, `composeApp/commonMain`,
-`composeApp/desktopMain`, `backend/main` — non-private, non-local Kotlin
+Candidates (reported when dead): `shared/commonMain`, `backend/main` — non-private, non-local Kotlin
 functions, properties, classes, objects, typealiases, secondary constructors.
 
 Consumers (references counted, never reported): `backend/test`, `backend/dev`,
-`composeApp/commonTest`, `composeApp/desktopTest`, `shared/commonTest`.
+`shared/commonTest`.
 
 `androidMain`/`iosMain` are excluded: no Android SDK is available locally and
 analysis inputs must stay identical between local runs and CI (determinism).

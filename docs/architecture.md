@@ -14,7 +14,7 @@ Internal operations app for a multi-branch physical therapy practice. Practition
 
 All branches share one cloud-hosted backend and one database. Each branch maintains its own inventory stock.
 
-**Platforms:** Android + iOS + Desktop (Windows planned)
+**Platforms:** Web (desktop and phone browsers)
 **Constraints:** Small team, free tools/hosting, clarity over speed.
 
 ---
@@ -22,7 +22,7 @@ All branches share one cloud-hosted backend and one database. Each branch mainta
 ## 3. High-Level Architecture
 
 ```
-Clients (Android + iOS + Desktop)
+Web app (browser: desktop and phone)
         ↓
     HTTPS (TLS)
         ↓
@@ -31,7 +31,7 @@ Kotlin Backend (Javalin) — hosted on Oracle Cloud (singapore west)
 PostgreSQL Database
 ```
 
-Single language (Kotlin) across mobile, shared logic, and backend. All branches connect to a single cloud-hosted backend. There is no per-branch server.
+Kotlin backend and shared contracts; the web app (Svelte + TypeScript) is served by the same backend and typed from its OpenAPI spec. All branches connect to a single cloud-hosted backend. There is no per-branch server.
 
 ---
 
@@ -39,23 +39,22 @@ Single language (Kotlin) across mobile, shared logic, and backend. All branches 
 
 | Layer | Technology |
 |-------|-----------|
-| Mobile/Desktop UI | Kotlin Multiplatform + Compose Multiplatform |
+| Web UI | Svelte 5, Vite, TypeScript (types generated from the OpenAPI spec) |
 | Backend | Kotlin (JVM), Javalin 7.2.2, HikariCP, Exposed DSL, kotlin-logging |
 | Database | PostgreSQL 18, Flyway |
 | Infrastructure | Docker, Docker Compose, Oracle Cloud Free Tier (singapore west), Coolify |
 | Quality | Detekt, Ktlint |
 | Testing | JavalinTest, k6, JMH (manual diagnostics) |
 
-**Non-goals:** No Node/Express, no Spring Boot, no paid tooling, no web dashboard.
+**Non-goals:** No Node/Express server, no Spring Boot, no paid tooling, no native mobile/desktop apps (the web app covers phone and desktop).
 
 ---
 
 ## 5. Hosting & Deployment
 
-Single cloud backend + single database serving all branches over HTTPS. The
-operational authority is [`docs/vps-migration-runbook.md`](vps-migration-runbook.md),
-executed through `scripts/vps-migration-wizard.sh` — it owns provider sizing,
-SSH hardening, firewall layers, and deploy stages. Standing shape only:
+Single cloud backend + single database serving all branches over HTTPS.
+Coolify builds `backend/Dockerfile` (backend plus the built web app, served from
+one port via `WEB_DIR`). Standing shape:
 Oracle Cloud free tier, Coolify-managed Postgres on the same VM, TLS via
 Let's Encrypt, tailnet-only admin SSH. Branch clients use the public HTTPS
 endpoint; no VPN.
@@ -66,8 +65,7 @@ endpoint; no VPN.
 
 ```
 company-app/
-├── composeApp/
-│   └── src/commonMain/       # Shared ViewModels, Compose UI, expect/actual Log
+├── web/                      # Svelte web app (Vite); src/api/schema.d.ts generated from OpenAPI
 ├── shared/
 │   └── src/commonMain/       # Domain types, DTOs, validation, route constants
 ├── backend/
@@ -100,7 +98,6 @@ company-app/
 │   ├── business-requirements.md  # Intended behavior and domain rules
 │   ├── engines.md            # Commission/delegate/remittance pseudocode
 │   ├── research/             # Accepted research snapshots (not policy)
-│   ├── agents/               # Agent meta-docs (issue tracker, triage, domain)
 │   ├── adr/                  # Architecture decision records
 │   └── specs/                # Feature specs
 ├── tools/performance/k6/     # HTTP-level load testing
@@ -117,14 +114,12 @@ classification.
 ### Module Dependencies
 
 ```
-composeApp ──depends on──> shared
-backend ─────depends on──> shared
-iosApp ──────imports────> shared (as KMP framework)
+backend ──depends on──> shared
+web ──────typed by────> backend OpenAPI spec (npm run gen:api)
 ```
 
-- `shared` targets: JVM, Android, iOS
+- `shared` targets: JVM only
 - `backend` is JVM-only (Javalin, JDBC)
-- `composeApp` targets Android + iOS + Desktop with Compose
 
 ---
 
@@ -214,8 +209,7 @@ feature-local policy helpers (`SessionAuthz`, `ExpenseAuthz`, `RemittanceAuthz` 
 layer retains day-state assertions (`BranchDayService.checkBranchDayEditable`),
 not capability checks. Documented exceptions keep service/bearer-level enforcement:
 user assignment/slot self-service rules (#134), the bearer-only session-detail read
-(#152), and the universal post-clock-in dashboard read (backend `AGENTS.md`
-"Sessions"). Day-scoped relief edits additionally accept a `BRANCH_DAY` grant for
+(#152), and the universal post-clock-in dashboard read. Day-scoped relief edits additionally accept a `BRANCH_DAY` grant for
 the day (the #157 OR shape; GLOBAL never satisfies those gates); single-day reads
 gained day legs under the same strictness (#158).
 
@@ -371,8 +365,7 @@ Edits to REMITTED records require a `reason` in the request body. The service la
 
 ## 12. Audit Logging
 
-Command-owned per ADR-0024 — binding rules live in `backend/AGENTS.md`
-("Audit logging"). Architecture-level facts kept here: every INSERT, UPDATE,
+Command-owned per ADR-0024. Architecture-level facts kept here: every INSERT, UPDATE,
 and soft-DELETE to a registered table gets an audit entry inside the
 command's transaction; the audited-table registry (`AuditLogTableRegistry`,
 served live at `GET /api/audit-log/tables`) is authoritative — a missing
@@ -406,7 +399,7 @@ in [`docs/engines.md`](engines.md)).
 
 Type ladder, pricing, concerns, and void policy live in
 [`docs/business-requirements.md`](business-requirements.md) (Sessions);
-concurrency and gate mechanics live in `backend/AGENTS.md` ("Sessions"); the
+concurrency and gate mechanics live in `session/` code; the
 owner is `session/` ([router](deep-modules.md)). Architectural facts kept
 here: type is a creation-time snapshot (later voids never rewrite earlier
 types); one PENDING session per client globally (service pre-check + partial
@@ -450,6 +443,14 @@ mismatch; all else last-write-wins); all timestamps server-stamped (UTC
 `TIMESTAMPTZ`); the 04:00 Asia/Manila day boundary evaluates lazily per
 request, never by cron.
 
+### Wire enum evolution policy
+
+Wire enums in `shared` carry an `UNKNOWN` forward-compat sentinel (#876): a
+client that predates a new server value decodes it as `UNKNOWN` instead of
+failing the whole response, and degrades that row (read-only, grants nothing).
+`UNKNOWN` is never persisted and never sent; the backend rejects it on input.
+Add new values at the end; never rename or remove one that may be stored.
+
 ---
 
 ## 18. Environment Configuration
@@ -472,9 +473,7 @@ behind the explicit `PASSWORD_RESET_DEV_RELAY=true` opt-in — never enable it w
 
 ## 19. Developer Setup
 
-Task routers own commands: root `AGENTS.md` (setup, Docker, validation,
-formatting, run) and `backend/AGENTS.md` (targeted validation table). No
-duplicate command ledger is kept here.
+Commands live in the root `README.md`. No duplicate command ledger is kept here.
 
 ---
 

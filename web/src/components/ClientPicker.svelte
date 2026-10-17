@@ -1,0 +1,80 @@
+<script lang="ts">
+    import type { S } from "../api/client";
+    import { fetchCached } from "../lib/cache.svelte";
+    import { load } from "../lib/data";
+    import { clientName } from "../lib/format";
+
+    let { value = $bindable(null), onnew }: { value?: S["ClientResponse"] | null; onnew?: (q: string) => void } = $props();
+
+    let q = $state("");
+    let results = $state<S["ClientResponse"][]>([]);
+    let searching = $state(false);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    function onInput() {
+        clearTimeout(timer);
+        const term = q.trim();
+        if (term.length < 2) {
+            results = [];
+            return;
+        }
+        timer = setTimeout(async () => {
+            searching = true;
+            const l = load.clients(term);
+            try {
+                const r = await fetchCached(l.key, l.fn);
+                if (q.trim() === term) results = r;
+            } finally {
+                searching = false;
+            }
+        }, 180);
+    }
+</script>
+
+{#if value}
+    <div class="picked row">
+        <b class="grow ellipsis">{clientName(value)}</b>
+        <span class="muted">{value.gender === "UNKNOWN" ? "" : value.gender} {value.age}</span>
+        <span class="muted">{value.phoneNumber ?? ""}</span>
+        <button type="button" class="sm" onclick={() => (value = null)}>Change</button>
+    </div>
+{:else}
+    <div class="col picker">
+        <div class="row">
+            <input class="grow" placeholder="Search by name or phone (2+ letters)" bind:value={q} oninput={onInput} />
+            {#if onnew}<button type="button" onclick={() => onnew?.(q.trim())}>New client</button>{/if}
+        </div>
+        {#if results.length}
+            <div class="table-wrap list">
+                <table class="grid">
+                    <tbody>
+                        {#each results as c (c.id)}
+                            <tr class="click" onclick={() => (value = c)}>
+                                <td class="ellipsis">{clientName(c)}</td>
+                                <td>{c.gender === "UNKNOWN" ? "" : c.gender}</td>
+                                <td class="num">{c.age}</td>
+                                <td class="muted">{c.phoneNumber ?? ""}</td>
+                                <td class="num faint">{c.sessionCount} visits</td>
+                            </tr>
+                        {/each}
+                    </tbody>
+                </table>
+            </div>
+        {:else if q.trim().length >= 2 && !searching}
+            <div class="faint">
+                No match. {#if onnew}Use <b>New client</b>.{/if}
+            </div>
+        {/if}
+    </div>
+{/if}
+
+<style>
+    .picked {
+        border: 1px solid var(--accent);
+        background: var(--accent-soft);
+        padding: 4px 6px;
+    }
+    .list {
+        max-height: 220px;
+    }
+</style>

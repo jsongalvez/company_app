@@ -5,10 +5,6 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
 plugins {
     // this is necessary to avoid the plugins to be loaded multiple times
     // in each subproject's classloader
-    alias(libs.plugins.androidApplication) apply false
-    alias(libs.plugins.androidLibrary) apply false
-    alias(libs.plugins.composeMultiplatform) apply false
-    alias(libs.plugins.composeCompiler) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
 
     alias(libs.plugins.ktlint)
@@ -81,16 +77,14 @@ dependencies {
 }
 
 // Union of compile+test classpaths, wired lazily (child configurations do
-// not exist while the root script evaluates). Library receivers (Compose,
-// Ktor, coroutines) must resolve or whole call chains go blind; project
+// not exist while the root script evaluates). Library receivers (Ktor,
+// coroutines) must resolve or whole call chains go blind; project
 // build outputs are excluded so cross-module references resolve to sources,
 // never to binaries.
 val deadCodeTargetCoordinates =
     listOf(
         ":backend" to "compileClasspath",
         ":backend" to "testCompileClasspath",
-        ":composeApp" to "desktopMainCompileClasspath",
-        ":composeApp" to "desktopTestCompileClasspath",
         ":shared" to "jvmMainCompileClasspath",
         ":shared" to "jvmTestCompileClasspath",
     )
@@ -121,13 +115,9 @@ tasks.register<JavaExec>("deadCodeCheck") {
     args(
         listOf(
             "--candidate", "shared/src/commonMain",
-            "--candidate", "composeApp/src/commonMain",
-            "--candidate", "composeApp/src/desktopMain",
             "--candidate", "backend/src/main",
             "--consumer", "backend/src/test",
             "--consumer", "backend/src/dev",
-            "--consumer", "composeApp/src/commonTest",
-            "--consumer", "composeApp/src/desktopTest",
             "--consumer", "shared/src/commonTest",
             "--entry-points", "config/deadcode/entry-points.txt",
             "--known-unanalyzed", "config/deadcode/known-unanalyzed.txt",

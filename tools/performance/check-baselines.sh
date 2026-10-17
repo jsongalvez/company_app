@@ -114,7 +114,7 @@ while IFS=' ' read -r name current_score; do
     # If diff_pct is negative, it's an improvement
     THRESHOLD=20
     # Benchmarks at nanosecond scale (high sensitivity to system noise) get relaxed threshold.
-    # AGENTS.md decision tree doesn't cover this scenario — it's not a regression, not a DB
+    # The baseline decision tree doesn't cover this scenario — it's not a regression, not a DB
     # bottleneck, and not a new feature — so the spirit is followed, not the letter.
     # Extend this array when adding similarly noisy benchmarks.
     NOISY_BENCHMARKS=("BranchDayBenchmark.*")

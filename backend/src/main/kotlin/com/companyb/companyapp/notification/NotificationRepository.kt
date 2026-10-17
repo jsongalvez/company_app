@@ -219,7 +219,7 @@ internal object NotificationRepository {
             .toInt()
     }
 
-    // Ownership in the WHERE clause (backend AGENTS.md parent-child scoping rule): a caller can
+    // Ownership in the WHERE clause (parent-child scoping rule): a caller can
     // never mutate another user's row — an update scoped to caller + id either hits the caller's
     // own row or affects nothing, so the 404-on-foreign-row case leaves the row untouched.
     fun markReadInTransaction(

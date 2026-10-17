@@ -1,29 +1,17 @@
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidLibrary)
     alias(libs.plugins.kotlin.serialization)
 }
 
 kotlin {
     jvm()
-    androidTarget()
-    iosArm64()
-    iosSimulatorArm64()
 
     sourceSets {
-        androidMain.dependencies {
-        }
         commonMain.dependencies {
-            // Serialization
             implementation(libs.kotlinx.serialization.json)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
     }
-}
-
-android {
-    namespace = "com.companyb.companyapp.shared"
-    compileSdk = libs.versions.android.compileSdk.get().toInt()
 }

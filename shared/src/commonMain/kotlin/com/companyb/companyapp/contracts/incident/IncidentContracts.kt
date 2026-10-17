@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 /** #475 — origin of a triage-ready incident packet; the packet shape is identical either way.
  *
  * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `shared/AGENTS.md`). Never persisted, never sent.
+ * `docs/architecture.md`). Never persisted, never sent.
  */
 @Serializable
 enum class IncidentSource { USER_REPORT, AUTO_5XX, UNKNOWN }

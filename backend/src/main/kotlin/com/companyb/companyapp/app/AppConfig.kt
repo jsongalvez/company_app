@@ -19,6 +19,8 @@ data class AppConfig(
     val smtp: SmtpConfig? = null,
     val passwordResetDevRelay: Boolean = false,
     val githubIssue: GithubIssueConfig? = null,
+    // Built web app (web/dist). When set, served same-origin with SPA fallback.
+    val webDir: String? = null,
 ) {
     companion object {
         fun parse(): AppConfig {
@@ -64,6 +66,7 @@ data class AppConfig(
                             GithubIssueConfig.REPOSITORY_ENV to env[GithubIssueConfig.REPOSITORY_ENV],
                         ),
                     ),
+                webDir = env["WEB_DIR"]?.takeIf { it.isNotBlank() },
             )
         }
     }

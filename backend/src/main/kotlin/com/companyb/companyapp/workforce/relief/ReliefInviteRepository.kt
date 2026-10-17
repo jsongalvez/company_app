@@ -59,7 +59,7 @@ internal object ReliefInviteRepository {
                     it[ReliefInviteTable.invitedBy] = invitedBy
                     it[ReliefInviteTable.invitee] = invitee
                     // insertIgnore does not emit DEFAULT expressions — set both
-                    // explicitly (the AGENTS.md insertIgnore convention).
+                    // explicitly (the insertIgnore convention).
                     it[ReliefInviteTable.status] = ReliefInviteStatus.PENDING
                     it[ReliefInviteTable.createdAt] = CurrentTimestampWithTimeZone
                 }.insertedCount

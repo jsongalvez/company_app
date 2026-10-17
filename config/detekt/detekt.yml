@@ -234,7 +234,7 @@ complexity:
   LongParameterList:
     # #535: design signal, not a mandate for arbitrary DTO wrappers — coherent
     # state-owner and declarative-UI signatures stay whole; bundle only on a real
-    # ownership decision (see composeApp/AGENTS.md "State ownership vs file splits").
+    # ownership decision.
     active: true
     functionThreshold: 6
     constructorThreshold: 7

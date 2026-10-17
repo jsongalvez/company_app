@@ -11,7 +11,7 @@ import kotlinx.serialization.Serializable
  * whose day is past renders "expired" — no cron).
  *
  * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `shared/AGENTS.md`). Never persisted, never sent.
+ * `docs/architecture.md`). Never persisted, never sent.
  */
 @Serializable
 enum class ReliefInviteStatus { PENDING, ACCEPTED, DECLINED, RETRACTED, REVOKED, UNKNOWN }

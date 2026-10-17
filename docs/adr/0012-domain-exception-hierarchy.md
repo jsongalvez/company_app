@@ -10,7 +10,7 @@ The service layer previously threw Javalin HTTP exceptions (`BadRequestResponse`
 if the app ever needed a different transport (gRPC, CLI, event-driven), the service layer could not
 be reused without modification.
 
-The documented standard (`backend/AGENTS.md`) explicitly prescribed this pattern:
+The documented standard at the time explicitly prescribed this pattern:
 > Signal HTTP errors by throwing Javalin's built-in response exceptions from the service layer.
 > There is no custom exception hierarchy.
 

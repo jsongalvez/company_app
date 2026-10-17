@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `shared/AGENTS.md`): old clients decode newer server values as UNKNOWN instead of failing
+ * `docs/architecture.md`): old clients decode newer server values as UNKNOWN instead of failing
  * the whole response. Never persisted, never sent.
  */
 @Serializable
@@ -12,7 +12,7 @@ enum class SessionType { REGULAR, SECOND_SESSION, SUBSEQUENT, PROVINCIAL_FIRST, 
 
 /**
  * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `shared/AGENTS.md`): old clients decode newer server values as UNKNOWN and degrade the row
+ * `docs/architecture.md`): old clients decode newer server values as UNKNOWN and degrade the row
  * instead of failing the whole response. Never persisted, never sent: the lifecycle helpers
  * below never observe it from backend data, and the backend rejects it on input.
  */

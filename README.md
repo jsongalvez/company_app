@@ -1,126 +1,45 @@
-## Developer Setup
+# CompanyApp
 
-### Start here
-- install ktlint plugin
-- install detekt plugin
-- install k6 (optional, manual load tests only): [download the binary](https://grafana.com/docs/k6/latest/set-up/install-k6/#download-the-k6-binary) and place it in your `PATH`
+Internal operations app for a multi-branch physical therapy practice: sessions,
+clients, stock, expenses and pay, remittance, relief duty. See
+[`CONTEXT.md`](CONTEXT.md) for the shared vocabulary.
 
-#### One-Time Detekt Configuration
-- Go to Settings → Tools → detekt → Configuration file(s)
-- Click `+` and select `detekt.yml` from project root
-- Click OK and restart IDE
+- `backend/` — Kotlin + Javalin API, PostgreSQL via Flyway. Also serves the web
+  app when `WEB_DIR` is set.
+- `shared/` — Kotlin contracts (DTOs, enums, rules) used by the backend.
+- `web/` — the web app: Svelte 5 + Vite, typed against the backend's OpenAPI spec.
+- `detekt-rules/` — custom code checks.
 
-### Setup docker
-start docker `docker compose -f docker/docker-compose.yml up -d`
-- stopping docker `docker compose -f docker/docker-compose.yml down -v`
+## Local development
 
-### Ktlint Commands
-
-```agsl
-./gradlew ktlintCheck
-./gradlew ktlintFormat
-```
-
-### OpenCode Web (Mobile Access)
-
-Share sessions between PC and phone:
+Needs JDK 21 (`mise install` picks it up from `.mise.toml`), Node 24+, and
+PostgreSQL 18 (`docker compose -f docker/docker-compose.yml up -d`, or any local
+server).
 
 ```bash
-source ~/.bashrc
-opencode web --hostname 0.0.0.0 --port 8080
+cp .env.example .env              # fill in DB, JWT and dev login values
+./gradlew :backend:run            # dev server: migrates, seeds dev logins, serves the API
+cd web && npm install && npm run dev   # http://localhost:5173, proxies the API to APP_PORT
 ```
 
-Then access from:
-- **PC browser**: `http://localhost:8080`
-- **Phone browser**: `http://192.168.1.8:8080` (same Wi-Fi)
-- **Tailscale**: use your Tailscale IP to restrict access to only your Tailnet
+Production-style: `cd web && npm run build`, set `WEB_DIR=web/dist`, and the
+backend serves the app and the API from one port.
 
-To attach a terminal TUI to the running server:
+After changing an API endpoint, regenerate the web app's types:
 
 ```bash
-opencode attach http://localhost:8080
+./gradlew :backend:exportOpenApiSpec && cd web && npm run gen:api
 ```
 
-## Contribution Workflow
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for branch, pull request, merge, and
-gate policy.
-
-## Wayfinder Loop (Automated Wayfinder Chain)
-
-Automates the wayfinder session chain: watches `.wayfinder/handoffs/` (gitignored runtime packets — never committed) for new `wayfinder-*-handoff.md` files, waits for the producing session and its child sessions to exit, then spawns one fresh zero-context opencode2 session that reads the packet and drives the next session per its instructions. A lock prevents duplicate daemons. Sessions are one-ticket-per-session, claim-first, per the handoff docs. Canonical implementation: `tools/wayfinder/` (`scripts/wayfinder-*.sh` are compat wrappers).
+## Checks
 
 ```bash
-# First start (seed with the latest handoff packet and spawn immediately)
-./tools/wayfinder/wayfinder-loop.sh --bootstrap <latest-handoff-packet>.md
-
-# Normal start / restart (resumes supervision of the running session)
-./tools/wayfinder/wayfinder-loop.sh
+./gradlew ktlintCheck detekt :backend:test :shared:jvmTest
+cd web && npm run check && npm run lint
 ```
 
-Run it in tmux so it survives your SSH sessions:
+## Deploy
 
-```bash
-tmux new-session -d -s wayfinder-loop './tools/wayfinder/wayfinder-loop.sh 2>&1 | tee -a .wayfinder-loop.tmux.log'
-```
-
-### Controls
-
-| Action | Command |
-|---|---|
-| Watch the daemon log live | `tmux attach -t wayfinder-loop` |
-| Session history | `cat .wayfinder-loop.log` |
-| Stop the chain (running agent session survives) | `tmux kill-session -t wayfinder-loop` |
-| First start (seed with the latest handoff, spawn immediately) | `./tools/wayfinder/wayfinder-loop.sh --bootstrap <latest-handoff-packet>.md` |
-| Normal start / resume supervision after a stop or reboot | `tmux new-session -d -s wayfinder-loop './tools/wayfinder/wayfinder-loop.sh'` |
-| Resume a paused chain (after a dead/stalled session exhausted retries) | `./tools/wayfinder/wayfinder-loop.sh --retry` |
-| Resume the existing session in place (keeps its uncommitted work) | `./tools/wayfinder/wayfinder-loop.sh --resume` |
-
-### When the agent needs you
-
-The normal path for human decisions is the **issue tracker, not a chat question**: the agent creates a `needs-info` or `ready-for-human` issue with the verified facts, exact decision, blocker, and smallest safe next action, then continues other safe work or parks the chain — you get a notification either way. Answer on GitHub; an agent consumes the answer and keeps going. See `docs/agents/wayfinder-lifecycle.md` ("Human decisions") and root `AGENTS.md` ("Human Decisions").
-
-Two things still page you to the TUI:
-
-- **Permission requests** — attach and approve them in place.
-- **An open question form** — defensive tripwire only: a session that violated policy by asking instead of deferring. If one appears, attach, answer, and note it as a policy miss.
-
-```bash
-opencode2   # in the repo — pick the "wayfinder-loop" session from the session list
-```
-
-The daemon keeps supervising while you are attached.
-
-### Phone push (ntfy)
-
-Desktop notifications always fire; phone push fires when a topic is set. The topic lives in `.wayfinder-loop.env` (gitignored):
-
-```bash
-# .wayfinder-loop.env
-WAYFINDER_NTFY_TOPIC=wf-<random-topic>
-```
-
-Subscribe your phone: install the ntfy app, then subscribe to the topic URL printed below (or add the topic name manually):
-
-```
-https://ntfy.sh/wf-<your-topic>
-```
-
-(The real topic lives in `.wayfinder-loop.env` — gitignored; never commit it. If a topic URL ever lands in git, treat it as exposed and rotate: `ntfy` topics are read/publish-by-URL.)
-
-Env overrides: `WAYFINDER_NTFY_TOPIC` (phone push topic), `WAYFINDER_POLL_SECS` (doc poll interval, default 15), `WAYFINDER_TICK_SECS` (session poll interval, default 5), `WAYFINDER_STALL_SECS` (stall threshold, default 540), `WAYFINDER_DRY_RUN` (log transitions without spawning), `WAYFINDER_ALLOW_DIRTY` (skip the clean-worktree gate).
-
-### Resilience
-
-- **Stalled session**: if a session stops producing messages for ~9 minutes, the daemon asks it to continue where it left off (same session, same context) — up to 2 attempts. No work is touched or reverted.
-- **Dead session**: if a session is deleted without writing a handoff, the daemon spawns a fresh session from the last handoff doc — up to 2 attempts, then pauses and notifies. Resume manually with `./tools/wayfinder/wayfinder-loop.sh --retry`.
-- **opencode2 API outage**: daemon keeps retrying and notifies once if the service is unreachable (`opencode2 service status` to check).
-- **Dirty worktree gate**: a fresh session never spawns into a dirty worktree (killed-session leftovers or uncommitted infra would get swept into its commits). The daemon **never stages or commits** — the owning agent cleans up its own work; a dirty tree pauses the chain with a notification until it's clean. In-place session resumes bypass this gate — they continue their own uncommitted work.
-- **One recovery contract**: every in-place resume (immediate-stop nudge, stall resume, manual `--resume`) posts the same canonical recovery prompt, and `--retry` fresh-spawns only after the prior session is confirmed gone. Session-side semantics live in `docs/agents/wayfinder-lifecycle.md`.
-- **Crash-safe state**: `.wayfinder-loop.state` records the active session id + retry counters; any restart resumes supervision in place.
-
-### Runtime files
-
-- `.wayfinder/handoffs/` — ephemeral handoff packets (gitignored; never committed)
-- `.wayfinder-loop.state` — last processed handoff + active session id (gitignored)
-- `.wayfinder-loop.log` — daemon history (gitignored)
+Coolify builds `backend/Dockerfile` from the repo root. The image contains the
+backend and the built web app; set the backend env vars from `.env.example` in
+Coolify.

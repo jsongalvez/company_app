@@ -45,13 +45,3 @@ tests/k6/results/*.html
 logs/
 **/.agents/handoffs/
 
-# wayfinder-loop runtime state
-.wayfinder-loop.state
-.wayfinder-loop.lock
-.wayfinder-loop.env
-.wayfinder-loop.tmux.log
-.wayfinder-loop.log
-.wayfinder-vps.env
-.wayfinder-loop.run.log
-# ephemeral wayfinder handoff packets (map #329 #336) — never committed
-.wayfinder/
