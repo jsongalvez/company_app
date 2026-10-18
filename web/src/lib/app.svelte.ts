@@ -1,6 +1,7 @@
-import { api, ok, setToken, getToken, setUnauthorizedHandler, uuid, errText, getViewAs, setViewAs, type S, type ViewAs } from "../api/client";
+import { ApiError, api, ok, setToken, getToken, setUnauthorizedHandler, uuid, errText, getViewAs, setViewAs, type S, type ViewAs } from "../api/client";
 import { clearCache, invalidate } from "./cache.svelte";
 import { RECONNECTED } from "./net.svelte";
+import { doneText, heldSoFar, SENT } from "./outbox.svelte";
 
 type Cap = S["UserCapabilityResponse"];
 
@@ -135,11 +136,13 @@ export async function boot() {
 }
 
 // Opened with no signal: finish starting up once the connection is back; else catch up.
-window.addEventListener(RECONNECTED, () => {
+const catchUp = () => {
     if (!getToken()) return;
     if (!app.me) void boot().catch(() => {});
     else void Promise.all([refreshBranchDay(), refreshShift(), refreshUnread()]).catch(() => {});
-});
+};
+window.addEventListener(RECONNECTED, catchUp);
+window.addEventListener(SENT, catchUp);
 
 /** Re-read branch names after a rename (picker and top bar). */
 export async function refreshBranchNames() {
@@ -179,8 +182,9 @@ export async function refreshShift() {
     try {
         const r = await ok(api.GET("/api/me/active-attendance"));
         app.shift = (r.shift as S["ActiveShiftResponse"] | null) ?? null;
-    } catch {
-        app.shift = null;
+    } catch (e) {
+        // Lost signal says nothing about the shift: keep what we knew.
+        if (!(e instanceof ApiError && e.status <= 0)) app.shift = null;
     }
     app.shiftKnown = true;
 }
@@ -229,11 +233,14 @@ export function toast(text: string, kind: "ok" | "bad" = "ok") {
 }
 
 export async function clockIn(branchId: string = app.branchId): Promise<boolean> {
+    const before = heldSoFar();
     try {
         await ok(api.POST("/api/attendance/clock-in", { body: { attendanceId: uuid(), branchId } }));
+        // No signal: it's waiting on the phone; the shift shows once it has been sent.
+        if (heldSoFar() > before) return (toast(doneText(before)!), true);
         await Promise.all([refreshShift(), refreshCaps()]);
         await refreshBranchDay();
-        toast("Clocked in");
+        toast(doneText(before, "Clocked in")!);
         return true;
     } catch (e) {
         toast(errText(e), "bad");
@@ -243,10 +250,12 @@ export async function clockIn(branchId: string = app.branchId): Promise<boolean>
 
 export async function clockOut(): Promise<boolean> {
     if (!app.shift) return false;
+    const before = heldSoFar();
     try {
         await ok(api.POST("/api/attendance/clock-out", { body: { attendanceId: app.shift.attendanceId } }));
+        if (heldSoFar() > before) return (toast(doneText(before)!), true);
         await Promise.all([refreshShift(), refreshCaps()]);
-        toast("Clocked out");
+        toast(doneText(before, "Clocked out")!);
         return true;
     } catch (e) {
         toast(errText(e), "bad");

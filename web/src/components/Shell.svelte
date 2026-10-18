@@ -6,7 +6,7 @@
     import FeedbackList from "../pages/FeedbackList.svelte";
     import { load, warm } from "../lib/data";
     import { invalidate } from "../lib/cache.svelte";
-    import { net } from "../lib/net.svelte";
+    import NetBar from "./NetBar.svelte";
     import { day, label, operationalDate } from "../lib/format";
     import Today from "../pages/Today.svelte";
     import Clients from "../pages/Clients.svelte";
@@ -125,11 +125,7 @@
     const opDate = $derived(operationalDate());
 </script>
 
-{#if !net.online || net.trouble}
-    <div class="netbar" role="status">
-        {#if !net.online}No connection. Changes won't save until you're back online.{:else}Weak connection. Trying to reach the server…{/if}
-    </div>
-{/if}
+<NetBar />
 <div class="shell" class:viewing={!!app.viewAs}>
     {#if app.viewAs}
         <div class="viewas" role="status">
@@ -273,20 +269,6 @@
 </div>
 
 <style>
-    .netbar {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 50;
-        padding: 6px 10px;
-        background: var(--bad-soft);
-        color: var(--bad);
-        border-top: 1px solid var(--bad);
-        font-size: 13px;
-        font-weight: 600;
-        text-align: center;
-    }
     .shell {
         display: grid;
         grid-template-columns: 168px 1fr;

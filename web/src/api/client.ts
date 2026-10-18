@@ -2,6 +2,7 @@ import { label } from "../lib/format";
 import createClient, { type Middleware } from "openapi-fetch";
 import type { components, paths } from "./schema";
 import { onlineOrTimeout, reportNetFailure, reportNetOk } from "../lib/net.svelte";
+import { canQueue, enqueue, mustQueue } from "../lib/outbox.svelte";
 
 export type S = components["schemas"];
 
@@ -93,6 +94,9 @@ function repeatable(method: string, body: string | null): boolean {
  */
 async function resilientFetch(req: Request): Promise<Response> {
     const body = req.method === "GET" || req.method === "HEAD" ? null : await req.clone().text();
+    const path = new URL(req.url).pathname;
+    // Saves already waiting for signal go first: this one lines up behind them.
+    if (mustQueue(req.method, path)) return enqueue(req.method, path, body ?? "");
     const retry = repeatable(req.method, body);
     for (let attempt = 0; ; attempt++) {
         const last = !retry || attempt >= RETRY_WAITS_MS.length;
@@ -103,6 +107,8 @@ async function resilientFetch(req: Request): Promise<Response> {
             if (req.signal.aborted) throw e;
             reportNetFailure();
             // Offline means it never left the phone; otherwise it may have reached the server.
+            // No signal: front-desk saves wait on the phone and go out later by themselves.
+            if (last && canQueue(req.method, path)) return enqueue(req.method, path, body ?? "");
             if (last) throw new NetError(navigator.onLine || (e instanceof DOMException && e.name === "TimeoutError"));
             await onlineOrTimeout(RETRY_WAITS_MS[attempt]!);
             continue;
@@ -111,6 +117,7 @@ async function resilientFetch(req: Request): Promise<Response> {
             await onlineOrTimeout(RETRY_WAITS_MS[attempt]!);
             continue;
         }
+        if (GATEWAY.has(res.status) && canQueue(req.method, path)) return enqueue(req.method, path, body ?? "");
         reportNetOk();
         return res;
     }

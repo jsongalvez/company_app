@@ -1,5 +1,6 @@
 import { ApiError } from "../api/client";
 import { RECONNECTED } from "./net.svelte";
+import { SENT } from "./outbox.svelte";
 /**
  * Tiny query cache, McMaster-style snappiness: show cached data instantly,
  * revalidate in the background, prefetch on hover. Keys are strings.
@@ -33,9 +34,10 @@ export function peek<T>(key: string): T | undefined {
     return store.get(key)?.data as T | undefined;
 }
 
-/** Drop cached keys starting with any prefix (after a write). */
+/** Mark cached keys starting with any prefix as stale (after a write): the next read fetches,
+ *  but what we had keeps showing meanwhile, and stays if there's no signal. */
 export function invalidate(...prefixes: string[]) {
-    for (const k of [...store.keys()]) if (prefixes.some((p) => k.startsWith(p))) store.delete(k);
+    for (const [k, e] of store) if (prefixes.some((p) => k.startsWith(p))) e.at = 0;
 }
 
 export function clearCache() {
@@ -43,6 +45,17 @@ export function clearCache() {
 }
 
 /** Reactive query: stale data shows at once; `loading` only when nothing is cached. */
+/** Pages showing data, so waiting saves that just went out can refresh what's on screen. */
+const live = new Set<WeakRef<Query<unknown>>>();
+window.addEventListener(SENT, () => {
+    store.clear();
+    for (const r of live) {
+        const q = r.deref();
+        if (q) q.refresh();
+        else live.delete(r);
+    }
+});
+
 export class Query<T> {
     data = $state<T | undefined>(undefined);
     error = $state<string | null>(null);
@@ -53,6 +66,7 @@ export class Query<T> {
     /** With no args, nothing loads until load() (call it from an $effect). */
     constructor(key?: string, fn?: () => Promise<T>) {
         this.#fn = fn ?? (() => Promise.reject(new Error("no loader")));
+        live.add(new WeakRef(this as Query<unknown>));
         if (key !== undefined && fn) this.load(key, fn);
         else this.loading = true;
     }
@@ -81,6 +95,7 @@ export class Query<T> {
     }
 
     refresh() {
+        if (!this.#key) return;
         this.load(this.#key, this.#fn, true);
     }
 }
