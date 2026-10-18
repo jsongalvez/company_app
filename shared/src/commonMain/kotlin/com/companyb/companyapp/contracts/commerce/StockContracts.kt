@@ -19,7 +19,8 @@ data class CreateProductSaleRequest(
     val isWalkIn: Boolean,
     val productId: String,
     val quantity: Int,
-    val expectedVersion: Int,
+    // Null sells from current stock (offline phones can't know the latest version).
+    val expectedVersion: Int? = null,
     val reason: String? = null,
 )
 

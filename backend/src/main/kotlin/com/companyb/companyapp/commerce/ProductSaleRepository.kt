@@ -27,7 +27,7 @@ data class SellProductParams(
     val productId: UUID,
     val branchId: UUID,
     val quantity: Int,
-    val expectedVersion: Int,
+    val expectedVersion: Int?,
     val handledBy: UUID,
     val product: Product,
 )

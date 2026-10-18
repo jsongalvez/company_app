@@ -2148,7 +2148,7 @@ export interface components {
             isWalkIn: boolean;
             productId: string;
             quantity: number;
-            expectedVersion: number;
+            expectedVersion?: number | null;
             reason?: string | null;
         };
         InventoryMovementRequest: {

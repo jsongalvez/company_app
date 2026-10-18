@@ -198,6 +198,34 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `sales without a version sell from current stock one after another`() {
+        repeat(2) {
+            ProductSaleService.sell(
+                callerId = callerId,
+                id = TestFixtures.uuid(),
+                branchDayId = branchDayId,
+                sessionId = null,
+                clientId = null,
+                isWalkIn = true,
+                productId = productId,
+                quantity = 2,
+                expectedVersion = null,
+            )
+        }
+
+        val stock =
+            transaction {
+                BranchInventoryTable
+                    .selectAll()
+                    .where {
+                        (BranchInventoryTable.branchId eq branchId) and
+                            (BranchInventoryTable.productId eq productId)
+                    }.single()[BranchInventoryTable.currentStock]
+            }
+        assertEquals(16, stock)
+    }
+
+    @Test
     fun `sell rejects inactive product without changing inventory`() {
         transaction {
             ProductTable.update({ ProductTable.id eq productId }) {

@@ -36,7 +36,7 @@ object ProductSaleService {
         isWalkIn: Boolean,
         productId: UUID,
         quantity: Int,
-        expectedVersion: Int,
+        expectedVersion: Int?,
         reason: String? = null,
     ): ProductSale {
         // #921: product_sale.quantity is SMALLINT (V1:412) while the wire type is
@@ -126,7 +126,7 @@ object ProductSaleService {
                 val newCard =
                     BranchInventoryRepository.requireCardForUpdateInTransaction(
                         beforeCard,
-                        params.expectedVersion,
+                        params.expectedVersion ?: beforeCard.version,
                         -params.quantity,
                     )
 

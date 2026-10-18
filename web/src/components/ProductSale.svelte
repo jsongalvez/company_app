@@ -1,7 +1,7 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
     import { app } from "../lib/app.svelte";
-    import { fetchCached, invalidate } from "../lib/cache.svelte";
+    import { fetchCached, invalidate, peek } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
     import { peso } from "../lib/format";
@@ -22,10 +22,17 @@
         productId = "";
         qty = 1;
         linkSession = sessionId ?? "";
+        // Show what this phone last saw at once; fresh numbers replace it when the server answers.
         const l = load.inventory(app.branchId);
-        fetchCached(l.key, l.fn, true).then((r) => (inv = r.filter((i) => i.currentStock > 0)));
+        const inStock = (r: S["BranchInventoryResponse"][]) => (inv = r.filter((i) => i.currentStock > 0));
+        const seen = peek<S["BranchInventoryResponse"][]>(l.key);
+        if (seen) inStock(seen);
+        fetchCached(l.key, l.fn, true).then(inStock, () => {});
         const d = load.dashboard(app.branchId);
-        fetchCached(d.key, d.fn).then((r) => (sessions = r.sessions.filter((s) => !s.isVoided)));
+        const live = (r: S["DashboardResponse"]) => (sessions = r.sessions.filter((s) => !s.isVoided));
+        const day = peek<S["DashboardResponse"]>(d.key);
+        if (day) live(day);
+        fetchCached(d.key, d.fn).then(live, () => {});
     });
 
     const item = $derived(inv.find((i) => i.productId === productId));
@@ -42,11 +49,10 @@
                         id: uuid(),
                         branchDayId: app.today.branchDayId,
                         sessionId: s?.id ?? null,
-                        clientId: s?.clientId ?? null,
+                        clientId: null,
                         isWalkIn: !s,
                         productId: item.productId,
                         quantity: qty,
-                        expectedVersion: item.version,
                     },
                 }),
             );

@@ -1,8 +1,8 @@
 import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
-import { clockInHere } from "./support";
+import { clockInHere, doneSessionForNewClient } from "./support";
 
-test("make a product, stock it, restock it and sell some", { session: "owner" }, async ({ app, screen }) => {
+test("make a product, stock it, restock it and sell some", { session: "owner" }, async ({ app, screen, browser }) => {
     const tag = Date.now().toString().slice(-6);
     const category = `Oils ${tag}`;
     const product = `Test oil ${tag}`;
@@ -51,4 +51,27 @@ test("make a product, stock it, restock it and sell some", { session: "owner" },
     await expect(sale).toBeHidden();
     await expect(row.getByText("8", { exact: true })).toBeVisible();
     await expect(row.getByText("2", { exact: true })).toBeVisible();
+
+    // No signal: one sale tied to a session, one walk-in. Both go out once the signal is back.
+    const client = await doneSessionForNewClient(app, screen);
+    await app.open("/#/inventory");
+    const card = screen.getByRole("row").filter({ hasText: product }).filter({ hasText: "Fix count" });
+    await expect(card).toBeVisible();
+    const down = /\/(api\/|health)/;
+    await browser.route(down, (route) => route.abort());
+    for (const during of [client, null]) {
+        await screen.getByRole("button", "Product sale").tap();
+        await sale.getByLabel(/^Product/).selectOption({ label: `${product} · 250.00 · 8 left` });
+        await sale.getByLabel(/^Quantity/).fill("1");
+        if (during) await sale.getByLabel(/^Sold during session/).selectOption({ label: during });
+        await sale.getByRole("button", "Record sale").tap();
+        await expect(sale).toBeHidden({ timeout: 20_000 });
+    }
+    await expect(screen.getByText("2 changes waiting to send", { exact: false })).toBeVisible();
+    await browser.unroute(down);
+    await expect(screen.getByText("waiting to send", { exact: false })).not.toBeVisible({ timeout: 20_000 });
+    await expect(screen.getByText("Couldn't be sent", { exact: false })).not.toBeVisible();
+    await app.open("/#/inventory");
+    await expect(card.getByText("6", { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByText("4", { exact: true })).toBeVisible();
 });
