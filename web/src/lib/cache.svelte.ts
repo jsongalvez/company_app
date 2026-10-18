@@ -1,14 +1,61 @@
 import { ApiError } from "../api/client";
 import { RECONNECTED } from "./net.svelte";
-import { SENT } from "./outbox.svelte";
+import { SENT, tokenUser } from "./outbox.svelte";
 /**
  * Tiny query cache, McMaster-style snappiness: show cached data instantly,
  * revalidate in the background, prefetch on hover. Keys are strings.
  */
 
-type Entry = { data: unknown; at: number; inflight?: Promise<unknown> };
+type Entry = { data: unknown; at: number; inflight?: Promise<unknown>; got?: number };
 const store = new Map<string, Entry>();
 const FRESH_MS = 15_000;
+
+/**
+ * What the screens last showed is kept on the phone too (per person), so the app opens with
+ * yesterday's view at once, even with no signal, and refreshes it in the background.
+ */
+const SAVE_MAX_CHARS = 1_500_000;
+const saveKey = () => `qcache:${tokenUser()}`;
+let restoredFor: string | null = null;
+
+/** Load what this person's phone saved. Call after sign-in; cheap to call again. */
+export function restoreCache() {
+    const u = tokenUser();
+    if (!u || restoredFor === u) return;
+    restoredFor = u;
+    try {
+        const rows = JSON.parse(localStorage.getItem(saveKey()) ?? "[]") as [string, unknown, number][];
+        for (const [k, data, got] of rows) if (!store.has(k)) store.set(k, { data, at: 0, got });
+    } catch {
+        /* nothing usable saved */
+    }
+}
+
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+function saveSoon() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+        if (!tokenUser()) return;
+        const rows = [...store]
+            .filter(([, e]) => e.data !== undefined)
+            .sort((a, b) => (b[1].got ?? 0) - (a[1].got ?? 0))
+            .map(([k, e]) => [k, e.data, e.got ?? 0] as [string, unknown, number]);
+        // Newest first, until the phone's storage budget is used.
+        const out: string[] = [];
+        let size = 2;
+        for (const r of rows) {
+            const j = JSON.stringify(r);
+            if (size + j.length > SAVE_MAX_CHARS) continue;
+            size += j.length + 1;
+            out.push(j);
+        }
+        try {
+            localStorage.setItem(saveKey(), `[${out.join(",")}]`);
+        } catch {
+            /* storage full: keep it in memory only */
+        }
+    }, 800);
+}
 
 export function fetchCached<T>(key: string, fn: () => Promise<T>, force = false): Promise<T> {
     const e = store.get(key);
@@ -16,7 +63,8 @@ export function fetchCached<T>(key: string, fn: () => Promise<T>, force = false)
     if (!force && e && Date.now() - e.at < FRESH_MS) return Promise.resolve(e.data as T);
     const p = fn().then(
         (data) => {
-            store.set(key, { data, at: Date.now() });
+            store.set(key, { data, at: Date.now(), got: Date.now() });
+            saveSoon();
             return data;
         },
         (err) => {
@@ -26,7 +74,7 @@ export function fetchCached<T>(key: string, fn: () => Promise<T>, force = false)
             throw err;
         },
     );
-    store.set(key, { data: e?.data, at: e?.at ?? 0, inflight: p });
+    store.set(key, { data: e?.data, at: e?.at ?? 0, got: e?.got, inflight: p });
     return p;
 }
 
@@ -40,15 +88,23 @@ export function invalidate(...prefixes: string[]) {
     for (const [k, e] of store) if (prefixes.some((p) => k.startsWith(p))) e.at = 0;
 }
 
+/** When the data for a key was last fetched from the server (ms), if we have it. */
+export function fetchedAt(key: string): number | undefined {
+    return store.get(key)?.got;
+}
+
+/** Sign-out: forget everything, on the phone too. */
 export function clearCache() {
+    if (tokenUser()) localStorage.removeItem(saveKey());
     store.clear();
+    restoredFor = null;
 }
 
 /** Reactive query: stale data shows at once; `loading` only when nothing is cached. */
 /** Pages showing data, so waiting saves that just went out can refresh what's on screen. */
 const live = new Set<WeakRef<Query<unknown>>>();
 window.addEventListener(SENT, () => {
-    store.clear();
+    for (const e of store.values()) e.at = 0;
     for (const r of live) {
         const q = r.deref();
         if (q) q.refresh();
@@ -60,6 +116,8 @@ export class Query<T> {
     data = $state<T | undefined>(undefined);
     error = $state<string | null>(null);
     loading = $state(false);
+    /** No signal and nothing saved for this yet: it loads by itself once the signal is back. */
+    waiting = $state(false);
     #key = "";
     #fn: () => Promise<T>;
 
@@ -77,19 +135,25 @@ export class Query<T> {
         const cached = peek<T>(key);
         this.data = cached;
         this.error = null;
+        this.waiting = false;
         this.loading = cached === undefined;
         fetchCached(key, fn, force).then(
             (d) => {
                 if (this.#key !== key) return;
                 this.data = d;
                 this.loading = false;
+                this.waiting = false;
             },
             (e: unknown) => {
                 if (this.#key !== key) return;
-                this.error = e instanceof Error ? e.message : String(e);
                 this.loading = false;
-                // Lost signal: load again by itself once the connection is back.
-                if (e instanceof ApiError && e.status <= 0) window.addEventListener(RECONNECTED, () => this.#key === key && this.refresh(), { once: true });
+                const lost = e instanceof ApiError && e.status <= 0;
+                // Lost signal: keep showing what we had (the bar at the bottom says why), and load
+                // again by itself once the connection is back. Only real refusals show as errors.
+                if (lost) {
+                    this.waiting = this.data === undefined;
+                    window.addEventListener(RECONNECTED, () => this.#key === key && this.refresh(), { once: true });
+                } else this.error = e instanceof Error ? e.message : String(e);
             },
         );
     }

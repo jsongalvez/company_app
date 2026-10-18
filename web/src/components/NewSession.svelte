@@ -1,5 +1,7 @@
 <script lang="ts">
-    import { api, ok, uuid, type S } from "../api/client";
+    import { ApiError, api, ok, uuid, type S } from "../api/client";
+    import { guessPreview, rememberPrice } from "../lib/prices";
+    import { rememberClient } from "../lib/clientdir.svelte";
     import { app } from "../lib/app.svelte";
     import { fetchCached, invalidate } from "../lib/cache.svelte";
     import { load } from "../lib/data";
@@ -63,8 +65,18 @@
                 if (client?.id !== c.id) return;
                 preview = p;
                 price = p.basePrice;
+                rememberPrice(app.branchId, p);
             },
-            (e: Error) => (previewErr = e.message),
+            (e: Error) => {
+                if (client?.id !== c.id) return;
+                // No signal: work it out from the visits and the rates this phone last saw.
+                const guess = e instanceof ApiError && e.status <= 0 ? guessPreview(app.branchId, c) : null;
+                if (guess) {
+                    preview = guess;
+                    price = guess.basePrice;
+                    previewErr = "No signal: price from the rates this phone last saw.";
+                } else previewErr = e instanceof ApiError && e.status <= 0 ? "No signal: enter the price." : e.message;
+            },
         );
     });
 
@@ -79,6 +91,7 @@
                 let c = client;
                 if (creating) {
                     c = await ok(api.POST("/api/clients", { body: createBody(uuid(), draft) }));
+                    rememberClient(c);
                     invalidate("clients:");
                     client = c;
                     creating = false;

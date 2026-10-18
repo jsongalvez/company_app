@@ -1,5 +1,6 @@
 import { ApiError, api, ok, setToken, getToken, setUnauthorizedHandler, uuid, errText, getViewAs, setViewAs, type S, type ViewAs } from "../api/client";
-import { clearCache, invalidate } from "./cache.svelte";
+import { clearCache, fetchCached, invalidate, peek, restoreCache } from "./cache.svelte";
+import { refreshDirectory, resetDirectory } from "./clientdir.svelte";
 import { RECONNECTED } from "./net.svelte";
 import { doneText, heldClock, heldSoFar, SENT } from "./outbox.svelte";
 
@@ -88,8 +89,9 @@ export async function signOut(callServer = true) {
             /* best effort */
         }
     }
-    setToken(null);
     clearCache();
+    resetDirectory();
+    setToken(null);
     Object.assign(app, {
         signedIn: false,
         ready: true,
@@ -104,23 +106,39 @@ export async function signOut(callServer = true) {
     });
 }
 
-/** Load identity, capabilities and branches; pick a branch. */
+type BootData = [S["MeResponse"], Cap[], S["MeBranchResponse"][], S["BranchResponse"][]];
+
+function applyBoot([me, caps, branches, accessible]: BootData) {
+    app.me = me;
+    app.caps = caps;
+    app.branches = branches;
+    app.accessible = accessible;
+}
+
+/** Load identity, capabilities and branches; pick a branch. What the phone saved shows at once. */
 export async function boot() {
     if (!getToken()) {
         app.ready = true;
         return;
     }
+    restoreCache();
+    const saved = [peek("boot:me"), peek("boot:caps"), peek("boot:branches"), peek("boot:accessible")];
+    if (saved.every((x) => x !== undefined)) {
+        applyBoot(saved as BootData);
+        app.today = peek<S["BranchDayTodayResponse"]>(`boot:today:${app.branchId}`) ?? null;
+        app.shift = peek<S["ActiveShiftResponse"] | null>("boot:shift") ?? null;
+        applyHeldClock();
+        app.ready = true;
+    }
     try {
-        const [me, caps, branches, accessible] = await Promise.all([
-            ok(api.GET("/api/me")),
-            ok(api.GET("/api/me/capabilities")),
-            ok(api.GET("/api/me/branches")),
-            ok(api.GET("/api/branches/accessible")).catch(() => [] as S["BranchResponse"][]),
+        const fresh = await Promise.all([
+            fetchCached("boot:me", () => ok(api.GET("/api/me")), true),
+            fetchCached("boot:caps", () => ok(api.GET("/api/me/capabilities")), true),
+            fetchCached("boot:branches", () => ok(api.GET("/api/me/branches")), true),
+            fetchCached("boot:accessible", () => ok(api.GET("/api/branches/accessible")).catch(() => [] as S["BranchResponse"][]), true),
         ]);
-        app.me = me;
-        app.caps = caps;
-        app.branches = branches;
-        app.accessible = accessible;
+        applyBoot(fresh);
+        const [, , branches, accessible] = fresh;
         const known = new Set([...branches.map((b) => b.branchId), ...accessible.map((b) => b.id)]);
         if (!known.has(app.branchId)) {
             const here = branches.find((b) => b.clockInStatus === "CLOCKED_IN_HERE");
@@ -130,6 +148,7 @@ export async function boot() {
         }
         void refreshShift();
         void refreshUnread();
+        void refreshDirectory();
     } finally {
         app.ready = true;
     }
@@ -170,11 +189,14 @@ export async function refreshBranchDay() {
         app.today = null;
         return;
     }
+    const key = `boot:today:${id}`;
+    if (!app.today) app.today = peek<S["BranchDayTodayResponse"]>(key) ?? null;
     try {
-        const t = await ok(api.GET("/api/branches/{branchId}/today", { params: { path: { branchId: id } } }));
+        const t = await fetchCached(key, () => ok(api.GET("/api/branches/{branchId}/today", { params: { path: { branchId: id } } })), true);
         if (app.branchId === id) app.today = t;
-    } catch {
-        if (app.branchId === id) app.today = null;
+    } catch (e) {
+        // No signal: keep the day we knew.
+        if (app.branchId === id && !(e instanceof ApiError && e.status <= 0)) app.today = null;
     }
 }
 
@@ -182,6 +204,7 @@ export async function refreshShift() {
     try {
         const r = await ok(api.GET("/api/me/active-attendance"));
         app.shift = (r.shift as S["ActiveShiftResponse"] | null) ?? null;
+        void fetchCached("boot:shift", () => Promise.resolve(app.shift), true);
         applyHeldClock();
     } catch (e) {
         // Lost signal says nothing about the shift: keep what we knew.

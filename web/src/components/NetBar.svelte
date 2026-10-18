@@ -30,7 +30,7 @@
                 {#if w.length}
                     {w.length === 1 ? "1 change" : `${w.length} changes`} waiting to send{outbox.sending ? "…" : "."}
                 {:else if offline}
-                    New sessions, sales and marks will wait on this phone until you're back online.
+                    Showing what this phone last saw. New sessions, sales and marks will wait here until you're back online.
                 {/if}
                 {#if f.length}<b>{f.length} couldn't be sent.</b>{/if}
             </span>

@@ -268,6 +268,20 @@ class ClientAuthzTest : BasePostgresTest() {
     }
 
     @Test
+    fun `GET client directory allowed for branch holder and leaves out medical details`() {
+        val res = testServer.client.get("/api/client-directory", asUser(coordinatorUser))
+        assertEquals(200, res.code)
+        val body = res.body?.string().orEmpty()
+        kotlin.test.assertTrue(body.contains(clientId.toString()))
+        kotlin.test.assertTrue(!body.contains("\"medicalConditions\":\""))
+    }
+
+    @Test
+    fun `GET client directory forbidden without grant`() {
+        assertEquals(403, testServer.client.get("/api/client-directory", asUser(noneUser)).code)
+    }
+
+    @Test
     fun `GET clients collection forbidden without grant`() {
         assertEquals(403, testServer.client.get("/api/clients?q=Test", asUser(noneUser)).code)
     }

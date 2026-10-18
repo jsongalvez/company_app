@@ -79,6 +79,8 @@ object ClientService {
 
     fun search(query: String): List<Client> = ClientRepository.search(query)
 
+    fun directory(): List<Client> = ClientRepository.directory()
+
     fun countSessions(clientIds: Collection<UUID>): Map<UUID, Int> = ClientRepository.countSessions(clientIds)
 
     fun findById(clientId: UUID): Client =

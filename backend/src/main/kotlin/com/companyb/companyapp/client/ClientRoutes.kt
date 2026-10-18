@@ -40,6 +40,16 @@ import java.util.UUID
     ],
 )
 @OpenApi(
+    path = ApiRoutes.CLIENT_DIRECTORY,
+    methods = [HttpMethod.GET],
+    operationId = "client_directory",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<ClientResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
+)
+@OpenApi(
     path = ApiRoutes.CLIENTS,
     methods = [HttpMethod.POST],
     operationId = "clients_post",
@@ -110,6 +120,14 @@ object ClientRoutes {
             )
         }
 
+        config.routes.before(ApiRoutes.CLIENT_DIRECTORY) { context ->
+            CapabilityFilter.requireAnyContextCapability(
+                context,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                "EDIT_BRANCH_DATA capability required to manage clients",
+            )
+        }
+
         config.routes.before(ApiRoutes.CLIENT_PATH) { context ->
             CapabilityFilter.requireAnyContextCapability(
                 context,
@@ -128,6 +146,7 @@ object ClientRoutes {
 
         config.routes.post(ApiRoutes.CLIENTS, ::handleCreate)
         config.routes.get(ApiRoutes.CLIENTS, ::handleSearch)
+        config.routes.get(ApiRoutes.CLIENT_DIRECTORY, ::handleDirectory)
         config.routes.get(ApiRoutes.CLIENT_PATH, ::handleGetById)
         config.routes.patch(ApiRoutes.CLIENT_PATH, ::handleUpdate)
         config.routes.post(ApiRoutes.CLIENT_ANONYMIZE_PATH, ::handleAnonymize)
@@ -175,6 +194,20 @@ object ClientRoutes {
         val clients = ClientService.search(trimmedQuery)
         val sessionCounts = ClientService.countSessions(clients.map { it.id })
         context.json(clients.map { it.toResponse(sessionCounts[it.id] ?: 0) })
+    }
+
+    /** All clients for searching on the phone without signal: no address, blood pressure or medical notes. */
+    private fun handleDirectory(context: Context) {
+        val clients = ClientService.directory()
+        val sessionCounts = ClientService.countSessions(clients.map { it.id })
+        context.json(
+            clients.map {
+                it
+                    .toResponse(
+                        sessionCounts[it.id] ?: 0,
+                    ).copy(address = null, systolicBp = null, diastolicBp = null, medicalConditions = null)
+            },
+        )
     }
 
     private fun handleGetById(context: Context) {

@@ -542,3 +542,22 @@ table.grid tfoot td {
 .daynav input[type="date"] {
     min-width: 0;
 }
+
+/* Small spinner: something is happening, even when it takes a while. */
+.spin {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    margin-right: 6px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: -1px;
+    flex: none;
+}
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

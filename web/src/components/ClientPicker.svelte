@@ -1,6 +1,7 @@
 <script lang="ts">
-    import type { S } from "../api/client";
+    import { ApiError, type S } from "../api/client";
     import { fetchCached } from "../lib/cache.svelte";
+    import { searchLocal } from "../lib/clientdir.svelte";
     import { load } from "../lib/data";
     import { clientName } from "../lib/format";
 
@@ -9,6 +10,8 @@
     let q = $state("");
     let results = $state<S["ClientResponse"][]>([]);
     let searching = $state(false);
+    /** The server couldn't be asked: these are only the clients saved on this phone. */
+    let localOnly = $state(false);
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     function onInput() {
@@ -16,16 +19,30 @@
         const term = q.trim();
         if (term.length < 2) {
             results = [];
+            searching = false;
             return;
         }
+        // Clients saved on the phone show at once; the server's answer follows when it can.
+        const local = searchLocal(term);
+        results = local;
+        localOnly = !navigator.onLine;
+        if (!navigator.onLine) {
+            searching = false;
+            return;
+        }
+        searching = true;
         timer = setTimeout(async () => {
-            searching = true;
             const l = load.clients(term);
             try {
                 const r = await fetchCached(l.key, l.fn);
-                if (q.trim() === term) results = r;
+                if (q.trim() !== term) return;
+                const ids = new Set(r.map((c) => c.id));
+                results = [...r, ...searchLocal(term).filter((c) => !ids.has(c.id))];
+                localOnly = false;
+            } catch (e) {
+                if (q.trim() === term) localOnly = e instanceof ApiError && e.status <= 0;
             } finally {
-                searching = false;
+                if (q.trim() === term) searching = false;
             }
         }, 180);
     }
@@ -60,11 +77,14 @@
                     </tbody>
                 </table>
             </div>
-        {:else if q.trim().length >= 2 && !searching}
+        {:else if q.trim().length >= 2 && searching}
+            <div class="faint row"><span class="spin" aria-hidden="true"></span>Searching…</div>
+        {:else if q.trim().length >= 2}
             <div class="faint">
-                No match. {#if onnew}Use <b>New client</b>.{/if}
+                No match{localOnly ? " among the clients saved on this phone" : ""}. {#if onnew}Use <b>New client</b>.{/if}
             </div>
         {/if}
+        {#if localOnly && results.length}<div class="faint">No signal: showing clients saved on this phone.</div>{/if}
     </div>
 {/if}
 

@@ -1,7 +1,7 @@
 import { label } from "../lib/format";
 import createClient, { type Middleware } from "openapi-fetch";
 import type { components, paths } from "./schema";
-import { onlineOrTimeout, reportNetFailure, reportNetOk } from "../lib/net.svelte";
+import { net, onlineOrTimeout, reportNetFailure, reportNetOk } from "../lib/net.svelte";
 import { canQueue, enqueue, mustQueue } from "../lib/outbox.svelte";
 
 export type S = components["schemas"];
@@ -71,6 +71,8 @@ export class NetError extends Error {
 
 const RETRY_WAITS_MS = [700, 2000, 5000];
 const TIMEOUT_MS = 20_000;
+/** A save that can wait on the phone gives up sooner: holding it beats a frozen button. */
+const SAVE_TIMEOUT_MS = 6_000;
 const GATEWAY = new Set([502, 503, 504]);
 /** Body keys holding the record's own client-made id: the server treats a resend as the same save. */
 const OWN_ID_KEYS = ["id", "attendanceId", "requestId", "delegateId", "movementId"];
@@ -97,19 +99,26 @@ async function resilientFetch(req: Request): Promise<Response> {
     const path = new URL(req.url).pathname;
     // Saves already waiting for signal go first: this one lines up behind them.
     if (mustQueue(req.method, path)) return enqueue(req.method, path, body ?? "");
-    const retry = repeatable(req.method, body);
+    const queueable = canQueue(req.method, path);
+    // Signal already known to be bad: hold the save now rather than make the person wait.
+    if (queueable && (net.trouble || !navigator.onLine)) return enqueue(req.method, path, body ?? "");
+    // Retry only while the signal still looks fine: once it's known to be bad, answer at once
+    // (pages show what they had and reload by themselves when the connection is back).
+    const knownBad = net.trouble;
+    const retry = repeatable(req.method, body) && !knownBad;
     for (let attempt = 0; ; attempt++) {
         const last = !retry || attempt >= RETRY_WAITS_MS.length;
         let res: Response;
         try {
-            res = await fetch(req.clone(), { signal: AbortSignal.timeout(TIMEOUT_MS) });
+            res = await fetch(req.clone(), { signal: AbortSignal.timeout(queueable ? SAVE_TIMEOUT_MS : TIMEOUT_MS) });
         } catch (e) {
             if (req.signal.aborted) throw e;
             reportNetFailure();
-            // Offline means it never left the phone; otherwise it may have reached the server.
-            // No signal: front-desk saves wait on the phone and go out later by themselves.
-            // The phone itself says it's offline: hold it now rather than make the person wait out the retries.
-            if ((last || !navigator.onLine) && canQueue(req.method, path)) return enqueue(req.method, path, body ?? "");
+            // Saves that can wait are held at the first failure: the queue resends them itself,
+            // and each carries its own id or version, so a copy that did arrive isn't doubled.
+            if (queueable) return enqueue(req.method, path, body ?? "");
+            // The phone says it has no signal: say so now; waiting out retries only feels slow.
+            if (!navigator.onLine || knownBad) throw new NetError(false);
             if (last) throw new NetError(navigator.onLine || (e instanceof DOMException && e.name === "TimeoutError"));
             await onlineOrTimeout(RETRY_WAITS_MS[attempt]!);
             continue;

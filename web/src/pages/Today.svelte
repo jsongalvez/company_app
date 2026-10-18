@@ -5,9 +5,10 @@
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
     import { go } from "../lib/router.svelte";
-    import { peso, time, label, sum, day, operationalDate } from "../lib/format";
+    import { peso, time, label, sum, day, operationalDate, clientName } from "../lib/format";
     import { allowedTargets, statusClass, type Status } from "../lib/rules";
-    import { heldMark, outbox } from "../lib/outbox.svelte";
+    import { heldMark, heldSessions, outbox } from "../lib/outbox.svelte";
+    import { findLocal } from "../lib/clientdir.svelte";
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
     import NewSession from "../components/NewSession.svelte";
@@ -34,15 +35,46 @@
     type F = "all" | "PENDING" | "COMPLETED" | "other" | "void";
     let filter = $state<F>("all");
     // A mark made with no signal shows at once, flagged as not sent yet.
-    const sessions = $derived(
-        (dash.data?.sessions ?? []).map((s) => {
-            void outbox.items.length;
+    const sessions = $derived.by(() => {
+        void outbox.items.length;
+        const fromServer = (dash.data?.sessions ?? []).map((s) => {
             const h = heldMark(s.id);
             return h && h !== s.sessionStatus
-                ? { ...s, sessionStatus: h as S["DashboardSessionResponse"]["sessionStatus"], held: true }
-                : { ...s, held: false };
-        }),
-    );
+                ? { ...s, sessionStatus: h as S["DashboardSessionResponse"]["sessionStatus"], held: true, unsent: false }
+                : { ...s, held: false, unsent: false };
+        });
+        // New sessions made with no signal show straight away, flagged until they're sent.
+        const have = new Set(fromServer.map((s) => s.id));
+        const held = heldSessions()
+            .filter((h) => h.body.branchId === bid && !have.has(String(h.body.id)))
+            .map((h) => heldRow(h.at, h.body));
+        return [...fromServer, ...held];
+    });
+
+    function heldRow(at: string, b: Record<string, unknown>): S["DashboardSessionResponse"] & { held: boolean; unsent: boolean } {
+        const cid = String(b.clientId);
+        const c = findLocal(cid);
+        const price = String(b.finalPrice ?? "0");
+        return {
+            id: String(b.id),
+            clientId: cid,
+            clientName: c ? clientName(c) : "New session",
+            isWalkIn: !!b.isWalkIn,
+            sessionStatus: "PENDING" as const,
+            basePrice: price,
+            finalPrice: price,
+            remarks: (b.remarks as string) ?? null,
+            otherConcerns: (b.otherConcerns as string) ?? null,
+            bookedAt: at,
+            nextAppointmentDate: (b.nextAppointmentDate as string) ?? null,
+            version: 0,
+            isVoided: false,
+            practitioners: [],
+            concerns: [],
+            held: true,
+            unsent: true,
+        };
+    }
     const shown = $derived(
         sessions.filter((s) =>
             filter === "all"
@@ -216,7 +248,7 @@
                     </thead>
                     <tbody>
                         {#each shown as s (s.id)}
-                            <tr class="click" class:struck={s.isVoided} onclick={() => go(`/sessions/${s.id}`)}>
+                            <tr class:click={!s.unsent} class:struck={s.isVoided} onclick={() => !s.unsent && go(`/sessions/${s.id}`)}>
                                 <td class="hide-sm">{time(s.bookedAt)}</td>
                                 <td class="ellipsis name lead">
                                     {s.clientName ?? "(details erased)"}
@@ -243,7 +275,8 @@
                                 <td class="muted hide-sm">{s.nextAppointmentDate ? day(s.nextAppointmentDate) : ""}</td>
                                 {#if edit}
                                     <td class="acts full" onclick={(e) => e.stopPropagation()}>
-                                        {#if !s.isVoided}
+                                        {#if s.unsent}<span class="faint">Sends when back online</span>
+                                        {:else if !s.isVoided}
                                             {#each allowedTargets(s.sessionStatus as Status, s.isWalkIn, false) as to (to)}
                                                 <button class="sm" class:primary={to === "COMPLETED"} onclick={() => mark(s, to)}
                                                     >{to === "COMPLETED" ? "Done" : to === "PENDING" ? "Undo" : label(to)}</button

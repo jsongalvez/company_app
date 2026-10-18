@@ -5,7 +5,7 @@
  * twice can't make a duplicate, and a change someone else made in the meantime is refused by
  * the server rather than overwritten: those land in "couldn't send" for the person to check.
  */
-import { plain } from "../api/client";
+import { plain, type S } from "../api/client";
 import { label } from "./format";
 import { RECONNECTED, reportNetFailure, reportNetOk } from "./net.svelte";
 
@@ -26,7 +26,7 @@ const name = (b: Record<string, unknown>) => [b.firstName, b.lastName].filter(Bo
 
 /** The saves that may wait. Everything else needs the server there and then. */
 const RULES: Rule[] = [
-    { method: "POST", path: /^\/api\/clients$/, what: (b) => `New client ${name(b)}`, echo: (b) => ({ ...b, fullName: name(b), visitCount: 0 }) },
+    { method: "POST", path: /^\/api\/clients$/, what: (b) => `New client ${name(b)}`, echo: (b) => heldClient(b) },
     { method: "POST", path: /^\/api\/sessions$/, what: () => "New session" },
     { method: "POST", path: /^\/api\/sessions\/[^/]+\/practitioners$/, what: () => "Practitioner on a session" },
     { method: "PATCH", path: /^\/api\/sessions\/[^/]+\/status$/, what: (b) => `Session marked ${label(String(b.status))}` },
@@ -57,7 +57,7 @@ function save() {
 }
 
 /** Who the stored token belongs to (JWT subject), so one person's queue never sends as another. */
-function tokenUser(): string {
+export function tokenUser(): string {
     const t = localStorage.getItem("token");
     if (!t) return "";
     try {
@@ -84,6 +84,43 @@ function waitingBodies(method: string, path: RegExp): { path: string; body: Reco
                 return { path: i.path, body: JSON.parse(i.body) as Record<string, unknown> };
             } catch {
                 return { path: i.path, body: {} };
+            }
+        });
+}
+
+/** A client made with no signal, shaped like the server's answer. */
+function heldClient(b: Record<string, unknown>): S["ClientResponse"] {
+    return {
+        id: String(b.id),
+        firstName: (b.firstName as string) ?? null,
+        lastName: (b.lastName as string) ?? null,
+        middleName: (b.middleName as string) ?? null,
+        suffix: (b.suffix as string) ?? null,
+        phoneNumber: (b.phoneNumber as string) ?? null,
+        address: null,
+        gender: (b.gender as S["ClientResponse"]["gender"]) ?? "UNKNOWN",
+        age: Number(b.age ?? 0),
+        systolicBp: null,
+        diastolicBp: null,
+        medicalConditions: null,
+        sessionCount: 0,
+    };
+}
+
+/** Clients made on this phone that haven't reached the server yet. */
+export function heldClients(): S["ClientResponse"][] {
+    return waitingBodies("POST", /^\/api\/clients$/).map((x) => heldClient(x.body));
+}
+
+/** New sessions waiting to send, with when they were made. */
+export function heldSessions(): { at: string; body: Record<string, unknown> }[] {
+    return waiting()
+        .filter((i) => i.method === "POST" && i.path === "/api/sessions")
+        .map((i) => {
+            try {
+                return { at: i.at, body: JSON.parse(i.body) as Record<string, unknown> };
+            } catch {
+                return { at: i.at, body: {} };
             }
         });
 }

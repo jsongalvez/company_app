@@ -87,6 +87,7 @@ data class ClientCreateResult(
 
 internal object ClientRepository {
     private const val SEARCH_LIMIT = 20
+    private const val DIRECTORY_LIMIT = 5000
     private const val FULL_NAME_CONCAT_WIDTH = 510
     private const val SPACE_COLUMN_WIDTH = 1
 
@@ -262,6 +263,17 @@ internal object ClientRepository {
                 ).limit(SEARCH_LIMIT)
                 .map { it.toClient() }
         }.also { logger.info { "[SEARCH-CLIENTS] Matched ${it.size} result(s)" } }
+
+    /** Every live client in name order, capped, for phones to search with no signal. */
+    fun directory(): List<Client> =
+        transaction {
+            ClientTable
+                .selectAll()
+                .where { ClientTable.deletedAt.isNull() }
+                .orderBy(ClientTable.lastName to SortOrder.ASC, ClientTable.firstName to SortOrder.ASC)
+                .limit(DIRECTORY_LIMIT)
+                .map { it.toClient() }
+        }
 
     /** Total session history per client for authoritative client read models. */
     fun countSessions(clientIds: Collection<UUID>): Map<UUID, Int> {
