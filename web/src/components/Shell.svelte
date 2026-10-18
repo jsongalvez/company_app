@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { app, can, canAnywhere, selectBranch, signOut, clockIn, clockOut } from "../lib/app.svelte";
+    import { app, can, canAnywhere, selectBranch, signOut, clockIn, clockOut, stopViewAs, setViewAsChanges } from "../lib/app.svelte";
     import { route, go } from "../lib/router.svelte";
     import ThemeIcon from "./ThemeIcon.svelte";
     import Feedback from "./Feedback.svelte";
@@ -114,7 +114,18 @@
     const opDate = $derived(operationalDate());
 </script>
 
-<div class="shell">
+<div class="shell" class:viewing={!!app.viewAs}>
+    {#if app.viewAs}
+        <div class="viewas" role="status">
+            <span class="ellipsis"
+                >Viewing as <b>{app.viewAs.name}</b>{#if app.viewAs.roles.length}&nbsp;({app.viewAs.roles.map(label).join(", ")}){/if}</span
+            >
+            <label class="check nowrap"
+                ><input type="checkbox" checked={app.viewAs.allowChanges} onchange={(e) => setViewAsChanges(e.currentTarget.checked)} />Allow changes</label
+            >
+            <button class="sm" onclick={() => stopViewAs()}>Back to me</button>
+        </div>
+    {/if}
     <header class="top">
         <button class="ghost menu" onclick={() => (menuOpen = !menuOpen)} aria-label="Menu" aria-expanded={menuOpen}>☰</button>
         <a class="brand" href="#/today">CompanyApp</a>
@@ -237,6 +248,27 @@
         grid-template-rows: 40px 1fr;
         height: 100%;
     }
+    .shell.viewing {
+        grid-template-rows: auto 40px 1fr;
+    }
+    .viewas {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 4px 10px;
+        background: var(--warn);
+        color: var(--panel);
+        font-size: 13px;
+        min-width: 0;
+    }
+    .viewas > span {
+        flex: 1;
+        min-width: 0;
+    }
+    .viewas .check {
+        color: inherit;
+    }
     .top {
         grid-column: 1 / -1;
         display: flex;
@@ -348,6 +380,16 @@
         .shell {
             grid-template-columns: 1fr;
             grid-template-rows: auto 1fr;
+        }
+        .shell.viewing {
+            grid-template-rows: auto auto 1fr;
+        }
+        .viewas {
+            flex-wrap: wrap;
+            row-gap: 2px;
+        }
+        .viewas > span {
+            flex-basis: 100%;
         }
         .top {
             flex-wrap: wrap;

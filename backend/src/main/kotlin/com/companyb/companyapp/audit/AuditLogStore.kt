@@ -23,6 +23,7 @@ import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.QueryParameter
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.alias
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greaterEq
@@ -66,6 +67,7 @@ internal object AuditLogStore {
             it[AuditLogTable.recordId] = recordId
             it[AuditLogTable.action] = action
             it[AuditLogTable.changedBy] = changedBy
+            ViewedAsBy.get()?.let { real -> it[AuditLogTable.viewedAsBy] = real }
             it[AuditLogTable.branchId] = branchId
             it[AuditLogTable.isFlagged] = isFlagged
             if (oldValue != null) it[AuditLogTable.oldValue] = oldValue
@@ -394,9 +396,12 @@ internal object AuditLogStore {
     // Both read joins live here so every audit entry carries its resolved display names:
     // the actor's (changedByName) and the branch's (branchName — #383; NULL for branchless
     // rows, which the client renders as an explicit marker).
+    private val viewer = AppUserTable.alias("viewer")
+
     private fun AuditLogTable.withDisplayJoins() =
         leftJoin(AppUserTable, { changedBy }, { AppUserTable.id })
             .leftJoin(BranchTable, { branchId }, { BranchTable.id })
+            .leftJoin(viewer, { viewedAsBy }, { viewer[AppUserTable.id] })
 
     private fun scopedQuery(
         windowBranchIds: List<UUID>?,
@@ -525,7 +530,11 @@ internal object AuditLogStore {
             recordId = this[AuditLogTable.recordId],
             action = this[AuditLogTable.action],
             changedBy = this[AuditLogTable.changedBy],
-            changedByName = this[AppUserTable.displayName],
+            changedByName =
+                getOrNull(viewer[AppUserTable.displayName])?.let { real ->
+                    "${this[AppUserTable.displayName]} ($real viewing)"
+                }
+                    ?: this[AppUserTable.displayName],
             branchId = this[AuditLogTable.branchId],
             branchName = this[BranchTable.name],
             changedAt = this[AuditLogTable.changedAt],

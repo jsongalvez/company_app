@@ -1,4 +1,4 @@
-import { api, ok, setToken, getToken, setUnauthorizedHandler, uuid, errText, type S } from "../api/client";
+import { api, ok, setToken, getToken, setUnauthorizedHandler, uuid, errText, getViewAs, setViewAs, type S, type ViewAs } from "../api/client";
 import { clearCache, invalidate } from "./cache.svelte";
 
 type Cap = S["UserCapabilityResponse"];
@@ -18,7 +18,54 @@ export const app = $state({
     shiftKnown: false,
     unread: 0,
     toast: null as { text: string; kind: "ok" | "bad" } | null,
+    /** Set while a developer is viewing the app as someone else. */
+    viewAs: getViewAs() as ViewAs | null,
 });
+
+const VIEW_AS_MINUTES = 30;
+
+/** Developer only: see the app exactly as another person does (look-only unless changes are allowed). */
+export async function startViewAs(userId: string) {
+    const r = await ok(api.POST("/api/view-as", { body: { userId, allowChanges: false } }));
+    const v: ViewAs = {
+        userId: r.userId,
+        name: r.displayName,
+        roles: r.roles,
+        allowChanges: false,
+        until: Date.now() + VIEW_AS_MINUTES * 60_000,
+        realName: app.me?.displayName ?? "",
+    };
+    await switchIdentity(v);
+}
+
+export async function stopViewAs(event: "stopped" | "timed out" = "stopped") {
+    const v = app.viewAs;
+    if (!v) return;
+    await switchIdentity(null);
+    await api.POST("/api/view-as/stop", { body: { userId: v.userId, event } }).catch(() => {});
+}
+
+export async function setViewAsChanges(allow: boolean) {
+    const v = app.viewAs;
+    if (!v) return;
+    const next = { ...v, allowChanges: allow };
+    setViewAs(next);
+    app.viewAs = next;
+    await api.POST("/api/view-as/stop", { body: { userId: v.userId, event: allow ? "changes allowed" : "changes off" } }).catch(() => {});
+}
+
+async function switchIdentity(v: ViewAs | null) {
+    setViewAs(v);
+    app.viewAs = v;
+    clearCache();
+    Object.assign(app, { today: null, shift: null, shiftKnown: false, unread: 0 });
+    location.hash = "#/today";
+    await boot();
+}
+
+setInterval(() => {
+    if (app.viewAs && app.viewAs.until <= Date.now()) void stopViewAs("timed out");
+}, 15_000);
 
 setUnauthorizedHandler(() => signOut(false));
 
@@ -30,6 +77,8 @@ export async function signIn(username: string, password: string) {
 }
 
 export async function signOut(callServer = true) {
+    setViewAs(null);
+    app.viewAs = null;
     if (callServer && getToken()) {
         try {
             await api.POST("/api/auth/logout");

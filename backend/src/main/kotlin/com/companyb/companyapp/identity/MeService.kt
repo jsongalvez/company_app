@@ -43,6 +43,7 @@ object MeService {
                 email = user.email,
                 status = user.status,
                 createdAt = user.createdAt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+                canViewAs = ViewAs.SUPERUSER_ROLE in RoleRepository.findRoleNamesForUserInTransaction(userId),
             )
         }.also { logger.info { "[GET-ME] Fetched user $userId" } }
 

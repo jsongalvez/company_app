@@ -35,6 +35,8 @@ Auth checks are always against **capabilities**, not role names directly. Roles 
 | `ACCOUNTANT` | Read-only. Views sales of all branches. |
 | `ONBOARDING` | Zero permissions. Freshly registered account — locked out until assigned to a branch. |
 
+**View as (developer only).** A `SUPERUSER` can open the app as any other active, non-superuser account from Users → View as. While viewing, the server answers with that person's permissions, so the screens and refusals are exactly theirs. It is look-only by default; the "Allow changes" switch in the coloured top bar lets writes through. History records changes made this way under the person, with the superuser named beside them ("Pat (twisty viewing)"); starting, stopping and switching changes on or off are recorded too. Viewing ends with "Back to me", on sign-out, when the tab closes, or after 30 minutes. `SUPERUSER` can only be given through the database, never in the app.
+
 There is no TEMPORARY role — relief access is a behavioral state managed by `grant_relief_access`, not a permanent role assignment.
 
 ---

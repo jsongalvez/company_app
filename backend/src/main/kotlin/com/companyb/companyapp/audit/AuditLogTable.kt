@@ -28,6 +28,7 @@ object AuditLogTable : Table("audit_log") {
     // No Exposed `.references()` FKs: Flyway SQL owns the schema and joins use
     // explicit column pairs, matching the other feature tables (#549).
     val changedBy = javaUUID("changed_by")
+    val viewedAsBy = javaUUID("viewed_as_by").nullable()
     val branchId = javaUUID("branch_id").nullable()
     val changedAt = timestampWithTimeZone("changed_at").defaultExpression(CurrentTimestampWithTimeZone)
     val oldValue = registerColumn("old_value", JsonBColumnType()).nullable()

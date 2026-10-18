@@ -48,10 +48,13 @@ import com.companyb.companyapp.contracts.identity.LoginResponse
 import com.companyb.companyapp.contracts.identity.MeResponse
 import com.companyb.companyapp.contracts.identity.ResetPasswordRequest
 import com.companyb.companyapp.contracts.identity.RoleResponse
+import com.companyb.companyapp.contracts.identity.StopViewAsRequest
 import com.companyb.companyapp.contracts.identity.UpdateProfileRequest
 import com.companyb.companyapp.contracts.identity.UserAssignmentResponse
 import com.companyb.companyapp.contracts.identity.UserRoleReplaceRequest
 import com.companyb.companyapp.contracts.identity.UserSummaryResponse
+import com.companyb.companyapp.contracts.identity.ViewAsRequest
+import com.companyb.companyapp.contracts.identity.ViewAsResponse
 import com.companyb.companyapp.contracts.incident.FeedbackNoteResponse
 import com.companyb.companyapp.contracts.incident.FeedbackRequest
 import com.companyb.companyapp.contracts.incident.FeedbackResponse
@@ -207,6 +210,9 @@ internal object DtoSchemaProjector {
             "FeedbackResponse" to FeedbackResponse.serializer(),
             "FeedbackNoteResponse" to FeedbackNoteResponse.serializer(),
             "SendFeedbackRequest" to SendFeedbackRequest.serializer(),
+            "ViewAsRequest" to ViewAsRequest.serializer(),
+            "StopViewAsRequest" to StopViewAsRequest.serializer(),
+            "ViewAsResponse" to ViewAsResponse.serializer(),
             "SetFeedbackStatusRequest" to SetFeedbackStatusRequest.serializer(),
             "ForgotPasswordRequest" to ForgotPasswordRequest.serializer(),
             "GrantReliefAccessRequest" to GrantReliefAccessRequest.serializer(),

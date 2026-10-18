@@ -3,6 +3,7 @@
 
 package com.companyb.companyapp.remittance
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.remittance.RemittanceLineType
@@ -39,6 +40,7 @@ import kotlin.test.assertTrue
 class RemittanceAuthzTest : BasePostgresTest() {
     private val submitUser = TestFixtures.uuid()
     private val noneUser = TestFixtures.uuid()
+    private val globalViewer = TestFixtures.uuid()
     private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val otherBranchId = TestFixtures.uuid()
@@ -67,6 +69,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
     private fun seedIdentityAndBranches() {
         IdentityFixtures.insertTestUser(submitUser, "submit")
         IdentityFixtures.insertTestUser(noneUser, "no-caps")
+        IdentityFixtures.insertTestUser(globalViewer, "global-viewer")
 
         BranchWorkforceFixtures.insertTestBranch(branchId, "Remittance Branch $branchId")
         BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Remittance Branch $otherBranchId")
@@ -76,6 +79,21 @@ class RemittanceAuthzTest : BasePostgresTest() {
             capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
             contextType = CapabilityContextType.BRANCH,
             contextId = branchId,
+            sourceId = sourceId,
+        )
+        // Every role that sends remittances can also view its branch.
+        IdentityFixtures.grantCapability(
+            userId = submitUser,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+        IdentityFixtures.grantCapability(
+            userId = globalViewer,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
             sourceId = sourceId,
         )
 
@@ -398,6 +416,20 @@ class RemittanceAuthzTest : BasePostgresTest() {
             assertEquals(200, response.code)
             val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"status\":\"REMITTED\""))
+        }
+    }
+
+    @Test
+    fun `GET days picker allowed for a global branch viewer without remittance rights`() {
+        testServer.client.let { client ->
+            assertEquals(
+                200,
+                client
+                    .get(
+                        "/api/branches/$branchId/remittance-days?from=$rangeStart&to=$rangeEnd",
+                        asUser(globalViewer),
+                    ).code,
+            )
         }
     }
 
@@ -1047,6 +1079,13 @@ class RemittanceAuthzTest : BasePostgresTest() {
             contextId = emptyBranch,
             sourceId = sourceId,
         )
+        IdentityFixtures.grantCapability(
+            userId = submitUser,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = emptyBranch,
+            sourceId = sourceId,
+        )
         testServer.client.let { client ->
             val response = client.get("/api/remittances?branchId=$emptyBranch", asUser(submitUser))
             assertEquals(200, response.code)
@@ -1061,6 +1100,13 @@ class RemittanceAuthzTest : BasePostgresTest() {
         IdentityFixtures.grantCapability(
             userId = submitUser,
             capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = emptyBranch,
+            sourceId = sourceId,
+        )
+        IdentityFixtures.grantCapability(
+            userId = submitUser,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
             contextId = emptyBranch,
             sourceId = sourceId,

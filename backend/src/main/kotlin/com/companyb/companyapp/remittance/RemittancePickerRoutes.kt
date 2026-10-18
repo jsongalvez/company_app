@@ -109,13 +109,15 @@ object RemittancePickerRoutes {
             )
         }
 
+        // The day list is read-only (dates and status), and Finance uses it to find past days,
+        // so anyone who can view the branch may read it, including global viewers like the owner.
         config.routes.before(ApiRoutes.BRANCH_REMITTANCE_DAYS_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             BranchService.findById(branchId)
-            CapabilityFilter.requireBranchCapabilityForBranchId(
+            CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
                 context,
                 branchId,
-                CapabilityCodes.SUBMIT_REMITTANCE,
+                CapabilityCodes.VIEW_BRANCH_DATA,
             )
         }
 

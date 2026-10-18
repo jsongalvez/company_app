@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, type S } from "../api/client";
-    import { app } from "../lib/app.svelte";
+    import { app, startViewAs } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
@@ -122,6 +122,9 @@
                         </td>
                         <td class="right nowrap">
                             {#if u.id !== app.me?.id}
+                                {#if app.me?.canViewAs && u.status !== "INACTIVE" && !u.roles?.includes("SUPERUSER")}
+                                    <button class="sm" onclick={() => act(() => startViewAs(u.id))} title="See the app as {u.displayName} does">View as</button>
+                                {/if}
                                 {#if u.status !== "INACTIVE"}
                                     <button class="sm" onclick={() => openRoles(u)}>Roles</button>
                                     <button class="sm" onclick={() => setActive(u, false)}>Deactivate</button>

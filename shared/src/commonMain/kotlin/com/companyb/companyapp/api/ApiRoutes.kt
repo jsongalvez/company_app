@@ -13,6 +13,8 @@ object ApiRoutes {
     const val AUTH_RESET_PASSWORD = "/auth/reset-password"
     const val AUTH_LOGOUT = "$API_ROOT/auth/logout"
     const val ME = "$API_ROOT/me"
+    const val VIEW_AS = "$API_ROOT/view-as"
+    const val VIEW_AS_STOP = "$VIEW_AS/stop"
     const val ME_BRANCHES = "$ME/branches"
     const val ME_CAPABILITIES = "$ME/capabilities"
     const val ME_ACTIVE_ATTENDANCE = "$ME/active-attendance"

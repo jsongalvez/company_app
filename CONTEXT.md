@@ -33,7 +33,8 @@ Rules for app wording:
 | Manager | A coordinator who can also manage users and mission helpers. | `MANAGER` |
 | Owner | Runs the business: users, branches and products. | `OWNER` |
 | Accountant | Can see every branch's numbers but can't change anything. | `ACCOUNTANT` |
-| Superuser | Full access, for setup and support. | `SUPERUSER` |
+| Superuser | Full access, for setup and support. The developer's role; only a superuser can "View as" someone. | `SUPERUSER` |
+| View as | A superuser seeing the app as another person, with that person's permissions. Look-only unless "Allow changes" is on. | `X-View-As` header |
 | New (no access yet) | Someone who joined with an invite code but hasn't been given a role. They can sign in but see nothing. | `ONBOARDING` |
 | Role | A job title that decides what someone can do. A user can have several. | `role` |
 | Access | What a user is allowed to do where. The app hides what you can't do. The code calls each single permission a "capability". | capability, `user_capability` |

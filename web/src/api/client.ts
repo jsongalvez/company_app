@@ -14,6 +14,27 @@ export function setToken(token: string | null) {
     else localStorage.removeItem(TOKEN_KEY);
 }
 
+/** Developer "View as": while set, every request runs as that person (server checks we're a superuser). */
+export type ViewAs = { userId: string; name: string; roles: string[]; allowChanges: boolean; until: number; realName: string };
+const VIEW_AS_KEY = "viewAs";
+export function getViewAs(): ViewAs | null {
+    try {
+        const v = JSON.parse(sessionStorage.getItem(VIEW_AS_KEY) ?? "null") as ViewAs | null;
+        return v && v.until > Date.now() ? v : null;
+    } catch {
+        return null;
+    }
+}
+export function setViewAs(v: ViewAs | null) {
+    if (v) sessionStorage.setItem(VIEW_AS_KEY, JSON.stringify(v));
+    else sessionStorage.removeItem(VIEW_AS_KEY);
+}
+function viewAsHeaders(): Record<string, string> {
+    const v = getViewAs();
+    if (!v) return {};
+    return v.allowChanges ? { "X-View-As": v.userId, "X-View-As-Changes": "1" } : { "X-View-As": v.userId };
+}
+
 /** Called when the server rejects our token; app state installs the handler. */
 let onUnauthorized: () => void = () => {};
 export function setUnauthorizedHandler(fn: () => void) {
@@ -27,6 +48,7 @@ const auth: Middleware = {
     onRequest({ request }) {
         const t = getToken();
         if (t) request.headers.set("Authorization", `Bearer ${t}`);
+        for (const [k, v] of Object.entries(viewAsHeaders())) request.headers.set(k, v);
         return request;
     },
     onResponse({ response, request }) {
@@ -103,7 +125,7 @@ export function uuid(): string {
 export async function download(path: string, query: Record<string, string>) {
     const url = new URL(path, location.origin);
     for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${getToken() ?? ""}` } });
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${getToken() ?? ""}`, ...viewAsHeaders() } });
     if (!res.ok) {
         let body: unknown = null;
         try {

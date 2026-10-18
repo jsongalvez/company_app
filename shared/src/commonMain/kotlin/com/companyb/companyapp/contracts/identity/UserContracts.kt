@@ -17,6 +17,30 @@ data class MeResponse(
     val email: String = "",
     val status: UserStatus = UserStatus.UNKNOWN,
     val createdAt: String,
+    /** True for a SUPERUSER (developer), who may "view as" other people. */
+    val canViewAs: Boolean = false,
+)
+
+@Serializable
+data class ViewAsRequest(
+    val userId: String,
+    val allowChanges: Boolean = false,
+)
+
+@Serializable
+data class StopViewAsRequest(
+    val userId: String,
+    /** "stopped", "changes allowed" or "changes off". */
+    val event: String = "stopped",
+)
+
+@Serializable
+data class ViewAsResponse(
+    val userId: String,
+    val username: String,
+    val displayName: String,
+    val roles: List<String>,
+    val allowChanges: Boolean,
 )
 
 @Serializable

@@ -33,6 +33,8 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 private const val DEV_USER_ROLE_NAME = "OWNER"
+private const val DEV_SUPERUSER_USERNAME = "dev"
+private const val DEV_SUPERUSER_PASSWORD = "dev-dev-pass"
 private const val DEV_USER_EMAIL_DOMAIN = "@example.com"
 private const val SCOPED_USER_SLOT: Short = 1
 
@@ -98,7 +100,10 @@ object DevSeeder {
         runInTransaction: (() -> Unit) -> Unit = { block -> transaction { block() } },
     ) {
         credentials(config.globalUsername, config.globalPassword)?.let { global ->
-            runInTransaction { seedGlobalUser(global) }
+            runInTransaction {
+                seedGlobalUser(global)
+                seedDeveloper()
+            }
         }
         credentials(config.scopedUsername, config.scopedPassword)?.let { scoped ->
             runInTransaction { seedScopedUser(scoped) }
@@ -106,6 +111,21 @@ object DevSeeder {
         credentials(config.reliefUsername, config.reliefPassword)?.let { relief ->
             runInTransaction { seedReliefUser(relief) }
         }
+    }
+
+    /** Local-only developer account (SUPERUSER) for trying "View as" (feedback 378fdb6d). */
+    private fun seedDeveloper() {
+        val userId = ensureUser(Credentials(DEV_SUPERUSER_USERNAME, DEV_SUPERUSER_PASSWORD))
+        val roleId =
+            RoleTable
+                .selectAll()
+                .where { RoleTable.name eq "SUPERUSER" }
+                .single()[RoleTable.id]
+        UserRoleTable.insertIgnore {
+            it[UserRoleTable.userId] = userId
+            it[UserRoleTable.roleId] = roleId
+        }
+        logger.info { "[DEV-SEED] Ensured developer '$DEV_SUPERUSER_USERNAME' with SUPERUSER role" }
     }
 
     private fun credentials(

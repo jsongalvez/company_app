@@ -32,6 +32,8 @@ import com.companyb.companyapp.identity.MeRoutes
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.PasswordResetDelivery
 import com.companyb.companyapp.identity.UserRoutes
+import com.companyb.companyapp.identity.ViewAs
+import com.companyb.companyapp.identity.ViewAsRoutes
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
 import com.companyb.companyapp.logging.RequestLog
@@ -162,7 +164,7 @@ private fun configureAuth(config: io.javalin.config.JavalinConfig) {
     config.routes.before("${ApiRoutes.API_PREFIX}*") { context ->
         val token = context.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
         val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
-        context.attribute("userId", userId)
+        context.attribute("userId", ViewAs.resolve(context, userId))
     }
 }
 
@@ -183,6 +185,7 @@ fun registerAllRoutes(config: io.javalin.config.JavalinConfig) {
     MeRoutes.updateMe(config)
     MeRoutes.changePassword(config)
     MeRoutes.getCapabilities(config)
+    ViewAsRoutes.register(config)
     MeRoutes.getBranches(config)
     MeRoutes.getActiveAttendance(config)
     AttendanceRoutes.clockIn(config)
