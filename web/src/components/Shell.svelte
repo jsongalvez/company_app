@@ -75,6 +75,14 @@
         menuOpen = false;
     });
 
+    // Alerts works as a toggle: tapping it again goes back where you were.
+    function toggleAlerts(e: MouseEvent) {
+        if (section !== "/notifications") return;
+        e.preventDefault();
+        if (history.length > 1) history.back();
+        else location.hash = "#/today";
+    }
+
     // Branch picker: home/relief branches first, then all-branch read access.
     const branchOptions = $derived.by(() => {
         const mine = app.branches.map((b) => ({ id: b.branchId, name: b.branchName, note: b.isRelief ? " (relief)" : "" }));
@@ -172,7 +180,15 @@
             <button class="primary" onclick={doClockIn} disabled={clockBusy}>Clock in</button>
         {/if}
 
-        <a class="btn" href="#/notifications" title="Alerts" onmouseenter={() => warm(load.notifications())}>
+        <a
+            class="btn"
+            class:active={section === "/notifications"}
+            href="#/notifications"
+            title={section === "/notifications" ? "Back to the previous page" : app.unread ? `${app.unread} unread` : "Alerts"}
+            aria-label={section === "/notifications" ? "Close alerts" : "Alerts"}
+            onclick={toggleAlerts}
+            onmouseenter={() => warm(load.notifications())}
+        >
             Alerts{#if app.unread}<b class="count">{app.unread}</b>{/if}
         </a>
         <button class="hide-sm" onclick={() => (feedbackOpen = true)}>Feedback</button>
@@ -186,8 +202,13 @@
             {#if group.items.some((i) => i.show)}
                 <h3>{group.title}</h3>
                 {#each group.items.filter((i) => i.show) as item (item.path)}
-                    <a href="#{item.path}" class:active={section === item.path} onmouseenter={item.warm} onpointerdown={item.warm} onfocus={item.warm}
-                        >{item.text}</a
+                    <a
+                        href="#{item.path}"
+                        class:active={section === item.path}
+                        onclick={() => (menuOpen = false)}
+                        onmouseenter={item.warm}
+                        onpointerdown={item.warm}
+                        onfocus={item.warm}>{item.text}</a
                     >
                 {/each}
             {/if}
@@ -352,6 +373,11 @@
     nav a:hover {
         background: var(--row-hover);
         text-decoration: none;
+    }
+    a.btn.active {
+        background: var(--accent-soft);
+        color: var(--accent);
+        border-color: var(--accent);
     }
     nav a.active {
         border-left-color: var(--accent);
