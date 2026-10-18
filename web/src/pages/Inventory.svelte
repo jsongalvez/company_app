@@ -4,7 +4,7 @@
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
-    import { peso, num, time, label, operationalDate } from "../lib/format";
+    import { peso, num, time, dateTime, label, operationalDate } from "../lib/format";
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
     import Dialog from "../components/Dialog.svelte";
@@ -12,8 +12,10 @@
 
     const bid = $derived(app.branchId);
     const inv = new Query(load.inventory(app.branchId).key, load.inventory(app.branchId).fn);
-    let date = $state(operationalDate());
-    const moves = new Query(load.movements(app.branchId, operationalDate()).key, load.movements(app.branchId, operationalDate()).fn);
+    // No day picked: the latest changes across all days.
+    let date = $state("");
+    let moveProduct = $state("");
+    const moves = new Query(load.movements(app.branchId, "").key, load.movements(app.branchId, "").fn);
     $effect(() => {
         const l = load.inventory(bid);
         inv.load(l.key, l.fn);
@@ -28,6 +30,7 @@
     const LOW = 5;
     let filter = $state("");
     const rows = $derived((inv.data ?? []).filter((i) => !filter || i.productName.toLowerCase().includes(filter.toLowerCase())));
+    const shownMoves = $derived((moves.data ?? []).filter((m) => !moveProduct || m.productId === moveProduct));
     const names = $derived(Object.fromEntries((inv.data ?? []).map((i) => [i.productId, i.productName])));
 
     function refresh() {
@@ -189,16 +192,21 @@
     <header>
         <h2>Stock changes</h2>
         <span class="spacer"></span>
-        <input type="date" bind:value={date} max={operationalDate()} />
+        <select bind:value={moveProduct} aria-label="Product">
+            <option value="">All products</option>
+            {#each inv.data ?? [] as i (i.productId)}<option value={i.productId}>{i.productName}</option>{/each}
+        </select>
+        <input type="date" bind:value={date} max={operationalDate()} aria-label="Day" />
+        {#if date}<button type="button" onclick={() => (date = "")}>Latest</button>{/if}
     </header>
-    <State q={moves} empty={!!moves.data && moves.data.length === 0} emptyText="No stock changes on this day." />
-    {#if moves.data?.length}
+    <State q={moves} empty={!!moves.data && shownMoves.length === 0} emptyText={date ? "No stock changes on this day." : "No stock changes yet."} />
+    {#if shownMoves.length}
         <table class="grid">
-            <thead><tr><th>Time</th><th>Product</th><th>Type</th><th class="num">Change</th><th>Notes</th></tr></thead>
+            <thead><tr><th>{date ? "Time" : "When"}</th><th>Product</th><th>Type</th><th class="num">Change</th><th>Notes</th></tr></thead>
             <tbody>
-                {#each moves.data as m (m.id)}
+                {#each shownMoves as m (m.id)}
                     <tr>
-                        <td>{time(m.movedAt)}</td>
+                        <td>{date ? time(m.movedAt) : dateTime(m.movedAt)}</td>
                         <td>{names[m.productId] ?? ""}</td>
                         <td>{label(m.reason)}</td>
                         <td class="num" class:neg={m.quantityChange < 0}>{m.quantityChange > 0 ? "+" : ""}{m.quantityChange}</td>

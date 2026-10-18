@@ -31,7 +31,7 @@ test("make a product, stock it, restock it and sell some", { session: "owner" },
     const add = screen.getByRole("dialog", "Add product to this branch");
     await add.getByLabel(/^Product/).selectOption({ label: `${product} · 250.00` });
     await add.getByRole("button", "Add").tap();
-    const row = screen.getByRole("row").filter({ hasText: product });
+    const row = screen.getByRole("row").filter({ hasText: product }).filter({ hasText: "Fix count" });
     await expect(row).toBeVisible();
 
     await row.getByRole("button", "Restock").tap();
@@ -55,7 +55,7 @@ test("make a product, stock it, restock it and sell some", { session: "owner" },
     // No signal: one sale tied to a session, one walk-in. Both go out once the signal is back.
     const client = await doneSessionForNewClient(app, screen);
     await app.open("/#/inventory");
-    const card = screen.getByRole("row").filter({ hasText: product }).filter({ hasText: "Fix count" });
+    const card = row;
     await expect(card).toBeVisible();
     const down = /\/(api\/|health)/;
     await browser.route(down, (route) => route.abort());
@@ -74,4 +74,10 @@ test("make a product, stock it, restock it and sell some", { session: "owner" },
     await app.open("/#/inventory");
     await expect(card.getByText("6", { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(card.getByText("4", { exact: true })).toBeVisible();
+
+    // Stock changes list the latest moves without picking a day, and filter by product.
+    await screen.getByLabel("Product").selectOption({ label: product });
+    const changes = screen.getByRole("row").filter({ hasText: product }).filter({ hasText: "Sale" });
+    await expect(changes.first()).toBeVisible();
+    await expect(screen.getByRole("row").filter({ hasText: "Restock" }).filter({ hasText: product }).filter({ hasText: "+10" })).toBeVisible();
 });

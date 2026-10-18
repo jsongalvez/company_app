@@ -30,7 +30,9 @@ export const load = {
         }),
     inventory: (branchId: string) => L(`inv:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/inventory", b(branchId)))),
     movements: (branchId: string, date: string) =>
-        L(`moves:${branchId}:${date}`, () => ok(api.GET("/api/branches/{branchId}/inventory/movements", { params: { path: { branchId }, query: { date } } }))),
+        L(`moves:${branchId}:${date}`, () =>
+            ok(api.GET("/api/branches/{branchId}/inventory/movements", { params: { path: { branchId }, query: { date: date || undefined } } })),
+        ),
     products: () => L(`products`, () => ok(api.GET("/api/products"))),
     categories: () => L(`categories`, () => ok(api.GET("/api/product-categories"))),
     expenses: (branchDayId: string) => L(`exp:${branchDayId}`, () => ok(api.GET("/api/expenses", { params: { query: { branchDayId } } }))),

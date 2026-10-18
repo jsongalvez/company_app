@@ -203,6 +203,9 @@ internal object BranchInventoryRepository {
             .singleOrNull()
             ?.let { it.toBranchInventory() }
 
+    /** Without a date: the latest [RECENT_MOVEMENTS_LIMIT] changes across all days. */
+    const val RECENT_MOVEMENTS_LIMIT = 200
+
     fun findMovements(
         branchId: UUID,
         date: LocalDate? = null,
@@ -230,7 +233,8 @@ internal object BranchInventoryRepository {
                 }.orderBy(
                     InventoryMovementTable.movedAt to SortOrder.DESC,
                     InventoryMovementTable.id to SortOrder.DESC,
-                ).map { it.toInventoryMovement() }
+                ).let { if (date == null) it.limit(RECENT_MOVEMENTS_LIMIT) else it }
+                .map { it.toInventoryMovement() }
         }.also {
             logger.info {
                 "[FIND-MOVEMENTS] Fetched ${it.size} movement(s) for branch $branchId " +
