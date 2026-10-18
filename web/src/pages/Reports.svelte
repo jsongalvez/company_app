@@ -5,7 +5,7 @@
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
     import { go, route } from "../lib/router.svelte";
-    import { peso, day, sum, operationalDate, monthStart, addDays } from "../lib/format";
+    import { peso, day, shortDay, sum, operationalDate, monthStart, addDays } from "../lib/format";
     import PageHead from "../components/PageHead.svelte";
     import RangePicker, { type Preset } from "../components/RangePicker.svelte";
     import State from "../components/State.svelte";
@@ -80,9 +80,11 @@
 </script>
 
 <PageHead title="Sales reports" sub={branchName(bid)}>
-    <button onclick={() => shiftMonth(-1)} title="Previous month">‹</button>
-    <RangePicker mode="day" {from} {to} {presets} max={today} clearable={false} onchange={(r) => setRange(r.from || r.to, r.to || r.from)} />
-    <button onclick={() => shiftMonth(1)} title="Next month" disabled={to >= today}>›</button>
+    <span class="daynav monthnav">
+        <button onclick={() => shiftMonth(-1)} title="Previous month">‹</button>
+        <RangePicker mode="day" {from} {to} {presets} max={today} clearable={false} onchange={(r) => setRange(r.from || r.to, r.to || r.from)} />
+        <button onclick={() => shiftMonth(1)} title="Next month" disabled={to >= today}>›</button>
+    </span>
 </PageHead>
 
 {#if wholeMonth && monthly.data}
@@ -128,7 +130,7 @@
                 <tr>
                     <th>Day</th>
                     <th class="num">Income</th>
-                    <th class="num">Pay</th>
+                    <th class="num hide-sm">Pay</th>
                     <th class="num">Expenses</th>
                     <th class="num">Net</th>
                     <th class="num hide-sm">Product sales</th>
@@ -138,9 +140,9 @@
             <tbody>
                 {#each rows as r (r.branchDayId)}
                     <tr class="click" onclick={() => go("/finance", { date: r.date })}>
-                        <td class="nowrap">{day(r.date)}</td>
+                        <td class="nowrap"><span class="hide-sm">{day(r.date)}</span><span class="show-sm">{shortDay(r.date)}</span></td>
                         <td class="num">{peso(r.grossIncome)}</td>
-                        <td class="num">{peso(r.totalCompensation)}</td>
+                        <td class="num hide-sm">{peso(r.totalCompensation)}</td>
                         <td class="num">{peso(r.totalExpenses)}</td>
                         <td class="num"><b>{peso(r.netIncome)}</b></td>
                         <td class="num hide-sm">{peso(r.totalProductSales)}</td>
@@ -152,7 +154,7 @@
                 <tr>
                     <td>{rows.length} {rows.length === 1 ? "day" : "days"}</td>
                     <td class="num">{total("grossIncome")}</td>
-                    <td class="num">{total("totalCompensation")}</td>
+                    <td class="num hide-sm">{total("totalCompensation")}</td>
                     <td class="num">{total("totalExpenses")}</td>
                     <td class="num">{total("netIncome")}</td>
                     <td class="num hide-sm">{total("totalProductSales")}</td>

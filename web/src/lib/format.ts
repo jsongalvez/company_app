@@ -27,6 +27,15 @@ export function time(iso: string | null | undefined): string {
     return iso ? tf.format(new Date(iso)) : "";
 }
 /** A plain calendar date "2026-10-17" (no timezone shift). */
+const sdf = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+
+/** "Fri, Oct 23": for narrow phone tables. */
+export function shortDay(d: string | null | undefined): string {
+    if (!d) return "";
+    const [y, m, dd] = d.split("-").map(Number);
+    return sdf.format(new Date(Date.UTC(y!, m! - 1, dd!, 12)));
+}
+
 export function day(d: string | null | undefined): string {
     if (!d) return "";
     const [y, m, dd] = d.split("-").map(Number);

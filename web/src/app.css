@@ -454,6 +454,10 @@ table.grid tfoot td {
     font-weight: 600;
 }
 
+.show-sm {
+    display: none;
+}
+
 /* ---------- Phone ---------- */
 /* Tables marked .stack turn each row into a compact block; cells marked .hide-sm drop out. */
 @media (max-width: 760px) {
@@ -468,6 +472,14 @@ table.grid tfoot td {
     }
     .hide-sm {
         display: none !important;
+    }
+    .show-sm {
+        display: inline;
+    }
+    table.grid th,
+    table.grid td {
+        padding-left: 5px;
+        padding-right: 5px;
     }
     table.grid.stack,
     table.grid.stack tbody {
@@ -518,6 +530,14 @@ table.grid tfoot td {
     gap: 6px;
     flex-wrap: nowrap;
     white-space: nowrap;
+}
+.daynav.monthnav {
+    display: flex;
+    max-width: 100%;
+    min-width: 0;
+}
+.daynav.monthnav > button {
+    flex: none;
 }
 .daynav input[type="date"] {
     min-width: 0;
