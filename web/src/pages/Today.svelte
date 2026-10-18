@@ -7,6 +7,7 @@
     import { go } from "../lib/router.svelte";
     import { peso, time, label, sum, day, operationalDate } from "../lib/format";
     import { allowedTargets, statusClass, type Status } from "../lib/rules";
+    import { heldMark, outbox } from "../lib/outbox.svelte";
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
     import NewSession from "../components/NewSession.svelte";
@@ -32,7 +33,16 @@
 
     type F = "all" | "PENDING" | "COMPLETED" | "other" | "void";
     let filter = $state<F>("all");
-    const sessions = $derived(dash.data?.sessions ?? []);
+    // A mark made with no signal shows at once, flagged as not sent yet.
+    const sessions = $derived(
+        (dash.data?.sessions ?? []).map((s) => {
+            void outbox.items.length;
+            const h = heldMark(s.id);
+            return h && h !== s.sessionStatus
+                ? { ...s, sessionStatus: h as S["DashboardSessionResponse"]["sessionStatus"], held: true }
+                : { ...s, held: false };
+        }),
+    );
     const shown = $derived(
         sessions.filter((s) =>
             filter === "all"
@@ -216,7 +226,7 @@
                                 <td>
                                     {#if s.isVoided}<span class="mark bad">Voided</span>{:else}<span class="mark {statusClass(s.sessionStatus)}"
                                             >{label(s.sessionStatus)}</span
-                                        >{/if}
+                                        >{#if s.held}<span class="mark warn" title="Waiting on this phone for signal">Not sent</span>{/if}{/if}
                                 </td>
                                 <td class="ellipsis pr">
                                     {#if s.practitioners?.length}

@@ -108,7 +108,8 @@ async function resilientFetch(req: Request): Promise<Response> {
             reportNetFailure();
             // Offline means it never left the phone; otherwise it may have reached the server.
             // No signal: front-desk saves wait on the phone and go out later by themselves.
-            if (last && canQueue(req.method, path)) return enqueue(req.method, path, body ?? "");
+            // The phone itself says it's offline: hold it now rather than make the person wait out the retries.
+            if ((last || !navigator.onLine) && canQueue(req.method, path)) return enqueue(req.method, path, body ?? "");
             if (last) throw new NetError(navigator.onLine || (e instanceof DOMException && e.name === "TimeoutError"));
             await onlineOrTimeout(RETRY_WAITS_MS[attempt]!);
             continue;

@@ -75,6 +75,38 @@ export function mine(): Item[] {
 export const waiting = () => mine().filter((i) => !i.failed);
 export const failed = () => mine().filter((i) => !!i.failed);
 
+/** The body of this person's waiting saves to a path, newest last. */
+function waitingBodies(method: string, path: RegExp): { path: string; body: Record<string, unknown> }[] {
+    return waiting()
+        .filter((i) => i.method === method && path.test(i.path))
+        .map((i) => {
+            try {
+                return { path: i.path, body: JSON.parse(i.body) as Record<string, unknown> };
+            } catch {
+                return { path: i.path, body: {} };
+            }
+        });
+}
+
+/** A session's mark still waiting to send, so lists can show it straight away. */
+export function heldMark(sessionId: string): string | undefined {
+    const m = waitingBodies("PATCH", /^\/api\/sessions\/[^/]+\/status$/).filter((x) => x.path === `/api/sessions/${sessionId}/status`);
+    return m.length ? String(m[m.length - 1]!.body.status) : undefined;
+}
+
+/** Was the last waiting clock action a clock-in (its body), a clock-out ("out"), or none? */
+export function heldClock(): { attendanceId: string; branchId: string } | "out" | undefined {
+    const c = waiting().filter((i) => /^\/api\/attendance\/clock-(in|out)$/.test(i.path));
+    const last = c[c.length - 1];
+    if (!last) return undefined;
+    if (last.path.endsWith("clock-out")) return "out";
+    try {
+        return JSON.parse(last.body) as { attendanceId: string; branchId: string };
+    } catch {
+        return undefined;
+    }
+}
+
 function rule(method: string, path: string): Rule | undefined {
     return RULES.find((r) => r.method === method && r.path.test(path));
 }

@@ -1,7 +1,7 @@
 import { ApiError, api, ok, setToken, getToken, setUnauthorizedHandler, uuid, errText, getViewAs, setViewAs, type S, type ViewAs } from "../api/client";
 import { clearCache, invalidate } from "./cache.svelte";
 import { RECONNECTED } from "./net.svelte";
-import { doneText, heldSoFar, SENT } from "./outbox.svelte";
+import { doneText, heldClock, heldSoFar, SENT } from "./outbox.svelte";
 
 type Cap = S["UserCapabilityResponse"];
 
@@ -182,11 +182,27 @@ export async function refreshShift() {
     try {
         const r = await ok(api.GET("/api/me/active-attendance"));
         app.shift = (r.shift as S["ActiveShiftResponse"] | null) ?? null;
+        applyHeldClock();
     } catch (e) {
         // Lost signal says nothing about the shift: keep what we knew.
         if (!(e instanceof ApiError && e.status <= 0)) app.shift = null;
     }
     app.shiftKnown = true;
+}
+
+/** A clock-in or -out still waiting on this phone counts already, so the button and pages match. */
+function applyHeldClock() {
+    const h = heldClock();
+    if (h === "out") app.shift = null;
+    else if (h && app.shift?.attendanceId !== h.attendanceId)
+        app.shift = {
+            attendanceId: h.attendanceId,
+            branchId: h.branchId,
+            branchName: branchName(h.branchId),
+            branchDayId: app.branchId === h.branchId && app.today ? app.today.branchDayId : "",
+            date: new Date().toLocaleDateString("en-CA"),
+            isRelief: false,
+        };
 }
 
 export async function refreshCaps() {
@@ -236,8 +252,8 @@ export async function clockIn(branchId: string = app.branchId): Promise<boolean>
     const before = heldSoFar();
     try {
         await ok(api.POST("/api/attendance/clock-in", { body: { attendanceId: uuid(), branchId } }));
-        // No signal: it's waiting on the phone; the shift shows once it has been sent.
-        if (heldSoFar() > before) return (toast(doneText(before)!), true);
+        // No signal: it's waiting on the phone; show the shift as started meanwhile.
+        if (heldSoFar() > before) return (applyHeldClock(), (app.shiftKnown = true), toast(doneText(before)!), true);
         await Promise.all([refreshShift(), refreshCaps()]);
         await refreshBranchDay();
         toast(doneText(before, "Clocked in")!);
@@ -253,7 +269,7 @@ export async function clockOut(): Promise<boolean> {
     const before = heldSoFar();
     try {
         await ok(api.POST("/api/attendance/clock-out", { body: { attendanceId: app.shift.attendanceId } }));
-        if (heldSoFar() > before) return (toast(doneText(before)!), true);
+        if (heldSoFar() > before) return (applyHeldClock(), toast(doneText(before)!), true);
         await Promise.all([refreshShift(), refreshCaps()]);
         toast(doneText(before, "Clocked out")!);
         return true;

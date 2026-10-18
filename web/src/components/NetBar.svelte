@@ -2,6 +2,7 @@
     import { net } from "../lib/net.svelte";
     import { outbox, waiting, failed, discard, flush } from "../lib/outbox.svelte";
     import { time } from "../lib/format";
+    import { update } from "../lib/update.svelte";
 
     const w = $derived((outbox.items, waiting()));
     const f = $derived((outbox.items, failed()));
@@ -13,6 +14,14 @@
     }
 </script>
 
+{#if update.ready && !offline && !w.length && !f.length}
+    <div class="dock">
+        <div class="netbar" role="status">
+            <span>A newer version of the app is ready.</span>
+            <button class="sm primary" onclick={() => location.reload()}>Update</button>
+        </div>
+    </div>
+{/if}
 {#if offline || w.length || f.length}
     <div class="dock">
         <div class="netbar" class:bad={offline || f.length > 0} role="status">
