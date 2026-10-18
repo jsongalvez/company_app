@@ -4,7 +4,7 @@ enum class ExportFormat(
     val contentType: String,
     val extension: String,
 ) {
-    CSV("text/csv", "csv"),
+    XLSX("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"),
     PDF("application/pdf", "pdf"),
 }
 

@@ -82,7 +82,7 @@ company-app/
 │       ├── finance/          # Day-entry mutation policy: expenses, compensations, allowances + FinanceReads seam (#546)
 │       ├── commission/       # Commission engine, split materialization, manual inclusions + local fact-read projection (#544)
 │       ├── remittance/       # Remittance aggregate, draft/submit/undo commands, internal stores + tables, route adapters (#545)
-│       ├── reporting/        # Summary projections, cursors, report assembly + CSV/PDF rendering; internal stores + tables, route adapters (#547)
+│       ├── reporting/        # Summary projections, cursors, report assembly + Excel/PDF rendering; internal stores + tables, route adapters (#547)
 │       ├── notification/     # Mailbox, occurrence idempotency, appointment reminders + session-access reads; internal stores + tables, route adapters; NotificationReads/NotificationAppender seams (#550)
 │       ├── http/             # Transport + serialization + OpenAPI contract; openapi/ subcluster for canonical document/projector/export (#551)
 │       ├── app/              # Startup composition: AppConfig + SchedulerLifecycle executor with composition-supplied jobs (#551)
@@ -498,7 +498,7 @@ in this table.
 | 1 | Notification delivery model | **Superseded (#571):** per-recipient rows remain, but the live shape adds `branch_id`, occurrence `dedup_key` (UNIQUE with `user_id`), and read-state columns — see `notification/` ([router](deep-modules.md)) and the V1 schema. Original text preserved: `notification` table: `(id, user_id, session_id, message, created_at, read_at)`. Scheduler writes one row per Coordinator. |
 | 2 | Concern promotion UX | Silent nullify with undo toast (~10s). Audit log preserves original text. |
 | 3 | Slot conflict resolution | Dedicated swap action: `POST /branches/{branchId}/slots/swap`. Both slot updates in one transaction. |
-| 4 | Export format | PDF and CSV. Generated on-demand, not stored. Format via `?format=pdf\|csv`. |
+| 4 | Export format | Excel (.xlsx) and PDF. Generated on-demand, not stored. Format via `?format=xlsx\|pdf`. |
 | 5 | Session base rate: future-dated changes | Not in Phase 2. Rate changes take effect immediately. |
 
 ---

@@ -1128,105 +1128,73 @@ class RouteValidationTest : BasePostgresTest() {
     // ──────────────────────────────────────────────
 
     @Test
-    fun `GET export daily missing format returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.get("/api/branches/$testBranchId/export/daily?date=2024-01-15").code)
-        }
-    }
-
-    @Test
-    fun `GET export daily invalid format returns 400`() {
+    fun `GET export report missing format returns 400`() {
         testServer.client.let { client ->
             assertEquals(
                 400,
-                client.get("/api/branches/$testBranchId/export/daily?date=2024-01-15&format=invalid").code,
+                client.get("/api/branches/$testBranchId/export/report?from=2024-01-15&to=2024-01-16").code,
             )
         }
     }
 
     @Test
-    fun `GET export range missing from returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.get("/api/branches/$testBranchId/export/range?to=2024-01-15&format=csv").code)
-        }
-    }
-
-    @Test
-    fun `GET export range missing to returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.get("/api/branches/$testBranchId/export/range?from=2024-01-15&format=csv").code)
-        }
-    }
-
-    @Test
-    fun `GET export range invalid date returns 400`() {
+    fun `GET export report invalid format returns 400`() {
         testServer.client.let { client ->
             assertEquals(
                 400,
-                client.get("/api/branches/$testBranchId/export/range?from=not-a-date&to=2024-01-15&format=csv").code,
+                client.get("/api/branches/$testBranchId/export/report?from=2024-01-15&to=2024-01-16&format=csv").code,
             )
         }
     }
 
     @Test
-    fun `GET export range from after to returns 400`() {
+    fun `GET export report missing from returns 400`() {
+        testServer.client.let { client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/export/report?to=2024-01-15&format=xlsx").code)
+        }
+    }
+
+    @Test
+    fun `GET export report missing to returns 400`() {
+        testServer.client.let { client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/export/report?from=2024-01-15&format=xlsx").code)
+        }
+    }
+
+    @Test
+    fun `GET export report invalid date returns 400`() {
         testServer.client.let { client ->
             assertEquals(
                 400,
-                client.get("/api/branches/$testBranchId/export/range?from=2024-01-16&to=2024-01-15&format=csv").code,
+                client.get("/api/branches/$testBranchId/export/report?from=not-a-date&to=2024-01-15&format=xlsx").code,
             )
         }
     }
 
     @Test
-    fun `GET export range missing format returns 400`() {
+    fun `GET export report from after to returns 400`() {
         testServer.client.let { client ->
             assertEquals(
                 400,
-                client.get("/api/branches/$testBranchId/export/range?from=2024-01-15&to=2024-01-16").code,
+                client.get("/api/branches/$testBranchId/export/report?from=2024-01-16&to=2024-01-15&format=xlsx").code,
             )
         }
     }
 
     @Test
-    fun `GET export range invalid format returns 400`() {
+    fun `GET export report multi-branch unknown type returns 400`() {
         testServer.client.let { client ->
             assertEquals(
                 400,
-                client
-                    .get("/api/branches/$testBranchId/export/range?from=2024-01-15&to=2024-01-16&format=invalid")
-                    .code,
+                client.get("/api/branches/export/report?from=2024-01-15&to=2024-01-16&format=xlsx&type=SPA").code,
             )
         }
     }
 
     @Test
-    fun `GET branch-type export malformed year returns 400`() {
+    fun `GET export report multi-branch missing format returns 400`() {
         testServer.client.let { client ->
-            assertEquals(
-                400,
-                client.get("/api/branches/export/provincial?year=abc&format=csv").code,
-            )
-        }
-    }
-
-    @Test
-    fun `GET branch-type export malformed month returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client.get("/api/branches/export/medical-mission?month=xyz&format=csv").code,
-            )
-        }
-    }
-
-    @Test
-    fun `GET branch-type export malformed year and month returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client.get("/api/branches/export/provincial?year=abc&month=xyz&format=csv").code,
-            )
+            assertEquals(400, client.get("/api/branches/export/report?from=2024-01-15&to=2024-01-16").code)
         }
     }
 

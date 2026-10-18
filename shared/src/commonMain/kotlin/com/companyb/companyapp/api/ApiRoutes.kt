@@ -220,13 +220,7 @@ object ApiRoutes {
 
     fun branchAttendanceMarks(id: String) = "$BRANCHES/$id/attendance/marks"
 
-    fun branchExportDaily(id: String) = "$BRANCHES/$id/export/daily"
-
-    fun branchExportRange(id: String) = "$BRANCHES/$id/export/range"
-
-    fun branchExportMonthly(id: String) = "$BRANCHES/$id/export/monthly"
-
-    fun branchExportAllTime(id: String) = "$BRANCHES/$id/export/all-time"
+    fun branchExportReport(id: String) = "$BRANCHES/$id/export/report"
 
     const val SESSION_PATH = "$SESSIONS/{sessionId}"
     const val SESSION_STATUS_PATH = "$SESSION_PATH/status"
@@ -267,10 +261,7 @@ object ApiRoutes {
     const val BRANCH_REMITTANCE_DAYS_PATH = "$BRANCH_PATH/remittance-days"
     const val BRANCH_REMITTANCE_SESSIONS_PATH = "$BRANCH_PATH/remittance-sessions"
     const val BRANCH_REMITTANCE_PRODUCT_SALES_PATH = "$BRANCH_PATH/remittance-product-sales"
-    const val BRANCH_EXPORT_DAILY_PATH = "$BRANCH_PATH/export/daily"
-    const val BRANCH_EXPORT_RANGE_PATH = "$BRANCH_PATH/export/range"
-    const val BRANCH_EXPORT_MONTHLY_PATH = "$BRANCH_PATH/export/monthly"
-    const val BRANCH_EXPORT_ALL_TIME_PATH = "$BRANCH_PATH/export/all-time"
+    const val BRANCH_EXPORT_REPORT_PATH = "$BRANCH_PATH/export/report"
     const val REMITTANCE_DAY_BREAKDOWNS_PATH = "$REMITTANCE_PATH/day-breakdowns"
     const val REMITTANCE_LINE_PATH = "$REMITTANCE_LINES_PATH/{lineId}"
     const val REMITTANCE_DAY_BREAKDOWN_PATH = "$REMITTANCE_DAY_BREAKDOWNS_PATH/{breakdownId}"
@@ -306,8 +297,7 @@ object ApiRoutes {
     const val BRANCHES_ACCESSIBLE = "$BRANCHES/accessible"
     const val SESSION_CONCERN_PATH = "$SESSION_CONCERNS_PATH/{concernId}"
     const val SESSION_PROMOTE_CONCERN_PATH = "$SESSION_PATH/promote-concern"
-    const val BRANCHES_EXPORT_PROVINCIAL_PATH = "$BRANCHES/export/provincial"
-    const val BRANCHES_EXPORT_MEDICAL_MISSION_PATH = "$BRANCHES/export/medical-mission"
+    const val BRANCHES_EXPORT_REPORT_PATH = "$BRANCHES/export/report"
     const val AUDIT_LOG_ACKNOWLEDGE_PATH = "$AUDIT_LOG/{entryId}/acknowledge"
     const val CLIENT_ANONYMIZE_PATH = "$CLIENTS/{clientId}/anonymize"
 

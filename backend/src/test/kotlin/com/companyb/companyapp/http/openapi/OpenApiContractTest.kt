@@ -135,10 +135,10 @@ class OpenApiContractTest {
         val paths = document.get("paths")
         val logout = paths.get("/api/auth/logout").get("post")
         assertNull(logout.get("responses").get("200").get("content"), "Logout 200 is bodyless")
-        val daily = paths.get("/api/branches/{branchId}/export/daily").get("get")
-        val content = daily.get("responses").get("200").get("content")
-        assertNotNull(content, "Export daily 200 must declare binary content")
-        assertNotNull(content.get("application/octet-stream"), "Export daily must be octet-stream")
+        val report = paths.get("/api/branches/{branchId}/export/report").get("get")
+        val content = report.get("responses").get("200").get("content")
+        assertNotNull(content, "Export report 200 must declare binary content")
+        assertNotNull(content.get("application/octet-stream"), "Export report must be octet-stream")
     }
 
     @Test

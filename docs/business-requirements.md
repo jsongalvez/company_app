@@ -410,8 +410,7 @@ The application operates on a **strictly online** basis. Offline-first synchroni
 
 ## Exports
 
-- Daily sales
-- Monthly summary
-- All-time summary
-- Provincial tour reports
-- Medical mission reports
+One accounting report, for any date range (a day, a month, a year or custom), as Excel (one sheet per table) or PDF. It covers one branch, or every branch of a kind the user may read (all branches, clinics, provincial tours or medical missions); branches the user may not read are left out.
+
+- **Summary:** money in (sessions done, product sales), money out (pay, expenses by category), net from sessions (sessions done - pay - expenses), what is not counted in net (product sales, product commission, allowances, voided sessions, deleted expenses), sessions by result and visit type, remittances sent and drafts.
+- **By branch** (several branches only), **Day by day**, and every line behind the totals: **Sessions**, **Product sales**, **Expenses** (deleted ones listed but not counted), **Pay, commission and allowances**, and **Remittances** covering the dates.

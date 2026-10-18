@@ -18,21 +18,10 @@ class ApiRoutesTest {
         assertEquals("/api/sessions/session-1/status", ApiRoutes.sessionStatus("session-1"))
         assertEquals("/api/sessions/session-1/final-price", ApiRoutes.sessionFinalPrice("session-1"))
         assertEquals(
-            "/api/branches/branch-1/export/monthly?year=2026&month=8&format=csv",
+            "/api/branches/branch-1/export/report?from=2026-01-01&to=2026-08-18&format=xlsx",
             ApiRoutes.branchExportWithQuery(
-                ApiRoutes.branchExportMonthly("branch-1"),
-                "year=2026&month=8&format=csv",
-            ),
-        )
-        assertEquals(
-            "/api/branches/branch-1/export/all-time?format=xlsx",
-            ApiRoutes.branchExportWithQuery(ApiRoutes.branchExportAllTime("branch-1"), "format=xlsx"),
-        )
-        assertEquals(
-            "/api/branches/branch-1/export/range?from=2026-01-01&to=2026-08-18&format=csv",
-            ApiRoutes.branchExportWithQuery(
-                ApiRoutes.branchExportRange("branch-1"),
-                "from=2026-01-01&to=2026-08-18&format=csv",
+                ApiRoutes.branchExportReport("branch-1"),
+                "from=2026-01-01&to=2026-08-18&format=xlsx",
             ),
         )
     }

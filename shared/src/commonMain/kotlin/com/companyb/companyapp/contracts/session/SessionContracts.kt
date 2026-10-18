@@ -49,8 +49,7 @@ fun isRoutineStatusMark(
 fun isStatusUndo(
     from: SessionStatus,
     to: SessionStatus,
-): Boolean =
-    to == SessionStatus.PENDING && from != SessionStatus.PENDING && from != SessionStatus.UNKNOWN
+): Boolean = to == SessionStatus.PENDING && from != SessionStatus.PENDING && from != SessionStatus.UNKNOWN
 
 fun isStatusCorrection(
     from: SessionStatus,

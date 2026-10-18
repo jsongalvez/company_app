@@ -1,5 +1,6 @@
 package com.companyb.companyapp.reporting
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.branch.BranchService
@@ -8,6 +9,7 @@ import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
+import io.javalin.http.Context
 import io.javalin.http.Header
 import io.javalin.http.HttpStatus
 import io.javalin.openapi.HttpMethod
@@ -20,20 +22,15 @@ import java.time.LocalDate
 import java.util.UUID
 
 @OpenApi(
-    path = ApiRoutes.BRANCHES_EXPORT_MEDICAL_MISSION_PATH,
+    path = ApiRoutes.BRANCHES_EXPORT_REPORT_PATH,
     methods = [HttpMethod.GET],
     queryParams = [
-        OpenApiParam(
-            name = "year",
-            type = Int::class,
-            required = false,
-        ), OpenApiParam(
-            name = "month",
-            type = Int::class,
-            required = false,
-        ), OpenApiParam(name = "format", type = String::class, required = true),
+        OpenApiParam(name = "from", type = String::class, required = true),
+        OpenApiParam(name = "to", type = String::class, required = true),
+        OpenApiParam(name = "format", type = String::class, required = true),
+        OpenApiParam(name = "type", type = String::class, required = false),
     ],
-    operationId = "export_medical_mission",
+    operationId = "export_report_multi_branch",
     security = [OpenApiSecurity(name = "BearerAuth")],
     responses = [
         OpenApiResponse(
@@ -45,116 +42,15 @@ import java.util.UUID
     ],
 )
 @OpenApi(
-    path = ApiRoutes.BRANCHES_EXPORT_PROVINCIAL_PATH,
-    methods = [HttpMethod.GET],
-    queryParams = [
-        OpenApiParam(
-            name = "year",
-            type = Int::class,
-            required = false,
-        ), OpenApiParam(
-            name = "month",
-            type = Int::class,
-            required = false,
-        ), OpenApiParam(name = "format", type = String::class, required = true),
-    ],
-    operationId = "export_provincial",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    responses = [
-        OpenApiResponse(
-            status = "200",
-            content = [OpenApiContent(mimeType = "application/octet-stream", type = "string", format = "binary")],
-        ),
-        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
-    path = ApiRoutes.BRANCH_EXPORT_ALL_TIME_PATH,
-    methods = [HttpMethod.GET],
-    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
-    queryParams = [OpenApiParam(name = "format", type = String::class, required = true)],
-    operationId = "export_all_time",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    responses = [
-        OpenApiResponse(
-            status = "200",
-            content = [OpenApiContent(mimeType = "application/octet-stream", type = "string", format = "binary")],
-        ),
-        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
-    path = ApiRoutes.BRANCH_EXPORT_DAILY_PATH,
+    path = ApiRoutes.BRANCH_EXPORT_REPORT_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     queryParams = [
-        OpenApiParam(
-            name = "date",
-            type = String::class,
-            required = true,
-        ), OpenApiParam(name = "format", type = String::class, required = true),
+        OpenApiParam(name = "from", type = String::class, required = true),
+        OpenApiParam(name = "to", type = String::class, required = true),
+        OpenApiParam(name = "format", type = String::class, required = true),
     ],
-    operationId = "export_daily",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    responses = [
-        OpenApiResponse(
-            status = "200",
-            content = [OpenApiContent(mimeType = "application/octet-stream", type = "string", format = "binary")],
-        ),
-        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
-    path = ApiRoutes.BRANCH_EXPORT_MONTHLY_PATH,
-    methods = [HttpMethod.GET],
-    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
-    queryParams = [
-        OpenApiParam(
-            name = "year",
-            type = Int::class,
-            required = true,
-        ), OpenApiParam(
-            name = "month",
-            type = Int::class,
-            required = true,
-        ), OpenApiParam(name = "format", type = String::class, required = true),
-    ],
-    operationId = "export_monthly",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    responses = [
-        OpenApiResponse(
-            status = "200",
-            content = [OpenApiContent(mimeType = "application/octet-stream", type = "string", format = "binary")],
-        ),
-        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
-    path = ApiRoutes.BRANCH_EXPORT_RANGE_PATH,
-    methods = [HttpMethod.GET],
-    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
-    queryParams = [
-        OpenApiParam(
-            name = "from",
-            type = String::class,
-            required = true,
-        ), OpenApiParam(
-            name = "to",
-            type = String::class,
-            required = true,
-        ), OpenApiParam(name = "format", type = String::class, required = true),
-    ],
-    operationId = "export_range",
+    operationId = "export_report",
     security = [OpenApiSecurity(name = "BearerAuth")],
     responses = [
         OpenApiResponse(
@@ -168,21 +64,9 @@ import java.util.UUID
     ],
 )
 object ExportRoutes {
-    private const val MAX_MONTH = 12
-    private const val MIN_MONTH = 1
-
     fun register(config: JavalinConfig) {
-        // #114 lesson, 4th occurrence: a 4-segment literal filter never fires
-        // on the 5-segment routes below — the wildcard is what makes the gate
-        // actually run (leak proven red-first by ReportsReadScopeAuthzTest).
-        // The 5-segment /range route (#129) rides the same wildcard — no new
-        // filter; ReportsReadScopeAuthzTest's matrix covers it (403 never 404
-        // for zero-grant callers).
-        // #128: the sibling 3-segment before("/api/branches/export") filter was
-        // equally dead on the 4-segment provincial/medical-mission routes, so
-        // those exports were already public (JWT-only, the #105 D2 target
-        // state) — the filter is removed and ReportsReadScopeAuthzTest locks
-        // the JWT-gate regression.
+        // #114 lesson: the wildcard is what makes the gate run on the 5-segment branch
+        // export route (ReportsReadScopeAuthzTest proves 403 for zero-grant callers).
         config.routes.before("/api/branches/{branchId}/export/*") { context ->
             val branchId = context.pathParamAsUuid("branchId")
             // #744 — 404 precedence for an unknown branch before the capability gate (#730/#732 precedent).
@@ -194,55 +78,44 @@ object ExportRoutes {
             )
         }
 
-        config.routes.get(ApiRoutes.BRANCH_EXPORT_DAILY_PATH) { context ->
-            handleDailyExport(context)
+        config.routes.get(ApiRoutes.BRANCH_EXPORT_REPORT_PATH) { context ->
+            val (from, to) = parseRange(context)
+            val format = parseFormat(context.queryParam("format"))
+            sendFileResponse(
+                context,
+                ExportService.exportBranchReport(context.pathParamAsUuid("branchId"), from, to, format),
+            )
         }
-        config.routes.get(ApiRoutes.BRANCH_EXPORT_RANGE_PATH) { context ->
-            handleRangeExport(context)
-        }
-        config.routes.get(ApiRoutes.BRANCH_EXPORT_MONTHLY_PATH) { context ->
-            handleMonthlyExport(context)
-        }
-        config.routes.get(ApiRoutes.BRANCH_EXPORT_ALL_TIME_PATH) { context ->
-            handleAllTimeExport(context)
-        }
-        config.routes.get(ApiRoutes.BRANCHES_EXPORT_PROVINCIAL_PATH) { context ->
-            handleBranchTypeExport(context, BranchType.PROVINCIAL_TOUR)
-        }
-        config.routes.get(ApiRoutes.BRANCHES_EXPORT_MEDICAL_MISSION_PATH) { context ->
-            handleBranchTypeExport(context, BranchType.MEDICAL_MISSION)
+        // JWT-only: the report includes only the branches the caller may read.
+        config.routes.get(ApiRoutes.BRANCHES_EXPORT_REPORT_PATH) { context ->
+            val (from, to) = parseRange(context)
+            val format = parseFormat(context.queryParam("format"))
+            val type = parseType(context.queryParam("type"))
+            sendFileResponse(
+                context,
+                ExportService.exportMultiBranchReport(context.callerUuid(), type, from, to, format),
+            )
         }
     }
 
-    private fun handleDailyExport(context: io.javalin.http.Context) {
-        val branchId = context.pathParamAsUuid("branchId")
-        val dateParam =
-            context.queryParam("date")
-                ?: throw BadRequestResponse("date query param is required")
-        val date =
-            runCatching { LocalDate.parse(dateParam) }
-                .getOrElse { throw BadRequestResponse("Invalid date format (expected yyyy-MM-dd)") }
-        val format = parseFormat(context.queryParam("format"))
-
-        val result = ExportService.exportDaily(branchId, date, format)
-        sendFileResponse(context, result)
-    }
-
-    private fun handleRangeExport(context: io.javalin.http.Context) {
-        val branchId = context.pathParamAsUuid("branchId")
+    private fun parseRange(context: Context): Pair<LocalDate, LocalDate> {
         val from = parseRequiredDate(context, "from")
         val to = parseRequiredDate(context, "to")
-        if (from.isAfter(to)) {
-            throw BadRequestResponse("from must be on or before to")
-        }
-        val format = parseFormat(context.queryParam("format"))
-
-        val result = ExportService.exportRange(branchId, from, to, format)
-        sendFileResponse(context, result)
+        if (from.isAfter(to)) throw BadRequestResponse("from must be on or before to")
+        return from to to
     }
 
+    private fun parseType(param: String?): BranchType? =
+        when (param?.uppercase()) {
+            null, "", "ALL" -> null
+            "CLINIC" -> BranchType.CLINIC
+            "PROVINCIAL_TOUR" -> BranchType.PROVINCIAL_TOUR
+            "MEDICAL_MISSION" -> BranchType.MEDICAL_MISSION
+            else -> throw BadRequestResponse("type must be ALL, CLINIC, PROVINCIAL_TOUR or MEDICAL_MISSION")
+        }
+
     private fun parseRequiredDate(
-        context: io.javalin.http.Context,
+        context: Context,
         paramName: String,
     ): LocalDate {
         val param =
@@ -252,40 +125,8 @@ object ExportRoutes {
             .getOrElse { throw BadRequestResponse("Invalid $paramName format (expected yyyy-MM-dd)") }
     }
 
-    private fun handleMonthlyExport(context: io.javalin.http.Context) {
-        val branchId = context.pathParamAsUuid("branchId")
-        val year = parseRequiredInt(context, "year")
-        val month = parseRequiredInt(context, "month")
-        validateMonthRange(month)
-        val format = parseFormat(context.queryParam("format"))
-
-        val result = ExportService.exportMonthly(branchId, year, month, format)
-        sendFileResponse(context, result)
-    }
-
-    private fun handleAllTimeExport(context: io.javalin.http.Context) {
-        val branchId = context.pathParamAsUuid("branchId")
-        val format = parseFormat(context.queryParam("format"))
-
-        val result = ExportService.exportAllTime(branchId, format)
-        sendFileResponse(context, result)
-    }
-
-    private fun handleBranchTypeExport(
-        context: io.javalin.http.Context,
-        branchType: BranchType,
-    ) {
-        val year = parseOptionalInt(context, "year")
-        val month = parseOptionalInt(context, "month")
-        validateOptionalMonth(year, month)
-        val format = parseFormat(context.queryParam("format"))
-
-        val result = ExportService.exportByBranchType(branchType, year, month, format)
-        sendFileResponse(context, result)
-    }
-
     private fun sendFileResponse(
-        context: io.javalin.http.Context,
+        context: Context,
         result: ExportResult,
     ) {
         context.status(HttpStatus.OK)
@@ -296,46 +137,8 @@ object ExportRoutes {
 
     private fun parseFormat(formatParam: String?): ExportFormat =
         when (formatParam?.lowercase()) {
-            "csv" -> ExportFormat.CSV
+            "xlsx" -> ExportFormat.XLSX
             "pdf" -> ExportFormat.PDF
-            else -> throw BadRequestResponse("format query param is required (csv or pdf)")
+            else -> throw BadRequestResponse("format query param is required (xlsx or pdf)")
         }
-
-    private fun parseRequiredInt(
-        context: io.javalin.http.Context,
-        paramName: String,
-    ): Int {
-        val param =
-            context.queryParam(paramName)
-                ?: throw BadRequestResponse("$paramName query param is required")
-        return runCatching { param.toInt() }
-            .getOrElse { throw BadRequestResponse("Invalid $paramName format") }
-    }
-
-    private fun parseOptionalInt(
-        context: io.javalin.http.Context,
-        paramName: String,
-    ): Int? {
-        val param = context.queryParam(paramName) ?: return null
-        return runCatching { param.toInt() }
-            .getOrElse { throw BadRequestResponse("Invalid $paramName format") }
-    }
-
-    private fun validateMonthRange(month: Int) {
-        if (month < MIN_MONTH || month > MAX_MONTH) {
-            throw BadRequestResponse("month must be between 1 and 12")
-        }
-    }
-
-    private fun validateOptionalMonth(
-        year: Int?,
-        month: Int?,
-    ) {
-        if ((year == null) != (month == null)) {
-            throw BadRequestResponse("Both year and month must be provided together, or neither")
-        }
-        if (month != null) {
-            validateMonthRange(month)
-        }
-    }
 }

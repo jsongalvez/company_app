@@ -47,6 +47,8 @@ dependencies {
 
     // PDF export
     implementation(libs.openpdf)
+    // Excel export (accounting report)
+    implementation(libs.fastexcel)
 
     // Testing
     testImplementation(libs.kotlin.test)

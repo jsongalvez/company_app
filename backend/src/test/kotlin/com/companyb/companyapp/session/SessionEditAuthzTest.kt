@@ -167,8 +167,18 @@ class SessionEditAuthzTest : BasePostgresTest() {
     @Test
     fun `status correction is forbidden without Coordinator capability`() {
         testServer.client.let { client ->
-            val body = mapOf("status" to "PENDING", "version" to 1)
+            // NO_SHOW -> CANCELLED swaps outcomes: a correction, Coordinator only.
+            val body = mapOf("status" to "CANCELLED", "version" to 1)
             assertEquals(403, client.patch("/api/sessions/$sessionId/status", body, asUser(editorUser)).code)
+        }
+    }
+
+    @Test
+    fun `editor may undo a mark back to waiting`() {
+        testServer.client.let { client ->
+            // NO_SHOW -> PENDING is an undo (owner ruling 2026-10-18): anyone who may mark may undo.
+            val body = mapOf("status" to "PENDING", "version" to 1)
+            assertEquals(200, client.patch("/api/sessions/$sessionId/status", body, asUser(editorUser)).code)
         }
     }
 

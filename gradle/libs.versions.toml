@@ -21,6 +21,7 @@ kotlinx-serialization-json = "1.10.0"
 ktlint = "14.1.0"
 logback-classic = "1.5.32"
 openpdf = "3.0.5"
+fastexcel = "0.20.2"
 postgresql = "42.7.10"
 
 [libraries]
@@ -52,6 +53,7 @@ kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-em
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization-json"}
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback-classic"}
 openpdf = { module = "com.github.librepdf:openpdf", version.ref = "openpdf" }
+fastexcel = { module = "org.dhatim:fastexcel", version.ref = "fastexcel" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 junit = { module = "junit:junit", version.ref = "junit" }
 

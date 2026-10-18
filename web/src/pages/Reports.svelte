@@ -41,6 +41,12 @@
         { key: "30d", label: "Last 30 days", range: () => ({ from: addDays(today, -29), to: today }) },
         { key: "month", label: "This month", range: () => ({ from: monthStart(today), to: today }) },
         { key: "lastmonth", label: "Last month", range: () => ({ from: lastMonthStart, to: addDays(monthStart(today), -1) }) },
+        { key: "year", label: "This year", range: () => ({ from: `${today.slice(0, 4)}-01-01`, to: today }) },
+        {
+            key: "lastyear",
+            label: "Last year",
+            range: () => ({ from: `${Number(today.slice(0, 4)) - 1}-01-01`, to: `${Number(today.slice(0, 4)) - 1}-12-31` }),
+        },
     ];
     function setRange(f: string, t: string) {
         go("/reports", { from: f, to: t });
@@ -53,14 +59,24 @@
     }
     const monthName = $derived(new Date(Date.UTC(year, month - 1, 1)).toLocaleString("en-PH", { month: "long", year: "numeric", timeZone: "UTC" }));
 
-    let format = $state<"csv" | "pdf">("csv");
+    // Who the downloaded report covers: this branch, or every branch of a kind you can see.
+    let scope = $state("branch");
+    const scopes = [
+        { v: "ALL", label: "All branches" },
+        { v: "CLINIC", label: "All clinics" },
+        { v: "PROVINCIAL_TOUR", label: "All provincial tours" },
+        { v: "MEDICAL_MISSION", label: "All medical missions" },
+    ];
+    const rangeLabel = $derived(from === to ? day(from) : `${day(from)} to ${day(to)}`);
     let busy = $state(false);
-    async function get(path: string, query: Record<string, string>, label: string) {
+    async function get(format: "xlsx" | "pdf") {
         busy = true;
-        await act(() => download(path, { ...query, format }), `${label} downloaded`);
+        const path = scope === "branch" ? `/api/branches/${bid}/export/report` : "/api/branches/export/report";
+        const query: Record<string, string> = { from, to, format };
+        if (scope !== "branch") query.type = scope;
+        await act(() => download(path, query), "Report downloaded");
         busy = false;
     }
-    const bp = (p: string) => p.replace("{branchId}", bid);
 </script>
 
 <PageHead title="Sales reports" sub={branchName(bid)}>
@@ -70,32 +86,38 @@
 </PageHead>
 
 {#if wholeMonth && monthly.data}
-    <div class="stats mb">
-        <div>
-            <div class="k">{monthName}: income</div>
-            <div class="v">{peso(monthly.data.grossIncome)}</div>
+    <h2 class="sub">{monthName}: sent to the office</h2>
+    {#if monthly.data.totalRemittances === 0}
+        <p class="notice mb">No remittances sent for {monthName} yet. The table below shows what was recorded.</p>
+    {:else}
+        <div class="stats mb">
+            <div>
+                <div class="k">Remittances sent</div>
+                <div class="v">{monthly.data.totalRemittances}</div>
+            </div>
+            <div>
+                <div class="k">Income</div>
+                <div class="v">{peso(monthly.data.grossIncome)}</div>
+            </div>
+            <div>
+                <div class="k">Pay</div>
+                <div class="v">{peso(monthly.data.totalCompensation)}</div>
+            </div>
+            <div>
+                <div class="k">Expenses</div>
+                <div class="v">{peso(monthly.data.totalExpenses)}</div>
+            </div>
+            <div>
+                <div class="k">Net</div>
+                <div class="v">{peso(monthly.data.netIncome)}</div>
+            </div>
+            <div>
+                <div class="k">Sessions / product sales</div>
+                <div class="v">{monthly.data.sessionCount} / {monthly.data.productCount}</div>
+            </div>
         </div>
-        <div>
-            <div class="k">Pay</div>
-            <div class="v">{peso(monthly.data.totalCompensation)}</div>
-        </div>
-        <div>
-            <div class="k">Expenses</div>
-            <div class="v">{peso(monthly.data.totalExpenses)}</div>
-        </div>
-        <div>
-            <div class="k">Net</div>
-            <div class="v">{peso(monthly.data.netIncome)}</div>
-        </div>
-        <div>
-            <div class="k">Remittances sent</div>
-            <div class="v">{monthly.data.totalRemittances}</div>
-        </div>
-        <div>
-            <div class="k">Sessions / product</div>
-            <div class="v">{monthly.data.sessionCount} / {monthly.data.productCount}</div>
-        </div>
-    </div>
+    {/if}
+    <h2 class="sub">Recorded each day</h2>
 {/if}
 
 <State q={daily} empty={!!daily.data && rows.length === 0} emptyText="No sales in this range." />
@@ -143,33 +165,32 @@
 {/if}
 
 <section class="panel">
-    <header>
-        <h2>Download</h2>
-        <span class="spacer"></span>
-        <div class="seg" role="group" aria-label="File type">
-            <button class:on={format === "csv"} onclick={() => (format = "csv")}>Spreadsheet (CSV)</button>
-            <button class:on={format === "pdf"} onclick={() => (format = "pdf")}>PDF</button>
+    <header><h2>Report for your accountant</h2></header>
+    <div class="body">
+        <p class="faint mb-s">
+            {rangeLabel}. A summary, then every session, product sale, expense, payout and remittance behind it. Change the dates at the top to pick a day,
+            month or year.
+        </p>
+        <div class="row wrap">
+            <select bind:value={scope} aria-label="Branches in the report">
+                <option value="branch">{branchName(bid)}</option>
+                {#each scopes as o (o.v)}<option value={o.v}>{o.label}</option>{/each}
+            </select>
+            <button class="primary" disabled={busy} onclick={() => get("xlsx")}>Download Excel</button>
+            <button disabled={busy} onclick={() => get("pdf")}>Download PDF</button>
         </div>
-    </header>
-    <div class="body row wrap">
-        <button disabled={busy} onclick={() => get(bp("/api/branches/{branchId}/export/range"), { from, to }, "Report")}>This range</button>
-        <button disabled={busy} onclick={() => get(bp("/api/branches/{branchId}/export/monthly"), { year: String(year), month: String(month) }, "Month")}
-            >{monthName}</button
-        >
-        <button disabled={busy} onclick={() => get(bp("/api/branches/{branchId}/export/daily"), { date: to }, "Day")}>Day: {day(to)}</button>
-        <button disabled={busy} onclick={() => get(bp("/api/branches/{branchId}/export/all-time"), {}, "All time")}>All time</button>
-        <span class="spacer"></span>
-        <button disabled={busy} onclick={() => get("/api/branches/export/provincial", { year: String(year), month: String(month) }, "Provincial tours")}
-            >All provincial tours, {monthName}</button
-        >
-        <button disabled={busy} onclick={() => get("/api/branches/export/medical-mission", { year: String(year), month: String(month) }, "Medical missions")}
-            >All medical missions, {monthName}</button
-        >
     </div>
 </section>
 
 <style>
     .mb {
         margin-bottom: 12px;
+    }
+    .mb-s {
+        margin: 0 0 8px;
+    }
+    .sub {
+        font-size: 13px;
+        margin: 0 0 6px;
     }
 </style>

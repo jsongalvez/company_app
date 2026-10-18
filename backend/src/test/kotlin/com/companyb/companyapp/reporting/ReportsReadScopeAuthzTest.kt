@@ -49,18 +49,12 @@ import kotlin.test.assertTrue
  * picker endpoint (read window = distinct BRANCH grants, or all branches for
  * a GLOBAL VIEW_BRANCH_DATA holder).
  *
- * #128 Public branch-type exports: /api/branches/export/provincial +
- * /medical-mission are JWT-only (no capability gate). The 3-segment GLOBAL
- * filter that used to sit at /api/branches/export never fired on the 4-segment
- * routes (the #114 exact-segment lesson), so the target state already held —
- * these tests lock it: zero-grant user passes (404/200, never 403), and the
- * real JWT filter still blocks unauthenticated callers.
+ * The multi-branch report (/api/branches/export/report) is JWT-only and
+ * includes only the branches the caller may read, so a zero-grant caller gets
+ * an empty report (200), never 403; the JWT filter still blocks anonymous calls.
  *
- * Gate-pass is proven by 404 (the handlers 404 on missing data AFTER the gate
- * passes); gate-block by 403. This keeps the authz matrix deterministic
- * without seeding financial data — except one #128 test that seeds two
- * minimal submitted remittances to prove the public download path returns
- * 200 with data for a zero-grant user.
+ * Gate-pass is proven by 200/404 (the handler ran); gate-block by 403. This
+ * keeps the authz matrix deterministic without seeding financial data.
  */
 class ReportsReadScopeAuthzTest : BasePostgresTest() {
     private val viewA = TestFixtures.uuid()
@@ -210,20 +204,16 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
 
     private val branchAExportPaths =
         listOf(
-            "/api/branches/$branchA/export/daily?date=2026-08-10&format=csv",
-            "/api/branches/$branchA/export/monthly?year=2026&month=8&format=csv",
-            "/api/branches/$branchA/export/all-time?format=csv",
-            "/api/branches/$branchA/export/range?from=2026-08-01&to=2026-08-10&format=csv",
+            "/api/branches/$branchA/export/report?from=2026-08-01&to=2026-08-10&format=xlsx",
+            "/api/branches/$branchA/export/report?from=2026-08-01&to=2026-08-10&format=pdf",
             "/api/branches/$branchA/daily-summary?date=2026-08-10",
             "/api/branches/$branchA/monthly-summary?year=2026&month=8",
         )
 
     private val branchBExportPaths =
         listOf(
-            "/api/branches/$branchB/export/daily?date=2026-08-10&format=csv",
-            "/api/branches/$branchB/export/monthly?year=2026&month=8&format=csv",
-            "/api/branches/$branchB/export/all-time?format=csv",
-            "/api/branches/$branchB/export/range?from=2026-08-01&to=2026-08-10&format=csv",
+            "/api/branches/$branchB/export/report?from=2026-08-01&to=2026-08-10&format=xlsx",
+            "/api/branches/$branchB/export/report?from=2026-08-01&to=2026-08-10&format=pdf",
             "/api/branches/$branchB/daily-summary?date=2026-08-10",
             "/api/branches/$branchB/monthly-summary?year=2026&month=8",
         )
@@ -240,135 +230,28 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
     }
 
     // ──────────────────────────────────────────────
-    // #128: branch-type exports are public (JWT-only)
+    // Multi-branch report: JWT-only, filtered to readable branches
     // ──────────────────────────────────────────────
 
-    private val branchTypeExportPaths =
+    private val multiReportPaths =
         listOf(
-            "/api/branches/export/provincial?format=csv",
-            "/api/branches/export/provincial?year=2026&month=8&format=csv",
-            "/api/branches/export/medical-mission?format=csv",
-            "/api/branches/export/medical-mission?year=2026&month=8&format=csv",
+            "/api/branches/export/report?from=2026-08-01&to=2026-08-10&format=xlsx",
+            "/api/branches/export/report?from=2026-08-01&to=2026-08-10&format=pdf&type=PROVINCIAL_TOUR",
+            "/api/branches/export/report?from=2026-08-01&to=2026-08-10&format=xlsx&type=MEDICAL_MISSION",
         )
 
     @Test
-    fun `branch-type exports are reachable by zero-grant user`() {
-        // 404 = gate-pass (handler ran, no data), never 403 — public reports.
-        branchTypeExportPaths.forEach { path ->
-            assertEquals(404, getStatus(noneUser, path), "expected gate-pass (404) on $path")
+    fun `multi-branch report is reachable by zero-grant user`() {
+        // 200 with an empty report: unreadable branches are left out, never refused.
+        multiReportPaths.forEach { path ->
+            assertEquals(200, getStatus(noneUser, path), "expected 200 on $path")
         }
     }
 
     @Test
-    fun `branch-type export returns 200 with data for zero-grant user`() {
-        val provincialBranch = TestFixtures.uuid()
-        val missionBranch = TestFixtures.uuid()
-        seedSubmittedRemittance(
-            branchId = provincialBranch,
-            branchName = "Provincial Export Branch",
-            branchType = BranchType.PROVINCIAL_TOUR,
-            snapshot =
-                FinancialSnapshot(
-                    grossIncome = BigDecimal("2000.00"),
-                    totalCompensation = BigDecimal("400.00"),
-                    totalExpenses = BigDecimal("100.00"),
-                ),
-        )
-        seedSubmittedRemittance(
-            branchId = missionBranch,
-            branchName = "Mission Export Branch",
-            branchType = BranchType.MEDICAL_MISSION,
-            snapshot =
-                FinancialSnapshot(
-                    grossIncome = BigDecimal("1000.00"),
-                    totalCompensation = BigDecimal("200.00"),
-                    totalExpenses = BigDecimal("50.00"),
-                ),
-        )
+    fun `multi-branch report still requires JWT auth`() {
         testServer.client.let { client ->
-            val provincial = client.get("/api/branches/export/provincial?format=csv", asUser(noneUser))
-            assertEquals(200, provincial.code)
-            assertTrue(
-                provincial
-                    .headers()
-                    .get("Content-Type")
-                    .orEmpty()
-                    .contains("text/csv"),
-            )
-            assertTrue(provincial.body.string().contains("Provincial Export Branch"))
-            assertTrue(provincial.body.string().contains("1500.00"))
-
-            val mission = client.get("/api/branches/export/medical-mission?format=csv", asUser(noneUser))
-            assertEquals(200, mission.code)
-            assertTrue(
-                mission
-                    .headers()
-                    .get("Content-Type")
-                    .orEmpty()
-                    .contains("text/csv"),
-            )
-            assertTrue(mission.body.string().contains("Mission Export Branch"))
-            assertTrue(mission.body.string().contains("750.00"))
-        }
-    }
-
-    @Test
-    fun `branch-type exports still require JWT auth`() {
-        testServer.client.let { client ->
-            assertEquals(401, client.get("/api/branches/export/provincial?format=csv").code)
-            assertEquals(401, client.get("/api/branches/export/medical-mission?format=csv").code)
-        }
-    }
-
-    @Test
-    fun `branch-type exports pass with a valid JWT`() {
-        val token = JwtService.generateToken(noneUser.toString())
-        testServer.client.let { client ->
-            val response =
-                client.get(
-                    "/api/branches/export/provincial?format=csv",
-                    Consumer { it.header("Authorization", "Bearer $token") },
-                )
-            assertEquals(404, response.code, "expected gate-pass (404) — JWT accepted, no data")
-        }
-    }
-
-    private data class FinancialSnapshot(
-        val grossIncome: BigDecimal,
-        val totalCompensation: BigDecimal,
-        val totalExpenses: BigDecimal,
-    )
-
-    private fun seedSubmittedRemittance(
-        branchId: UUID,
-        branchName: String,
-        branchType: BranchType,
-        snapshot: FinancialSnapshot,
-    ) {
-        BranchWorkforceFixtures.insertTestBranch(branchId, branchName, branchType)
-        val remittanceId = TestFixtures.uuid()
-        val today = TestFixtures.today
-        transaction {
-            RemittanceTable.insert {
-                it[RemittanceTable.id] = remittanceId
-                it[RemittanceTable.branchId] = branchId
-                it[RemittanceTable.type] = RemittanceType.SESSION
-                it[RemittanceTable.method] = RemittanceMethod.BANK_TRANSFER
-                it[RemittanceTable.status] = RemittanceStatus.SUBMITTED
-                it[RemittanceTable.version] = 2
-                it[RemittanceTable.submittedDate] = today
-                it[RemittanceTable.submittedBy] = noneUser
-                it[RemittanceTable.dateRangeStart] = today
-                it[RemittanceTable.dateRangeEnd] = today
-            }
-            RemittanceFinancialSnapshotTable.insert {
-                it[RemittanceFinancialSnapshotTable.remittanceId] = remittanceId
-                it[RemittanceFinancialSnapshotTable.grossIncome] = snapshot.grossIncome
-                it[RemittanceFinancialSnapshotTable.totalCompensation] = snapshot.totalCompensation
-                it[RemittanceFinancialSnapshotTable.totalExpenses] = snapshot.totalExpenses
-                it[RemittanceFinancialSnapshotTable.netIncome] =
-                    snapshot.grossIncome - snapshot.totalCompensation - snapshot.totalExpenses
-            }
+            multiReportPaths.forEach { path -> assertEquals(401, client.get(path).code, "expected 401 on $path") }
         }
     }
 
@@ -554,8 +437,9 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
     @Test
     fun `unknown branch export is 404 not 403`() {
         val unknown = TestFixtures.uuid()
-        assertEquals(404, getStatus(viewA, "/api/branches/$unknown/export/daily?date=2026-08-10&format=csv"))
-        assertEquals(404, getStatus(noneUser, "/api/branches/$unknown/export/daily?date=2026-08-10&format=csv"))
+        val path = "/api/branches/$unknown/export/report?from=2026-08-01&to=2026-08-10&format=xlsx"
+        assertEquals(404, getStatus(viewA, path))
+        assertEquals(404, getStatus(noneUser, path))
     }
 }
 
