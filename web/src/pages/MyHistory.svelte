@@ -74,7 +74,11 @@
                 <tbody>
                     {#each earnings as e, i (i)}
                         <tr>
-                            <td><span class="hide-sm">{day(e.date)}</span><span class="show-sm">{shortDay(e.date)}</span></td>
+                            <td
+                                ><span class="hide-sm">{day(e.date)}</span><span class="show-sm"
+                                    >{shortDay(e.date)}<br /><span class="faint">{e.branchName}</span></span
+                                ></td
+                            >
                             <td
                                 >{KIND[e.kind ?? ""] ?? e.kind}{#if e.note}<div class="faint">{e.note}</div>{/if}</td
                             >
@@ -97,7 +101,11 @@
                 <tbody>
                     {#each shifts as s, i (i)}
                         <tr>
-                            <td><span class="hide-sm">{day(s.date)}</span><span class="show-sm">{shortDay(s.date)}</span></td>
+                            <td
+                                ><span class="hide-sm">{day(s.date)}</span><span class="show-sm"
+                                    >{shortDay(s.date)}<br /><span class="faint">{s.branchName}</span></span
+                                ></td
+                            >
                             <td class="hide-sm">{s.branchName}</td>
                             <td>{time(s.clockIn)}</td>
                             <td>{time(s.clockOut)}</td>

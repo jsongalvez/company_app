@@ -258,6 +258,7 @@ object ApiRoutes {
     const val BRANCH_INVENTORY_PATH = "$BRANCH_PATH/inventory"
     const val BRANCH_TODAY_PATH = "$BRANCH_PATH/today"
     const val BRANCH_DASHBOARD_TODAY_PATH = "$BRANCH_PATH/dashboard/today"
+    const val BRANCH_SESSIONS_PATH = "$BRANCH_PATH/sessions"
     const val BRANCH_DAILY_SUMMARY_PATH = "$BRANCH_PATH/daily-summary"
     const val BRANCH_DAILY_SUMMARIES_PATH = "$BRANCH_PATH/daily-summaries"
     const val BRANCH_MONTHLY_SUMMARY_PATH = "$BRANCH_PATH/monthly-summary"

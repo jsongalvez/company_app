@@ -256,24 +256,22 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `getSessionDetail throws 404 when no notification exists for the session`() {
+    fun `getSessionDetail serves a branch viewer without a notification`() {
         SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         grantBranchView(callerId, branchId)
 
-        assertFailsWith<NotFoundException> {
-            DashboardService.getSessionDetail(callerId, sessionId)
-        }
+        assertEquals(sessionId, DashboardService.getSessionDetail(callerId, sessionId).session.id)
     }
 
     @Test
-    fun `getSessionDetail throws 404 when caller is not the notification bearer`() {
+    fun `getSessionsForDay lists the day's sessions and nothing for an empty date`() {
         SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
-        seedNotification(sessionId, otherUserId, branchId)
-        grantBranchView(callerId, branchId)
+        val day =
+            com.companyb.companyapp.branchday.BranchDayService
+                .findById(branchDayId)!!
 
-        assertFailsWith<NotFoundException> {
-            DashboardService.getSessionDetail(callerId, sessionId)
-        }
+        assertEquals(listOf(sessionId), DashboardService.getSessionsForDay(branchId, day.date).sessions.map { it.id })
+        assertTrue(DashboardService.getSessionsForDay(branchId, day.date.minusYears(5)).sessions.isEmpty())
     }
 
     @Test

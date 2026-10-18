@@ -5,7 +5,8 @@
     import { load, type Loader } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
     import { route, go } from "../lib/router.svelte";
-    import { peso, label, day, dateTime, operationalDate, addDays, sum } from "../lib/format";
+    import { peso, label, day, time, dateTime, operationalDate, addDays, sum } from "../lib/format";
+    import { statusClass } from "../lib/rules";
     import { EXPENSE_CATEGORIES } from "../lib/rules";
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
@@ -34,6 +35,16 @@
     const allow = new Query<S["AllowanceResponse"][]>();
     const split = new Query<S["CommissionSplitResponse"][]>();
     const summary = new Query<S["DailySalesSummaryResponse"]>();
+    // The day's sessions, so past ones can be opened and corrected (feedback 3578107f).
+    const sessQ = new Query<S["DashboardSessionResponse"][]>();
+    const seeSessions = $derived(can("VIEW_BRANCH_DATA"));
+    $effect(() => {
+        if (!seeSessions) return;
+        const l = load.daySessions(bid, date);
+        sessQ.load(l.key, l.fn);
+    });
+    const daySessions = $derived(sessQ.data ?? []);
+    const doneTotal = $derived(sum(daySessions.filter((x) => !x.isVoided && x.sessionStatus === "COMPLETED").map((x) => x.finalPrice)));
     $effect(() => {
         if (!dayId) return;
         // Pay and allowances are only readable with the pay permission.
@@ -205,7 +216,7 @@
     }
 
     async function recalc() {
-        if (await act(() => ok(api.POST("/api/commission/recalculate/{branchDayId}", { params: { path: { branchDayId: dayId } } })), "Commission recalculated"))
+        if (await act(() => ok(api.POST("/api/commission/recalculate/{branchDayId}", { params: { path: { branchDayId: dayId } } })), "Shares updated"))
             refresh();
     }
 
@@ -267,6 +278,45 @@
                 <div class="v">{peso(summary.data.totalCommission)}</div>
             </div>
         </div>
+    {/if}
+
+    {#if seeSessions}
+        <section class="panel mb">
+            <header>
+                <h2>Sessions</h2>
+                <span class="faint">{peso(doneTotal)}</span>
+                <span class="spacer"></span>
+                {#if closed && edit}<span class="faint">Tap a session to correct it.</span>{/if}
+            </header>
+            <State q={sessQ} empty={!!sessQ.data && daySessions.length === 0} emptyText="No sessions on this day." />
+            {#if daySessions.length}
+                <div class="table-wrap">
+                    <table class="grid">
+                        <thead
+                            ><tr
+                                ><th class="hide-sm">Booked</th><th>Client</th><th>Status</th><th class="hide-sm">Practitioners</th><th class="num">Price</th
+                                ></tr
+                            ></thead
+                        >
+                        <tbody>
+                            {#each daySessions as x (x.id)}
+                                <tr class="click" class:struck={x.isVoided} onclick={() => go(`/sessions/${x.id}`)}>
+                                    <td class="hide-sm">{time(x.bookedAt)}</td>
+                                    <td class="ellipsis">{x.clientName ?? "(details erased)"}</td>
+                                    <td
+                                        >{#if x.isVoided}<span class="mark bad">Voided</span>{:else}<span class="mark {statusClass(x.sessionStatus)}"
+                                                >{label(x.sessionStatus)}</span
+                                            >{/if}</td
+                                    >
+                                    <td class="ellipsis hide-sm">{x.practitioners?.map((p) => p.displayName).join(", ") ?? ""}</td>
+                                    <td class="num">{peso(x.finalPrice)}</td>
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </table>
+                </div>
+            {/if}
+        </section>
     {/if}
 
     <div class="cols">
@@ -367,8 +417,14 @@
             <header>
                 <h2>Commission share</h2>
                 <span class="spacer"></span>
-                {#if edit}<button class="sm" onclick={recalc}>Recalculate</button>{/if}
+                {#if closed && edit}<button class="sm" onclick={recalc} title="Work the shares out again from this day's sales and clock-ins"
+                        >Update shares</button
+                    >{/if}
             </header>
+            <p class="faint hint">
+                {#if closed}Shares were fixed when the day ended. If you corrected a sale or a clock-in, tap Update shares.{:else}Shares update by themselves as
+                    products are sold.{/if}
+            </p>
             <State q={split} empty={!!split.data && split.data.length === 0} emptyText="No commission to split." />
             {#if split.data?.length}
                 <table class="grid">
@@ -424,6 +480,10 @@
 </Dialog>
 
 <style>
+    .hint {
+        margin: 4px 10px 6px;
+        font-size: 12px;
+    }
     .mb {
         margin-bottom: 10px;
     }

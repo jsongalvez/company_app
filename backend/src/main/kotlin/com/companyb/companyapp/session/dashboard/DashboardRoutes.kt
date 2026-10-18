@@ -2,6 +2,8 @@ package com.companyb.companyapp.session.dashboard
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.session.ConcernResponse
 import com.companyb.companyapp.contracts.session.DashboardCommissionResponse
 import com.companyb.companyapp.contracts.session.DashboardPractitionerResponse
@@ -11,13 +13,16 @@ import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.session.Concern
 import com.companyb.companyapp.session.Session
 import io.javalin.config.JavalinConfig
+import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
+import io.javalin.http.HandlerType
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
 import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
+import java.time.LocalDate
 import java.util.UUID
 
 @OpenApi(
@@ -32,11 +37,54 @@ import java.util.UUID
         OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
+@OpenApi(
+    path = ApiRoutes.BRANCH_SESSIONS_PATH,
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    queryParams = [OpenApiParam(name = "date", type = String::class, required = true)],
+    operationId = "branch_sessions_for_day",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<DashboardSessionResponse>::class)]),
+        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
+)
 object DashboardRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
 
     fun register(config: JavalinConfig) {
         config.routes.get(ApiRoutes.BRANCH_DASHBOARD_TODAY_PATH, ::handleGetToday)
+        config.routes.before(ApiRoutes.BRANCH_SESSIONS_PATH) { context ->
+            if (context.method() == HandlerType.GET) {
+                CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
+                    context,
+                    context.pathParamAsUuid(BRANCH_ID_PARAM),
+                    CapabilityCodes.VIEW_BRANCH_DATA,
+                )
+            }
+        }
+        config.routes.get(ApiRoutes.BRANCH_SESSIONS_PATH, ::handleGetSessionsForDay)
+    }
+
+    /** Any day's sessions at a branch, for the Expenses & pay page (feedback 3578107f). */
+    private fun handleGetSessionsForDay(context: Context) {
+        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+        val raw = context.queryParam("date") ?: throw BadRequestResponse("date is required")
+        val date = runCatching { LocalDate.parse(raw) }.getOrElse { throw BadRequestResponse("Invalid date") }
+        val data = DashboardService.getSessionsForDay(branchId, date)
+        val enrichment =
+            DashboardSessionEnrichment(
+                clientNames = data.clientNames,
+                voidedSessionIds = data.voidedSessionIds,
+                practitionerBySession = data.practitioners.groupBy { it.sessionId },
+                concernsBySession = data.concerns.groupBy { it.sessionId },
+                requestedPractitionerNames = data.requestedPractitionerNames,
+                branchIdBySession = data.branchIdBySession,
+            )
+        context.json(data.sessions.map { mapDashboardSession(it, enrichment) })
     }
 
     private fun handleGetToday(context: Context) {

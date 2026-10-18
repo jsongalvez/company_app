@@ -8,7 +8,6 @@ import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.notification.NotificationReads
 import com.companyb.companyapp.session.Session
 import com.companyb.companyapp.session.SessionReads
 import com.companyb.companyapp.workforce.AttendanceService
@@ -110,6 +109,32 @@ object DashboardService {
     }
 
     /**
+     * Any day's sessions at [branchId] (feedback 3578107f: coordinators correct past sessions
+     * from Expenses & pay). The route gates on VIEW_BRANCH_DATA (branch or GLOBAL); edits stay
+     * behind the usual day gates. Find-only: a date with no day row returns no sessions.
+     */
+    fun getSessionsForDay(
+        branchId: UUID,
+        date: java.time.LocalDate,
+    ): DashboardData {
+        BranchService.findById(branchId)
+        val day = BranchDayService.findByBranchAndDate(branchId, date)
+        val sessions = day?.let { DashboardRepository.findSessionsByBranchDay(it.id) } ?: emptyList()
+        val sessionIds = sessions.map { it.id }
+        return DashboardData(
+            sessions = sessions,
+            clientNames = DashboardRepository.findClientNames(sessions.map { it.clientId }),
+            voidedSessionIds = DashboardRepository.findVoidedSessionIds(sessionIds),
+            practitioners = DashboardRepository.findPractitioners(sessionIds),
+            concerns = DashboardRepository.findConcernsForSessionIds(sessionIds),
+            commission = CommissionSummary(BigDecimal.ZERO, 0),
+            requestedPractitionerNames =
+                DashboardRepository.findUserDisplayNames(sessions.mapNotNull { it.requestedPractitionerId }),
+            branchIdBySession = sessions.associate { it.id to branchId },
+        )
+    }
+
+    /**
      * #152 single-session detail read for the notifications bearer path (#151 Q1/Q4/Q5) with the
      * #907 lifetime bound: the caller may fetch iff a notification row exists for
      * `(sessionId, caller)` — any read state — AND the caller still holds
@@ -132,10 +157,6 @@ object DashboardService {
         callerId: UUID,
         sessionId: UUID,
     ): SessionDetailData {
-        if (!NotificationReads.existsForSessionAndUser(sessionId, callerId)) {
-            throw NotFoundException("Session not found")
-        }
-
         val session =
             SessionReads.findById(sessionId)
                 ?: throw NotFoundException("Session not found")

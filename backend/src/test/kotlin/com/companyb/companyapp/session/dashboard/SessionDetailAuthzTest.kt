@@ -125,10 +125,17 @@ class SessionDetailAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `user without notification gets 404`() {
+    fun `branch viewer without notification gets 200`() {
         seedNotification(sessionId, otherUser, branchId)
         testServer.client.let { client ->
-            assertEquals(404, client.get("/api/sessions/$sessionId", asUser(bearerUser)).code)
+            assertEquals(200, client.get("/api/sessions/$sessionId", asUser(bearerUser)).code)
+        }
+    }
+
+    @Test
+    fun `user without branch view and without notification gets 404`() {
+        testServer.client.let { client ->
+            assertEquals(404, client.get("/api/sessions/$sessionId", asUser(revokedUser)).code)
         }
     }
 

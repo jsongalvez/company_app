@@ -61,7 +61,7 @@
     const r = () => (reason.trim() ? reason.trim() : null);
 
     function refresh() {
-        invalidate(`session:${id}`, "dash:", `audit:session:${id}`);
+        invalidate(`session:${id}`, "dash:", "dsess:", `audit:session:${id}`);
         sq.refresh();
     }
 

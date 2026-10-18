@@ -8,6 +8,8 @@ const b = (branchId: string) => ({ params: { path: { branchId } } });
 
 export const load = {
     dashboard: (branchId: string) => L(`dash:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/dashboard/today", b(branchId)))),
+    daySessions: (branchId: string, date: string) =>
+        L(`dsess:${branchId}:${date}`, () => ok(api.GET("/api/branches/{branchId}/sessions", { params: { path: { branchId }, query: { date } } }))),
     roster: (branchId: string) => L(`roster:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/attendance/today", b(branchId)))),
     members: (branchId: string) => L(`members:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/members", b(branchId)))),
     dayUsers: (branchDayId: string) =>
