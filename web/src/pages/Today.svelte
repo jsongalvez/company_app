@@ -62,7 +62,8 @@
     }
 
     async function mark(s: S["DashboardSessionResponse"], to: Status) {
-        if (to !== "COMPLETED" && !confirm(`Mark ${s.clientName ?? "session"} as ${label(to)}?`)) return;
+        const undo = to === "PENDING";
+        if (to !== "COMPLETED" && !undo && !confirm(`Mark ${s.clientName ?? "session"} as ${label(to)}?`)) return;
         const okd = await act(
             () =>
                 ok(
@@ -71,7 +72,7 @@
                         body: { status: to, version: s.version },
                     }),
                 ),
-            `${s.clientName ?? "Session"}: ${label(to)}`,
+            undo ? `${s.clientName ?? "Session"}: back to Waiting` : `${s.clientName ?? "Session"}: ${label(to)}`,
         );
         if (okd) refresh();
     }
@@ -235,7 +236,7 @@
                                         {#if !s.isVoided}
                                             {#each allowedTargets(s.sessionStatus as Status, s.isWalkIn, false) as to (to)}
                                                 <button class="sm" class:primary={to === "COMPLETED"} onclick={() => mark(s, to)}
-                                                    >{to === "COMPLETED" ? "Done" : label(to)}</button
+                                                    >{to === "COMPLETED" ? "Done" : to === "PENDING" ? "Undo" : label(to)}</button
                                                 >
                                             {/each}
                                         {/if}

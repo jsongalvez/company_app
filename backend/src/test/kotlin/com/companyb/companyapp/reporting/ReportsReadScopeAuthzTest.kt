@@ -379,7 +379,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
     @Test
     fun `branch-scoped holder passes on granted branch`() {
         branchAExportPaths.forEach { path ->
-            assertEquals(404, getStatus(viewA, path), "expected gate-pass (404) on $path")
+            assertTrue(getStatus(viewA, path) in GATE_PASS, "expected gate-pass (404) on $path")
         }
     }
 
@@ -397,9 +397,8 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
     @Test
     fun `global holder passes on a branch with no grants`() {
         branchBExportPaths.forEach { path ->
-            assertEquals(
-                404,
-                getStatus(globalViewUser, path),
+            assertTrue(
+                getStatus(globalViewUser, path) in GATE_PASS,
                 "expected gate-pass (404) on $path — GLOBAL VIEW_BRANCH_DATA must be an all-branches window",
             )
         }
@@ -408,16 +407,15 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
     @Test
     fun `global holder passes on any branch`() {
         branchAExportPaths.forEach { path ->
-            assertEquals(404, getStatus(globalViewUser, path), "expected gate-pass (404) on $path")
+            assertTrue(getStatus(globalViewUser, path) in GATE_PASS, "expected gate-pass (404) on $path")
         }
     }
 
     @Test
     fun `OWNER role holder passes on unassigned branch`() {
         branchBExportPaths.forEach { path ->
-            assertEquals(
-                404,
-                getStatus(ownerUser, path),
+            assertTrue(
+                getStatus(ownerUser, path) in GATE_PASS,
                 "OWNER GLOBAL VIEW_BRANCH_DATA must pass on unassigned branch for $path",
             )
         }
@@ -560,3 +558,6 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         assertEquals(404, getStatus(noneUser, "/api/branches/$unknown/export/daily?date=2026-08-10&format=csv"))
     }
 }
+
+// Gate-pass: the handler ran (no data = 404 on single reports, 200 zeros on the monthly summary), never 403.
+private val GATE_PASS = setOf(200, 404)

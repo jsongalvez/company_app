@@ -31,9 +31,11 @@ enum class SessionStatus { PENDING, COMPLETED, NO_SHOW, CANCELLED, UNKNOWN }
  *   ([com.companyb.companyapp.contracts.authorization.CapabilityCodes.EDIT_PAST_DAY])
  *   is required at every day state; day-state rules
  *   (PAST/REMITTED gates, REMITTED reason) apply on top.
- * - COMPLETED is immutable outside the void/unvoid machinery: [isStatusCorrection] is false
- *   for any pair touching it, so such requests are rejected outright - money flows are never
- *   resurrected through status edits.
+ * - An UNDO puts a marked session (COMPLETED / NO_SHOW / CANCELLED) back to PENDING. Anyone who
+ *   may mark may undo (owner ruling 2026-10-18: mis-taps must be fixable); day-state rules still
+ *   apply, and the command refuses to undo a COMPLETED session that sits on a remittance.
+ * - COMPLETED is otherwise immutable outside void/unvoid: [isStatusCorrection] is false for any
+ *   pair touching it.
  */
 fun isRoutineStatusMark(
     from: SessionStatus,
@@ -44,13 +46,19 @@ fun isRoutineStatusMark(
         // rejected on input, so no stored status is ever UNKNOWN and no mark may target it.
         to != SessionStatus.UNKNOWN
 
+fun isStatusUndo(
+    from: SessionStatus,
+    to: SessionStatus,
+): Boolean =
+    to == SessionStatus.PENDING && from != SessionStatus.PENDING && from != SessionStatus.UNKNOWN
+
 fun isStatusCorrection(
     from: SessionStatus,
     to: SessionStatus,
 ): Boolean =
     from != SessionStatus.UNKNOWN && to != SessionStatus.UNKNOWN &&
         from != to && from != SessionStatus.COMPLETED && to != SessionStatus.COMPLETED &&
-        !isRoutineStatusMark(from, to)
+        !isRoutineStatusMark(from, to) && !isStatusUndo(from, to)
 
 private val WALK_IN_FORBIDDEN_STATUS_VALUES = setOf(SessionStatus.NO_SHOW, SessionStatus.CANCELLED)
 
@@ -60,7 +68,7 @@ fun isStatusTransitionAllowed(
     isWalkIn: Boolean,
 ): Boolean =
     (!isWalkIn || to !in WALK_IN_FORBIDDEN_STATUS_VALUES) &&
-        (isRoutineStatusMark(from, to) || isStatusCorrection(from, to))
+        (isRoutineStatusMark(from, to) || isStatusUndo(from, to) || isStatusCorrection(from, to))
 
 @Serializable
 data class CreateSessionRequest(

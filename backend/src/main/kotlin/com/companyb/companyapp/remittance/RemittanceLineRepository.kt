@@ -225,6 +225,13 @@ internal object RemittanceLineRepository {
         throw ConflictException(duplicateMessage(params.type))
     }
 
+    /** True when an active (not removed) remittance line holds this session. */
+    fun isSessionIncludedInTransaction(sessionId: UUID): Boolean =
+        !RemittanceLineTable
+            .selectAll()
+            .where { (RemittanceLineTable.sessionId eq sessionId) and RemittanceLineTable.deletedAt.isNull() }
+            .empty()
+
     private fun assertNotAlreadyIncluded(params: AddLineParams) {
         val existingLine =
             RemittanceLineTable

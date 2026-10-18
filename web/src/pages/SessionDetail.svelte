@@ -81,7 +81,7 @@
                             body: { status: to, version: s.version, reason: r() },
                         }),
                     ),
-                `Marked ${label(to)}`,
+                to === "PENDING" ? "Back to Waiting" : `Marked ${label(to)}`,
             )
         )
             refresh();
@@ -284,7 +284,7 @@
                     <span class="spacer"></span>
                     {#if edit && !voided}
                         {#each allowedTargets(s.sessionStatus as Status, s.isWalkIn, correct) as to (to)}
-                            <button class="sm" class:primary={to === "COMPLETED"} onclick={() => setStatus(to)}>{label(to)}</button>
+                            <button class="sm" class:primary={to === "COMPLETED"} onclick={() => setStatus(to)}>{to === "PENDING" ? "Undo" : label(to)}</button>
                         {/each}
                     {/if}
                 </header>

@@ -56,10 +56,10 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `returns 404 when no remittance data exists for given month`() {
-        assertFailsWith<NotFoundException> {
-            getCurrentMonthSummary(branchId)
-        }
+    fun `returns zeros when no remittance data exists for given month`() {
+        val summary = getCurrentMonthSummary(branchId)
+        assertEquals(0, summary.totalRemittances)
+        assertEquals(0, BigDecimal.ZERO.compareTo(summary.grossIncome))
     }
 
     @Test
@@ -164,17 +164,6 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         // #688 — SESSION snapshot 500.00 + PRODUCT line 200.00.
         assertEquals(0, BigDecimal("700.00").compareTo(summary.grossIncome))
         assertEquals(0, BigDecimal("700.00").compareTo(summary.netIncome))
-    }
-
-    @Test
-    fun `returns 404 without VIEW_BRANCH_DATA capability`() {
-        transaction {
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }
-        }
-
-        assertFailsWith<NotFoundException> {
-            getCurrentMonthSummary(branchId)
-        }
     }
 
     @Test

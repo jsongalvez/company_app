@@ -220,7 +220,7 @@ Base rates are per session type and per branch, editable by Coordinators.
 
 ### Session Status
 
-- Completed session status is immutable through status edits; Coordinators use session void/unvoid for corrections
+- A mark (Done, No-show, Cancelled) can be undone back to Waiting by anyone who can mark, on an open day; a Done session already in a remittance must be taken out of it first. Other changes to a Done session go through void/unvoid
 - Booked sessions can be marked as no-show or cancelled
 - Walk-in sessions cannot be marked as no-show or cancelled
 - Next appointment date is approximate — the Coordinator is notified 2 days before a scheduled next appointment

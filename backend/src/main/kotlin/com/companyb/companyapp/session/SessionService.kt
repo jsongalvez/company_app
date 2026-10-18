@@ -14,6 +14,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AccountReads
+import com.companyb.companyapp.remittance.RemittanceReads
 import com.companyb.companyapp.workforce.WorkforceReads
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -318,6 +319,13 @@ object SessionService {
             // anonymize verdict never depends on the caller's day grants.
             if (client.deletedAt != null) {
                 throw ConflictException("Cannot update the status of a session for an anonymized client")
+            }
+
+            if (session.sessionStatus == SessionStatus.COMPLETED &&
+                newStatus == SessionStatus.PENDING &&
+                RemittanceReads.isSessionIncludedInTransaction(sessionId)
+            ) {
+                throw ConflictException("This session is in a remittance. Remove it from the remittance first.")
             }
 
             val requiresEditPastDay = isStatusCorrection(session.sessionStatus, newStatus)

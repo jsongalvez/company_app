@@ -286,6 +286,7 @@ label.check {
 .panel > header {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
     min-height: 34px;
     padding: 4px 10px;

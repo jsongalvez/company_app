@@ -1,8 +1,8 @@
 package com.companyb.companyapp.reporting
 
 import com.companyb.companyapp.branch.BranchService
-import com.companyb.companyapp.exception.NotFoundException
 import io.github.oshai.kotlinlogging.KotlinLogging
+import java.math.BigDecimal
 import java.util.UUID
 
 object MonthlyRemittanceSummaryService {
@@ -15,10 +15,19 @@ object MonthlyRemittanceSummaryService {
     ): MonthlyRemittanceSummary {
         BranchService.findById(branchId)
 
-        val summary =
-            MonthlyRemittanceSummaryRepository.findByBranchYearMonth(branchId, year, month)
-                ?: throw NotFoundException("No remittance data for this branch, year, and month")
-
-        return summary
+        // A month with nothing sent yet is a normal state, not an error: answer with zeros.
+        return MonthlyRemittanceSummaryRepository.findByBranchYearMonth(branchId, year, month)
+            ?: MonthlyRemittanceSummary(
+                branchId = branchId,
+                year = year,
+                month = month,
+                totalRemittances = 0,
+                sessionCount = 0,
+                productCount = 0,
+                grossIncome = BigDecimal.ZERO,
+                totalCompensation = BigDecimal.ZERO,
+                totalExpenses = BigDecimal.ZERO,
+                netIncome = BigDecimal.ZERO,
+            )
     }
 }

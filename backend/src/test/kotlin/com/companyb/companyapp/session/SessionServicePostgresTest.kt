@@ -655,7 +655,16 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val correctionSessionId = insertSessionWithStatus(SessionStatus.NO_SHOW)
 
         assertFailsWith<ForbiddenException> {
-            SessionService.updateStatus(callerId, correctionSessionId, SessionStatus.PENDING, 1)
+            SessionService.updateStatus(callerId, correctionSessionId, SessionStatus.CANCELLED, 1)
+        }
+    }
+
+    @Test
+    fun `anyone who can mark can undo a mark on an open day`() {
+        listOf(SessionStatus.COMPLETED, SessionStatus.NO_SHOW, SessionStatus.CANCELLED).forEach { from ->
+            val undoSessionId = insertSessionWithStatus(from)
+            val updated = SessionService.updateStatus(callerId, undoSessionId, SessionStatus.PENDING, 1)
+            assertEquals(SessionStatus.PENDING, updated.sessionStatus)
         }
     }
 
@@ -663,9 +672,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     fun `booked corrections require Coordinator authority across every day state`() {
         correctionDays().forEach { (_, dayId) ->
             listOf(
-                SessionStatus.NO_SHOW to SessionStatus.PENDING,
                 SessionStatus.NO_SHOW to SessionStatus.CANCELLED,
-                SessionStatus.CANCELLED to SessionStatus.PENDING,
                 SessionStatus.CANCELLED to SessionStatus.NO_SHOW,
             ).forEach { (from, to) ->
                 val correctionSessionId = TestFixtures.uuid()
@@ -737,7 +744,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val completedSessionId = insertSessionWithStatus(SessionStatus.COMPLETED)
 
         assertFailsWith<ValidationException> {
-            SessionService.updateStatus(callerId, completedSessionId, SessionStatus.PENDING, 1)
+            SessionService.updateStatus(callerId, completedSessionId, SessionStatus.NO_SHOW, 1)
         }
     }
 
@@ -830,7 +837,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     fun `status endpoint rejects illegal completed and no-op transitions`() {
         val illegalEdges =
             listOf(
-                SessionStatus.COMPLETED to SessionStatus.PENDING,
+                SessionStatus.COMPLETED to SessionStatus.CANCELLED,
                 SessionStatus.NO_SHOW to SessionStatus.COMPLETED,
                 SessionStatus.CANCELLED to SessionStatus.COMPLETED,
                 SessionStatus.PENDING to SessionStatus.PENDING,
