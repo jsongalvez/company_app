@@ -52,6 +52,7 @@ import com.companyb.companyapp.remittance.RemittanceRoutes
 import com.companyb.companyapp.reporting.DailySalesSummaryRoutes
 import com.companyb.companyapp.reporting.ExportRoutes
 import com.companyb.companyapp.reporting.MonthlyRemittanceSummaryRoutes
+import com.companyb.companyapp.reporting.MyHistoryRoutes
 import com.companyb.companyapp.session.SessionBaseRateRoutes
 import com.companyb.companyapp.session.SessionRoutes
 import com.companyb.companyapp.session.dashboard.DashboardRoutes
@@ -228,6 +229,7 @@ fun registerAllRoutes(config: io.javalin.config.JavalinConfig) {
     RemittancePickerRoutes.register(config)
     AuditLogRoutes.register(config)
     ExportRoutes.register(config)
+    MyHistoryRoutes.register(config)
 }
 
 private fun registerExceptionHandlers(config: io.javalin.config.JavalinConfig) {

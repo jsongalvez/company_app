@@ -23,6 +23,7 @@
     import Catalog from "../pages/Catalog.svelte";
     import Audit from "../pages/Audit.svelte";
     import Profile from "../pages/Profile.svelte";
+    import MyHistory from "../pages/MyHistory.svelte";
 
     type Item = { path: string; text: string; show: boolean; warm?: () => void };
 
@@ -44,6 +45,7 @@
             title: "Me",
             items: [
                 { path: "/profile", text: "My profile", show: true },
+                { path: "/my-history", text: "My shifts & pay", show: true },
                 { path: "/relief", text: "Relief duty", show: true, warm: () => (warm(load.reliefMine()), warm(load.reliefInvitesMine())) },
                 {
                     path: "/notifications",
@@ -233,6 +235,8 @@
             <FeedbackList />
         {:else if section === "/profile"}
             <Profile />
+        {:else if section === "/my-history"}
+            <MyHistory />
         {:else if section === "/audit"}
             <Audit />
         {:else}

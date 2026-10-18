@@ -85,6 +85,9 @@ import com.companyb.companyapp.contracts.remittance.UpdateRemittanceHeaderReques
 import com.companyb.companyapp.contracts.reporting.DailySalesSummaryBrowseResponse
 import com.companyb.companyapp.contracts.reporting.DailySalesSummaryResponse
 import com.companyb.companyapp.contracts.reporting.MonthlyRemittanceSummaryResponse
+import com.companyb.companyapp.contracts.reporting.MyEarning
+import com.companyb.companyapp.contracts.reporting.MyHistoryResponse
+import com.companyb.companyapp.contracts.reporting.MyShift
 import com.companyb.companyapp.contracts.session.AddPractitionerRequest
 import com.companyb.companyapp.contracts.session.AddSessionConcernRequest
 import com.companyb.companyapp.contracts.session.ConcernResponse
@@ -213,6 +216,9 @@ internal object DtoSchemaProjector {
             "ViewAsRequest" to ViewAsRequest.serializer(),
             "StopViewAsRequest" to StopViewAsRequest.serializer(),
             "ViewAsResponse" to ViewAsResponse.serializer(),
+            "MyHistoryResponse" to MyHistoryResponse.serializer(),
+            "MyShift" to MyShift.serializer(),
+            "MyEarning" to MyEarning.serializer(),
             "SetFeedbackStatusRequest" to SetFeedbackStatusRequest.serializer(),
             "ForgotPasswordRequest" to ForgotPasswordRequest.serializer(),
             "GrantReliefAccessRequest" to GrantReliefAccessRequest.serializer(),

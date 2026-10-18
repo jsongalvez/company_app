@@ -34,3 +34,36 @@ data class MonthlyRemittanceSummaryResponse(
     val totalExpenses: String,
     val netIncome: String,
 )
+
+/** Kind of money a person got. [UNKNOWN] is the forward-compat sentinel; never sent. */
+@Serializable
+enum class EarningKind { PAY, ALLOWANCE, COMMISSION, UNKNOWN }
+
+/** One clock-in of the caller. Times are ISO instants; [clockOut] is null while still clocked in. */
+@Serializable
+data class MyShift(
+    val date: String,
+    val branchName: String,
+    val clockIn: String,
+    val clockOut: String? = null,
+)
+
+/** One payout to the caller, dated by the day that paid it. */
+@Serializable
+data class MyEarning(
+    val date: String,
+    val branchName: String,
+    val kind: EarningKind = EarningKind.UNKNOWN,
+    val amount: String,
+    val note: String? = null,
+)
+
+/** The caller's own shifts and money received between two dates (inclusive). */
+@Serializable
+data class MyHistoryResponse(
+    val from: String,
+    val to: String,
+    val shifts: List<MyShift>,
+    val earnings: List<MyEarning>,
+    val totalEarned: String,
+)

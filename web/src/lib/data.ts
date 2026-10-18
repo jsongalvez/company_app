@@ -63,6 +63,7 @@ export const load = {
     assignments: (branchId: string) => L(`assign:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/assignments", b(branchId)))),
     rates: (branchId: string) => L(`rates:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/rates", b(branchId)))),
     delegates: (branchId: string) => L(`deleg:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/delegates", b(branchId)))),
+    myHistory: (from: string, to: string) => L(`me:history:${from}:${to}`, () => ok(api.GET("/api/me/history", { params: { query: { from, to } } }))),
     auditTables: () => L(`audit:tables`, () => ok(api.GET("/api/audit-log/tables"))),
     auditFlagged: () => L(`audit:flagged`, () => ok(api.GET("/api/audit-log/flagged"))),
 };
