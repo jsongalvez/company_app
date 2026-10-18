@@ -1,6 +1,7 @@
 import { label } from "../lib/format";
 import createClient, { type Middleware } from "openapi-fetch";
 import type { components, paths } from "./schema";
+import { onlineOrTimeout, reportNetFailure, reportNetOk } from "../lib/net.svelte";
 
 export type S = components["schemas"];
 
@@ -60,7 +61,62 @@ const auth: Middleware = {
     },
 };
 
-export const api = createClient<paths>({ baseUrl: location.origin });
+/** A request that never reached the server (no signal) or got no answer in time. */
+export class NetError extends Error {
+    constructor(readonly timedOut: boolean) {
+        super(timedOut ? "timeout" : "offline");
+    }
+}
+
+const RETRY_WAITS_MS = [700, 2000, 5000];
+const TIMEOUT_MS = 20_000;
+const GATEWAY = new Set([502, 503, 504]);
+/** Body keys holding the record's own client-made id: the server treats a resend as the same save. */
+const OWN_ID_KEYS = ["id", "attendanceId", "requestId", "delegateId", "movementId"];
+
+/** Safe to send twice? Reads, PUT/DELETE, and creates carrying their own id. */
+function repeatable(method: string, body: string | null): boolean {
+    if (method === "GET" || method === "HEAD" || method === "PUT" || method === "DELETE") return true;
+    if (!body) return false;
+    try {
+        const o = JSON.parse(body) as Record<string, unknown>;
+        return !!o && typeof o === "object" && OWN_ID_KEYS.some((k) => typeof o[k] === "string");
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * fetch for weak signal: every request gets a time limit, and requests that are safe to
+ * resend are retried a few times (waiting for the phone to come back online), so short
+ * drops go unnoticed. Anything else fails once with a clear message.
+ */
+async function resilientFetch(req: Request): Promise<Response> {
+    const body = req.method === "GET" || req.method === "HEAD" ? null : await req.clone().text();
+    const retry = repeatable(req.method, body);
+    for (let attempt = 0; ; attempt++) {
+        const last = !retry || attempt >= RETRY_WAITS_MS.length;
+        let res: Response;
+        try {
+            res = await fetch(req.clone(), { signal: AbortSignal.timeout(TIMEOUT_MS) });
+        } catch (e) {
+            if (req.signal.aborted) throw e;
+            reportNetFailure();
+            // Offline means it never left the phone; otherwise it may have reached the server.
+            if (last) throw new NetError(navigator.onLine || (e instanceof DOMException && e.name === "TimeoutError"));
+            await onlineOrTimeout(RETRY_WAITS_MS[attempt]!);
+            continue;
+        }
+        if (GATEWAY.has(res.status) && !last) {
+            await onlineOrTimeout(RETRY_WAITS_MS[attempt]!);
+            continue;
+        }
+        reportNetOk();
+        return res;
+    }
+}
+
+export const api = createClient<paths>({ baseUrl: location.origin, fetch: resilientFetch });
 api.use(auth);
 
 export class ApiError extends Error {
@@ -86,7 +142,8 @@ export function plain(msg: string): string {
 
 function messageFor(status: number, body: unknown): string {
     if (body && typeof body === "object" && "error" in body && typeof body.error === "string") return plain(body.error);
-    if (status === 0) return "Can't reach the server. Check your connection.";
+    if (status === 0) return "No connection, so this didn't go through. Try again when you have signal.";
+    if (status === -1) return "The connection dropped before the server answered. Reload to check, then try again if it's missing.";
     if (status === 401) return "You were signed out. Please sign in again.";
     if (status === 403) return "You don't have access to this";
     if (status === 404) return "Not found";
@@ -100,8 +157,9 @@ export async function ok<T>(p: Promise<{ data?: T; error?: unknown; response: Re
     let r;
     try {
         r = await p;
-    } catch {
-        throw new ApiError(0, messageFor(0, null));
+    } catch (e) {
+        const code = e instanceof NetError && e.timedOut ? -1 : 0;
+        throw new ApiError(code, messageFor(code, null));
     }
     if (r.response.ok) return r.data as T;
     throw new ApiError(r.response.status, messageFor(r.response.status, r.error));

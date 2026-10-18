@@ -1,3 +1,5 @@
+import { ApiError } from "../api/client";
+import { RECONNECTED } from "./net.svelte";
 /**
  * Tiny query cache, McMaster-style snappiness: show cached data instantly,
  * revalidate in the background, prefetch on hover. Keys are strings.
@@ -72,6 +74,8 @@ export class Query<T> {
                 if (this.#key !== key) return;
                 this.error = e instanceof Error ? e.message : String(e);
                 this.loading = false;
+                // Lost signal: load again by itself once the connection is back.
+                if (e instanceof ApiError && e.status <= 0) window.addEventListener(RECONNECTED, () => this.#key === key && this.refresh(), { once: true });
             },
         );
     }

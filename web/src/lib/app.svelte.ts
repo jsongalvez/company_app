@@ -1,5 +1,6 @@
 import { api, ok, setToken, getToken, setUnauthorizedHandler, uuid, errText, getViewAs, setViewAs, type S, type ViewAs } from "../api/client";
 import { clearCache, invalidate } from "./cache.svelte";
+import { RECONNECTED } from "./net.svelte";
 
 type Cap = S["UserCapabilityResponse"];
 
@@ -132,6 +133,13 @@ export async function boot() {
         app.ready = true;
     }
 }
+
+// Opened with no signal: finish starting up once the connection is back; else catch up.
+window.addEventListener(RECONNECTED, () => {
+    if (!getToken()) return;
+    if (!app.me) void boot().catch(() => {});
+    else void Promise.all([refreshBranchDay(), refreshShift(), refreshUnread()]).catch(() => {});
+});
 
 /** Re-read branch names after a rename (picker and top bar). */
 export async function refreshBranchNames() {
