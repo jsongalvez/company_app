@@ -142,7 +142,7 @@ object AuditLogRoutes {
             val entries = AuditLogService.findFlagged(callerId)
 
             context.status(HttpStatus.OK)
-            context.json(entries.map { it.toResponse() })
+            context.json(entries.toResponses())
         }
 
         config.routes.patch(ApiRoutes.AUDIT_LOG_ACKNOWLEDGE_PATH) { context ->
@@ -181,7 +181,7 @@ object AuditLogRoutes {
 
         val entries = AuditLogService.findByTableAndRecord(callerId, tableName, recordId)
         context.status(HttpStatus.OK)
-        return entries.map { it.toResponse() }
+        return entries.toResponses()
     }
 
     private fun handleAcknowledge(context: io.javalin.http.Context): AuditLogEntryResponse {

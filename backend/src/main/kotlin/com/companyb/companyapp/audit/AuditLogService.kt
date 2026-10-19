@@ -4,6 +4,7 @@ import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.audit.AuditLogBrowseResponse
 import com.companyb.companyapp.contracts.audit.AuditLogEntryResponse
 import com.companyb.companyapp.contracts.audit.AuditLogTableResponse
+import com.companyb.companyapp.contracts.audit.AuditName
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -126,7 +127,7 @@ object AuditLogService {
                 null
             }
         return AuditLogBrowseResponse(
-            entries = entries.map { it.toResponse() },
+            entries = entries.toResponses(),
             nextCursor = nextCursor,
         )
     }
@@ -136,6 +137,20 @@ object AuditLogService {
         AuditLogTableRegistry.tables.map {
             AuditLogTableResponse(tableName = it.tableName, label = it.label)
         }
+}
+
+/** Responses with each entry's context (what it was about, names for its ids). */
+fun List<AuditLogEntry>.toResponses(): List<AuditLogEntryResponse> {
+    val context = AuditSubjectRepository.describe(this)
+    return map { e ->
+        e.toResponse().copy(
+            subject = context[e.id]?.subject,
+            names =
+                context[e.id]?.names.orEmpty().map { (id, name) ->
+                    AuditName(id, name)
+                },
+        )
+    }
 }
 
 fun AuditLogEntry.toResponse(): AuditLogEntryResponse =

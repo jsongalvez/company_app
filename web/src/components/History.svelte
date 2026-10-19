@@ -36,7 +36,7 @@
                                 <td
                                     >{label(e.action)}{#if e.isFlagged}<span class="mark warn">Needs review</span>{/if}</td
                                 >
-                                <td class="wrap mono">{e.action === "UPDATE" ? changeText(e.oldValue, e.newValue) : ""}</td>
+                                <td class="wrap mono">{changeText(e)}</td>
                                 <td class="wrap">{e.reason ?? ""}</td>
                             </tr>
                         {/each}

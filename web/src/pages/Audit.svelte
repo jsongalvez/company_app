@@ -104,7 +104,7 @@
         }
     }
 
-    const changes = (e: E) => (e.action === "UPDATE" ? changeText(e.oldValue, e.newValue) : "");
+    const changes = (e: E) => changeText(e);
     let expanded = $state<string | null>(null);
 </script>
 
@@ -122,7 +122,9 @@
                     <tr>
                         <td class="nowrap">{dateTime(e.changedAt)}</td>
                         <td class="lead">{e.changedByName ?? ""}</td>
-                        <td>{label(e.action)} · {tableLabel[e.tableName] ?? e.tableName}</td>
+                        <td
+                            >{label(e.action)} · {tableLabel[e.tableName] ?? e.tableName}{#if e.subject}<div class="subj">{e.subject}</div>{/if}</td
+                        >
                         <td class="muted">{e.branchName ?? ""}</td>
                         <td class="wrap full">{e.reason ? `“${e.reason}”` : ""}</td>
                         <td class="right"><button class="sm" onclick={() => review(e)}>Mark reviewed</button></td>
@@ -163,7 +165,9 @@
                         <td
                             >{label(e.action)}{#if e.isFlagged}<span class="mark warn">{e.acknowledgedAt ? "Reviewed" : "Needs review"}</span>{/if}</td
                         >
-                        <td>{tableLabel[e.tableName] ?? e.tableName}</td>
+                        <td
+                            >{tableLabel[e.tableName] ?? e.tableName}{#if e.subject}<div class="subj">{e.subject}</div>{/if}</td
+                        >
                         <td class="muted hide-sm">{e.branchName ?? ""}</td>
                         <td class="wrap muted full" class:ellipsis={expanded !== e.id}
                             >{changes(e)}{#if e.reason}<span>&nbsp;Reason: “{e.reason}”</span>{/if}</td
@@ -182,6 +186,9 @@
     }
     .pad {
         padding: 8px 0;
+    }
+    .subj {
+        font-weight: 600;
     }
     td.ellipsis {
         max-width: 420px;

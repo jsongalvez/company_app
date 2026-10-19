@@ -27,6 +27,16 @@ data class AuditLogEntryResponse(
     val reason: String? = null,
     val acknowledgedBy: String? = null,
     val acknowledgedAt: String? = null,
+    /** What the change was about, in words: "Session: Maria Santos, Oct 19", "Juan · Silang, Oct 19". */
+    val subject: String? = null,
+    /** Readable names for ids inside [oldValue]/[newValue] (user, client, product, day...). */
+    val names: List<AuditName> = emptyList(),
+)
+
+@Serializable
+data class AuditName(
+    val id: String,
+    val name: String,
 )
 
 @Serializable

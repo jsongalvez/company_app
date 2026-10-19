@@ -2013,6 +2013,11 @@ export interface components {
             reason?: string | null;
             acknowledgedBy?: string | null;
             acknowledgedAt?: string | null;
+            subject?: string | null;
+            names?: {
+                id: string;
+                name: string;
+            }[];
         };
         AuditLogTableResponse: {
             tableName: string;

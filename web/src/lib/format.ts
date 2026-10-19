@@ -144,23 +144,53 @@ export function fieldName(k: string): string {
     return w.charAt(0).toUpperCase() + w.slice(1);
 }
 
-/** One recorded value, in app words. */
-export function fieldValue(v: unknown): string {
+/** One recorded value, in app words. Ids become names when [names] knows them. */
+export function fieldValue(v: unknown, names: Record<string, string> = {}): string {
     if (v === null || v === undefined || v === "") return "–";
     if (typeof v === "boolean") return v ? "Yes" : "No";
-    if (typeof v === "string" && /^[A-Z][A-Z_]+$/.test(v)) return label(v);
+    if (typeof v === "string") {
+        if (names[v]) return names[v];
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-/.test(v)) return "(unknown)";
+        if (/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(v)) return dateTime(v);
+        if (v === "true" || v === "false") return v === "true" ? "Yes" : "No";
+        if (/^[A-Z][A-Z_]+$/.test(v)) return label(v);
+    }
     return typeof v === "object" ? JSON.stringify(v) : String(v);
 }
 
-/** Changed fields between two JSON snapshots, as "Field: old → new; …". */
-export function changeText(oldV: string | null | undefined, newV: string | null | undefined): string {
+// Bookkeeping fields that say nothing to a reader of the change history.
+const NOISE = /^(id|version|updated_?at|created_?at|created_?by|branch_?day_?id|branch_?id)$/i;
+
+type Entry = {
+    action?: string;
+    oldValue?: string | null;
+    newValue?: string | null;
+    subject?: string | null;
+    names?: { id: string; name: string }[];
+};
+
+/** What a change did, in words: changed fields as "old → new", or the added/removed record's fields. */
+export function changeText(e: Entry): string {
     try {
-        const o = oldV ? JSON.parse(oldV) : {};
-        const n = newV ? JSON.parse(newV) : {};
-        return Object.keys({ ...o, ...n })
-            .filter((k) => JSON.stringify(o[k]) !== JSON.stringify(n[k]) && !/version|updated_?at/i.test(k))
-            .map((k) => `${fieldName(k)}: ${fieldValue(o[k])} → ${fieldValue(n[k])}`)
-            .join("; ");
+        const names = Object.fromEntries((e.names ?? []).map((n) => [n.id, n.name]));
+        const o = e.oldValue ? JSON.parse(e.oldValue) : {};
+        const n = e.newValue ? JSON.parse(e.newValue) : {};
+        if (e.action === "UPDATE")
+            return Object.keys({ ...o, ...n })
+                .filter((k) => JSON.stringify(o[k]) !== JSON.stringify(n[k]) && !/version|updated_?at/i.test(k))
+                .map((k) => `${fieldName(k)}: ${fieldValue(o[k], names)} → ${fieldValue(n[k], names)}`)
+                .join("; ");
+        const row = e.action === "DELETE" ? o : n;
+        return (
+            Object.keys(row)
+                // Skip names the subject line already shows.
+                .filter((k) => {
+                    const shown = names[row[k]];
+                    return !NOISE.test(k) && row[k] !== null && row[k] !== "" && !(shown && e.subject?.includes(shown));
+                })
+                .map((k) => `${fieldName(k)}: ${fieldValue(row[k], names)}`)
+                .join("; ")
+        );
     } catch {
         return "";
     }
