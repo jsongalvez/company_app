@@ -4,7 +4,7 @@
     import { Query, invalidate } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
-    import { go } from "../lib/router.svelte";
+    import { go, viewSetting } from "../lib/router.svelte";
     import { peso, time, label, sum, day, operationalDate, clientName } from "../lib/format";
     import { allowedTargets, statusClass, type Status } from "../lib/rules";
     import { heldMark, heldSessions, outbox } from "../lib/outbox.svelte";
@@ -33,7 +33,9 @@
     const correct = $derived(can("EDIT_PAST_DAY"));
 
     type F = "all" | "PENDING" | "COMPLETED" | "other" | "void";
-    let filter = $state<F>("all");
+    const showVs = viewSetting("show", "all", ["all", "PENDING", "COMPLETED", "other", "void"]);
+    let filter = $state<F>(showVs.read as F);
+    $effect(() => showVs.keep(filter));
     // A mark made with no signal shows at once, flagged as not sent yet.
     const sessions = $derived.by(() => {
         void outbox.items.length;
@@ -207,7 +209,9 @@
         <div class="row wrap">
             <div class="seg" role="group" aria-label="Filter sessions">
                 {#each [["all", "All"], ["PENDING", "Waiting"], ["COMPLETED", "Done"], ["other", "No-show"], ["void", "Voided"]] as [k, t] (k)}
-                    <button class:on={filter === k} onclick={() => (filter = k as F)}>{t} <span class="faint">{counts[k as F]}</span></button>
+                    <button class:on={filter === k} aria-pressed={filter === k} onclick={() => (filter = k as F)}
+                        >{t} <span class="faint">{counts[k as F]}</span></button
+                    >
                 {/each}
             </div>
         </div>

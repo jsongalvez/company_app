@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { viewSetting } from "../lib/router.svelte";
     import { api, ok, uuid, type S } from "../api/client";
     import { app, can, canAtBranch, branchName } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
@@ -13,8 +14,12 @@
     const bid = $derived(app.branchId);
     const inv = new Query(load.inventory(app.branchId).key, load.inventory(app.branchId).fn);
     // No day picked: the latest changes across all days.
-    let date = $state("");
-    let moveProduct = $state("");
+    const dayVs = viewSetting("date", "");
+    let date = $state(dayVs.read);
+    $effect(() => dayVs.keep(date));
+    const moveVs = viewSetting("product", "");
+    let moveProduct = $state(moveVs.read);
+    $effect(() => moveVs.keep(moveProduct));
     const moves = new Query(load.movements(app.branchId, "").key, load.movements(app.branchId, "").fn);
     $effect(() => {
         const l = load.inventory(bid);
@@ -56,7 +61,9 @@
     const edit = $derived(can("EDIT_BRANCH_DATA"));
     const manage = $derived(canAtBranch("MANAGE_PRODUCTS"));
     const LOW = 5;
-    let filter = $state("");
+    const nameVs = viewSetting("q", "");
+    let filter = $state(nameVs.read);
+    $effect(() => nameVs.keep(filter));
     const rows = $derived((inv.data ?? []).filter((i) => !filter || i.productName.toLowerCase().includes(filter.toLowerCase())));
     const shownMoves = $derived(allMoves.filter((m) => !moveProduct || m.productId === moveProduct));
     const names = $derived(Object.fromEntries((inv.data ?? []).map((i) => [i.productId, i.productName])));

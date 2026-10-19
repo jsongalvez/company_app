@@ -130,11 +130,13 @@
             <tbody>
                 {#each open as e (e.id)}
                     <tr>
-                        <td class="show-sm full card">
-                            <div class="subj">{e.subject ?? tableLabel[e.tableName] ?? e.tableName}</div>
-                            {#if e.reason}<div class="muted">“{e.reason}”</div>{/if}
-                            <div class="faint meta">{meta(e)}</div>
-                        </td>
+                        <td class="show-sm full"
+                            ><div class="card">
+                                <div class="subj">{e.subject ?? tableLabel[e.tableName] ?? e.tableName}</div>
+                                {#if e.reason}<div class="muted">“{e.reason}”</div>{/if}
+                                <div class="faint meta">{meta(e)}</div>
+                            </div></td
+                        >
                         <td class="nowrap hide-sm">{dateTime(e.changedAt)}</td>
                         <td class="hide-sm">{e.changedByName ?? ""}</td>
                         <td class="hide-sm"
@@ -175,14 +177,16 @@
             <tbody>
                 {#each entries as e (e.id)}
                     <tr class="click" onclick={() => (expanded = expanded === e.id ? null : e.id)}>
-                        <td class="show-sm full card">
-                            <div class="subj">{e.subject ?? tableLabel[e.tableName] ?? e.tableName}</div>
-                            {#if changes(e)}<div class="muted">{changes(e)}</div>{/if}
-                            {#if e.reason}<div class="muted">Reason: “{e.reason}”</div>{/if}
-                            <div class="faint meta">
-                                {meta(e)}{#if e.isFlagged}<span class="mark warn">{e.acknowledgedAt ? "Reviewed" : "Needs review"}</span>{/if}
-                            </div>
-                        </td>
+                        <td class="show-sm full"
+                            ><div class="card">
+                                <div class="subj">{e.subject ?? tableLabel[e.tableName] ?? e.tableName}</div>
+                                {#if changes(e)}<div class="muted">{changes(e)}</div>{/if}
+                                {#if e.reason}<div class="muted">Reason: “{e.reason}”</div>{/if}
+                                <div class="faint meta">
+                                    {meta(e)}{#if e.isFlagged}<span class="mark warn">{e.acknowledgedAt ? "Reviewed" : "Needs review"}</span>{/if}
+                                </div>
+                            </div></td
+                        >
                         <td class="nowrap hide-sm">{dateTime(e.changedAt)}</td>
                         <td class="hide-sm">{e.changedByName ?? ""}</td>
                         <td class="hide-sm"

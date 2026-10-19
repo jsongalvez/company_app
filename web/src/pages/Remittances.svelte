@@ -4,7 +4,7 @@
     import { Query, invalidate } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
-    import { go } from "../lib/router.svelte";
+    import { go, viewSetting } from "../lib/router.svelte";
     import { peso, label, day, dateTime, operationalDate, addDays } from "../lib/format";
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
@@ -19,7 +19,9 @@
     const send = $derived(can("SUBMIT_REMITTANCE"));
 
     type F = "all" | "DRAFT" | "SUBMITTED";
-    let filter = $state<F>("all");
+    const showVs = viewSetting("show", "all", ["all", "DRAFT", "SUBMITTED"]);
+    let filter = $state<F>(showVs.read as F);
+    $effect(() => showVs.keep(filter));
     const rows = $derived((q.data ?? []).filter((r) => filter === "all" || r.status === filter).sort((a, b) => b.dateRangeEnd.localeCompare(a.dateRangeEnd)));
     const count = (f: F) => (q.data ?? []).filter((r) => f === "all" || r.status === f).length;
 

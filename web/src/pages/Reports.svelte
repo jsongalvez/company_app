@@ -4,7 +4,7 @@
     import { Query } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
-    import { go, route } from "../lib/router.svelte";
+    import { go, route, viewSetting } from "../lib/router.svelte";
     import { peso, day, shortDay, sum, operationalDate, monthStart, addDays } from "../lib/format";
     import PageHead from "../components/PageHead.svelte";
     import RangePicker, { type Preset } from "../components/RangePicker.svelte";
@@ -49,7 +49,7 @@
         },
     ];
     function setRange(f: string, t: string) {
-        go("/reports", { from: f, to: t });
+        go("/reports", { ...Object.fromEntries(route.current.query), from: f, to: t });
     }
     function shiftMonth(n: number) {
         const d = new Date(Date.UTC(year, month - 1 + n, 1));
@@ -60,7 +60,9 @@
     const monthName = $derived(new Date(Date.UTC(year, month - 1, 1)).toLocaleString("en-PH", { month: "long", year: "numeric", timeZone: "UTC" }));
 
     // Who the downloaded report covers: this branch, or every branch of a kind you can see.
-    let scope = $state("branch");
+    const scopeVs = viewSetting("scope", "branch");
+    let scope = $state(scopeVs.read);
+    $effect(() => scopeVs.keep(scope));
     const scopes = [
         { v: "ALL", label: "All branches" },
         { v: "CLINIC", label: "All clinics" },

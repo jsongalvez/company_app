@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { viewSetting } from "../lib/router.svelte";
     import { api, ok, type S } from "../api/client";
     import { act } from "../lib/act.svelte";
     import { dateTime } from "../lib/format";
@@ -6,7 +7,9 @@
 
     type N = S["FeedbackNoteResponse"];
     type F = "NEW" | "DONE";
-    let filter = $state<F>("NEW");
+    const showVs = viewSetting("show", "NEW", ["NEW", "DONE"]);
+    let filter = $state<F>(showVs.read as F);
+    $effect(() => showVs.keep(filter));
     let notes = $state<N[]>([]);
     let loading = $state(true);
     let error = $state<string | null>(null);

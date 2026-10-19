@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { viewSetting } from "../lib/router.svelte";
     import { api, ok, type S } from "../api/client";
     import { app, startViewAs } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
@@ -19,8 +20,12 @@
             .catch(() => {});
     });
 
-    let filter = $state("");
-    let showInactive = $state(false);
+    const nameVs = viewSetting("q", "");
+    const offVs = viewSetting("inactive", "");
+    let filter = $state(nameVs.read);
+    let showInactive = $state(offVs.read === "1");
+    $effect(() => nameVs.keep(filter));
+    $effect(() => offVs.keep(showInactive ? "1" : ""));
     const rows = $derived(
         (q.data ?? [])
             .filter((u) => showInactive || u.status !== "INACTIVE")

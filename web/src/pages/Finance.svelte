@@ -4,7 +4,7 @@
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
     import { load, type Loader } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
-    import { route, go } from "../lib/router.svelte";
+    import { route, go, viewSetting } from "../lib/router.svelte";
     import { peso, label, day, time, dateTime, operationalDate, addDays, sum } from "../lib/format";
     import { statusClass } from "../lib/rules";
     import { EXPENSE_CATEGORIES } from "../lib/rules";
@@ -148,7 +148,9 @@
         )
             refresh();
     }
-    let showDeleted = $state(false);
+    const delVs = viewSetting("deleted", "");
+    let showDeleted = $state(delVs.read === "1");
+    $effect(() => delVs.keep(showDeleted ? "1" : ""));
     const expenses = $derived((exp.data ?? []).filter((e) => showDeleted || !e.deletedAt));
     const liveExpenses = $derived((exp.data ?? []).filter((e) => !e.deletedAt));
 
@@ -221,7 +223,7 @@
     }
 
     function setDate(d: string) {
-        go("/finance", { date: d === operationalDate() ? null : d });
+        go("/finance", { ...Object.fromEntries(route.current.query), date: d === operationalDate() ? null : d });
     }
 </script>
 

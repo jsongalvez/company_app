@@ -42,3 +42,15 @@ test("a client's page lists their past sessions", { session: "owner" }, async ({
     await expect(screen.getByRole("heading", "Sessions")).toBeVisible();
     await expect(screen.getByRole("row").filter({ hasText: "Done" }).first()).toBeVisible();
 });
+
+// Feedback d75eeba4: a reload went back to "All" instead of the picked tab.
+test("the picked Today tab survives a reload", { session: "owner" }, async ({ app, screen, browser }) => {
+    await doneSessionForNewClient(app, screen);
+    await screen.getByRole("button", /^Done/).first().tap();
+    const pressed = () => browser.evaluate(() => document.querySelector('[aria-label="Filter sessions"] [aria-pressed="true"]')?.textContent?.trim() ?? "");
+    await expect.poll(pressed).toMatch(/^Done/);
+    const hash = await browser.evaluate(() => location.hash);
+    expect(hash).toContain("show=COMPLETED");
+    await browser.reload();
+    await expect.poll(pressed).toMatch(/^Done/);
+});

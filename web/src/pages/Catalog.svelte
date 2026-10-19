@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { viewSetting } from "../lib/router.svelte";
     import { api, ok, uuid, type S } from "../api/client";
     import { Query, invalidate } from "../lib/cache.svelte";
     import { load } from "../lib/data";
@@ -13,9 +14,15 @@
     const cats = new Query(load.categories().key, load.categories().fn);
     const catName = $derived(Object.fromEntries((cats.data ?? []).map((c) => [c.id, c.name])));
 
-    let filter = $state("");
-    let cat = $state("");
-    let showOff = $state(false);
+    const nameVs = viewSetting("q", "");
+    const catVs = viewSetting("cat", "");
+    const offVs = viewSetting("stopped", "");
+    let filter = $state(nameVs.read);
+    let cat = $state(catVs.read);
+    let showOff = $state(offVs.read === "1");
+    $effect(() => nameVs.keep(filter));
+    $effect(() => catVs.keep(cat));
+    $effect(() => offVs.keep(showOff ? "1" : ""));
     const rows = $derived(
         (products.data ?? [])
             .filter((p) => showOff || p.isActive)
