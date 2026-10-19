@@ -67,6 +67,8 @@ body {
 
 body {
     background: var(--bg);
+    /* Installed app / full screen: keep clear of the notch and the home bar. */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     color: var(--text);
     font:
         13px/1.35 system-ui,

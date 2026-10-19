@@ -109,7 +109,12 @@ private fun configureWebApp(
     config: io.javalin.config.JavalinConfig,
     webDir: String,
 ) {
-    config.staticFiles.add(webDir, Location.EXTERNAL)
+    config.staticFiles.add { files ->
+        files.directory = webDir
+        files.location = Location.EXTERNAL
+        // Phones read this file to offer "Install app".
+        files.mimeTypes.add("application/manifest+json", "webmanifest")
+    }
     config.spaRoot.addFile("/", "$webDir/index.html", Location.EXTERNAL)
 }
 

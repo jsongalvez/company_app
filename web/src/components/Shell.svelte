@@ -2,6 +2,8 @@
     import { app, can, canAnywhere, selectBranch, signOut, clockIn, clockOut, stopViewAs, setViewAsChanges } from "../lib/app.svelte";
     import { route, go } from "../lib/router.svelte";
     import ThemeIcon from "./ThemeIcon.svelte";
+    import FullIcon from "./FullIcon.svelte";
+    import InstallApp from "./InstallApp.svelte";
     import Feedback from "./Feedback.svelte";
     import FeedbackList from "../pages/FeedbackList.svelte";
     import { load, warm } from "../lib/data";
@@ -195,6 +197,7 @@
         </a>
         <button class="hide-sm" onclick={() => (feedbackOpen = true)}>Feedback</button>
         <ThemeIcon />
+        <FullIcon />
         <a class="user muted ellipsis" href="#/profile" title="My profile ({app.me?.username})">{app.me?.displayName}</a>
         <button class="ghost" onclick={() => signOut()}>Sign out</button>
     </header>
@@ -215,6 +218,7 @@
                 {/each}
             {/if}
         {/each}
+        <InstallApp />
         <div class="navfoot faint">
             <button class="ghost sm" onclick={() => (feedbackOpen = true)}>Send feedback</button>
             <button class="ghost sm" onclick={() => signOut()}>Sign out</button>
@@ -450,7 +454,8 @@
             display: none;
         }
         .top > button.primary,
-        .top > button.clock:not(.menu) {
+        .top > button.clock:not(.menu),
+        .top > :global(button.full) {
             display: inline-flex;
         }
         nav {
