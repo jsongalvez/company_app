@@ -88,6 +88,18 @@ export function invalidate(...prefixes: string[]) {
     for (const [k, e] of store) if (prefixes.some((p) => k.startsWith(p))) e.at = 0;
 }
 
+/** Drop cached keys starting with any prefix (on the phone too), and reload screens showing them:
+ *  for data that is no longer allowed (e.g. Today after clocking out), not merely stale. */
+export function forget(...prefixes: string[]) {
+    const hit = (k: string) => prefixes.some((p) => k.startsWith(p));
+    for (const k of [...store.keys()]) if (hit(k)) store.delete(k);
+    saveSoon();
+    for (const r of live) {
+        const q = r.deref();
+        if (q && hit(q.key)) q.refresh();
+    }
+}
+
 /** When the data for a key was last fetched from the server (ms), if we have it. */
 export function fetchedAt(key: string): number | undefined {
     return store.get(key)?.got;
@@ -120,6 +132,9 @@ export class Query<T> {
     waiting = $state(false);
     #key = "";
     #fn: () => Promise<T>;
+    get key() {
+        return this.#key;
+    }
 
     /** With no args, nothing loads until load() (call it from an $effect). */
     constructor(key?: string, fn?: () => Promise<T>) {
@@ -154,8 +169,13 @@ export class Query<T> {
                     this.waiting = this.data === undefined;
                     window.addEventListener(RECONNECTED, () => this.#key === key && this.refresh(), { once: true });
                 } else {
-                    // A real refusal (e.g. clocked out): don't keep showing what was saved before.
+                    // A real refusal (e.g. clocked out): don't keep showing what was saved before,
+                    // and don't keep it on the phone either, or it flashes up on the next open.
                     this.data = undefined;
+                    if (store.get(key)?.data !== undefined) {
+                        store.delete(key);
+                        saveSoon();
+                    }
                     this.error = e instanceof Error ? e.message : String(e);
                 }
             },

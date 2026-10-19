@@ -1,6 +1,35 @@
 import { test } from "@e2e-dev/web";
+import { expect } from "e2e";
 import { doneSessionForNewClient } from "./support";
 
 test("log a session for a new client and mark it done", { session: "owner" }, async ({ app, screen }) => {
     await doneSessionForNewClient(app, screen);
+});
+
+// Feedback 4b9204c1: after clocking out the list stayed, and each reload flashed it before clearing.
+test("clocking out takes today's list off the screen and off the phone", { session: "owner" }, async ({ app, screen, browser }) => {
+    const name = await doneSessionForNewClient(app, screen);
+    const off = await browser.onDialog("accept");
+    await screen
+        .getByRole("button", /Clock out/)
+        .first()
+        .tap();
+    await off();
+    await expect(screen.getByRole("button", "Clock in").first()).toBeVisible();
+    await expect(screen.getByRole("row").filter({ hasText: name })).toHaveCount(0);
+
+    // Nothing of today's list is kept on the phone, so a reload has nothing to flash.
+    await expect
+        .poll(() =>
+            browser.evaluate(() =>
+                Object.keys(localStorage)
+                    .filter((k) => k.startsWith("qcache:"))
+                    .map((k) => localStorage.getItem(k) ?? "")
+                    .join(),
+            ),
+        )
+        .not.toContain(name);
+    await app.open("/#/today");
+    await expect(screen.getByRole("button", "Clock in").first()).toBeVisible();
+    await expect(screen.getByRole("row").filter({ hasText: name })).toHaveCount(0);
 });

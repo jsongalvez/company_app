@@ -1,5 +1,5 @@
 import { ApiError, api, ok, setToken, getToken, setUnauthorizedHandler, uuid, errText, getViewAs, setViewAs, type S, type ViewAs } from "../api/client";
-import { clearCache, fetchCached, invalidate, peek, restoreCache } from "./cache.svelte";
+import { clearCache, fetchCached, forget, invalidate, peek, restoreCache } from "./cache.svelte";
 import { refreshDirectory, resetDirectory } from "./clientdir.svelte";
 import { RECONNECTED } from "./net.svelte";
 import { doneText, heldClock, heldSoFar, SENT } from "./outbox.svelte";
@@ -298,8 +298,10 @@ export async function clockOut(): Promise<boolean> {
     const before = heldSoFar();
     try {
         await ok(api.POST("/api/attendance/clock-out", { body: { attendanceId: app.shift.attendanceId } }));
-        if (heldSoFar() > before) return (applyHeldClock(), toast(doneText(before)!), true);
+        if (heldSoFar() > before) return (applyHeldClock(), forget("dash:", "roster:"), toast(doneText(before)!), true);
         await Promise.all([refreshShift(), refreshCaps()]);
+        // Today's list needs a clock-in: take it off screen (and off the phone) at once.
+        forget("dash:", "roster:");
         toast(doneText(before, "Clocked out")!);
         return true;
     } catch (e) {
