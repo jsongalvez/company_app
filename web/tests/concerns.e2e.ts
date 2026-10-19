@@ -22,18 +22,32 @@ test("add concerns to a session by typing", { session: "owner" }, async ({ app, 
     await expect(dialog.getByText(`${first} Tester`, { exact: false })).toBeVisible();
     // In the popup: tick a common concern and type a new one.
     await dialog.getByLabel("Vertigo").check();
-    await dialog.getByLabel(/^Other concern/).fill(concern);
+    await dialog.getByLabel(/^Other illness/).fill(concern);
     await dialog.getByRole("button", "Add session").tap();
 
     await screen.getByText(`${first} Tester`).first().tap();
-    const box = screen.getByLabel("Add concern");
-    await expect(screen.getByRole("row").filter({ hasText: "Vertigo" }).getByRole("button", "Remove")).toBeVisible();
+    const box = screen.getByLabel("Add illness");
+    await expect(
+        screen
+            .getByRole("row")
+            .filter({ hasText: "Vertigo" })
+            .getByRole("button", /^Remove/),
+    ).toBeVisible();
     await expect(screen.getByRole("row").filter({ hasText: concern })).toBeVisible();
 
     // Remove it, then find it again from the list by part of its name.
-    await screen.getByRole("row").filter({ hasText: concern }).getByRole("button", "Remove").tap();
+    await screen
+        .getByRole("row")
+        .filter({ hasText: concern })
+        .getByRole("button", /^Remove/)
+        .tap();
     await box.fill(first);
-    await expect(screen.getByText(`Add “${first}” as a new concern`)).toBeVisible();
+    await expect(screen.getByText(`Add “${first}” as a new illness`)).toBeVisible();
     await screen.getByRole("row").filter({ hasText: concern }).getByText("Add").tap();
-    await expect(screen.getByRole("row").filter({ hasText: concern }).getByRole("button", "Remove")).toBeVisible();
+    await expect(
+        screen
+            .getByRole("row")
+            .filter({ hasText: concern })
+            .getByRole("button", /^Remove/),
+    ).toBeVisible();
 });

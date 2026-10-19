@@ -1,7 +1,7 @@
 import type { S } from "../api/client";
 
 /** The most common concerns, shown first and in this order; the rest follow A to Z. */
-export const COMMON_CONCERNS = ["Knee pain", "Shoulder pain", "Lower back pain", "Back pain", "TMJ (Temporo-Mandibular Joint)", "Vertigo", "Hearing impaired"];
+export const COMMON_CONCERNS = ["Knee pain", "Shoulder pain", "Lower back pain", "Back pain", "TMJ", "Vertigo", "Hearing impaired"];
 
 const rank = (label: string) => {
     const i = COMMON_CONCERNS.findIndex((c) => c.toLowerCase() === label.toLowerCase());

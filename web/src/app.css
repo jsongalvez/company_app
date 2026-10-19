@@ -185,18 +185,6 @@ textarea {
     background: var(--panel);
     min-width: 0;
 }
-/* iPhone zooms into any text box under 16px when tapped: give it 16px there (iOS Safari only). */
-@supports (-webkit-touch-callout: none) {
-    input,
-    select,
-    textarea {
-        font-size: 16px;
-    }
-    input:not([type="checkbox"]):not([type="radio"]),
-    select {
-        height: 30px;
-    }
-}
 /* While the phone menu is open, the page under it must not scroll. */
 html.menu-open,
 html.menu-open body {
@@ -530,6 +518,11 @@ table.grid tfoot td {
         flex: 1 1 60%;
         font-weight: 600;
         min-width: 0;
+    }
+    table.grid.stack td[data-label]::before {
+        content: attr(data-label) " ";
+        color: var(--muted);
+        font-weight: normal;
     }
     table.grid.stack td.num {
         margin-left: auto;

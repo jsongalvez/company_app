@@ -31,7 +31,7 @@
     const KIND: Record<string, string> = { PAY: "Pay", ALLOWANCE: "Allowance", COMMISSION: "Product commission" };
 
     function hours(s: S["MyShift"]): string {
-        if (!s.clockOut) return "Still clocked in";
+        if (!s.clockOut) return "Now";
         const m = Math.round((new Date(s.clockOut).getTime() - new Date(s.clockIn).getTime()) / 60000);
         return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
     }
@@ -97,7 +97,7 @@
     {:else}
         <div class="table-wrap mb">
             <table class="grid">
-                <thead><tr><th>Date</th><th class="hide-sm">Branch</th><th>In</th><th>Out</th><th class="num">Time</th></tr></thead>
+                <thead><tr><th>Date</th><th class="hide-sm">Branch</th><th>In</th><th>Out</th><th class="num">Hours</th></tr></thead>
                 <tbody>
                     {#each shifts as s, i (i)}
                         <tr>
@@ -107,9 +107,9 @@
                                 ></td
                             >
                             <td class="hide-sm">{s.branchName}</td>
-                            <td>{time(s.clockIn)}</td>
-                            <td>{time(s.clockOut)}</td>
-                            <td class="num">{hours(s)}</td>
+                            <td class="nowrap">{time(s.clockIn)}</td>
+                            <td class="nowrap">{s.clockOut ? time(s.clockOut) : "Still in"}</td>
+                            <td class="num nowrap">{hours(s)}</td>
                         </tr>
                     {/each}
                 </tbody>

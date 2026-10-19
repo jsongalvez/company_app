@@ -10,5 +10,5 @@ test("my own clock-ins show on My shifts & pay", { session: "owner" }, async ({ 
     await expect(screen.getByRole("heading", "My shifts & pay")).toBeVisible();
     await expect(screen.getByRole("heading", "Money received")).toBeVisible();
     await expect(screen.getByRole("heading", "Clock-ins")).toBeVisible();
-    await expect(screen.getByText("Still clocked in").first()).toBeVisible();
+    await expect(screen.getByText("Still in").first()).toBeVisible();
 });

@@ -251,7 +251,7 @@
                             <th>Type</th>
                             <th>Status</th>
                             <th>Practitioners</th>
-                            <th>Concerns</th>
+                            <th>Illnesses</th>
                             <th class="num">Price</th>
                             <th>Next visit</th>
                             {#if edit}<th></th>{/if}

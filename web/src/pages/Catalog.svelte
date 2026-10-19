@@ -123,8 +123,8 @@
                             >{p.name}{#if !p.isActive}<span class="mark plain">Stopped</span>{/if}</td
                         >
                         <td class="muted">{catName[p.productCategoryId] ?? ""}</td>
-                        <td class="num">{peso(p.unitPrice)}</td>
-                        <td class="num muted">{peso(p.commissionAmount)}</td>
+                        <td class="num" data-label="Price">{peso(p.unitPrice)}</td>
+                        <td class="num muted" data-label="Commission">{peso(p.commissionAmount)}</td>
                         <td class="right nowrap full">
                             <button class="sm" onclick={() => openProduct(p)}>Edit</button>
                             {#if p.isActive}<button class="sm" onclick={() => setActive(p, false)}>Stop selling</button>{:else}<button

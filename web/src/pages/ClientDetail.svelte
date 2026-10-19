@@ -100,7 +100,7 @@
         {:else if hq.data && sessions.length === 0}<div class="body faint">No sessions yet.</div>
         {:else if sessions.length}
             <table class="grid stack">
-                <thead><tr><th>Day</th><th>Status</th><th>Type</th><th>Practitioner</th><th>Concerns</th><th>Branch</th><th class="num">Price</th></tr></thead>
+                <thead><tr><th>Day</th><th>Status</th><th>Type</th><th>Practitioner</th><th>Illnesses</th><th>Branch</th><th class="num">Price</th></tr></thead>
                 <tbody>
                     {#each sessions as s (s.id)}
                         <tr class="click" onclick={() => (location.hash = `#/sessions/${s.id}`)}>

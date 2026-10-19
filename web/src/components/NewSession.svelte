@@ -6,7 +6,7 @@
     import { fetchCached, invalidate } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
-    import { label, peso, operationalDate } from "../lib/format";
+    import { label, peso, operationalDate, shortDay } from "../lib/format";
     import { createBody, emptyDraft } from "../lib/client-draft";
     import { COMMON_CONCERNS, sortConcerns, typedConcerns } from "../lib/concerns";
     import Dialog from "./Dialog.svelte";
@@ -66,6 +66,23 @@
             staff = [...map].map(([id, name]) => ({ id, name })).sort((x, y) => x.name.localeCompare(y.name));
         });
     });
+
+    // The chosen client's past visits, for a quick look before adding today's.
+    let hist = $state<S["ClientHistoryResponse"] | null>(null);
+    $effect(() => {
+        const c = client;
+        hist = null;
+        if (!c) return;
+        const h = load.clientHistory(c.id);
+        fetchCached(h.key, h.fn).then(
+            (r) => {
+                if (client?.id === c.id) hist = r;
+            },
+            () => {},
+        );
+    });
+    const pastVisits = $derived((hist?.sessions ?? []).filter((v) => !v.voided && v.status === "COMPLETED"));
+    const visitCount = $derived((hist ? pastVisits.length : (client?.sessionCount ?? 0)) + (client?.earlierVisits ?? 0));
 
     // Base rate preview for the chosen client.
     $effect(() => {
@@ -189,6 +206,16 @@
             <ClientPicker bind:value={client} onnew={startNew} />
         </div>
         {#if client}
+            <div class="visits">
+                <b>{visitCount === 0 ? "First visit" : `${visitCount} visit${visitCount === 1 ? "" : "s"} before`}</b>
+                {#if client.earlierVisits}<span class="faint">({client.earlierVisits} before the app)</span>{/if}
+                <a href={`#/clients/${client.id}`} target="_blank" rel="noopener">See history</a>
+                {#each pastVisits.slice(0, 3) as v (v.id)}
+                    <div class="faint small visit">
+                        {shortDay(v.date)} · {v.practitioners.join(", ") || "No practitioner"}{v.concerns.length ? ` · ${v.concerns.join(", ")}` : ""}
+                    </div>
+                {/each}
+            </div>
             <div class="form-grid">
                 <label class="field">Session type<input value={preview ? label(preview.sessionType) : previewErr ? "" : "…"} disabled /></label>
                 <label class="field"
@@ -223,7 +250,7 @@
                 </div>
                 <label class="field wide">Remarks<textarea rows="2" bind:value={remarks}></textarea></label>
                 <div class="field wide">
-                    <span>Concerns</span>
+                    <span>Illnesses</span>
                     {#if common.length}
                         <div class="row wrap checks">
                             {#each common as k (k.id)}
@@ -239,7 +266,7 @@
                     {/if}
                 </div>
                 <label class="field wide"
-                    >Other concern<input list="saved-concerns" bind:value={otherConcerns} placeholder="Type to find a saved one, or add a new one" /></label
+                    >Other illness<input list="saved-concerns" bind:value={otherConcerns} placeholder="Type to find a saved one, or add a new one" /></label
                 >
                 <datalist id="saved-concerns"
                     >{#each saved as k (k.id)}<option value={k.label}></option>{/each}</datalist
@@ -250,6 +277,19 @@
 </Dialog>
 
 <style>
+    .visits {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        padding: 4px 8px;
+    }
+    .visits a {
+        margin-left: 6px;
+    }
+    .visit {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
     .field-l {
         font-size: 12px;
         color: var(--text-2);

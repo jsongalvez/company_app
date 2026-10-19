@@ -14,6 +14,10 @@
     <meta name="color-scheme" content="light dark" />
     <title>CompanyApp</title>
     <script>
+      // iPhone zooms in when a text box under 16px is tapped. maximum-scale stops that;
+      // iOS still lets people pinch-zoom. Android would lose pinch zoom, so iOS only.
+      if (/iPhone|iPad|iPod/.test(navigator.userAgent))
+        document.querySelector('meta[name="viewport"]').content += ", maximum-scale=1";
       // Apply the saved theme before first paint (no flash).
       (function () {
         var t = localStorage.getItem("theme");

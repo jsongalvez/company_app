@@ -187,7 +187,7 @@
                             body: { id: uuid(), label: name, reason: r(), clearOtherConcerns: false },
                         }),
                     ),
-                "Concern added",
+                "Illness added",
             )
         ) {
             cText = "";
@@ -216,7 +216,7 @@
             refresh();
     }
     async function promote() {
-        const v = prompt("New concern label (added to the list for everyone)", s?.otherConcerns ?? "");
+        const v = prompt("New illness (added to the list for everyone)", s?.otherConcerns ?? "");
         if (!v?.trim()) return;
         if (
             await act(
@@ -227,7 +227,7 @@
                             body: { id: uuid(), label: v.trim(), reason: r() },
                         }),
                     ),
-                "Concern added",
+                "Illness added",
             )
         ) {
             invalidate("concerns");
@@ -319,10 +319,10 @@
                         <dd>{s.nextAppointmentDate ? day(s.nextAppointmentDate) : "None"}</dd>
                         <dt>Remarks</dt>
                         <dd class="pre">{s.remarks ?? ""}</dd>
-                        <dt>Other concerns</dt>
+                        <dt>Other illnesses</dt>
                         <dd>
                             {s.otherConcerns ?? ""}
-                            {#if s.otherConcerns && edit && !voided}<button class="sm" onclick={promote}>Add to concern list</button>{/if}
+                            {#if s.otherConcerns && edit && !voided}<button class="sm" onclick={promote}>Add to illness list</button>{/if}
                         </dd>
                     </dl>
                 </div>
@@ -374,7 +374,7 @@
             </section>
 
             <section class="panel">
-                <header><h2>Concerns</h2></header>
+                <header><h2>Illnesses</h2></header>
                 {#if s.concerns?.length}
                     <table class="grid">
                         <tbody>
@@ -382,7 +382,9 @@
                                 <tr>
                                     <td>{c.label}</td>
                                     {#if edit && !voided}<td class="right"
-                                            ><button class="sm" onclick={() => removeConcern(c)} aria-label="Remove">×</button></td
+                                            ><button class="sm" onclick={() => removeConcern(c)} aria-label="Remove {c.label}" title="Remove from this session"
+                                                >×</button
+                                            ></td
                                         >{/if}
                                 </tr>
                             {/each}
@@ -391,7 +393,7 @@
                 {:else}<div class="body faint">None recorded.</div>{/if}
                 {#if edit && !voided}
                     <div class="body col concern-add">
-                        <input placeholder="Type a concern, e.g. back pain" aria-label="Add concern" bind:value={cText} onkeydown={concernEnter} />
+                        <input placeholder="Type an illness, e.g. back pain" aria-label="Add illness" bind:value={cText} onkeydown={concernEnter} />
                         {#if cTyped || cMatches.length}
                             <div class="table-wrap clist">
                                 <table class="grid">
@@ -401,7 +403,7 @@
                                         {/each}
                                         {#if cTyped && !cExact}
                                             <tr class="click" onclick={addNewConcern}
-                                                ><td>Add “{cTyped}” as a new concern</td><td class="right faint">New</td></tr
+                                                ><td>Add “{cTyped}” as a new illness</td><td class="right faint">New</td></tr
                                             >
                                         {:else if cExact && sessionConcernIds.has(cExact.id)}
                                             <tr><td class="faint" colspan="2">Already on this session.</td></tr>
@@ -410,7 +412,7 @@
                                 </table>
                             </div>
                         {/if}
-                        <div class="faint small">New concerns join the list for everyone.</div>
+                        <div class="faint small">New illnesses join the list for everyone. Tap × to take one off this session.</div>
                     </div>
                 {/if}
             </section>
