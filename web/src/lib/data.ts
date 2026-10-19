@@ -1,16 +1,17 @@
 /** Every read the UI makes, with its cache key. Pages and hover-prefetch share these. */
 import { api, ok } from "../api/client";
 import { fetchCached } from "./cache.svelte";
+import { operationalDate } from "./format";
 
 export type Loader<T> = { key: string; fn: () => Promise<T> };
 const L = <T>(key: string, fn: () => Promise<T>): Loader<T> => ({ key, fn });
 const b = (branchId: string) => ({ params: { path: { branchId } } });
 
 export const load = {
-    dashboard: (branchId: string) => L(`dash:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/dashboard/today", b(branchId)))),
+    dashboard: (branchId: string) => L(`dash:${branchId}:${operationalDate()}`, () => ok(api.GET("/api/branches/{branchId}/dashboard/today", b(branchId)))),
     daySessions: (branchId: string, date: string) =>
         L(`dsess:${branchId}:${date}`, () => ok(api.GET("/api/branches/{branchId}/sessions", { params: { path: { branchId }, query: { date } } }))),
-    roster: (branchId: string) => L(`roster:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/attendance/today", b(branchId)))),
+    roster: (branchId: string) => L(`roster:${branchId}:${operationalDate()}`, () => ok(api.GET("/api/branches/{branchId}/attendance/today", b(branchId)))),
     members: (branchId: string) => L(`members:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/members", b(branchId)))),
     dayUsers: (branchDayId: string) =>
         L(`dayusers:${branchDayId}`, () => ok(api.GET("/api/branch-days/{branchDayId}/users", { params: { path: { branchDayId } } }))),

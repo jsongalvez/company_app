@@ -27,6 +27,7 @@ import io.javalin.openapi.OpenApiRequestBody
 import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.util.UUID
 
 private val NEGATIVE_QUANTITY_REASONS =
@@ -79,7 +80,10 @@ private val ALLOWED_MOVEMENT_REASONS =
     path = ApiRoutes.BRANCH_INVENTORY_MOVEMENTS_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
-    queryParams = [OpenApiParam(name = "date", type = String::class, required = false)],
+    queryParams = [
+        OpenApiParam(name = "date", type = String::class, required = false),
+        OpenApiParam(name = "before", type = String::class, required = false),
+    ],
     operationId = "inventory_movements",
     security = [OpenApiSecurity(name = "BearerAuth")],
     responses = [
@@ -296,9 +300,14 @@ object BranchInventoryRoutes {
                 runCatching { LocalDate.parse(it) }
                     .getOrElse { throw BadRequestResponse("Invalid date format (expected yyyy-MM-dd)") }
             }
+        val before =
+            context.queryParam("before")?.let {
+                runCatching { OffsetDateTime.parse(it) }
+                    .getOrElse { throw BadRequestResponse("Invalid before (expected an ISO date-time)") }
+            }
 
         context.json(
-            InventoryService.getMovementHistory(branchId, date).map { it.toResponse() },
+            InventoryService.getMovementHistory(branchId, date, before).map { it.toResponse() },
         )
     }
 

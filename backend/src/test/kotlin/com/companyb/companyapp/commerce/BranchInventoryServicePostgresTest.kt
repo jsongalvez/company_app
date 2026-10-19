@@ -591,6 +591,11 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         assertEquals(2, history.size)
         assertEquals(tester.id, history[0].id)
         assertEquals(restock.id, history[1].id)
+
+        // "Show older": only what came before the oldest change already shown.
+        val older = InventoryService.getMovementHistory(branchId, before = history[0].movedAt)
+        assertEquals(listOf(restock.id), older.map { it.id })
+        assertTrue(InventoryService.getMovementHistory(branchId, before = history[1].movedAt).isEmpty())
     }
 
     @Test

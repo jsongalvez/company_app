@@ -153,7 +153,11 @@ export class Query<T> {
                 if (lost) {
                     this.waiting = this.data === undefined;
                     window.addEventListener(RECONNECTED, () => this.#key === key && this.refresh(), { once: true });
-                } else this.error = e instanceof Error ? e.message : String(e);
+                } else {
+                    // A real refusal (e.g. clocked out): don't keep showing what was saved before.
+                    this.data = undefined;
+                    this.error = e instanceof Error ? e.message : String(e);
+                }
             },
         );
     }

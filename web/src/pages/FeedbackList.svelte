@@ -52,8 +52,12 @@
                 {#each notes as n (n.id)}
                     <tr class="click" onclick={() => (expanded = expanded === n.id ? null : n.id)}>
                         <td class="nowrap">{dateTime(n.createdAt)}</td>
-                        <td class="lead">{n.userDisplayName}</td>
-                        <td><span class="mark" class:warn={n.kind === "PROBLEM"}>{n.kind === "PROBLEM" ? "Problem" : "Idea"}</span></td>
+                        <td class="lead"
+                            >{n.userDisplayName}<span class="show-sm kind"
+                                ><span class="mark" class:warn={n.kind === "PROBLEM"}>{n.kind === "PROBLEM" ? "Problem" : "Idea"}</span></span
+                            ></td
+                        >
+                        <td class="hide-sm"><span class="mark" class:warn={n.kind === "PROBLEM"}>{n.kind === "PROBLEM" ? "Problem" : "Idea"}</span></td>
                         <td class="wrap full" class:ellipsis={expanded !== n.id}>
                             {n.message}
                             {#if expanded === n.id && n.details}<pre class="faint details">{n.details}{n.appVersion
@@ -78,6 +82,10 @@
 {/if}
 
 <style>
+    .kind {
+        margin-left: 8px;
+        font-weight: normal;
+    }
     .details {
         margin: 6px 0 0;
         white-space: pre-wrap;

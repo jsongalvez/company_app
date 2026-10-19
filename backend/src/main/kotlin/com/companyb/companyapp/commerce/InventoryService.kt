@@ -10,6 +10,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.util.UUID
 
 private const val LOW_STOCK_DEFAULT_THRESHOLD = 5
@@ -144,9 +145,10 @@ object InventoryService {
     fun getMovementHistory(
         branchId: UUID,
         date: LocalDate? = null,
+        before: OffsetDateTime? = null,
     ): List<InventoryMovement> {
         InventoryReadSupport.requireBranchExists(branchId)
-        return BranchInventoryRepository.findMovements(branchId, date)
+        return BranchInventoryRepository.findMovements(branchId, date, before)
     }
 
     /**

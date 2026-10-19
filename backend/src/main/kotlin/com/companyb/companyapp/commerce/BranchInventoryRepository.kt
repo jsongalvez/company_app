@@ -11,6 +11,7 @@ import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.core.less
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -18,6 +19,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -203,12 +205,16 @@ internal object BranchInventoryRepository {
             .singleOrNull()
             ?.let { it.toBranchInventory() }
 
-    /** Without a date: the latest [RECENT_MOVEMENTS_LIMIT] changes across all days. */
+    /**
+     * Without a date: the latest [RECENT_MOVEMENTS_LIMIT] changes across all days, or, with
+     * [before], the next [RECENT_MOVEMENTS_LIMIT] older than that moment ("Show older").
+     */
     const val RECENT_MOVEMENTS_LIMIT = 200
 
     fun findMovements(
         branchId: UUID,
         date: LocalDate? = null,
+        before: OffsetDateTime? = null,
     ): List<InventoryMovement> =
         transaction {
             InventoryMovementTable
@@ -225,6 +231,10 @@ internal object BranchInventoryRepository {
                     if (date != null) {
                         (InventoryMovementTable.branchId eq branchId) and
                             (BranchDayTable.date eq date) and
+                            (ProductTable.isActive eq true)
+                    } else if (before != null) {
+                        (InventoryMovementTable.branchId eq branchId) and
+                            (InventoryMovementTable.movedAt less before) and
                             (ProductTable.isActive eq true)
                     } else {
                         (InventoryMovementTable.branchId eq branchId) and

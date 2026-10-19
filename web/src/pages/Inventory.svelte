@@ -23,20 +23,50 @@
     $effect(() => {
         const l = load.movements(bid, date);
         moves.load(l.key, l.fn);
+        older = [];
+        noMore = false;
     });
+
+    // "Show older": the server sends the latest 200 at a time; each tap fetches the next 200.
+    const PAGE = 200;
+    let older = $state<S["InventoryMovementResponse"][]>([]);
+    let noMore = $state(false);
+    let olderBusy = $state(false);
+    let olderErr = $state("");
+    const allMoves = $derived([...(moves.data ?? []), ...older]);
+    const canShowOlder = $derived(!date && !noMore && allMoves.length >= PAGE && allMoves.length % PAGE === 0);
+    async function showOlder() {
+        const last = allMoves[allMoves.length - 1];
+        if (!last) return;
+        olderBusy = true;
+        olderErr = "";
+        try {
+            const more = await ok(
+                api.GET("/api/branches/{branchId}/inventory/movements", { params: { path: { branchId: bid }, query: { before: last.movedAt } } }),
+            );
+            older = [...older, ...more];
+            if (more.length < PAGE) noMore = true;
+        } catch (e) {
+            olderErr = e instanceof Error ? e.message : String(e);
+        } finally {
+            olderBusy = false;
+        }
+    }
 
     const edit = $derived(can("EDIT_BRANCH_DATA"));
     const manage = $derived(canAtBranch("MANAGE_PRODUCTS"));
     const LOW = 5;
     let filter = $state("");
     const rows = $derived((inv.data ?? []).filter((i) => !filter || i.productName.toLowerCase().includes(filter.toLowerCase())));
-    const shownMoves = $derived((moves.data ?? []).filter((m) => !moveProduct || m.productId === moveProduct));
+    const shownMoves = $derived(allMoves.filter((m) => !moveProduct || m.productId === moveProduct));
     const names = $derived(Object.fromEntries((inv.data ?? []).map((i) => [i.productId, i.productName])));
 
     function refresh() {
         invalidate(`inv:${bid}`, `moves:${bid}`);
         inv.refresh();
         moves.refresh();
+        older = [];
+        noMore = false;
     }
 
     // Restock / adjust share one dialog.
@@ -216,6 +246,12 @@
             </tbody>
         </table>
     {/if}
+    {#if canShowOlder}
+        <div class="more">
+            <button type="button" onclick={showOlder} disabled={olderBusy}>{olderBusy ? "Loading…" : "Show older"}</button>
+            {#if olderErr}<span class="notice bad">{olderErr}</span>{/if}
+        </div>
+    {/if}
 </section>
 
 <Dialog
@@ -269,6 +305,12 @@
 <ProductSale bind:open={saleOpen} onsaved={refresh} />
 
 <style>
+    .more {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 0;
+    }
     .mb {
         margin-bottom: 12px;
     }

@@ -3,6 +3,7 @@ import { clearCache, fetchCached, invalidate, peek, restoreCache } from "./cache
 import { refreshDirectory, resetDirectory } from "./clientdir.svelte";
 import { RECONNECTED } from "./net.svelte";
 import { doneText, heldClock, heldSoFar, SENT } from "./outbox.svelte";
+import { operationalDate } from "./format";
 
 type Cap = S["UserCapabilityResponse"];
 
@@ -125,7 +126,7 @@ export async function boot() {
     const saved = [peek("boot:me"), peek("boot:caps"), peek("boot:branches"), peek("boot:accessible")];
     if (saved.every((x) => x !== undefined)) {
         applyBoot(saved as BootData);
-        app.today = peek<S["BranchDayTodayResponse"]>(`boot:today:${app.branchId}`) ?? null;
+        app.today = peek<S["BranchDayTodayResponse"]>(`boot:today:${app.branchId}:${operationalDate()}`) ?? null;
         app.shift = peek<S["ActiveShiftResponse"] | null>("boot:shift") ?? null;
         applyHeldClock();
         app.ready = true;
@@ -189,7 +190,7 @@ export async function refreshBranchDay() {
         app.today = null;
         return;
     }
-    const key = `boot:today:${id}`;
+    const key = `boot:today:${id}:${operationalDate()}`;
     if (!app.today) app.today = peek<S["BranchDayTodayResponse"]>(key) ?? null;
     try {
         const t = await fetchCached(key, () => ok(api.GET("/api/branches/{branchId}/today", { params: { path: { branchId: id } } })), true);
