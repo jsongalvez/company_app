@@ -261,6 +261,11 @@ export function canAnywhere(code: string): boolean {
     return app.caps.some((c) => c.capabilityCode === code);
 }
 
+/** Adding sessions and sales needs an open shift at this branch today (no one is exempt). */
+export function onDutyAt(branchId: string = app.branchId): boolean {
+    return !!app.shift && app.shift.branchId === branchId && app.shift.date === operationalDate();
+}
+
 export function branchName(id: string): string {
     return app.branches.find((b) => b.branchId === id)?.branchName ?? app.accessible.find((b) => b.id === id)?.name ?? "";
 }

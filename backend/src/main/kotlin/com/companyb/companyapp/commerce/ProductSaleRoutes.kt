@@ -73,6 +73,7 @@ object ProductSaleRoutes {
                     quantity = request.quantity,
                     expectedVersion = request.expectedVersion,
                     reason = request.reason,
+                    requireClockIn = true,
                 )
 
             context.status(HttpStatus.CREATED)

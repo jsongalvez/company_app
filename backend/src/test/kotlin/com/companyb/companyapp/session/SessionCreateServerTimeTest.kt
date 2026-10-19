@@ -25,6 +25,7 @@ import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
+import com.companyb.companyapp.workforce.AttendanceTable
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -32,6 +33,7 @@ import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -61,7 +63,15 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(branchId)
         SessionClientFixtures.insertTestClient(bookedClientId)
         SessionClientFixtures.insertTestClient(walkInClientId)
-        BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        val todayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
+        transaction {
+            AttendanceTable.insert {
+                it[AttendanceTable.id] = TestFixtures.uuid()
+                it[AttendanceTable.branchDayId] = todayId
+                it[AttendanceTable.userId] = callerId
+                it[AttendanceTable.markedBy] = callerId
+            }
+        }
         IdentityFixtures.grantCapability(
             userId = callerId,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,

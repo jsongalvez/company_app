@@ -9,6 +9,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.session.SessionReads
 import com.companyb.companyapp.utils.validateMoneyAmount
+import com.companyb.companyapp.workforce.WorkforceReads
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -38,6 +39,8 @@ object ProductSaleService {
         quantity: Int,
         expectedVersion: Int?,
         reason: String? = null,
+        // User rule: no one sells without clocking in. Routes pass true.
+        requireClockIn: Boolean = false,
     ): ProductSale {
         // #921: product_sale.quantity is SMALLINT (V1:412) while the wire type is
         // Int — fail closed with 400 before the insert instead of surfacing the
@@ -72,6 +75,13 @@ object ProductSaleService {
                 // shared with InventoryService.recordMovement).
                 val (branchDay, isRemitted) =
                     BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason)
+                if (requireClockIn) {
+                    WorkforceReads.requireClockedInInTransaction(
+                        callerId,
+                        branchDay.id,
+                        branchDay.date == BranchDayService.currentOperationalDate(),
+                    )
+                }
 
                 // #710 precedence preserved via findById (throws the same 404):
                 // an unknown branch fails closed before the product/session gates.

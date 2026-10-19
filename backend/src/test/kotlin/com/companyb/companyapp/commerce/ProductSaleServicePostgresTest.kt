@@ -9,6 +9,7 @@ import com.companyb.companyapp.commerce.ProductTable
 import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.test.TestFixtures
@@ -223,6 +224,36 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
                     }.single()[BranchInventoryTable.currentStock]
             }
         assertEquals(16, stock)
+    }
+
+    @Test
+    fun `sale needs the seller clocked in when asked`() {
+        fun sell() =
+            ProductSaleService.sell(
+                callerId = callerId,
+                id = TestFixtures.uuid(),
+                branchDayId = branchDayId,
+                sessionId = null,
+                clientId = null,
+                isWalkIn = true,
+                productId = productId,
+                quantity = 1,
+                expectedVersion = null,
+                requireClockIn = true,
+            )
+
+        val ex = assertFailsWith<ForbiddenException> { sell() }
+        assertEquals("Clock in at this branch first", ex.message)
+
+        transaction {
+            AttendanceTable.insert {
+                it[AttendanceTable.id] = TestFixtures.uuid()
+                it[AttendanceTable.branchDayId] = this@ProductSaleServicePostgresTest.branchDayId
+                it[AttendanceTable.userId] = callerId
+                it[AttendanceTable.markedBy] = callerId
+            }
+        }
+        assertNotNull(sell())
     }
 
     @Test

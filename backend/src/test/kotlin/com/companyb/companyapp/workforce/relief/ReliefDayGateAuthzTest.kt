@@ -35,6 +35,7 @@ import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
+import com.companyb.companyapp.workforce.AttendanceTable
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -395,6 +396,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
                     "isWalkIn" to false,
                     "finalPrice" to "2500.00",
                 )
+            clockInToday(reliefUser, branchA)
             val response = client.post("/api/sessions", body, asUser(reliefUser))
             assertEquals(201, response.code, response.body.string().orEmpty())
         }
@@ -432,6 +434,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
                     "quantity" to 1,
                     "expectedVersion" to cardVersion(),
                 )
+            clockInToday(reliefUser, branchA)
             val response = client.post("/api/product-sales", body, asUser(reliefUser))
             assertEquals(201, response.code, response.body.string().orEmpty())
         }
@@ -452,6 +455,22 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
                 )
             val response = client.post("/api/product-sales", body, asUser(reliefUser))
             assertEquals(403, response.code)
+        }
+    }
+
+    // No one adds sessions or sales without an open shift at the branch today.
+    private fun clockInToday(
+        userId: UUID,
+        branchId: UUID,
+    ) {
+        val day = BranchDayService.resolveOrCreate(branchId, BranchDayService.currentOperationalDate())
+        transaction {
+            AttendanceTable.insert {
+                it[AttendanceTable.id] = TestFixtures.uuid()
+                it[AttendanceTable.branchDayId] = day.id
+                it[AttendanceTable.userId] = userId
+                it[AttendanceTable.markedBy] = userId
+            }
         }
     }
 
@@ -510,6 +529,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
                     "isWalkIn" to false,
                     "finalPrice" to "2500.00",
                 )
+            clockInToday(branchCUser, branchC)
             val response = client.post("/api/sessions", body, asUser(branchCUser))
             assertEquals(201, response.code, response.body.string().orEmpty())
         }

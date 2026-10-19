@@ -1,5 +1,6 @@
 package com.companyb.companyapp.workforce
 
+import com.companyb.companyapp.exception.ForbiddenException
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -25,6 +26,22 @@ data class AttendanceWindow(
  * filtering (slot lookup) — the two seams must not be conflated.
  */
 object WorkforceReads {
+    /**
+     * Adding sessions and product sales needs an open clock-in on that branch day (user
+     * rule: no one adds without clocking in, owners included). Runs on the caller's
+     * transaction. Past days can't be clocked into, so corrections there are not gated
+     * here — they already need EDIT_PAST_DAY (and a reason when remitted).
+     */
+    fun requireClockedInInTransaction(
+        userId: UUID,
+        branchDayId: UUID,
+        isToday: Boolean,
+    ) {
+        if (isToday && !AttendanceRepository.hasActiveClockInInTransaction(userId, branchDayId)) {
+            throw ForbiddenException("Clock in at this branch first")
+        }
+    }
+
     /** ACTIVE member check for session create validation (#366) — runs on its own transaction. */
     fun hasActiveMember(
         branchId: UUID,

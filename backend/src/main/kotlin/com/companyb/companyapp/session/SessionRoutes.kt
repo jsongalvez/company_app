@@ -440,6 +440,7 @@ object SessionRoutes {
                 nextAppointmentDate = nextAppt,
                 gatedBranchDayId = context.attribute(GATED_BRANCH_DAY_ATTR),
                 reason = request.reason,
+                requireClockIn = true,
             )
 
         val concerns =

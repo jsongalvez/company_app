@@ -40,6 +40,16 @@ object SessionService {
         return SessionType.SUBSEQUENT
     }
 
+    private fun requireRequestedPractitioner(
+        branchId: UUID,
+        practitionerId: UUID,
+    ) {
+        if (!AccountReads.userExists(practitionerId)) throw NotFoundException("User not found")
+        if (!WorkforceReads.hasActiveMember(branchId, practitionerId)) {
+            throw ValidationException("Requested practitioner is not an active member of this branch")
+        }
+    }
+
     // #593 twelve-param creation command stays whole (coherent session inputs; #535 no arbitrary DTO).
     @Suppress("LongParameterList") // #593
     fun create(
@@ -64,6 +74,8 @@ object SessionService {
         // REMITTED needs coordinator + reason. Plumbed route→service like every sibling
         // session mutation; null on OPEN days.
         reason: String? = null,
+        // No one adds a session without clocking in; routes pass true, fixtures don't.
+        requireClockIn: Boolean = false,
     ): SessionCreateResult {
         val branchType =
             SessionRepository.getBranchType(branchId)
@@ -73,14 +85,7 @@ object SessionService {
         // (today any existing UUID is accepted). Optional field: null passes untouched.
         // #705 — unknown users 404 before the membership 400 (addPractitioner #696 precedent):
         // hasActiveMember alone conflates "unknown user" with "known but ineligible".
-        if (requestedPractitionerId != null && !AccountReads.userExists(requestedPractitionerId)) {
-            throw NotFoundException("User not found")
-        }
-        if (requestedPractitionerId != null &&
-            !WorkforceReads.hasActiveMember(branchId, requestedPractitionerId)
-        ) {
-            throw ValidationException("Requested practitioner is not an active member of this branch")
-        }
+        requestedPractitionerId?.let { requireRequestedPractitioner(branchId, it) }
 
         val existing = SessionRepository.findById(id)
         if (existing != null) {
@@ -121,6 +126,13 @@ object SessionService {
             val basePrice = resolveDefaultBasePriceInTransaction(branchId, clientId, sessionType)
             val (lockedDay, isRemitted) =
                 BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDay.id, reason)
+            if (requireClockIn) {
+                WorkforceReads.requireClockedInInTransaction(
+                    callerId,
+                    lockedDay.id,
+                    lockedDay.date == today,
+                )
+            }
             val result =
                 SessionRepository.createInTransaction(
                     SessionCreateParams(

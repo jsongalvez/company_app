@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
-    import { app, can, branchName, refreshBranchDay, clockIn, selectBranch } from "../lib/app.svelte";
+    import { app, can, branchName, refreshBranchDay, clockIn, selectBranch, onDutyAt } from "../lib/app.svelte";
     import { Query, invalidate } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
@@ -149,7 +149,7 @@
     function onKey(e: KeyboardEvent) {
         const t = e.target as HTMLElement;
         if (e.ctrlKey || e.metaKey || e.altKey || /INPUT|SELECT|TEXTAREA/.test(t.tagName) || document.querySelector("dialog[open]")) return;
-        if (e.key === "n" && edit) {
+        if (e.key === "n" && edit && onDutyAt(bid)) {
             e.preventDefault();
             newOpen = true;
         } else if (e.key === "r") refresh();
@@ -160,7 +160,7 @@
 
 <PageHead title="Today" sub="{branchName(bid)} · {day(operationalDate())}">
     <button onclick={refresh} title="Refresh (R)">Refresh</button>
-    {#if edit}
+    {#if edit && onDutyAt(bid)}
         <button onclick={() => (saleOpen = true)}>Product sale</button>
         <button class="primary" onclick={() => (newOpen = true)} title="New session (N)">New session</button>
     {/if}
@@ -212,6 +212,12 @@
             </div>
         </div>
 
+        {#if edit && !needClockIn && !onDutyAt(bid)}
+            <div class="notice row mb">
+                <span class="grow">Clock in at {branchName(bid)} to add sessions and product sales.</span>
+                {#if !app.shift && app.branches.some((b) => b.branchId === bid)}<button class="primary" onclick={startShift}>Clock in</button>{/if}
+            </div>
+        {/if}
         {#if needClockIn}
             <div class="notice row">
                 {#if app.shift && app.shift.branchId !== bid}

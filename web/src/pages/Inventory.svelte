@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
-    import { app, can, canAtBranch, branchName } from "../lib/app.svelte";
+    import { app, can, canAtBranch, branchName, onDutyAt } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
@@ -163,7 +163,9 @@
 <PageHead title="Stock" sub={branchName(bid)}>
     <input type="search" placeholder="Filter products" bind:value={filter} />
     {#if manage}<button onclick={openAdd}>Add product</button>{/if}
-    {#if edit}<button class="primary" onclick={() => (saleOpen = true)}>Product sale</button>{/if}
+    {#if edit && onDutyAt(bid)}<button class="primary" onclick={() => (saleOpen = true)}>Product sale</button>{:else if edit}<span class="muted"
+            >Clock in to sell</span
+        >{/if}
 </PageHead>
 
 <State q={inv} empty={!!inv.data && inv.data.length === 0} emptyText="This branch has no products in stock yet." />
