@@ -271,7 +271,7 @@ class ClientAuthzTest : BasePostgresTest() {
     fun `GET client directory allowed for branch holder and leaves out medical details`() {
         val res = testServer.client.get("/api/client-directory", asUser(coordinatorUser))
         assertEquals(200, res.code)
-        val body = res.body?.string().orEmpty()
+        val body = res.body.string()
         kotlin.test.assertTrue(body.contains(clientId.toString()))
         kotlin.test.assertTrue(!body.contains("\"medicalConditions\":\""))
     }

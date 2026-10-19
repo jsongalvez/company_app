@@ -6,8 +6,8 @@ test("tapping Alerts again goes back", { session: "owner" }, async ({ app, scree
     await app.open("/#/today");
     await screen.getByRole("navigation", "Main").getByRole("link", "Clients").tap();
     await expect(screen.getByRole("heading", "Clients")).toBeVisible();
-    await screen.getByRole("link", "Alerts").tap();
+    await screen.getByRole("banner").getByRole("link", "Alerts").tap();
     await expect(screen.getByRole("heading", "Alerts")).toBeVisible();
-    await screen.getByRole("link", "Close alerts").tap();
+    await screen.getByRole("banner").getByRole("link", "Close alerts").tap();
     await expect(screen.getByRole("heading", "Clients")).toBeVisible();
 });

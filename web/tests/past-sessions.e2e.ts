@@ -2,7 +2,8 @@ import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
 
 // Feedback 3578107f: a past day's sessions are listed on Expenses & pay and open for correcting.
-test("open a past session from Expenses & pay", { session: "owner" }, async ({ app, screen }) => {
+// Needs sessions on the previous day, which a fresh CI database lacks.
+test("open a past session from Expenses & pay", { session: "owner", tags: ["needs-history"] }, async ({ app, screen }) => {
     await app.open("/#/finance");
     await screen.getByRole("button", "Previous day").tap();
     await expect(screen.getByRole("heading", "Sessions")).toBeVisible();

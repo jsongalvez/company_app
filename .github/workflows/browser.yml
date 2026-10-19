@@ -56,8 +56,8 @@ jobs:
       TEST_USERNAME: owner
       TEST_PASSWORD: owner-dev-pass
       E2E_OWNER_PASSWORD: owner-dev-pass
-      SCOPED_USERNAME: scoped
-      SCOPED_PASSWORD: scoped-dev-pass
+      SCOPED_USERNAME: staff
+      SCOPED_PASSWORD: staff-dev-pass
       RELIEF_USERNAME: relief
       RELIEF_PASSWORD: relief-dev-pass
     steps:
@@ -96,7 +96,7 @@ jobs:
 
       - name: Run browser tests (slice ${{ matrix.shard }} of 4)
         working-directory: web
-        run: npx e2e run --shard ${{ matrix.shard }}/4
+        run: npx e2e run --shard ${{ matrix.shard }}/4 --exclude-tag needs-history
 
       - name: Keep traces of failures
         if: failure()
