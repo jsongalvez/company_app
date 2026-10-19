@@ -1,11 +1,12 @@
 <script lang="ts">
+    import { untrack } from "svelte";
     import { api, ok } from "../api/client";
     import { Query } from "../lib/cache.svelte";
     import { dateTime, label, changeText } from "../lib/format";
     import State from "./State.svelte";
 
-    let { table, id }: { table: string; id: string } = $props();
-    let shown = $state(false);
+    let { table, id, start = false }: { table: string; id: string; start?: boolean } = $props();
+    let shown = $state(untrack(() => start));
     const key = $derived(`audit:${table}:${id}`);
     const q = new Query<Awaited<ReturnType<typeof get>>>("audit:none", async () => []);
     function get(tableName: string, recordId: string) {

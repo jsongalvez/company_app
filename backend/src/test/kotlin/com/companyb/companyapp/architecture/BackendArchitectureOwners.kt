@@ -483,6 +483,8 @@ object BackendArchitectureOwners {
             CommandTransaction("session/SessionConcernService.kt", "removeFromSession"),
             CommandTransaction("session/SessionConcernService.kt", "promoteConcern"),
             CommandTransaction("session/SessionBaseRateService.kt", "setRate"),
+            CommandTransaction("session/VisitBookingService.kt", "create"),
+            CommandTransaction("session/VisitBookingService.kt", "update"),
             CommandTransaction("identity/UserService.kt", "deactivate"),
             CommandTransaction("identity/UserService.kt", "reactivate"),
             CommandTransaction("workforce/UserBranchAssignmentService.kt", "create"),

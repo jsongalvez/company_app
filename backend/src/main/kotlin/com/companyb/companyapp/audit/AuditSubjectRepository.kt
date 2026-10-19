@@ -182,6 +182,14 @@ internal object AuditSubjectRepository {
                     "remittance" to { remittanceLabel(f) },
                     "remittance_day_breakdown" to { day() },
                     "remittance_line" to { session() ?: product() },
+                    "visit_booking" to
+                        {
+                            join(
+                                "Booked visit",
+                                name(Kind.CLIENT, "clientId"),
+                                f["visitDate"]?.let { range(it, null) },
+                            )
+                        },
                     "session_base_rate" to { join(branch(), f["sessionType"]?.let(::words)) },
                 )
         }

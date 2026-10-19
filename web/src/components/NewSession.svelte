@@ -9,11 +9,17 @@
     import { label, peso, operationalDate, shortDay } from "../lib/format";
     import { createBody, emptyDraft } from "../lib/client-draft";
     import { COMMON_CONCERNS, sortConcerns, typedConcerns } from "../lib/concerns";
+    import { setBooking, type Booking } from "../lib/bookings";
     import Dialog from "./Dialog.svelte";
     import ClientPicker from "./ClientPicker.svelte";
     import ClientForm, { type ClientDraft } from "./ClientForm.svelte";
 
-    let { open = $bindable(false), onsaved }: { open?: boolean; onsaved: () => void } = $props();
+    let {
+        open = $bindable(false),
+        onsaved,
+        startClient = null,
+        booking = null,
+    }: { open?: boolean; onsaved: () => void; startClient?: S["ClientResponse"] | null; booking?: Booking | null } = $props();
 
     const a = new Action();
     let client = $state<S["ClientResponse"] | null>(null);
@@ -39,7 +45,7 @@
     // Reset each time the dialog opens; load who can be assigned today.
     $effect(() => {
         if (!open) return;
-        client = null;
+        client = startClient;
         creating = false;
         draft = emptyDraft();
         preview = null;
@@ -171,6 +177,17 @@
                         }),
                     );
                 if (fresh.length) invalidate("concerns");
+                // A booked visit that turned into this session is marked as came.
+                if (booking && booking.clientId === c.id) await setBooking(booking, { status: "CAME" }).catch(() => {});
+                // "Next visit" also books it, so it shows under Booked visits.
+                if (nextDate)
+                    await ok(
+                        api.POST("/api/branches/{branchId}/bookings", {
+                            params: { path: { branchId: app.branchId } },
+                            body: { id: uuid(), clientId: c.id, visitDate: nextDate, visitTime: null, note: null },
+                        }),
+                    ).catch(() => {});
+                invalidate("bookings:");
                 invalidate("dash:", "clients:", `client:${c.id}`, `session:${s.id}`);
                 open = false;
                 onsaved();

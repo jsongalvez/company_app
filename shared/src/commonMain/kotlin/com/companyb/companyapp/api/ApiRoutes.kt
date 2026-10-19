@@ -307,6 +307,9 @@ object ApiRoutes {
     const val AUDIT_LOG_ACKNOWLEDGE_PATH = "$AUDIT_LOG/{entryId}/acknowledge"
     const val CLIENT_ANONYMIZE_PATH = "$CLIENTS/{clientId}/anonymize"
     const val CLIENT_HISTORY_PATH = "$CLIENTS/{clientId}/history"
+    const val CLIENT_BOOKINGS_PATH = "$CLIENTS/{clientId}/bookings"
+    const val BRANCH_BOOKINGS_PATH = "$BRANCH_PATH/bookings"
+    const val BRANCH_BOOKING_PATH = "$BRANCH_BOOKINGS_PATH/{bookingId}"
 
     fun branchDailySummaryWithDate(
         id: String,

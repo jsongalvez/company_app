@@ -93,7 +93,9 @@ import com.companyb.companyapp.contracts.reporting.MyHistoryResponse
 import com.companyb.companyapp.contracts.reporting.MyShift
 import com.companyb.companyapp.contracts.session.AddPractitionerRequest
 import com.companyb.companyapp.contracts.session.AddSessionConcernRequest
+import com.companyb.companyapp.contracts.session.BookingResponse
 import com.companyb.companyapp.contracts.session.ConcernResponse
+import com.companyb.companyapp.contracts.session.CreateBookingRequest
 import com.companyb.companyapp.contracts.session.CreateSessionRequest
 import com.companyb.companyapp.contracts.session.DashboardCommissionResponse
 import com.companyb.companyapp.contracts.session.DashboardPractitionerResponse
@@ -109,6 +111,7 @@ import com.companyb.companyapp.contracts.session.SessionResponse
 import com.companyb.companyapp.contracts.session.SessionVoidResponse
 import com.companyb.companyapp.contracts.session.SetRateRequest
 import com.companyb.companyapp.contracts.session.UnvoidSessionRequest
+import com.companyb.companyapp.contracts.session.UpdateBookingRequest
 import com.companyb.companyapp.contracts.session.UpdatePractitionerRemarksRequest
 import com.companyb.companyapp.contracts.session.UpdateSessionFinalPriceRequest
 import com.companyb.companyapp.contracts.session.UpdateSessionStatusRequest
@@ -252,6 +255,9 @@ internal object DtoSchemaProjector {
             "ProductSaleResponse" to ProductSaleResponse.serializer(),
             "PromoteConcernRequest" to PromoteConcernRequest.serializer(),
             "RateResponse" to RateResponse.serializer(),
+            "BookingResponse" to BookingResponse.serializer(),
+            "CreateBookingRequest" to CreateBookingRequest.serializer(),
+            "UpdateBookingRequest" to UpdateBookingRequest.serializer(),
             "ReliefAccessRequest" to ReliefAccessRequest.serializer(),
             "ReliefAccessResponse" to ReliefAccessResponse.serializer(),
             "ReliefBranchOptionResponse" to ReliefBranchOptionResponse.serializer(),

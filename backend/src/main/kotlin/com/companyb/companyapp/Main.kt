@@ -56,6 +56,7 @@ import com.companyb.companyapp.reporting.MonthlyRemittanceSummaryRoutes
 import com.companyb.companyapp.reporting.MyHistoryRoutes
 import com.companyb.companyapp.session.SessionBaseRateRoutes
 import com.companyb.companyapp.session.SessionRoutes
+import com.companyb.companyapp.session.VisitBookingRoutes
 import com.companyb.companyapp.session.dashboard.DashboardRoutes
 import com.companyb.companyapp.workforce.AttendanceRoutes
 import com.companyb.companyapp.workforce.UserBranchAssignmentRoutes
@@ -215,6 +216,7 @@ fun registerAllRoutes(config: io.javalin.config.JavalinConfig) {
     MedicalMissionDelegateRoutes.revokeDelegate(config)
     ClientRoutes.register(config)
     SessionBaseRateRoutes.register(config)
+    VisitBookingRoutes.register(config)
     SessionRoutes.register(config)
     ProductCategoryRoutes.register(config)
     ProductRoutes.register(config)

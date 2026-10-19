@@ -12,17 +12,24 @@
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
     import NewSession from "../components/NewSession.svelte";
+    import BookVisit from "../components/BookVisit.svelte";
+    import Bookings from "../components/Bookings.svelte";
+    import { fetchCached } from "../lib/cache.svelte";
+    import type { Booking } from "../lib/bookings";
     import ProductSale from "../components/ProductSale.svelte";
 
     const bid = $derived(app.branchId);
     const dash = new Query(load.dashboard(app.branchId).key, load.dashboard(app.branchId).fn);
     type Roster = Awaited<ReturnType<ReturnType<typeof load.roster>["fn"]>>;
     const roster = new Query<Roster>();
+    const booked = new Query<Booking[]>();
     /** The on-duty list is for the branch's own staff; others get a note instead. */
     const member = $derived(app.branches.some((b) => b.branchId === bid && !!b.assignmentId));
     $effect(() => {
         const l = load.dashboard(bid);
         dash.load(l.key, l.fn);
+        const bk = load.bookings(bid);
+        booked.load(bk.key, bk.fn);
         if (member) {
             const r = load.roster(bid);
             roster.load(r.key, r.fn);
@@ -99,9 +106,10 @@
     });
 
     function refresh() {
-        invalidate(`dash:${bid}`, `roster:${bid}`);
+        invalidate(`dash:${bid}`, `roster:${bid}`, `bookings:${bid}`);
         dash.refresh();
         roster.refresh();
+        booked.refresh();
         void refreshBranchDay();
     }
 
@@ -145,6 +153,27 @@
     }
 
     let newOpen = $state(false);
+    let bookOpen = $state(false);
+    // "Start session" on a booked visit: the popup opens with that client filled in.
+    let startClient = $state<S["ClientResponse"] | null>(null);
+    let startBooking = $state<Booking | null>(null);
+    async function startFromBooking(bk: Booking) {
+        const l = load.client(bk.clientId);
+        const c = await fetchCached(l.key, l.fn).catch(() => null);
+        if (!c) return;
+        startClient = c;
+        startBooking = bk;
+        newOpen = true;
+    }
+    function openNew() {
+        startClient = null;
+        startBooking = null;
+        newOpen = true;
+    }
+    function reloadBookings() {
+        const bk = load.bookings(bid);
+        booked.load(bk.key, bk.fn, true);
+    }
     let saleOpen = $state(false);
 
     // Keyboard: N = new session, R = refresh (when not typing).
@@ -153,7 +182,7 @@
         if (e.ctrlKey || e.metaKey || e.altKey || /INPUT|SELECT|TEXTAREA/.test(t.tagName) || document.querySelector("dialog[open]")) return;
         if (e.key === "n" && edit && onDutyAt(bid)) {
             e.preventDefault();
-            newOpen = true;
+            openNew();
         } else if (e.key === "r") refresh();
     }
 </script>
@@ -163,9 +192,10 @@
 <PageHead title="Sessions" sub="Today · {branchName(bid)} · {day(operationalDate())}">
     <button onclick={refresh} title="Refresh (R)">Refresh</button>
     {#if correct}<a class="btn" href="#/finance" title="Earlier days' sessions are on Expenses & pay; use ‹ to go back a day">Past days</a>{/if}
+    {#if edit}<button onclick={() => (bookOpen = true)} title="Book a client for a later day">Book a visit</button>{/if}
     {#if edit}<button onclick={() => (saleOpen = true)}>Product sale</button>{/if}
     {#if edit && onDutyAt(bid)}
-        <button class="primary" onclick={() => (newOpen = true)} title="New session (N)">New session</button>
+        <button class="primary" onclick={openNew} title="New session (N)">New session</button>
     {/if}
 </PageHead>
 
@@ -344,10 +374,19 @@
                 </tbody>
             </table>
         {/if}
+        <header class="bk-head">
+            <h2>Booked visits</h2>
+            <span class="spacer"></span><span class="faint">{booked.data?.length ?? 0}</span>
+        </header>
+        <State q={booked} empty={!!booked.data && booked.data.length === 0} emptyText="No visits booked." />
+        {#if booked.data?.length}
+            <Bookings list={booked.data} {edit} onstart={onDutyAt(bid) ? startFromBooking : undefined} onchanged={reloadBookings} />
+        {/if}
     </aside>
 </div>
 
-<NewSession bind:open={newOpen} onsaved={refresh} />
+<NewSession bind:open={newOpen} {startClient} booking={startBooking} onsaved={() => (refresh(), reloadBookings())} />
+<BookVisit bind:open={bookOpen} onsaved={reloadBookings} />
 <ProductSale bind:open={saleOpen} onsaved={refresh} />
 
 <style>
@@ -392,6 +431,9 @@
         .roster {
             width: auto;
         }
+    }
+    .bk-head {
+        border-top: 1px solid var(--line);
     }
     .note {
         margin: 0;

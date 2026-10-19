@@ -10,6 +10,9 @@
     import State from "../components/State.svelte";
     import Dialog from "../components/Dialog.svelte";
     import History from "../components/History.svelte";
+    import BookVisit from "../components/BookVisit.svelte";
+    import Bookings from "../components/Bookings.svelte";
+    import type { Booking } from "../lib/bookings";
     import ClientForm, { type ClientDraft } from "../components/ClientForm.svelte";
 
     let { id }: { id: string } = $props();
@@ -23,6 +26,16 @@
         const l = load.clientHistory(id);
         hq.load(l.key, l.fn);
     });
+    const bq = new Query<Booking[]>();
+    $effect(() => {
+        const l = load.clientBookings(id);
+        bq.load(l.key, l.fn);
+    });
+    let bookOpen = $state(false);
+    function reloadBookings() {
+        const l = load.clientBookings(id);
+        bq.load(l.key, l.fn, true);
+    }
     const c = $derived(q.data);
     const sessions = $derived(hq.data?.sessions ?? []);
     const sales = $derived(hq.data?.sales ?? []);
@@ -63,6 +76,7 @@
     <a class="btn" href="#/clients">All clients</a>
     {#if c && edit && !anonymized}
         <button class="danger" onclick={() => ((confirmText = ""), an.reset(), (anonOpen = true))}>Erase personal details</button>
+        {#if can("EDIT_BRANCH_DATA")}<button onclick={() => (bookOpen = true)}>Book a visit</button>{/if}
         <button class="primary" onclick={() => ((draft = draftFrom(c)), a.reset(), (open = true))}>Edit</button>
     {/if}
 </PageHead>
@@ -91,6 +105,15 @@
             </dl>
         </div>
     </section>
+    {#if bq.data?.length}
+        <section class="panel mb">
+            <header>
+                <h2>Booked visits</h2>
+                <span class="spacer"></span><span class="faint">{bq.data.filter((b) => b.status === "BOOKED").length} coming</span>
+            </header>
+            <Bookings list={bq.data} {edit} showClient={false} showBranch onchanged={reloadBookings} />
+        </section>
+    {/if}
     <section class="panel mb">
         <header>
             <h2>Sessions</h2>
@@ -143,6 +166,7 @@
         {/if}
     </section>
     <History table="client" {id} />
+    <BookVisit bind:open={bookOpen} client={c} onsaved={reloadBookings} />
 {/if}
 
 <Dialog bind:open title="Edit client" width={620} onsubmit={save} busy={a.busy} error={a.error}>
