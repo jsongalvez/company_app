@@ -105,6 +105,16 @@
     }
 
     const changes = (e: E) => changeText(e);
+    // Phone footer: "Changed session · Ana · Oct 19, 2:23 PM · Silang".
+    const meta = (e: E) =>
+        [
+            e.subject ? `${label(e.action)} ${(tableLabel[e.tableName] ?? e.tableName).toLowerCase()}` : label(e.action),
+            e.changedByName,
+            dateTime(e.changedAt),
+            e.branchName,
+        ]
+            .filter(Boolean)
+            .join(" · ");
     let expanded = $state<string | null>(null);
 </script>
 
@@ -120,13 +130,18 @@
             <tbody>
                 {#each open as e (e.id)}
                     <tr>
-                        <td class="nowrap">{dateTime(e.changedAt)}</td>
-                        <td class="lead">{e.changedByName ?? ""}</td>
-                        <td
+                        <td class="show-sm full card">
+                            <div class="subj">{e.subject ?? tableLabel[e.tableName] ?? e.tableName}</div>
+                            {#if e.reason}<div class="muted">“{e.reason}”</div>{/if}
+                            <div class="faint meta">{meta(e)}</div>
+                        </td>
+                        <td class="nowrap hide-sm">{dateTime(e.changedAt)}</td>
+                        <td class="hide-sm">{e.changedByName ?? ""}</td>
+                        <td class="hide-sm"
                             >{label(e.action)} · {tableLabel[e.tableName] ?? e.tableName}{#if e.subject}<div class="subj">{e.subject}</div>{/if}</td
                         >
-                        <td class="muted">{e.branchName ?? ""}</td>
-                        <td class="wrap full">{e.reason ? `“${e.reason}”` : ""}</td>
+                        <td class="muted hide-sm">{e.branchName ?? ""}</td>
+                        <td class="wrap hide-sm">{e.reason ? `“${e.reason}”` : ""}</td>
                         <td class="right"><button class="sm" onclick={() => review(e)}>Mark reviewed</button></td>
                     </tr>
                 {/each}
@@ -160,16 +175,24 @@
             <tbody>
                 {#each entries as e (e.id)}
                     <tr class="click" onclick={() => (expanded = expanded === e.id ? null : e.id)}>
-                        <td class="nowrap">{dateTime(e.changedAt)}</td>
-                        <td class="lead">{e.changedByName ?? ""}</td>
-                        <td
+                        <td class="show-sm full card">
+                            <div class="subj">{e.subject ?? tableLabel[e.tableName] ?? e.tableName}</div>
+                            {#if changes(e)}<div class="muted">{changes(e)}</div>{/if}
+                            {#if e.reason}<div class="muted">Reason: “{e.reason}”</div>{/if}
+                            <div class="faint meta">
+                                {meta(e)}{#if e.isFlagged}<span class="mark warn">{e.acknowledgedAt ? "Reviewed" : "Needs review"}</span>{/if}
+                            </div>
+                        </td>
+                        <td class="nowrap hide-sm">{dateTime(e.changedAt)}</td>
+                        <td class="hide-sm">{e.changedByName ?? ""}</td>
+                        <td class="hide-sm"
                             >{label(e.action)}{#if e.isFlagged}<span class="mark warn">{e.acknowledgedAt ? "Reviewed" : "Needs review"}</span>{/if}</td
                         >
-                        <td
+                        <td class="hide-sm"
                             >{tableLabel[e.tableName] ?? e.tableName}{#if e.subject}<div class="subj">{e.subject}</div>{/if}</td
                         >
                         <td class="muted hide-sm">{e.branchName ?? ""}</td>
-                        <td class="wrap muted full" class:ellipsis={expanded !== e.id}
+                        <td class="wrap muted hide-sm" class:ellipsis={expanded !== e.id}
                             >{changes(e)}{#if e.reason}<span>&nbsp;Reason: “{e.reason}”</span>{/if}</td
                         >
                     </tr>
@@ -189,6 +212,17 @@
     }
     .subj {
         font-weight: 600;
+    }
+    .card {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+    }
+    .card .muted {
+        overflow-wrap: anywhere;
+    }
+    .meta {
+        font-size: 0.9em;
     }
     td.ellipsis {
         max-width: 420px;

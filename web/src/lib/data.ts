@@ -18,6 +18,8 @@ export const load = {
     concerns: () => L(`concerns`, () => ok(api.GET("/api/concerns"))),
     clients: (q: string) => L(`clients:${q}`, () => ok(api.GET("/api/clients", { params: { query: { q } } }))),
     client: (clientId: string) => L(`client:${clientId}`, () => ok(api.GET("/api/clients/{clientId}", { params: { path: { clientId } } }))),
+    clientHistory: (clientId: string) =>
+        L(`client:${clientId}:history`, () => ok(api.GET("/api/clients/{clientId}/history", { params: { path: { clientId } } }))),
     // GET /api/sessions/{id} only answers for sessions in the caller's notifications,
     // so read today's dashboard first and fall back to it.
     session: (sessionId: string, branchId: string) =>

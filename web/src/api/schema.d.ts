@@ -756,6 +756,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/clients/{clientId}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["client_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/commission-inclusions": {
         parameters: {
             query?: never;
@@ -2638,6 +2654,33 @@ export interface components {
             dateRangeStart: string;
             dateRangeEnd: string;
             expectedVersion: number;
+        };
+        ClientHistoryResponse: {
+            sessions: components["schemas"]["ClientSessionItem"][];
+            sales: components["schemas"]["ClientSaleItem"][];
+        };
+        ClientSaleItem: {
+            id: string;
+            date: string;
+            branchName: string;
+            productName: string;
+            quantity: number;
+            total: string;
+            sessionId: string | null;
+        };
+        ClientSessionItem: {
+            id: string;
+            date: string;
+            branchName: string;
+            /** @enum {string} */
+            status: "PENDING" | "COMPLETED" | "NO_SHOW" | "CANCELLED" | "UNKNOWN";
+            /** @enum {string} */
+            type: "REGULAR" | "SECOND_SESSION" | "SUBSEQUENT" | "PROVINCIAL_FIRST" | "MEDICAL_MISSION" | "UNKNOWN";
+            voided: boolean;
+            price: string;
+            practitioners: string[];
+            concerns: string[];
+            remarks: string | null;
         };
         DailySalesSummaryBrowseResponse: {
             entries: components["schemas"]["DailySalesSummaryResponse"][];
@@ -5657,6 +5700,46 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    client_history: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                clientId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientHistoryResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

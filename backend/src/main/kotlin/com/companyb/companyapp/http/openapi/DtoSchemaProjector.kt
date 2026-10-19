@@ -82,6 +82,9 @@ import com.companyb.companyapp.contracts.remittance.RemittanceSubmitResponse
 import com.companyb.companyapp.contracts.remittance.SubmitRemittanceRequest
 import com.companyb.companyapp.contracts.remittance.UndoRemittanceRequest
 import com.companyb.companyapp.contracts.remittance.UpdateRemittanceHeaderRequest
+import com.companyb.companyapp.contracts.reporting.ClientHistoryResponse
+import com.companyb.companyapp.contracts.reporting.ClientSaleItem
+import com.companyb.companyapp.contracts.reporting.ClientSessionItem
 import com.companyb.companyapp.contracts.reporting.DailySalesSummaryBrowseResponse
 import com.companyb.companyapp.contracts.reporting.DailySalesSummaryResponse
 import com.companyb.companyapp.contracts.reporting.MonthlyRemittanceSummaryResponse
@@ -217,6 +220,9 @@ internal object DtoSchemaProjector {
             "StopViewAsRequest" to StopViewAsRequest.serializer(),
             "ViewAsResponse" to ViewAsResponse.serializer(),
             "MyHistoryResponse" to MyHistoryResponse.serializer(),
+            "ClientHistoryResponse" to ClientHistoryResponse.serializer(),
+            "ClientSessionItem" to ClientSessionItem.serializer(),
+            "ClientSaleItem" to ClientSaleItem.serializer(),
             "MyShift" to MyShift.serializer(),
             "MyEarning" to MyEarning.serializer(),
             "SetFeedbackStatusRequest" to SetFeedbackStatusRequest.serializer(),

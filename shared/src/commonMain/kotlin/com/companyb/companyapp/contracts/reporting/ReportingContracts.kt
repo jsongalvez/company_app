@@ -1,5 +1,7 @@
 package com.companyb.companyapp.contracts.reporting
 
+import com.companyb.companyapp.contracts.session.SessionStatus
+import com.companyb.companyapp.contracts.session.SessionType
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -66,4 +68,38 @@ data class MyHistoryResponse(
     val shifts: List<MyShift>,
     val earnings: List<MyEarning>,
     val totalEarned: String,
+)
+
+/** One past session of a client, newest first. */
+@Serializable
+data class ClientSessionItem(
+    val id: String,
+    val date: String,
+    val branchName: String,
+    val status: SessionStatus,
+    val type: SessionType,
+    val voided: Boolean,
+    val price: String,
+    val practitioners: List<String>,
+    val concerns: List<String>,
+    val remarks: String?,
+)
+
+/** One product a client bought, newest first. */
+@Serializable
+data class ClientSaleItem(
+    val id: String,
+    val date: String,
+    val branchName: String,
+    val productName: String,
+    val quantity: Int,
+    val total: String,
+    val sessionId: String?,
+)
+
+/** A client's past sessions and purchases across all branches (newest 200 of each). */
+@Serializable
+data class ClientHistoryResponse(
+    val sessions: List<ClientSessionItem>,
+    val sales: List<ClientSaleItem>,
 )

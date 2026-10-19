@@ -33,3 +33,12 @@ test("clocking out takes today's list off the screen and off the phone", { sessi
     await expect(screen.getByRole("button", "Clock in").first()).toBeVisible();
     await expect(screen.getByRole("row").filter({ hasText: name })).toHaveCount(0);
 });
+
+test("a client's page lists their past sessions", { session: "owner" }, async ({ app, screen }) => {
+    const name = await doneSessionForNewClient(app, screen);
+    await screen.getByLabel("Find client").fill(name);
+    await screen.getByRole("button", "Find").tap();
+    await screen.getByRole("link", name).tap();
+    await expect(screen.getByRole("heading", "Sessions")).toBeVisible();
+    await expect(screen.getByRole("row").filter({ hasText: "Done" }).first()).toBeVisible();
+});

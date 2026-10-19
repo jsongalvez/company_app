@@ -178,7 +178,7 @@ export function changeText(e: Entry): string {
         if (e.action === "UPDATE")
             return Object.keys({ ...o, ...n })
                 .filter((k) => JSON.stringify(o[k]) !== JSON.stringify(n[k]) && !/version|updated_?at/i.test(k))
-                .map((k) => `${fieldName(k)}: ${fieldValue(o[k], names)} → ${fieldValue(n[k], names)}`)
+                .map((k) => `${fieldName(k)}: ${o[k] == null || o[k] === "" ? "" : `${fieldValue(o[k], names)} → `}${fieldValue(n[k], names)}`)
                 .join("; ");
         const row = e.action === "DELETE" ? o : n;
         return (

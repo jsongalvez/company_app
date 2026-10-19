@@ -4,7 +4,7 @@
     import { Query, invalidate } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
-    import { clientName } from "../lib/format";
+    import { clientName, label, peso, shortDay, sum } from "../lib/format";
     import { draftFrom, updateBody } from "../lib/client-draft";
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
@@ -18,7 +18,15 @@
         const l = load.client(id);
         q.load(l.key, l.fn);
     });
+    const hq = new Query<S["ClientHistoryResponse"]>();
+    $effect(() => {
+        const l = load.clientHistory(id);
+        hq.load(l.key, l.fn);
+    });
     const c = $derived(q.data);
+    const sessions = $derived(hq.data?.sessions ?? []);
+    const sales = $derived(hq.data?.sales ?? []);
+    const statusMark = (s: S["ClientSessionItem"]) => (s.voided ? "bad" : s.status === "COMPLETED" ? "ok" : s.status === "PENDING" ? "info" : "warn");
     const anonymized = $derived(!!c && !c.firstName && !c.lastName);
     const edit = $derived(can("EDIT_BRANCH_DATA") || canAnywhere("EDIT_BRANCH_DATA"));
 
@@ -82,6 +90,57 @@
                 </dd>
             </dl>
         </div>
+    </section>
+    <section class="panel mb">
+        <header>
+            <h2>Sessions</h2>
+            <span class="spacer"></span><span class="faint">{sessions.length}</span>
+        </header>
+        {#if hq.error}<div class="body"><State q={hq} /></div>
+        {:else if hq.data && sessions.length === 0}<div class="body faint">No sessions yet.</div>
+        {:else if sessions.length}
+            <table class="grid stack">
+                <thead><tr><th>Day</th><th>Status</th><th>Type</th><th>Practitioner</th><th>Concerns</th><th>Branch</th><th class="num">Price</th></tr></thead>
+                <tbody>
+                    {#each sessions as s (s.id)}
+                        <tr class="click" onclick={() => (location.hash = `#/sessions/${s.id}`)}>
+                            <td class="nowrap lead">{shortDay(s.date)}</td>
+                            <td><span class="mark {statusMark(s)}">{s.voided ? "Voided" : label(s.status)}</span></td>
+                            <td class="muted">{label(s.type)}</td>
+                            <td>{s.practitioners.join(", ")}</td>
+                            <td class="wrap full muted"
+                                >{s.concerns.join(", ")}{#if s.remarks}<div class="faint">{s.remarks}</div>{/if}</td
+                            >
+                            <td class="muted hide-sm">{s.branchName}</td>
+                            <td class="num">{peso(s.price)}</td>
+                        </tr>
+                    {/each}
+                </tbody>
+            </table>
+        {/if}
+    </section>
+    <section class="panel mb">
+        <header>
+            <h2>Products bought</h2>
+            <span class="spacer"></span>{#if sales.length}<span class="faint">{peso(sum(sales.map((x) => x.total)))}</span>{/if}
+        </header>
+        {#if hq.data && sales.length === 0}<div class="body faint">No products bought yet.</div>
+        {:else if sales.length}
+            <table class="grid stack">
+                <thead><tr><th>Day</th><th>Product</th><th>Branch</th><th class="num">Total</th></tr></thead>
+                <tbody>
+                    {#each sales as x (x.id)}
+                        <tr>
+                            <td class="nowrap">{shortDay(x.date)}</td>
+                            <td class="lead">{x.productName} <span class="muted">×{x.quantity}</span></td>
+
+                            <td class="muted hide-sm">{x.branchName}</td>
+                            <td class="num">{peso(x.total)}</td>
+                        </tr>
+                    {/each}
+                </tbody>
+            </table>
+        {/if}
     </section>
     <History table="client" {id} />
 {/if}
