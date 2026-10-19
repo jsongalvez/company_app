@@ -120,7 +120,7 @@ jobs:
         run: >-
           ./gradlew :backend:detekt :backend:ktlintCheck :shared:ktlintCheck :backend:test
           :detekt-rules:detekt :detekt-rules:test
-          :shared:detektMetadataCommonMain
+          :shared:detektMetadataMain
           :shared:detektJvmMain :shared:detektJvmTest
           :shared:compileKotlinJvm :shared:jvmTest
           -PwarningsAsErrors=true

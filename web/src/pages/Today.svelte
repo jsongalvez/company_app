@@ -7,7 +7,7 @@
     import { go, viewSetting } from "../lib/router.svelte";
     import { peso, time, label, sum, day, operationalDate, clientName } from "../lib/format";
     import { allowedTargets, statusClass, type Status } from "../lib/rules";
-    import { heldMark, heldSessions, outbox } from "../lib/outbox.svelte";
+    import { heldMark, heldSessions, outbox, sentSessions } from "../lib/outbox.svelte";
     import { findLocal } from "../lib/clientdir.svelte";
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
@@ -57,7 +57,12 @@
         const held = heldSessions()
             .filter((h) => h.body.branchId === bid && !have.has(String(h.body.id)))
             .map((h) => heldRow(h.at, h.body));
-        return [...fromServer, ...held];
+        // Just sent: keep showing it until the server's list has it.
+        void outbox.recent.length;
+        const sent = sentSessions()
+            .filter((h) => h.body.branchId === bid && !have.has(String(h.body.id)))
+            .map((h) => ({ ...heldRow(h.at, h.body), held: false, unsent: false }));
+        return [...fromServer, ...held, ...sent];
     });
 
     function heldRow(at: string, b: Record<string, unknown>): S["DashboardSessionResponse"] & { held: boolean; unsent: boolean } {

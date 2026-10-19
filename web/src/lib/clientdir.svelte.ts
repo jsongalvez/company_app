@@ -5,7 +5,7 @@
  */
 import { api, ok, type S } from "../api/client";
 import { RECONNECTED } from "./net.svelte";
-import { heldClients, SENT, tokenUser } from "./outbox.svelte";
+import { heldClients, SENT, sentClient, tokenUser } from "./outbox.svelte";
 
 type C = S["ClientResponse"];
 type Saved = { at: number; list: C[] };
@@ -57,7 +57,7 @@ export function rememberClient(c: C) {
 
 /** A client by id, if the phone has it (made here or in the saved list). */
 export function findLocal(id: string): C | undefined {
-    return heldClients().find((c) => c.id === id) ?? current().list.find((c) => c.id === id);
+    return heldClients().find((c) => c.id === id) ?? current().list.find((c) => c.id === id) ?? sentClient(id);
 }
 
 /** Forget what was loaded for the last person (sign-out / sign-in). */

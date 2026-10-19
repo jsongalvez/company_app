@@ -6,7 +6,17 @@ import { SENT, tokenUser } from "./outbox.svelte";
  * revalidate in the background, prefetch on hover. Keys are strings.
  */
 
-type Entry = { data: unknown; at: number; inflight?: Promise<unknown>; got?: number };
+type Entry = {
+    data: unknown;
+    at: number;
+    inflight?: Promise<unknown>;
+    got?: number;
+    /** Order of the request that gave `data`, of the one in flight, and the first one that sees the latest save. */
+    seq?: number;
+    inflightAt?: number;
+    inflightSeq?: number;
+    staleAt?: number;
+};
 const store = new Map<string, Entry>();
 const FRESH_MS = 15_000;
 
@@ -57,24 +67,40 @@ function saveSoon() {
     }, 800);
 }
 
+let seq = 0;
 export function fetchCached<T>(key: string, fn: () => Promise<T>, force = false): Promise<T> {
     const e = store.get(key);
-    if (e?.inflight) return e.inflight as Promise<T>;
+    // A forced read (after a save) must not reuse a request that started before the save.
+    if (e?.inflight && !(force && e.inflightAt! < (e.staleAt ?? 0))) return e.inflight as Promise<T>;
     if (!force && e && Date.now() - e.at < FRESH_MS) return Promise.resolve(e.data as T);
+    const mine = ++seq;
     const p = fn().then(
         (data) => {
-            store.set(key, { data, at: Date.now(), got: Date.now() });
+            const cur = store.get(key);
+            // An older request finishing late never overwrites a newer answer.
+            if (cur && (cur.seq ?? 0) > mine) return cur.data as T;
+            const newer = cur?.inflight && (cur.inflightSeq ?? 0) > mine;
+            // Started before the latest save: show it, but it's not fresh.
+            const stale = (cur?.staleAt ?? 0) > mine;
+            store.set(key, {
+                data,
+                at: stale ? 0 : Date.now(),
+                got: Date.now(),
+                seq: mine,
+                staleAt: cur?.staleAt,
+                ...(newer ? { inflight: cur!.inflight, inflightAt: cur!.inflightAt, inflightSeq: cur!.inflightSeq } : {}),
+            });
             saveSoon();
             return data;
         },
         (err) => {
             const cur = store.get(key);
-            if (cur) delete cur.inflight;
-            else store.delete(key);
+            if (cur?.inflightSeq === mine) delete cur.inflight;
+            else if (!cur) store.delete(key);
             throw err;
         },
     );
-    store.set(key, { data: e?.data, at: e?.at ?? 0, got: e?.got, inflight: p });
+    store.set(key, { ...(e ?? { data: undefined, at: 0 }), inflight: p, inflightAt: mine, inflightSeq: mine });
     return p;
 }
 
@@ -85,7 +111,11 @@ export function peek<T>(key: string): T | undefined {
 /** Mark cached keys starting with any prefix as stale (after a write): the next read fetches,
  *  but what we had keeps showing meanwhile, and stays if there's no signal. */
 export function invalidate(...prefixes: string[]) {
-    for (const [k, e] of store) if (prefixes.some((p) => k.startsWith(p))) e.at = 0;
+    for (const [k, e] of store)
+        if (prefixes.some((p) => k.startsWith(p))) {
+            e.at = 0;
+            e.staleAt = seq + 1;
+        }
 }
 
 /** Drop cached keys starting with any prefix (on the phone too), and reload screens showing them:
@@ -116,7 +146,10 @@ export function clearCache() {
 /** Pages showing data, so waiting saves that just went out can refresh what's on screen. */
 const live = new Set<WeakRef<Query<unknown>>>();
 window.addEventListener(SENT, () => {
-    for (const e of store.values()) e.at = 0;
+    for (const e of store.values()) {
+        e.at = 0;
+        e.staleAt = seq + 1;
+    }
     for (const r of live) {
         const q = r.deref();
         if (q) q.refresh();

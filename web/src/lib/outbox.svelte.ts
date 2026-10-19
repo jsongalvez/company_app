@@ -18,6 +18,7 @@ export type Item = {
     body: string;
     what: string;
     failed?: string;
+    sentAt?: number;
 };
 
 type Rule = { method: string; path: RegExp; what: (b: Record<string, unknown>) => string; echo?: (b: Record<string, unknown>) => unknown };
@@ -50,7 +51,34 @@ function load(): Item[] {
     }
 }
 
-export const outbox = $state({ items: load(), sending: false });
+export const outbox = $state({ items: load(), sending: false, recent: [] as Item[] });
+
+/** Creates sent a moment ago. They stay on screen until the page has reloaded them from the server. */
+const RECENT_MS = 120_000;
+function keepRecent(i: Item) {
+    if (i.method !== "POST" || (i.path !== "/api/sessions" && i.path !== "/api/clients")) return;
+    const cut = Date.now() - RECENT_MS;
+    outbox.recent = [...outbox.recent.filter((r) => (r.sentAt ?? 0) > cut), { ...i, sentAt: Date.now() }];
+}
+function recentBodies(path: string): { at: string; body: Record<string, unknown> }[] {
+    const cut = Date.now() - RECENT_MS;
+    return outbox.recent
+        .filter((i) => i.path === path && (i.sentAt ?? 0) > cut)
+        .map((i) => {
+            try {
+                return { at: i.at, body: JSON.parse(i.body) as Record<string, unknown> };
+            } catch {
+                return { at: i.at, body: {} };
+            }
+        });
+}
+/** New sessions just sent, which the server's list may not show yet. */
+export const sentSessions = () => recentBodies("/api/sessions");
+/** A client just sent, before the saved client list has it. */
+export function sentClient(id: string): S["ClientResponse"] | undefined {
+    const b = recentBodies("/api/clients").find((x) => String(x.body.id) === id);
+    return b ? heldClient(b.body) : undefined;
+}
 
 function save() {
     localStorage.setItem(KEY, JSON.stringify(outbox.items));
@@ -248,6 +276,7 @@ export async function flush(): Promise<void> {
             if (res.status === 401 || res.status === 429 || res.status >= 500) return;
             reportNetOk();
             if (res.ok || (res.status === 409 && (await alreadyApplied(i)))) {
+                keepRecent(i);
                 discard(i.id);
                 sent++;
                 continue;
