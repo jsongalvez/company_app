@@ -434,7 +434,6 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
                     "quantity" to 1,
                     "expectedVersion" to cardVersion(),
                 )
-            clockInToday(reliefUser, branchA)
             val response = client.post("/api/product-sales", body, asUser(reliefUser))
             assertEquals(201, response.code, response.body.string().orEmpty())
         }
@@ -458,7 +457,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
         }
     }
 
-    // No one adds sessions or sales without an open shift at the branch today.
+    // No one adds sessions without an open shift at the branch today.
     private fun clockInToday(
         userId: UUID,
         branchId: UUID,

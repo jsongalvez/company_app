@@ -27,7 +27,7 @@ data class AttendanceWindow(
  */
 object WorkforceReads {
     /**
-     * Adding sessions and product sales needs an open clock-in on that branch day (user
+     * Adding sessions needs an open clock-in on that branch day (user
      * rule: no one adds without clocking in, owners included). Runs on the caller's
      * transaction. Past days can't be clocked into, so corrections there are not gated
      * here — they already need EDIT_PAST_DAY (and a reason when remitted).

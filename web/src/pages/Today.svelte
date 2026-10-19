@@ -160,8 +160,8 @@
 
 <PageHead title="Today" sub="{branchName(bid)} · {day(operationalDate())}">
     <button onclick={refresh} title="Refresh (R)">Refresh</button>
+    {#if edit}<button onclick={() => (saleOpen = true)}>Product sale</button>{/if}
     {#if edit && onDutyAt(bid)}
-        <button onclick={() => (saleOpen = true)}>Product sale</button>
         <button class="primary" onclick={() => (newOpen = true)} title="New session (N)">New session</button>
     {/if}
 </PageHead>
@@ -214,7 +214,7 @@
 
         {#if edit && !needClockIn && !onDutyAt(bid)}
             <div class="notice row mb">
-                <span class="grow">Clock in at {branchName(bid)} to add sessions and product sales.</span>
+                <span class="grow">Clock in at {branchName(bid)} to add new sessions.</span>
                 {#if !app.shift && app.branches.some((b) => b.branchId === bid)}<button class="primary" onclick={startShift}>Clock in</button>{/if}
             </div>
         {/if}

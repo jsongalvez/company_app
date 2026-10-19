@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
-    import { app, can, onDutyAt } from "../lib/app.svelte";
+    import { app, can } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act, Action } from "../lib/act.svelte";
@@ -264,7 +264,7 @@
 
 <PageHead title={client.data ? clientName(client.data) : "Session"} sub={s ? `${label(s.sessionType)} · ${dateTime(s.bookedAt)}` : ""}>
     <a class="btn" href="#/today">Back to today</a>
-    {#if s && edit && !voided && (!isToday || onDutyAt())}<button onclick={() => (saleOpen = true)}>Product sale</button>{/if}
+    {#if s && edit && !voided}<button onclick={() => (saleOpen = true)}>Product sale</button>{/if}
     {#if s && can("VOID_SESSION")}
         <button class="danger" onclick={() => ((voidReason = ""), va.reset(), (voidOpen = true))}>{voided ? "Restore session" : "Void session"}</button>
     {/if}
