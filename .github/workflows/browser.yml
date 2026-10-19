@@ -94,9 +94,30 @@ jobs:
           done
           cat backend.log; exit 1
 
+      # A fresh database has no past days; the past-sessions test needs one
+      # session on yesterday (Manila) at the fixture branch.
+      - name: Seed a past day
+        env:
+          PGPASSWORD: company_password
+        run: |
+          psql -h localhost -U company_user -d company_app -v ON_ERROR_STOP=1 <<'SQL'
+          WITH c AS (
+            INSERT INTO client (first_name, last_name, gender, age)
+            VALUES ('Past', 'Dayclient', 'F', 40) RETURNING id
+          ), d AS (
+            INSERT INTO branch_day (branch_id, date)
+            VALUES ('00000000-0000-4000-8000-000000000001',
+                    (now() AT TIME ZONE 'Asia/Manila')::date - 1)
+            ON CONFLICT (branch_id, date) DO UPDATE SET date = EXCLUDED.date
+            RETURNING id
+          )
+          INSERT INTO session (client_id, branch_day_id, session_type, is_walk_in, base_price, final_price)
+          SELECT c.id, d.id, 'REGULAR', true, 500, 500 FROM c, d;
+          SQL
+
       - name: Run browser tests (slice ${{ matrix.shard }} of 4)
         working-directory: web
-        run: npx e2e run --shard ${{ matrix.shard }}/4 --exclude-tag needs-history
+        run: npx e2e run --shard ${{ matrix.shard }}/4
 
       - name: Keep traces of failures
         if: failure()

@@ -9,12 +9,6 @@ import java.util.UUID
  * allowlist entry; direct store imports from other owners stay banned.
  */
 object NotificationReads {
-    /** Bearer check for the session-detail read — the notification row plus a current read window. */
-    fun existsForSessionAndUser(
-        sessionId: UUID,
-        userId: UUID,
-    ): Boolean = NotificationRepository.existsForSessionAndUser(sessionId, userId)
-
     /** Original ping list for relief expiry — distinct recipients holding the source row. */
     fun findUsersBySource(
         eventType: String,

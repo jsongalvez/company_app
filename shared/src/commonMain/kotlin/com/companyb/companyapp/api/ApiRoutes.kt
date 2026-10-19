@@ -52,45 +52,12 @@ object ApiRoutes {
     const val FEEDBACK = "$API_ROOT/feedback"
     const val FEEDBACK_NOTES = "$API_ROOT/feedback-notes"
     const val FEEDBACK_NOTE_PATH = "$FEEDBACK_NOTES/{feedbackId}"
-    const val BRANCHES_EXPORT = "$BRANCHES/export"
-
-    fun user(id: String) = "$USERS/$id"
-
-    fun branch(id: String) = "$BRANCHES/$id"
-
-    fun client(id: String) = "$CLIENTS/$id"
 
     fun session(id: String) = "$SESSIONS/$id"
 
     fun sessionStatus(id: String) = "${session(id)}/status"
 
     fun sessionFinalPrice(id: String) = "${session(id)}/final-price"
-
-    fun sessionVoid(id: String) = "${session(id)}/void"
-
-    fun sessionUnvoid(id: String) = "${session(id)}/unvoid"
-
-    fun sessionPractitioners(id: String) = "${session(id)}/practitioners"
-
-    fun sessionPractitioner(
-        sessionId: String,
-        practitionerId: String,
-    ) = "${sessionPractitioners(sessionId)}/$practitionerId"
-
-    fun sessionConcerns(id: String) = "${session(id)}/concerns"
-
-    fun sessionConcern(
-        sessionId: String,
-        concernId: String,
-    ) = "${sessionConcerns(sessionId)}/$concernId"
-
-    fun sessionPromoteConcern(id: String) = "${session(id)}/promote-concern"
-
-    fun product(id: String) = "$PRODUCTS/$id"
-
-    /** #445 — admin catalog read opts into inactive rows; default stays active-only. */
-    fun productsList(includeInactive: Boolean = false) =
-        if (includeInactive) "$PRODUCTS?includeInactive=true" else PRODUCTS
 
     fun branchAssignments(id: String) = "$BRANCHES/$id/assignments"
 
@@ -104,126 +71,14 @@ object ApiRoutes {
         assignmentId: String,
     ) = "${branchAssignment(branchId, assignmentId)}/slot"
 
-    fun branchSlotsSwap(id: String) = "$BRANCHES/$id/slots/swap"
-
-    fun branchRates(id: String) = "$BRANCHES/$id/rates"
-
-    // #348 — pre-create preview: predicted session type + base rate for a client at a branch.
-    fun branchSessionPreview(id: String) = "${branch(id)}/session-preview"
-
-    fun branchInventory(id: String) = "$BRANCHES/$id/inventory"
-
-    fun branchInventoryLowStock(id: String) = "${branchInventory(id)}/low-stock"
-
-    fun branchInventoryMovements(id: String) = "${branchInventory(id)}/movements"
-
-    fun branchInventoryRestock(
-        branchId: String,
-        productId: String,
-    ) = "${branchInventory(branchId)}/$productId/restock"
-
-    fun branchInventoryMovement(
-        branchId: String,
-        productId: String,
-    ) = "${branchInventory(branchId)}/$productId/movement"
-
-    fun branchToday(id: String) = "$BRANCHES/$id/today"
-
-    fun branchDashboardToday(id: String) = "$BRANCHES/$id/dashboard/today"
-
-    fun branchDailySummary(id: String) = "$BRANCHES/$id/daily-summary"
-
-    fun branchDailySummaries(id: String) = "$BRANCHES/$id/daily-summaries"
-
-    fun branchMonthlySummary(id: String) = "$BRANCHES/$id/monthly-summary"
-
-    fun branchRemittanceDays(id: String) = "$BRANCHES/$id/remittance-days"
-
-    fun branchRemittanceSessions(id: String) = "$BRANCHES/$id/remittance-sessions"
-
-    fun branchRemittanceProductSales(id: String) = "$BRANCHES/$id/remittance-product-sales"
-
-    fun branchReliefInvites(id: String) = "$BRANCHES/$id/relief-invites"
-
-    // #377 — branch-wide ACCEPTED duties (any active member may revoke).
-    fun branchReliefInvitesAccepted(id: String) = "${branchReliefInvites(id)}/accepted"
-
-    // #401 — notification deep-link day read: invites at the branch for one date.
-    fun branchReliefInvitesByDate(
-        id: String,
-        date: String,
-    ) = "${branchReliefInvites(id)}/by-date?date=$date"
-
-    fun branchReliefCandidates(id: String) = "$BRANCHES/$id/relief-candidates"
-
-    // #366 — active-member directory (id + display name) for the requested-practitioner picker.
-    fun branchMembers(id: String) = "$BRANCHES/$id/members"
-
-    fun branchDelegates(id: String) = "$BRANCHES/$id/delegates"
-
-    fun notification(id: String) = "$NOTIFICATIONS/$id"
-
-    fun notificationRead(id: String) = "${notification(id)}/read"
-
     const val NOTIFICATIONS_READ_ALL = "$NOTIFICATIONS/read-all"
     const val NOTIFICATIONS_HISTORY = "$NOTIFICATIONS/history"
     const val NOTIFICATIONS_UNREAD_COUNT = "$NOTIFICATIONS/unread-count"
 
-    /** #508 — paged history read: optional cursor + limit (bounded per response). */
-    fun notificationsHistory(
-        cursor: String?,
-        limit: Int?,
-    ): String {
-        val params = listOfNotNull(cursor?.let { "cursor=$it" }, limit?.let { "limit=$it" })
-        return if (params.isEmpty()) NOTIFICATIONS_HISTORY else "$NOTIFICATIONS_HISTORY?${params.joinToString("&")}"
-    }
-
-    fun reliefInvite(id: String) = "$RELIEF_INVITES/$id"
-
-    fun reliefInviteAction(
-        id: String,
-        action: String,
-    ) = "${reliefInvite(id)}/$action"
-
-    fun delegate(id: String) = "$DELEGATES/$id"
-
     const val ATTENDANCE_CLOCK_IN = "$ATTENDANCE/clock-in"
     const val ATTENDANCE_CLOCK_OUT = "$ATTENDANCE/clock-out"
 
-    fun expense(id: String) = "$EXPENSES/$id"
-
-    fun expenseRestore(id: String) = "${expense(id)}/restore"
-
-    fun compensation(id: String) = "$COMPENSATION/$id"
-
-    fun remittance(id: String) = "$REMITTANCES/$id"
-
-    fun remittanceLines(id: String) = "${remittance(id)}/lines"
-
-    fun remittanceLine(
-        remittanceId: String,
-        lineId: String,
-    ) = "${remittanceLines(remittanceId)}/$lineId"
-
-    fun remittanceDrift(id: String) = "${remittance(id)}/drift"
-
-    fun remittanceDayBreakdowns(id: String) = "${remittance(id)}/day-breakdowns"
-
-    fun remittanceDayBreakdown(
-        remittanceId: String,
-        breakdownId: String,
-    ) = "${remittanceDayBreakdowns(remittanceId)}/$breakdownId"
-
-    fun remittanceSubmit(id: String) = "${remittance(id)}/submit"
-
-    fun remittanceUndo(id: String) = "${remittance(id)}/undo"
-
     fun branchDayUsers(id: String) = "$BRANCH_DAYS/$id/users"
-
-    // #404 — member-marked attendance (roster read + present/absent mark).
-    fun branchAttendanceToday(id: String) = "$BRANCHES/$id/attendance/today"
-
-    fun branchAttendanceMarks(id: String) = "$BRANCHES/$id/attendance/marks"
 
     fun branchExportReport(id: String) = "$BRANCHES/$id/export/report"
 
@@ -311,44 +166,13 @@ object ApiRoutes {
     const val BRANCH_BOOKINGS_PATH = "$BRANCH_PATH/bookings"
     const val BRANCH_BOOKING_PATH = "$BRANCH_BOOKINGS_PATH/{bookingId}"
 
-    fun branchDailySummaryWithDate(
-        id: String,
-        date: String,
-    ) = "${branchDailySummary(id)}?date=$date"
-
     fun branchExportWithQuery(
         path: String,
         query: String,
     ) = "$path?$query"
 
-    fun reliefAccessRequest(id: String) = "$RELIEF_ACCESS/$id"
-
-    fun reliefAccessGrant(id: String) = "${reliefAccessRequest(id)}/grant"
-
-    fun reliefAccessDeny(id: String) = "${reliefAccessRequest(id)}/deny"
-
-    fun reliefAccessCancel(id: String) = "${reliefAccessRequest(id)}/cancel"
-
     const val RELIEF_ACCESS_REQUEST = "$RELIEF_ACCESS/request"
     const val RELIEF_ACCESS_MINE = "$RELIEF_ACCESS/mine"
     const val RELIEF_ACCESS_BRANCH_OPTIONS = "$RELIEF_ACCESS/branch-options"
     const val RELIEF_ACCESS_CANCEL_PATH = "$RELIEF_ACCESS/{requestId}/cancel"
-
-    fun reliefAccessList(branchDayId: String) = "$RELIEF_ACCESS?branchDayId=$branchDayId"
-
-    // #358 — notification deep-link addressing: branch+date, no branch-day id needed.
-    fun reliefAccessByBranchAndDate(
-        branchId: String,
-        date: String,
-    ) = "$RELIEF_ACCESS?branchId=$branchId&date=$date"
-
-    fun userRoles(id: String) = "${user(id)}/roles"
-
-    fun userDeactivate(id: String) = "${user(id)}/deactivate"
-
-    fun userReactivate(id: String) = "${user(id)}/reactivate"
-
-    fun clientAnonymize(id: String) = "${client(id)}/anonymize"
-
-    fun auditLogAcknowledge(id: String) = "$AUDIT_LOG/$id/acknowledge"
 }

@@ -31,9 +31,6 @@ object ViewAs {
     const val SUPERUSER_ROLE = "SUPERUSER"
     private val READ_METHODS = setOf("GET", "HEAD", "OPTIONS")
 
-    /** The SUPERUSER behind the current request, or null when nobody is viewing as someone. */
-    fun realUser(): UUID? = ViewedAsBy.get()
-
     fun isSuperuser(userId: UUID): Boolean =
         RoleRepository.findRoleNamesByUser(listOf(userId))[userId].orEmpty().contains(SUPERUSER_ROLE)
 

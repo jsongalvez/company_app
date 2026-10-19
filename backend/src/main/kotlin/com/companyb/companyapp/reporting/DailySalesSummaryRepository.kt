@@ -52,22 +52,6 @@ internal object DailySalesSummaryRepository {
                 ?.toDailySalesSummary()
         }
 
-    fun findRangeByBranch(
-        branchId: UUID,
-        from: LocalDate,
-        to: LocalDate,
-    ): List<DailySalesSummary> =
-        transaction {
-            DailySalesSummaryView
-                .selectAll()
-                .where {
-                    (DailySalesSummaryView.branchId eq branchId) and
-                        (DailySalesSummaryView.date greaterEq from) and
-                        (DailySalesSummaryView.date lessEq to)
-                }.orderBy(DailySalesSummaryView.date to SortOrder.ASC)
-                .map { it.toDailySalesSummary() }
-        }
-
     /**
      * Keyset browse over `(date DESC, branch_day_id DESC)`. [cursor] is the
      * strictly-before position (exclusive). [limit] rows are returned; the
