@@ -105,6 +105,7 @@ internal object ClientRepository {
                     it[ClientTable.address] = params.address
                     it[ClientTable.gender] = params.gender.name
                     it[ClientTable.age] = params.age
+                    it[ClientTable.ageEnteredOn] = clientToday()
                     it[ClientTable.earlierVisits] = params.earlierVisits
                     if (params.systolicBp != null) it[ClientTable.systolicBp] = params.systolicBp
                     if (params.diastolicBp != null) it[ClientTable.diastolicBp] = params.diastolicBp
@@ -141,7 +142,7 @@ internal object ClientRepository {
                 existing.phoneNumber == params.phoneNumber &&
                 existing.address == params.address &&
                 existing.gender == params.gender &&
-                existing.age == params.age &&
+                existing.ageAsEntered == params.age &&
                 existing.earlierVisits == params.earlierVisits &&
                 existing.systolicBp == params.systolicBp &&
                 existing.diastolicBp == params.diastolicBp &&
@@ -185,7 +186,11 @@ internal object ClientRepository {
                     it[ClientTable.address] = params.address
                 }
                 if (params.gender != null) it[ClientTable.gender] = params.gender.name
-                if (params.age != null) it[ClientTable.age] = params.age
+                if (params.age != null) {
+                    // Typing the age (even the same number) restarts the clock from today.
+                    it[ClientTable.age] = params.age
+                    it[ClientTable.ageEnteredOn] = clientToday()
+                }
                 if (params.earlierVisits != null) it[ClientTable.earlierVisits] = params.earlierVisits
                 if (params.clearBp) {
                     it[ClientTable.systolicBp] = null
@@ -316,7 +321,9 @@ internal object ClientRepository {
             phoneNumber = this[ClientTable.phoneNumber],
             address = this[ClientTable.address],
             gender = Gender.valueOf(this[ClientTable.gender]),
-            age = this[ClientTable.age],
+            age = ageToday(this[ClientTable.age], this[ClientTable.ageEnteredOn], clientToday()),
+            ageAsEntered = this[ClientTable.age],
+            ageEnteredOn = this[ClientTable.ageEnteredOn],
             systolicBp = this[ClientTable.systolicBp],
             diastolicBp = this[ClientTable.diastolicBp],
             medicalConditions = this[ClientTable.medicalConditions],
