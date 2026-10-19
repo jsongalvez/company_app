@@ -160,8 +160,9 @@
 
 <svelte:window onkeydown={onKey} />
 
-<PageHead title="Today" sub="{branchName(bid)} · {day(operationalDate())}">
+<PageHead title="Sessions" sub="Today · {branchName(bid)} · {day(operationalDate())}">
     <button onclick={refresh} title="Refresh (R)">Refresh</button>
+    {#if correct}<a class="btn" href="#/finance" title="Earlier days' sessions are on Expenses & pay; use ‹ to go back a day">Past days</a>{/if}
     {#if edit}<button onclick={() => (saleOpen = true)}>Product sale</button>{/if}
     {#if edit && onDutyAt(bid)}
         <button class="primary" onclick={() => (newOpen = true)} title="New session (N)">New session</button>

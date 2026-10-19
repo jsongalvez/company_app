@@ -8,6 +8,7 @@
     import { Action } from "../lib/act.svelte";
     import { label, peso, operationalDate } from "../lib/format";
     import { createBody, emptyDraft } from "../lib/client-draft";
+    import { COMMON_CONCERNS, sortConcerns, typedConcerns } from "../lib/concerns";
     import Dialog from "./Dialog.svelte";
     import ClientPicker from "./ClientPicker.svelte";
     import ClientForm, { type ClientDraft } from "./ClientForm.svelte";
@@ -26,6 +27,12 @@
     let practitioners = $state<string[]>([]);
     let remarks = $state("");
     let otherConcerns = $state("");
+    let concerns = $state<S["ConcernResponse"][]>([]);
+    let picked = $state<string[]>([]);
+    // Tick boxes for the common ones; the rest of the saved list is suggested while typing.
+    const isCommon = (l: string) => COMMON_CONCERNS.some((c) => c.toLowerCase() === l.toLowerCase());
+    const common = $derived(concerns.filter((k) => isCommon(k.label)));
+    const saved = $derived(concerns.filter((k) => !isCommon(k.label)));
     let nextDate = $state("");
     let staff = $state<{ id: string; name: string }[]>([]);
 
@@ -42,6 +49,12 @@
         requested = "";
         practitioners = app.me ? [app.me.id] : [];
         remarks = otherConcerns = nextDate = "";
+        picked = [];
+        const cl = load.concerns();
+        fetchCached(cl.key, cl.fn).then(
+            (l) => (concerns = sortConcerns(l as S["ConcernResponse"][])),
+            () => {},
+        );
         a.reset();
         const dayId = app.today?.branchDayId;
         const l = dayId ? load.dayUsers(dayId) : null;
@@ -110,7 +123,7 @@
                             requestedPractitionerId: requested || null,
                             finalPrice: price.trim(),
                             remarks: remarks.trim() || null,
-                            otherConcerns: otherConcerns.trim() || null,
+                            otherConcerns: null,
                             nextAppointmentDate: nextDate || null,
                         },
                     }),
@@ -123,12 +136,34 @@
                         }),
                     );
                 }
-                invalidate("dash:", "clients:", `client:${c.id}`);
+                // Concerns: ticked ones, then typed ones (a known name is picked, a new one joins the list).
+                const ids = new Set(picked);
+                const fresh: string[] = [];
+                for (const name of typedConcerns(otherConcerns)) {
+                    const known = concerns.find((k) => k.label.toLowerCase() === name.toLowerCase());
+                    if (known) ids.add(known.id);
+                    else fresh.push(name);
+                }
+                for (const concernId of ids)
+                    await ok(api.POST("/api/sessions/{sessionId}/concerns", { params: { path: { sessionId: s.id } }, body: { concernId } }));
+                for (const label of fresh)
+                    await ok(
+                        api.POST("/api/sessions/{sessionId}/promote-concern", {
+                            params: { path: { sessionId: s.id } },
+                            body: { id: uuid(), label, clearOtherConcerns: false },
+                        }),
+                    );
+                if (fresh.length) invalidate("concerns");
+                invalidate("dash:", "clients:", `client:${c.id}`, `session:${s.id}`);
                 open = false;
                 onsaved();
             },
             creating ? undefined : "Session added",
         );
+    }
+
+    function pick(id: string, on: boolean) {
+        picked = on ? [...picked, id] : picked.filter((x) => x !== id);
     }
 
     function toggle(id: string, on: boolean) {
@@ -187,8 +222,27 @@
                     </div>
                 </div>
                 <label class="field wide">Remarks<textarea rows="2" bind:value={remarks}></textarea></label>
+                <div class="field wide">
+                    <span>Concerns</span>
+                    {#if common.length}
+                        <div class="row wrap checks">
+                            {#each common as k (k.id)}
+                                <label class="check"
+                                    ><input
+                                        type="checkbox"
+                                        checked={picked.includes(k.id)}
+                                        onchange={(e) => pick(k.id, e.currentTarget.checked)}
+                                    />{k.label}</label
+                                >
+                            {/each}
+                        </div>
+                    {/if}
+                </div>
                 <label class="field wide"
-                    >Other concerns<input bind:value={otherConcerns} placeholder="Notes. Pick listed concerns on the session page after saving" /></label
+                    >Other concern<input list="saved-concerns" bind:value={otherConcerns} placeholder="Type to find a saved one, or add a new one" /></label
+                >
+                <datalist id="saved-concerns"
+                    >{#each saved as k (k.id)}<option value={k.label}></option>{/each}</datalist
                 >
             </div>
         {/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { sortConcerns } from "../lib/concerns";
     import { api, ok, uuid, type S } from "../api/client";
     import { app, can } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
@@ -165,7 +166,7 @@
         const t = cTyped.toLowerCase();
         const free = (cq.data ?? []).filter((c) => !sessionConcernIds.has(c.id));
         const list = t ? free.filter((c) => c.label.toLowerCase().includes(t)) : free;
-        return [...list].sort((a, b) => a.label.localeCompare(b.label)).slice(0, 12);
+        return sortConcerns(list).slice(0, 12);
     });
     const cExact = $derived((cq.data ?? []).find((c) => c.label.toLowerCase() === cTyped.toLowerCase()) ?? null);
     async function addConcern(concernId: string) {

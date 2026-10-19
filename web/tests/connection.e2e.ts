@@ -19,7 +19,7 @@ test("a dropped request is retried without fuss", { session: "owner" }, async ({
 
 test("an outage shows a bar, then recovers by itself", { session: "owner" }, async ({ app, screen, browser }) => {
     await app.open("/#/today");
-    await expect(screen.getByRole("heading", "Today")).toBeVisible();
+    await expect(screen.getByRole("heading", "Sessions")).toBeVisible();
     const down = /\/(api\/|health)/;
     await browser.route(down, (route) => route.abort());
     await screen.getByRole("navigation", "Main").getByRole("link", "My shifts & pay").tap();

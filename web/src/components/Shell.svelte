@@ -36,7 +36,7 @@
         {
             title: "Branch",
             items: [
-                { path: "/today", text: "Today", show: view, warm: () => (warm(load.dashboard(bid)), warm(load.roster(bid))) },
+                { path: "/today", text: "Sessions", show: view, warm: () => (warm(load.dashboard(bid)), warm(load.roster(bid))) },
                 { path: "/clients", text: "Clients", show: view || canAnywhere("EDIT_BRANCH_DATA") },
                 { path: "/inventory", text: "Stock", show: view, warm: () => warm(load.inventory(bid)) },
                 { path: "/finance", text: "Expenses & pay", show: view },
@@ -72,6 +72,11 @@
 
     const section = $derived("/" + (route.current.parts[0] ?? ""));
     let menuOpen = $state(false);
+    // Lock the page under the open menu (iPhone otherwise scrolls the page beneath it).
+    $effect(() => {
+        document.documentElement.classList.toggle("menu-open", menuOpen);
+        return () => document.documentElement.classList.remove("menu-open");
+    });
     let feedbackOpen = $state(false);
     $effect(() => {
         void route.current;
@@ -267,7 +272,7 @@
         {:else if section === "/audit"}
             <Audit />
         {:else}
-            <div class="notice">Page not found. <a href="#/today">Go to Today</a></div>
+            <div class="notice">Page not found. <a href="#/today">Go to Sessions</a></div>
         {/if}
     </main>
 </div>
@@ -469,6 +474,9 @@
         }
         nav.open {
             display: flex;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
         }
         nav a {
             padding: 10px 14px;

@@ -45,7 +45,7 @@ test("offline search finds saved clients and ones made offline", { session: "own
 // A page never opened before, with no signal: one quiet line, no wall of Retry buttons.
 test("offline pages wait quietly instead of showing Retry", { session: "owner" }, async ({ screen, app, browser }) => {
     await app.open("/#/today");
-    await expect(screen.getByRole("heading", "Today")).toBeVisible();
+    await expect(screen.getByRole("heading", "Sessions")).toBeVisible();
     await browser.route(down, (route) => route.abort());
     await app.open("/#/reports");
     await expect(screen.getByText("Waiting for signal", { exact: false }).first()).toBeVisible({ timeout: 20_000 });
