@@ -28,6 +28,7 @@ object ApiRoutes {
     const val CLIENT_DIRECTORY = "$API_ROOT/client-directory"
     const val SESSIONS = "$API_ROOT/sessions"
     const val CONCERNS = "$API_ROOT/concerns"
+    const val CONCERN_PATH = "$CONCERNS/{concernId}"
     const val PRODUCTS = "$API_ROOT/products"
     const val PRODUCT_CATEGORIES = "$API_ROOT/product-categories"
     const val PRODUCT_SALES = "$API_ROOT/product-sales"

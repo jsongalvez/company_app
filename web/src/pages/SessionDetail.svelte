@@ -215,6 +215,14 @@
         )
             refresh();
     }
+    let manageList = $state(false);
+    async function removeFromList(c: S["ConcernResponse"]) {
+        if (!confirm(`Take "${c.label}" off the illness list for everyone? Past sessions keep it.`)) return;
+        if (await act(() => ok(api.DELETE("/api/concerns/{concernId}", { params: { path: { concernId: c.id } } })), "Taken off the list")) {
+            invalidate("concerns");
+            cq.refresh();
+        }
+    }
     async function promote() {
         const v = prompt("New illness (added to the list for everyone)", s?.otherConcerns ?? "");
         if (!v?.trim()) return;
@@ -412,7 +420,28 @@
                                 </table>
                             </div>
                         {/if}
-                        <div class="faint small">New illnesses join the list for everyone. Tap × to take one off this session.</div>
+                        <div class="faint small">
+                            New illnesses join the list for everyone. Tap × to take one off this session.
+                            <button class="sm" onclick={() => (manageList = !manageList)}>{manageList ? "Done" : "Fix the illness list"}</button>
+                        </div>
+                        {#if manageList}
+                            <div class="table-wrap clist">
+                                <table class="grid">
+                                    <tbody>
+                                        {#each cq.data ?? [] as c (c.id)}
+                                            <tr
+                                                ><td>{c.label}</td><td class="right"
+                                                    ><button class="sm" onclick={() => removeFromList(c)} aria-label="Take {c.label} off the list"
+                                                        >Remove</button
+                                                    ></td
+                                                ></tr
+                                            >
+                                        {/each}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="faint small">Removing takes a wrong or duplicate entry off the list. Sessions that already have it keep it.</div>
+                        {/if}
                     </div>
                 {/if}
             </section>

@@ -68,6 +68,31 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `removing a concern from the list hides it but keeps it on sessions`() {
+        SessionConcernService.addToSession(callerId, sessionId, systemConcernId)
+
+        ConcernService.removeFromList(callerId, systemConcernId)
+        ConcernService.removeFromList(callerId, systemConcernId)
+
+        assertNull(ConcernService.listAll().find { it.id == systemConcernId })
+        assertEquals(listOf(systemConcernId), ConcernRepository.getConcernsForSession(sessionId).map { it.id })
+        val audits =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq "concern") and (AuditLogTable.recordId eq systemConcernId)
+                    }.count()
+            }
+        assertEquals(1L, audits)
+    }
+
+    @Test
+    fun `removing an unknown concern is not found`() {
+        assertFailsWith<NotFoundException> { ConcernService.removeFromList(callerId, TestFixtures.uuid()) }
+    }
+
+    @Test
     fun `listAll without EDIT_BRANCH_DATA is allowed at service layer`() {
         val otherCaller = TestFixtures.uuid()
         IdentityFixtures.insertTestUser(otherCaller, "concern-other")

@@ -88,6 +88,19 @@ private fun requireSessionMoney(
     ],
 )
 @OpenApi(
+    path = ApiRoutes.CONCERN_PATH,
+    methods = [HttpMethod.DELETE],
+    operationId = "removeConcernFromList",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+    pathParams = [OpenApiParam(name = "concernId", type = UUID::class, required = true)],
+    responses = [
+        OpenApiResponse(status = "204"),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
+)
+@OpenApi(
     path = ApiRoutes.SESSIONS,
     methods = [HttpMethod.POST],
     operationId = "sessions",
@@ -341,6 +354,7 @@ object SessionRoutes {
             ::handleRemovePractitioner,
         )
         config.routes.get(ApiRoutes.CONCERNS, ::handleGetConcerns)
+        config.routes.delete(ApiRoutes.CONCERN_PATH, ::handleRemoveConcernFromList)
         config.routes.get(ApiRoutes.SESSION_CONCERNS_PATH, ::handleGetSessionConcerns)
         config.routes.post(ApiRoutes.SESSION_CONCERNS_PATH, ::handleAddSessionConcern)
         config.routes.delete(ApiRoutes.SESSION_CONCERN_PATH, ::handleRemoveSessionConcern)
@@ -583,6 +597,11 @@ object SessionRoutes {
         context.json(concerns.map { it.toResponse() })
     }
 
+    private fun handleRemoveConcernFromList(context: Context) {
+        ConcernService.removeFromList(context.callerUuid(), context.pathParamAsUuid("concernId"))
+        context.status(HttpStatus.NO_CONTENT)
+    }
+
     private fun handleGetSessionConcerns(context: Context) {
         val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
@@ -784,6 +803,18 @@ private fun registerConcernGates(config: JavalinConfig) {
     }
 
     config.routes.before(ApiRoutes.CONCERNS) { context ->
+        // #660: the catalog list is global with no branch context, so the gate accepts
+        // EDIT_BRANCH_DATA in any context (BRANCH/BRANCH_DAY/GLOBAL) — the same capability
+        // the session-anchored promote write requires at its session branch. A GLOBAL-only
+        // gate 403'd every role-derived branch holder (EDIT_BRANCH_DATA never derives GLOBAL).
+        CapabilityFilter.requireAnyContextCapability(
+            context,
+            CapabilityCodes.EDIT_BRANCH_DATA,
+            "EDIT_BRANCH_DATA capability required to manage concerns",
+        )
+    }
+
+    config.routes.before(ApiRoutes.CONCERN_PATH) { context ->
         // #660: the catalog list is global with no branch context, so the gate accepts
         // EDIT_BRANCH_DATA in any context (BRANCH/BRANCH_DAY/GLOBAL) — the same capability
         // the session-anchored promote write requires at its session branch. A GLOBAL-only

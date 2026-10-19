@@ -226,6 +226,17 @@ internal object SessionConcernAudit {
         reason = context.reason,
     )
 
+    fun concernRemovedFromList(
+        changedBy: UUID,
+        concern: Concern,
+    ) = AuditLog.recordUpdate(
+        tableName = ConcernTable.tableName,
+        recordId = concern.id,
+        oldFields = mapOf("label" to concern.label, "onList" to "yes"),
+        newFields = mapOf("label" to concern.label, "onList" to "no"),
+        changedBy = changedBy,
+    )
+
     fun otherConcernsCleared(
         context: AuditContext,
         before: Session,

@@ -4,6 +4,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -24,8 +25,15 @@ internal object ConcernRepository {
         transaction {
             ConcernTable
                 .selectAll()
+                .where { ConcernTable.removedAt.isNull() }
                 .map { it.toConcern() }
         }
+
+    /** Takes a concern off the shared list; sessions that used it keep it. True if it was listed. */
+    fun removeFromListInTransaction(id: UUID): Boolean =
+        ConcernTable.update({ (ConcernTable.id eq id) and ConcernTable.removedAt.isNull() }) {
+            it[ConcernTable.removedAt] = java.time.OffsetDateTime.now()
+        } > 0
 
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
     fun findByIdInTransaction(id: UUID): Concern? =

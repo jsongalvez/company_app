@@ -3,7 +3,7 @@ import { expect } from "e2e";
 import { clockInHere } from "./support";
 
 // Concerns: pick or type them in the New session popup; a new name joins the shared list.
-test("add concerns to a session by typing", { session: "owner" }, async ({ app, screen }) => {
+test("add concerns to a session by typing", { session: "owner" }, async ({ app, screen, browser }) => {
     const first = `Ache${Date.now().toString().slice(-6)}`;
     const concern = `Neck pain ${first}`;
     await app.open("/#/today");
@@ -50,4 +50,14 @@ test("add concerns to a session by typing", { session: "owner" }, async ({ app, 
             .filter({ hasText: concern })
             .getByRole("button", /^Remove/),
     ).toBeVisible();
+
+    // A wrong entry can be taken off the shared list; this session keeps it.
+    await screen.getByRole("button", "Fix the illness list").tap();
+    const off = await browser.onDialog("accept");
+    await screen.getByRole("button", `Take ${concern} off the list`).tap();
+    await expect(screen.getByRole("button", `Take ${concern} off the list`)).not.toBeVisible();
+    off();
+    await box.fill(first);
+    await expect(screen.getByText(`Add “${first}” as a new illness`)).toBeVisible();
+    await expect(screen.getByRole("row").filter({ hasText: concern }).getByText("Add")).not.toBeVisible();
 });

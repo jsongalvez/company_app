@@ -25,6 +25,7 @@ internal object ConcernTable : Table("concern") {
     val label = text("label")
     val createdBy = javaUUID("created_by").references(AppUserTable.id).nullable()
     val createdAt = timestampWithTimeZone("created_at").defaultExpression(CurrentTimestampWithTimeZone)
+    val removedAt = timestampWithTimeZone("removed_at").nullable()
 
     override val primaryKey = PrimaryKey(id)
 
