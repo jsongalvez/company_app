@@ -484,6 +484,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/branches/{branchId}/inventory/{productId}/price": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["branch_inventory_price_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/branches/{branchId}/inventory/{productId}/restock": {
         parameters: {
             query?: never;
@@ -2207,6 +2223,10 @@ export interface components {
             version: number;
             unitPrice: string;
             commissionAmount: string;
+            sharedUnitPrice: string;
+            sharedCommissionAmount: string;
+            branchUnitPrice?: string | null;
+            branchCommissionAmount?: string | null;
             available?: number;
             stock?: number;
             sales?: number;
@@ -2290,6 +2310,10 @@ export interface components {
             quantity: number;
             branchDayId: string;
             editReason?: string | null;
+        };
+        SetBranchPriceRequest: {
+            unitPrice?: string | null;
+            commissionAmount?: string | null;
         };
         UpdateProductRequest: {
             name?: string | null;
@@ -4747,6 +4771,67 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["InventoryMovementResponse"];
                 };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    branch_inventory_price_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SetBranchPriceRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Bad Request */
             400: {

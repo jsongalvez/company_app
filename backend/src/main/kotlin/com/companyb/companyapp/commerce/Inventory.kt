@@ -16,6 +16,9 @@ data class BranchInventory(
     val productId: UUID,
     val currentStock: Int,
     val version: Int,
+    // Branch's own price and commission (503bf228); null = the product's shared one.
+    val unitPrice: BigDecimal? = null,
+    val commissionAmount: BigDecimal? = null,
 )
 
 data class InventoryMovement(
@@ -33,9 +36,17 @@ data class InventoryMovement(
 data class BranchInventoryWithProduct(
     val inventory: BranchInventory,
     val productName: String,
-    val unitPrice: BigDecimal,
-    val commissionAmount: BigDecimal,
-)
+    val sharedUnitPrice: BigDecimal,
+    val sharedCommissionAmount: BigDecimal,
+) {
+    /** What a sale at this branch charges: the branch's own price, else the shared one. */
+    val unitPrice: BigDecimal get() = inventory.unitPrice ?: sharedUnitPrice
+    val commissionAmount: BigDecimal get() = inventory.commissionAmount ?: sharedCommissionAmount
+}
+
+private const val PRICE_PRECISION = 10
+private const val PRICE_SCALE = 2
+private const val SHARED = "shared"
 
 internal object BranchInventoryTable : Table("branch_inventory") {
     val id = javaUUID("id").autoGenerate()
@@ -43,6 +54,8 @@ internal object BranchInventoryTable : Table("branch_inventory") {
     val productId = javaUUID("product_id")
     val currentStock = integer("current_stock").default(0)
     val version = integer("version").default(1)
+    val unitPrice = decimal("unit_price", PRICE_PRECISION, PRICE_SCALE).nullable()
+    val commissionAmount = decimal("commission_amount", PRICE_PRECISION, PRICE_SCALE).nullable()
 
     override val primaryKey = PrimaryKey(id)
 
@@ -53,6 +66,8 @@ internal object BranchInventoryTable : Table("branch_inventory") {
             "productId" to entity.productId.toString(),
             "currentStock" to entity.currentStock.toString(),
             "version" to entity.version.toString(),
+            "branchPrice" to (entity.unitPrice?.toPlainString() ?: SHARED),
+            "branchCommission" to (entity.commissionAmount?.toPlainString() ?: SHARED),
         )
 }
 

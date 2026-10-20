@@ -18,6 +18,7 @@ import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -174,6 +175,18 @@ internal object BranchInventoryRepository {
             existing.quantityChange == params.quantityChange &&
             existing.notes == params.notes
 
+    /** Sets the branch's own price and commission on a locked card (503bf228); null = shared. */
+    fun setPricesInTransaction(
+        cardId: UUID,
+        unitPrice: BigDecimal?,
+        commissionAmount: BigDecimal?,
+    ) {
+        BranchInventoryTable.update({ BranchInventoryTable.id eq cardId }) {
+            it[BranchInventoryTable.unitPrice] = unitPrice
+            it[BranchInventoryTable.commissionAmount] = commissionAmount
+        }
+    }
+
     fun findCardInTransaction(
         branchId: UUID,
         productId: UUID,
@@ -268,8 +281,8 @@ internal object BranchInventoryRepository {
                     BranchInventoryWithProduct(
                         inventory = row.toBranchInventory(),
                         productName = row[ProductTable.name],
-                        unitPrice = row[ProductTable.unitPrice],
-                        commissionAmount = row[ProductTable.commissionAmount],
+                        sharedUnitPrice = row[ProductTable.unitPrice],
+                        sharedCommissionAmount = row[ProductTable.commissionAmount],
                     )
                 }
         }.also { logger.info { "[FIND-INVENTORY] Fetched ${it.size} inventory card(s) for branch $branchId" } }
@@ -281,6 +294,8 @@ internal object BranchInventoryRepository {
             productId = this[BranchInventoryTable.productId],
             currentStock = this[BranchInventoryTable.currentStock],
             version = this[BranchInventoryTable.version],
+            unitPrice = this[BranchInventoryTable.unitPrice],
+            commissionAmount = this[BranchInventoryTable.commissionAmount],
         )
 
     private fun ResultRow.toInventoryMovement(): InventoryMovement =

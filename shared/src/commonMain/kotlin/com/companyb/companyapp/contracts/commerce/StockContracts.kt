@@ -46,6 +46,13 @@ data class AddInventoryCardRequest(
     val productId: String,
 )
 
+/** 503bf228 — a branch's own list price and commission for a product; null = use the shared one. */
+@Serializable
+data class SetBranchPriceRequest(
+    val unitPrice: String? = null,
+    val commissionAmount: String? = null,
+)
+
 @Serializable
 data class RestockRequest(
     val id: String,
@@ -62,8 +69,13 @@ data class BranchInventoryResponse(
     val productName: String,
     val currentStock: Int,
     val version: Int,
+    // What a sale here charges: the branch's own price (503bf228) if set, else the shared one.
     val unitPrice: String,
     val commissionAmount: String,
+    val sharedUnitPrice: String,
+    val sharedCommissionAmount: String,
+    val branchUnitPrice: String? = null,
+    val branchCommissionAmount: String? = null,
     // #442 — 5-value inventory sheet breakdown (owner 5-value decision 2026-09-03).
     // Available is the live sellable count (equals currentStock, the low-stock authority).
     // Stock = RESTOCK sum baseline; Sales = SALE units (positive); TesterSample = TESTER+SAMPLE

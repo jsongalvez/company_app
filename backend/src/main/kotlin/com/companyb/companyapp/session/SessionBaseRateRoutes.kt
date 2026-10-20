@@ -15,6 +15,7 @@ import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.exception.ValidationException
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
+import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
@@ -66,10 +67,18 @@ object SessionBaseRateRoutes {
             // "known but non-member" (the #711 createInvite / #715 listSent order, resolving
             // the #724-deferred session-rate filter policy with the same precedence).
             BranchService.findById(branchId)
+            // 503bf228 — any branch member sees its prices and anyone who can edit the branch
+            // changes them; every change is audited (Base Rate in Change history).
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
                 branchId,
-                CapabilityCodes.MANAGE_PRODUCTS,
+                if (context.method() ==
+                    HandlerType.POST
+                ) {
+                    CapabilityCodes.EDIT_BRANCH_DATA
+                } else {
+                    CapabilityCodes.VIEW_BRANCH_DATA
+                },
             )
         }
 

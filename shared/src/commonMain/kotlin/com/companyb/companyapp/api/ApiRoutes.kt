@@ -152,6 +152,7 @@ object ApiRoutes {
     const val USER_REACTIVATE_PATH = "$USERS/{userId}/reactivate"
     const val USER_ROLES_PATH = "$USERS/{userId}/roles"
     const val BRANCH_INVENTORY_RESTOCK_PATH = "$BRANCH_INVENTORY_PATH/{productId}/restock"
+    const val BRANCH_INVENTORY_PRICE_PATH = "$BRANCH_INVENTORY_PATH/{productId}/price"
     const val BRANCH_INVENTORY_MOVEMENT_PATH = "$BRANCH_INVENTORY_PATH/{productId}/movement"
     const val BRANCH_INVENTORY_LOW_STOCK_PATH = "$BRANCH_INVENTORY_PATH/low-stock"
     const val BRANCH_INVENTORY_MOVEMENTS_PATH = "$BRANCH_INVENTORY_PATH/movements"

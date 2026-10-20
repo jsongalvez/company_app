@@ -24,6 +24,7 @@ import com.companyb.companyapp.contracts.commerce.ProductCategoryResponse
 import com.companyb.companyapp.contracts.commerce.ProductResponse
 import com.companyb.companyapp.contracts.commerce.ProductSaleResponse
 import com.companyb.companyapp.contracts.commerce.RestockRequest
+import com.companyb.companyapp.contracts.commerce.SetBranchPriceRequest
 import com.companyb.companyapp.contracts.commerce.UpdateProductRequest
 import com.companyb.companyapp.contracts.commission.CommissionInclusionResponse
 import com.companyb.companyapp.contracts.commission.CommissionSplitResponse
@@ -166,6 +167,7 @@ internal object DtoSchemaProjector {
             "ActiveShiftResponse" to ActiveShiftResponse.serializer(),
             "AddDayBreakdownRequest" to AddDayBreakdownRequest.serializer(),
             "AddInventoryCardRequest" to AddInventoryCardRequest.serializer(),
+            "SetBranchPriceRequest" to SetBranchPriceRequest.serializer(),
             "AddPractitionerRequest" to AddPractitionerRequest.serializer(),
             "AddSessionConcernRequest" to AddSessionConcernRequest.serializer(),
             "AllowanceResponse" to AllowanceResponse.serializer(),

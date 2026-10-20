@@ -77,7 +77,8 @@ object ProductSaleService {
                 // an unknown branch fails closed before the product/session gates.
                 BranchService.findById(branchDay.branchId)
 
-                val product = requireActiveProduct(productId)
+                // 503bf228 — the branch's own price and commission win over the shared ones.
+                val product = BranchPriceService.priceAtBranch(requireActiveProduct(productId), branchDay.branchId)
 
                 // #925 — persisted-range pre-gate (the #924 fail-closed class): the sale
                 // snapshots unit_price_at_time and the computed total_amount_at_time into

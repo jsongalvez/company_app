@@ -143,6 +143,8 @@ object BranchInventoryRoutes {
     fun register(config: JavalinConfig) {
         registerGuards(config)
         registerHandlers(config)
+        // 503bf228 — the per-branch product price lives under the inventory card.
+        BranchPriceRoutes.register(config)
     }
 
     private fun requireKnownBranchId(context: Context): UUID {
@@ -400,6 +402,10 @@ object BranchInventoryRoutes {
             version = inventory.version,
             unitPrice = unitPrice.toPlainString(),
             commissionAmount = commissionAmount.toPlainString(),
+            sharedUnitPrice = sharedUnitPrice.toPlainString(),
+            sharedCommissionAmount = sharedCommissionAmount.toPlainString(),
+            branchUnitPrice = inventory.unitPrice?.toPlainString(),
+            branchCommissionAmount = inventory.commissionAmount?.toPlainString(),
             available = inventory.currentStock,
             stock = breakdown?.stock ?: 0,
             sales = breakdown?.sales ?: 0,
