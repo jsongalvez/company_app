@@ -287,7 +287,9 @@
                             <tr class="click" onclick={() => toggleDay(d)}>
                                 <td class="chk"><input type="checkbox" checked={covered.has(d.id)} tabindex="-1" /></td>
                                 <td>{day(d.date)}</td>
-                                <td class="right"><span class="mark plain">{label(d.status)}</span></td>
+                                <td class="right"
+                                    >{#if d.status === "REMITTED"}<span class="mark info">Already remitted</span>{/if}</td
+                                >
                             </tr>
                         {:else}<tr><td class="faint">No days with records in this range.</td></tr>{/each}
                     </tbody>

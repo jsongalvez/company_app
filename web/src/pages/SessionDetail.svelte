@@ -384,12 +384,12 @@
             <section class="panel">
                 <header><h2>Illnesses</h2></header>
                 {#if s.concerns?.length}
-                    <table class="grid">
+                    <table class="grid ill">
                         <tbody>
                             {#each s.concerns as c (c.id)}
                                 <tr>
                                     <td>{c.label}</td>
-                                    {#if edit && !voided}<td class="right"
+                                    {#if edit && !voided}<td class="right x"
                                             ><button class="sm" onclick={() => removeConcern(c)} aria-label="Remove {c.label}" title="Remove from this session"
                                                 >×</button
                                             ></td
@@ -471,6 +471,13 @@
 {/if}
 
 <style>
+    /* Fixed columns: the × stays put however long the names are. */
+    table.ill {
+        table-layout: fixed;
+    }
+    table.ill td.x {
+        width: 48px;
+    }
     .concern-add {
         gap: 4px;
     }

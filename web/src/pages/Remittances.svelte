@@ -66,7 +66,9 @@
             <tbody>
                 {#each rows as r (r.id)}
                     <tr class="click" onclick={() => go(`/remittance/${r.id}`)}>
-                        <td class="lead">{day(r.dateRangeStart)} – {day(r.dateRangeEnd)}</td>
+                        <td class="lead full"
+                            >{day(r.dateRangeStart)}{#if r.dateRangeEnd !== r.dateRangeStart}&nbsp;– {day(r.dateRangeEnd)}{/if}</td
+                        >
                         <td>{label(r.type)}</td>
                         <td class="muted hide-sm">{label(r.method)}</td>
                         <td><span class="mark {r.status === 'SUBMITTED' ? 'ok' : 'warn'}">{label(r.status)}</span></td>

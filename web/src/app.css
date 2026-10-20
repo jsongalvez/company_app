@@ -528,6 +528,8 @@ table.grid tfoot td {
         flex: 1 1 60%;
         font-weight: 600;
         min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     table.grid.stack td[data-label]::before {
         content: attr(data-label) " ";

@@ -350,9 +350,14 @@
 
     <aside class="panel roster">
         <header>
-            <h2>On duty</h2>
-            <span class="spacer"></span><span class="faint">{roster.data?.filter((m) => m.present).length ?? 0} present</span>
+            <h2>Who's clocked in</h2>
+            <span class="spacer"></span><span class="faint">{roster.data?.filter((m) => m.present).length ?? 0} of {roster.data?.length ?? 0} in</span>
         </header>
+        {#if member && roster.data?.length}
+            <p class="faint note">
+                Everyone at this branch. Green means clocked in now.{#if edit}&nbsp;You can clock someone in or out for them.{/if}
+            </p>
+        {/if}
         {#if !member}
             <p class="faint note">Only staff of this branch see who's on duty.</p>
         {:else}
@@ -367,12 +372,15 @@
                             <td class="ellipsis"
                                 >{m.displayName}{#if m.userId === app.me?.id}<span class="faint">&nbsp;(you)</span>{/if}</td
                             >
-                            <td class="right">
+                            <td class="right nowrap">
+                                {#if m.present}<span class="mark ok">Clocked in</span>{:else}<span class="faint">Not in</span>{/if}
                                 {#if edit}
-                                    <label class="check"
-                                        ><input type="checkbox" checked={m.present} onchange={(e) => setPresent(m, e.currentTarget.checked)} />Here</label
+                                    <button
+                                        class="sm"
+                                        onclick={() => setPresent(m, !m.present)}
+                                        aria-label="{m.present ? 'Clock out' : 'Clock in'} {m.displayName}">{m.present ? "Clock out" : "Clock in"}</button
                                     >
-                                {:else if m.present}<span class="mark ok">Here</span>{/if}
+                                {/if}
                             </td>
                         </tr>
                     {/each}

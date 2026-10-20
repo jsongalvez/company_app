@@ -11,11 +11,12 @@ test("clocking out takes today's list off the screen and off the phone", { sessi
     const name = await doneSessionForNewClient(app, screen);
     const off = await browser.onDialog("accept");
     await screen
+        .getByRole("banner")
         .getByRole("button", /Clock out/)
         .first()
         .tap();
     await off();
-    await expect(screen.getByRole("button", "Clock in").first()).toBeVisible();
+    await expect(screen.getByRole("banner").getByRole("button", "Clock in").first()).toBeVisible();
     await expect(screen.getByRole("row").filter({ hasText: name })).toHaveCount(0);
 
     // Nothing of today's list is kept on the phone, so a reload has nothing to flash.
@@ -30,7 +31,7 @@ test("clocking out takes today's list off the screen and off the phone", { sessi
         )
         .not.toContain(name);
     await app.open("/#/today");
-    await expect(screen.getByRole("button", "Clock in").first()).toBeVisible();
+    await expect(screen.getByRole("banner").getByRole("button", "Clock in").first()).toBeVisible();
     await expect(screen.getByRole("row").filter({ hasText: name })).toHaveCount(0);
 });
 
@@ -53,4 +54,13 @@ test("the picked Today tab survives a reload", { session: "owner" }, async ({ ap
     expect(hash).toContain("show=COMPLETED");
     await browser.reload();
     await expect.poll(pressed).toMatch(/^Done/);
+});
+
+// Feedback 4f48204e: typing in the top search showed no suggestions.
+test("the top search suggests clients while typing", { session: "owner" }, async ({ app, screen }) => {
+    const name = await doneSessionForNewClient(app, screen);
+    await screen.getByLabel("Find client").fill(name.split(" ")[0]);
+    await screen.getByRole("listbox", "Matching clients").getByRole("button", new RegExp(name)).tap();
+    await expect(screen.getByRole("heading", "Sessions")).toBeVisible();
+    await expect(screen.getByRole("row").filter({ hasText: "Done" }).first()).toBeVisible();
 });
