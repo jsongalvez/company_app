@@ -61,6 +61,14 @@
     const needReason = $derived(dayStatus !== "OPEN");
     let reason = $state("");
     const r = () => (reason.trim() ? reason.trim() : null);
+    let reasonBox = $state<HTMLInputElement>();
+    // Past days need a reason for every change; say so before anything is sent.
+    function hasReason() {
+        if (!needReason || r()) return true;
+        alert("This day is closed. Write the reason for the change in the reason box first.");
+        reasonBox?.focus();
+        return false;
+    }
 
     function refresh() {
         invalidate(`session:${id}`, "dash:", "dsess:", `audit:session:${id}`);
@@ -69,6 +77,7 @@
 
     async function setStatus(to: Status) {
         if (!s) return;
+        if (!hasReason()) return;
         const from = s.sessionStatus as Status;
         if (isCorrection(from, to) && !r()) {
             alert("A correction needs a reason. Fill in the reason box first.");
@@ -95,6 +104,7 @@
     let price = $state("");
     async function savePrice() {
         if (!s) return;
+        if (!hasReason()) return;
         if (
             await pa.run(
                 () =>
@@ -116,6 +126,7 @@
     let addPid = $state("");
     async function addPractitioner() {
         if (!addPid) return;
+        if (!hasReason()) return;
         if (
             await act(() =>
                 ok(
@@ -131,6 +142,7 @@
         }
     }
     async function removePractitioner(p: S["DashboardPractitionerResponse"]) {
+        if (!hasReason()) return;
         if (!confirm(`Remove ${p.displayName} from this session?`)) return;
         if (
             await act(() =>
@@ -145,6 +157,7 @@
             refresh();
     }
     async function editRemarks(p: S["DashboardPractitionerResponse"]) {
+        if (!hasReason()) return;
         const v = prompt(`Remarks for ${p.displayName}`, p.remarks ?? "");
         if (v === null) return;
         if (
@@ -171,12 +184,14 @@
     });
     const cExact = $derived((cq.data ?? []).find((c) => c.label.toLowerCase() === cTyped.toLowerCase()) ?? null);
     async function addConcern(concernId: string) {
+        if (!hasReason()) return;
         if (await act(() => ok(api.POST("/api/sessions/{sessionId}/concerns", { params: { path: { sessionId: id } }, body: { concernId, reason: r() } })))) {
             cText = "";
             refresh();
         }
     }
     async function addNewConcern() {
+        if (!hasReason()) return;
         const name = cTyped;
         if (!name) return;
         if (
@@ -204,6 +219,7 @@
         else if (!cExact && cTyped) addNewConcern();
     }
     async function removeConcern(c: S["ConcernResponse"]) {
+        if (!hasReason()) return;
         if (
             await act(() =>
                 ok(
@@ -225,6 +241,7 @@
         }
     }
     async function promote() {
+        if (!hasReason()) return;
         const v = prompt("New illness (added to the list for everyone)", s?.otherConcerns ?? "");
         if (!v?.trim()) return;
         if (
@@ -301,7 +318,8 @@
                 <div class="body">
                     {#if needReason && edit}
                         <label class="field reason"
-                            >Reason for changes ({dayStatus === "REMITTED" ? "required, day is remitted" : "recommended, day is closed"})<input
+                            >Reason for changes (required, this day is closed)<input
+                                bind:this={reasonBox}
                                 bind:value={reason}
                                 placeholder="Why this is being changed"
                             /></label
@@ -319,7 +337,8 @@
                         <dd>
                             <b>{peso(s.finalPrice)}</b>
                             {#if s.finalPrice !== s.basePrice}<span class="muted">(base {peso(s.basePrice)})</span>{/if}
-                            {#if edit && !voided}<button class="sm" onclick={() => ((price = s.finalPrice), pa.reset(), (priceOpen = true))}>Change</button
+                            {#if edit && !voided}<button class="sm" onclick={() => hasReason() && ((price = s.finalPrice), pa.reset(), (priceOpen = true))}
+                                    >Change</button
                                 >{/if}
                         </dd>
                         <dt>Booked</dt>

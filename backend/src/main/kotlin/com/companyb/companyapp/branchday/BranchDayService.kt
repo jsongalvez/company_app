@@ -289,8 +289,8 @@ object BranchDayService {
         if (!hasEditPastDay) {
             throw ForbiddenException("EDIT_PAST_DAY capability required to write on a $effectiveStatus day")
         }
-        if (effectiveStatus == DayStatus.REMITTED && reason.isNullOrBlank()) {
-            throw ValidationException("A reason is required to write on a REMITTED day")
+        if (effectiveStatus != DayStatus.OPEN && reason.isNullOrBlank()) {
+            throw ValidationException("A reason is required to change a $effectiveStatus day")
         }
     }
 

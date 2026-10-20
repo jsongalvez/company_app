@@ -671,6 +671,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
             notes = null,
             quantityChange = 10,
             branchDayId = pastDayId,
+            reason = "Late delivery",
         )
 
         val history = InventoryService.getMovementHistory(branchId, pastDate)

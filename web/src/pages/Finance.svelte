@@ -245,11 +245,7 @@
         <span class="mark {status === 'OPEN' ? 'ok' : status === 'REMITTED' ? 'info' : 'plain'}">{label(status)}</span>
         {#if closed}
             <span class="muted">{edit ? "Coordinator edit." : "Read only."}</span>
-            {#if edit}<input
-                    class="grow reason"
-                    bind:value={reason}
-                    placeholder={status === "REMITTED" ? "Reason for changes (required)" : "Reason for changes"}
-                />{/if}
+            {#if edit}<input class="grow reason" bind:value={reason} placeholder="Reason for changes (required)" />{/if}
         {/if}
     </div>
 

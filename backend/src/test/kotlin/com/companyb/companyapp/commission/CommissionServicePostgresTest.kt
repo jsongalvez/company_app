@@ -271,7 +271,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
             productSaleId = pastSaleId,
             userId = targetUserId,
             isIncluded = true,
-            reason = null,
+            reason = "Left out by mistake",
         )
 
         val splits = CommissionService.getByBranchDayId(pastDayId)

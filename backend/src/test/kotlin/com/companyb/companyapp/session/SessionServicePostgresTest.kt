@@ -338,7 +338,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create on PAST day requires coordinator and needs no reason`() {
+    fun `create on PAST day requires coordinator and a reason`() {
         val pastDayId =
             BranchWorkforceFixtures.createBranchDayForDate(
                 branchId,
@@ -352,12 +352,15 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertNull(SessionRepository.findById(blockedId))
 
         BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
-        val result = createSession(callerId, blockedId, gatedBranchDayId = pastDayId)
+        assertFailsWith<ValidationException> {
+            createSession(callerId, blockedId, gatedBranchDayId = pastDayId)
+        }
+        val result = createSession(callerId, blockedId, gatedBranchDayId = pastDayId, reason = "Forgot to log it")
 
         assertTrue(result.created)
         val audit = auditEntry(SessionTable.tableName, blockedId)
         assertEquals(false, audit[AuditLogTable.isFlagged])
-        assertNull(audit[AuditLogTable.reason])
+        assertEquals("Forgot to log it", audit[AuditLogTable.reason])
     }
 
     @Test
@@ -699,11 +702,11 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 SessionStatus.CANCELLED to SessionStatus.NO_SHOW,
             )
 
-        correctionDays().forEach { (dayStatus, dayId) ->
+        correctionDays().forEach { (_, dayId) ->
             edges.forEach { (from, to) ->
                 val correctionSessionId = TestFixtures.uuid()
                 insertSessionOnDay(correctionSessionId, dayId, from)
-                val reason = if (dayStatus == DayStatus.REMITTED) "Corrected attendance mark" else null
+                val reason = "Corrected attendance mark"
                 val updated = SessionService.updateStatus(callerId, correctionSessionId, to, 1, reason)
 
                 assertEquals(to, updated.sessionStatus)
@@ -869,7 +872,10 @@ class SessionServicePostgresTest : BasePostgresTest() {
         }
 
         BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
-        val updated = SessionService.updateStatus(callerId, pastSessionId, SessionStatus.PENDING, 1)
+        assertFailsWith<ValidationException> {
+            SessionService.updateStatus(callerId, pastSessionId, SessionStatus.PENDING, 1)
+        }
+        val updated = SessionService.updateStatus(callerId, pastSessionId, SessionStatus.PENDING, 1, "Came after all")
 
         assertEquals(SessionStatus.PENDING, updated.sessionStatus)
     }

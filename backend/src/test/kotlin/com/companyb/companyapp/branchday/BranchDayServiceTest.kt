@@ -158,8 +158,15 @@ class BranchDayServiceTest {
     }
 
     @Test
-    fun `past day write with EDIT_PAST_DAY is allowed without reason`() {
-        BranchDayService.assertEditableState(DayStatus.PAST, hasEditPastDay = true, reason = null)
+    fun `past day write without reason is bad request`() {
+        assertFailsWith<ValidationException> {
+            BranchDayService.assertEditableState(DayStatus.PAST, hasEditPastDay = true, reason = null)
+        }
+    }
+
+    @Test
+    fun `past day write with EDIT_PAST_DAY and reason is allowed`() {
+        BranchDayService.assertEditableState(DayStatus.PAST, hasEditPastDay = true, reason = "wrong price")
     }
 
     @Test
