@@ -25,7 +25,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** 503bf228 — any member who can edit a branch sets its own product price and commission. */
+/** 503bf228 — any member who can edit a branch sets its own product prices and one commission for all its products. */
 class BranchPriceAuthzTest : BasePostgresTest() {
     private val member = TestFixtures.uuid()
     private val outsider = TestFixtures.uuid()
@@ -84,16 +84,46 @@ class BranchPriceAuthzTest : BasePostgresTest() {
         body: Map<String, String?>,
     ): Int = testServer.client.put("/api/branches/$branch/inventory/$productId/price", body, asUser(user)).code
 
+    private fun putCommission(
+        user: UUID,
+        branch: UUID,
+        body: Map<String, String?>,
+    ): Int = testServer.client.put("/api/branches/$branch/commission", body, asUser(user)).code
+
+    private fun inventory(): String =
+        testServer.client
+            .get("/api/branches/$branchId/inventory", asUser(member))
+            .body!!
+            .string()
+
+    @Test
+    fun `member sets one branch commission, every product shows it, and blank puts it back`() {
+        assertEquals(204, put(member, branchId, mapOf("unitPrice" to "100")))
+        assertEquals(204, putCommission(member, branchId, mapOf("commissionAmount" to "12")))
+        val shown = inventory()
+        assertTrue(shown.contains("\"branchCommissionAmount\":\"12"), shown)
+        assertTrue(shown.contains("\"commissionAmount\":\"12"), shown)
+        assertEquals(204, putCommission(member, branchId, mapOf("commissionAmount" to "")))
+        assertTrue(!inventory().contains("\"branchCommissionAmount\":\""), inventory())
+    }
+
+    @Test
+    fun `only branch editors set the commission`() {
+        assertEquals(403, putCommission(outsider, branchId, mapOf("commissionAmount" to "1")))
+        assertEquals(403, putCommission(member, otherBranchId, mapOf("commissionAmount" to "1")))
+        assertEquals(404, putCommission(outsider, TestFixtures.uuid(), mapOf("commissionAmount" to "1")))
+        assertTrue(putCommission(member, branchId, mapOf("commissionAmount" to "-1")) in 400..499)
+    }
+
     @Test
     fun `member sets a branch price, the inventory shows it, and shared puts it back`() {
-        assertEquals(204, put(member, branchId, mapOf("unitPrice" to "777.50", "commissionAmount" to "12")))
+        assertEquals(204, put(member, branchId, mapOf("unitPrice" to "777.50")))
         val shown =
             testServer.client
                 .get("/api/branches/$branchId/inventory", asUser(member))
                 .body!!
                 .string()
         assertTrue(shown.contains("\"unitPrice\":\"777.50\""), shown)
-        assertTrue(shown.contains("\"branchCommissionAmount\":\"12"), shown)
 
         assertEquals(204, put(member, branchId, mapOf()))
         val back =

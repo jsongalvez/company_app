@@ -8,6 +8,7 @@ import com.companyb.companyapp.contracts.branch.BranchResponse
 import com.companyb.companyapp.contracts.branch.CreateBranchRequest
 import com.companyb.companyapp.contracts.branch.MeBranchResponse
 import com.companyb.companyapp.contracts.branch.RenameBranchRequest
+import com.companyb.companyapp.contracts.branch.SetBranchCommissionRequest
 import com.companyb.companyapp.contracts.branchday.BranchDayTodayResponse
 import com.companyb.companyapp.contracts.branchday.BranchDayUserResponse
 import com.companyb.companyapp.contracts.client.ClientResponse
@@ -168,6 +169,7 @@ internal object DtoSchemaProjector {
             "AddDayBreakdownRequest" to AddDayBreakdownRequest.serializer(),
             "AddInventoryCardRequest" to AddInventoryCardRequest.serializer(),
             "SetBranchPriceRequest" to SetBranchPriceRequest.serializer(),
+            "SetBranchCommissionRequest" to SetBranchCommissionRequest.serializer(),
             "AddPractitionerRequest" to AddPractitionerRequest.serializer(),
             "AddSessionConcernRequest" to AddSessionConcernRequest.serializer(),
             "AllowanceResponse" to AllowanceResponse.serializer(),

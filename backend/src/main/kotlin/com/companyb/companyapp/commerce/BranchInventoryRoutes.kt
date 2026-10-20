@@ -405,7 +405,7 @@ object BranchInventoryRoutes {
             sharedUnitPrice = sharedUnitPrice.toPlainString(),
             sharedCommissionAmount = sharedCommissionAmount.toPlainString(),
             branchUnitPrice = inventory.unitPrice?.toPlainString(),
-            branchCommissionAmount = inventory.commissionAmount?.toPlainString(),
+            branchCommissionAmount = branchCommissionAmount?.toPlainString(),
             available = inventory.currentStock,
             stock = breakdown?.stock ?: 0,
             sales = breakdown?.sales ?: 0,

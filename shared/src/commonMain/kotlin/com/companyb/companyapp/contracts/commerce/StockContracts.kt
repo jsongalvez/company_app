@@ -46,11 +46,10 @@ data class AddInventoryCardRequest(
     val productId: String,
 )
 
-/** 503bf228 — a branch's own list price and commission for a product; null = use the shared one. */
+/** 503bf228 — a branch's own list price for a product; null = use the shared one. */
 @Serializable
 data class SetBranchPriceRequest(
     val unitPrice: String? = null,
-    val commissionAmount: String? = null,
 )
 
 @Serializable

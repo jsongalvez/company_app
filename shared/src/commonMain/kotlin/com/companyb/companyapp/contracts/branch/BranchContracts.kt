@@ -34,6 +34,14 @@ data class BranchResponse(
     val id: String,
     val name: String,
     val branchType: BranchType = BranchType.UNKNOWN,
+    // 503bf228 — commission for every product sold here; null = each product's shared one.
+    val commissionAmount: String? = null,
+)
+
+/** 503bf228 — set the branch-wide commission; null or blank = use each product's shared one. */
+@Serializable
+data class SetBranchCommissionRequest(
+    val commissionAmount: String? = null,
 )
 
 @Serializable

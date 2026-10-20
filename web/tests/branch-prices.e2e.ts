@@ -2,8 +2,8 @@ import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
 import { clockInHere } from "./support";
 
-// Feedback 503bf228: a branch member sets the branch's own list price and commission;
-// sales there charge it, and "Use shared prices" goes back to the Products list price.
+// Feedback 503bf228: a branch member sets the branch's own list price per product and one
+// commission for all its products; sales there charge them, and "Use shared" goes back.
 test("a branch sets its own product price and sells at it", { session: "owner" }, async ({ app, screen }) => {
     const tag = Date.now().toString().slice(-6);
     const category = `Balms ${tag}`;
@@ -37,17 +37,22 @@ test("a branch sets its own product price and sells at it", { session: "owner" }
     await restock.getByRole("button", "Restock").tap();
     await expect(restock).toBeHidden();
 
-    // Branches page: this branch's price 300, commission 40.
+    // Branches page: this branch's price 300, and commission 40 on every product.
     await app.open("/#/branches");
     await screen.getByRole("row").filter({ hasText: "Fixture Branch" }).first().tap();
     const priced = screen.getByRole("row").filter({ hasText: product });
     await priced.getByRole("button", "Change").tap();
     const dlg = screen.getByRole("dialog", new RegExp(`Price at .*: ${product}`));
     await dlg.getByLabel(/^List price/).fill("300");
-    await dlg.getByLabel(/^Commission/).fill("40");
     await dlg.getByRole("button", "Save").tap();
     await expect(dlg).toBeHidden();
     await expect(priced.getByText("this branch").first()).toBeVisible();
+    await screen.getByRole("button", "Change commission").tap();
+    const com = screen.getByRole("dialog", /^Commission at /);
+    await com.getByLabel(/^Commission on every product/).fill("40");
+    await com.getByRole("button", "Save").tap();
+    await expect(com).toBeHidden();
+    await expect(priced.getByText(/^40\.00/)).toBeVisible();
 
     // A sale here charges the branch price.
     await app.open("/#/inventory");
@@ -62,7 +67,11 @@ test("a branch sets its own product price and sells at it", { session: "owner" }
     await app.open("/#/branches");
     await screen.getByRole("row").filter({ hasText: "Fixture Branch" }).first().tap();
     await priced.getByRole("button", "Change").tap();
-    await dlg.getByRole("button", "Use shared prices").tap();
+    await dlg.getByRole("button", "Use shared price").tap();
     await expect(dlg).toBeHidden();
+    await screen.getByRole("button", "Change commission").tap();
+    await com.getByRole("button", "Use shared commissions").tap();
+    await expect(com).toBeHidden();
     await expect(priced.getByText("this branch")).toBeHidden();
+    await expect(priced.getByText(/^25\.00/)).toBeVisible();
 });

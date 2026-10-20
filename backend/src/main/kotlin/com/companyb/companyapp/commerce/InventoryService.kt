@@ -128,7 +128,7 @@ object InventoryService {
 
     fun getStock(branchId: UUID): List<BranchInventoryWithProduct> {
         InventoryReadSupport.requireBranchExists(branchId)
-        return BranchInventoryRepository.findByBranch(branchId)
+        return cardsAt(branchId)
     }
 
     /**
@@ -157,7 +157,7 @@ object InventoryService {
      */
     fun getInventory(branchId: UUID): InventoryWithBreakdowns {
         InventoryReadSupport.requireBranchExists(branchId)
-        val cards = BranchInventoryRepository.findByBranch(branchId)
+        val cards = cardsAt(branchId)
         val breakdowns = InventoryReadSupport.breakdownsFromLedger(branchId)
         return InventoryWithBreakdowns(cards, breakdowns)
     }
@@ -167,7 +167,7 @@ object InventoryService {
         thresholdOverride: Int? = null,
     ): List<BranchInventoryWithProduct> {
         InventoryReadSupport.requireBranchExists(branchId)
-        val allInventory = BranchInventoryRepository.findByBranch(branchId)
+        val allInventory = cardsAt(branchId)
         return InventoryReadSupport.filterLowStock(allInventory, thresholdOverride)
     }
 
@@ -183,11 +183,17 @@ object InventoryService {
         InventoryReadSupport.requireBranchExists(branchId)
         val cards =
             InventoryReadSupport.filterLowStock(
-                BranchInventoryRepository.findByBranch(branchId),
+                cardsAt(branchId),
                 thresholdOverride,
             )
         val breakdowns = InventoryReadSupport.breakdownsFromLedger(branchId)
         return InventoryWithBreakdowns(cards, breakdowns)
+    }
+
+    /** The branch's cards with its branch-wide commission (503bf228) filled in. */
+    private fun cardsAt(branchId: UUID): List<BranchInventoryWithProduct> {
+        val commission = BranchService.findByIdOrNull(branchId)?.commissionAmount
+        return BranchInventoryRepository.findByBranch(branchId).map { it.copy(branchCommissionAmount = commission) }
     }
 
     // #597: 8-param idempotency ownership check stays whole per #535; mirrors the insert params 1:1.

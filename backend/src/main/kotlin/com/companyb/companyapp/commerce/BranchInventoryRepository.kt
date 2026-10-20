@@ -175,15 +175,13 @@ internal object BranchInventoryRepository {
             existing.quantityChange == params.quantityChange &&
             existing.notes == params.notes
 
-    /** Sets the branch's own price and commission on a locked card (503bf228); null = shared. */
-    fun setPricesInTransaction(
+    /** Sets the branch's own price on a locked card (503bf228); null = shared. */
+    fun setPriceInTransaction(
         cardId: UUID,
         unitPrice: BigDecimal?,
-        commissionAmount: BigDecimal?,
     ) {
         BranchInventoryTable.update({ BranchInventoryTable.id eq cardId }) {
             it[BranchInventoryTable.unitPrice] = unitPrice
-            it[BranchInventoryTable.commissionAmount] = commissionAmount
         }
     }
 
@@ -295,7 +293,6 @@ internal object BranchInventoryRepository {
             currentStock = this[BranchInventoryTable.currentStock],
             version = this[BranchInventoryTable.version],
             unitPrice = this[BranchInventoryTable.unitPrice],
-            commissionAmount = this[BranchInventoryTable.commissionAmount],
         )
 
     private fun ResultRow.toInventoryMovement(): InventoryMovement =

@@ -196,5 +196,6 @@ object BranchRoutes {
             id = id.toString(),
             name = name,
             branchType = branchType,
+            commissionAmount = commissionAmount?.toPlainString(),
         )
 }

@@ -11,6 +11,7 @@ import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
+import java.math.BigDecimal
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -67,6 +68,16 @@ internal object BranchRepository {
         return old
     }
 
+    /** In-transaction commission change; returns the old row, or null when the branch is unknown. */
+    fun setCommissionInTransaction(
+        id: UUID,
+        commissionAmount: BigDecimal?,
+    ): Branch? {
+        val old = findByIdInTransaction(id) ?: return null
+        BranchTable.update({ BranchTable.id eq id }) { it[BranchTable.commissionAmount] = commissionAmount }
+        return old
+    }
+
     fun findById(id: UUID): Branch? =
         transaction {
             findByIdInTransaction(id)
@@ -92,5 +103,6 @@ internal object BranchRepository {
             id = this[BranchTable.id],
             branchType = this[BranchTable.branchType],
             name = this[BranchTable.name],
+            commissionAmount = this[BranchTable.commissionAmount],
         )
 }
