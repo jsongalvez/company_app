@@ -13,4 +13,8 @@ test("open a past session from Expenses & pay", { session: "owner" }, async ({ a
         .first()
         .tap();
     await expect(screen.getByText(/Reason/).first()).toBeVisible();
+    // Feedback d70d691f: Back returns to the same past day, not to today.
+    await screen.getByRole("button", "‹ Back").tap();
+    await expect(screen.getByRole("heading", "Sessions")).toBeVisible();
+    await expect(screen.getByRole("button", "Today")).not.toBeDisabled();
 });

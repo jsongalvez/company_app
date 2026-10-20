@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { goBack } from "../lib/router.svelte";
     import { sortConcerns } from "../lib/concerns";
     import { api, ok, uuid, type S } from "../api/client";
     import { app, can } from "../lib/app.svelte";
@@ -272,7 +273,7 @@
 </script>
 
 <PageHead title={client.data ? clientName(client.data) : "Session"} sub={s ? `${label(s.sessionType)} · ${dateTime(s.bookedAt)}` : ""}>
-    <a class="btn" href="#/today">Back to today</a>
+    <button onclick={() => goBack()} title="Back to the previous page">‹ Back</button>
     {#if s && edit && !voided}<button onclick={() => (saleOpen = true)}>Product sale</button>{/if}
     {#if s && can("VOID_SESSION")}
         <button class="danger" onclick={() => ((voidReason = ""), va.reset(), (voidOpen = true))}>{voided ? "Restore session" : "Void session"}</button>

@@ -11,9 +11,26 @@ function parse(): Route {
 
 export const route = $state<{ current: Route }>({ current: parse() });
 
-addEventListener("hashchange", () => {
+// How many in-app page changes happened since the app opened, so Back knows
+// whether the previous page is ours or another site.
+let steps = 0;
+let backing = false;
+
+addEventListener("hashchange", (e) => {
+    const from = new URL(e.oldURL).hash.split("?")[0];
     route.current = parse();
+    if (backing) backing = false;
+    else if (from !== location.hash.split("?")[0]) steps++;
 });
+
+/** Back to the page you came from inside the app; to `fallback` when there is none. */
+export function goBack(fallback = "/today") {
+    if (steps > 0 && history.length > 1) {
+        steps--;
+        backing = true;
+        history.back();
+    } else go(fallback);
+}
 
 export function go(path: string, query?: Record<string, string | null | undefined>) {
     let h = `#${path}`;
