@@ -93,7 +93,7 @@ class BranchPriceAuthzTest : BasePostgresTest() {
     private fun inventory(): String =
         testServer.client
             .get("/api/branches/$branchId/inventory", asUser(member))
-            .body!!
+            .body
             .string()
 
     @Test
@@ -121,7 +121,7 @@ class BranchPriceAuthzTest : BasePostgresTest() {
         val shown =
             testServer.client
                 .get("/api/branches/$branchId/inventory", asUser(member))
-                .body!!
+                .body
                 .string()
         assertTrue(shown.contains("\"unitPrice\":\"777.50\""), shown)
 
@@ -129,7 +129,7 @@ class BranchPriceAuthzTest : BasePostgresTest() {
         val back =
             testServer.client
                 .get("/api/branches/$branchId/inventory", asUser(member))
-                .body!!
+                .body
                 .string()
         assertTrue(!back.contains("777.50") && !back.contains("\"branchUnitPrice\":\""), back)
     }
