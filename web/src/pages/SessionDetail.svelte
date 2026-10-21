@@ -1,7 +1,7 @@
 <script lang="ts">
     import { goBack } from "../lib/router.svelte";
     import { sortConcerns } from "../lib/concerns";
-    import { api, ok, uuid, type S } from "../api/client";
+    import { api, ok, uuid, BASE_STATUS, type S } from "../api/client";
     import { app, can } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
@@ -90,6 +90,7 @@
                         api.PATCH("/api/sessions/{sessionId}/status", {
                             params: { path: { sessionId: id } },
                             body: { status: to, version: s.version, reason: r() },
+                            headers: { [BASE_STATUS]: s.sessionStatus },
                         }),
                     ),
                 to === "PENDING" ? "Back to Waiting" : `Marked ${label(to)}`,

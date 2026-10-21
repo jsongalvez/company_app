@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { api, ok, uuid, type S } from "../api/client";
+    import { api, ok, uuid, BASE_STATUS, type S } from "../api/client";
     import { app, can, branchName, refreshBranchDay, clockIn, selectBranch, onDutyAt } from "../lib/app.svelte";
     import { Query, invalidate } from "../lib/cache.svelte";
     import { load } from "../lib/data";
@@ -7,7 +7,7 @@
     import { go, viewSetting } from "../lib/router.svelte";
     import { peso, time, label, sum, day, operationalDate, clientName } from "../lib/format";
     import { allowedTargets, statusClass, type Status } from "../lib/rules";
-    import { heldMark, heldSessions, outbox, sentSessions } from "../lib/outbox.svelte";
+    import { heldMark, heldSessions, outbox, sentSessions, sessionsSeen } from "../lib/outbox.svelte";
     import { findLocal } from "../lib/clientdir.svelte";
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
@@ -44,6 +44,9 @@
     let filter = $state<F>(showVs.read as F);
     $effect(() => showVs.keep(filter));
     // A mark made with no signal shows at once, flagged as not sent yet.
+    $effect(() => {
+        if (dash.data) sessionsSeen(new Set(dash.data.sessions.map((s) => s.id)));
+    });
     const sessions = $derived.by(() => {
         void outbox.items.length;
         const fromServer = (dash.data?.sessions ?? []).map((s) => {
@@ -127,6 +130,7 @@
                     api.PATCH("/api/sessions/{sessionId}/status", {
                         params: { path: { sessionId: s.id } },
                         body: { status: to, version: s.version },
+                        headers: { [BASE_STATUS]: s.sessionStatus },
                     }),
                 ),
             undo ? `${s.clientName ?? "Session"}: back to Waiting` : `${s.clientName ?? "Session"}: ${label(to)}`,

@@ -7,6 +7,7 @@
  */
 import { plain, type S } from "../api/client";
 import { label } from "./format";
+import { replayBody } from "./replay";
 import { RECONNECTED, reportNetFailure, reportNetOk } from "./net.svelte";
 
 export type Item = {
@@ -19,6 +20,10 @@ export type Item = {
     what: string;
     failed?: string;
     sentAt?: number;
+    /** For a mark: the status the server will have once the marks before this one have landed. */
+    from?: string;
+    /** A request for this save has gone out at least once, so the server may already hold it. */
+    tried?: boolean;
 };
 
 type Rule = { method: string; path: RegExp; what: (b: Record<string, unknown>) => string; echo?: (b: Record<string, unknown>) => unknown };
@@ -51,19 +56,49 @@ function load(): Item[] {
     }
 }
 
-export const outbox = $state({ items: load(), sending: false, recent: [] as Item[] });
+const RECENT_KEY = "outbox-recent";
+function loadRecent(): Item[] {
+    try {
+        const v = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]") as Item[];
+        return Array.isArray(v) ? v : [];
+    } catch {
+        return [];
+    }
+}
+export const outbox = $state({ items: load(), sending: false, recent: loadRecent() });
 
-/** Creates sent a moment ago. They stay on screen until the page has reloaded them from the server. */
+/**
+ * Creates sent a moment ago. They stay on screen until the server's own list shows them. A new
+ * session is kept across a reload and until the list has it (a weak signal can leave the list
+ * stale for minutes); a client only until the saved client list has it.
+ */
 const RECENT_MS = 120_000;
+const RECENT_SESSION_MS = 24 * 3600_000;
+const keepMs = (i: Item) => (i.path === "/api/sessions" ? RECENT_SESSION_MS : RECENT_MS);
 function keepRecent(i: Item) {
     if (i.method !== "POST" || (i.path !== "/api/sessions" && i.path !== "/api/clients")) return;
-    const cut = Date.now() - RECENT_MS;
-    outbox.recent = [...outbox.recent.filter((r) => (r.sentAt ?? 0) > cut), { ...i, sentAt: Date.now() }];
+    const now = Date.now();
+    outbox.recent = [...outbox.recent.filter((r) => (r.sentAt ?? 0) + keepMs(r) > now), { ...i, sentAt: now }];
+    localStorage.setItem(RECENT_KEY, JSON.stringify(outbox.recent));
+}
+/** The server's list now shows these sessions: stop holding them up ourselves. */
+export function sessionsSeen(ids: Set<string>) {
+    const left = outbox.recent.filter((r) => {
+        if (r.path !== "/api/sessions") return true;
+        try {
+            return !ids.has(String((JSON.parse(r.body) as { id?: unknown }).id));
+        } catch {
+            return true;
+        }
+    });
+    if (left.length === outbox.recent.length) return;
+    outbox.recent = left;
+    localStorage.setItem(RECENT_KEY, JSON.stringify(left));
 }
 function recentBodies(path: string): { at: string; body: Record<string, unknown> }[] {
-    const cut = Date.now() - RECENT_MS;
+    const now = Date.now();
     return outbox.recent
-        .filter((i) => i.path === path && (i.sentAt ?? 0) > cut)
+        .filter((i) => i.path === path && (i.sentAt ?? 0) + keepMs(i) > now)
         .map((i) => {
             try {
                 return { at: i.at, body: JSON.parse(i.body) as Record<string, unknown> };
@@ -187,7 +222,7 @@ export function mustQueue(method: string, path: string): boolean {
 }
 
 /** Store a save for later; answer the page as if it went through (the record's own fields). */
-export function enqueue(method: string, path: string, body: string): Response {
+export function enqueue(method: string, path: string, body: string, shown?: string): Response {
     const r = rule(method, path)!;
     let b: Record<string, unknown> = {};
     try {
@@ -195,21 +230,44 @@ export function enqueue(method: string, path: string, body: string): Response {
     } catch {
         /* no body */
     }
-    // Marking the same session twice offline: only the last mark counts (same version).
-    if (method === "PATCH") outbox.items = outbox.items.filter((i) => !(i.method === method && i.path === path && !i.failed));
-    outbox.items.push({
-        id: crypto.getRandomValues(new Uint32Array(2)).join("-"),
-        at: new Date().toISOString(),
-        user: tokenUser(),
-        method,
-        path,
-        body,
-        what: r.what(b),
-    });
+    let from: string | undefined;
+    let drop = false;
+    if (method === "PATCH") {
+        // Marking the same session again before the first mark has gone out: only the last one counts.
+        // A mark that already went out once may be on the server, so it stays and this one follows it.
+        const mine = (i: Item) => i.method === method && i.path === path && !i.failed;
+        const replaced = outbox.items.filter((i) => mine(i) && !i.tried);
+        const sentOnce = outbox.items.filter((i) => mine(i) && i.tried);
+        // What the server will hold before this mark: the replaced mark's own starting point, else the
+        // last mark already sent, else what the person was looking at.
+        from = replaced[0]?.from ?? (sentOnce.length ? bodyStatus(sentOnce[sentOnce.length - 1]!) : undefined) ?? shown;
+        // Back to where it started: nothing to send (the server refuses Waiting -> Waiting).
+        drop = from !== undefined && from === String(b.status);
+        outbox.items = outbox.items.filter((i) => !(mine(i) && !i.tried));
+    }
+    if (!drop)
+        outbox.items.push({
+            id: crypto.getRandomValues(new Uint32Array(2)).join("-"),
+            at: new Date().toISOString(),
+            user: tokenUser(),
+            method,
+            path,
+            body,
+            what: r.what(b),
+            ...(from !== undefined ? { from } : {}),
+        });
     save();
     queuedCount++;
     setTimeout(() => void flush(), 0);
     return new Response(JSON.stringify(r.echo ? r.echo(b) : b), { status: 202, headers: { "Content-Type": "application/json", "X-Queued": "1" } });
+}
+
+function bodyStatus(i: Item): string | undefined {
+    try {
+        return (JSON.parse(i.body) as { status?: string }).status;
+    } catch {
+        return undefined;
+    }
 }
 
 let queuedCount = 0;
@@ -239,23 +297,42 @@ function serverMessage(status: number, body: unknown): string {
 async function send(i: Item): Promise<Response> {
     return fetch(i.path, {
         method: i.method,
-        body: i.body || undefined,
+        body: replayBody(i) || undefined,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") ?? ""}` },
         signal: AbortSignal.timeout(20_000),
     });
 }
 
 /** A mark refused for an old version may have landed on an earlier try: check before calling it a clash. */
-async function alreadyApplied(i: Item): Promise<boolean> {
+async function alreadyApplied(i: Item): Promise<{ version?: number } | null> {
     const m = /^\/api\/sessions\/([^/]+)\/status$/.exec(i.path);
-    if (!m) return false;
+    if (!m) return null;
     try {
         const res = await fetch(`/api/sessions/${m[1]}`, { headers: { Authorization: `Bearer ${localStorage.getItem("token") ?? ""}` } });
-        if (!res.ok) return false;
-        const s = (await res.json()) as { status?: string };
-        return s.status === (JSON.parse(i.body) as { status?: string }).status;
+        if (!res.ok) return null;
+        const s = (await res.json()) as { sessionStatus?: string; status?: string; version?: number };
+        return (s.sessionStatus ?? s.status) === (JSON.parse(i.body) as { status?: string }).status ? { version: s.version } : null;
     } catch {
-        return false;
+        return null;
+    }
+}
+
+/** Marks queued behind one that has just landed were made from the version it was made from: move them up. */
+function chainVersions(landed: Item, newVersion: number | undefined) {
+    let from: number;
+    try {
+        from = (JSON.parse(landed.body) as { version: number }).version;
+    } catch {
+        return;
+    }
+    for (const x of outbox.items) {
+        if (x.id === landed.id || x.method !== landed.method || x.path !== landed.path || x.failed) continue;
+        try {
+            const o = JSON.parse(x.body) as { version?: number };
+            if (o.version === from) x.body = JSON.stringify({ ...o, version: newVersion ?? from + 1 });
+        } catch {
+            /* leave it */
+        }
     }
 }
 
@@ -264,18 +341,38 @@ export async function flush(): Promise<void> {
     if (outbox.sending) return;
     outbox.sending = true;
     let sent = 0;
+    let finished = false;
     try {
         for (const i of waiting()) {
+            // The person replaced this one while earlier saves were going out: don't send the old one.
+            const live = outbox.items.find((x) => x.id === i.id);
+            if (!live || live.failed) continue;
+            // A mark made after one the server refused would only be refused too (it assumed that one landed).
+            if (live.method === "PATCH" && outbox.items.some((x) => x.failed && x.method === live.method && x.path === live.path)) continue;
+            live.tried = true;
+            save();
             let res: Response;
             try {
-                res = await send(i);
+                res = await send(live);
             } catch {
                 reportNetFailure();
                 return;
             }
             if (res.status === 401 || res.status === 429 || res.status >= 500) return;
             reportNetOk();
-            if (res.ok || (res.status === 409 && (await alreadyApplied(i)))) {
+            const applied = res.ok ? null : res.status === 409 ? await alreadyApplied(i) : null;
+            if (res.ok || applied) {
+                if (i.method === "PATCH") {
+                    let v = applied?.version;
+                    if (res.ok) {
+                        try {
+                            v = ((await res.clone().json()) as { version?: number }).version;
+                        } catch {
+                            /* no version in the answer */
+                        }
+                    }
+                    chainVersions(i, v);
+                }
                 keepRecent(i);
                 discard(i.id);
                 sent++;
@@ -291,9 +388,12 @@ export async function flush(): Promise<void> {
             if (cur) cur.failed = serverMessage(res.status, body);
             save();
         }
+        finished = true;
     } finally {
         outbox.sending = false;
         if (sent) window.dispatchEvent(new Event(SENT));
+        // Saves made while this round was going out are next (only if the round got to its end).
+        if (finished && waiting().some((x) => !x.tried)) setTimeout(() => void flush(), 0);
     }
 }
 

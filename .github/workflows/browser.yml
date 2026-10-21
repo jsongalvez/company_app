@@ -80,6 +80,10 @@ jobs:
         working-directory: web
         run: npm ci && npm run build
 
+      - name: Unit tests for the save queue's pure logic
+        working-directory: web
+        run: tests/unit/run.sh
+
       - name: Install the test browser
         working-directory: web
         run: npx @e2e-dev/web install chromium --with-deps
