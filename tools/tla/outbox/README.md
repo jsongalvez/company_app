@@ -20,14 +20,19 @@ tools/tla/outbox/run.sh today-NoSelfRefusal.cfg
 
 Needs Java 17+. The script downloads `tla2tools.jar` (TLC 2026.10.20) into `~/.local/share/tla` once.
 
-- `today-*.cfg` describe the code as it was on 62210247. Each is **expected to fail** and prints the
+- `today-*.cfg` describe the code as it was on 62210247 (all fixes off). Each is **expected to fail** and prints the
   shortest counterexample, one line per step.
+- `partial-*.cfg`: two fixes on (`DropNoopMark`, `ReplayReason`) so that the next bug shows. In
+  today's code the lost update of bug 2 below is hidden behind bug 1's refusal; once bug 1 is
+  fixed it would reach the server silently, and the model shows that.
 - `fixed-*.cfg` switch on the fixes (`DropNoopMark`, `SkipRemoved`, `TriedKept`, `ChainVersions`,
   `RecentUntilSeen`, `ReplayReason`). They must pass.
 - `noCapability-*.cfg`: the same fixes, but the signed-in person may not change earlier days. Their
   replays are refused with 403, never 400/409.
 
-`run.sh` exits 1 if any config does the opposite of what its name says.
+`run.sh` exits 1 if any config does the opposite of what its name says. `ablate.sh` switches the
+fixes off one at a time in the passing configs and checks that the model then fails, so each fix is
+shown to be needed (about ten minutes).
 
 ## Properties
 

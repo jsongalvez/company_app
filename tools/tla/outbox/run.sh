@@ -23,7 +23,7 @@ for c in "${cfgs[@]}"; do
   else
     got=broken
   fi
-  want=pass; case "$name" in today-*) want=fail ;; esac
+  want=pass; case "$name" in today-*|partial-*) want=fail ;; esac
   states=$(echo "$out" | grep -oE "[0-9]+ distinct states found" | tail -1)
   if [ "$got" = "$want" ]; then echo "ok    $name ($got, $states)"; else echo "WRONG $name: wanted $want, got $got"; rc=1; fi
   if [ "$got" = fail ]; then echo "$out" | python3 -I "$here/trace.py"; fi
