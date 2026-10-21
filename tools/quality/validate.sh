@@ -2,6 +2,8 @@
 # Targeted local validation selector (map #329, ticket #331).
 # Agent-invoked only — git hooks never call this. Chooses the narrowest warm
 # Gradle invocation for the current change; docs-only changes skip builds.
+# NOTE: this selector does NOT mirror CI (no -Werror, ktlint, detekt, or dead-code gate on source
+# changes). Before pushing, run tools/check-before-push.sh, which reads CI's own task list.
 #
 # Usage:
 #   tools/quality/validate.sh              # auto: classify changed files, run narrowest tasks
@@ -71,7 +73,8 @@ run_shell_validation() {
     "$root/tools/database/test-db-name-test.sh" \
     "$root/tools/database/test-db-discovery-test.sh" \
     "$root/tools/database/source-env-test.sh" \
-    "$root/tools/performance/check-baselines-test.sh"; do
+    "$root/tools/performance/check-baselines-test.sh" \
+    "$root/tools/quality/check-before-push-test.sh"; do
     [ -f "$t" ] || continue
     bash "$t" || status=1
   done

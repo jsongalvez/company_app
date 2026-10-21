@@ -25,6 +25,7 @@ on:
       - 'tools/database/**'
       - 'tools/quality/lib/**'
       - 'tools/quality/*.sh'
+      - 'tools/check-before-push.sh'
       - 'tools/performance/**'
       - 'scripts/**'
       - 'config/deadcode/**'
@@ -46,6 +47,7 @@ on:
       - 'tools/database/**'
       - 'tools/quality/lib/**'
       - 'tools/quality/*.sh'
+      - 'tools/check-before-push.sh'
       - 'tools/performance/**'
       - 'scripts/**'
       - 'config/deadcode/**'
@@ -152,7 +154,7 @@ jobs:
 
       - name: Syntax-check owned shell files
         run: |
-          for f in tools/quality/*.sh tools/quality/lib/*.sh tools/database/*.sh tools/database/lib/*.sh tools/performance/*.sh scripts/*.sh .githooks/commit-msg .githooks/pre-commit .githooks/pre-push; do
+          for f in tools/check-before-push.sh tools/quality/*.sh tools/quality/lib/*.sh tools/database/*.sh tools/database/lib/*.sh tools/performance/*.sh scripts/*.sh .githooks/commit-msg .githooks/pre-commit .githooks/pre-push; do
             [ -f "$f" ] || continue
             bash -n "$f"
           done
@@ -170,3 +172,4 @@ jobs:
           bash tools/database/test-db-discovery-test.sh
           bash tools/database/source-env-test.sh
           bash tools/performance/check-baselines-test.sh
+          bash tools/quality/check-before-push-test.sh
