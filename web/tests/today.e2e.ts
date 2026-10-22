@@ -56,6 +56,23 @@ test("the picked Today tab survives a reload", { session: "owner" }, async ({ ap
     await expect.poll(pressed).toMatch(/^Done/);
 });
 
+// Feedback 64e93653: the filter stacked each count under its label, so the row
+// was two lines tall on a phone.
+test("the Today filter stays one compact row on a phone", { session: "owner" }, async ({ app, screen, browser }) => {
+    await browser.setViewport({ width: 392, height: 718 });
+    await app.open("/#/today");
+    const refresh = await screen.getByRole("button", "Refresh").boundingBox();
+    const filters = await screen.getByRole("group", "Filter sessions").boundingBox();
+    expect(refresh).not.toBeNull();
+    expect(filters).not.toBeNull();
+    expect(filters!.height).toBeLessThanOrEqual(refresh!.height + 2);
+    const tops = await browser.evaluate(() =>
+        [...document.querySelectorAll('[aria-label="Filter sessions"] > button')].map((b) => Math.round(b.getBoundingClientRect().top)),
+    );
+    expect(tops).toHaveLength(5);
+    expect(new Set(tops).size).toBe(1);
+});
+
 // Feedback 4f48204e: typing in the top search showed no suggestions.
 test("the top search suggests clients while typing", { session: "owner" }, async ({ app, screen }) => {
     const name = await doneSessionForNewClient(app, screen);

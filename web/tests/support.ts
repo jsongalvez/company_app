@@ -29,6 +29,8 @@ export async function doneSessionForNewClient(app: App, screen: Screen): Promise
     await form.getByLabel(/^Age/).fill("40");
     await form.getByRole("button", "Create client").tap();
     await expect(dialog.getByText(`${first} Tester`, { exact: false })).toBeVisible();
+    // The preview fills the price; wait for it so a slow response cannot submit an empty one.
+    await expect(dialog.getByLabel(/^Price/)).not.toHaveValue("");
     await dialog.getByRole("button", "Add session").tap();
 
     const row = screen.getByRole("row").filter({ hasText: `${first} Tester` });
