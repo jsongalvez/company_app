@@ -99,7 +99,9 @@ jobs:
           cat backend.log; exit 1
 
       # A fresh database has no past days; the past-sessions test needs one
-      # session on yesterday (Manila) at the fixture branch.
+      # session on the previous operational day at the fixture branch. The
+      # app's business day ends at 4 AM Manila, so between midnight and 4 AM
+      # calendar yesterday is still today in the app.
       - name: Seed a past day
         env:
           PGPASSWORD: company_password
@@ -111,7 +113,7 @@ jobs:
           ), d AS (
             INSERT INTO branch_day (branch_id, date)
             VALUES ('00000000-0000-4000-8000-000000000001',
-                    (now() AT TIME ZONE 'Asia/Manila')::date - 1)
+                    ((now() AT TIME ZONE 'Asia/Manila') - interval '4 hours')::date - 1)
             ON CONFLICT (branch_id, date) DO UPDATE SET date = EXCLUDED.date
             RETURNING id
           )
