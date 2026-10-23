@@ -220,6 +220,8 @@ object ClientRoutes {
         val callerId = context.callerUuid()
         val clientId = context.pathParamAsUuid(CLIENT_ID_PARAM)
         val request = context.bodyAsClass<UpdateClientRequest>()
+        // An empty patch would build an UPDATE with no columns and fail as a 500.
+        if (request.isEmpty()) throw BadRequestResponse("Nothing to update")
         validateClientPatch(request)
 
         val updated =
@@ -422,3 +424,8 @@ private fun checkSettable(
         throw BadRequestResponse("$label cannot be blank (use clearFields to clear)")
     }
 }
+
+private fun UpdateClientRequest.isEmpty(): Boolean =
+    clearFields.isEmpty() &&
+        listOf(firstName, lastName, middleName, suffix, phoneNumber, address, medicalConditions).all { it == null } &&
+        listOf(gender, age, earlierVisits, systolicBp, diastolicBp).all { it == null }
