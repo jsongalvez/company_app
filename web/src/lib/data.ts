@@ -17,6 +17,8 @@ export const load = {
         L(`dayusers:${branchDayId}`, () => ok(api.GET("/api/branch-days/{branchDayId}/users", { params: { path: { branchDayId } } }))),
     concerns: () => L(`concerns`, () => ok(api.GET("/api/concerns"))),
     clients: (q: string) => L(`clients:${q}`, () => ok(api.GET("/api/clients", { params: { query: { q } } }))),
+    // Key "clients:" with no term cannot clash with a search (2+ letters) and still clears with invalidate("clients:").
+    recentClients: () => L("clients:", () => ok(api.GET("/api/recent-clients"))),
     client: (clientId: string) => L(`client:${clientId}`, () => ok(api.GET("/api/clients/{clientId}", { params: { path: { clientId } } }))),
     bookings: (branchId: string) => L(`bookings:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/bookings", b(branchId)))),
     clientBookings: (clientId: string) =>

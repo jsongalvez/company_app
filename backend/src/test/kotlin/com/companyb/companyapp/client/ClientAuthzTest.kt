@@ -3,6 +3,7 @@ package com.companyb.companyapp.client
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -12,6 +13,7 @@ import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
+import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
@@ -26,6 +28,7 @@ import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import org.junit.ClassRule
 import java.util.UUID
 import java.util.function.Consumer
@@ -284,5 +287,55 @@ class ClientAuthzTest : BasePostgresTest() {
     @Test
     fun `GET clients collection forbidden without grant`() {
         assertEquals(403, testServer.client.get("/api/clients?q=Test", asUser(noneUser)).code)
+    }
+
+    @Test
+    fun `GET recent clients forbidden without grant`() {
+        assertEquals(403, testServer.client.get("/api/recent-clients", asUser(noneUser)).code)
+    }
+
+    @Test
+    fun `GET recent clients lists the latest session first and skips voided-only and deleted clients`() {
+        val seenFirst = SessionClientFixtures.insertTestClient()
+        val seenSecond = SessionClientFixtures.insertTestClient()
+        val voidedOnly = SessionClientFixtures.insertTestClient()
+        val deleted = SessionClientFixtures.insertTestClient()
+        listOf(seenFirst, seenSecond, deleted).forEach {
+            SessionClientFixtures.insertTestSession(
+                TestFixtures.uuid(),
+                it,
+                branchDayId,
+                sessionStatus = SessionStatus.COMPLETED,
+            )
+        }
+        val voidedSession = TestFixtures.uuid()
+        SessionClientFixtures.insertTestSession(
+            voidedSession,
+            voidedOnly,
+            branchDayId,
+            sessionStatus = SessionStatus.COMPLETED,
+        )
+        transaction {
+            SessionVoidTable.insert {
+                it[SessionVoidTable.sessionId] = voidedSession
+                it[SessionVoidTable.voidedBy] = ownerUser
+                it[SessionVoidTable.voidReason] = "test"
+            }
+            ClientTable.update({ ClientTable.id eq deleted }) {
+                it[ClientTable.deletedAt] =
+                    java.time.OffsetDateTime.now()
+            }
+        }
+        SessionClientFixtures.insertTestSession(
+            TestFixtures.uuid(),
+            seenFirst,
+            branchDayId,
+            sessionStatus = SessionStatus.COMPLETED,
+        )
+
+        val res = testServer.client.get("/api/recent-clients", asUser(coordinatorUser))
+        assertEquals(200, res.code)
+        val ids = Regex("\"id\":\"([0-9a-f-]{36})\"").findAll(res.body.string()).map { it.groupValues[1] }.toList()
+        assertEquals(listOf(seenFirst.toString(), seenSecond.toString()), ids)
     }
 }

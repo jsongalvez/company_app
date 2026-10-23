@@ -40,6 +40,16 @@ import java.util.UUID
     ],
 )
 @OpenApi(
+    path = ApiRoutes.CLIENTS_RECENT,
+    methods = [HttpMethod.GET],
+    operationId = "clients_recent",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<ClientResponse>::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
+)
+@OpenApi(
     path = ApiRoutes.CLIENT_DIRECTORY,
     methods = [HttpMethod.GET],
     operationId = "client_directory",
@@ -128,6 +138,14 @@ object ClientRoutes {
             )
         }
 
+        config.routes.before(ApiRoutes.CLIENTS_RECENT) { context ->
+            CapabilityFilter.requireAnyContextCapability(
+                context,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                "EDIT_BRANCH_DATA capability required to manage clients",
+            )
+        }
+
         config.routes.before(ApiRoutes.CLIENT_PATH) { context ->
             CapabilityFilter.requireAnyContextCapability(
                 context,
@@ -147,6 +165,7 @@ object ClientRoutes {
         config.routes.post(ApiRoutes.CLIENTS, ::handleCreate)
         config.routes.get(ApiRoutes.CLIENTS, ::handleSearch)
         config.routes.get(ApiRoutes.CLIENT_DIRECTORY, ::handleDirectory)
+        config.routes.get(ApiRoutes.CLIENTS_RECENT, ::handleRecent)
         config.routes.get(ApiRoutes.CLIENT_PATH, ::handleGetById)
         config.routes.patch(ApiRoutes.CLIENT_PATH, ::handleUpdate)
         config.routes.post(ApiRoutes.CLIENT_ANONYMIZE_PATH, ::handleAnonymize)
@@ -192,6 +211,13 @@ object ClientRoutes {
         val trimmedQuery = query.trim()
         if (trimmedQuery.isEmpty()) throw BadRequestResponse("Search query cannot be blank")
         val clients = ClientService.search(trimmedQuery)
+        val sessionCounts = ClientService.countSessions(clients.map { it.id })
+        context.json(clients.map { it.toResponse(sessionCounts[it.id] ?: 0) })
+    }
+
+    /** The clients seen most recently, newest first: what Clients shows before anyone types. Same fields as search. */
+    private fun handleRecent(context: Context) {
+        val clients = ClientService.recent()
         val sessionCounts = ClientService.countSessions(clients.map { it.id })
         context.json(clients.map { it.toResponse(sessionCounts[it.id] ?: 0) })
     }

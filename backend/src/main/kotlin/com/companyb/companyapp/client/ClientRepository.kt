@@ -22,9 +22,11 @@ import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greaterEq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.leftJoin
 import org.jetbrains.exposed.v1.core.like
+import org.jetbrains.exposed.v1.core.max
 import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.statements.UpdateStatement
@@ -88,6 +90,7 @@ data class ClientCreateResult(
 internal object ClientRepository {
     private const val SEARCH_LIMIT = 20
     private const val DIRECTORY_LIMIT = 5000
+    private const val RECENT_LIMIT = 20
     private const val FULL_NAME_CONCAT_WIDTH = 510
     private const val SPACE_COLUMN_WIDTH = 1
 
@@ -278,6 +281,33 @@ internal object ClientRepository {
                 .orderBy(ClientTable.lastName to SortOrder.ASC, ClientTable.firstName to SortOrder.ASC)
                 .limit(DIRECTORY_LIMIT)
                 .map { it.toClient() }
+        }
+
+    /**
+     * The live clients with the latest non-voided session, newest first. The client table has no
+     * creation time, so a client with no session yet is not listed; searching still finds them.
+     */
+    fun recent(): List<Client> =
+        transaction {
+            val lastSeen = SessionTable.createdAt.max()
+            val ids =
+                SessionTable
+                    .innerJoin(ClientTable, { SessionTable.clientId }, { ClientTable.id })
+                    .leftJoin(
+                        ActiveSessionVoidsView,
+                        { SessionTable.id },
+                        { ActiveSessionVoidsView.sessionId },
+                    ).select(SessionTable.clientId, lastSeen)
+                    .where { ActiveSessionVoidsView.sessionId.isNull() and ClientTable.deletedAt.isNull() }
+                    .groupBy(SessionTable.clientId)
+                    .orderBy(lastSeen to SortOrder.DESC)
+                    .limit(RECENT_LIMIT)
+                    .map { it[SessionTable.clientId] }
+            ClientTable
+                .selectAll()
+                .where { ClientTable.id inList ids }
+                .map { it.toClient() }
+                .sortedBy { ids.indexOf(it.id) }
         }
 
     /** Total session history per client for authoritative client read models. */
