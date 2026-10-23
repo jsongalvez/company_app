@@ -26,6 +26,7 @@ object ApiRoutes {
     const val BRANCHES = "$API_ROOT/branches"
     const val CLIENTS = "$API_ROOT/clients"
     const val CLIENT_DIRECTORY = "$API_ROOT/client-directory"
+    const val CLIENTS_RECENT = "$API_ROOT/recent-clients"
     const val SESSIONS = "$API_ROOT/sessions"
     const val CONCERNS = "$API_ROOT/concerns"
     const val CONCERN_PATH = "$CONCERNS/{concernId}"

@@ -18,13 +18,11 @@
         q = urlQ;
     });
 
-    const res = new Query<S["ClientResponse"][]>("clients:", async () => []);
+    const res = new Query<S["ClientResponse"][]>();
     $effect(() => {
         const term = urlQ.trim();
-        if (term.length >= 2) {
-            const l = load.clients(term);
-            res.load(l.key, l.fn);
-        } else res.data = undefined;
+        const l = term.length >= 2 ? load.clients(term) : load.recentClients();
+        res.load(l.key, l.fn);
     });
 
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -57,32 +55,31 @@
 </div>
 
 {#if urlQ.trim().length < 2}
-    <div class="faint">Type 2+ letters.</div>
-{:else}
-    <State q={res} empty={!!res.data && res.data.length === 0} emptyText="No clients match." />
-    {#if res.data?.length}
-        <div class="table-wrap">
-            <table class="grid">
-                <thead
-                    ><tr><th>Name</th><th>Gender</th><th class="num">Age</th><th>Phone</th><th>Address</th><th>Conditions</th><th class="num">Visits</th></tr
-                    ></thead
-                >
-                <tbody>
-                    {#each res.data as c (c.id)}
-                        <tr class="click" onclick={() => go(`/clients/${c.id}`)} onmouseenter={() => warm(load.client(c.id))}>
-                            <td><a href="#/clients/{c.id}">{clientName(c)}</a></td>
-                            <td>{c.gender === "UNKNOWN" ? "" : c.gender}</td>
-                            <td class="num">{c.age}</td>
-                            <td>{c.phoneNumber ?? ""}</td>
-                            <td class="ellipsis addr muted">{c.address ?? ""}</td>
-                            <td class="ellipsis addr muted">{c.medicalConditions ?? ""}</td>
-                            <td class="num">{c.sessionCount}</td>
-                        </tr>
-                    {/each}
-                </tbody>
-            </table>
-        </div>
-    {/if}
+    <div class="faint mb">Recent clients</div>
+{/if}
+<State q={res} empty={!!res.data && res.data.length === 0} emptyText={urlQ.trim().length < 2 ? "No clients yet." : "No clients match."} />
+{#if res.data?.length}
+    <div class="table-wrap">
+        <table class="grid">
+            <thead
+                ><tr><th>Name</th><th>Gender</th><th class="num">Age</th><th>Phone</th><th>Address</th><th>Conditions</th><th class="num">Visits</th></tr
+                ></thead
+            >
+            <tbody>
+                {#each res.data as c (c.id)}
+                    <tr class="click" onclick={() => go(`/clients/${c.id}`)} onmouseenter={() => warm(load.client(c.id))}>
+                        <td><a href="#/clients/{c.id}">{clientName(c)}</a></td>
+                        <td>{c.gender === "UNKNOWN" ? "" : c.gender}</td>
+                        <td class="num">{c.age}</td>
+                        <td>{c.phoneNumber ?? ""}</td>
+                        <td class="ellipsis addr muted">{c.address ?? ""}</td>
+                        <td class="ellipsis addr muted">{c.medicalConditions ?? ""}</td>
+                        <td class="num">{c.sessionCount}</td>
+                    </tr>
+                {/each}
+            </tbody>
+        </table>
+    </div>
 {/if}
 
 <Dialog bind:open title="New client" width={620} onsubmit={create} submitText="Create client" busy={a.busy} error={a.error}>

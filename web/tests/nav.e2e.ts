@@ -1,5 +1,6 @@
 import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
+import { doneSessionForNewClient } from "./support";
 
 // Feedback 746a0c70: tapping Alerts again should take you back to the previous page.
 test("tapping Alerts again goes back", { session: "owner" }, async ({ app, screen }) => {
@@ -34,3 +35,11 @@ for (const from of ["today", "clients"]) {
         expect((await alerts())!.x).toBe(before!.x);
     });
 }
+
+// Feedback e130b3be: Clients lists the most recent clients before anyone types.
+test("Clients lists the client just seen, before any search", { session: "owner" }, async ({ app, screen, browser }) => {
+    const name = await doneSessionForNewClient(app, screen, browser);
+    await app.open("/#/clients");
+    await expect(screen.getByText("Recent clients")).toBeVisible();
+    await expect(screen.getByRole("row").nth(1)).toContainText(name);
+});
