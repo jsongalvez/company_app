@@ -65,7 +65,6 @@ done
 
 # --- Fixture 2: no banned flag in the owned shell families ------------------
 scan_dirs=(
-  "$ROOT_DIR/.githooks"
   "$ROOT_DIR/tools/quality"
   "$ROOT_DIR/tools/database"
   "$ROOT_DIR/tools/performance"

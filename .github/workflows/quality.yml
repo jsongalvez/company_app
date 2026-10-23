@@ -21,7 +21,6 @@ on:
       - 'gradle.properties'
       - 'settings.gradle.kts'
       - 'config/detekt/**'
-      - '.githooks/**'
       - 'tools/database/**'
       - 'tools/quality/lib/**'
       - 'tools/quality/*.sh'
@@ -43,7 +42,6 @@ on:
       - 'gradle.properties'
       - 'settings.gradle.kts'
       - 'config/detekt/**'
-      - '.githooks/**'
       - 'tools/database/**'
       - 'tools/quality/lib/**'
       - 'tools/quality/*.sh'
@@ -154,19 +152,14 @@ jobs:
 
       - name: Syntax-check owned shell files
         run: |
-          for f in tools/check-before-push.sh tools/quality/*.sh tools/quality/lib/*.sh tools/database/*.sh tools/database/lib/*.sh tools/performance/*.sh scripts/*.sh .githooks/commit-msg .githooks/pre-commit .githooks/pre-push; do
+          for f in tools/check-before-push.sh tools/quality/*.sh tools/quality/lib/*.sh tools/database/*.sh tools/database/lib/*.sh tools/performance/*.sh scripts/*.sh; do
             [ -f "$f" ] || continue
             bash -n "$f"
           done
 
       - name: Run DB-free shell self-tests
         run: |
-          bash tools/quality/test-hooks-no-expensive-commands.sh
           bash tools/quality/test-shell-portability.sh
-          bash tools/quality/test-setup-hooks-download.sh
-          bash tools/quality/pre-commit-docs-only-test.sh
-          bash tools/quality/pre-commit-formatter-status-test.sh
-          bash tools/quality/test-commit-msg-hook.sh
           bash tools/quality/wrapper-contract.test.sh
           bash tools/database/test-db-name-test.sh
           bash tools/database/test-db-discovery-test.sh

@@ -16,7 +16,6 @@ bad() { echo "  FAIL: $1"; fail=1; }
 pairs=(
   "scripts/validate.sh:tools/quality/validate.sh"
   "scripts/inspect.sh:tools/quality/inspect.sh"
-  "scripts/setup-hooks.sh:tools/quality/setup-hooks.sh"
   "scripts/check-test-cleanliness.sh:tools/database/check-test-cleanliness.sh"
   "scripts/clean-test-db.sh:tools/database/clean-test-db.sh"
   "scripts/check-baselines.sh:tools/performance/check-baselines.sh"
