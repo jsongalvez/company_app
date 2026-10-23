@@ -78,7 +78,12 @@ class OutboxReplayContractTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(branchId)
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         listOf(staff, mate, clerk).forEachIndexed { i, u ->
-            BranchWorkforceFixtures.insertTestAssignment(userId = u, branchId = branchId, slot = (i + 1).toShort(), assignedBy = staff)
+            BranchWorkforceFixtures.insertTestAssignment(
+                userId = u,
+                branchId = branchId,
+                slot = (i + 1).toShort(),
+                assignedBy = staff,
+            )
         }
         SessionClientFixtures.insertTestClient(clientId)
         CommerceFinanceFixtures.insertTestCategory(categoryId)
@@ -140,7 +145,9 @@ class OutboxReplayContractTest : BasePostgresTest() {
     fun `POST clients`() {
         val id = TestFixtures.uuid()
         replay(
-            staff, "POST", "/api/clients",
+            staff,
+            "POST",
+            "/api/clients",
             mapOf("id" to id.toString(), "firstName" to "Ana", "lastName" to "Cruz", "gender" to "F", "age" to 30),
         )
         assertEquals(1, count(ClientTable) { it.id eq id })
@@ -151,10 +158,15 @@ class OutboxReplayContractTest : BasePostgresTest() {
         clockStaffIn()
         val id = TestFixtures.uuid()
         replay(
-            staff, "POST", "/api/sessions",
+            staff,
+            "POST",
+            "/api/sessions",
             mapOf(
-                "id" to id.toString(), "clientId" to clientId.toString(), "branchId" to branchId.toString(),
-                "isWalkIn" to false, "finalPrice" to "2500.00",
+                "id" to id.toString(),
+                "clientId" to clientId.toString(),
+                "branchId" to branchId.toString(),
+                "isWalkIn" to false,
+                "finalPrice" to "2500.00",
             ),
         )
         assertEquals(1, count(SessionTable) { it.id eq id })
@@ -166,7 +178,9 @@ class OutboxReplayContractTest : BasePostgresTest() {
         SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         val rowId = TestFixtures.uuid()
         replay(
-            staff, "POST", "/api/sessions/$sessionId/practitioners",
+            staff,
+            "POST",
+            "/api/sessions/$sessionId/practitioners",
             mapOf("id" to rowId.toString(), "practitionerId" to mate.toString()),
         )
         assertEquals(1, count(SessionPractitionerTable) { (it.sessionId eq sessionId) and (it.practitionerId eq mate) })
@@ -176,7 +190,10 @@ class OutboxReplayContractTest : BasePostgresTest() {
     fun `PATCH sessions slash id slash status`() {
         val sessionId = TestFixtures.uuid()
         SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
-        val version = transaction { SessionTable.selectAll().where { SessionTable.id eq sessionId }.single()[SessionTable.version] }
+        val version =
+            transaction {
+                SessionTable.selectAll().where { SessionTable.id eq sessionId }.single()[SessionTable.version]
+            }
         replay(staff, "PATCH", "/api/sessions/$sessionId/status", mapOf("status" to "COMPLETED", "version" to version))
         val after = transaction { SessionTable.selectAll().where { SessionTable.id eq sessionId }.single() }
         assertEquals("COMPLETED", after[SessionTable.sessionStatus].name)
@@ -187,16 +204,25 @@ class OutboxReplayContractTest : BasePostgresTest() {
     fun `POST product-sales`() {
         val id = TestFixtures.uuid()
         replay(
-            staff, "POST", "/api/product-sales",
+            staff,
+            "POST",
+            "/api/product-sales",
             mapOf(
-                "id" to id.toString(), "branchDayId" to branchDayId.toString(), "isWalkIn" to true,
-                "productId" to productId.toString(), "quantity" to 1,
+                "id" to id.toString(),
+                "branchDayId" to branchDayId.toString(),
+                "isWalkIn" to true,
+                "productId" to productId.toString(),
+                "quantity" to 1,
             ),
         )
         assertEquals(1, count(ProductSaleTable) { it.id eq id })
         val stock =
             transaction {
-                BranchInventoryTable.selectAll().where { BranchInventoryTable.productId eq productId }.single()[BranchInventoryTable.currentStock]
+                BranchInventoryTable
+                    .selectAll()
+                    .where {
+                        BranchInventoryTable.productId eq productId
+                    }.single()[BranchInventoryTable.currentStock]
             }
         assertEquals(STOCK - 1, stock, "stock must drop once")
     }
@@ -205,8 +231,15 @@ class OutboxReplayContractTest : BasePostgresTest() {
     fun `POST expenses`() {
         val id = TestFixtures.uuid()
         replay(
-            staff, "POST", "/api/expenses",
-            mapOf("id" to id.toString(), "branchDayId" to branchDayId.toString(), "amount" to "120.00", "category" to "PANTRY"),
+            staff,
+            "POST",
+            "/api/expenses",
+            mapOf(
+                "id" to id.toString(),
+                "branchDayId" to branchDayId.toString(),
+                "amount" to "120.00",
+                "category" to "PANTRY",
+            ),
         )
         assertEquals(1, count(ExpenseTable) { it.id eq id })
     }
@@ -215,8 +248,15 @@ class OutboxReplayContractTest : BasePostgresTest() {
     fun `POST allowances`() {
         val id = TestFixtures.uuid()
         replay(
-            finance, "POST", "/api/allowances",
-            mapOf("id" to id.toString(), "branchDayId" to branchDayId.toString(), "userId" to mate.toString(), "amount" to "50.00"),
+            finance,
+            "POST",
+            "/api/allowances",
+            mapOf(
+                "id" to id.toString(),
+                "branchDayId" to branchDayId.toString(),
+                "userId" to mate.toString(),
+                "amount" to "50.00",
+            ),
         )
         assertEquals(1, count(AllowanceTable) { it.id eq id })
     }
@@ -224,14 +264,33 @@ class OutboxReplayContractTest : BasePostgresTest() {
     @Test
     fun `POST attendance clock-in`() {
         val id = TestFixtures.uuid()
-        replay(clerk, "POST", "/api/attendance/clock-in", mapOf("attendanceId" to id.toString(), "branchId" to branchId.toString()))
+        replay(
+            clerk,
+            "POST",
+            "/api/attendance/clock-in",
+            mapOf(
+                "attendanceId" to id.toString(),
+                "branchId" to branchId.toString(),
+            ),
+        )
         assertEquals(1, count(AttendanceTable) { it.userId eq clerk })
     }
 
     @Test
     fun `POST attendance clock-out`() {
         val id = TestFixtures.uuid()
-        assertEquals(201, call(clerk, "POST", "/api/attendance/clock-in", mapOf("attendanceId" to id.toString(), "branchId" to branchId.toString())).code)
+        assertEquals(
+            201,
+            call(
+                clerk,
+                "POST",
+                "/api/attendance/clock-in",
+                mapOf(
+                    "attendanceId" to id.toString(),
+                    "branchId" to branchId.toString(),
+                ),
+            ).code,
+        )
         replay(clerk, "POST", "/api/attendance/clock-out", mapOf("attendanceId" to id.toString()))
         assertEquals(1, count(AttendanceTable) { it.userId eq clerk })
     }
@@ -240,7 +299,9 @@ class OutboxReplayContractTest : BasePostgresTest() {
     fun `POST branches slash id slash attendance marks, present`() {
         val id = TestFixtures.uuid()
         replay(
-            staff, "POST", "/api/branches/$branchId/attendance/marks",
+            staff,
+            "POST",
+            "/api/branches/$branchId/attendance/marks",
             mapOf("userId" to mate.toString(), "present" to true, "attendanceId" to id.toString()),
         )
         assertEquals(1, count(AttendanceTable) { it.userId eq mate })
@@ -251,9 +312,26 @@ class OutboxReplayContractTest : BasePostgresTest() {
         val id = TestFixtures.uuid()
         assertEquals(
             200,
-            call(staff, "POST", "/api/branches/$branchId/attendance/marks", mapOf("userId" to mate.toString(), "present" to true, "attendanceId" to id.toString())).code,
+            call(
+                staff,
+                "POST",
+                "/api/branches/$branchId/attendance/marks",
+                mapOf(
+                    "userId" to mate.toString(),
+                    "present" to true,
+                    "attendanceId" to id.toString(),
+                ),
+            ).code,
         )
-        replay(staff, "POST", "/api/branches/$branchId/attendance/marks", mapOf("userId" to mate.toString(), "present" to false))
+        replay(
+            staff,
+            "POST",
+            "/api/branches/$branchId/attendance/marks",
+            mapOf(
+                "userId" to mate.toString(),
+                "present" to false,
+            ),
+        )
         assertEquals(1, count(AttendanceTable) { it.userId eq mate })
     }
 
@@ -265,7 +343,11 @@ class OutboxReplayContractTest : BasePostgresTest() {
                 .findAll(source)
                 .map { m -> "${m.groupValues[1]} ${m.groupValues[2].replace("\\/", "/").replace("[^/]+", "{}")}" }
                 .toSet()
-        assertEquals(EXPECTED_RULES, queued, "web/src/lib/outbox.svelte.ts RULES changed: add or remove the matching replay test above")
+        assertEquals(
+            EXPECTED_RULES,
+            queued,
+            "web/src/lib/outbox.svelte.ts RULES changed: add or remove the matching replay test above",
+        )
     }
 
     companion object {
@@ -301,10 +383,26 @@ class OutboxReplayContractTest : BasePostgresTest() {
                     Database.connect(TestDatabaseLifecycle.requireTestDataSource())
                     ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
                 }
-                cfg.routes.exception(ForbiddenException::class.java) { e, ctx -> ctx.status(403).json(mapOf("error" to (e.message ?: ""))) }
-                cfg.routes.exception(NotFoundException::class.java) { e, ctx -> ctx.status(404).json(mapOf("error" to (e.message ?: ""))) }
-                cfg.routes.exception(ConflictException::class.java) { e, ctx -> ctx.status(409).json(mapOf("error" to (e.message ?: ""))) }
-                cfg.routes.exception(ValidationException::class.java) { e, ctx -> ctx.status(400).json(mapOf("error" to (e.message ?: ""))) }
+                cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                    ctx.status(403).json(
+                        mapOf("error" to (e.message ?: "")),
+                    )
+                }
+                cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                    ctx.status(404).json(
+                        mapOf("error" to (e.message ?: "")),
+                    )
+                }
+                cfg.routes.exception(ConflictException::class.java) { e, ctx ->
+                    ctx.status(409).json(
+                        mapOf("error" to (e.message ?: "")),
+                    )
+                }
+                cfg.routes.exception(ValidationException::class.java) { e, ctx ->
+                    ctx.status(400).json(
+                        mapOf("error" to (e.message ?: "")),
+                    )
+                }
                 ClientRoutes.register(cfg)
                 SessionRoutes.register(cfg)
                 ProductSaleRoutes.register(cfg)

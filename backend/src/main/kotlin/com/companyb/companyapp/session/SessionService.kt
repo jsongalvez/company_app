@@ -286,12 +286,12 @@ object SessionService {
             computeBasePriceInTransaction(branchId, sessionType)
         }
 
-    /** A stale-version mark that asks for the status the session already has, one or more versions on. */
-    private fun isMarkAlreadyApplied(
+    /** The session itself when a stale-version mark asks for the status it already has, else null. */
+    private fun ackedRepeatOrNull(
         session: Session,
         newStatus: SessionStatus,
         expectedVersion: Int,
-    ): Boolean = session.version > expectedVersion && session.sessionStatus == newStatus
+    ): Session? = session.takeIf { it.version > expectedVersion && it.sessionStatus == newStatus }
 
     fun updateStatus(
         callerId: UUID,
@@ -313,10 +313,10 @@ object SessionService {
                     ?: throw NotFoundException("Session not found")
 
             if (session.version != expectedVersion) {
-                // Replay of a mark that already landed (the offline queue re-sends one whose answer it
-                // never saw): ack it, as expense/allowance/product-sale creates do (#509, #510).
-                if (isMarkAlreadyApplied(session, newStatus, expectedVersion)) return@transaction session
-                throw ConflictException("Session version mismatch")
+                // A repeat of a mark that already landed (the offline queue re-sends one whose answer it
+                // never saw) is acked, as expense/allowance/product-sale creates do (#509, #510).
+                return@transaction ackedRepeatOrNull(session, newStatus, expectedVersion)
+                    ?: throw ConflictException("Session version mismatch")
             }
 
             // #690 — void freezes status: a voided row rejects every status change
