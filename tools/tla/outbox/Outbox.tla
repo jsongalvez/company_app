@@ -6,7 +6,7 @@
     lib/outbox-classify.ts: classify(status, body) -> retry | applied | failed
     api/client.ts        : resilientFetch (mustQueue / canQueue)
     lib/cache.svelte.ts  : fetchCached seq guard, Query.refresh on SENT
-    pages/Today.svelte   : `sessions` = server list + held creates + recent creates
+    pages/Today.svelte   : `sessions` = server list + pendingSessions() (creates waiting or sent, until the list shows them)
   Server rules come from backend SessionService.updateStatus, SessionRoutes.handleCreateSession,
   ProductSaleService.sell and BranchDayService.assertEditableBranchDay.
 

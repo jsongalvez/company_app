@@ -7,7 +7,7 @@
     import { go, viewSetting } from "../lib/router.svelte";
     import { peso, time, label, sum, day, operationalDate, clientName } from "../lib/format";
     import { allowedTargets, statusClass, type Status } from "../lib/rules";
-    import { heldMark, heldSessions, outbox, sentSessions, sessionsSeen } from "../lib/outbox.svelte";
+    import { heldMark, outbox, pendingSessions, sessionsSeen } from "../lib/outbox.svelte";
     import { findLocal } from "../lib/clientdir.svelte";
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
@@ -55,17 +55,12 @@
                 ? { ...s, sessionStatus: h as S["DashboardSessionResponse"]["sessionStatus"], held: true, unsent: false }
                 : { ...s, held: false, unsent: false };
         });
-        // New sessions made with no signal show straight away, flagged until they're sent.
+        // New sessions made on this phone show straight away, flagged until they're sent, and stay until the server's list has them.
         const have = new Set(fromServer.map((s) => s.id));
-        const held = heldSessions()
-            .filter((h) => h.body.branchId === bid && !have.has(String(h.body.id)))
-            .map((h) => heldRow(h.at, h.body));
-        // Just sent: keep showing it until the server's list has it.
-        void outbox.recent.length;
-        const sent = sentSessions()
-            .filter((h) => h.body.branchId === bid && !have.has(String(h.body.id)))
-            .map((h) => ({ ...heldRow(h.at, h.body), held: false, unsent: false }));
-        return [...fromServer, ...held, ...sent];
+        const pending = pendingSessions()
+            .filter((p) => p.body.branchId === bid && !have.has(String(p.body.id)))
+            .map((p) => ({ ...heldRow(p.at, p.body), held: p.unsent, unsent: p.unsent }));
+        return [...fromServer, ...pending];
     });
 
     function heldRow(at: string, b: Record<string, unknown>): S["DashboardSessionResponse"] & { held: boolean; unsent: boolean } {
