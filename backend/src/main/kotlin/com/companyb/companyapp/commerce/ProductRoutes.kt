@@ -154,6 +154,16 @@ object ProductRoutes {
         val callerId = context.callerUuid()
         val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
         val request = context.bodyAsClass<UpdateProductRequest>()
+        // An empty patch would build an UPDATE with no columns and fail as a 500.
+        val fields =
+            listOf(
+                request.name,
+                request.productCategoryId,
+                request.unitPrice,
+                request.commissionAmount,
+                request.isActive,
+            )
+        if (fields.all { it == null }) throw BadRequestResponse("Nothing to update")
         val updateName = request.name?.trim()
         if (updateName != null && updateName.isBlank()) {
             throw BadRequestResponse("Product name cannot be blank")

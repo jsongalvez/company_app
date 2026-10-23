@@ -1,6 +1,7 @@
 package com.companyb.companyapp
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.middleware.NulCharFilter
 import com.companyb.companyapp.api.middleware.TraceIdFilter
 import com.companyb.companyapp.api.routes.HealthRoutes
 import com.companyb.companyapp.app.AppConfig
@@ -145,6 +146,7 @@ private fun configureFilters(config: io.javalin.config.JavalinConfig) {
         DeltaTimeConverter.startRequest()
         TraceIdFilter.before(it)
         RequestLog.start(it)
+        NulCharFilter.before(it)
     }
     config.routes.after {
         TraceIdFilter.echo(it)

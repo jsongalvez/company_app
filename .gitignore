@@ -45,3 +45,5 @@ tests/k6/results/*.html
 logs/
 **/.agents/handoffs/
 
+.schemathesis/
+build/fuzz/
