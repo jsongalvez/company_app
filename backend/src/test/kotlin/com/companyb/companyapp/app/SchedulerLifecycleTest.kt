@@ -161,6 +161,62 @@ class SchedulerLifecycleTest {
     }
 
     @Test
+    fun `boot after a job's slot runs it once, boot before the slot does not`() {
+        fun executedAt(now: ZonedDateTime): List<String> {
+            val ran = mutableListOf<String>()
+            val executor = RecordingExecutor()
+            val lifecycle =
+                SchedulerLifecycle(
+                    executorFactory = { executor },
+                    now = { now },
+                    jobs =
+                        listOf(
+                            recordingJob("Notification", NextAppointmentScheduler::nextRunDelayMs, ran),
+                            recordingJob("Relief-expiry", ReliefRequestExpiryJob::nextRunDelayMs, ran),
+                        ),
+                )
+            lifecycle.start()
+            try {
+                executor.executed.forEach { it.run() }
+            } finally {
+                lifecycle.stop()
+            }
+            return ran
+        }
+
+        assertEquals(emptyList(), executedAt(ZonedDateTime.of(2026, 8, 18, 3, 0, 0, 0, manilaZone)))
+        assertEquals(listOf("Relief-expiry"), executedAt(ZonedDateTime.of(2026, 8, 18, 6, 0, 0, 0, manilaZone)))
+        assertEquals(
+            listOf("Notification", "Relief-expiry"),
+            executedAt(ZonedDateTime.of(2026, 8, 18, 7, 30, 0, 0, manilaZone)),
+        )
+    }
+
+    @Test
+    fun `a failing catch-up run is swallowed`() {
+        val executor = RecordingExecutor()
+        val lifecycle =
+            SchedulerLifecycle(
+                executorFactory = { executor },
+                now = { startTime },
+                jobs =
+                    listOf(
+                        ScheduledJob(
+                            name = "Boom",
+                            initialDelayMs = ReliefRequestExpiryJob::nextRunDelayMs,
+                            task = { throw IOException("boom") },
+                        ),
+                    ),
+            )
+        lifecycle.start()
+        try {
+            executor.executed.single().run()
+        } finally {
+            lifecycle.stop()
+        }
+    }
+
+    @Test
     fun `start covers before at and after run boundaries`() {
         assertAppointmentBoundaries()
         assertExpiryBoundaries()
@@ -214,6 +270,12 @@ class SchedulerLifecycleTest {
         }
     }
 
+    private fun recordingJob(
+        name: String,
+        delay: (ZonedDateTime) -> Long,
+        ran: MutableList<String>,
+    ) = ScheduledJob(name = name, initialDelayMs = delay, task = { ran += name })
+
     private fun minutesToMs(minutes: Long): Long =
         java.time.Duration
             .ofMinutes(minutes)
@@ -242,6 +304,11 @@ class SchedulerLifecycleTest {
     private class RecordingExecutor : ScheduledThreadPoolExecutor(THREAD_COUNT) {
         val calls = mutableListOf<ScheduleCall>()
         val commands = mutableListOf<Runnable>()
+        val executed = mutableListOf<Runnable>()
+
+        override fun execute(command: Runnable) {
+            executed.add(command)
+        }
 
         override fun scheduleAtFixedRate(
             command: Runnable,
