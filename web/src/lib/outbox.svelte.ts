@@ -57,48 +57,26 @@ function load(): Item[] {
     }
 }
 
-const RECENT_KEY = "outbox-recent";
-function loadRecent(): Item[] {
-    try {
-        const v = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]") as Item[];
-        return Array.isArray(v) ? v : [];
-    } catch {
-        return [];
-    }
-}
-export const outbox = $state({ items: load(), sending: false, recent: loadRecent() });
-
 /**
- * Creates sent a moment ago. They stay on screen until the server's own list shows them. A new
- * session is kept across a reload and until the list has it (a weak signal can leave the list
- * stale for minutes); a client only until the saved client list has it.
+ * A create that has gone out stays in the queue, marked `sentAt`, until the server's own list shows
+ * it: a session for up to a day (a weak signal can leave the list stale for minutes), a client for
+ * two minutes. It is no longer waiting, but pages still show it, so it never drops off the screen
+ * between the send and the next list. The server's list always wins over it.
  */
-const RECENT_MS = 120_000;
-const RECENT_SESSION_MS = 24 * 3600_000;
-const keepMs = (i: Item) => (i.path === "/api/sessions" ? RECENT_SESSION_MS : RECENT_MS);
-function keepRecent(i: Item) {
-    if (i.method !== "POST" || (i.path !== "/api/sessions" && i.path !== "/api/clients")) return;
-    const now = Date.now();
-    outbox.recent = [...outbox.recent.filter((r) => (r.sentAt ?? 0) + keepMs(r) > now), { ...i, sentAt: now }];
-    localStorage.setItem(RECENT_KEY, JSON.stringify(outbox.recent));
-}
+const KEEP_CLIENT_MS = 120_000;
+const KEEP_SESSION_MS = 24 * 3600_000;
+const keepsAfterSend = (i: Item) => i.method === "POST" && (i.path === "/api/sessions" || i.path === "/api/clients");
+const stillShown = (i: Item) => i.sentAt === undefined || i.sentAt + (i.path === "/api/sessions" ? KEEP_SESSION_MS : KEEP_CLIENT_MS) > Date.now();
+
+localStorage.removeItem("outbox-recent");
+export const outbox = $state({ items: load().filter(stillShown), sending: false });
+
 /** The server's list now shows these sessions: stop holding them up ourselves. */
 export function sessionsSeen(ids: Set<string>) {
-    const left = outbox.recent.filter((r) => r.path !== "/api/sessions" || !ids.has(String(parseBody(r.body).id)));
-    if (left.length === outbox.recent.length) return;
-    outbox.recent = left;
-    localStorage.setItem(RECENT_KEY, JSON.stringify(left));
-}
-function recentBodies(path: string): { at: string; body: Record<string, unknown> }[] {
-    const now = Date.now();
-    return outbox.recent.filter((i) => i.path === path && (i.sentAt ?? 0) + keepMs(i) > now).map((i) => ({ at: i.at, body: parseBody(i.body) }));
-}
-/** New sessions just sent, which the server's list may not show yet. */
-export const sentSessions = () => recentBodies("/api/sessions");
-/** A client just sent, before the saved client list has it. */
-export function sentClient(id: string): S["ClientResponse"] | undefined {
-    const b = recentBodies("/api/clients").find((x) => String(x.body.id) === id);
-    return b ? heldClient(b.body) : undefined;
+    const left = outbox.items.filter((i) => i.sentAt === undefined || i.path !== "/api/sessions" || !ids.has(String(parseBody(i.body).id)));
+    if (left.length === outbox.items.length) return;
+    outbox.items = left;
+    save();
 }
 
 function save() {
@@ -121,15 +99,16 @@ export function mine(): Item[] {
     const u = tokenUser();
     return outbox.items.filter((i) => i.user === u);
 }
-export const waiting = () => mine().filter((i) => !i.failed);
+export const waiting = () => mine().filter((i) => !i.failed && i.sentAt === undefined);
 export const failed = () => mine().filter((i) => !!i.failed);
 
-/** The body of this person's waiting saves to a path, newest last. */
-function waitingBodies(method: string, path: RegExp): { path: string; body: Record<string, unknown> }[] {
-    return waiting()
-        .filter((i) => i.method === method && path.test(i.path))
-        .map((i) => ({ path: i.path, body: parseBody(i.body) }));
+/** This person's saves to a path that the server's list may not show yet: waiting, or just sent. */
+function pendingTo(method: string, path: RegExp): { item: Item; body: Record<string, unknown> }[] {
+    return mine()
+        .filter((i) => !i.failed && stillShown(i) && i.method === method && path.test(i.path))
+        .map((item) => ({ item, body: parseBody(item.body) }));
 }
+const waitingBodies = (method: string, path: RegExp) => pendingTo(method, path).filter((x) => x.item.sentAt === undefined);
 
 /** A client made with no signal, shaped like the server's answer. */
 function heldClient(b: Record<string, unknown>): S["ClientResponse"] {
@@ -150,21 +129,19 @@ function heldClient(b: Record<string, unknown>): S["ClientResponse"] {
     };
 }
 
-/** Clients made on this phone that haven't reached the server yet. */
-export function heldClients(): S["ClientResponse"][] {
-    return waitingBodies("POST", /^\/api\/clients$/).map((x) => heldClient(x.body));
+/** Clients made on this phone that the saved client list may not have yet (waiting, or just sent). */
+export function pendingClients(): S["ClientResponse"][] {
+    return pendingTo("POST", /^\/api\/clients$/).map((x) => heldClient(x.body));
 }
 
-/** New sessions waiting to send, with when they were made. */
-export function heldSessions(): { at: string; body: Record<string, unknown> }[] {
-    return waiting()
-        .filter((i) => i.method === "POST" && i.path === "/api/sessions")
-        .map((i) => ({ at: i.at, body: parseBody(i.body) }));
+/** New sessions made on this phone that the server's list may not show yet; `unsent` while still waiting. */
+export function pendingSessions(): { at: string; body: Record<string, unknown>; unsent: boolean }[] {
+    return pendingTo("POST", /^\/api\/sessions$/).map((x) => ({ at: x.item.at, body: x.body, unsent: x.item.sentAt === undefined }));
 }
 
 /** A session's mark still waiting to send, so lists can show it straight away. */
 export function heldMark(sessionId: string): string | undefined {
-    const m = waitingBodies("PATCH", /^\/api\/sessions\/[^/]+\/status$/).filter((x) => x.path === `/api/sessions/${sessionId}/status`);
+    const m = waitingBodies("PATCH", /^\/api\/sessions\/[^/]+\/status$/).filter((x) => x.item.path === `/api/sessions/${sessionId}/status`);
     return m.length ? String(m[m.length - 1]!.body.status) : undefined;
 }
 
@@ -309,8 +286,9 @@ export async function flush(): Promise<void> {
                     const v = (body as { version?: unknown } | null)?.version;
                     chainVersions(i, typeof v === "number" ? v : undefined);
                 }
-                keepRecent(i);
-                discard(i.id);
+                if (keepsAfterSend(i)) live.sentAt = Date.now();
+                else outbox.items = outbox.items.filter((x) => x.id !== i.id);
+                save();
                 sent++;
                 continue;
             }

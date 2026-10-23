@@ -5,7 +5,7 @@ import { doneSessionForNewClient } from "./support";
 // Found by the TLA+ model in tools/tla/outbox (see its README). Each test is one counterexample TLC printed.
 const down = /\/(api\/|health)/;
 const refused = "couldn't be sent";
-type Item = { failed?: string };
+type Item = { failed?: string; sentAt?: number };
 const saved = (browser: { evaluate: <T>(f: () => T) => Promise<T> }) => browser.evaluate(() => JSON.parse(localStorage.getItem("outbox") ?? "[]") as Item[]);
 
 // Done, then Undo, both with no signal: the phone used to queue "back to Waiting" for a session that
@@ -85,7 +85,7 @@ test("a session sent from the phone stays on today's list until the server's lis
     await browser.unroute(down);
     const list = /\/dashboard\/today/;
     await browser.route(list, (route) => route.abort());
-    await expect.poll(async () => (await saved(browser)).length, { timeout: 40_000 }).toBe(0);
+    await expect.poll(async () => (await saved(browser)).filter((i) => !i.sentAt).length, { timeout: 40_000 }).toBe(0);
     await expect(row.getByText("Not sent")).not.toBeVisible();
 
     await browser.evaluate(() => location.reload());
