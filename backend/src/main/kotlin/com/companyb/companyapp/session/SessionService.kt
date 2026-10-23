@@ -74,8 +74,8 @@ object SessionService {
         // REMITTED needs coordinator + reason. Plumbed route→service like every sibling
         // session mutation; null on OPEN days.
         reason: String? = null,
-        // No one adds a session without clocking in; routes pass true, fixtures don't.
-        requireClockIn: Boolean = false,
+        // No one adds a session without clocking in. Only test fixtures that predate the rule opt out.
+        requireClockIn: Boolean = true,
     ): SessionCreateResult {
         val branchType =
             SessionRepository.getBranchType(branchId)

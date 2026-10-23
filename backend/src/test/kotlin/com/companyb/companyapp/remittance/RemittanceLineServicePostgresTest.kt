@@ -1385,6 +1385,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             remarks = null,
             otherConcerns = null,
             nextAppointmentDate = null,
+            requireClockIn = false,
         )
         // #857 — only COMPLETED sessions are remittable; complete the fixture so the
         // legacy happy-path tests exercise the guarded (allowed) state.

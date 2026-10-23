@@ -265,6 +265,7 @@ class ClientAnonymizeSessionRacePostgresTest : BasePostgresTest() {
             remarks = "call $PHONE_MARKER after lunch",
             otherConcerns = null,
             nextAppointmentDate = null,
+            requireClockIn = false,
         )
         SessionPractitionerService.addPractitioner(
             callerId = callerId,

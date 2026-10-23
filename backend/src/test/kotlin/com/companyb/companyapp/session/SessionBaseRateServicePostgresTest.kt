@@ -354,6 +354,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
             remarks = null,
             otherConcerns = null,
             nextAppointmentDate = null,
+            requireClockIn = false,
         )
         // Session create lazily bootstraps today's branch day; reset clears both rows.
     }

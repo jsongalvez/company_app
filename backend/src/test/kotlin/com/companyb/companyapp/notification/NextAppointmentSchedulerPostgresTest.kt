@@ -326,6 +326,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
             remarks = null,
             otherConcerns = null,
             nextAppointmentDate = appointmentDate,
+            requireClockIn = false,
         )
         SessionService.updateStatus(callerId, sessionId, SessionStatus.COMPLETED, 1)
         return sessionId
@@ -344,6 +345,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
             remarks = null,
             otherConcerns = null,
             nextAppointmentDate = appointmentDate,
+            requireClockIn = false,
         )
         return sessionId
     }

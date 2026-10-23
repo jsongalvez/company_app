@@ -400,6 +400,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         remarks = "Test session",
         otherConcerns = null,
         nextAppointmentDate = null,
+        requireClockIn = false,
     )
 
     private fun insertSystemConcern() {

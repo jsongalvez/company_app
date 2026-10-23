@@ -138,6 +138,7 @@ class ClientAnonymizeSessionTextPostgresTest : BasePostgresTest() {
             remarks = "call $PHONE_MARKER after lunch",
             otherConcerns = null,
             nextAppointmentDate = null,
+            requireClockIn = false,
         )
         SessionPractitionerService.addPractitioner(
             callerId = callerId,
@@ -178,6 +179,7 @@ class ClientAnonymizeSessionTextPostgresTest : BasePostgresTest() {
             remarks = "call $PHONE_MARKER after lunch",
             otherConcerns = "follow up with $NAME_MARKER",
             nextAppointmentDate = null,
+            requireClockIn = false,
         )
 
         assertFailsWith<ConflictException> {
@@ -228,6 +230,7 @@ class ClientAnonymizeSessionTextPostgresTest : BasePostgresTest() {
             remarks = "call $PHONE_MARKER after lunch",
             otherConcerns = "follow up with $NAME_MARKER",
             nextAppointmentDate = null,
+            requireClockIn = false,
         )
         SessionPractitionerService.addPractitioner(
             callerId = callerId,
