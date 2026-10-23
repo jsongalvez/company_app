@@ -7,7 +7,6 @@
     import Feedback from "./Feedback.svelte";
     import FeedbackList from "../pages/FeedbackList.svelte";
     import { load, warm } from "../lib/data";
-    import { invalidate } from "../lib/cache.svelte";
     import NetBar from "./NetBar.svelte";
     import { day, label, operationalDate, clientName } from "../lib/format";
     import { searchLocal } from "../lib/clientdir.svelte";
@@ -73,6 +72,15 @@
 
     const section = $derived("/" + (route.current.parts[0] ?? ""));
     let menuOpen = $state(false);
+    // The phone menu hangs from the bottom of the top bar, wherever that is (the "Viewing as" bar pushes it down).
+    let topEl: HTMLElement | undefined = $state();
+    let topH = $state(76);
+    $effect(() => {
+        if (menuOpen && topEl) {
+            void app.viewAs;
+            topH = Math.round(topEl.getBoundingClientRect().bottom);
+        }
+    });
     // Lock the page under the open menu (iPhone otherwise scrolls the page beneath it).
     $effect(() => {
         document.documentElement.classList.toggle("menu-open", menuOpen);
@@ -108,14 +116,11 @@
     async function doClockIn() {
         clockBusy = true;
         await clockIn(bid);
-        invalidate("");
         clockBusy = false;
     }
     async function doClockOut() {
-        if (!app.shift || !confirm(`Clock out of ${app.shift.branchName}?`)) return;
         clockBusy = true;
         await clockOut();
-        invalidate("");
         clockBusy = false;
     }
 
@@ -156,7 +161,7 @@
             <button class="sm" onclick={() => stopViewAs()}>Back to me</button>
         </div>
     {/if}
-    <header class="top">
+    <header class="top" bind:this={topEl}>
         <button class="ghost menu" onclick={() => (menuOpen = !menuOpen)} aria-label="Menu" aria-expanded={menuOpen}>☰</button>
         <a class="brand" href="#/today">CompanyApp</a>
         {#if section !== "/today" && view}<a class="btn home" href="#/today" onclick={() => (menuOpen = false)} title="Home: back to Sessions" aria-label="Home"
@@ -243,7 +248,7 @@
         <button class="ghost" onclick={() => signOut()}>Sign out</button>
     </header>
 
-    <nav class:open={menuOpen} aria-label="Main">
+    <nav class:open={menuOpen} aria-label="Main" style:--top-h="{topH}px">
         {#each nav as group (group.title)}
             {#if group.items.some((i) => i.show)}
                 <h3>{group.title}</h3>

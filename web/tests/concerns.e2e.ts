@@ -7,7 +7,7 @@ test("add concerns to a session by typing", { session: "owner" }, async ({ app, 
     const first = `Ache${Date.now().toString().slice(-6)}`;
     const concern = `Neck pain ${first}`;
     await app.open("/#/today");
-    await clockInHere(screen);
+    await clockInHere(screen, browser);
 
     await screen.getByRole("button", "New session").tap();
     const dialog = screen.getByRole("dialog", "New session");

@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, uuid, BASE_STATUS, type S } from "../api/client";
-    import { app, can, branchName, refreshBranchDay, clockIn, selectBranch, onDutyAt } from "../lib/app.svelte";
+    import { app, can, branchName, refreshBranchDay, clockIn, selectBranch, onDutyAt, shiftChanged } from "../lib/app.svelte";
     import { Query, invalidate } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
@@ -134,6 +134,8 @@
     }
 
     async function setPresent(m: S["MemberAttendanceResponse"], present: boolean) {
+        const mine = m.userId === app.me?.id;
+        if (!confirm(`${present ? "Clock in" : "Clock out"} ${mine ? "yourself" : m.displayName}?`)) return;
         const done = await act(() =>
             ok(
                 api.POST("/api/branches/{branchId}/attendance/marks", {
@@ -142,19 +144,16 @@
                 }),
             ),
         );
-        if (done) {
+        if (!done) return;
+        // Your own mark is your shift: the top bar and what Today allows change with it.
+        if (mine) await shiftChanged();
+        else {
             invalidate(`roster:${bid}`);
             roster.refresh();
         }
     }
 
     const needClockIn = $derived(!!dash.error && /clocked in/i.test(dash.error));
-    async function startShift() {
-        if (await clockIn(bid)) {
-            invalidate("");
-            refresh();
-        }
-    }
 
     let newOpen = $state(false);
     let bookOpen = $state(false);
@@ -254,7 +253,7 @@
         {#if edit && !needClockIn && !onDutyAt(bid)}
             <div class="notice row mb">
                 <span class="grow">Clock in at {branchName(bid)} to add new sessions.</span>
-                {#if !app.shift && app.branches.some((b) => b.branchId === bid)}<button class="primary" onclick={startShift}>Clock in</button>{/if}
+                {#if !app.shift && app.branches.some((b) => b.branchId === bid)}<button class="primary" onclick={() => clockIn(bid)}>Clock in</button>{/if}
             </div>
         {/if}
         {#if needClockIn}
@@ -263,8 +262,9 @@
                     <span class="grow">You're clocked in at {app.shift.branchName}. Clock out there before clocking in here.</span>
                     <button onclick={() => selectBranch(app.shift!.branchId)}>Go to {app.shift.branchName}</button>
                 {:else}<span class="grow">Clock in at {branchName(bid)} to see and log today's sessions.</span>{/if}
-                {#if app.shift && app.shift.branchId !== bid}{:else if app.branches.some((b) => b.branchId === bid)}<button class="primary" onclick={startShift}
-                        >Clock in</button
+                {#if app.shift && app.shift.branchId !== bid}{:else if app.branches.some((b) => b.branchId === bid)}<button
+                        class="primary"
+                        onclick={() => clockIn(bid)}>Clock in</button
                     >{:else}<a href="#/relief">Request relief duty</a>{/if}
             </div>
         {:else}

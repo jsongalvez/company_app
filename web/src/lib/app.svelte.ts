@@ -280,14 +280,22 @@ export function toast(text: string, kind: "ok" | "bad" = "ok") {
     toastTimer = setTimeout(() => (app.toast = null), kind === "bad" ? 6000 : 2500);
 }
 
+/** After your own clock-in or -out: re-read the shift, rights and day, and reload Today's list and roster,
+ *  which the old state allowed or refused. */
+export async function shiftChanged() {
+    await Promise.all([refreshShift(), refreshCaps()]);
+    await refreshBranchDay();
+    forget("dash:", "roster:");
+}
+
 export async function clockIn(branchId: string = app.branchId): Promise<boolean> {
+    if (!confirm(`Clock in at ${branchName(branchId)}?`)) return false;
     const before = heldSoFar();
     try {
         await ok(api.POST("/api/attendance/clock-in", { body: { attendanceId: uuid(), branchId } }));
         // No signal: it's waiting on the phone; show the shift as started meanwhile.
         if (heldSoFar() > before) return (applyHeldClock(), (app.shiftKnown = true), toast(doneText(before)!), true);
-        await Promise.all([refreshShift(), refreshCaps()]);
-        await refreshBranchDay();
+        await shiftChanged();
         toast(doneText(before, "Clocked in")!);
         return true;
     } catch (e) {
@@ -297,14 +305,13 @@ export async function clockIn(branchId: string = app.branchId): Promise<boolean>
 }
 
 export async function clockOut(): Promise<boolean> {
-    if (!app.shift) return false;
+    if (!app.shift || !confirm(`Clock out of ${app.shift.branchName}?`)) return false;
     const before = heldSoFar();
     try {
         await ok(api.POST("/api/attendance/clock-out", { body: { attendanceId: app.shift.attendanceId } }));
         if (heldSoFar() > before) return (applyHeldClock(), forget("dash:", "roster:"), toast(doneText(before)!), true);
-        await Promise.all([refreshShift(), refreshCaps()]);
-        // Today's list needs a clock-in: take it off screen (and off the phone) at once.
-        forget("dash:", "roster:");
+        // Today's list needs a clock-in: this takes it off screen (and off the phone) at once.
+        await shiftChanged();
         toast(doneText(before, "Clocked out")!);
         return true;
     } catch (e) {

@@ -3,10 +3,10 @@ import { expect } from "e2e";
 import { clockInHere } from "./support";
 
 // A client who came before the app: their earlier visits set the visit type and starting price.
-test("earlier visits set a returning client's visit type", { session: "owner" }, async ({ app, screen }) => {
+test("earlier visits set a returning client's visit type", { session: "owner" }, async ({ app, screen, browser }) => {
     const first = `Back${Date.now().toString().slice(-6)}`;
     await app.open("/#/today");
-    await clockInHere(screen);
+    await clockInHere(screen, browser);
 
     await screen.getByRole("button", "New session").tap();
     const dialog = screen.getByRole("dialog", "New session");

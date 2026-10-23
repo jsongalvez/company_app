@@ -26,7 +26,7 @@ test("make a product, stock it, restock it and sell some", { session: "owner" },
 
     // Stock page: carry it at this branch, restock 10.
     await app.open("/#/inventory");
-    await clockInHere(screen);
+    await clockInHere(screen, browser);
     await screen.getByRole("button", "Add product").tap();
     const add = screen.getByRole("dialog", "Add product to this branch");
     await add.getByLabel(/^Product/).selectOption({ label: `${product} · 250.00` });
@@ -53,7 +53,7 @@ test("make a product, stock it, restock it and sell some", { session: "owner" },
     await expect(row.getByText("2", { exact: true })).toBeVisible();
 
     // No signal: one sale tied to a session, one walk-in. Both go out once the signal is back.
-    const client = await doneSessionForNewClient(app, screen);
+    const client = await doneSessionForNewClient(app, screen, browser);
     await app.open("/#/inventory");
     const card = row;
     await expect(card).toBeVisible();
