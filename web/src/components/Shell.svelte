@@ -71,6 +71,13 @@
     ]);
 
     const section = $derived("/" + (route.current.parts[0] ?? ""));
+    // The page Alerts was opened from. On Alerts, Home keeps its space (hidden) when that page
+    // showed it, so the Alerts button doesn't jump between taps.
+    let before = $state("/today");
+    $effect(() => {
+        if (section !== "/notifications") before = section;
+    });
+    const homeSpace = $derived(section === "/notifications" && before !== "/today");
     let menuOpen = $state(false);
     // The phone menu hangs from the bottom of the top bar, wherever that is (the "Viewing as" bar pushes it down).
     let topEl: HTMLElement | undefined = $state();
@@ -164,8 +171,13 @@
     <header class="top" bind:this={topEl}>
         <button class="ghost menu" onclick={() => (menuOpen = !menuOpen)} aria-label="Menu" aria-expanded={menuOpen}>☰</button>
         <a class="brand" href="#/today">CompanyApp</a>
-        {#if section !== "/today" && view}<a class="btn home" href="#/today" onclick={() => (menuOpen = false)} title="Home: back to Sessions" aria-label="Home"
-                >⌂ Home</a
+        {#if homeSpace && view}<span class="btn home placeholder" aria-hidden="true">⌂ Home</span
+            >{:else if section !== "/today" && section !== "/notifications" && view}<a
+                class="btn home"
+                href="#/today"
+                onclick={() => (menuOpen = false)}
+                title="Home: back to Sessions"
+                aria-label="Home">⌂ Home</a
             >{/if}
 
         <form class="search" onsubmit={search} role="search">
@@ -319,6 +331,10 @@
 </div>
 
 <style>
+    .home.placeholder {
+        visibility: hidden;
+        pointer-events: none;
+    }
     .shell {
         display: grid;
         grid-template-columns: 168px 1fr;

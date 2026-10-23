@@ -11,3 +11,26 @@ test("tapping Alerts again goes back", { session: "owner" }, async ({ app, scree
     await screen.getByRole("banner").getByRole("link", "Close alerts").tap();
     await expect(screen.getByRole("heading", "Clients")).toBeVisible();
 });
+
+// Feedback 3bf3842d: Home appeared or vanished as Alerts opened, so the Alerts button
+// jumped between taps. It must stay put, coming from Today or from another page.
+for (const from of ["today", "clients"]) {
+    test(`the Alerts button stays put when tapped from ${from} on a phone`, { session: "owner" }, async ({ app, screen, browser }) => {
+        await browser.setViewport({ width: 392, height: 718 });
+        await app.open(`/#/${from}`);
+        const alerts = () =>
+            screen
+                .getByRole("banner")
+                .getByRole("link", /alerts/i)
+                .boundingBox();
+        const before = await alerts();
+        await screen.getByRole("banner").getByRole("link", "Alerts").tap();
+        await expect(screen.getByRole("heading", "Alerts")).toBeVisible();
+        expect(await screen.getByRole("banner").getByRole("link", "Home").count()).toBe(0);
+        const open = await alerts();
+        expect(open!.x).toBe(before!.x);
+        expect(open!.y).toBe(before!.y);
+        await screen.getByRole("banner").getByRole("link", "Close alerts").tap();
+        expect((await alerts())!.x).toBe(before!.x);
+    });
+}
