@@ -60,7 +60,7 @@ test("invite a practitioner, they sign in, add them to a new branch", { session:
     await screen.getByRole("button", "Sign in").tap();
     await expect(screen.getByRole("navigation", "Main")).toBeVisible();
     await expect(screen.getByLabel("Branch")).toHaveValue(/.+/);
-    await expect(screen.getByText(`${branch} · `, { exact: false })).toBeVisible();
+    await expect(screen.getByLabel("Branch")).toContainText(branch);
     // Practitioners don't send remittances or see pay.
     await expect(screen.getByRole("navigation", "Main").getByRole("link", "Remittance")).toBeHidden();
     for (const page of ["Clients", "Stock", "Expenses & pay", "Sales reports", "Relief duty", "Change history"]) {

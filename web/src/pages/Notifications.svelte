@@ -59,7 +59,7 @@
     }
 </script>
 
-<PageHead title="Alerts" sub={unread ? `${unread} unread` : "All read"}>
+<PageHead title="Alerts">
     <button onclick={refresh}>Refresh</button>
     {#if unread}<button onclick={readAll}>Mark all read</button>{/if}
 </PageHead>

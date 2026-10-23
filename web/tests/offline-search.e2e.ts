@@ -48,7 +48,7 @@ test("offline pages wait quietly instead of showing Retry", { session: "owner" }
     await expect(screen.getByRole("heading", "Sessions")).toBeVisible();
     await browser.route(down, (route) => route.abort());
     await app.open("/#/reports");
-    await expect(screen.getByText("Waiting for signal", { exact: false }).first()).toBeVisible({ timeout: 20_000 });
+    await expect(screen.getByText("Offline", { exact: false }).first()).toBeVisible({ timeout: 20_000 });
     await expect(screen.getByRole("button", "Retry")).not.toBeVisible();
     await browser.unroute(down);
 });

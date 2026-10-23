@@ -53,7 +53,6 @@
         <span class="req">{kind === "PROBLEM" ? "What happened, and what did you expect?" : "What would help?"}</span>
         <textarea bind:value={message} rows="5" maxlength="4000" required></textarea>
     </label>
-    <p class="faint">Sent with this page ({location.hash || "#/"}) and your name, so it can be followed up.</p>
     {#if kind === "PROBLEM" && recentText}
         <label class="check"><input type="checkbox" bind:checked={attach} /> Include the last error ({recent?.status} on {recent?.path})</label>
     {/if}

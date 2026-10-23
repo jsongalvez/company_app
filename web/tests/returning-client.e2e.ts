@@ -17,7 +17,7 @@ test("earlier visits set a returning client's visit type", { session: "owner" },
     await form.getByLabel(/^First name/).fill(first);
     await form.getByLabel(/^Gender/).selectOption({ value: "M" });
     await form.getByLabel(/^Age/).fill("55");
-    await form.getByLabel(/^Visits before the app/).fill("1");
+    await form.getByLabel(/^Earlier visits/).fill("1");
     await form.getByRole("button", "Create client").tap();
 
     await expect(dialog.getByLabel(/^Session type/)).toHaveValue("Second visit");

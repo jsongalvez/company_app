@@ -104,7 +104,6 @@
             <label class="field">Time (optional)<input type="time" bind:value={at} /></label>
             <label class="field wide">Note<input bind:value={note} maxlength="500" placeholder="e.g. follow-up for back pain" /></label>
         </div>
-        <p class="faint small">At {branchName(booking?.branchId ?? app.branchId)}. Nothing is charged until the client comes in.</p>
     {/if}
 </Dialog>
 

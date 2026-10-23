@@ -81,10 +81,10 @@
             <div class="faint row"><span class="spin" aria-hidden="true"></span>Searching…</div>
         {:else if q.trim().length >= 2}
             <div class="faint">
-                No match{localOnly ? " among the clients saved on this phone" : ""}. {#if onnew}Use <b>New client</b>.{/if}
+                No match{localOnly ? " on this phone" : ""}.
             </div>
         {/if}
-        {#if localOnly && results.length}<div class="faint">No signal: showing clients saved on this phone.</div>{/if}
+        {#if localOnly && results.length}<div class="faint">Offline: saved clients only.</div>{/if}
     </div>
 {/if}
 

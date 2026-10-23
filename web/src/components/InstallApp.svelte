@@ -7,7 +7,6 @@
 {#if !screen.installed && (screen.canPrompt || screen.iosHint)}
     <div class="install">
         <button class="sm" onclick={() => (screen.canPrompt ? install() : (howOpen = true))}>Install app</button>
-        <span class="faint">Opens from its own icon, without browser bars.</span>
     </div>
 {/if}
 
@@ -17,7 +16,6 @@
         <li>Tap the <b>Share</b> button (the square with an arrow pointing up).</li>
         <li>Tap <b>Add to Home Screen</b>, then <b>Add</b>.</li>
     </ol>
-    <p class="faint">Then open CompanyApp from its new icon. It fills the screen and works with weak signal, like the browser tab.</p>
 </Dialog>
 
 <style>

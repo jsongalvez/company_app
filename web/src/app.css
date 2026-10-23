@@ -271,6 +271,11 @@ label.check {
 .faint {
     color: var(--text-3);
 }
+/* The one line a dialog keeps about an irreversible action. web/tests/unit/copy.test.ts caps it at 10 words. */
+.consequence {
+    margin: 0;
+    color: var(--text-2);
+}
 .right {
     text-align: right;
 }

@@ -118,13 +118,13 @@
     let expanded = $state<string | null>(null);
 </script>
 
-<PageHead title="Change history" sub="Who changed what, and when. Nothing here can be edited." />
+<PageHead title="Change history" />
 
 {#if open.length}
     <section class="panel mb">
         <header>
             <h2>Needs review</h2>
-            <span class="spacer"></span><span class="faint">Changes made to closed or remitted days</span>
+            <span class="spacer"></span><span class="faint">Closed or remitted days</span>
         </header>
         <table class="grid stack">
             <tbody>

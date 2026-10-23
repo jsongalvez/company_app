@@ -283,14 +283,9 @@
                 {/if}
             </section>
 
-            <section class="panel">
-                <header>
-                    <h2>Price list</h2>
-                    <span class="spacer"></span><span class="faint">New sessions start at these prices</span>
-                </header>
-                {#if !seeRates}
-                    <div class="muted gap">Only staff of {branch.name} can see and change its prices. Add yourself above to set them.</div>
-                {:else}
+            {#if seeRates}
+                <section class="panel">
+                    <header><h2>Price list</h2></header>
                     <State q={rates} />
                     <table class="grid">
                         <tbody>
@@ -308,8 +303,8 @@
                             {/each}
                         </tbody>
                     </table>
-                {/if}
-            </section>
+                </section>
+            {/if}
 
             {#if manageRates}
                 <section class="panel">
@@ -356,11 +351,7 @@
                         <span class="spacer"></span>
                         {#if manageHelpers}<button class="sm" onclick={() => (ha.reset(), (hUser = ""), (hOpen = true))}>Add helper</button>{/if}
                     </header>
-                    <State
-                        q={helpers}
-                        empty={!!helpers.data && activeHelpers.length === 0}
-                        emptyText="No helpers. Helpers can run attendance at this mission."
-                    />
+                    <State q={helpers} empty={!!helpers.data && activeHelpers.length === 0} emptyText="No helpers." />
                     {#if activeHelpers.length}
                         <table class="grid">
                             <tbody>
@@ -415,7 +406,6 @@
     <label class="field"
         ><span class="req">Price</span><input class="num" inputmode="decimal" bind:value={pRate} required pattern={"\\d+(\\.\\d{1,2})?"} /></label
     >
-    <div class="muted">Applies to new sessions from now on. Past sessions keep their price.</div>
 </Dialog>
 
 <Dialog
@@ -429,10 +419,7 @@
     <label class="field"
         >List price<input class="num" inputmode="decimal" bind:value={xPrice} placeholder={xItem?.sharedUnitPrice} pattern={"\\d+(\\.\\d{1,2})?"} /></label
     >
-    <div class="muted">
-        Leave it empty to use the shared price ({peso(xItem?.sharedUnitPrice)}). Applies to new sales here. Past sales keep their price. Commission is set once
-        for the whole branch.
-    </div>
+    <div class="muted">Shared price {peso(xItem?.sharedUnitPrice)}</div>
     {#if xItem?.branchUnitPrice != null}
         <div class="row"><button type="button" class="sm" onclick={() => saveProductPrice(true)} disabled={xa.busy}>Use shared price</button></div>
     {/if}
@@ -442,7 +429,6 @@
     <label class="field"
         >Commission on every product<input class="num" inputmode="decimal" bind:value={cAmount} placeholder="Shared" pattern={"\\d+(\\.\\d{1,2})?"} /></label
     >
-    <div class="muted">Used for every product sold at this branch. Leave it empty to use each product's shared commission. Past sales keep theirs.</div>
     {#if branch?.commissionAmount != null}
         <div class="row"><button type="button" class="sm" onclick={() => saveCommission(true)} disabled={ca.busy}>Use shared commissions</button></div>
     {/if}
@@ -458,9 +444,6 @@
 </Dialog>
 
 <style>
-    .gap {
-        padding: 8px 10px;
-    }
     .layout {
         display: flex;
         gap: 12px;

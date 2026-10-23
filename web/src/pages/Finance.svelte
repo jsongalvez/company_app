@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
-    import { app, can, branchName } from "../lib/app.svelte";
+    import { app, can } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
     import { load, type Loader } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
@@ -227,7 +227,7 @@
     }
 </script>
 
-<PageHead title="Expenses & pay" sub={branchName(bid)}>
+<PageHead title="Expenses & pay">
     <span class="daynav">
         <button onclick={() => setDate(addDays(date, -1))} aria-label="Previous day">◀</button>
         <input type="date" value={date} max={operationalDate()} onchange={(e) => setDate(e.currentTarget.value || operationalDate())} />
@@ -284,7 +284,6 @@
                 <h2>Sessions</h2>
                 <span class="faint">{peso(doneTotal)}</span>
                 <span class="spacer"></span>
-                {#if closed && edit}<span class="faint">Tap a session to correct it.</span>{/if}
             </header>
             <State q={sessQ} empty={!!sessQ.data && daySessions.length === 0} emptyText="No sessions on this day." />
             {#if daySessions.length}
@@ -419,10 +418,6 @@
                         >Update shares</button
                     >{/if}
             </header>
-            <p class="faint hint">
-                {#if closed}Shares were fixed when the day ended. If you corrected a sale or a clock-in, tap Update shares.{:else}Shares update by themselves as
-                    products are sold.{/if}
-            </p>
             <State q={split} empty={!!split.data && split.data.length === 0} emptyText="No commission to split." />
             {#if split.data?.length}
                 <table class="grid">

@@ -81,7 +81,7 @@
     }
 </script>
 
-<PageHead title="Sales reports" sub={branchName(bid)}>
+<PageHead title="Sales reports">
     <span class="daynav monthnav">
         <button onclick={() => shiftMonth(-1)} title="Previous month">‹</button>
         <RangePicker mode="day" {from} {to} {presets} max={today} clearable={false} onchange={(r) => setRange(r.from || r.to, r.to || r.from)} />
@@ -90,9 +90,8 @@
 </PageHead>
 
 {#if wholeMonth && monthly.data}
-    <h2 class="sub">{monthName}: sent to the office</h2>
     {#if monthly.data.totalRemittances === 0}
-        <p class="notice mb">No remittances sent for {monthName} yet. The table below shows what was recorded.</p>
+        <p class="notice mb">No remittances sent for {monthName}.</p>
     {:else}
         <div class="stats mb">
             <div>
@@ -121,7 +120,6 @@
             </div>
         </div>
     {/if}
-    <h2 class="sub">Recorded each day</h2>
 {/if}
 
 <State q={daily} empty={!!daily.data && rows.length === 0} emptyText="No sales in this range." />
@@ -165,16 +163,13 @@
             </tfoot>
         </table>
     </div>
-    {#if daily.data?.nextCursor}<div class="faint mb">Showing the latest 100 days. Narrow the range to see older days.</div>{/if}
+    {#if daily.data?.nextCursor}<div class="faint mb">Latest 100 days.</div>{/if}
 {/if}
 
 <section class="panel">
     <header><h2>Report for your accountant</h2></header>
     <div class="body">
-        <p class="faint mb-s">
-            {rangeLabel}. A summary, then every session, product sale, expense, payout and remittance behind it. Change the dates at the top to pick a day,
-            month or year.
-        </p>
+        <p class="faint mb-s">{rangeLabel}</p>
         <div class="row wrap">
             <select bind:value={scope} aria-label="Branches in the report">
                 <option value="branch">{branchName(bid)}</option>
@@ -192,9 +187,5 @@
     }
     .mb-s {
         margin: 0 0 8px;
-    }
-    .sub {
-        font-size: 13px;
-        margin: 0 0 6px;
     }
 </style>

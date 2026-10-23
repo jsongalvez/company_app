@@ -57,7 +57,7 @@
 </div>
 
 {#if urlQ.trim().length < 2}
-    <div class="faint">Type at least 2 letters of a name, or part of a phone number.</div>
+    <div class="faint">Type 2+ letters.</div>
 {:else}
     <State q={res} empty={!!res.data && res.data.length === 0} emptyText="No clients match." />
     {#if res.data?.length}

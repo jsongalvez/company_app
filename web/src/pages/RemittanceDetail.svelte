@@ -207,7 +207,7 @@
         <a class="btn" href="#/remittance">All remittances</a>
         {#if editable}
             <button onclick={openHeader}>Edit</button>
-            <button class="primary" onclick={() => (sa.reset(), (sOpen = true))} disabled={lines.length === 0}>Send</button>
+            <button class="primary" onclick={() => (sa.reset(), (sOpen = true))} disabled={lines.length === 0}>Send to office</button>
         {/if}
         {#if canUndo}<button class="danger" onclick={() => (ua.reset(), (uReason = ""), (uOpen = true))}>Undo</button>{/if}
     </PageHead>
@@ -364,13 +364,21 @@
         </div>
     </Dialog>
 
-    <Dialog bind:open={sOpen} title="Send remittance" width={420} onsubmit={submit} submitText="Send" busy={sa.busy} error={sa.error}>
+    <Dialog bind:open={sOpen} title="Send remittance" width={420} onsubmit={submit} submitText="Send to office" busy={sa.busy} error={sa.error}>
         <div>Send {peso(r.totalAmount)} from {lines.length} items, covering {covered.size} days?</div>
-        <div class="muted">The totals freeze and the days become Remitted. You can undo within 48 hours.</div>
+        <p class="consequence">Totals freeze. Undo within 48 hours.</p>
     </Dialog>
 
-    <Dialog bind:open={uOpen} title="Undo remittance" width={420} onsubmit={undo} submitText="Undo" danger busy={ua.busy || !uReason.trim()} error={ua.error}>
-        <div class="muted">It goes back to a draft, its days unlock, and the frozen totals are removed.</div>
+    <Dialog
+        bind:open={uOpen}
+        title="Undo remittance"
+        width={420}
+        onsubmit={undo}
+        submitText="Return to draft"
+        danger
+        busy={ua.busy || !uReason.trim()}
+        error={ua.error}
+    >
         <label class="field"><span class="req">Reason</span><input bind:value={uReason} required /></label>
     </Dialog>
 {/if}

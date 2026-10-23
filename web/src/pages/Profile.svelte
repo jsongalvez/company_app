@@ -40,7 +40,7 @@
     }
 </script>
 
-<PageHead title="My profile" sub={app.me ? `Signed in as ${app.me.username}` : ""} />
+<PageHead title="My profile" />
 
 <div class="grid">
     <form class="panel" onsubmit={saveProfile}>
@@ -49,7 +49,7 @@
             {#if pa.error}<div class="notice bad">{pa.error}</div>{/if}
             <label class="field"><span class="req">Name</span><input bind:value={name} required maxlength="50" autocomplete="name" /></label>
             <label class="field"
-                ><span class="req">Email</span><input
+                ><span class="req">Email (for password resets)</span><input
                     type="email"
                     bind:value={email}
                     required
@@ -58,7 +58,6 @@
                     autocapitalize="none"
                 /></label
             >
-            <p class="faint">Password reset codes are sent to this email.</p>
             <label class="field">Username<input value={app.me?.username ?? ""} readonly /></label>
             {#if app.me?.createdAt}<p class="faint">Account since {dateTime(app.me.createdAt)}</p>{/if}
             <div class="row"><button class="primary" type="submit" disabled={pa.busy || !changed}>Save</button></div>
@@ -70,9 +69,11 @@
         <div class="body col">
             {#if pw.error}<div class="notice bad">{pw.error}</div>{/if}
             <label class="field">Current password<input type="password" bind:value={current} required autocomplete="current-password" /></label>
-            <label class="field">New password<input type="password" bind:value={next} required minlength="8" autocomplete="new-password" /></label>
+            <label class="field"
+                >New password (8+ characters)<input type="password" bind:value={next} required minlength="8" autocomplete="new-password" /></label
+            >
             <label class="field">Repeat new password<input type="password" bind:value={next2} required minlength="8" autocomplete="new-password" /></label>
-            <p class="faint">At least 8 characters. Changing it signs you out on other devices.</p>
+            <p class="faint">Signs you out elsewhere.</p>
             <div class="row"><button class="primary" type="submit" disabled={pw.busy}>Change password</button></div>
         </div>
     </form>
