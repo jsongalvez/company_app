@@ -415,6 +415,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 remarks = null,
                 otherConcerns = null,
                 nextAppointmentDate = null,
+                requireClockIn = false,
             )
         }
     }
@@ -458,6 +459,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 remarks = null,
                 otherConcerns = null,
                 nextAppointmentDate = null,
+                requireClockIn = false,
             )
 
         assertEquals(SessionType.MEDICAL_MISSION, result.session.sessionType)
@@ -488,6 +490,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 remarks = null,
                 otherConcerns = null,
                 nextAppointmentDate = null,
+                requireClockIn = false,
             )
 
         assertEquals(SessionType.MEDICAL_MISSION, mmResult.session.sessionType)
@@ -1474,7 +1477,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create needs the caller clocked in when asked`() {
+    fun `create fails closed without a clock-in unless a caller opts out`() {
         fun create(id: UUID) =
             SessionService.create(
                 callerId = callerId,
@@ -1487,7 +1490,6 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 remarks = null,
                 otherConcerns = null,
                 nextAppointmentDate = null,
-                requireClockIn = true,
             )
 
         val ex = assertFailsWith<ForbiddenException> { create(TestFixtures.uuid()) }
@@ -1531,6 +1533,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         nextAppointmentDate = nextAppointmentDate,
         gatedBranchDayId = gatedBranchDayId,
         reason = reason,
+        requireClockIn = false,
     )
 
     private fun databaseNow() =

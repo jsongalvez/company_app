@@ -552,6 +552,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
                     otherConcerns = null,
                     nextAppointmentDate = null,
                     gatedBranchDayId = dayOtherBranch,
+                    requireClockIn = false,
                 )
             }
         assertTrue(e.message.orEmpty().contains("for this branch"))

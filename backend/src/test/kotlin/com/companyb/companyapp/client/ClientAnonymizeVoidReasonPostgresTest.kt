@@ -173,6 +173,7 @@ class ClientAnonymizeVoidReasonPostgresTest : BasePostgresTest() {
             remarks = null,
             otherConcerns = null,
             nextAppointmentDate = null,
+            requireClockIn = false,
         )
         SessionService.updateStatus(callerId, id, SessionStatus.COMPLETED, expectedVersion = 1)
     }
@@ -189,6 +190,7 @@ class ClientAnonymizeVoidReasonPostgresTest : BasePostgresTest() {
             remarks = null,
             otherConcerns = null,
             nextAppointmentDate = null,
+            requireClockIn = false,
         )
     }
 

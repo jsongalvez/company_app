@@ -246,6 +246,7 @@ class SessionReadsPostgresTest : BasePostgresTest() {
                 remarks = null,
                 otherConcerns = null,
                 nextAppointmentDate = null,
+                requireClockIn = false,
             )
 
         assertEquals(SessionType.SECOND_SESSION, result.session.sessionType)

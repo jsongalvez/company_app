@@ -83,14 +83,7 @@ comments:
     active: false
     excludes:
       - '**/test/**'
-      - '**/androidTest/**'
       - '**/commonTest/**'
-      - '**/desktopTest/**'
-      - '**/jvmTest/**'
-      - '**/androidUnitTest/**'
-      - '**/androidInstrumentedTest/**'
-      - '**/jsTest/**'
-      - '**/iosTest/**'
   OutdatedDocumentation:
     active: false
     matchTypeParameters: true
@@ -100,14 +93,7 @@ comments:
     active: false
     excludes:
       - '**/test/**'
-      - '**/androidTest/**'
       - '**/commonTest/**'
-      - '**/desktopTest/**'
-      - '**/jvmTest/**'
-      - '**/androidUnitTest/**'
-      - '**/androidInstrumentedTest/**'
-      - '**/jsTest/**'
-      - '**/iosTest/**'
     searchInNestedClass: true
     searchInInnerClass: true
     searchInInnerObject: true
@@ -116,11 +102,11 @@ comments:
     ignoreDefaultCompanionObject: false
   UndocumentedPublicFunction:
     active: false
-    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**', '**/desktopTest/**']
+    excludes: ['**/test/**', '**/commonTest/**']
     searchProtectedFunction: false
   UndocumentedPublicProperty:
     active: false
-    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**', '**/desktopTest/**']
+    excludes: ['**/test/**', '**/commonTest/**']
     searchProtectedProperty: false
 
 complexity:
@@ -138,7 +124,6 @@ complexity:
     active: true
     threshold: 25
     excludes:
-      - '**/ui/screen/**'
       - '**/app/**' #555 app shell composables keep the screen complexity exclusion
       - '**/workforce/**' #563 workforce composables keep the screen complexity exclusion
       - '**/session/**' #573 session composables keep the screen complexity exclusion
@@ -150,15 +135,12 @@ complexity:
   ComplexCondition:
     active: true
     threshold: 4
-    excludes:
   ComplexInterface:
     active: true
     threshold: 10
     includeStaticDeclarations: false
     includePrivateDeclarations: false
     ignoreOverloaded: false
-    excludes:
-      - '**/commonMain/**/session/create/SessionCreateViewModel.kt' #469 SessionCreateFormApi seam kept whole deliberately (see #460 note on TooManyFunctions) #557 retarget (was viewmodel)
   CyclomaticComplexMethod:
     active: true
     threshold: 15
@@ -178,59 +160,15 @@ complexity:
       - 'run'
       - 'use'
       - 'with'
-    excludes:
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientDetailScreen.kt' #673 detail orchestration stays whole per #535; #695 Cyclomatic burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/catalog/ProductCatalogScreen.kt' #683 catalog orchestration stays whole per #535; #695 Cyclomatic burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/ProductSaleDialogs.kt' #676 sale dialogs stay whole per #535; #695 Cyclomatic burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/notification/NotificationsScreen.kt' #679 queue orchestration stays whole per #535; #695 Cyclomatic burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateScreen.kt' #674 intake orchestration stays whole per #535; #695 Cyclomatic burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateActionBar.kt' #674 bar legs stay whole per #535; #695 Cyclomatic burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/detail/SessionDetailPane.kt' #675 pane orchestration stays whole per #535; #695 Cyclomatic burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/rates/BaseRatesScreen.kt' #685 rates orchestration stays whole per #535; #695 Cyclomatic burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/ReliefPlanningSection.kt' #680 planning orchestration stays whole per #535; #695 Cyclomatic burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/InventoryScreen.kt' #727 inventory working context stays whole per #535
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/finance/FinanceFeed.kt' #728 feed working context stays whole per #535
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/navigation/NavigationContextStore.kt' #728 state-owner retain stays whole per #535
   LabeledExpression:
     active: false
     ignoredLabels: []
   LargeClass:
     active: true
     threshold: 600
-    excludes:
-      - '**/commonMain/**/finance/FinanceReportsViewModel.kt' #559 retarget (was viewmodel)
   LongMethod:
     active: true
     threshold: 60
-    excludes:
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/rates/BaseRatesScreen.kt' #685 screen orchestrator stays whole per #535; #695 suppress-to-exclude migration
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/App.kt' #671 app shell stays whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/auth/LoginScreen.kt' #670 login form stays whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/navigation/MobileAppNavHost.kt' #671 nav host stays whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientDetailContentBody.kt' #673 section bodies stay whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientDetailScreen.kt' #673 detail orchestration stays whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientFieldEditor.kt' #673 field editors stay whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/catalog/ProductCatalogScreen.kt' #683 catalog sections stay whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/InventoryScreen.kt' #676 inventory body stays whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/ProductSaleDialogs.kt' #676 sale dialogs stay whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/notification/NotificationsList.kt' #679 queue rows stay whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/notification/NotificationsScreen.kt' #679 queue orchestration stays whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailPickers.kt' #677 pickers stay whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailReceipt.kt' #677 receipt stays whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailScreen.kt' #677 detail body stays whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailSections.kt' #677 workspace stays whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateScreen.kt' #674 intake sections stay whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/dashboard/MobileSessionList.kt' #672 session cards stay whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/dashboard/SessionDashboardScreen.kt' #672 dashboard workspace stays whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/detail/SessionDetailActionBar.kt' #675 action bar stays whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/detail/SessionDetailPane.kt' #675 pane stays whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/contract/OperationalDialog.kt' #670 dialog shell stays whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/branch/BranchSelectScreen.kt' #669 shift entry stays whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/ReliefPlanningSection.kt' #680 planning sections stay whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/TeamPeopleSection.kt' #681 people sections stay whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserManagementScreen.kt' #681 member dialogs stay whole per #535; #695 LongMethod burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/drawer/DrawerContent.kt' #671 drawer sections stay whole per #535
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/finance/FinanceFeed.kt' #728 feed working context stays whole per #535
   LongParameterList:
     # #535: design signal, not a mandate for arbitrary DTO wrappers — coherent
     # state-owner and declarative-UI signatures stay whole; bundle only on a real
@@ -241,35 +179,6 @@ complexity:
     ignoreDefaultParameters: false
     ignoreDataClasses: true
     ignoreAnnotatedParameter: []
-    excludes:
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/ReliefPlanningSection.kt' #680 planning legs stay whole per #535; #695 suppress-to-exclude migration
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/detail/SessionDetailActionBar.kt' #675 action legs stay whole per #535; #695 suppress-to-exclude migration
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/rates/BaseRatesScreen.kt' #685 rows/editor stay whole per #535; #695 suppress-to-exclude migration
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateActionBar.kt' #674 bar signatures stay whole per #535; #695 suppress-to-exclude migration
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/contract/OperationalDialog.kt' #670 dialog shell stays whole per #535; #695 suppress-to-exclude migration
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/InventoryScreen.kt' #676 header/body/list stay whole per #535; #695 suppress-to-exclude migration
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/drawer/DrawerContent.kt' #671 drawer sections stay whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/navigation/NavigationContextStore.kt' #671 state-owner retain stays whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientDetailContentBody.kt' #673 section signatures stay whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientDetailScreen.kt' #673 detail content stays whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientFieldEditor.kt' #673 field editors stay whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientPicker.kt' #673 picker rows stay whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/catalog/ProductCatalogScreen.kt' #683 catalog header stays whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/InventoryDialogs.kt' #676 movement fields stay whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/ProductSaleDialogs.kt' #676 sale fields stay whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/notification/NotificationsList.kt' #679 queue rows stay whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailPickers.kt' #677 pickers stay whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/remittance/RemittanceDetailScreen.kt' #677 workspace host stays whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/detail/SessionDetailPane.kt' #675 pane/dialogs stay whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/detail/SessionDetailStatusPolicy.kt' #675 policy signatures stay whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/dashboard/DashboardStatusPolicy.kt' #672 dashboard policy stays whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/contract/OperationalActions.kt' #670 action row stays whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/branch/BranchSelectScreen.kt' #669 shift entry stays whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/TeamPeopleSection.kt' #681 people list stays whole per #535; #695 LongParameterList burndown
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/navigation/SharedRouteGraph.kt' #726 graph seam stays whole per #535
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/navigation/RouteContentHelpers.kt' #726 intake seam stays whole per #535
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/navigation/MobileAppNavHost.kt' #726 drawer sheet stays whole per #535
-      - '**/composeApp/src/desktopMain/kotlin/com/companyb/companyapp/app/navigation/AppNavHost.desktop.kt' #726 desktop shell seam stays whole per #535
   MethodOverloading:
     active: true
     threshold: 6
@@ -294,7 +203,7 @@ complexity:
     active: false
   StringLiteralDuplication:
     active: false
-    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**', '**/desktopTest/**']
+    excludes: ['**/test/**', '**/commonTest/**']
     threshold: 3
     ignoreAnnotation: true
     excludeStringsWithLessThan5Characters: true
@@ -384,7 +293,7 @@ exceptions:
       - 'toString'
   InstanceOfCheckForException:
     active: true
-    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**', '**/desktopTest/**']
+    excludes: ['**/test/**', '**/commonTest/**']
   NotImplementedDeclaration:
     active: false
   ObjectExtendsThrowable:
@@ -407,7 +316,7 @@ exceptions:
     active: false
   ThrowingExceptionsWithoutMessageOrCause:
     active: true
-    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**', '**/desktopTest/**']
+    excludes: ['**/test/**', '**/commonTest/**']
     exceptions:
       - 'ArrayIndexOutOfBoundsException'
       - 'Exception'
@@ -481,7 +390,7 @@ naming:
     minimumFunctionNameLength: 3
   FunctionNaming:
     active: true
-    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**', '**/desktopTest/**']
+    excludes: ['**/test/**', '**/commonTest/**']
     functionPattern: '[a-z][a-zA-Z0-9]*'
     excludeClassPattern: '$^'
     ignoreAnnotated: ['Composable']
@@ -510,17 +419,11 @@ naming:
       - 'macosX64'
       - 'mingwX64'
       - 'linuxX64'
-    excludes:
-      - '**/Platform.android.kt'
-      - '**/Platform.ios.kt'
-      - '**/commonMain/**/session/dashboard/SessionDashboardScreen.kt' #556 retarget (was ui/screen)
   MemberNameEqualsClassName:
     active: true
     ignoreOverridden: true
   NoNameShadowing:
     active: true
-    excludes:
-      - '**/api/routes/AuthRoutes.kt'
   NonBooleanPropertyPrefixedWithIs:
     active: false
   ObjectPropertyNaming:
@@ -557,10 +460,10 @@ performance:
     threshold: 3
   ForEachOnRange:
     active: true
-    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**', '**/desktopTest/**']
+    excludes: ['**/test/**', '**/commonTest/**']
   SpreadOperator:
     active: true
-    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**', '**/desktopTest/**']
+    excludes: ['**/test/**', '**/commonTest/**']
   UnnecessaryPartOfBinaryExpression:
     active: false
   UnnecessaryTemporaryInstantiation:
@@ -633,7 +536,7 @@ potential-bugs:
     active: true
   LateinitUsage:
     active: false
-    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**', '**/desktopTest/**']
+    excludes: ['**/test/**', '**/commonTest/**']
     ignoreOnClassesPattern: ''
   MapGetWithNotNullAssertionOperator:
     active: true
@@ -660,7 +563,7 @@ potential-bugs:
     active: true
   UnsafeCallOnNullableType:
     active: true
-    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**', '**/desktopTest/**']
+    excludes: ['**/test/**', '**/commonTest/**']
   UnsafeCast:
     active: true
   UnusedUnaryOperator:
@@ -805,7 +708,6 @@ style:
     excludes:
       # #465 frozen grandfather: files holding pre-existing @Suppress sites.
       # Never grows; burndown removes lines. New excludes need a #<ticket>.
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/authorization/CapabilityFilter.kt' #465 frozen #538 retarget
       - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLog.kt' #549 seam mirrors store signatures
       - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/PasswordResetDelivery.kt' #465 frozen #599 ticketed TooGenericExceptionCaught
       - '**/backend/src/main/kotlin/com/companyb/companyapp/http/KotlinxSerializationMapper.kt' #465 frozen #551 retarget #600 ticketed UNCHECKED_CAST
@@ -850,20 +752,6 @@ style:
       - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/BranchWorkforceFixtures.kt' #552 split from the retired mixed helper
       - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/SessionClientFixtures.kt' #552 split from the retired mixed helper
       - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/CommerceFinanceFixtures.kt' #552 split from the retired mixed helper
-      - '**/composeApp/src/androidMain/kotlin/com/companyb/companyapp/network/TokenStore.android.kt' #465 frozen #600 ticketed TooGenericExceptionCaught
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/app/App.kt' #465 frozen #555 retarget #585 repair
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/audit/AuditLogDiff.kt' #465 frozen #564 retarget (was ui/screen) #600 ticketed ReturnCount
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/client/ClientPicker.kt' #465 frozen #558 retarget #599 ticketed MatchingDeclarationName
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateScreen.kt' #465 frozen #563 retarget #598 ticketed LongParameterList+LongMethod+CyclomaticComplexMethod
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/catalog/ProductCatalogScreen.kt' #465 frozen #562 retarget (was ui/screen) #597 ticketed LongMethod+CyclomaticComplexMethod+LongParameterList
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateLayout.kt' #465 frozen #557 retarget #594 ticketed MatchingDeclarationName
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/create/SessionCreateScreen.kt' #465 frozen #557 retarget #594 ticketed LongParameterList
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/session/dashboard/SessionDashboardScreen.kt' #465 frozen #556 retarget #594 ticketed LongParameterList+UnusedParameter
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/workforce/team/UserManagementScreen.kt' #465 frozen #563 retarget #598 ticketed UnusedParameter
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/async/ApiCallHandler.kt' #465 frozen #554 retarget
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/finance/FinanceReportsViewModel.kt' #465 frozen #560 retarget (was FinanceReportDayEditOps) #596 ticketed LongParameterList
-      - '**/composeApp/src/commonMain/kotlin/com/companyb/companyapp/commerce/stock/InventoryMutationPolicy.kt' #465 frozen #562 retarget (was viewmodel) #597 ticketed LongParameterList
-      - '**/composeApp/src/desktopTest/kotlin/com/companyb/companyapp/commerce/stock/InventoryRowPresentationTest.kt' #465 frozen #562 retarget (was ui/screen) #597 ticketed LongParameterList
   ForbiddenVoid:
     active: true
     ignoreOverridden: false
@@ -880,19 +768,8 @@ style:
     active: true
     excludes:
       - '**/test/**'
-      - '**/androidTest/**'
       - '**/commonTest/**'
-      - '**/desktopTest/**'
-      - '**/jvmTest/**'
-      - '**/androidUnitTest/**'
-      - '**/androidInstrumentedTest/**'
-      - '**/jsTest/**'
-      - '**/iosTest/**'
       - '**/*.kts'
-      - '**/commonMain/**/ui/theme/LinearTheme.kt'
-      - '**/commonMain/**/notification/NotificationBadge.kt' #565 retarget (was app/drawer, #555 #585)
-      - '**/commonMain/**/app/drawer/HamburgerWithBadge.kt' #555 retarget #585 repair
-      - '**/commonMain/**/app/drawer/DrawerContent.kt' #555 retarget #585 repair
     ignoreNumbers:
       - '-1'
       - '0'
@@ -921,8 +798,6 @@ style:
     excludeImportStatements: true
     excludeCommentStatements: false
     excludeRawStrings: true
-    excludes:
-      - '**/commonMain/**/navigation/MobileAppNavHost.kt'
   MayBeConst:
     active: true
   ModifierOrder:
@@ -971,7 +846,6 @@ style:
     excludeLabeled: false
     excludeReturnFromLambda: true
     excludeGuardClauses: true
-    excludes:
   SafeCast:
     active: true
   SerialVersionUIDInSerializableClass:
@@ -1029,8 +903,6 @@ style:
     active: true
     # #532 parity: mirrors detekt-anti-slop.yml effective policy (strict).
     allowedNames: '^$'
-    excludes:
-      - '**/composeApp/src/androidMain/kotlin/com/companyb/companyapp/session/dashboard/DashboardEmptyState.android.kt' #672 expect/actual signature keeps onRefresh in toolbar; #695 suppress-to-exclude migration
   UnusedPrivateClass:
     active: true
   UnusedPrivateMember:
@@ -1047,9 +919,6 @@ style:
     active: true
     # #532 parity: mirrors detekt-anti-slop.yml effective policy (strict).
     allowedNames: '^_$|^serialVersionUID$'
-    excludes:
-      - '**/commonMain/**/ui/theme/LinearTheme.kt'
-      - '**/commonMain/**/notification/NotificationsScreen.kt' #565 retarget (was ui/screen)
   UseAnyOrNoneInsteadOfFind:
     active: true
   UseArrayLiteralsInAnnotations:

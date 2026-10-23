@@ -211,7 +211,7 @@ internal object SessionRepository {
      * command transaction. The affected-row count is load-bearing (the #149 count-0 misfire
      * lesson): a concurrent commit between the command's version pre-check and this conditional
      * UPDATE matches 0 rows — the command must not read back the OTHER writer's row and serve it
-     * as its own success (a silent lost update, ADR-0022).
+     * as its own success (a silent lost update, archived ADR-0022).
      */
     fun updateStatusInTransaction(
         sessionId: UUID,

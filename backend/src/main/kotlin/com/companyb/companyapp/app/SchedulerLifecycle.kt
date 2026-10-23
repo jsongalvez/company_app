@@ -2,6 +2,7 @@ package com.companyb.companyapp.app
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.ZonedDateTime
+import java.time.temporal.ChronoUnit
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ThreadFactory
@@ -47,13 +48,21 @@ class SchedulerLifecycle(
 
         val candidate = executorFactory()
         try {
+            val bootTime = now()
             for (job in jobs) {
+                val delayMs = job.initialDelayMs(bootTime)
                 candidate.scheduleAtFixedRate(
                     { runTask(job.name, job.task) },
-                    job.initialDelayMs(now()),
+                    delayMs,
                     TimeUnit.HOURS.toMillis(PERIOD_HOURS),
                     TimeUnit.MILLISECONDS,
                 )
+                // A restart after today's slot (deploy gate, crash) would otherwise skip the sweep
+                // until tomorrow. The sweeps are idempotent (one marker row per event), so catching
+                // up is safe, and it never fires before the slot, so nothing arrives early.
+                if (bootTime.plus(delayMs, ChronoUnit.MILLIS).toLocalDate() != bootTime.toLocalDate()) {
+                    candidate.execute { runTask(job.name, job.task) }
+                }
             }
             executor = candidate
         } catch (e: Exception) {

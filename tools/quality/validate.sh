@@ -108,7 +108,7 @@ if [ -z "$changed" ]; then
   exit 1
 fi
 
-backend=0 shared=0 compose=0 buildlogic=0 docs=0 shell=0 deadcode=0 backend_dev=0 other=0
+backend=0 shared=0 buildlogic=0 docs=0 shell=0 deadcode=0 backend_dev=0 other=0
 tasks=()
 focused=()
 while IFS= read -r f; do
@@ -136,7 +136,7 @@ while IFS= read -r f; do
       buildlogic=1
       if [[ "$f" == config/detekt/* ]]; then
         # Detekt policy changed — Detekt is now informative on every module.
-        tasks+=(:backend:detekt :shared:detektJvmMain :composeApp:detektDesktopMain)
+        tasks+=(:backend:detekt :shared:detektJvmMain)
       fi
       ;;
     detekt-rules/*)
@@ -144,7 +144,7 @@ while IFS= read -r f; do
       buildlogic=1
       ;;
     */build.gradle.kts)
-      # Module build file (backend/shared/composeApp/detekt-rules) — same
+      # Module build file (backend/shared/detekt-rules) — same
       # blast radius as root build logic; the generic module arms below
       # must not narrow this to a single-module compile.
       buildlogic=1
@@ -166,12 +166,6 @@ while IFS= read -r f; do
       [ -n "$pkg" ] && focused+=("$pkg.$(basename "$f" .kt)")
       ;;
     shared/*) shared=1 ;;
-    composeApp/src/*Test.kt)
-      compose=1
-      pkg=$(sed -n 's/^package \([a-zA-Z0-9_.]*\).*/\1/p' "$f" | head -1)
-      [ -n "$pkg" ] && focused+=("$pkg.$(basename "$f" .kt)")
-      ;;
-    composeApp/*) compose=1 ;;
     "")
       # Empty line (e.g. trailing herestring newline) — owns nothing.
       ;;
@@ -183,7 +177,7 @@ while IFS= read -r f; do
   esac
 done <<< "$changed"
 
-if [ $((backend + shared + compose + buildlogic + deadcode)) -eq 0 ]; then
+if [ $((backend + shared + buildlogic + deadcode)) -eq 0 ]; then
   if [ $shell -eq 1 ]; then
     run_shell_validation
     exit $?
@@ -209,7 +203,7 @@ check_detekt_governance
 
 if [ $buildlogic -eq 1 ]; then
   # Build logic touches every module's configuration; compile one target per module.
-  tasks+=(:backend:compileKotlin :shared:compileKotlinJvm :composeApp:compileKotlinDesktop)
+  tasks+=(:backend:compileKotlin :shared:compileKotlinJvm)
   # A dev-sourceset change alongside build logic still needs its own compile.
   [ $backend_dev -eq 1 ] && tasks+=(:backend:compileDevKotlin)
 elif [ ${#focused[@]} -gt 0 ]; then
@@ -218,7 +212,6 @@ elif [ ${#focused[@]} -gt 0 ]; then
   # their main + test source sets themselves, so they run alone here.
   [ $backend -eq 1 ] && tasks+=(:backend:test)
   [ $shared -eq 1 ] && tasks+=(:shared:jvmTest)
-  [ $compose -eq 1 ] && tasks+=(:composeApp:desktopTest)
 else
   if [ $backend -eq 1 ]; then
     tasks+=(:backend:compileKotlin)
@@ -228,9 +221,6 @@ else
   fi
   if [ $shared -eq 1 ]; then
     tasks+=(:shared:compileKotlinJvm :shared:jvmTest)
-  fi
-  if [ $compose -eq 1 ]; then
-    tasks+=(:composeApp:compileKotlinDesktop :composeApp:desktopTest)
   fi
 fi
 

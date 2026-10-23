@@ -264,6 +264,7 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
                 remarks = "CovRemark",
                 otherConcerns = "CovConcern",
                 nextAppointmentDate = nextDate,
+                requireClockIn = false,
             )
         assertTrue(result.created)
 
@@ -299,6 +300,7 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
             remarks = null,
             otherConcerns = null,
             nextAppointmentDate = null,
+            requireClockIn = false,
         )
         val voidId = TestFixtures.uuid()
         SessionService.voidSession(callerId, sessionId, voidId, "CovVoidReason")

@@ -208,6 +208,7 @@ class SessionAnonymizedGuardPostgresTest : BasePostgresTest() {
             remarks = null,
             otherConcerns = null,
             nextAppointmentDate = null,
+            requireClockIn = false,
         )
         SessionService.updateStatus(callerId, sessionId, SessionStatus.NO_SHOW, expectedVersion = 1)
         ClientService.anonymize(callerId, clientId)
@@ -261,6 +262,7 @@ class SessionAnonymizedGuardPostgresTest : BasePostgresTest() {
             remarks = null,
             otherConcerns = null,
             nextAppointmentDate = null,
+            requireClockIn = false,
         )
         SessionService.updateStatus(callerId, sessionId, SessionStatus.COMPLETED, expectedVersion = 1)
     }
@@ -277,6 +279,7 @@ class SessionAnonymizedGuardPostgresTest : BasePostgresTest() {
             remarks = null,
             otherConcerns = null,
             nextAppointmentDate = null,
+            requireClockIn = false,
         )
         SessionPractitionerService.addPractitioner(
             callerId = callerId,
