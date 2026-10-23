@@ -78,5 +78,5 @@ gh issue create --label needs-triage \
   the log relay / GitHub issue — a table would add migration, audit, and
   read-gate surface for a debugging read (same YAGNI call as #474's `topSlow`).
 - Health 503 stays out: intentional degraded signal, not an incident.
-- No composeApp change: the endpoint plus the existing
+- No client change: the endpoint plus the existing
   `traceId()`/`BugReport` helper is the full client surface.

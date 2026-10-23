@@ -130,11 +130,6 @@ export function forget(...prefixes: string[]) {
     }
 }
 
-/** When the data for a key was last fetched from the server (ms), if we have it. */
-export function fetchedAt(key: string): number | undefined {
-    return store.get(key)?.got;
-}
-
 /** Sign-out: forget everything, on the phone too. */
 export function clearCache() {
     if (tokenUser()) localStorage.removeItem(saveKey());
