@@ -7,7 +7,7 @@
 The server side is the rules of `SessionService.updateStatus`, `SessionRoutes.handleCreateSession`,
 `ProductSaleService.sell` and `BranchDayService.assertEditableBranchDay`.
 
-Last checked against the code at **62210247** (master). When any file named above changes after
+Last checked against the code at **ba7c4006** (master) plus the change that made `SessionService.updateStatus` ack a repeated mark. When any file named above changes after
 that commit, reread the matching action in `Outbox.tla` before trusting a pass, then move the
 commit forward here.
 
@@ -59,6 +59,11 @@ shown to be needed (about ten minutes).
    route against a running server; `web/tests/unit/replay.test.ts` covers the body the phone sends now.
 
 Each fix is in the same change as its test; `fixed-*` shows the model agrees.
+
+Later change: the queue no longer asks the server whether a refused mark had already landed
+(`alreadyApplied`). `SessionService.updateStatus` answers 200 to a mark that repeats one that landed
+(same status, version since moved on), so `Process` acks it and `Deliver` counts only 200. The
+backend check is `OutboxReplayContractTest`, one replay test per queued save.
 
 ## Not modeled
 

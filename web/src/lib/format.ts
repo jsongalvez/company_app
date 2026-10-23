@@ -228,3 +228,15 @@ export function wallTime(v: string): string {
         ...(ss ? { second: "2-digit" } : {}),
     }).format(at);
 }
+
+/** Server messages use code words; swap them for the app's words (see CONTEXT.md). */
+export function plain(msg: string): string {
+    const out = msg
+        .replace(/\b[A-Z][A-Z_]{2,}\b/g, (code) => (code === "PII" ? code : label(code)))
+        .replace(/\bbranch[ -]days?\b/gi, (m) => (m.toLowerCase().endsWith("s") ? "days" : "day"))
+        .replace(/\b(UUID|uuid)\b/g, "id")
+        .replace(/\bunvoid(ed)?\b/gi, (_m, ed) => (ed ? "restored" : "restore"))
+        .replace(/\banonymi[sz]ed\b/gi, "with erased details")
+        .replace(/\s*\(#\d+\)/g, "");
+    return out.charAt(0).toUpperCase() + out.slice(1);
+}

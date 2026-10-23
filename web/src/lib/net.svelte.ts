@@ -33,11 +33,14 @@ export function reportNetOk() {
     if (net.trouble) reconnected();
 }
 
-window.addEventListener("online", () => {
-    net.online = true;
-    reconnected();
-});
-window.addEventListener("offline", () => (net.online = false));
+/** Follow the browser's own online/offline events. */
+export function watchConnection() {
+    window.addEventListener("online", () => {
+        net.online = true;
+        reconnected();
+    });
+    window.addEventListener("offline", () => (net.online = false));
+}
 
 /** Resolves when the browser is back online, or after `ms`, whichever is first. */
 export function onlineOrTimeout(ms: number): Promise<void> {

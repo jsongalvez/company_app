@@ -67,10 +67,6 @@ async function switchIdentity(v: ViewAs | null) {
     await boot();
 }
 
-setInterval(() => {
-    if (app.viewAs && app.viewAs.until <= Date.now()) void stopViewAs("timed out");
-}, 15_000);
-
 setUnauthorizedHandler(() => signOut(false));
 
 export async function signIn(username: string, password: string) {
@@ -161,8 +157,15 @@ const catchUp = () => {
     if (!app.me) void boot().catch(() => {});
     else void Promise.all([refreshBranchDay(), refreshShift(), refreshUnread()]).catch(() => {});
 };
-window.addEventListener(RECONNECTED, catchUp);
-window.addEventListener(SENT, catchUp);
+
+/** End a timed "view as" when it runs out, and catch up when the signal returns or held saves go out. */
+export function watchSession() {
+    setInterval(() => {
+        if (app.viewAs && app.viewAs.until <= Date.now()) void stopViewAs("timed out");
+    }, 15_000);
+    window.addEventListener(RECONNECTED, catchUp);
+    window.addEventListener(SENT, catchUp);
+}
 
 /** Re-read branch names after a rename (picker and top bar). */
 export async function refreshBranchNames() {
