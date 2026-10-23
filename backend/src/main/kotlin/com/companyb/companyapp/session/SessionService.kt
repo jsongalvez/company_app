@@ -286,6 +286,13 @@ object SessionService {
             computeBasePriceInTransaction(branchId, sessionType)
         }
 
+    /** A stale-version mark that asks for the status the session already has, one or more versions on. */
+    private fun isMarkAlreadyApplied(
+        session: Session,
+        newStatus: SessionStatus,
+        expectedVersion: Int,
+    ): Boolean = session.version > expectedVersion && session.sessionStatus == newStatus
+
     fun updateStatus(
         callerId: UUID,
         sessionId: UUID,
@@ -306,6 +313,9 @@ object SessionService {
                     ?: throw NotFoundException("Session not found")
 
             if (session.version != expectedVersion) {
+                // Replay of a mark that already landed (the offline queue re-sends one whose answer it
+                // never saw): ack it, as expense/allowance/product-sale creates do (#509, #510).
+                if (isMarkAlreadyApplied(session, newStatus, expectedVersion)) return@transaction session
                 throw ConflictException("Session version mismatch")
             }
 
