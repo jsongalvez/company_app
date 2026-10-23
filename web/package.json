@@ -11,7 +11,7 @@
     "gen:api": "openapi-typescript ../backend/build/openapi/openapi-canonical.json -o src/api/schema.d.ts",
     "format": "prettier --write src",
     "lint": "prettier --check src",
-    "e2e": "e2e run"
+    "e2e": "node scripts/e2e.mjs"
   },
   "devDependencies": {
     "@e2e-dev/web": "^0.15.2",

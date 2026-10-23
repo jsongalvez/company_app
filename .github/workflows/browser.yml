@@ -123,7 +123,7 @@ jobs:
 
       - name: Run browser tests (slice ${{ matrix.shard }} of 4)
         working-directory: web
-        run: npx e2e run --shard ${{ matrix.shard }}/4
+        run: npm run e2e -- --shard ${{ matrix.shard }}/4
 
       - name: Keep traces of failures
         if: failure()

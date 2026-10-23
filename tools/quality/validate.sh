@@ -63,12 +63,7 @@ run_shell_validation() {
   [ $status -ne 0 ] && return $status
   local t
   for t in \
-    "$root/tools/quality/test-hooks-no-expensive-commands.sh" \
     "$root/tools/quality/test-shell-portability.sh" \
-    "$root/tools/quality/test-setup-hooks-download.sh" \
-    "$root/tools/quality/pre-commit-docs-only-test.sh" \
-    "$root/tools/quality/pre-commit-formatter-status-test.sh" \
-    "$root/tools/quality/test-commit-msg-hook.sh" \
     "$root/tools/quality/wrapper-contract.test.sh" \
     "$root/tools/database/test-db-name-test.sh" \
     "$root/tools/database/test-db-discovery-test.sh" \
@@ -149,7 +144,7 @@ while IFS= read -r f; do
       # must not narrow this to a single-module compile.
       buildlogic=1
       ;;
-    tools/quality/*|tools/database/*|tools/performance/*|scripts/*|.githooks/*|.github/workflows/*)
+    tools/quality/*|tools/database/*|tools/performance/*|scripts/*|.github/workflows/*)
       # Owned tool families, compat wrappers, hooks, workflows: shell
       # validation, never a docs-only skip (map #533 #569).
       shell=1

@@ -7,7 +7,7 @@
 # This script reads the Gradle task list out of quality.yml itself, so it cannot drift
 # from CI, and runs only the modules your change touches.
 #
-# NOT a git hook: .githooks/pre-push deliberately runs nothing (map #329).
+# NOT a git hook: the repo has no git hooks. CI and this script are the checks.
 #
 # Usage:
 #   tools/check-before-push.sh            # changed since merge-base with origin/master (+ uncommitted)
@@ -88,7 +88,7 @@ else
       shared/*) want_modules="$want_modules shared"; want_deadcode=1 ;;
       detekt-rules/*) want_modules="$want_modules detekt-rules"; want_deadcode=1 ;;
       config/deadcode/*) want_deadcode=1 ;;
-      tools/*|scripts/*|.githooks/*|.github/workflows/quality.yml) want_shell=1 ;;
+      tools/*|scripts/*|.github/workflows/quality.yml) want_shell=1 ;;
     esac
   done <<< "$changed"
 fi
@@ -136,7 +136,7 @@ fi
 if [ $want_shell -eq 1 ]; then
   while IFS= read -r f; do
     [ -f "$f" ] && { bash -n "$f" || status=1; }
-  done < <(git ls-files 'tools/*.sh' 'scripts/*.sh' '.githooks/*')
+  done < <(git ls-files 'tools/*.sh' 'scripts/*.sh')
   while IFS= read -r t; do
     [ -f "$t" ] || continue
     bash "$t" >/dev/null 2>&1 || { echo "check-before-push: shell test FAILED: $t" >&2; status=1; }

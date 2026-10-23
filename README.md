@@ -38,13 +38,15 @@ After changing an API endpoint, regenerate the web app's types:
 cd web && npm run check && npm run lint
 ```
 
+The full browser suite runs on GitHub only; locally `npm run e2e` refuses to start without a test file. Rules for agents are in [`AGENTS.md`](AGENTS.md).
+
 Browser tests use [e2e](https://tester.army/e2e) and live in `web/tests/`. They
 run against a backend serving the built web app with the dev seed logins:
 
 ```bash
 cd web && npm run build
 ./gradlew :backend:run          # from the repo root, with WEB_DIR=web/dist in .env
-cd web && npm run e2e           # APP_URL defaults to http://localhost:18080
+cd web && npm run e2e -- tests/undo.e2e.ts   # one file; APP_URL defaults to http://localhost:18080
 ```
 
 ## Words
