@@ -86,5 +86,8 @@ export function searchLocal(term: string, limit = 20): C[] {
     return hits.slice(0, limit).map((h) => h.c);
 }
 
-window.addEventListener(RECONNECTED, () => void refreshDirectory());
-window.addEventListener(SENT, () => void refreshDirectory(true));
+/** Re-read the client list when the signal is back and after held saves go out. */
+export function keepDirectoryFresh() {
+    window.addEventListener(RECONNECTED, () => void refreshDirectory());
+    window.addEventListener(SENT, () => void refreshDirectory(true));
+}

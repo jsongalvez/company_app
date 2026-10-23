@@ -5,8 +5,9 @@
  * twice can't make a duplicate, and a change someone else made in the meantime is refused by
  * the server rather than overwritten: those land in "couldn't send" for the person to check.
  */
-import { plain, type S } from "../api/client";
+import type { S } from "../api/client";
 import { label } from "./format";
+import { classify, parseBody } from "./outbox-classify";
 import { replayBody } from "./replay";
 import { RECONNECTED, reportNetFailure, reportNetOk } from "./net.svelte";
 
@@ -83,29 +84,14 @@ function keepRecent(i: Item) {
 }
 /** The server's list now shows these sessions: stop holding them up ourselves. */
 export function sessionsSeen(ids: Set<string>) {
-    const left = outbox.recent.filter((r) => {
-        if (r.path !== "/api/sessions") return true;
-        try {
-            return !ids.has(String((JSON.parse(r.body) as { id?: unknown }).id));
-        } catch {
-            return true;
-        }
-    });
+    const left = outbox.recent.filter((r) => r.path !== "/api/sessions" || !ids.has(String(parseBody(r.body).id)));
     if (left.length === outbox.recent.length) return;
     outbox.recent = left;
     localStorage.setItem(RECENT_KEY, JSON.stringify(left));
 }
 function recentBodies(path: string): { at: string; body: Record<string, unknown> }[] {
     const now = Date.now();
-    return outbox.recent
-        .filter((i) => i.path === path && (i.sentAt ?? 0) + keepMs(i) > now)
-        .map((i) => {
-            try {
-                return { at: i.at, body: JSON.parse(i.body) as Record<string, unknown> };
-            } catch {
-                return { at: i.at, body: {} };
-            }
-        });
+    return outbox.recent.filter((i) => i.path === path && (i.sentAt ?? 0) + keepMs(i) > now).map((i) => ({ at: i.at, body: parseBody(i.body) }));
 }
 /** New sessions just sent, which the server's list may not show yet. */
 export const sentSessions = () => recentBodies("/api/sessions");
@@ -142,13 +128,7 @@ export const failed = () => mine().filter((i) => !!i.failed);
 function waitingBodies(method: string, path: RegExp): { path: string; body: Record<string, unknown> }[] {
     return waiting()
         .filter((i) => i.method === method && path.test(i.path))
-        .map((i) => {
-            try {
-                return { path: i.path, body: JSON.parse(i.body) as Record<string, unknown> };
-            } catch {
-                return { path: i.path, body: {} };
-            }
-        });
+        .map((i) => ({ path: i.path, body: parseBody(i.body) }));
 }
 
 /** A client made with no signal, shaped like the server's answer. */
@@ -179,13 +159,7 @@ export function heldClients(): S["ClientResponse"][] {
 export function heldSessions(): { at: string; body: Record<string, unknown> }[] {
     return waiting()
         .filter((i) => i.method === "POST" && i.path === "/api/sessions")
-        .map((i) => {
-            try {
-                return { at: i.at, body: JSON.parse(i.body) as Record<string, unknown> };
-            } catch {
-                return { at: i.at, body: {} };
-            }
-        });
+        .map((i) => ({ at: i.at, body: parseBody(i.body) }));
 }
 
 /** A session's mark still waiting to send, so lists can show it straight away. */
@@ -200,11 +174,8 @@ export function heldClock(): { attendanceId: string; branchId: string } | "out" 
     const last = c[c.length - 1];
     if (!last) return undefined;
     if (last.path.endsWith("clock-out")) return "out";
-    try {
-        return JSON.parse(last.body) as { attendanceId: string; branchId: string };
-    } catch {
-        return undefined;
-    }
+    const b = parseBody(last.body);
+    return typeof b.attendanceId === "string" && typeof b.branchId === "string" ? { attendanceId: b.attendanceId, branchId: b.branchId } : undefined;
 }
 
 function rule(method: string, path: string): Rule | undefined {
@@ -224,12 +195,7 @@ export function mustQueue(method: string, path: string): boolean {
 /** Store a save for later; answer the page as if it went through (the record's own fields). */
 export function enqueue(method: string, path: string, body: string, shown?: string): Response {
     const r = rule(method, path)!;
-    let b: Record<string, unknown> = {};
-    try {
-        b = JSON.parse(body) as Record<string, unknown>;
-    } catch {
-        /* no body */
-    }
+    const b = parseBody(body);
     let from: string | undefined;
     let drop = false;
     if (method === "PATCH") {
@@ -263,11 +229,8 @@ export function enqueue(method: string, path: string, body: string, shown?: stri
 }
 
 function bodyStatus(i: Item): string | undefined {
-    try {
-        return (JSON.parse(i.body) as { status?: string }).status;
-    } catch {
-        return undefined;
-    }
+    const s = parseBody(i.body).status;
+    return typeof s === "string" ? s : undefined;
 }
 
 let queuedCount = 0;
@@ -286,14 +249,6 @@ export function discard(id: string) {
     save();
 }
 
-function serverMessage(status: number, body: unknown): string {
-    if (body && typeof body === "object" && "error" in body && typeof body.error === "string") return plain(body.error);
-    if (status === 409) return "Someone changed this while you were offline.";
-    if (status === 403) return "You no longer have access to do this.";
-    if (status === 404) return "It no longer exists.";
-    return `The server refused it (${status}).`;
-}
-
 async function send(i: Item): Promise<Response> {
     return fetch(i.path, {
         method: i.method,
@@ -303,36 +258,23 @@ async function send(i: Item): Promise<Response> {
     });
 }
 
-/** A mark refused for an old version may have landed on an earlier try: check before calling it a clash. */
-async function alreadyApplied(i: Item): Promise<{ version?: number } | null> {
-    const m = /^\/api\/sessions\/([^/]+)\/status$/.exec(i.path);
-    if (!m) return null;
-    try {
-        const res = await fetch(`/api/sessions/${m[1]}`, { headers: { Authorization: `Bearer ${localStorage.getItem("token") ?? ""}` } });
-        if (!res.ok) return null;
-        const s = (await res.json()) as { sessionStatus?: string; status?: string; version?: number };
-        return (s.sessionStatus ?? s.status) === (JSON.parse(i.body) as { status?: string }).status ? { version: s.version } : null;
-    } catch {
-        return null;
+/** Marks queued behind one that has just landed were made from the version it was made from: move them up. */
+function chainVersions(landed: Item, newVersion: number | undefined) {
+    const from = parseBody(landed.body).version;
+    if (typeof from !== "number") return;
+    for (const x of outbox.items) {
+        if (x.id === landed.id || x.method !== landed.method || x.path !== landed.path || x.failed) continue;
+        const o = parseBody(x.body);
+        if (o.version === from) x.body = JSON.stringify({ ...o, version: newVersion ?? from + 1 });
     }
 }
 
-/** Marks queued behind one that has just landed were made from the version it was made from: move them up. */
-function chainVersions(landed: Item, newVersion: number | undefined) {
-    let from: number;
+/** The answer's JSON, or null when it has none. */
+async function readBody(res: Response): Promise<unknown> {
     try {
-        from = (JSON.parse(landed.body) as { version: number }).version;
+        return await res.json();
     } catch {
-        return;
-    }
-    for (const x of outbox.items) {
-        if (x.id === landed.id || x.method !== landed.method || x.path !== landed.path || x.failed) continue;
-        try {
-            const o = JSON.parse(x.body) as { version?: number };
-            if (o.version === from) x.body = JSON.stringify({ ...o, version: newVersion ?? from + 1 });
-        } catch {
-            /* leave it */
-        }
+        return null;
     }
 }
 
@@ -358,34 +300,22 @@ export async function flush(): Promise<void> {
                 reportNetFailure();
                 return;
             }
-            if (res.status === 401 || res.status === 429 || res.status >= 500) return;
+            const body = await readBody(res);
+            const verdict = classify(res.status, body);
+            if (verdict.kind === "retry") return;
             reportNetOk();
-            const applied = res.ok ? null : res.status === 409 ? await alreadyApplied(i) : null;
-            if (res.ok || applied) {
+            if (verdict.kind === "applied") {
                 if (i.method === "PATCH") {
-                    let v = applied?.version;
-                    if (res.ok) {
-                        try {
-                            v = ((await res.clone().json()) as { version?: number }).version;
-                        } catch {
-                            /* no version in the answer */
-                        }
-                    }
-                    chainVersions(i, v);
+                    const v = (body as { version?: unknown } | null)?.version;
+                    chainVersions(i, typeof v === "number" ? v : undefined);
                 }
                 keepRecent(i);
                 discard(i.id);
                 sent++;
                 continue;
             }
-            let body: unknown = null;
-            try {
-                body = await res.json();
-            } catch {
-                /* not json */
-            }
             const cur = outbox.items.find((x) => x.id === i.id);
-            if (cur) cur.failed = serverMessage(res.status, body);
+            if (cur) cur.failed = verdict.message;
             save();
         }
         finished = true;
@@ -397,7 +327,10 @@ export async function flush(): Promise<void> {
     }
 }
 
-window.addEventListener(RECONNECTED, () => void flush());
-window.addEventListener("online", () => void flush());
-setInterval(() => waiting().length && navigator.onLine && void flush(), 30_000);
-setTimeout(() => void flush(), 1000);
+/** Send what's waiting when the signal is back, every 30 s, and once just after the app opens. */
+export function startOutbox() {
+    window.addEventListener(RECONNECTED, () => void flush());
+    window.addEventListener("online", () => void flush());
+    setInterval(() => waiting().length && navigator.onLine && void flush(), 30_000);
+    setTimeout(() => void flush(), 1000);
+}

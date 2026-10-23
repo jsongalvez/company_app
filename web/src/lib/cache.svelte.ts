@@ -145,17 +145,20 @@ export function clearCache() {
 /** Reactive query: stale data shows at once; `loading` only when nothing is cached. */
 /** Pages showing data, so waiting saves that just went out can refresh what's on screen. */
 const live = new Set<WeakRef<Query<unknown>>>();
-window.addEventListener(SENT, () => {
-    for (const e of store.values()) {
-        e.at = 0;
-        e.staleAt = seq + 1;
-    }
-    for (const r of live) {
-        const q = r.deref();
-        if (q) q.refresh();
-        else live.delete(r);
-    }
-});
+/** After held saves go out, what's cached is out of date: refresh what's on screen. */
+export function refreshOnSent() {
+    window.addEventListener(SENT, () => {
+        for (const e of store.values()) {
+            e.at = 0;
+            e.staleAt = seq + 1;
+        }
+        for (const r of live) {
+            const q = r.deref();
+            if (q) q.refresh();
+            else live.delete(r);
+        }
+    });
+}
 
 export class Query<T> {
     data = $state<T | undefined>(undefined);

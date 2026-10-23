@@ -23,7 +23,9 @@ export async function checkForUpdate(): Promise<void> {
     }
 }
 
-if (import.meta.env.PROD) {
+/** Look for a newer build when the app is shown again, the signal returns, and every 15 minutes. */
+export function watchForUpdates() {
+    if (!import.meta.env.PROD) return;
     document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && void checkForUpdate());
     window.addEventListener(RECONNECTED, () => void checkForUpdate());
     setInterval(() => void checkForUpdate(), 15 * 60_000);

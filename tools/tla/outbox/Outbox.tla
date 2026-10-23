@@ -2,7 +2,8 @@
 (*
   Model of the phone's offline save queue and the #/today list.
   Code it describes (web/src, commit recorded in README.md):
-    lib/outbox.svelte.ts : enqueue(), flush(), alreadyApplied(), keepRecent(), heldSessions()
+    lib/outbox.svelte.ts : enqueue(), flush(), keepRecent(), heldSessions()
+    lib/outbox-classify.ts: classify(status, body) -> retry | applied | failed
     api/client.ts        : resilientFetch (mustQueue / canQueue)
     lib/cache.svelte.ts  : fetchCached seq guard, Query.refresh on SENT
     pages/Today.svelte   : `sessions` = server list + held creates + recent creates
@@ -215,6 +216,8 @@ Process ==
                    /\ flight' = [flight EXCEPT !.phase = "res", !.code = 200] /\ UNCHANGED sale
          [] it.kind = "mark" ->
               IF ~srv.ex THEN /\ flight' = [flight EXCEPT !.phase = "res", !.code = 404] /\ UNCHANGED <<srv, sale>>
+              \* A repeat of a mark that already landed (same status, version since moved on) is acked, not refused.
+              ELSE IF srv.ver > it.ver /\ srv.st = it.st THEN /\ flight' = [flight EXCEPT !.phase = "res", !.code = 200] /\ UNCHANGED <<srv, sale>>
               ELSE IF srv.ver # it.ver THEN /\ flight' = [flight EXCEPT !.phase = "res", !.code = 409] /\ UNCHANGED <<srv, sale>>
               ELSE IF ~Legal(srv.st, it.st) THEN /\ flight' = [flight EXCEPT !.phase = "res", !.code = 400] /\ UNCHANGED <<srv, sale>>
               ELSE IF PastGate(srv.day, it) # 0
@@ -252,7 +255,7 @@ Deliver ==
     /\ flight.phase = "res" /\ net = "up"
     /\ LET it == flight.item  c == flight.code
            gone == Remove(queue, it.id)
-           lands == c = 200 \/ (c = 409 /\ it.kind = "mark" /\ srv.st = it.st)   \* 409 -> alreadyApplied(): GET the session, same status
+           lands == c = 200
        IN
        /\ flight' = [flight EXCEPT !.phase = "none"]
        /\ IF lands

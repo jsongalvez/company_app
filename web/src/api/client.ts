@@ -1,4 +1,4 @@
-import { label } from "../lib/format";
+import { plain } from "../lib/format";
 import createClient, { type Middleware } from "openapi-fetch";
 import type { components, paths } from "./schema";
 import { net, onlineOrTimeout, reportNetFailure, reportNetOk } from "../lib/net.svelte";
@@ -149,18 +149,6 @@ export class ApiError extends Error {
     ) {
         super(message);
     }
-}
-
-/** Server messages use code words; swap them for the app's words (see CONTEXT.md). */
-export function plain(msg: string): string {
-    const out = msg
-        .replace(/\b[A-Z][A-Z_]{2,}\b/g, (code) => (code === "PII" ? code : label(code)))
-        .replace(/\bbranch[ -]days?\b/gi, (m) => (m.toLowerCase().endsWith("s") ? "days" : "day"))
-        .replace(/\b(UUID|uuid)\b/g, "id")
-        .replace(/\bunvoid(ed)?\b/gi, (_m, ed) => (ed ? "restored" : "restore"))
-        .replace(/\banonymi[sz]ed\b/gi, "with erased details")
-        .replace(/\s*\(#\d+\)/g, "");
-    return out.charAt(0).toUpperCase() + out.slice(1);
 }
 
 function messageFor(status: number, body: unknown): string {
