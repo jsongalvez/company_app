@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
-    import { app, can, branchName } from "../lib/app.svelte";
+    import { app, can } from "../lib/app.svelte";
     import { Query, invalidate } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
@@ -49,7 +49,7 @@
     }
 </script>
 
-<PageHead title="Remittance" sub={branchName(bid)}>
+<PageHead title="Remittance">
     <div class="seg" role="group" aria-label="Filter">
         {#each [["all", "All"], ["DRAFT", "Drafts"], ["SUBMITTED", "Sent"]] as [k, t] (k)}
             <button class:on={filter === k} onclick={() => (filter = k as F)}>{t} <span class="faint">{count(k as F)}</span></button>
@@ -82,7 +82,6 @@
 {/if}
 
 <Dialog bind:open title="New remittance" width={420} onsubmit={create} submitText="Create draft" busy={a.busy} error={a.error}>
-    <div class="muted">A draft can be changed freely. Its days lock only when you send it.</div>
     <div class="form-grid">
         <label class="field"
             >Kind

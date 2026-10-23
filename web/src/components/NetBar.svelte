@@ -42,7 +42,6 @@
             <div class="outbox" role="region" aria-label="Changes waiting to send">
                 {#if f.length}
                     <h3>Couldn't be sent</h3>
-                    <p class="muted">Someone may have changed these while you were offline. Check the page, redo it if needed, then throw it away.</p>
                     <ul>
                         {#each f as i (i.id)}
                             <li>

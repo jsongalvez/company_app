@@ -101,7 +101,7 @@
     const assignable = $derived(roles.filter((r) => r !== "ONBOARDING" && r !== "SUPERUSER"));
 </script>
 
-<PageHead title="Users" sub="{rows.length} shown">
+<PageHead title="Users">
     <input type="search" placeholder="Filter by name" bind:value={filter} />
     {#if inactiveCount}<label class="check"><input type="checkbox" bind:checked={showInactive} />Show deactivated ({inactiveCount})</label>{/if}
     <button class="primary" onclick={openInvite}>Invite user</button>
@@ -143,11 +143,9 @@
             </tbody>
         </table>
     </div>
-    <div class="faint note">Home branches are set on the <a href="#/branches">Branches</a> page.</div>
 {/if}
 
 <Dialog bind:open={rOpen} title="Roles: {who?.displayName}" width={380} onsubmit={saveRoles} busy={ra.busy} error={ra.error}>
-    <div class="muted">Roles decide what someone can do. With none, they can sign in but see nothing.</div>
     <div class="col">
         {#each assignable as r (r)}
             <label class="check"><input type="checkbox" value={r} bind:group={picked} />{label(r)}</label>
@@ -166,7 +164,7 @@
     error={ia.error}
 >
     {#if minted}
-        <div>Give {iName} this invite code. They use it on the sign-in page under "Have an invite code?".</div>
+        <div>Invite code for {iName}</div>
         <div class="code row">
             <input class="mono grow" readonly value={minted.inviteCode} aria-label="Invite code" onfocus={(e) => e.currentTarget.select()} />
             <button type="button" class="sm" onclick={() => copy(minted?.inviteCode ?? "")}>Copy</button>
@@ -178,7 +176,7 @@
             <label class="field"><span class="req">Username</span><input bind:value={iUser} required autocomplete="off" /></label>
             <label class="field"><span class="req">Email</span><input type="email" bind:value={iEmail} required /></label>
         </div>
-        <div class="muted">Roles (you can change these later)</div>
+        <div class="muted">Roles</div>
         <div class="row wrap">
             {#each assignable as r (r)}<label class="check"><input type="checkbox" value={r} bind:group={iRoles} />{label(r)}</label>{/each}
         </div>
@@ -186,9 +184,6 @@
 </Dialog>
 
 <style>
-    .note {
-        padding: 8px 0;
-    }
     .code {
         border: 1px solid var(--line-strong);
         background: var(--panel-2);

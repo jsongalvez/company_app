@@ -20,14 +20,10 @@
 {#if q.error}
     <div class="notice bad row">{q.error}<span class="spacer"></span><button class="sm" onclick={() => q.refresh()}>Retry</button></div>
 {:else if q.waiting}
-    <div class="faint pad row"><span class="spin" aria-hidden="true"></span>Waiting for signal. This shows by itself once you're back online.</div>
+    <div class="faint pad row"><span class="spin" aria-hidden="true"></span>Offline</div>
 {:else if q.loading}
     <div class="faint pad row">
-        <span class="spin" aria-hidden="true"></span>{!net.online
-            ? "Waiting for signal…"
-            : slow || net.trouble
-              ? "Still loading. The connection is slow…"
-              : "Loading…"}
+        <span class="spin" aria-hidden="true"></span>{!net.online ? "Offline" : slow || net.trouble ? "Slow connection…" : "Loading…"}
     </div>
 {:else if empty}
     <div class="faint pad">{emptyText}</div>

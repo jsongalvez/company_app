@@ -35,7 +35,7 @@
                 </table>
             </div>
         {:else}
-            <div class="faint">{people.length ? "No match." : "Everyone is already added."}</div>
+            <div class="faint">{people.length ? "No match." : "All added."}</div>
         {/if}
     </div>
 {/if}

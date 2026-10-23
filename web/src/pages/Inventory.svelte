@@ -1,7 +1,7 @@
 <script lang="ts">
     import { viewSetting } from "../lib/router.svelte";
     import { api, ok, uuid, type S } from "../api/client";
-    import { app, can, canAtBranch, branchName } from "../lib/app.svelte";
+    import { app, can, canAtBranch } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
@@ -167,7 +167,7 @@
     const totalValue = $derived((inv.data ?? []).reduce((s, i) => s + Number(i.unitPrice) * i.currentStock, 0));
 </script>
 
-<PageHead title="Stock" sub={branchName(bid)}>
+<PageHead title="Stock">
     <input type="search" placeholder="Filter products" bind:value={filter} />
     {#if manage}<button onclick={openAdd}>Add product</button>{/if}
     {#if edit}<button class="primary" onclick={() => (saleOpen = true)}>Product sale</button>{/if}
@@ -306,7 +306,7 @@
             {#each products as p (p.id)}<option value={p.id}>{p.name} · {peso(p.unitPrice)}</option>{/each}
         </select>
     </label>
-    {#if products.length === 0}<div class="faint">Every active product is already stocked here.</div>{/if}
+    {#if products.length === 0}<div class="faint">All products stocked.</div>{/if}
 </Dialog>
 
 <ProductSale bind:open={saleOpen} onsaved={refresh} />

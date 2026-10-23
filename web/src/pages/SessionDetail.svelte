@@ -441,8 +441,7 @@
                                 </table>
                             </div>
                         {/if}
-                        <div class="faint small">
-                            New illnesses join the list for everyone. Tap × to take one off this session.
+                        <div>
                             <button class="sm" onclick={() => (manageList = !manageList)}>{manageList ? "Done" : "Fix the illness list"}</button>
                         </div>
                         {#if manageList}
@@ -461,7 +460,6 @@
                                     </tbody>
                                 </table>
                             </div>
-                            <div class="faint small">Removing takes a wrong or duplicate entry off the list. Sessions that already have it keep it.</div>
                         {/if}
                     </div>
                 {/if}
@@ -479,12 +477,12 @@
         title={voided ? "Restore session" : "Void session"}
         width={400}
         onsubmit={doVoid}
-        submitText={voided ? "Restore" : "Void"}
+        submitText={voided ? "Restore session" : "Void session"}
         danger={!voided}
         busy={va.busy}
         error={va.error}
     >
-        <div class="muted">{voided ? "The session counts toward sales again." : "A voided session stops counting toward sales. It can be restored later."}</div>
+        {#if !voided}<p class="consequence">Stops counting toward sales.</p>{/if}
         <label class="field"><span class="req">Reason</span><textarea bind:value={voidReason} required></textarea></label>
     </Dialog>
 

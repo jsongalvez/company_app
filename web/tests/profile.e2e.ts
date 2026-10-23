@@ -29,7 +29,7 @@ test("change my name and email, then put them back", { session: "owner" }, async
 test("a wrong current password is refused", { session: "owner" }, async ({ app, screen }) => {
     await app.open("/#/profile");
     await screen.getByLabel("Current password").fill("not-my-password");
-    await screen.getByLabel("New password").fill("whatever-123");
+    await screen.getByLabel(/^New password/).fill("whatever-123");
     await screen.getByLabel("Repeat new password").fill("whatever-123");
     await screen.getByRole("button", "Change password").tap();
     await expect(screen.getByText("Current password is wrong")).toBeVisible();

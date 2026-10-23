@@ -96,7 +96,7 @@
     const money = "\\d+(\\.\\d{1,2})?";
 </script>
 
-<PageHead title="Products" sub="Shared by all branches">
+<PageHead title="Products">
     <input type="search" placeholder="Filter by name" bind:value={filter} />
     <select bind:value={cat} aria-label="Category">
         <option value="">All categories</option>
@@ -137,7 +137,6 @@
             </tbody>
         </table>
     </div>
-    <div class="faint note">To stock a product at a branch, use Add product on that branch's <a href="#/inventory">Stock</a> page.</div>
 {/if}
 
 <Dialog bind:open={pOpen} title={editing ? `Edit ${editing.name}` : "Add product"} width={420} onsubmit={saveProduct} busy={pa.busy} error={pa.error}>
@@ -158,15 +157,8 @@
             ><span class="req">Commission per unit</span><input class="num" inputmode="decimal" bind:value={commission} required pattern={money} /></label
         >
     </div>
-    {#if editing}<div class="muted">New prices apply to sales from now on.</div>{/if}
 </Dialog>
 
 <Dialog bind:open={cOpen} title="Add category" width={340} onsubmit={addCategory} submitText="Add" busy={ca.busy || !cName.trim()} error={ca.error}>
     <label class="field"><span class="req">Name</span><input bind:value={cName} required /></label>
 </Dialog>
-
-<style>
-    .note {
-        padding: 8px 0;
-    }
-</style>

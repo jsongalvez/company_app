@@ -39,7 +39,7 @@
     const earnings = $derived(q.data?.earnings ?? []);
 </script>
 
-<PageHead title="My shifts & pay" sub="Only you see this page">
+<PageHead title="My shifts & pay">
     <RangePicker
         mode="day"
         {from}
@@ -66,7 +66,7 @@
 
     <h2 class="sub">Money received</h2>
     {#if earnings.length === 0}
-        <p class="faint mb">Nothing paid to you in this range.</p>
+        <p class="faint mb">None in range.</p>
     {:else}
         <div class="table-wrap mb">
             <table class="grid">
@@ -93,7 +93,7 @@
 
     <h2 class="sub">Clock-ins</h2>
     {#if shifts.length === 0}
-        <p class="faint mb">No clock-ins in this range.</p>
+        <p class="faint mb">None in range.</p>
     {:else}
         <div class="table-wrap mb">
             <table class="grid">

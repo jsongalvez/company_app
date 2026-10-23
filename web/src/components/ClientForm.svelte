@@ -31,9 +31,7 @@
         </select>
     </label>
     <label class="field"><span class="req">Age</span><input class="num" type="number" min="0" max="150" bind:value={v.age} required /></label>
-    <label class="field" title="Visits this client had before we started using the app. Sets the visit type and price."
-        >Visits before the app<input class="num" type="number" min="0" max="1000" placeholder="0" bind:value={v.earlierVisits} /></label
-    >
+    <label class="field">Earlier visits<input class="num" type="number" min="0" max="1000" placeholder="0" bind:value={v.earlierVisits} /></label>
     <label class="field">Phone<input type="tel" bind:value={v.phoneNumber} /></label>
     <label class="field"
         >BP (sys / dia)

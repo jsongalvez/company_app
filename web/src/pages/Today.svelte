@@ -5,7 +5,7 @@
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
     import { go, viewSetting } from "../lib/router.svelte";
-    import { peso, time, label, sum, day, operationalDate, clientName } from "../lib/format";
+    import { peso, time, label, sum, day, clientName } from "../lib/format";
     import { allowedTargets, statusClass, type Status } from "../lib/rules";
     import { heldMark, heldSessions, outbox, sentSessions, sessionsSeen } from "../lib/outbox.svelte";
     import { findLocal } from "../lib/clientdir.svelte";
@@ -198,7 +198,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<PageHead title="Sessions" sub="Today · {branchName(bid)} · {day(operationalDate())}">
+<PageHead title="Sessions">
     <button onclick={refresh} title="Refresh (R)">Refresh</button>
     {#if correct}<a class="btn" href="#/finance" title="Earlier days' sessions are on Expenses & pay; use ‹ to go back a day">Past days</a>{/if}
     {#if edit}<button onclick={() => (bookOpen = true)} title="Book a client for a later day">Book a visit</button>{/if}
@@ -315,7 +315,7 @@
                                         {s.practitioners.map((p) => p.displayName).join(", ")}
                                     {:else if s.requestedPractitionerName}
                                         <span class="faint">Req: {s.requestedPractitionerName}</span>
-                                    {:else}<span class="faint">No practitioner yet</span>{/if}
+                                    {/if}
                                 </td>
                                 <td class="ellipsis cc muted hide-sm">{s.concerns?.map((c) => c.label).join(", ") ?? ""}</td>
                                 <td class="num">
@@ -353,45 +353,38 @@
     </section>
 
     <aside class="panel roster">
-        <header>
-            <h2>Who's clocked in</h2>
-            <span class="spacer"></span><span class="faint">{roster.data?.filter((m) => m.present).length ?? 0} of {roster.data?.length ?? 0} in</span>
-        </header>
-        {#if member && roster.data?.length}
-            <p class="faint note">
-                Everyone at this branch. Green means clocked in now.{#if edit}&nbsp;You can clock someone in or out for them.{/if}
-            </p>
-        {/if}
-        {#if !member}
-            <p class="faint note">Only staff of this branch see who's on duty.</p>
-        {:else}
+        {#if member}
+            <header>
+                <h2>Who's clocked in</h2>
+                <span class="spacer"></span><span class="faint">{roster.data?.filter((m) => m.present).length ?? 0} of {roster.data?.length ?? 0} in</span>
+            </header>
             <State q={roster} empty={!!roster.data && roster.data.length === 0} emptyText="No members assigned." />
+            {#if roster.data?.length}
+                <table class="grid">
+                    <tbody>
+                        {#each roster.data as m, i (m.assignmentId)}
+                            <tr>
+                                <td class="faint num slot">{i + 1}</td>
+                                <td class="ellipsis"
+                                    >{m.displayName}{#if m.userId === app.me?.id}<span class="faint">&nbsp;(you)</span>{/if}</td
+                                >
+                                <td class="right nowrap">
+                                    {#if m.present}<span class="mark ok">Clocked in</span>{:else}<span class="faint">Not in</span>{/if}
+                                    {#if edit}
+                                        <button
+                                            class="sm"
+                                            onclick={() => setPresent(m, !m.present)}
+                                            aria-label="{m.present ? 'Clock out' : 'Clock in'} {m.displayName}">{m.present ? "Clock out" : "Clock in"}</button
+                                        >
+                                    {/if}
+                                </td>
+                            </tr>
+                        {/each}
+                    </tbody>
+                </table>
+            {/if}
         {/if}
-        {#if member && roster.data?.length}
-            <table class="grid">
-                <tbody>
-                    {#each roster.data as m, i (m.assignmentId)}
-                        <tr>
-                            <td class="faint num slot">{i + 1}</td>
-                            <td class="ellipsis"
-                                >{m.displayName}{#if m.userId === app.me?.id}<span class="faint">&nbsp;(you)</span>{/if}</td
-                            >
-                            <td class="right nowrap">
-                                {#if m.present}<span class="mark ok">Clocked in</span>{:else}<span class="faint">Not in</span>{/if}
-                                {#if edit}
-                                    <button
-                                        class="sm"
-                                        onclick={() => setPresent(m, !m.present)}
-                                        aria-label="{m.present ? 'Clock out' : 'Clock in'} {m.displayName}">{m.present ? "Clock out" : "Clock in"}</button
-                                    >
-                                {/if}
-                            </td>
-                        </tr>
-                    {/each}
-                </tbody>
-            </table>
-        {/if}
-        <header class="bk-head">
+        <header class:bk-head={member}>
             <h2>Booked visits</h2>
             <span class="spacer"></span><span class="faint">{booked.data?.length ?? 0}</span>
         </header>

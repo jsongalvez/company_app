@@ -38,7 +38,7 @@
     }
 </script>
 
-<PageHead title="Feedback inbox" sub="Problems and ideas people sent from the app">
+<PageHead title="Feedback inbox">
     <div class="seg" role="group" aria-label="Filter">
         <button class:on={filter === "NEW"} onclick={() => (filter = "NEW")}>New</button>
         <button class:on={filter === "DONE"} onclick={() => (filter = "DONE")}>Done</button>
@@ -46,7 +46,7 @@
 </PageHead>
 
 {#if error}<div class="notice bad">{error}</div>{/if}
-{#if !loading && !error && notes.length === 0}<div class="faint">{filter === "NEW" ? "Nothing new." : "Nothing marked done yet."}</div>{/if}
+{#if !loading && !error && notes.length === 0}<div class="faint">Nothing here.</div>{/if}
 {#if notes.length}
     <div class="table-wrap">
         <table class="grid stack">

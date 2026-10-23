@@ -147,7 +147,7 @@
     const sentLive = $derived((sent.data ?? []).filter((i) => i.status === "PENDING" || (i.status === "ACCEPTED" && i.date >= today)));
 </script>
 
-<PageHead title="Relief duty" sub="Work a shift at a branch that isn't your home branch">
+<PageHead title="Relief duty">
     <button onclick={refresh}>Refresh</button>
     <button class="primary" onclick={openAsk}>Ask for relief</button>
 </PageHead>
@@ -259,7 +259,6 @@
 {/if}
 
 <Dialog bind:open={askOpen} title="Ask for relief" width={420} onsubmit={ask} submitText="Send request" busy={aa.busy || !askBranch} error={aa.error}>
-    <div class="muted">Everyone at that branch sees your request. Any of them can approve it.</div>
     <div class="form-grid">
         <label class="field wide"
             ><span class="req">Branch</span>
