@@ -12,7 +12,7 @@ function opDate(addDays = 0): string {
 test("book a visit, move it, start a session from it, cancel another", { session: "owner" }, async ({ app, screen, browser }) => {
     const first = `Book${Date.now().toString().slice(-6)}`;
     await app.open("/#/today");
-    await clockInHere(screen);
+    await clockInHere(screen, browser);
 
     await screen.getByRole("button", "Book a visit").tap();
     const dialog = screen.getByRole("dialog", "Book a visit");

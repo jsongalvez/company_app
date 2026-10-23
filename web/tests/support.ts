@@ -2,21 +2,40 @@ import { expect } from "e2e";
 
 type Screen = Parameters<Parameters<typeof import("@e2e-dev/web").test>[1]>[0]["screen"];
 type App = Parameters<Parameters<typeof import("@e2e-dev/web").test>[1]>[0]["app"];
+type Browser = Parameters<Parameters<typeof import("@e2e-dev/web").test>[1]>[0]["browser"];
 
-/** Clock in at the current branch unless already on duty. Waits for the top bar to know the shift first. */
-export async function clockInHere(screen: Screen): Promise<void> {
+/** Clock in at the current branch unless already on duty (accepting the "are you sure"). Waits for the top bar to know the shift first. */
+export async function clockInHere(screen: Screen, browser: Browser): Promise<void> {
     const bar = screen.getByRole("banner");
     await expect(bar.getByRole("button", /Clock (in|out)/).first()).toBeVisible();
     const clockIn = bar.getByRole("button", "Clock in");
-    if ((await clockIn.count()) > 0) await clockIn.first().tap();
+    if ((await clockIn.count()) > 0) {
+        const off = await browser.onDialog("accept");
+        await clockIn.first().tap();
+        await expect(bar.getByRole("button", /Clock out/).first()).toBeVisible();
+        await off();
+    }
     await expect(bar.getByRole("button", /Clock out/).first()).toBeVisible();
 }
 
+/** Clock out of the current branch if on duty (accepting the "are you sure"). */
+export async function clockOutHere(screen: Screen, browser: Browser): Promise<void> {
+    const bar = screen.getByRole("banner");
+    await expect(bar.getByRole("button", /Clock (in|out)/).first()).toBeVisible();
+    const clockOut = bar.getByRole("button", /Clock out/);
+    if ((await clockOut.count()) > 0) {
+        const off = await browser.onDialog("accept");
+        await clockOut.first().tap();
+        await expect(bar.getByRole("button", "Clock in").first()).toBeVisible();
+        await off();
+    }
+}
+
 /** Clock in at the current branch, add a session for a brand-new client, mark it done. Returns the client's name. */
-export async function doneSessionForNewClient(app: App, screen: Screen): Promise<string> {
+export async function doneSessionForNewClient(app: App, screen: Screen, browser: Browser): Promise<string> {
     const first = `Test${Date.now().toString().slice(-6)}`;
     await app.open("/#/today");
-    await clockInHere(screen);
+    await clockInHere(screen, browser);
 
     await screen.getByRole("button", "New session").tap();
     const dialog = screen.getByRole("dialog", "New session");

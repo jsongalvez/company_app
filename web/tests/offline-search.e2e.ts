@@ -7,7 +7,7 @@ const down = /\/(api\/|health)/;
 // No signal: clients saved on the phone are still found, and a client and session made offline
 // show at once (in search and in today's list) before they're sent.
 test("offline search finds saved clients and ones made offline", { session: "owner" }, async ({ screen, app, browser }) => {
-    const known = await doneSessionForNewClient(app, screen);
+    const known = await doneSessionForNewClient(app, screen, browser);
     const fresh = `Off${Date.now().toString().slice(-6)}`;
     await browser.route(down, (route) => route.abort());
 

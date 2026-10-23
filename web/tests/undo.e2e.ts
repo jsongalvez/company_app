@@ -2,8 +2,8 @@ import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
 import { doneSessionForNewClient } from "./support";
 
-test("undo a session marked done by mistake", { session: "owner" }, async ({ app, screen }) => {
-    const name = await doneSessionForNewClient(app, screen);
+test("undo a session marked done by mistake", { session: "owner" }, async ({ app, screen, browser }) => {
+    const name = await doneSessionForNewClient(app, screen, browser);
     const row = screen.getByRole("row").filter({ hasText: name });
     await row.getByRole("button", "Undo").tap();
     await expect(row.getByText("Waiting")).toBeVisible();

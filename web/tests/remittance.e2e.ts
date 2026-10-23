@@ -4,8 +4,8 @@ import { doneSessionForNewClient } from "./support";
 
 const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date(Date.now() - 4 * 3600e3));
 
-test("send a remittance for today, then undo it", { session: "owner" }, async ({ app, screen }) => {
-    const client = await doneSessionForNewClient(app, screen);
+test("send a remittance for today, then undo it", { session: "owner" }, async ({ app, screen, browser }) => {
+    const client = await doneSessionForNewClient(app, screen, browser);
     await app.open("/#/remittance");
     await screen.getByRole("button", "New remittance").tap();
     const d = screen.getByRole("dialog", "New remittance");

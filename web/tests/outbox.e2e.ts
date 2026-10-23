@@ -27,7 +27,7 @@ const down = /\/(api\/|health)/;
 
 // A mark made with no signal shows straight away, flagged "Not sent", and goes out by itself.
 test("an offline mark shows at once and sends later", { session: "owner" }, async ({ app, screen, browser }) => {
-    const name = await doneSessionForNewClient(app, screen);
+    const name = await doneSessionForNewClient(app, screen, browser);
     const row = screen.getByRole("row").filter({ hasText: name });
     await row.getByRole("button", "Undo").tap();
     await expect(row.getByText("Waiting")).toBeVisible();
@@ -42,7 +42,7 @@ test("an offline mark shows at once and sends later", { session: "owner" }, asyn
 
 // Someone else changes the session while this phone is offline: the waiting mark is refused, not forced through.
 test("a mark that clashes with someone else's change lands in couldn't send", { session: "owner" }, async ({ app, screen, browser }) => {
-    const name = await doneSessionForNewClient(app, screen);
+    const name = await doneSessionForNewClient(app, screen, browser);
     const row = screen.getByRole("row").filter({ hasText: name });
     await row.getByRole("button", "Undo").tap();
     await expect(row.getByText("Waiting")).toBeVisible();

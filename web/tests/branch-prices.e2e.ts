@@ -4,7 +4,7 @@ import { clockInHere } from "./support";
 
 // Feedback 503bf228: a branch member sets the branch's own list price per product and one
 // commission for all its products; sales there charge them, and "Use shared" goes back.
-test("a branch sets its own product price and sells at it", { session: "owner" }, async ({ app, screen }) => {
+test("a branch sets its own product price and sells at it", { session: "owner" }, async ({ app, screen, browser }) => {
     const tag = Date.now().toString().slice(-6);
     const category = `Balms ${tag}`;
     const product = `Test balm ${tag}`;
@@ -25,7 +25,7 @@ test("a branch sets its own product price and sells at it", { session: "owner" }
     await expect(screen.getByRole("row").filter({ hasText: product })).toBeVisible();
 
     await app.open("/#/inventory");
-    await clockInHere(screen);
+    await clockInHere(screen, browser);
     await screen.getByRole("button", "Add product").tap();
     const add = screen.getByRole("dialog", "Add product to this branch");
     await add.getByLabel(/^Product/).selectOption({ label: `${product} · 250.00` });

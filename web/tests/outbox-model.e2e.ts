@@ -11,7 +11,7 @@ const saved = (browser: { evaluate: <T>(f: () => T) => Promise<T> }) => browser.
 // Done, then Undo, both with no signal: the phone used to queue "back to Waiting" for a session that
 // is still waiting on the server, and the server answered 400 (Waiting -> Waiting is not a move).
 test("marking Done then Undo with no signal sends nothing and refuses nothing", { session: "owner" }, async ({ app, screen, browser }) => {
-    const name = await doneSessionForNewClient(app, screen);
+    const name = await doneSessionForNewClient(app, screen, browser);
     const row = screen.getByRole("row").filter({ hasText: name });
     await row.getByRole("button", "Undo").tap();
     await expect(row.getByText("Waiting")).toBeVisible();
@@ -31,7 +31,7 @@ test("marking Done then Undo with no signal sends nothing and refuses nothing", 
 // The send loop walks the saves that were waiting when it started. A mark replaced while an earlier
 // save is still going out used to be sent anyway, and the replacement then clashed with it.
 test("undoing a Done that is already on its way keeps the last choice", { session: "owner" }, async ({ app, screen, browser }) => {
-    const name = await doneSessionForNewClient(app, screen);
+    const name = await doneSessionForNewClient(app, screen, browser);
     const row = screen.getByRole("row").filter({ hasText: name });
     await row.getByRole("button", "Undo").tap();
     await expect(row.getByText("Waiting")).toBeVisible();
@@ -63,7 +63,7 @@ test("undoing a Done that is already on its way keeps the last choice", { sessio
 // A session made with no signal and sent when the signal returned used to drop off #/today if the list
 // could not be fetched right then and the page reloaded: the "just sent" row lived in memory for two minutes.
 test("a session sent from the phone stays on today's list until the server's list shows it", { session: "owner" }, async ({ screen, app, browser }) => {
-    await doneSessionForNewClient(app, screen);
+    await doneSessionForNewClient(app, screen, browser);
     const fresh = `Gone${Date.now().toString().slice(-6)}`;
     await browser.route(down, (route) => route.abort());
     await screen.getByRole("button", "New session").tap();
