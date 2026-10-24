@@ -127,6 +127,10 @@ object BackendArchitectureOwners {
             "database/" to "database",
             "exception/" to "mechanism",
             "utils/" to "mechanism",
+            "contracts/" to "mechanism",
+            "domain/" to "mechanism",
+            "dto/" to "mechanism",
+            "validation/" to "mechanism",
             "logging/" to "logging",
             "observability/" to "observability",
         )

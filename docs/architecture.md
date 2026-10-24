@@ -31,7 +31,7 @@ Kotlin Backend (Javalin) — hosted on Oracle Cloud (singapore west)
 PostgreSQL Database
 ```
 
-Kotlin backend and shared contracts; the web app (Svelte + TypeScript) is served by the same backend and typed from its OpenAPI spec. All branches connect to a single cloud-hosted backend. There is no per-branch server.
+Kotlin backend (contracts included); the web app (Svelte + TypeScript) is served by the same backend and typed from its OpenAPI spec. All branches connect to a single cloud-hosted backend. There is no per-branch server.
 
 ---
 
@@ -66,8 +66,6 @@ endpoint; no VPN.
 ```
 company-app/
 ├── web/                      # Svelte web app (Vite); src/api/schema.d.ts generated from OpenAPI
-├── shared/
-│   └── src/commonMain/       # Domain types, DTOs, validation, route constants
 ├── backend/
 │   └── src/main/kotlin/com/companyb/companyapp/
 │       ├── identity/         # Account lifecycle: auth, users, credentials, /me (map #533 #537)
@@ -114,11 +112,9 @@ classification.
 ### Module Dependencies
 
 ```
-backend ──depends on──> shared
-web ──────typed by────> backend OpenAPI spec (npm run gen:api)
+web ──typed by──> backend OpenAPI spec (npm run gen:api)
 ```
 
-- `shared` targets: JVM only
 - `backend` is JVM-only (Javalin, JDBC)
 
 ---
@@ -227,7 +223,7 @@ decision #436, Option 3): product/category collection and detail routes gate
 GLOBAL `MANAGE_CATALOG`, derived GLOBALly for SUPERUSER/OWNER/MANAGER/COORDINATOR
 and excluded from the BRANCH-derived leg, so catalog writes stay global while
 BRANCH `MANAGE_PRODUCTS` keeps governing branch inventory and base rates. The application references codes through
-`shared/src/commonMain/kotlin/com/companyb/companyapp/contracts/authorization/AuthorizationContracts.kt`; migration SQL
+`backend/src/main/kotlin/com/companyb/companyapp/contracts/authorization/AuthorizationContracts.kt`; migration SQL
 keeps its database-owned string literals.
 
 | Code | Scope | Who holds it |
@@ -445,7 +441,7 @@ request, never by cron.
 
 ### Wire enum evolution policy
 
-Wire enums in `shared` carry an `UNKNOWN` forward-compat sentinel (#876): a
+Wire enums in `contracts/` carry an `UNKNOWN` forward-compat sentinel (#876): a
 client that predates a new server value decodes it as `UNKNOWN` instead of
 failing the whole response, and degrades that row (read-only, grants nothing).
 `UNKNOWN` is never persisted and never sent; the backend rejects it on input.
