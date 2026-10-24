@@ -1,6 +1,8 @@
 package com.companyb.companyapp.session
 
+import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.session.BookingResponse
 import com.companyb.companyapp.contracts.session.BookingStatus
@@ -118,10 +120,8 @@ internal object VisitBookingAudit {
         changedBy: UUID,
         booking: VisitBooking,
     ) = AuditLog.recordInsert(
-        tableName = VisitBookingTable.tableName,
-        recordId = booking.id,
-        changedBy = changedBy,
-        branchId = booking.branchId,
+        context = AuditContext(changedBy = changedBy, branchId = booking.branchId),
+        row = AuditedRow(VisitBookingTable.tableName, booking.id),
         fields = VisitBookingTable.auditFields(booking),
     )
 
@@ -130,12 +130,10 @@ internal object VisitBookingAudit {
         before: VisitBooking,
         after: VisitBooking,
     ) = AuditLog.recordUpdate(
-        tableName = VisitBookingTable.tableName,
-        recordId = before.id,
+        context = AuditContext(changedBy = changedBy, branchId = before.branchId),
+        row = AuditedRow(VisitBookingTable.tableName, before.id),
         before = before,
         after = after,
-        changedBy = changedBy,
-        branchId = before.branchId,
         auditFields = VisitBookingTable::auditFields,
     )
 }

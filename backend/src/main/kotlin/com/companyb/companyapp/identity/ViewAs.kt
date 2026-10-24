@@ -1,7 +1,9 @@
 package com.companyb.companyapp.identity
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.audit.ViewedAsBy
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.identity.UserStatus
@@ -113,10 +115,9 @@ internal object ViewAsAudit {
         targetId: UUID,
         fields: Map<String, String?>,
     ) = AuditLog.record(
-        tableName = AppUserTable.tableName,
-        recordId = targetId,
+        context = AuditContext(changedBy = callerId),
+        row = AuditedRow(AppUserTable.tableName, targetId),
         action = AuditAction.UPDATE,
-        changedBy = callerId,
         newValue = AuditLog.jsonFields(fields),
     )
 }

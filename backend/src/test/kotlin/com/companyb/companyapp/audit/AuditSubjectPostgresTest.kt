@@ -44,24 +44,20 @@ class AuditSubjectPostgresTest : BasePostgresTest() {
         val entries =
             transaction {
                 AuditLogStore.recordInsert(
-                    tableName = "attendance",
-                    recordId = attendanceId,
-                    changedBy = workerId,
+                    context = AuditContext(changedBy = workerId, branchId = branchId),
+                    row = AuditedRow("attendance", attendanceId),
                     fields =
                         mapOf(
                             "userId" to workerId.toString(),
                             "branchDayId" to dayId.toString(),
                             "clockOut" to null,
                         ),
-                    branchId = branchId,
                 )
                 AuditLogStore.recordUpdate(
-                    tableName = "attendance",
-                    recordId = attendanceId,
+                    context = AuditContext(changedBy = callerId, branchId = branchId),
+                    row = AuditedRow("attendance", attendanceId),
                     oldFields = mapOf("clockOut" to null),
                     newFields = mapOf("clockOut" to "2026-10-19T10:00:00Z"),
-                    changedBy = callerId,
-                    branchId = branchId,
                 )
                 AuditLogStore.findByTableAndRecord("attendance", attendanceId, null, emptySet(), true)
             }

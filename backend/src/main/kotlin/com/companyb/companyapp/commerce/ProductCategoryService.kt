@@ -1,6 +1,8 @@
 package com.companyb.companyapp.commerce
 
+import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -42,9 +44,8 @@ internal object ProductCategoryAudit {
         changedBy: UUID,
         category: ProductCategory,
     ) = AuditLog.recordInsert(
-        tableName = ProductCategoryTable.tableName,
-        recordId = category.id,
-        changedBy = changedBy,
+        context = AuditContext(changedBy = changedBy),
+        row = AuditedRow(ProductCategoryTable.tableName, category.id),
         fields = ProductCategoryTable.auditFields(category),
     )
 }

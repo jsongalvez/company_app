@@ -2,6 +2,7 @@ package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.authorization.AuthorizationGrants
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.branch.BranchType
@@ -155,10 +156,8 @@ internal object MedicalMissionDelegateAudit {
         context: AuditContext,
         delegate: MedicalMissionDelegate,
     ) = AuditLog.recordInsert(
-        tableName = MedicalMissionDelegateTable.tableName,
-        recordId = delegate.id,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
+        context = AuditContext(changedBy = context.changedBy, branchId = context.branchId),
+        row = AuditedRow(MedicalMissionDelegateTable.tableName, delegate.id),
         fields = MedicalMissionDelegateTable.auditFields(delegate),
     )
 
@@ -167,12 +166,10 @@ internal object MedicalMissionDelegateAudit {
         before: MedicalMissionDelegate,
         after: MedicalMissionDelegate,
     ) = AuditLog.recordUpdate(
-        tableName = MedicalMissionDelegateTable.tableName,
-        recordId = after.id,
+        context = AuditContext(changedBy = context.changedBy, branchId = context.branchId),
+        row = AuditedRow(MedicalMissionDelegateTable.tableName, after.id),
         before = before,
         after = after,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
         auditFields = MedicalMissionDelegateTable::auditFields,
     )
 }

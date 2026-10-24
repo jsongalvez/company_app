@@ -2,6 +2,7 @@ package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.authorization.AuthorizationGrants
 import com.companyb.companyapp.authorization.GrantReliefCapabilityParams
 import com.companyb.companyapp.branch.Branch
@@ -484,13 +485,9 @@ internal object ReliefAccessAudit {
         context: AuditContext,
         reliefAccess: ReliefAccess,
     ) = AuditLog.recordInsert(
-        tableName = GrantReliefAccessTable.tableName,
-        recordId = reliefAccess.id,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
+        context = context,
+        row = AuditedRow(GrantReliefAccessTable.tableName, reliefAccess.id),
         fields = GrantReliefAccessTable.auditFields(reliefAccess),
-        isFlagged = context.isFlagged,
-        reason = context.reason,
     )
 
     fun updated(
@@ -498,14 +495,10 @@ internal object ReliefAccessAudit {
         before: ReliefAccess,
         after: ReliefAccess,
     ) = AuditLog.recordUpdate(
-        tableName = GrantReliefAccessTable.tableName,
-        recordId = after.id,
+        context = context,
+        row = AuditedRow(GrantReliefAccessTable.tableName, after.id),
         before = before,
         after = after,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
-        isFlagged = context.isFlagged,
-        reason = context.reason,
         auditFields = GrantReliefAccessTable::auditFields,
     )
 }

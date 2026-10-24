@@ -2,6 +2,7 @@ package com.companyb.companyapp.session
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.client.ClientReads
 import com.companyb.companyapp.commission.CommissionService
@@ -624,13 +625,9 @@ internal object SessionAudit {
         context: AuditContext,
         session: Session,
     ) = AuditLog.recordInsert(
-        tableName = SessionTable.tableName,
-        recordId = session.id,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
+        context = context,
+        row = AuditedRow(SessionTable.tableName, session.id),
         fields = SessionTable.auditFields(session),
-        isFlagged = context.isFlagged,
-        reason = context.reason,
     )
 
     fun updated(
@@ -638,14 +635,10 @@ internal object SessionAudit {
         before: Session,
         after: Session,
     ) = AuditLog.recordUpdate(
-        tableName = SessionTable.tableName,
-        recordId = after.id,
+        context = context,
+        row = AuditedRow(SessionTable.tableName, after.id),
         before = before,
         after = after,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
-        isFlagged = context.isFlagged,
-        reason = context.reason,
         auditFields = SessionTable::auditFields,
     )
 
@@ -653,13 +646,9 @@ internal object SessionAudit {
         context: AuditContext,
         voidRecord: SessionVoid,
     ) = AuditLog.recordInsert(
-        tableName = SessionVoidTable.tableName,
-        recordId = voidRecord.id,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
+        context = context,
+        row = AuditedRow(SessionVoidTable.tableName, voidRecord.id),
         fields = SessionVoidTable.auditFields(voidRecord),
-        isFlagged = context.isFlagged,
-        reason = context.reason,
     )
 
     fun voidUpdated(
@@ -667,14 +656,10 @@ internal object SessionAudit {
         before: SessionVoid,
         after: SessionVoid,
     ) = AuditLog.recordUpdate(
-        tableName = SessionVoidTable.tableName,
-        recordId = after.id,
+        context = context,
+        row = AuditedRow(SessionVoidTable.tableName, after.id),
         before = before,
         after = after,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
-        isFlagged = context.isFlagged,
-        reason = context.reason,
         auditFields = SessionVoidTable::auditFields,
     )
 }

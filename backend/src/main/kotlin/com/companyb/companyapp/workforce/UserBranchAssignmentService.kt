@@ -2,6 +2,7 @@ package com.companyb.companyapp.workforce
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
@@ -262,10 +263,8 @@ internal object UserBranchAssignmentAudit {
         context: AuditContext,
         assignment: UserBranchAssignment,
     ) = AuditLog.recordInsert(
-        tableName = UserBranchAssignmentTable.tableName,
-        recordId = assignment.id,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
+        context = AuditContext(changedBy = context.changedBy, branchId = context.branchId),
+        row = AuditedRow(UserBranchAssignmentTable.tableName, assignment.id),
         fields = UserBranchAssignmentTable.auditFields(assignment),
     )
 
@@ -274,12 +273,10 @@ internal object UserBranchAssignmentAudit {
         before: UserBranchAssignment,
         after: UserBranchAssignment,
     ) = AuditLog.recordUpdate(
-        tableName = UserBranchAssignmentTable.tableName,
-        recordId = after.id,
+        context = AuditContext(changedBy = context.changedBy, branchId = context.branchId),
+        row = AuditedRow(UserBranchAssignmentTable.tableName, after.id),
         before = before,
         after = after,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
         auditFields = UserBranchAssignmentTable::auditFields,
     )
 }

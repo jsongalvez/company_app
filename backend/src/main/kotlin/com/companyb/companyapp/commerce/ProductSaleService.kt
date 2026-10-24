@@ -1,6 +1,7 @@
 package com.companyb.companyapp.commerce
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.client.ClientReads
@@ -227,13 +228,9 @@ internal object ProductSaleAudit {
         context: AuditContext,
         sale: ProductSale,
     ) = AuditLog.recordInsert(
-        tableName = ProductSaleTable.tableName,
-        recordId = sale.id,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
+        context = context,
+        row = AuditedRow(ProductSaleTable.tableName, sale.id),
         fields = ProductSaleTable.auditFields(sale),
-        isFlagged = context.isFlagged,
-        reason = context.reason,
     )
 
     fun updated(
@@ -241,14 +238,10 @@ internal object ProductSaleAudit {
         before: BranchInventory,
         after: BranchInventory,
     ) = AuditLog.recordUpdate(
-        tableName = BranchInventoryTable.tableName,
-        recordId = before.id,
+        context = context,
+        row = AuditedRow(BranchInventoryTable.tableName, before.id),
         before = before,
         after = after,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
-        isFlagged = context.isFlagged,
-        reason = context.reason,
         auditFields = BranchInventoryTable::auditFields,
     )
 }

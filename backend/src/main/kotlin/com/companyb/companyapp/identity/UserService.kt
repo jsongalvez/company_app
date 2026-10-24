@@ -2,6 +2,7 @@ package com.companyb.companyapp.identity
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.contracts.identity.InviteMintRequest
 import com.companyb.companyapp.contracts.identity.InviteMintResponse
 import com.companyb.companyapp.contracts.identity.RoleResponse
@@ -182,9 +183,8 @@ object UserService {
             .forEach { tokenId ->
                 CredentialTokenRepository.invalidateInTransaction(tokenId)
                 AuditLog.recordUpdate(
-                    tableName = TOKEN_TABLE_NAME,
-                    recordId = tokenId,
-                    changedBy = callerId,
+                    context = AuditContext(changedBy = callerId),
+                    row = AuditedRow(TOKEN_TABLE_NAME, tokenId),
                     oldFields = mapOf("consumed" to "false"),
                     newFields = mapOf("consumed" to "true"),
                 )
@@ -208,9 +208,8 @@ object UserService {
                 createdBy = callerId,
             )
         AuditLog.recordInsert(
-            tableName = TOKEN_TABLE_NAME,
-            recordId = tokenId,
-            changedBy = callerId,
+            context = AuditContext(changedBy = callerId),
+            row = AuditedRow(TOKEN_TABLE_NAME, tokenId),
             fields =
                 mapOf(
                     "userId" to targetId.toString(),
@@ -364,11 +363,10 @@ internal object UserAudit {
         before: AppUser,
         after: AppUser,
     ) = AuditLog.recordUpdate(
-        tableName = AppUserTable.tableName,
-        recordId = UUID.fromString(after.id),
+        context = AuditContext(changedBy = context.changedBy),
+        row = AuditedRow(AppUserTable.tableName, UUID.fromString(after.id)),
         before = before,
         after = after,
-        changedBy = context.changedBy,
         auditFields = AppUserTable::auditFields,
     )
 
@@ -378,9 +376,8 @@ internal object UserAudit {
         username: String,
         displayName: String,
     ) = AuditLog.recordInsert(
-        tableName = AppUserTable.tableName,
-        recordId = recordId,
-        changedBy = changedBy,
+        context = AuditContext(changedBy = changedBy),
+        row = AuditedRow(AppUserTable.tableName, recordId),
         fields =
             mapOf(
                 "id" to recordId.toString(),
@@ -396,10 +393,9 @@ internal object UserAudit {
         before: List<String>,
         after: List<String>,
     ) = AuditLog.recordUpdate(
-        tableName = UserRoleTable.tableName,
-        recordId = recordId,
+        context = AuditContext(changedBy = changedBy),
+        row = AuditedRow(UserRoleTable.tableName, recordId),
         oldFields = mapOf("roles" to before.joinToString(",")),
         newFields = mapOf("roles" to after.joinToString(",")),
-        changedBy = changedBy,
     )
 }

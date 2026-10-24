@@ -1,6 +1,8 @@
 package com.companyb.companyapp.remittance
+import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.client.ClientTable
@@ -774,10 +776,9 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
                 )
                 BranchDayService.markDaysRemittedInTransaction(listOf(branchDayId), changedBy = callerId)
                 AuditLog.record(
-                    tableName = RemittanceTable.tableName,
-                    recordId = remittanceId,
+                    context = AuditContext(changedBy = callerId),
+                    row = AuditedRow(RemittanceTable.tableName, remittanceId),
                     action = AuditAction.UPDATE,
-                    changedBy = callerId,
                     oldValue = "{not-valid-json",
                 )
             }

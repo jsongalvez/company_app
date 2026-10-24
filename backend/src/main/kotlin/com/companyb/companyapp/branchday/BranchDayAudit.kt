@@ -1,6 +1,8 @@
 package com.companyb.companyapp.branchday
 
+import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import java.util.UUID
 
 /**
@@ -16,13 +18,10 @@ internal object BranchDayAudit {
         after: BranchDay,
         reason: String? = null,
     ) = AuditLog.recordUpdate(
-        tableName = BranchDayTable.tableName,
-        recordId = after.id,
+        context = AuditContext(changedBy = changedBy, branchId = before.branchId, reason = reason),
+        row = AuditedRow(BranchDayTable.tableName, after.id),
         before = before,
         after = after,
-        changedBy = changedBy,
-        branchId = before.branchId,
-        reason = reason,
         auditFields = BranchDayTable::auditFields,
     )
 }

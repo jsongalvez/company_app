@@ -1,6 +1,8 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.client.ClientCreateParams
@@ -110,10 +112,9 @@ class CrudCommandAtomicityPostgresTest : BasePostgresTest() {
                         ),
                     )
                     AuditLog.record(
-                        tableName = ClientTable.tableName,
-                        recordId = clientId,
+                        context = AuditContext(changedBy = callerId),
+                        row = AuditedRow(ClientTable.tableName, clientId),
                         action = AuditAction.INSERT,
-                        changedBy = callerId,
                         oldValue = "{not-valid-json",
                     )
                 }

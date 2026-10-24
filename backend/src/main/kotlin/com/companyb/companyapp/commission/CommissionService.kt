@@ -2,6 +2,7 @@ package com.companyb.companyapp.commission
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.commerce.CommerceReads
 import com.companyb.companyapp.commerce.ProductSale
@@ -277,13 +278,9 @@ internal object CommissionAudit {
         context: AuditContext,
         inclusion: CommissionManualInclusion,
     ) = AuditLog.recordInsert(
-        tableName = CommissionManualInclusionTable.tableName,
-        recordId = inclusion.id,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
+        context = context,
+        row = AuditedRow(CommissionManualInclusionTable.tableName, inclusion.id),
         fields = CommissionManualInclusionTable.auditFields(inclusion),
-        isFlagged = context.isFlagged,
-        reason = context.reason,
     )
 
     fun updated(
@@ -291,14 +288,10 @@ internal object CommissionAudit {
         before: CommissionManualInclusion,
         after: CommissionManualInclusion,
     ) = AuditLog.recordUpdate(
-        tableName = CommissionManualInclusionTable.tableName,
-        recordId = after.id,
+        context = context,
+        row = AuditedRow(CommissionManualInclusionTable.tableName, after.id),
         before = before,
         after = after,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
-        isFlagged = context.isFlagged,
-        reason = context.reason,
         auditFields = CommissionManualInclusionTable::auditFields,
     )
 }

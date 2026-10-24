@@ -1,6 +1,8 @@
 package com.companyb.companyapp.identity
 
+import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
@@ -156,10 +158,13 @@ internal object ProfileAudit {
         displayName: String,
         email: String,
     ) = AuditLog.recordUpdate(
-        tableName = AppUserTable.tableName,
-        recordId = userId,
-        changedBy = userId,
+        context = AuditContext(changedBy = userId),
+        row = AuditedRow(AppUserTable.tableName, userId),
         oldFields = mapOf("displayName" to before.displayName, "email" to before.email),
-        newFields = mapOf("displayName" to displayName, "email" to email),
+        newFields =
+            mapOf(
+                "displayName" to displayName,
+                "email" to email,
+            ),
     )
 }
