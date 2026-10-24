@@ -158,6 +158,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          # check-patterns.sh looks up the "checked at <sha>" commits
+          fetch-depth: 0
 
       - name: Syntax-check owned shell files
         run: |
