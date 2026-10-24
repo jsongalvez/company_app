@@ -3,6 +3,7 @@
 
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayRoutes
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -39,6 +40,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     private val assignUser = TestFixtures.uuid()
     private val editOnlyUser = TestFixtures.uuid()
     private val noneUser = TestFixtures.uuid()
+    private val globalOnlyUser = TestFixtures.uuid()
     private val targetUser1 = TestFixtures.uuid()
     private val targetUser2 = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
@@ -60,6 +62,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             assignUser to "assign",
             editOnlyUser to "edit",
             noneUser to "no-caps",
+            globalOnlyUser to "global-only",
             targetUser1 to "target-1",
             targetUser2 to "target-2",
         ).forEach { (id, prefix) ->
@@ -79,6 +82,14 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             capabilityCode = CapabilityCodes.ASSIGN_COMPENSATION,
             contextType = CapabilityContextType.BRANCH,
             contextId = branchId,
+            sourceId = sourceId,
+        )
+        // An owner or manager with no branch assignment holds this at GLOBAL only (active_user_capabilities, part b).
+        IdentityFixtures.grantCapability(
+            userId = globalOnlyUser,
+            capabilityCode = CapabilityCodes.ASSIGN_COMPENSATION,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
             sourceId = sourceId,
         )
         IdentityFixtures.grantCapability(
@@ -202,6 +213,15 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
                 403,
                 client.get("/api/compensations?branchDayId=$branchDayId", asUser(editOnlyUser)).code,
             )
+        }
+    }
+
+    // The web's pay controls must follow this: only a BRANCH grant counts (web/tests/unit/grants.test.ts).
+    @Test
+    fun `GET compensations and branch-day users forbidden for a GLOBAL-only ASSIGN_COMPENSATION holder`() {
+        testServer.client.let { client ->
+            assertEquals(403, client.get("/api/compensations?branchDayId=$branchDayId", asUser(globalOnlyUser)).code)
+            assertEquals(403, client.get("/api/branch-days/$branchDayId/users", asUser(globalOnlyUser)).code)
         }
     }
 

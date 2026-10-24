@@ -4,6 +4,7 @@ import { refreshDirectory, resetDirectory } from "./clientdir.svelte";
 import { RECONNECTED } from "./net.svelte";
 import { doneText, heldClock, heldSoFar, SENT } from "./outbox.svelte";
 import { operationalDate } from "./format";
+import { applies } from "./grants";
 
 type Cap = S["UserCapabilityResponse"];
 
@@ -248,13 +249,7 @@ export async function refreshUnread() {
 
 /** Does the user hold `code` for the branch (or globally)? */
 export function can(code: string, branchId: string = app.branchId, branchDayId?: string): boolean {
-    return app.caps.some(
-        (c) =>
-            c.capabilityCode === code &&
-            (c.contextType === "GLOBAL" ||
-                ((c.contextType === "BRANCH" || c.contextType === "MEDICAL_MISSION" || c.contextType === "PROVINCIAL_TOUR") && c.contextId === branchId) ||
-                (c.contextType === "BRANCH_DAY" && (!branchDayId || c.contextId === branchDayId) && c.contextId === (branchDayId ?? app.today?.branchDayId))),
-    );
+    return app.caps.some((c) => applies(c, code, branchId, branchDayId, app.today?.branchDayId));
 }
 /** Rights the server only honours at a branch the person works at (an all-branch grant doesn't count). */
 export function canAtBranch(code: string, branchId: string = app.branchId): boolean {
