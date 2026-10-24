@@ -15,12 +15,12 @@ usage() {
 
 # Authoritative Detekt pass over the modules this repo edits most.
 cmd_detekt() {
-    ./gradlew :backend:detekt :shared:detektJvmMain
+    ./gradlew :backend:detekt
 }
 
 # Authoritative compiler-warning pass (same -PwarningsAsErrors=true as CI).
 cmd_compiler() {
-    ./gradlew :backend:compileKotlin :shared:compileKotlinJvm -PwarningsAsErrors=true
+    ./gradlew :backend:compileKotlin -PwarningsAsErrors=true
 }
 
 # Detekt effective-config parity guard (IDE single-file load == Gradle merge).

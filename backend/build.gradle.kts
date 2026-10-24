@@ -7,8 +7,6 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":shared"))
-
     // Javalin
     implementation(libs.javalin)
     implementation(libs.javalin.openapi.plugin)

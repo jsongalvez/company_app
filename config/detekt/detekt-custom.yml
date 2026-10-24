@@ -16,7 +16,6 @@ CompanyApp:
     excludes:
       - '**/test/**'
       - '**/androidTest/**'
-      - '**/commonTest/**'
       - '**/desktopTest/**'
       - '**/jvmTest/**'
       - '**/androidUnitTest/**'
@@ -29,7 +28,6 @@ CompanyApp:
     excludes:
       - '**/test/**'
       - '**/androidTest/**'
-      - '**/commonTest/**'
       - '**/desktopTest/**'
       - '**/jvmTest/**'
       - '**/androidUnitTest/**'
@@ -82,7 +80,6 @@ CompanyApp:
       - '**/*Parser.kt' # #468
       - '**/test/**' # #468
       - '**/androidTest/**' # #468
-      - '**/commonTest/**' # #468
       - '**/desktopTest/**' # #468
       - '**/jvmTest/**' # #468
       - '**/androidUnitTest/**' # #468
