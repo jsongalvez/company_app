@@ -5,7 +5,7 @@
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
     import { go, route, viewSetting } from "../lib/router.svelte";
-    import { peso, day, shortDay, sum, operationalDate, monthStart, addDays } from "../lib/format";
+    import { peso, day, shortDay, sum, operationalDate, monthStart, monthBounds, addDays } from "../lib/format";
     import PageHead from "../components/PageHead.svelte";
     import RangePicker, { type Preset } from "../components/RangePicker.svelte";
     import State from "../components/State.svelte";
@@ -52,10 +52,8 @@
         go("/reports", { ...Object.fromEntries(route.current.query), from: f, to: t });
     }
     function shiftMonth(n: number) {
-        const d = new Date(Date.UTC(year, month - 1 + n, 1));
-        const f = d.toISOString().slice(0, 10);
-        const end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
-        setRange(f, end < today ? end : today);
+        const { from, to } = monthBounds(year, month, n);
+        setRange(from, to < today ? to : today);
     }
     const monthName = $derived(new Date(Date.UTC(year, month - 1, 1)).toLocaleString("en-PH", { month: "long", year: "numeric", timeZone: "UTC" }));
 

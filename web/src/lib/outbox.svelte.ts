@@ -6,7 +6,7 @@
  * the server rather than overwritten: those land in "couldn't send" for the person to check.
  */
 import type { S } from "../api/client";
-import { label } from "./format";
+import { label, nowIso } from "./format";
 import { classify, parseBody } from "./outbox-classify";
 import { replayBody } from "./replay";
 import { RECONNECTED, reportNetFailure, reportNetOk } from "./net.svelte";
@@ -191,7 +191,7 @@ export function enqueue(method: string, path: string, body: string, shown?: stri
     if (!drop)
         outbox.items.push({
             id: crypto.getRandomValues(new Uint32Array(2)).join("-"),
-            at: new Date().toISOString(),
+            at: nowIso(),
             user: tokenUser(),
             method,
             path,

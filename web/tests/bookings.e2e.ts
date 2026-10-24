@@ -1,12 +1,7 @@
 import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
+import { businessDate } from "./clock";
 import { clockInHere } from "./support";
-
-// The app's day turns over at 4 AM Manila time.
-function opDate(addDays = 0): string {
-    const d = new Date(Date.now() - 4 * 3600_000 + addDays * 86400_000);
-    return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(d);
-}
 
 // Feedback e4ec363c: book a future visit without making a session today; any member can change it.
 test("book a visit, move it, start a session from it, cancel another", { session: "owner" }, async ({ app, screen, browser }) => {
@@ -25,7 +20,7 @@ test("book a visit, move it, start a session from it, cancel another", { session
     await form.getByLabel(/^Age/).fill("41");
     await form.getByRole("button", "Create client").tap();
     await expect(dialog.getByText(`${first} Tester`, { exact: false })).toBeVisible();
-    await dialog.getByLabel(/^Day/).fill(opDate(2));
+    await dialog.getByLabel(/^Day/).fill(businessDate(2));
     await dialog.getByLabel(/^Time/).fill("14:30");
     await dialog.getByLabel(/^Note/).fill("Back pain follow-up");
     await dialog.getByRole("button", "Book visit").tap();
@@ -37,7 +32,7 @@ test("book a visit, move it, start a session from it, cancel another", { session
     // Move it to today: the list says who changed it, and the history shows the change.
     await item.getByRole("button", "Change").tap();
     const change = screen.getByRole("dialog", "Change booked visit");
-    await change.getByLabel(/^Day/).fill(opDate(0));
+    await change.getByLabel(/^Day/).fill(businessDate(0));
     await change.getByRole("button", "Save").tap();
     await expect(item.getByText("Today, 2:30 PM")).toBeVisible();
     await expect(item.getByText("changed by", { exact: false })).toBeVisible();
@@ -57,7 +52,7 @@ test("book a visit, move it, start a session from it, cancel another", { session
     const again = screen.getByRole("dialog", "Book a visit");
     await again.getByPlaceholder("Search by name or phone (2+ letters)").fill(first);
     await again.getByText(`${first} Tester`, { exact: false }).first().tap();
-    await again.getByLabel(/^Day/).fill(opDate(5));
+    await again.getByLabel(/^Day/).fill(businessDate(5));
     await again.getByRole("button", "Book visit").tap();
     await expect(item).toBeVisible();
     const ok = await browser.onDialog("accept");

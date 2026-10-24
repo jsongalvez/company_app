@@ -1,23 +1,6 @@
 import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
-
-// Manila wall-clock time, n seconds from now, as "2026-10-18T14:30:05".
-function manila(offsetSec: number) {
-    const t = new Date(Date.now() + offsetSec * 1000);
-    return new Intl.DateTimeFormat("sv-SE", {
-        timeZone: "Asia/Manila",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hourCycle: "h23",
-    })
-        .format(t)
-        .replace(" ", "T")
-        .replace(/:00$/, ":01"); // the browser drops ":00" seconds, which the fill check rejects
-}
+import { manilaTime } from "./clock";
 
 test("pick a time span on Change history", { session: "owner" }, async ({ app, screen }) => {
     const branch = `History ${Date.now().toString().slice(-6)}`;
@@ -37,8 +20,8 @@ test("pick a time span on Change history", { session: "owner" }, async ({ app, s
     // Exact ends, down to the second: a window that ended an hour ago holds none of today's test changes.
     await screen.getByRole("button", "Last 15 min").tap();
     const span = screen.getByRole("dialog", "Time span");
-    await span.getByLabel("From").fill(manila(-7200));
-    await span.getByLabel("To").fill(manila(-3600 * 1.5));
+    await span.getByLabel("From").fill(manilaTime(-7200));
+    await span.getByLabel("To").fill(manilaTime(-3600 * 1.5));
     await span.getByRole("button", "Apply").tap();
     await expect(span).toBeHidden();
     await expect(screen.getByRole("button", / – /)).toBeVisible();
