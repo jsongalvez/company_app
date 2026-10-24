@@ -25,6 +25,7 @@ on:
       - 'tools/quality/*.sh'
       - 'tools/check-before-push.sh'
       - 'tools/push.sh'
+      - 'docs/patterns.md'
       - 'tools/performance/**'
       - 'scripts/**'
       - 'config/deadcode/**'
@@ -46,6 +47,7 @@ on:
       - 'tools/quality/*.sh'
       - 'tools/check-before-push.sh'
       - 'tools/push.sh'
+      - 'docs/patterns.md'
       - 'tools/performance/**'
       - 'scripts/**'
       - 'config/deadcode/**'
@@ -151,6 +153,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          # check-patterns.sh looks up the "checked at <sha>" commits
+          fetch-depth: 0
 
       - name: Syntax-check owned shell files
         run: |
@@ -162,6 +167,9 @@ jobs:
       - name: Dead references (paths and modules)
         run: bash tools/quality/check-references.sh
 
+      - name: Patterns log rows say whether they still happen
+        run: bash tools/quality/check-patterns.sh
+
       - name: Run DB-free shell self-tests
         run: |
           bash tools/quality/test-shell-portability.sh
@@ -172,4 +180,5 @@ jobs:
           bash tools/performance/check-baselines-test.sh
           bash tools/quality/check-before-push-test.sh
           bash tools/quality/check-references-test.sh
+          bash tools/quality/check-patterns-test.sh
           bash tools/quality/push-test.sh

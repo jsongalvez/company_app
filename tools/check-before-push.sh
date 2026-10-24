@@ -126,6 +126,7 @@ refs_flag=""
 [ ${#tasks[@]} -gt 0 ] && refs_flag="--gradle"
 if [ $plan_only -eq 1 ]; then
   echo "check-before-push: tools/quality/check-references.sh $refs_flag"
+  echo "check-before-push: tools/quality/check-patterns.sh"
   [ $want_shell -eq 1 ] && ci_shell_tests | sed 's/^/check-before-push: shell test: /'
   exit 0
 fi
@@ -134,6 +135,7 @@ start=$SECONDS
 status=0
 
 tools/quality/check-references.sh $refs_flag || status=1
+tools/quality/check-patterns.sh || status=1
 
 if [ ${#tasks[@]} -gt 0 ]; then
   # --continue: report every red check in one run instead of one per push.
