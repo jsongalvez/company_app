@@ -6,7 +6,6 @@ clients, stock, expenses and pay, remittance, relief duty. See
 
 - `backend/` — Kotlin + Javalin API, PostgreSQL via Flyway. Also serves the web
   app when `WEB_DIR` is set.
-- `shared/` — Kotlin contracts (DTOs, enums, rules) used by the backend.
 - `web/` — the web app: Svelte 5 + Vite, typed against the backend's OpenAPI spec.
 - `detekt-rules/` — custom code checks.
 
@@ -34,7 +33,7 @@ After changing an API endpoint, regenerate the web app's types:
 ## Checks
 
 ```bash
-./gradlew ktlintCheck detekt :backend:test :shared:jvmTest
+./gradlew ktlintCheck detekt :backend:test
 cd web && npm run check && npm run lint
 ```
 

@@ -15,5 +15,4 @@ dependencyResolutionManagement {
 }
 
 include(":backend")
-include(":shared")
 include(":detekt-rules")

@@ -71,7 +71,7 @@ if [ -z "$all_tasks" ]; then
   exit 2
 fi
 
-want_modules=""   # space-separated: backend shared detekt-rules
+want_modules=""   # space-separated: backend detekt-rules
 want_deadcode=0
 want_shell=0
 want_all=0
@@ -88,7 +88,6 @@ else
       build.gradle.kts|settings.gradle.kts|gradle.properties|gradle/*|gradlew|gradlew.bat|config/detekt/*)
         want_all=1 ;;
       backend/*) want_modules="$want_modules backend"; want_deadcode=1 ;;
-      shared/*) want_modules="$want_modules shared"; want_deadcode=1 ;;
       detekt-rules/*) want_modules="$want_modules detekt-rules"; want_deadcode=1 ;;
       config/deadcode/*) want_deadcode=1 ;;
       tools/*|scripts/*|.github/workflows/quality.yml) want_shell=1 ;;
@@ -97,7 +96,7 @@ else
 fi
 
 if [ $want_all -eq 1 ]; then
-  want_modules="backend shared detekt-rules"
+  want_modules="backend detekt-rules"
   want_deadcode=1
   want_shell=1
 fi

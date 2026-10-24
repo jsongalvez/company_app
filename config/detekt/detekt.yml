@@ -83,7 +83,6 @@ comments:
     active: false
     excludes:
       - '**/test/**'
-      - '**/commonTest/**'
   OutdatedDocumentation:
     active: false
     matchTypeParameters: true
@@ -93,7 +92,6 @@ comments:
     active: false
     excludes:
       - '**/test/**'
-      - '**/commonTest/**'
     searchInNestedClass: true
     searchInInnerClass: true
     searchInInnerObject: true
@@ -102,11 +100,11 @@ comments:
     ignoreDefaultCompanionObject: false
   UndocumentedPublicFunction:
     active: false
-    excludes: ['**/test/**', '**/commonTest/**']
+    excludes: ['**/test/**']
     searchProtectedFunction: false
   UndocumentedPublicProperty:
     active: false
-    excludes: ['**/test/**', '**/commonTest/**']
+    excludes: ['**/test/**']
     searchProtectedProperty: false
 
 complexity:
@@ -203,7 +201,7 @@ complexity:
     active: false
   StringLiteralDuplication:
     active: false
-    excludes: ['**/test/**', '**/commonTest/**']
+    excludes: ['**/test/**']
     threshold: 3
     ignoreAnnotation: true
     excludeStringsWithLessThan5Characters: true
@@ -293,7 +291,7 @@ exceptions:
       - 'toString'
   InstanceOfCheckForException:
     active: true
-    excludes: ['**/test/**', '**/commonTest/**']
+    excludes: ['**/test/**']
   NotImplementedDeclaration:
     active: false
   ObjectExtendsThrowable:
@@ -316,7 +314,7 @@ exceptions:
     active: false
   ThrowingExceptionsWithoutMessageOrCause:
     active: true
-    excludes: ['**/test/**', '**/commonTest/**']
+    excludes: ['**/test/**']
     exceptions:
       - 'ArrayIndexOutOfBoundsException'
       - 'Exception'
@@ -390,7 +388,7 @@ naming:
     minimumFunctionNameLength: 3
   FunctionNaming:
     active: true
-    excludes: ['**/test/**', '**/commonTest/**']
+    excludes: ['**/test/**']
     functionPattern: '[a-z][a-zA-Z0-9]*'
     excludeClassPattern: '$^'
     ignoreAnnotated: ['Composable']
@@ -460,10 +458,10 @@ performance:
     threshold: 3
   ForEachOnRange:
     active: true
-    excludes: ['**/test/**', '**/commonTest/**']
+    excludes: ['**/test/**']
   SpreadOperator:
     active: true
-    excludes: ['**/test/**', '**/commonTest/**']
+    excludes: ['**/test/**']
   UnnecessaryPartOfBinaryExpression:
     active: false
   UnnecessaryTemporaryInstantiation:
@@ -536,7 +534,7 @@ potential-bugs:
     active: true
   LateinitUsage:
     active: false
-    excludes: ['**/test/**', '**/commonTest/**']
+    excludes: ['**/test/**']
     ignoreOnClassesPattern: ''
   MapGetWithNotNullAssertionOperator:
     active: true
@@ -563,7 +561,7 @@ potential-bugs:
     active: true
   UnsafeCallOnNullableType:
     active: true
-    excludes: ['**/test/**', '**/commonTest/**']
+    excludes: ['**/test/**']
   UnsafeCast:
     active: true
   UnusedUnaryOperator:
@@ -768,7 +766,6 @@ style:
     active: true
     excludes:
       - '**/test/**'
-      - '**/commonTest/**'
       - '**/*.kts'
     ignoreNumbers:
       - '-1'

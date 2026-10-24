@@ -5,8 +5,8 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
 plugins {
     // this is necessary to avoid the plugins to be loaded multiple times
     // in each subproject's classloader
-    alias(libs.plugins.kotlinMultiplatform) apply false
 
+    alias(libs.plugins.kotlinJvm) apply false
     alias(libs.plugins.ktlint)
     alias(libs.plugins.detekt)
 }
@@ -85,8 +85,6 @@ val deadCodeTargetCoordinates =
     listOf(
         ":backend" to "compileClasspath",
         ":backend" to "testCompileClasspath",
-        ":shared" to "jvmMainCompileClasspath",
-        ":shared" to "jvmTestCompileClasspath",
     )
 val deadCodeTargetFiles = files()
 deadCodeTargetCoordinates.forEach { (projectPath, configurationName) ->
@@ -114,11 +112,9 @@ tasks.register<JavaExec>("deadCodeCheck") {
     inputs.files(deadCodeTargetFiles)
     args(
         listOf(
-            "--candidate", "shared/src/commonMain",
             "--candidate", "backend/src/main",
             "--consumer", "backend/src/test",
             "--consumer", "backend/src/dev",
-            "--consumer", "shared/src/commonTest",
             "--entry-points", "config/deadcode/entry-points.txt",
             "--known-unanalyzed", "config/deadcode/known-unanalyzed.txt",
         ),
