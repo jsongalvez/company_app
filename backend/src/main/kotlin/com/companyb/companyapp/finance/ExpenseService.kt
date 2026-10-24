@@ -14,7 +14,7 @@ import java.math.BigDecimal
 import java.util.UUID
 
 /**
- * Expense feature commands (#319, ADR-0024). Each mutating command owns exactly one business
+ * Expense feature commands (ADR-0024). Each mutating command owns exactly one business
  * transaction: persistence runs on it via `ExpenseRepository.*InTransaction` store operations,
  * the before/after state is captured inside it (ADR-0019 invariant), and the audit row is
  * inserted directly into it — so domain write + audit commit atomically or not at all.
@@ -33,11 +33,11 @@ object ExpenseService {
         notes: String?,
         reason: String? = null,
     ): Expense {
-        // #925 — persisted-range pre-gate (the #924 fail-closed class): expense.amount is
+        // persisted-range pre-gate (the fail-closed class): expense.amount is
         // NUMERIC(10,2), so overflow must 400 before the write, never 500 from Postgres.
         validateMoneyAmount(amount, "amount")
         return transaction {
-            // #510 — in-tx replay classification before the day gate (mirrors #509): a same-id
+            // in-tx replay classification before the day gate (mirrors): a same-id
             // row already committed acks without gating so retries landing after a day transition
             // still ack; ownership matches createInTransaction below.
             ExpenseRepository.findByIdInTransaction(id)?.let { existing ->
@@ -96,7 +96,7 @@ object ExpenseService {
         expectedVersion: Int,
         reason: String? = null,
     ): Expense {
-        // #925 — same persisted-range pre-gate as create.
+        // same persisted-range pre-gate as create.
         validateMoneyAmount(amount, "amount")
         return transaction {
             // Transaction-local before-state (ADR-0019): read inside the command's transaction,
@@ -153,7 +153,7 @@ object ExpenseService {
         }
 
     /**
-     * #153 Q5 — restores a soft-deleted expense. Record-scoped EDIT_BRANCH_DATA via the route's
+     * Q5 — restores a soft-deleted expense. Record-scoped EDIT_BRANCH_DATA via the route's
      * before-filter; day-state gate mirrors every other expense mutation (reason iff REMITTED).
      * The repository's atomic `deletedAt IS NOT NULL` WHERE closes the double-restore race: a
      * restore that lost the race maps to 400 already-live.
@@ -190,7 +190,7 @@ object ExpenseService {
             after
         }
 
-    // #596: record-scoped read rides the route's before-filter gate (requireBranchOrBranchDayCapability);
+    // record-scoped read rides the route's before-filter gate (requireBranchOrBranchDayCapability);
     // the service takes the resolved day only, so no caller param stays unused.
     fun findByBranchDayId(branchDayId: UUID): List<Expense> {
         BranchDayService.requireBranchDayExists(branchDayId)

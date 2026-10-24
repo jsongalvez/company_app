@@ -16,14 +16,14 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.UUID
 
-/** Per-user commission (#497): summed scale-4 shares plus the eligible sale count. */
+/** Per-user commission: summed scale-4 shares plus the eligible sale count. */
 data class CommissionShare(
     val amount: BigDecimal,
     val eligibleSaleCount: Int,
 )
 
 /**
- * Pure per-sale eligibility/split (#497, docs/engines.md Engine 1): a user is eligible for a
+ * Pure per-sale eligibility/split (docs/engines.md Engine 1): a user is eligible for a
  * sale when an attendance window covers soldAt (clockIn <= soldAt, clockOut null or >=
  * soldAt), manual true adds and manual false removes; each sale's commissionAmountAtTime *
  * quantity splits at scale 4 HALF_UP and the rounded shares sum per user. eligibleSaleCount
@@ -129,7 +129,7 @@ object CommissionService {
             CommerceReads.findSaleById(productSaleId)
                 ?: throw NotFoundException("Product sale not found")
 
-        // #516 — locked day read: serializes this inclusion with remittance's
+        // locked day read: serializes this inclusion with remittance's
         // REMITTED transition inside the same command transaction.
         val (branchDay, isRemitted) =
             BranchDayService.checkBranchDayEditableInTransaction(callerId, sale.branchDayId, reason)
@@ -153,7 +153,7 @@ object CommissionService {
             CommissionAudit.updated(context, mutation.existing, mutation.inclusion)
         }
 
-        // #892 (#687 precedent) — PAST/REMITTED inclusions force the recalc: the day gate above
+        // (precedent) — PAST/REMITTED inclusions force the recalc: the day gate above
         // already required EDIT_PAST_DAY (+reason on REMITTED), so the caller holds the same
         // authority the manual-recalculate route requires; joining the splits in this
         // transaction keeps persisted commission_split equal to liveCommissions
@@ -211,7 +211,7 @@ object CommissionService {
     }
 
     /**
-     * Live commission view (#497): the same batched aggregation the persisted recalculation
+     * Live commission view: the same batched aggregation the persisted recalculation
      * writes, computed on demand and never stored. The dashboard selects the caller's entry;
      * split rows stay the frozen history (a forced recalc on a PAST day must not move the card).
      */
@@ -221,7 +221,7 @@ object CommissionService {
         }
 
     /**
-     * Single batched aggregation (#497) serving both the persisted recalculation and the live
+     * Single batched aggregation serving both the persisted recalculation and the live
      * card: the local read projection loads the day's facts once, then [aggregateShares] groups
      * them by sale. Runs on the caller's transaction so enclosing commands observe their own
      * uncommitted writes.
@@ -245,7 +245,7 @@ object CommissionService {
 }
 
 /**
- * Local batched read projection (map #533 #544, #604): the day's commission facts in one pass —
+ * Local batched read projection: the day's commission facts in one pass —
  * non-voided sales through the commerce seam, attendance windows through the workforce seam,
  * manual inclusions from the internal store. Read-only on the caller's
  * transaction; it never calls attendance/commerce commands and never mutates their stores.
@@ -268,7 +268,7 @@ internal object CommissionFactReads {
 }
 
 /**
- * Commission audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * Commission audit vocabulary (ADR-0024 rule 3). Called by the command inside its own
  * transaction so each row commits atomically with the inclusion upsert. Owns the persistence-table
  * imports so the public command surface does not.
  */

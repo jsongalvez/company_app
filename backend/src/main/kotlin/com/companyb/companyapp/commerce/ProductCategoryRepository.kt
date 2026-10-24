@@ -13,7 +13,7 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 internal object ProductCategoryRepository {
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(
         id: UUID,
         name: String,

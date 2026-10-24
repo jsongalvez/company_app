@@ -12,7 +12,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
-/** Store result for delegate assign (#323): `inserted=false` marks an idempotent same-id retry. */
+/** Store result for delegate assign: `inserted=false` marks an idempotent same-id retry. */
 data class DelegateAssignResult(
     val delegate: MedicalMissionDelegate,
     val inserted: Boolean,
@@ -57,9 +57,9 @@ internal object MedicalMissionDelegateRepository {
             ?.toMedicalMissionDelegate()
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
+     * In-transaction store operation (ADR-0024) — runs on the caller's command
      * transaction. Owns the delegate row only; the branch-scoped capability grant is
-     * written by the command through the authorization seam (#538) in the same
+     * written by the command through the authorization seam in the same
      * transaction, so neither commits without the other.
      */
     fun assignInTransaction(
@@ -100,9 +100,9 @@ internal object MedicalMissionDelegateRepository {
     }
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
+     * In-transaction store operation (ADR-0024) — runs on the caller's command
      * transaction. Owns the delegate row only; the capability-window close goes
-     * through the authorization seam (#538) in the same transaction.
+     * through the authorization seam in the same transaction.
      */
     fun revokeInTransaction(delegateId: UUID): DelegateRevokeResult {
         val changed =

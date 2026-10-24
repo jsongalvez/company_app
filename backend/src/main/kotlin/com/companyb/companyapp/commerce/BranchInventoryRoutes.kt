@@ -154,8 +154,8 @@ object BranchInventoryRoutes {
     }
 
     private fun registerGuards(config: JavalinConfig) {
-        // #732 — 404 precedence for an unknown branch before the capability gate
-        // (#730 SessionBaseRateRoutes precedent; #711/#715/#724 class):
+        // 404 precedence for an unknown branch before the capability gate
+        //  (SessionBaseRateRoutes precedent/ class):
         // requireBranchCapabilityForBranchId alone conflates "unknown branch" with
         // "known but non-member". BranchService.findById throws NotFoundException.
         config.routes.before(ApiRoutes.BRANCH_INVENTORY_PATH) { context ->
@@ -210,10 +210,10 @@ object BranchInventoryRoutes {
                 } else {
                     CapabilityCodes.EDIT_BRANCH_DATA
                 }
-            // Branch-scoped only (#157 decision): the movement's day comes from the body while
+            // Branch-scoped only (decision): the movement's day comes from the body while
             // the route is branch-scoped via the path — a day-grant check on the body's day
             // would authorize a write against a DIFFERENT branch (the parent-child scoping
-            // trap). Inventory is not relief-eligible; see the #157 resolution.
+            // trap). Inventory is not relief-eligible; see the resolution.
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
                 branchId,

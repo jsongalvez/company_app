@@ -35,7 +35,7 @@ internal object SessionPractitionerRepository {
             }.singleOrNull()
             ?.toSessionPractitioner()
 
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun addInTransaction(
         id: UUID,
         sessionId: UUID,
@@ -67,7 +67,7 @@ internal object SessionPractitionerRepository {
     }
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — updates remarks and bumps the parent
+     * In-transaction store operation (ADR-0024) — updates remarks and bumps the parent
      * session version on the caller's command transaction; a lost update race throws before any
      * audit can be written.
      */
@@ -101,7 +101,7 @@ internal object SessionPractitionerRepository {
     }
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — returns the removed row for the
+     * In-transaction store operation (ADR-0024) — returns the removed row for the
      * command's delete audit, or null when nothing was deleted.
      */
     fun removeInTransaction(
@@ -139,7 +139,7 @@ internal object SessionPractitionerRepository {
         }
 
     /**
-     * In-transaction store read (#908) — practitioner-row ids attached to the
+     * In-transaction store read — practitioner-row ids attached to the
      * given sessions, for the anonymize audit redaction.
      */
     fun findIdsForSessionsInTransaction(sessionIds: Collection<UUID>): List<UUID> =
@@ -153,7 +153,7 @@ internal object SessionPractitionerRepository {
         }
 
     /**
-     * In-transaction store operation (#908) — nulls practitioner remarks on
+     * In-transaction store operation — nulls practitioner remarks on
      * the given sessions. Same no-new-events precedent as the session scrub:
      * the client's anonymization event is the command's audit.
      */

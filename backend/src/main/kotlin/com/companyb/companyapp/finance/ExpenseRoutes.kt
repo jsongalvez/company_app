@@ -101,7 +101,7 @@ object ExpenseRoutes {
     }
 
     private fun registerGuards(config: JavalinConfig) {
-        // --- Capability filters: EDIT_BRANCH_DATA (BRANCH or BRANCH_DAY — #157) ---
+        // --- Capability filters: EDIT_BRANCH_DATA (BRANCH or BRANCH_DAY) ---
 
         config.routes.before(ApiRoutes.EXPENSES) { context ->
             val branchDayId =
@@ -127,7 +127,7 @@ object ExpenseRoutes {
             ExpenseAuthz.requireBranchOrBranchDayCapabilityForExpense(context, expenseId)
         }
 
-        // #114 exact-segment lesson: before(ApiRoutes.EXPENSE_PATH) does NOT fire on the
+        // exact-segment lesson: before(ApiRoutes.EXPENSE_PATH) does NOT fire on the
         // 4-segment restore route — the restore filter is its own (record-scoped EDIT_BRANCH_DATA
         // via the expense's branch day; 404 for missing expense keeps the filter from running the
         // handler against a phantom).
@@ -165,7 +165,7 @@ object ExpenseRoutes {
         requireMoneyAmount(amount, "amount")
         val category =
             ExpenseCategory.valueOf(request.category.name)
-        // #876 — the forward-compat sentinel is never valid input; the strict transport
+        // the forward-compat sentinel is never valid input; the strict transport
         // rejects unknown strings, and this rejects a literal UNKNOWN before it can persist
         // (the Postgres enum column carries no such label).
         if (category == ExpenseCategory.UNKNOWN) throw BadRequestResponse("Unknown expense category")
@@ -194,7 +194,7 @@ object ExpenseRoutes {
         requireMoneyAmount(amount, "amount")
         val category =
             ExpenseCategory.valueOf(request.category.name)
-        // #876 — the forward-compat sentinel is never valid input (see handleCreate).
+        // the forward-compat sentinel is never valid input (see handleCreate).
         if (category == ExpenseCategory.UNKNOWN) throw BadRequestResponse("Unknown expense category")
 
         val expense =

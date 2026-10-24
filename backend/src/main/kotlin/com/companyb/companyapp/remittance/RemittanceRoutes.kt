@@ -236,8 +236,8 @@ object RemittanceRoutes {
                         return@before
                     }
                 }
-            // #734 — 404 precedence for an unknown branch before the capability gate
-            // (#730/#732 precedent): requireBranchCapabilityForBranchId alone conflates
+            // 404 precedence for an unknown branch before the capability gate
+            //  (precedent): requireBranchCapabilityForBranchId alone conflates
             // "unknown branch" with "known but non-member".
             BranchService.findById(branchId)
             CapabilityFilter.requireBranchCapabilityForBranchId(
@@ -370,7 +370,7 @@ object RemittanceRoutes {
     private fun parseRemittanceType(raw: String): RemittanceType =
         runCatching {
             RemittanceType.valueOf(raw.uppercase()).also {
-                // #876 — the forward-compat sentinel is never valid input; folding the
+                // the forward-compat sentinel is never valid input; folding the
                 // rejection into the runCatching keeps the exact existing 400 shape.
                 require(it != RemittanceType.UNKNOWN) { "sentinel" }
             }
@@ -383,7 +383,7 @@ object RemittanceRoutes {
     private fun parseRemittanceMethod(raw: String): RemittanceMethod =
         runCatching {
             RemittanceMethod.valueOf(raw.uppercase()).also {
-                // #876 — the forward-compat sentinel is never valid input (same shape).
+                // the forward-compat sentinel is never valid input (same shape).
                 require(it != RemittanceMethod.UNKNOWN) { "sentinel" }
             }
         }.getOrElse {
@@ -419,7 +419,7 @@ object RemittanceRoutes {
                 else -> {
                     runCatching {
                         RemittanceStatus.valueOf(rawStatus.uppercase()).also {
-                            // #876 — the forward-compat sentinel is never a valid filter;
+                            // the forward-compat sentinel is never a valid filter;
                             // folding into the runCatching keeps the exact existing 400 shape.
                             require(it != RemittanceStatus.UNKNOWN) { "sentinel" }
                         }
@@ -471,7 +471,7 @@ object RemittanceRoutes {
                 requireProductSaleLinePayload(sessionId, productSaleId)
             }
 
-            // #876 — the forward-compat sentinel is never valid input.
+            // the forward-compat sentinel is never valid input.
             RemittanceLineType.UNKNOWN -> {
                 throw BadRequestResponse("Unknown remittance line type")
             }

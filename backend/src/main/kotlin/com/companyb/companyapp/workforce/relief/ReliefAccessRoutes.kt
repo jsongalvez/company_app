@@ -158,7 +158,7 @@ object ReliefAccessRoutes {
             date = date.toString(),
         )
 
-    // #358 — day-read rows carry requester display names (the deep-link panel labels rows
+    // day-read rows carry requester display names (the deep-link panel labels rows
     // with them); one batched lookup per read.
     private fun List<ReliefAccess>.toNamedResponses(): List<ReliefAccessResponse> {
         val names = AccountReads.findDisplayNamesByIds(map { it.requestedBy })
@@ -168,10 +168,10 @@ object ReliefAccessRoutes {
     fun listReliefAccess(config: JavalinConfig) {
         config.routes.get(ApiRoutes.RELIEF_ACCESS) { context ->
             context.status(HttpStatus.OK)
-            // #358 — two addressing forms: branchDayId directly, or the notification
+            // two addressing forms: branchDayId directly, or the notification
             // deep-link pair (branchId + date). Each leg keeps the single-val service-call
             // shape the OpenAPI response-inference pass resolves.
-            // #598: query parsing split into named guards (ThrowsCount budget is 2 per function).
+            // query parsing split into named guards (ThrowsCount budget is 2 per function).
             if (context.queryParam("branchDayId") != null) {
                 context.json(listByBranchDayId(context).toNamedResponses())
             } else if (context.queryParam("date") == null) {
@@ -256,7 +256,7 @@ object ReliefAccessRoutes {
             val requestId = context.pathParamAsUuid("requestId")
             val reason = context.bodyIfPresent<GrantReliefAccessRequest>()?.reason
 
-            // #357: no supersede outcome exists anymore — a non-PENDING replay is an
+            // no supersede outcome exists anymore — a non-PENDING replay is an
             // idempotent 200 with the row's current state.
             val result = ReliefAccessService.grantAccess(requestId, callerId, reason)
 

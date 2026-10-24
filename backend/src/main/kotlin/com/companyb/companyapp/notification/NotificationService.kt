@@ -16,7 +16,7 @@ object NotificationService {
         return NotificationRepository.findUnreadByUserId(callerId)
     }
 
-    // #508 — lightweight badge count: one integer, no row hydration. The 60s poller reads
+    // lightweight badge count: one integer, no row hydration. The 60s poller reads
     // this instead of the full unread feed.
     fun countUnread(callerId: UUID): Int {
         logger.info { "[COUNT-UNREAD] Counting unread notifications for user ${callerId.toString().maskUUID()}" }
@@ -24,7 +24,7 @@ object NotificationService {
     }
 
     /**
-     * #508 — bounded permanent-history page (read + unread, newest first; ownership is the
+     * bounded permanent-history page (read + unread, newest first; ownership is the
      * WHERE clause). Fetches one row past the page to derive the next cursor; callers pass
      * that cursor back verbatim.
      */

@@ -38,7 +38,7 @@ data class AddLineResult(
 private val logger = KotlinLogging.logger {}
 
 /**
- * Remittance-line store (#320, ADR-0024). Mutating functions are in-transaction store operations
+ * Remittance-line store (ADR-0024). Mutating functions are in-transaction store operations
  * on the caller's (command-owned) transaction — they keep the idempotent-insert, duplicate-source
  * guard, and optimistic-version bump; audit stays with the command. Read helpers keep wrappers.
  */
@@ -87,7 +87,7 @@ internal object RemittanceLineRepository {
                 it[RemittanceLineTable.amount] = params.amount
                 it[RemittanceLineTable.createdBy] = params.createdBy
             }
-        // #601 max-2: raced-retry and fresh-insert share one exit.
+        // max-2: raced-retry and fresh-insert share one exit.
         return if (inserted.insertedCount == 0) {
             AddLineResult(racedRetryOrFail(params), created = false)
         } else {
@@ -277,7 +277,7 @@ internal object RemittanceLineRepository {
                 RemittanceLineTable.productSaleId eq productSaleId
             }
 
-            // #876 — the forward-compat sentinel is never valid input; the strict transport
+            // the forward-compat sentinel is never valid input; the strict transport
             // rejects unknown strings before this runs, and this rejects a literal UNKNOWN.
             RemittanceLineType.UNKNOWN -> {
                 throw ValidationException("Unknown remittance line type")
@@ -297,7 +297,7 @@ internal object RemittanceLineRepository {
                 "Product sale"
             }
 
-            // #876 — the forward-compat sentinel is never valid input.
+            // the forward-compat sentinel is never valid input.
             RemittanceLineType.UNKNOWN -> {
                 throw ValidationException("Unknown remittance line type")
             }

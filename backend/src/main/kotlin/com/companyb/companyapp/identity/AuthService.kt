@@ -46,7 +46,7 @@ object AuthService {
     private const val RESET_EXPIRED_MESSAGE =
         "This reset code has expired. Request a new one."
 
-    // #353 — reset codes live 24h, shorter than invites' 7 days: the reset surface is
+    // reset codes live 24h, shorter than invites' 7 days: the reset surface is
     // unauthenticated self-service reachable by anyone who knows an identifier.
     private const val RESET_VALID_HOURS = 24L
 
@@ -54,7 +54,7 @@ object AuthService {
     // versa (RateLimiter keys on the exact string).
     private const val RESET_RATE_KEY_PREFIX = "reset:"
 
-    // #505 — DB-derived issuance skew: guarantees the minted iat lands strictly after
+    // DB-derived issuance skew: guarantees the minted iat lands strictly after
     // the persisted boundary read in the same login transaction.
     private const val ISSUED_AT_SKEW_SECONDS = 1L
 
@@ -80,7 +80,7 @@ object AuthService {
             logger.warn { "[LOGIN] Failed login attempt" }
         }
 
-        // #505 — bind issuance to the exact credential verified: lock the account,
+        // bind issuance to the exact credential verified: lock the account,
         // prove the hash is still current and ACTIVE, then mint with a DB-derived
         // instant strictly after the persisted boundary so fresh logins verify
         // immediately without sleeps. A concurrent reset/invite-accept rotates the
@@ -116,7 +116,7 @@ object AuthService {
     }
 
     /**
-     * Public single-use invite redemption (#350): consumes the code atomically (single-use +
+     * Public single-use invite redemption: consumes the code atomically (single-use +
      * expiry enforced in one UPDATE predicate, DB clock) and sets the account password. The
      * command owns its transaction (ADR-0024); the audit rows record that a pending credential
      * was set — never any secret material. changedBy is the invited user themself.
@@ -139,7 +139,7 @@ object AuthService {
                     throw ValidationException(INVITE_USED_MESSAGE)
                 }
                 val userId = row.userId
-                // #505 — serialize with re-invite mints on the account lock before the
+                // serialize with re-invite mints on the account lock before the
                 // single-use consume, so a concurrent mint cannot leave a second live code.
                 check(UserRepository.acquireLockInTransaction(userId)) { "User not found" }
                 if (!CredentialTokenRepository.consumeIfLiveInTransaction(row.id)) {
@@ -153,7 +153,7 @@ object AuthService {
                     )
                 }
                 UserRepository.setPasswordHashInTransaction(userId, Password.create(newPassword))
-                // Accepting replaces the credential: kill pre-invite tokens durably (#505).
+                // Accepting replaces the credential: kill pre-invite tokens durably.
                 UserRepository.advanceRevocationBoundaryInTransaction(userId)
                 AuthAudit.passwordSet(
                     recordId = userId,
@@ -173,10 +173,10 @@ object AuthService {
     }
 
     /**
-     * #353 — public reset request. The response is uniform whether or not [identifier] matches
+     * public reset request. The response is uniform whether or not [identifier] matches
      * an account (true either way): enumeration resistance. A matching account gets a fresh
      * 24h PASSWORD_RESET token; any of its outstanding reset codes are invalidated first
-     * (#350 re-invite pattern). False means the caller's IP exceeded its rate budget.
+     *  (re-invite pattern). False means the caller's IP exceeded its rate budget.
      *
      * Delivery happens after the token transaction commits. Without SMTP the code stays valid
      * for retry but is never logged (#897 fail-closed; the server-log relay needs the explicit
@@ -217,7 +217,7 @@ object AuthService {
 
     /**
      * The request leg's write half, split so tests can obtain the raw code without parsing
-     * logs (#353): production callers go through [requestPasswordReset], whose uniform true
+     * logs: production callers go through [requestPasswordReset], whose uniform true
      * response carries the enumeration resistance. Null when no account matches.
      */
     internal fun mintResetCode(identifier: String): String? = mintResetCodeForDelivery(identifier)?.rawCode
@@ -226,7 +226,7 @@ object AuthService {
         transaction {
             val existing =
                 UserRepository.findByUsernameOrEmailInTransaction(identifier, identifier) ?: return@transaction null
-            // #505 — serialize concurrent mints on the account lock: the second mint
+            // serialize concurrent mints on the account lock: the second mint
             // observes the first mint's row as outstanding and supersedes it, so only
             // one live reset code survives.
             check(UserRepository.acquireLockInTransaction(existing.id)) { "User not found" }
@@ -248,7 +248,7 @@ object AuthService {
                     tokenHash = CredentialTokens.hash(rawCode),
                     purpose = CredentialTokenPurpose.PASSWORD_RESET,
                     userId = existing.id,
-                    // Reset-token validity is credential lifecycle (#322): auth owns JVM-clock reads.
+                    // Reset-token validity is credential lifecycle: auth owns JVM-clock reads.
                     expiresAt =
                         OffsetDateTime.ofInstant(
                             Instant.now().plus(RESET_VALID_HOURS, ChronoUnit.HOURS),
@@ -273,10 +273,10 @@ object AuthService {
         }
 
     /**
-     * #492 — authenticated logout: persists the JWT revocation boundary before returning
+     * authenticated logout: persists the JWT revocation boundary before returning
      * success, so pre-logout tokens stay dead across restart and backend processes.
      *
-     * #661 — intentionally unaudited: routine high-volume self-revocation, exempt from the
+     * intentionally unaudited: routine high-volume self-revocation, exempt from the
      * every-mutation audit rule. Durability is the boundary row itself;
      * observability stays on the `[LOGOUT]` app log, avoiding one `app_user` UPDATE row
      * per logout for no security signal.
@@ -289,7 +289,7 @@ object AuthService {
     }
 
     /**
-     * #353 — public single-use reset redemption: same atomic consume as [acceptInvite]
+     * public single-use reset redemption: same atomic consume as [acceptInvite]
      * (single-use + expiry in one UPDATE predicate, DB clock), purpose-scoped to
      * PASSWORD_RESET. Replaces the password hash (the prior credential stops working) and
      * advances the persisted revocation boundary in the same transaction so live JWTs die
@@ -313,7 +313,7 @@ object AuthService {
                     throw ValidationException(RESET_USED_MESSAGE)
                 }
                 val userId = row.userId
-                // #505 — same account-lock order as mint and login: redemption serializes
+                // same account-lock order as mint and login: redemption serializes
                 // with concurrent mints and logins on the user row.
                 check(UserRepository.acquireLockInTransaction(userId)) { "User not found" }
                 if (!CredentialTokenRepository.consumeIfLiveInTransaction(row.id)) {
@@ -370,7 +370,7 @@ object AuthService {
     }
 }
 
-/** Audit seam for the public auth commands (#324): the user-row table name stays behind it. */
+/** Audit seam for the public auth commands: the user-row table name stays behind it. */
 internal object AuthAudit {
     fun passwordSet(
         recordId: UUID,

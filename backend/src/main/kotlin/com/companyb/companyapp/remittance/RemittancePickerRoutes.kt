@@ -86,8 +86,8 @@ import java.util.UUID
 )
 object RemittancePickerRoutes {
     fun register(config: JavalinConfig) {
-        // #734 — 404 precedence for an unknown branch before the capability gate
-        // (#730/#732 precedent): requireBranchCapabilityForBranchId alone conflates
+        // 404 precedence for an unknown branch before the capability gate
+        //  (precedent): requireBranchCapabilityForBranchId alone conflates
         // "unknown branch" with "known but non-member".
         config.routes.before(ApiRoutes.BRANCH_REMITTANCE_SESSIONS_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")

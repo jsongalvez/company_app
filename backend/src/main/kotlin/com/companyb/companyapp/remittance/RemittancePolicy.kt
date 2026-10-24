@@ -16,13 +16,13 @@ internal fun remittanceVersionMismatch(recordId: UUID): VersionMismatchException
     VersionMismatchException(REMITTANCE_TABLE_NAME, recordId)
 
 /**
- * Pure remittance state and financial policy (#320). Every rule here is testable without a
+ * Pure remittance state and financial policy. Every rule here is testable without a
  * database: financial arithmetic, snapshot eligibility, DRAFT/SUBMITTED transition validation,
  * and the 48-hour undo window. Persistence code applies these rules inside command-owned
  * transactions; this object owns the rules themselves.
  */
 object RemittancePolicy {
-    /** Server-enforced undo window (#103): how long a SUBMITTED remittance may revert to DRAFT. */
+    /** Server-enforced undo window: how long a SUBMITTED remittance may revert to DRAFT. */
     const val UNDO_WINDOW_HOURS = 48L
 
     fun netOf(
@@ -77,7 +77,7 @@ object RemittancePolicy {
     }
 
     /**
-     * Range-membership guard (#483): a line or day breakdown may only join a remittance whose
+     * Range-membership guard: a line or day breakdown may only join a remittance whose
      * loaded range covers its branch-day date (inclusive on both ends). The pickers only offer
      * in-range entries, so an out-of-range write means a stale client or a forged request.
      */
@@ -93,7 +93,7 @@ object RemittancePolicy {
     }
 
     /**
-     * Submit-coverage guard (#866): the frozen snapshot mixes gross (summed over lines) with
+     * Submit-coverage guard: the frozen snapshot mixes gross (summed over lines) with
      * compensation/expenses (summed over day breakdowns), so the two sets must describe the
      * same days. An empty breakdown set would freeze a zero snapshot while still consuming
      * the day's submitted slot and arming the SUBMITTED-only overlap exclusion.
@@ -105,7 +105,7 @@ object RemittancePolicy {
     }
 
     /**
-     * Submit-coverage guard (#866): every active line's source branch day must sit in the
+     * Submit-coverage guard: every active line's source branch day must sit in the
      * breakdown set, else gross and comp/expenses cover different days' books. Callers pass
      * the already-resolved source day ids; emptiness is checked separately so the two
      * rejections stay distinct.

@@ -3,7 +3,7 @@ package com.companyb.companyapp.client
 import java.util.UUID
 
 /**
- * Named client-read seams for cross-owner consumers (map #533 #541): session create,
+ * Named client-read seams for cross-owner consumers: session create,
  * status/price/void/unvoid and preview. Thin delegations to the internal client store —
  * not a facade over every method. Service-to-service calls need no architecture allowlist
  * entry; direct store imports from other owners stay banned.

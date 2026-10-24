@@ -44,8 +44,8 @@ fun decodeNotificationCursor(raw: String): NotificationHistoryCursor {
 }
 
 internal object NotificationRepository {
-    // #508 — the write path no longer pre-reads: every occurrence carries a stable
-    // producer-owned key (#614) and UNIQUE (dedup_key, user_id) is the dedup guarantee,
+    // the write path no longer pre-reads: every occurrence carries a stable
+    // producer-owned key and UNIQUE (dedup_key, user_id) is the dedup guarantee,
     // so concurrent batches and job re-runs collapse to one delivery per recipient
     // atomically (insertIgnore = ON CONFLICT DO NOTHING). Returns rows actually created.
     fun insertBatch(params: List<NotificationCreateParams>): Int =
@@ -55,12 +55,12 @@ internal object NotificationRepository {
             logger.info { "[INSERT-NOTIFICATIONS] created=$it candidates=${params.size}" }
         }
 
-    // Store operation for the owning command (ADR-0024, #602): runs on the caller's transaction
+    // Store operation for the owning command (ADR-0024): runs on the caller's transaction
     // and opens none. Notifications are system read-state, not a §12.1 covered table — no audit row.
     fun insertBatchInTransaction(params: List<NotificationCreateParams>): Int {
         if (params.isEmpty()) return 0
 
-        // #614 — fail clearly before any row lands: blank occurrence identity never
+        // fail clearly before any row lands: blank occurrence identity never
         // partially inserts.
         params.forEach { candidate ->
             require(candidate.dedupKey.isNotBlank()) { "dedupKey must be nonblank" }
@@ -109,9 +109,9 @@ internal object NotificationRepository {
             logger.info { "[FIND-UNREAD] ${it.size} unread notifications for user ${userId.toString().maskUUID()}" }
         }
 
-    // #356 — history: every row the caller owns, read + unread, newest first. Read rows are
+    // history: every row the caller owns, read + unread, newest first. Read rows are
     // never deleted (they carry session access), so the list is stable indefinitely.
-    // Kept for server-side/test reads; the HTTP history response is keyset-paged below (#508).
+    // Kept for server-side/test reads; the HTTP history response is keyset-paged below.
     fun findHistoryByUserId(userId: UUID): List<Notification> =
         transaction {
             NotificationTable
@@ -123,7 +123,7 @@ internal object NotificationRepository {
         }
 
     /**
-     * #508 — bounded permanent-history page over `(created_at DESC, id DESC)`. [cursor] is the
+     * bounded permanent-history page over `(created_at DESC, id DESC)`. [cursor] is the
      * strictly-before position (exclusive, from [encodeNotificationCursor] on the previous
      * page's last row); at most [limit] rows are returned. Equal timestamps order by id, so
      * concurrent inserts shift only newer rows ahead of the cursor — fetched pages never skip
@@ -156,7 +156,7 @@ internal object NotificationRepository {
             logger.info { "[HISTORY-PAGE] user=${userId.toString().maskUUID()} returned=${it.size}" }
         }
 
-    // #508 — badge count without row hydration: the 60s poller reads one integer, never the
+    // badge count without row hydration: the 60s poller reads one integer, never the
     // mailbox. Served by idx_notification_unread.
     fun countUnreadByUserId(userId: UUID): Int =
         transaction {
@@ -167,10 +167,10 @@ internal object NotificationRepository {
                 .toInt()
         }
 
-    // #152 bearer check for the session-detail read (#151 Q1) with the #907 lifetime bound:
+    // bearer check for the session-detail read with the lifetime bound:
     // the notification row is necessary but not sufficient — any read state satisfies this
     // half, and DashboardService requires a current VIEW_BRANCH_DATA window at the session's
-    // branch on top. Served by idx_notification_session_user (#508), so the lookup is one
+    // branch on top. Served by idx_notification_session_user, so the lookup is one
     // indexed hit.
     fun existsForSessionAndUser(
         sessionId: UUID,
@@ -186,7 +186,7 @@ internal object NotificationRepository {
                 .not()
         }
 
-    // #358 — the original ping list of a relief request (#352 Q3): distinct users holding a
+    // the original ping list of a relief request: distinct users holding a
     // RELIEF_REQUESTED row for it. The expiry notice goes to exactly these users.
     fun findUsersBySource(
         eventType: String,

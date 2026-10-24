@@ -9,7 +9,7 @@ import java.math.BigDecimal
 import java.util.UUID
 
 /**
- * Product feature commands (#323, ADR-0024). Each mutating command owns exactly one business
+ * Product feature commands (ADR-0024). Each mutating command owns exactly one business
  * transaction: persistence runs on it via `ProductRepository.*InTransaction` store operations,
  * the before/after state is captured inside it (ADR-0019 invariant), and the audit row is
  * inserted directly into it — so domain write + audit commit atomically or not at all.
@@ -32,7 +32,7 @@ object ProductService {
             throw NotFoundException("Product category not found")
         }
 
-        // #925 — persisted-range pre-gate (the #924 fail-closed class): product.unit_price
+        // persisted-range pre-gate (the fail-closed class): product.unit_price
         // and commission_amount are NUMERIC(10,2), so overflow must 400 before the write.
         validateMoneyAmount(unitPrice, "unitPrice")
         validateMoneyAmount(commissionAmount, "commissionAmount")
@@ -58,7 +58,7 @@ object ProductService {
 
     fun findAllActive(): List<Product> = ProductRepository.findAllActive()
 
-    /** Admin catalog read (#445): active + inactive; branch/sale guards keep [findAllActive]. */
+    /** Admin catalog read: active + inactive; branch/sale guards keep [findAllActive]. */
     fun findAll(): List<Product> = ProductRepository.findAll()
 
     fun findById(productId: UUID): Product =
@@ -79,12 +79,12 @@ object ProductService {
             throw NotFoundException("Product category not found")
         }
 
-        // #925 — same persisted-range pre-gate as create (nullable legs only when present).
+        // same persisted-range pre-gate as create (nullable legs only when present).
         unitPrice?.let { validateMoneyAmount(it, "unitPrice") }
         commissionAmount?.let { validateMoneyAmount(it, "commissionAmount") }
 
         return transaction {
-            // Locked before-state (#522): SELECT FOR UPDATE serializes concurrent
+            // Locked before-state: SELECT FOR UPDATE serializes concurrent
             // writers so the audit diff attributes only this actor's changes.
             val before =
                 ProductRepository.findByIdForUpdateInTransaction(productId)
@@ -112,7 +112,7 @@ object ProductService {
 }
 
 /**
- * Product audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * Product audit vocabulary (ADR-0024 rule 3). Called by the command inside its own
  * transaction so the audit row commits atomically with the mutation. Owns the persistence-table
  * imports so the public command surface does not.
  */

@@ -71,7 +71,7 @@ internal object BranchDayRepository {
 
     /**
      * Find-only branch-day lookup by (branch, date) — never creates. Used by gates that must
-     * resolve a day without mutating (the #157 session-create day-scoped gate: a 403'd
+     * resolve a day without mutating (the session-create day-scoped gate: a 403'd
      * attempt must not leave a day row behind).
      */
     fun findByBranchAndDate(
@@ -87,7 +87,7 @@ internal object BranchDayRepository {
         }
 
     /**
-     * Branch-scoped find by id — the parent-child convention (#157 session-create guard):
+     * Branch-scoped find by id — the parent-child convention (session-create guard):
      * a day that exists but belongs to a different branch is indistinguishable from a
      * missing one (null), so callers fail closed with a 404.
      */

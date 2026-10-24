@@ -14,7 +14,7 @@ import org.jetbrains.exposed.v1.jdbc.update
 import java.time.OffsetDateTime
 import java.util.UUID
 
-/** The shared relief-grant write (#159 Q1): who gets the day, for which day, from which source. */
+/** The shared relief-grant write: who gets the day, for which day, from which source. */
 data class GrantReliefCapabilityParams(
     val userId: UUID,
     val branchDayId: UUID,
@@ -23,19 +23,19 @@ data class GrantReliefCapabilityParams(
 )
 
 /**
- * Grant persistence (#538): the only writer of `user_capability` rows outside test
+ * Grant persistence: the only writer of `user_capability` rows outside test
  * fixtures. Workforce commands (relief request grant, invite accept/revoke, delegate
  * assign/revoke) reach these rows only through [AuthorizationGrants] in their own
  * command transaction — never by importing the table.
  */
 internal object GrantStore {
     /**
-     * The shared relief-grant writer (#159 Q1, moved from the workforce relief store):
+     * The shared relief-grant writer (moved from the workforce relief store):
      * inserts the day-scoped capability (EDIT_BRANCH_DATA, BRANCH_DAY, [params.branchDayId],
      * source RELIEF_ACCESS, priority [GrantPriorities.RELIEF_ACCESS], validFrom = now, validTo =
      * [GrantReliefCapabilityParams.validTo]) — the capability write used by BOTH the
      * request flow's grant and the invite flow's accept. `insertIgnore` keeps a redundant
-     * grant harmless (the #159 Q3 decision: capabilities ≠ assignments).
+     * grant harmless (the decision: capabilities ≠ assignments).
      *
      * In-transaction store operation (ADR-0024) — runs on the caller's command
      * transaction.
@@ -55,7 +55,7 @@ internal object GrantStore {
     }
 
     /**
-     * Grant removal keyed on the capability's sourceId (#374, moved): deletes every
+     * Grant removal keyed on the capability's sourceId (moved): deletes every
      * RELIEF_ACCESS-sourced capability row minted from [sourceId] for [userId] (an
      * invite id — accept writes exactly one row for the invitee; the user scope keeps a
      * pathological id collision from ever deleting another holder's grant).
@@ -77,7 +77,7 @@ internal object GrantStore {
      * Delegate-grant writer (moved from the workforce delegate store): inserts the
      * branch-scoped capability for [targetUserId] at [branchId], sourced from [delegateId].
      * Owns the fixed EDIT_BRANCH_DATA capability code/ID, BRANCH context, delegate source
-     * and priority (#606) — callers supply only target user, branch and delegate identity.
+     * and priority — callers supply only target user, branch and delegate identity.
      * In-transaction store operation (ADR-0024) — runs on the caller's command transaction
      * so the grant cannot outlive a failed delegate insert.
      */

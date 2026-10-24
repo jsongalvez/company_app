@@ -16,7 +16,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 /**
- * Assignment feature commands (#323, ADR-0024). Each mutating command owns exactly one
+ * Assignment feature commands (ADR-0024). Each mutating command owns exactly one
  * transaction: persistence runs on it via `UserBranchAssignmentRepository.*InTransaction`
  * store operations and the audit row is inserted into the same transaction. The slot-swap
  * lock ordering (ascending assignment id) lives inside the command's transaction.
@@ -61,7 +61,7 @@ object UserBranchAssignmentService {
 
         // Existence checks stay here for 404 precedence; ownership (same-ID replay vs
         // conflict, active-key guard) lives in the single transaction-local seam
-        // (UserBranchAssignmentRepository.createInTransaction, #453).
+        //  (UserBranchAssignmentRepository.createInTransaction).
         val branchExists = BranchService.findByIdOrNull(branchId)
         if (branchExists == null) {
             throw NotFoundException("Branch not found")
@@ -150,12 +150,12 @@ object UserBranchAssignmentService {
         assignmentIdA: UUID,
         assignmentIdB: UUID,
     ) {
-        // #598: swap guards split into named checks (ThrowsCount budget is 2 per function).
+        // swap guards split into named checks (ThrowsCount budget is 2 per function).
         requireDistinctAssignments(assignmentIdA, assignmentIdB)
 
         val canManage = canManageUsers(callerId)
         transaction {
-            // FOR UPDATE on both rows (materialized via singleOrNull — the #136 lazy-lock
+            // FOR UPDATE on both rows (materialized via singleOrNull — the lazy-lock
             // lesson) serializes swap against concurrent remove/updateSlot on either user.
             // Locks are taken in ascending assignment-ID order so concurrent opposite-direction
             // swaps (A,B vs B,A) cannot cross-deadlock.
@@ -213,22 +213,22 @@ object UserBranchAssignmentService {
         branchId: UUID,
     ): List<UserBranchAssignment> {
         requireManageUsers(callerId, "MANAGE_USERS capability required to view assignments")
-        // #724 — 404 precedence for an unknown branch before the repository read:
+        // 404 precedence for an unknown branch before the repository read:
         // findActiveByBranch alone conflates "unknown branch" with "known branch
-        // with no assignments" (the #715 listSent / #721 listForDay order). The
+        // with no assignments" (the listSent / listForDay order). The
         // GLOBAL gate stays first so non-managers still 403 without an existence leak.
         BranchService.findById(branchId)
         return UserBranchAssignmentRepository.findActiveByBranch(branchId)
     }
 
     /**
-     * #366 — the requested-practitioner picker's directory: ACTIVE members (id + display
+     * the requested-practitioner picker's directory: ACTIVE members (id + display
      * name) of [branchId]. Gated at the service layer (the ADR-0007 #134 deviation
      * precedent for this surface): a caller passes with either an ACTIVE assignment row
      * at the branch — no capability code involved, so a practitioner without
-     * MANAGE_USERS can still read their own branch's names (#366 rule) — or, since
-     * #402, the shared today gate (#452): a BRANCH or BRANCH_DAY-for-today
-     * `EDIT_BRANCH_DATA` grant (GLOBAL excluded per #131), mirroring the session-create
+     * MANAGE_USERS can still read their own branch's names (rule) — or, since
+     * #402, the shared today gate: a BRANCH or BRANCH_DAY-for-today
+     * `EDIT_BRANCH_DATA` grant (GLOBAL excluded), mirroring the session-create
      * gate exactly, so anyone allowed to create sessions at the branch today can load
      * the names those flows need; off-duty non-members still 403.
      */
@@ -236,9 +236,9 @@ object UserBranchAssignmentService {
         callerId: UUID,
         branchId: UUID,
     ): List<BranchMemberRow> {
-        // #724 — 404 precedence for an unknown branch before the membership gate:
+        // 404 precedence for an unknown branch before the membership gate:
         // findActiveByBranchAndUser alone conflates "unknown branch" with "known but
-        // non-member" and surfaces 403 (the #712 mark / #713 rosterToday order).
+        // non-member" and surfaces 403 (the mark / rosterToday order).
         BranchService.findById(branchId)
         val assignment = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId)
         if (assignment == null) {
@@ -253,7 +253,7 @@ object UserBranchAssignmentService {
 }
 
 /**
- * User-branch-assignment audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside
+ * User-branch-assignment audit vocabulary (ADR-0024 rule 3). Called by the command inside
  * its own transaction so the audit row commits atomically with the mutation. Owns the
  * persistence-table imports so the public command surface does not.
  */

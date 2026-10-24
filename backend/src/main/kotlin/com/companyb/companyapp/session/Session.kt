@@ -40,7 +40,7 @@ private const val PRECISION = 10
 private const val SCALE = 2
 
 /**
- * Largest storable session money amount (#924): session base/final price and the
+ * Largest storable session money amount: session base/final price and the
  * base rate share NUMERIC(10,2) columns with no CHECK, so the pre-gate below owns
  * the bound and violations return 400 instead of an ExposedSQLException 500.
  * Every session money entry point (create/update final price, base-rate set)
@@ -51,11 +51,11 @@ internal const val SESSION_MONEY_MAX_PLAIN = "99999999.99"
 internal val SESSION_MONEY_MAX: BigDecimal = BigDecimal(SESSION_MONEY_MAX_PLAIN)
 
 /**
- * Persisted-range pre-gate (#924): every NUMERIC(10,2) session money write is
+ * Persisted-range pre-gate: every NUMERIC(10,2) session money write is
  * checked before the insert/update so overflow returns 400 instead of a Postgres
- * numeric overflow 500 + #475 auto-file (the #912/#921/#923 fail-closed class).
+ * numeric overflow 500 + #475 auto-file (the/ fail-closed class).
  * Callers validate the mission-normalized effective amount, never the raw input —
- * a MEDICAL_MISSION ₱0 normalization must not reject (#405 invariant).
+ * a MEDICAL_MISSION ₱0 normalization must not reject (invariant).
  */
 internal fun validateSessionMoney(
     amount: BigDecimal,
@@ -106,7 +106,7 @@ internal object SessionTable : Table("session") {
     val bookedAt = timestampWithTimeZone("booked_at").nullable()
     val nextAppointmentDate = date("next_appointment_date").nullable()
 
-    // #453 — transaction-local idempotency owner (Expense created_by precedent).
+    // transaction-local idempotency owner (Expense created_by precedent).
     // Nullable: backfilled from audit INSERT rows; new rows always write it.
     val createdBy = javaUUID("created_by").references(AppUserTable.id).nullable()
     val createdAt = timestampWithTimeZone("created_at").defaultExpression(CurrentTimestampWithTimeZone)
@@ -119,7 +119,7 @@ internal object SessionTable : Table("session") {
             "id" to entity.id.toString(),
             "clientId" to entity.clientId.toString(),
             "branchDayId" to entity.branchDayId.toString(),
-            // #525 field policy — every stored creation input is a value diff so
+            // field policy — every stored creation input is a value diff so
             // creation context cannot vanish: requested practitioner, walk-in flag,
             // prices, remarks/concerns, booking and next-appointment dates, and the
             // idempotency owner. createdAt/version are excluded as derived/internal

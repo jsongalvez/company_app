@@ -8,7 +8,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 /**
- * Immutable financial-snapshot store (#320, ADR-0024). Mutating functions are in-transaction
+ * Immutable financial-snapshot store (ADR-0024). Mutating functions are in-transaction
  * store operations on the caller's (command-owned) transaction; the read helper keeps its
  * convenience wrapper.
  */

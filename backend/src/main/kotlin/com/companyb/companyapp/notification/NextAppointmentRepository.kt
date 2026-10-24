@@ -23,10 +23,10 @@ import java.time.LocalDate
 import java.util.UUID
 
 /**
- * Read store for the next-appointment notification sweep (#324): every `*Table`/view join
+ * Read store for the next-appointment notification sweep: every `*Table`/view join
  * lives behind this internal repository; NextAppointmentScheduler keeps scheduling policy and
  * the notification write (via NotificationRepository). Reads are `*InTransaction` store
- * operations on the caller's transaction (#602); [findActiveCoordinatorsForBranches] keeps a
+ * operations on the caller's transaction; [findActiveCoordinatorsForBranches] keeps a
  * self-contained wrapper for direct reads.
  */
 internal object NextAppointmentRepository {

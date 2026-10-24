@@ -32,9 +32,9 @@ object BranchService {
                 )
             if (result.created) {
                 BranchAudit.inserted(callerId, result.branch)
-                // #418 — provision the five BR-documented default base rates in the same
+                // provision the five BR-documented default base rates in the same
                 // command transaction so a fresh branch never fails session create with
-                // "No base rate configured" (#536: explicit session-rate hook, same tx).
+                // "No base rate configured" (explicit session-rate hook, same tx).
                 SessionBaseRateService.provisionDefaultsInTransaction(result.branch.id, callerId)
             }
             result
@@ -86,7 +86,7 @@ object BranchService {
 }
 
 /**
- * Branch audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * Branch audit vocabulary (ADR-0024 rule 3). Called by the command inside its own
  * transaction so the audit row commits atomically with the mutation. Owns the persistence-table
  * imports so the public command surface does not.
  */

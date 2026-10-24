@@ -24,7 +24,7 @@ object JwtService {
     private val logger = KotlinLogging.logger {}
     private const val MIN_SECRET_LENGTH = 32
 
-    /** Credential-generation claim (#505): binds the token to the password version verified at login. */
+    /** Credential-generation claim: binds the token to the password version verified at login. */
     const val CREDENTIAL_VERSION_CLAIM = "cred_ver"
 
     @Volatile
@@ -52,7 +52,7 @@ object JwtService {
     fun generateToken(userId: String): String = generateToken(userId, 0L, Instant.now())
 
     /**
-     * Version-bound issuance (#505): [credentialVersion] is the account's current
+     * Version-bound issuance: [credentialVersion] is the account's current
      * generation, [issuedAt] the DB-derived instant guaranteed strictly after the
      * persisted revocation boundary so immediate fresh logins verify without sleeps.
      */
@@ -93,7 +93,7 @@ object JwtService {
                         logger.warn { "[VERIFY-TOKEN] Invalid UUID in subject: ${subj.maskUUID()}" }
                         return null
                     }
-            // Missing iat is rejected explicitly (#492); tokens we sign always carry iat.
+            // Missing iat is rejected explicitly; tokens we sign always carry iat.
             val issuedAt =
                 decoded.issuedAt?.toInstant() ?: return null.also {
                     logger.warn { "[VERIFY-TOKEN] Token has no issued-at claim" }

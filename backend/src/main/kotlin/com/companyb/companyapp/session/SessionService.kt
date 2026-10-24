@@ -63,14 +63,14 @@ object SessionService {
         remarks: String?,
         otherConcerns: String?,
         nextAppointmentDate: LocalDate?,
-        // #157: the branch day the route gate resolved (find-only). When provided, the create
+        // the branch day the route gate resolved (find-only). When provided, the create
         // writes to THIS day instead of re-resolving today — the gate and the write share one
         // resolution so a request straddling the Manila midnight boundary can't be gated
         // against the granted day while landing on the next (the mixed-resolution-base class).
         // Must belong to [branchId] — a foreign or missing day fails closed with 404
         // (parent-child convention).
         gatedBranchDayId: UUID? = null,
-        // #509 — REMITTED-day reason (BR §Day State Machine): PAST needs coordinator-only,
+        // REMITTED-day reason (BR §Day State Machine): PAST needs coordinator-only,
         // REMITTED needs coordinator + reason. Plumbed route→service like every sibling
         // session mutation; null on OPEN days.
         reason: String? = null,
@@ -81,9 +81,9 @@ object SessionService {
             SessionRepository.getBranchType(branchId)
                 ?: throw NotFoundException("Branch not found")
 
-        // #366 — the requested practitioner must be an ACTIVE member of the session's branch
+        // the requested practitioner must be an ACTIVE member of the session's branch
         // (today any existing UUID is accepted). Optional field: null passes untouched.
-        // #705 — unknown users 404 before the membership 400 (addPractitioner #696 precedent):
+        // unknown users 404 before the membership 400 (addPractitioner precedent):
         // hasActiveMember alone conflates "unknown user" with "known but ineligible".
         requestedPractitionerId?.let { requireRequestedPractitioner(branchId, it) }
 
@@ -98,27 +98,27 @@ object SessionService {
                 ?: BranchDayService.resolveOrCreate(branchId, today)
 
         return transaction {
-            // #509 — client-first lock order preserved (see requireActiveClientInTransaction):
+            // client-first lock order preserved (see requireActiveClientInTransaction):
             // the client row is locked before the day gate's day row.
             requireActiveClientInTransaction(clientId)
             idempotentReplayOrNull(SessionRepository.findByIdInTransaction(id), clientId, branchDay.id, callerId)?.let {
                 return@transaction it
             }
-            // #751 — history reads join this command transaction after the client-row
+            // history reads join this command transaction after the client-row
             // lock so concurrent creates for the same client serialize on the client
             // row; reading before the lock let two writers both see priorCount=0 and
             // persist REGULAR twice (type has no DB backstop, unlike PENDING).
             val priorCount = SessionRepository.countPriorNonMedicalMissionSessionsInTransaction(clientId)
             val sessionType = computeSessionType(branchType, priorCount)
 
-            // #405 — BR §Session types: a medical-mission visit is always free (₱0). The rule is
+            // BR §Session types: a medical-mission visit is always free (₱0). The rule is
             // an invariant of the domain, not an input constraint, so a non-zero caller-supplied
             // price is normalized to zero rather than rejected — no client version or direct API
             // caller can persist one.
             val effectiveFinalPrice =
                 if (sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else finalPrice
 
-            // #924 — persisted-range pre-gate on the normalized price (a mission
+            // persisted-range pre-gate on the normalized price (a mission
             // create normalizes to ₱0 above, so raw-input validation would wrongly
             // reject there; the write below must never see an overflow amount).
             validateSessionMoney(effectiveFinalPrice, "finalPrice")
@@ -163,10 +163,10 @@ object SessionService {
     }
 
     /**
-     * #692 — client existence + anonymization gate for create (runs on the caller's command
+     * client existence + anonymization gate for create (runs on the caller's command
      * transaction): unknown client fails closed with 404, anonymized fails with 409.
      * Extracted so [create] stays under the LongMethod gate; preserves the client-first
-     * lock order (#509 — matches status/price/void/unvoid).
+     * lock order (matches status/price/void/unvoid).
      */
     private fun requireActiveClientInTransaction(clientId: UUID) {
         val lockedClient =
@@ -180,7 +180,7 @@ object SessionService {
     /**
      * Fast-path replay check (authoritative classification lives in the command
      * transaction's [idempotentReplayOrNull] — this only preserves 409 precedence before
-     * the day resolution below). Ownership is the stored created_by (#453). Extracted so
+     * the day resolution below). Ownership is the stored created_by. Extracted so
      * [create] stays under the complexity gate.
      */
     private fun fastPathReplay(
@@ -204,11 +204,11 @@ object SessionService {
     }
 
     /**
-     * #509 — in-transaction idempotent-replay classification (runs on the caller's command
+     * in-transaction idempotent-replay classification (runs on the caller's command
      * transaction, after the client lock, before the day gate): a same-id row already
      * committed returns without gating so retries that land after a day transition still
      * acknowledge; a foreign row fails closed with 409. Ownership is the stored created_by
-     * (#453). Extracted so [create] stays under the complexity gate.
+     * . Extracted so [create] stays under the complexity gate.
      */
     private fun idempotentReplayOrNull(
         existing: Session?,
@@ -237,7 +237,7 @@ object SessionService {
             ?: throw ValidationException("No base rate configured for session type $sessionType at this branch")
     }
 
-    /** In-transaction rate read (#751) — runs on the caller's command transaction. */
+    /** In-transaction rate read — runs on the caller's command transaction. */
     private fun computeBasePriceInTransaction(
         branchId: UUID,
         sessionType: SessionType,
@@ -250,14 +250,14 @@ object SessionService {
     }
 
     /**
-     * #424 — BR §Clients: after a free session the next visit's DEFAULT offered price is the
+     * BR §Clients: after a free session the next visit's DEFAULT offered price is the
      * branch's SUBSEQUENT base rate instead of the derived type's rate. The trigger keys on
      * price alone (owner ruling 2026-08-26): the client's most recent non-MEDICAL_MISSION,
      * non-voided session has final price ₱0 — mission sessions are ₱0 by definition and never
      * count toward history, and voids don't count as "most recent". Session TYPE stays
      * count-derived via [computeSessionType]; only the default price changes. The
      * practitioner's explicit finalPrice at create always wins. Mission-branch creates keep
-     * their ₱0 invariant (#405): no SUBSEQUENT default is offered there.
+     * their ₱0 invariant: no SUBSEQUENT default is offered there.
      */
     private fun resolveDefaultBasePrice(
         branchId: UUID,
@@ -272,7 +272,7 @@ object SessionService {
             computeBasePrice(branchId, sessionType)
         }
 
-    /** In-transaction #424 default (#751) — runs on the caller's command transaction. */
+    /** In-transaction #424 default — runs on the caller's command transaction. */
     private fun resolveDefaultBasePriceInTransaction(
         branchId: UUID,
         clientId: UUID,
@@ -289,7 +289,7 @@ object SessionService {
     /**
      * True when this mark repeats one that already landed (its answer was lost and the offline queue
      * re-sent it): same status, version since moved on. The caller acks it, as the expense, allowance
-     * and product-sale creates do (#509, #510). Any other stale version is a conflict.
+     * and product-sale creates do. Any other stale version is a conflict.
      */
     private fun requireVersionOrAckRepeat(
         session: Session,
@@ -322,8 +322,8 @@ object SessionService {
 
             if (requireVersionOrAckRepeat(session, newStatus, expectedVersion)) return@transaction session
 
-            // #690 — void freezes status: a voided row rejects every status change
-            // (unvoid restores editability). Roster joins stay open (#689).
+            // void freezes status: a voided row rejects every status change
+            // (unvoid restores editability). Roster joins stay open.
             // Authority is the void row (active = unvoidedAt null), read after the
             // session lock so a concurrent void serializes on the same row.
             val activeVoid = SessionVoidRepository.findBySessionIdInTransaction(sessionId)
@@ -337,7 +337,7 @@ object SessionService {
                 )
             }
 
-            // #917 — sticky anonymization (the #910 practitioner/concern and #911
+            // sticky anonymization (the practitioner/concern and
             // void/unvoid precedent): status writes audit reason free text (#909 scrub
             // class), so every status write on an anonymized client's sessions 409
             // instead of reintroducing it. Placed before the day gate like void: the
@@ -397,7 +397,7 @@ object SessionService {
                 SessionRepository.findByIdInTransaction(sessionId)
                     ?: throw NotFoundException("Session not found")
             // Keep every session mutation's lock order client -> session -> branch day.
-            // #917 — sticky anonymization (the #910 practitioner/concern and #911
+            // sticky anonymization (the practitioner/concern and
             // void/unvoid precedent): price writes audit reason free text (#909 scrub
             // class), so an anonymized client's sessions 409 instead of reintroducing it.
             val client =
@@ -417,13 +417,13 @@ object SessionService {
             val (branchDay, isRemitted) =
                 BranchDayService.checkBranchDayEditableInTransaction(callerId, session.branchDayId, reason)
 
-            // #405 — same invariant as create (BR §Session types): a medical-mission session
+            // same invariant as create (BR §Session types): a medical-mission session
             // carries MEDICAL_MISSION for life, so its price normalizes to ₱0 no matter what
             // the caller sent.
             val effectivePrice =
                 if (session.sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else newFinalPrice
 
-            // #924 — same persisted-range pre-gate as create (mission normalization first).
+            // same persisted-range pre-gate as create (mission normalization first).
             validateSessionMoney(effectivePrice, "finalPrice")
 
             val updated =
@@ -454,8 +454,8 @@ object SessionService {
                 SessionRepository.findByIdInTransaction(sessionId)
                     ?: throw NotFoundException("Session not found")
             // Client-first lock order serializes a PENDING void with create and anonymize guards.
-            // #911 — sticky anonymization (the #910 practitioner/concern precedent): void writes
-            // operator free text (#909 scrub class), so an anonymized client's sessions 409
+            // sticky anonymization (the practitioner/concern precedent): void writes
+            // operator free text (scrub class), so an anonymized client's sessions 409
             // instead of reintroducing it.
             val client =
                 ClientReads.acquireLockInTransaction(initial.clientId)
@@ -497,7 +497,7 @@ object SessionService {
                 )
             }
 
-            // #667 — a voided session drops out of the commission aggregation input
+            // a voided session drops out of the commission aggregation input
             // (findNonVoidedSalesByBranchDayInTransaction), so the persisted splits
             // join this command transaction. Default force=false keeps the
             // PAST/REMITTED auto-skip. Lock order stays client -> session -> day:
@@ -521,8 +521,8 @@ object SessionService {
                 SessionRepository.findByIdInTransaction(sessionId)
                     ?: throw NotFoundException("Session not found")
             // Client-first lock order matches create, anonymize, status, and void commands.
-            // #911 — sticky anonymization (the #910 precedent): unvoid writes operator free
-            // text (#909 scrub class), so an anonymized client's sessions 409.
+            // sticky anonymization (the precedent): unvoid writes operator free
+            // text (scrub class), so an anonymized client's sessions 409.
             val client =
                 ClientReads.acquireLockInTransaction(initial.clientId)
                     ?: throw NotFoundException("Client not found")
@@ -571,7 +571,7 @@ object SessionService {
                 updated,
             )
 
-            // #667 — unvoid restores the session to the commission aggregation input;
+            // unvoid restores the session to the commission aggregation input;
             // same transaction-joined recalc as void above (force=false keeps the
             // PAST/REMITTED auto-skip; day row already held by the gate).
             CommissionService.recalculateInTransaction(session.branchDayId)
@@ -582,10 +582,10 @@ object SessionService {
         }
 
     /**
-     * #348 — pre-create preview for the SessionCreate screen: the session type create WILL
+     * pre-create preview for the SessionCreate screen: the session type create WILL
      * assign and the base rate that defaults the final price. Reads the exact same inputs as
      * [create] (branch type, global non-medical-mission history, free-session SUBSEQUENT
-     * default (#424), active branch rate) so the preview can never diverge from the created
+     * default, active branch rate) so the preview can never diverge from the created
      * row. No transaction needed — independent reads; a concurrent client session landing
      * between them only makes the preview stale by one visit, and the server recomputes
      * authoritatively at create.
@@ -605,7 +605,7 @@ object SessionService {
 }
 
 /**
- * #348 — pre-create preview result: the type create will assign and the rate that defaults the
+ * pre-create preview result: the type create will assign and the rate that defaults the
  * final price. Service-level (no persistence table behind it), mapped to `SessionPreviewResponse`
  * at the route.
  */
@@ -615,7 +615,7 @@ data class SessionPreview(
 )
 
 /**
- * Session feature audit vocabulary (#323, ADR-0024 rule 3). Called by the commands inside their
+ * Session feature audit vocabulary (ADR-0024 rule 3). Called by the commands inside their
  * own transaction so audit rows commit atomically with the mutation. Owns the persistence-table
  * imports (session + session_void) so the public command surface does not.
  */

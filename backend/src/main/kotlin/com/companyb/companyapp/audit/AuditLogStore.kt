@@ -44,10 +44,10 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 /**
- * Audit persistence (#549): table/query internals behind the [AuditLog] append seam and
+ * Audit persistence: table/query internals behind the [AuditLog] append seam and
  * the [AuditLogService] scoped reads. Same-owner only — other owners cross [AuditLog].
- * #600 record unanimity stays whole per #535; the append seam mirrors store signatures 1:1
- * (#549) so bundling would fork the seam without removing a parameter.
+ * record unanimity stays whole; the append seam mirrors store signatures 1:1
+ *  so bundling would fork the seam without removing a parameter.
  */
 internal object AuditLogStore {
     @Suppress("LongParameterList") // #600
@@ -139,7 +139,7 @@ internal object AuditLogStore {
         val newFields = auditFields(after)
         val allKeys = oldFields.keys + newFields.keys
         val changedKeys = allKeys.filter { oldFields[it] != newFields[it] }
-        // #525 — nulls stay JSON null (no NULL-sentinel fallback): a missing key
+        // nulls stay JSON null (no NULL-sentinel fallback): a missing key
         // cannot occur at runtime (one mapper serves both sides), and a null value
         // must survive as null so literal "null" text stays distinguishable.
         val changedOldFields = changedKeys.associateWith { oldFields[it] }
@@ -205,7 +205,7 @@ internal object AuditLogStore {
     }
 
     /**
-     * Anonymization redaction (#524) — the single documented exception to
+     * Anonymization redaction — the single documented exception to
      * audit-payload immutability. Rewrites the identifying values in every
      * retained audit row for one anonymized client, in place, on the caller's
      * command transaction (no new events; event identity — actor, timestamp,
@@ -245,13 +245,13 @@ internal object AuditLogStore {
     }
 
     /**
-     * Session-text redaction (#908) — the anonymize-command companion to
+     * Session-text redaction — the anonymize-command companion to
      * [redactClientNamesInTransaction]. Rewrites operator-entered free text
      * (`remarks`/`otherConcerns`) in retained session + session-practitioner
      * audit rows for one anonymized client's sessions, in place, on the
      * caller's command transaction (no new events; event identity preserved,
-     * the #524 precedent). Scopes by record id, so same-record rows of other
-     * tables survive untouched (the #548 pin).
+     * the precedent). Scopes by record id, so same-record rows of other
+     * tables survive untouched (the pin).
      */
     fun redactSessionTextInTransaction(
         sessionIds: Collection<UUID>,
@@ -263,14 +263,14 @@ internal object AuditLogStore {
     }
 
     /**
-     * Void-reason redaction (#909) — the anonymize-command companion to
+     * Void-reason redaction — the anonymize-command companion to
      * [redactSessionTextInTransaction]. Rewrites operator-entered void/unvoid
      * free text (`voidReason`/`unvoidedReason`) in retained `session_void`
      * audit rows for one anonymized client's sessions, in place, on the
      * caller's command transaction (no new events; event identity preserved,
-     * the #524 precedent). Scopes by void record id — one stable row per
-     * session (the #514 invariant), so same-record rows of other tables
-     * survive untouched (the #548 pin). Also scrubs the duplicated
+     * the precedent). Scopes by void record id — one stable row per
+     * session (the invariant), so same-record rows of other tables
+     * survive untouched (the pin). Also scrubs the duplicated
      * `audit_log.reason` column on those rows: the void/unvoid commands stamp
      * the operator reason there verbatim.
      */
@@ -305,7 +305,7 @@ internal object AuditLogStore {
     }
 
     /**
-     * History census (#908): practitioner rows removed before anonymize leave
+     * History census: practitioner rows removed before anonymize leave
      * no live row, but their INSERT/UPDATE/DELETE audit payloads still carry
      * the session's free text keyed by the removed row id. Those payloads
      * embed the owning `sessionId`, so every practitioner-table audit row
@@ -579,7 +579,7 @@ private val SESSION_TEXT_KEYS =
     )
 
 /**
- * One audit payload's PII redaction (#524, extended #525): identifying values
+ * One audit payload's PII redaction (extended): identifying values
  * become the uniform [AuditValues.REDACTED] marker; JSON nulls, historical
  * `"null"` sentinels, existing markers, the `N/A` address default, non-object
  * shapes, and unparseable payloads pass through untouched so cleared-state
@@ -589,7 +589,7 @@ private fun redactClientNames(raw: String?): String? =
     redactKeys(raw, CLIENT_IDENTIFYING_KEYS, setOf(DEFAULT_CLIENT_ADDRESS))
 
 /**
- * One audit payload's session-text redaction (#908): operator-entered free
+ * One audit payload's session-text redaction: operator-entered free
  * text becomes the uniform [AuditValues.REDACTED] marker. Nulls, historical
  * `"null"` sentinels, existing markers, non-object shapes, and unparseable
  * payloads pass through untouched — the same shape rules as client redaction,
@@ -601,7 +601,7 @@ private fun redactClientNames(raw: String?): String? =
 private fun redactSessionText(raw: String?): String? = redactKeys(raw, SESSION_TEXT_KEYS, emptySet())
 
 /**
- * Void-reason keys scrubbed on anonymize (BR §Privacy and Cleanup, #909):
+ * Void-reason keys scrubbed on anonymize (BR §Privacy and Cleanup):
  * operator-entered void/unvoid text that may carry client identity typed
  * outside any validated field. Other void payload keys (ids, actors,
  * timestamps) are non-identifying event context and stay.
@@ -613,7 +613,7 @@ private val VOID_REASON_KEYS =
     )
 
 /**
- * One audit payload's void-reason redaction (#909): operator-entered void
+ * One audit payload's void-reason redaction: operator-entered void
  * text becomes the uniform [AuditValues.REDACTED] marker, with the same shape
  * rules as session-text redaction — nulls, historical `"null"` sentinels,
  * existing markers, non-object shapes, and unparseable payloads pass through
@@ -627,7 +627,7 @@ private fun redactKeys(
     extraKeeps: Set<String>,
 ): String? {
     if (raw == null) return null
-    // #601 max-2: unparseable and non-object sides share one passthrough exit.
+    // max-2: unparseable and non-object sides share one passthrough exit.
     val element = runCatching { Json.parseToJsonElement(raw) }.getOrNull() as? JsonObject ?: return raw
     var changed = false
     val scrubbed =

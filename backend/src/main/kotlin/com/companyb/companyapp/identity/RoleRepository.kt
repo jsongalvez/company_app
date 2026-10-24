@@ -19,7 +19,7 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 /**
- * Role catalog reads and `user_role` membership store operations (#344). Roles are
+ * Role catalog reads and `user_role` membership store operations. Roles are
  * seeded bundles (V2) — never created at runtime — so there are no role CRUD mutators;
  * the only writes are membership rows, owned by the [com.companyb.companyapp.identity.UserService]
  * commands per ADR-0024.

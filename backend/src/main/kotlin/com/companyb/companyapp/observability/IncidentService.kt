@@ -23,11 +23,11 @@ data class Auto5xxReport(
 )
 
 /**
- * #475 — builds and files triage-ready incident packets. User reports and
+ * builds and files triage-ready incident packets. User reports and
  * 5xx auto-files share this seam so the packet shape is identical (only
  * [IncidentSource] differs). Filing is deduped by trace id, delivered
  * asynchronously, and writes no app tables — there is nothing to audit.
- * #526 — the dedup receipt survives every outcome except a pre-send failure
+ * the dedup receipt survives every outcome except a pre-send failure
  * (absent/rejected executor, which evicts so a retry honestly re-files).
  */
 object IncidentService {

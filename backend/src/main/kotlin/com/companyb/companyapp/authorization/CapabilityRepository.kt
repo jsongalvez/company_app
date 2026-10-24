@@ -68,7 +68,7 @@ internal object CapabilityRepository {
 
     /**
      * Distinct branch context ids where [userId] holds any active grant — the
-     * audit read window (#104 D6, #98 union pattern). GLOBAL grants contribute
+     * audit read window (D6, union pattern). GLOBAL grants contribute
      * nothing here; [ActiveUserCapabilitiesView] already excludes inactive
      * users and out-of-window grants.
      */
@@ -85,10 +85,10 @@ internal object CapabilityRepository {
 
     /**
      * True when [userId] holds [capabilityCode] at [branchId] (BRANCH context) OR at
-     * [branchDayId] (BRANCH_DAY context) — the #157 day-scoped gate. A BRANCH_DAY
+     * [branchDayId] (BRANCH_DAY context) — the day-scoped gate. A BRANCH_DAY
      * relief grant satisfies the branch gate for its granted day only; the BRANCH leg
      * keeps ordinary branch grants working unchanged. GLOBAL grants deliberately do
-     * NOT satisfy this check (the #131 strictness: the OR adds only the narrower
+     * NOT satisfy this check (the strictness: the OR adds only the narrower
      * day-scoped form, never a relaxation). The view enforces the grant window
      * (`now() BETWEEN valid_from AND COALESCE(valid_to, 'infinity')`).
      */
@@ -128,7 +128,7 @@ internal object CapabilityRepository {
 
     /**
      * True when [userId] holds [capabilityCode] at any context (any
-     * contextType/contextId) — the #104 D6 "any EDIT_BRANCH_DATA holder" policy.
+     * contextType/contextId) — the "any EDIT_BRANCH_DATA holder" policy.
      */
     fun hasCapabilityAnyContext(
         userId: UUID,

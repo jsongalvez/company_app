@@ -3,7 +3,7 @@ package com.companyb.companyapp.commerce
 import java.util.UUID
 
 /**
- * Named commerce-read seams for cross-owner consumers (map #533 #543): commission sale
+ * Named commerce-read seams for cross-owner consumers: commission sale
  * validation/aggregation and remittance line validation. Thin delegations to the internal
  * commerce stores — not a facade over every method. Service-to-service calls need no
  * architecture allowlist entry; direct store imports from other owners stay banned.

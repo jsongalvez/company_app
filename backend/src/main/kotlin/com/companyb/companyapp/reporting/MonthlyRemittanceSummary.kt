@@ -35,7 +35,7 @@ internal object MonthlyRemittanceSummaryView : Table("monthly_remittance_summary
     val netIncome = decimal("net_income", FINANCIAL_PRECISION, FINANCIAL_SCALE)
 }
 
-// #547 — single monthly row mapping shared by the summary and export stores;
+// single monthly row mapping shared by the summary and export stores;
 // the view owns net_income (SUM of snapshot nets), so readers take the column.
 // Housed in an internal seam object: the mapping touches the view outside any
 // `Table` body, so a top-level function would read as a public surface.

@@ -4,7 +4,7 @@ import java.nio.file.Files
 import java.nio.file.Paths
 
 /**
- * #495 — Gradle-owned offline export. Reads the same kapt-generated classpath
+ * Gradle-owned offline export. Reads the same kapt-generated classpath
  * resource the production OpenApiPlugin serves, applies the canonical
  * transformation, and writes the final document. Inputs are compiled
  * classes/resources plus serializer metadata, never file modification times.

@@ -72,7 +72,7 @@ data class ClientUpdateParams(
     val systolicBp: Short?,
     val diastolicBp: Short?,
     val medicalConditions: String?,
-    /** Explicit clears (#523) — each writes null, except address which resets to its N/A default. */
+    /** Explicit clears — each writes null, except address which resets to its N/A default. */
     val clearMiddleName: Boolean = false,
     val clearSuffix: Boolean = false,
     val clearPhoneNumber: Boolean = false,
@@ -94,7 +94,7 @@ internal object ClientRepository {
     private const val FULL_NAME_CONCAT_WIDTH = 510
     private const val SPACE_COLUMN_WIDTH = 1
 
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: ClientCreateParams): ClientCreateResult {
         val insertedCount =
             ClientTable
@@ -121,7 +121,7 @@ internal object ClientRepository {
         val client =
             findByIdInTransaction(params.id)
                 ?: error("client row not found after idempotent insert for ${params.id}")
-        // #662 — ownership-validated replay (mirrors expense #510 / allowance #511): a same-id
+        // ownership-validated replay (mirrors expense / allowance): a same-id
         // row only acks the caller's own identical person payload; a foreign payload fails
         // closed so a UUID reuse across different persons cannot silently return the wrong person.
         validateReplayOwnership(client, params)
@@ -129,7 +129,7 @@ internal object ClientRepository {
     }
 
     /**
-     * Ownership-validated replay (#662): every person payload field must match the stored row.
+     * Ownership-validated replay: every person payload field must match the stored row.
      * Pure comparison — no database access. The client has no createdBy column, so payload
      * equality is the whole ownership signal.
      */
@@ -171,7 +171,7 @@ internal object ClientRepository {
             ?.toClient()
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction.
+     * In-transaction store operation (ADR-0024) — runs on the caller's command transaction.
      * Returns the updated row count and the post-write row; null after when the row is missing or
      * anonymized (H4 mirror: an update can never land on a soft-deleted record).
      */
@@ -213,7 +213,7 @@ internal object ClientRepository {
         return updatedCount to updated
     }
 
-    /** In-transaction store operation (#323, ADR-0024) — anonymize write only; guards stay with the command. */
+    /** In-transaction store operation (ADR-0024) — anonymize write only; guards stay with the command. */
     fun anonymizeInTransaction(clientId: UUID): Int =
         ClientTable.update({ (ClientTable.id eq clientId) and (ClientTable.deletedAt.isNull()) }) {
             it[ClientTable.deletedAt] = CurrentTimestampWithTimeZone
@@ -406,7 +406,7 @@ private fun <T : String?> ilike(
     )
 
 /**
- * One nullable column's three-state write (#523): clear writes null, a present value
+ * One nullable column's three-state write: clear writes null, a present value
  * sets, absent leaves the column untouched.
  */
 private fun <T> UpdateStatement.setOrClear(

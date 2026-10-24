@@ -35,7 +35,7 @@ object FeedbackRoutes {
     private const val IP_KEY_PREFIX = "feedback:ip:"
 
     /**
-     * #475 — authenticated incident report. Bearer-only on purpose (clock-in
+     * authenticated incident report. Bearer-only on purpose (clock-in
      * precedent): every signed-in user may report, so no capability gate.
      * Abuse is bounded by per-user and per-IP budgets sharing [RateLimiter].
      */

@@ -86,8 +86,8 @@ object NotificationRoutes {
             context.json(notifications.map { it.toResponse() })
         }
 
-        // #356 — history: every row the caller owns, read + unread, newest first.
-        // #508 — keyset-paged: bounded per response, stable across concurrent inserts.
+        // history: every row the caller owns, read + unread, newest first.
+        // keyset-paged: bounded per response, stable across concurrent inserts.
         config.routes.get(ApiRoutes.NOTIFICATIONS_HISTORY) { context ->
             val callerId = context.callerUuid()
 
@@ -102,7 +102,7 @@ object NotificationRoutes {
             context.json(response)
         }
 
-        // #508 — badge count without row hydration: the poller reads one integer.
+        // badge count without row hydration: the poller reads one integer.
         config.routes.get(ApiRoutes.NOTIFICATIONS_UNREAD_COUNT) { context ->
             val callerId = context.callerUuid()
 

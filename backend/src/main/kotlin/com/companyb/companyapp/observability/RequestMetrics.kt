@@ -8,16 +8,16 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * In-memory per-route RED store + Prometheus exposition (#473).
+ * In-memory per-route RED store + Prometheus exposition.
  *
- * Zero-dep decision (mirrors #472): histogram buckets counted in-process with
+ * Zero-dep decision (mirrors): histogram buckets counted in-process with
  * atomics, P99 computed server-side by Prometheus/Grafana via
  * `histogram_quantile` — no Micrometer/Prometheus client dependency.
  * Recording is O(buckets) atomic increments, no allocation on the hot path
  * beyond the map lookup; `/metrics` itself is excluded so scrapes never move
  * the traffic leg.
  *
- * Label cardinality (#521): request labels derive from the finite registered
+ * Label cardinality: request labels derive from the finite registered
  * route templates (`Context.endpoints().matchedHttpEndpoint()`), never from
  * raw paths — regex replacement of UUID/numeric segments cannot bound
  * alphabetic 404 probes. Unmatched requests share one [UNMATCHED_ROUTE]
@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicLong
 object RequestMetrics {
     const val OBSERVED_ATTRIBUTE = "requestMetricsObserved"
 
-    /** Fixed bucket for requests that matched no registered route (#521). */
+    /** Fixed bucket for requests that matched no registered route. */
     const val UNMATCHED_ROUTE = "UNMATCHED"
     private const val STATUS_UNKNOWN = 0
     private const val SERVER_ERROR_THRESHOLD = 500
@@ -210,7 +210,7 @@ object RequestMetrics {
 
 /**
  * Bounded metric-label derivation (#521, extracted from `RequestMetrics` to
- * stay under `TooManyFunctions` — mirrors the #499 `IncidentFields` split).
+ * stay under `TooManyFunctions` — mirrors the `IncidentFields` split).
  */
 internal object RouteLabels {
     private const val UNKNOWN_METHOD = "UNKNOWN"

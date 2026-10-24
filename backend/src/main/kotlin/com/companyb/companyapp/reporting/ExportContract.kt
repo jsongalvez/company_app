@@ -13,7 +13,7 @@ data class ExportResult(
     val contentType: String,
     val fileName: String,
 ) {
-    // #532 deliberate ByteArray equality: data-class generated equals/hashCode
+    // deliberate ByteArray equality: data-class generated equals/hashCode
     // would compare array identity, so export payloads compare by content.
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

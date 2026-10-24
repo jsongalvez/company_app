@@ -9,7 +9,7 @@ import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 /**
- * Session-owned HTTP authorization composition (#605).
+ * Session-owned HTTP authorization composition.
  *
  * Resolves the session record and any session-specific rule (status-correction
  * policy), then delegates to the common branch/day scope checks on
@@ -36,7 +36,7 @@ object SessionAuthz {
     }
 
     /**
-     * Day-scoped variant of [requireBranchCapabilityForSession] (#157): accepts a BRANCH
+     * Day-scoped variant of [requireBranchCapabilityForSession]: accepts a BRANCH
      * grant at the session's branch OR a BRANCH_DAY grant for the session's branch day.
      *
      * Throws ForbiddenException (403) if the caller holds neither form.

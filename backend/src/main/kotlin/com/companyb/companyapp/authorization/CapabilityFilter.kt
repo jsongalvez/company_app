@@ -16,12 +16,12 @@ import java.util.UUID
  * on the UserBranchAssignment surface it also retains the capability gates
  * themselves (deviation below).
  *
- * Exception (ADR-0007 deviation, #134): the UserBranchAssignment surface
+ * Exception (ADR-0007 deviation): the UserBranchAssignment surface
  * enforces at the service layer — `swapSlots`' participant rule (MANAGE_USERS
  * OR caller is one of the swapped users) and `updateSlot`'s self-service rule
  * (MANAGE_USERS OR caller is the target user) cannot be expressed as path
  * filters, and the 4-segment before-filters never matched the 5-segment
- * sub-paths (the #114 exact-path lesson).
+ * sub-paths (the exact-path lesson).
  *
  * Usage in a route object's `register`:
  * ```
@@ -54,7 +54,7 @@ object CapabilityFilter {
     }
 
     /**
-     * Shared catalog gate (#455): products + categories share one MANAGE_CATALOG
+     * Shared catalog gate: products + categories share one MANAGE_CATALOG
      * enforcement point so the two route files stop duplicating the filter body.
      * Message stays caller-supplied to preserve each route's existing 403 text.
      */
@@ -66,12 +66,12 @@ object CapabilityFilter {
     }
 
     /**
-     * Enforces [capabilityCode] at any context (#660): BRANCH, BRANCH_DAY, or GLOBAL.
+     * Enforces [capabilityCode] at any context: BRANCH, BRANCH_DAY, or GLOBAL.
      * For global catalog reads with no branch context (GET /api/concerns) so every
      * EDIT_BRANCH_DATA holder — branch-assigned practitioners/coordinators via the
      * V21 BRANCH leg, relief holders via BRANCH_DAY, direct GLOBAL grantees — lists
      * the catalog the session-anchored promote write inserts into. Same capability
-     * as the write; the #104 D6 any-context precedent.
+     * as the write; the any-context precedent.
      *
      * Throws [com.companyb.companyapp.exception.ForbiddenException] (403) if the caller
      * holds the capability in no context.
@@ -135,7 +135,7 @@ object CapabilityFilter {
 
     /**
      * Enforces [capabilityCode] at the given [branchId] — either BRANCH-scoped
-     * at that branch OR GLOBAL (the #131 all-branches window: a GLOBAL
+     * at that branch OR GLOBAL (the all-branches window: a GLOBAL
      * `VIEW_BRANCH_DATA` holder reads every branch, e.g. Owner/Accountant/SUPERUSER).
      *
      * Throws [com.companyb.companyapp.exception.ForbiddenException] (403) if
@@ -169,9 +169,9 @@ object CapabilityFilter {
     }
 
     /**
-     * Today-scoped gate for branch-uuid routes (#452): the HTTP entry to
+     * Today-scoped gate for branch-uuid routes: the HTTP entry to
      * [BranchDayService.requireBranchOrDayForToday] — find-only today resolution plus the
-     * BRANCH-or-BRANCH_DAY OR (GLOBAL excluded per #131). Returns today's branch-day id
+     * BRANCH-or-BRANCH_DAY OR (GLOBAL excluded). Returns today's branch-day id
      * (null when no day row exists) so gates sharing the resolution with their write —
      * the session create's midnight-boundary handoff — can reuse it.
      *
@@ -190,11 +190,11 @@ object CapabilityFilter {
         )
 
     /**
-     * Day-scoped variant (#157): enforces [capabilityCode] for the given [branchDayId] —
+     * Day-scoped variant: enforces [capabilityCode] for the given [branchDayId] —
      * either BRANCH-scoped at the day's branch OR BRANCH_DAY-scoped for the day itself.
      * A relief grant (`BRANCH_DAY` context, day-scoped, windowed) satisfies the branch
      * gate for its granted day only. GLOBAL grants deliberately do NOT satisfy this
-     * check (the #131 strictness: the OR adds only the narrower day-scoped form).
+     * check (the strictness: the OR adds only the narrower day-scoped form).
      *
      * Throws [com.companyb.companyapp.exception.ForbiddenException] (403) if the caller
      * holds neither form. Throws NotFoundResponse (404) if the branch day does not exist.
@@ -215,12 +215,12 @@ object CapabilityFilter {
     }
 
     /**
-     * Read-side day leg (#158): enforces [capabilityCode] at [branchId] — either
+     * Read-side day leg: enforces [capabilityCode] at [branchId] — either
      * BRANCH-scoped or GLOBAL (the standard branch read window) — OR a
      * [dayCapabilityCode] BRANCH_DAY grant for [branchDayId] (the relief grant: a
      * day-scoped `EDIT_BRANCH_DATA` holder reads the day they are granted). A null
      * [branchDayId] (no day row for the date) means the day leg is impossible — the
-     * branch/global leg alone governs (the #157 no-grant lesson: a grant always
+     * branch/global leg alone governs (the no-grant lesson: a grant always
      * references an existing day row).
      *
      * Throws [com.companyb.companyapp.exception.ForbiddenException] (403) if the caller

@@ -16,7 +16,7 @@ data class AuditBrowseCursor(
 )
 
 /**
- * Command context stamped onto audit rows (#323): who acted, on which branch, and the
+ * Command context stamped onto audit rows: who acted, on which branch, and the
  * REMITTED-day flag vocabulary. Audit seams take this as their first parameter so their
  * domain-row parameters stay separate from the who/where/why of the audit event.
  */
@@ -28,7 +28,7 @@ data class AuditContext(
 )
 
 /**
- * Cross-feature audit append seam (#549): every mutating command records its audit row
+ * Cross-feature audit append seam: every mutating command records its audit row
  * through here, inside its own command transaction — never in routes, never opened from
  * a store. The only audit surface other owners may import; table/query internals live in
  * [AuditLogStore] and scoped reads in [AuditLogService].
@@ -164,13 +164,13 @@ object AuditLog {
     )
 
     /**
-     * Anonymization redaction (#524) — the single documented exception to
+     * Anonymization redaction — the single documented exception to
      * audit-payload immutability. Runs on the caller's command transaction.
      */
     fun redactClientNamesInTransaction(recordId: UUID): Int = AuditLogStore.redactClientNamesInTransaction(recordId)
 
     /**
-     * Session-text redaction (#908) — anonymize-command companion to
+     * Session-text redaction — anonymize-command companion to
      * [redactClientNamesInTransaction]: rewrites session free text for one
      * anonymized client's sessions. Runs on the caller's command transaction.
      */
@@ -180,7 +180,7 @@ object AuditLog {
     ): Int = AuditLogStore.redactSessionTextInTransaction(sessionIds, practitionerIds)
 
     /**
-     * Void-reason redaction (#909) — anonymize-command companion to
+     * Void-reason redaction — anonymize-command companion to
      * [redactSessionTextInTransaction]: rewrites void/unvoid free text plus
      * the duplicated audit reason column for one anonymized client's void
      * rows. Runs on the caller's command transaction.
@@ -198,7 +198,7 @@ object AuditLog {
     fun jsonFields(fields: Map<String, String?>): String = buildJson(fields.toList())
 
     /**
-     * #525 — nulls encode as JSON null via the existing kotlinx-serialization
+     * nulls encode as JSON null via the existing kotlinx-serialization
      * library; every non-null value stays a JSON string for historical
      * compatibility. Historical `{"k":"null"}` payloads therefore keep parsing;
      * new `{"k":null}` rows are distinguishable from literal `"null"` text.

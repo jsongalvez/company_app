@@ -89,7 +89,7 @@ data class RemittanceProductSalePickerEntry(
 )
 
 /**
- * Remittance persistence store (#320, ADR-0024).
+ * Remittance persistence store (ADR-0024).
  *
  * Mutating functions are **in-transaction store operations**: they open no transaction of their
  * own and take no audit callback — they execute on the caller's (command-owned) transaction,
@@ -116,7 +116,7 @@ internal object RemittanceRepository {
      * Locks the remittance row (`FOR UPDATE`) on the caller's transaction and returns its current
      * state — the serialization anchor for submit/undo. Null when the remittance does not exist.
      *
-     * #506 — every header/line/day mutation acquires this lock before draft validation, with
+     * every header/line/day mutation acquires this lock before draft validation, with
      * the parent always first in the lock order, so draft checks and child writes serialize
      * with submit/undo and with each other.
      */
@@ -129,7 +129,7 @@ internal object RemittanceRepository {
             ?.toRemittance()
 
     /**
-     * #506 — bumps the parent version for an actual content change. The caller must already
+     * bumps the parent version for an actual content change. The caller must already
      * hold the parent `FOR UPDATE` lock; the version predicate closes any residual race and
      * surfaces a lost update as [VersionMismatchException]. No-op retries must not call this.
      */
@@ -152,7 +152,7 @@ internal object RemittanceRepository {
     fun createDraftInTransaction(params: CreateDraftParams): RemittanceCreateResult {
         val existing = findByIdInTransaction(params.id)
         if (existing != null) {
-            // #927 — same-UUID replay must match the full header (#922 finance precedent);
+            // same-UUID replay must match the full header (finance precedent);
             // branch-only ack let divergent type/method/range silently return the old row.
             assertCreateReplayMatches(existing, params)
             return RemittanceCreateResult(existing, created = false)
@@ -173,9 +173,9 @@ internal object RemittanceRepository {
 
         val created =
             findByIdInTransaction(params.id) ?: error("remittance not found after insert for ${params.id}")
-        // #927 — raced replay shares the same payload-identity exit as the fast path.
+        // raced replay shares the same payload-identity exit as the fast path.
         assertCreateReplayMatches(created, params)
-        // #601 max-2: raced-replay and fresh-draft share one exit.
+        // max-2: raced-replay and fresh-draft share one exit.
         return if (!inserted) {
             RemittanceCreateResult(created, created = false)
         } else {
@@ -187,7 +187,7 @@ internal object RemittanceRepository {
     }
 
     /**
-     * #927 — payload-identity for draft replays (#922 class): the UUID owner is the
+     * payload-identity for draft replays (class): the UUID owner is the
      * branch plus the full caller-controlled header (type/method/range) plus the
      * submitting caller. Server-stamped fields (submittedDate/status/version) are
      * excluded — retries across the operational-day boundary must still ack.
@@ -294,7 +294,7 @@ internal object RemittanceRepository {
             .map { it[RemittanceDayBreakdownTable.branchDayId] }
 
     /**
-     * #507 — surviving SUBMITTED coverage for [dayIds] excluding [excludeRemittanceId].
+     * surviving SUBMITTED coverage for [dayIds] excluding [excludeRemittanceId].
      * The undo path retains REMITTED on every day in the returned set; all reads run on
      * the caller's open transaction so the check joins the same SERIALIZABLE order as
      * submit/undo day locks.
@@ -316,11 +316,11 @@ internal object RemittanceRepository {
     }
 
     /**
-     * Snapshot gross (#857): SESSION line amounts for live lines whose session is still
+     * Snapshot gross: SESSION line amounts for live lines whose session is still
      * COMPLETED and non-voided — the same membership as
      * `daily_sales_summary.gross_income`. The addLine guard admits only COMPLETED sessions
      * and COMPLETED is immutable outside void/unvoid, so the status join is defense-in-depth
-     * for legacy rows and status races; voided lines stay silently excluded per #750.
+     * for legacy rows and status races; voided lines stay silently excluded.
      */
     fun sumGrossIncomeInTransaction(remittanceId: UUID): BigDecimal =
         RemittancePolicy.sum(
@@ -370,7 +370,7 @@ internal object RemittanceRepository {
         )
     }
 
-    /** The database server's current time — the clock that stamps `submitted_at` (#103). */
+    /** The database server's current time — the clock that stamps `submitted_at`. */
     fun currentDatabaseTimeInTransaction(): OffsetDateTime =
         RemittanceTable
             .select(CurrentTimestampWithTimeZone)
@@ -433,7 +433,7 @@ internal object RemittanceRepository {
         }
 
     /**
-     * Session picker (#857): offers only COMPLETED non-voided sessions — the same membership
+     * Session picker: offers only COMPLETED non-voided sessions — the same membership
      * the addLine guard enforces and the submit aggregation counts, so the picker never
      * offers what the guard would reject.
      */
@@ -483,7 +483,7 @@ internal object RemittanceRepository {
         transaction {
             ProductSaleTable
                 .innerJoin(BranchDayTable, { ProductSaleTable.branchDayId }, { BranchDayTable.id })
-                // #858 — voided-session sales are excluded from all financial
+                // voided-session sales are excluded from all financial
                 // calculations: a null session link never joins, so walk-in sales
                 // without a session pass the IS NULL filter; an unvoided session
                 // drops out of the view and its sales return to the picker.

@@ -62,9 +62,9 @@ object SessionBaseRateRoutes {
     fun register(config: JavalinConfig) {
         config.routes.before(ApiRoutes.BRANCH_RATES_PATH) { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            // #730 — 404 precedence for an unknown branch before the capability gate:
+            // 404 precedence for an unknown branch before the capability gate:
             // requireBranchCapabilityForBranchId alone conflates "unknown branch" with
-            // "known but non-member" (the #711 createInvite / #715 listSent order, resolving
+            // "known but non-member" (the createInvite / #715 listSent order, resolving
             // the #724-deferred session-rate filter policy with the same precedence).
             BranchService.findById(branchId)
             // 503bf228 — any branch member sees its prices and anyone who can edit the branch
@@ -89,7 +89,7 @@ object SessionBaseRateRoutes {
             val rateId = uuidOrThrow(request.id, "rate id")
             val rate = parseNonNegativeBigDecimal(request.rate, "rate")
             requireSessionMoney(rate, "rate")
-            // #876 — the forward-compat sentinel is never valid input (rates key real session
+            // the forward-compat sentinel is never valid input (rates key real session
             // types). Unknown strings still 400 at decode.
             if (request.sessionType == SessionType.UNKNOWN) throw BadRequestResponse("Unknown session type")
 
@@ -124,7 +124,7 @@ object SessionBaseRateRoutes {
         )
 
     /**
-     * #924: persisted-range mirror (same shape as SessionRoutes.requireSessionMoney,
+     * persisted-range mirror (same shape as SessionRoutes.requireSessionMoney,
      * kept per-route like #923 — the service owns the bound).
      */
     private fun requireSessionMoney(

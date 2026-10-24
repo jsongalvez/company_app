@@ -67,16 +67,16 @@ import java.util.UUID
 )
 object DailySalesSummaryRoutes {
     fun register(config: JavalinConfig) {
-        // #744 — 404 precedence for an unknown branch before the capability gate
-        // (#730/#732 precedent): the ForBranchId gates alone conflate
+        // 404 precedence for an unknown branch before the capability gate
+        //  (precedent): the ForBranchId gates alone conflate
         // "unknown branch" with "known but non-member".
         config.routes.before(ApiRoutes.BRANCH_DAILY_SUMMARY_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             BranchService.findById(branchId)
             val date = parseRequiredDate(context)
-            // #158 — the single-day read accepts the relief grant: a BRANCH_DAY
+            // the single-day read accepts the relief grant: a BRANCH_DAY
             // `EDIT_BRANCH_DATA` holder reads the granted day's summary (the read mirror
-            // of the #157 day-scoped write surface). The day resolves find-only — a
+            // of the day-scoped write surface). The day resolves find-only — a
             // missing day row means no day grant can exist for it, and the branch/global
             // leg alone governs. The browse (`/daily-summaries`) stays VIEW_BRANCH_DATA-only:
             // a multi-day list cannot be authorized by a single-day grant.
