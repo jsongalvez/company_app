@@ -54,7 +54,7 @@ import java.time.LocalDate
 import java.util.UUID
 
 /**
- * Request-scoped attribute: the branch day the create gate resolved (#157). The handler
+ * Request-scoped attribute: the branch day the create gate resolved. The handler
  * hands it to `SessionService.create` so the gate and the write share one day resolution
  * (no Manila-midnight divergence). Absent when the gate ran the plain branch check
  * (no day row existed — no BRANCH_DAY grant possible).
@@ -62,7 +62,7 @@ import java.util.UUID
 private const val GATED_BRANCH_DAY_ATTR = "gatedBranchDayId"
 
 /**
- * #924: persisted-range mirror (the #923 requireClientRanges shape). The service
+ * persisted-range mirror (the requireClientRanges shape). The service
  * owns the bound ([validateSessionMoney]); this maps the ValidationException to
  * the route's BadRequestResponse so HTTP callers get 400 before the write.
  */
@@ -336,7 +336,7 @@ object SessionRoutes {
     private fun registerHandlers(config: JavalinConfig) {
         config.routes.get(ApiRoutes.SESSION_PATH, ::handleGetSession)
         config.routes.post(ApiRoutes.SESSIONS, ::handleCreateSession)
-        // #348 — the practitioners list read (add-self refresh); the existing
+        // the practitioners list read (add-self refresh); the existing
         // SESSION_PRACTITIONERS_PATH before-filter already gates GET on the same
         // EDIT_BRANCH_DATA branch-or-branch-day check as the mutations.
         config.routes.get(ApiRoutes.SESSION_PRACTITIONERS_PATH, ::handleGetPractitioners)
@@ -364,12 +364,12 @@ object SessionRoutes {
     private fun registerPreview(config: JavalinConfig) {
         config.routes.before(ApiRoutes.BRANCH_SESSION_PREVIEW_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
-            // #733 — 404 precedence for an unknown branch before the today gate
-            // (#730 SessionBaseRateRoutes / #732 BranchInventoryRoutes precedent):
+            // 404 precedence for an unknown branch before the today gate
+            //  (SessionBaseRateRoutes / BranchInventoryRoutes precedent):
             // requireBranchOrDayForBranch alone conflates "unknown branch" with
             // "known but non-member" (findToday is null for both).
             BranchService.findById(branchId)
-            // Same gate as the create it previews (#452): the preview passes exactly
+            // Same gate as the create it previews: the preview passes exactly
             // when the create would.
             CapabilityFilter.requireBranchOrDayForBranch(context, branchId)
         }
@@ -401,7 +401,7 @@ object SessionRoutes {
         val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
 
-        // #152 — notifications-path session detail (#151) with the #907 lifetime bound:
+        // notifications-path session detail with the lifetime bound:
         // bearer row for (sessionId, caller) AND a current VIEW_BRANCH_DATA window at the
         // session's branch (BRANCH or GLOBAL); revoked readers 404 like non-bearers.
         // Byte-identical rendering with the dashboard path (Q3).
@@ -422,7 +422,7 @@ object SessionRoutes {
         )
     }
 
-    // #509 — replay-path 403 fallback is deliberate handling (empty concerns), not swallowing.
+    // replay-path 403 fallback is deliberate handling (empty concerns), not swallowing.
     private fun handleCreateSession(context: Context) {
         val callerId = context.callerUuid()
         val request = context.bodyAsClass<CreateSessionRequest>()
@@ -460,7 +460,7 @@ object SessionRoutes {
             if (result.created) {
                 SessionConcernService.getForSession(callerId, sessionId).map { it.toResponse() }
             } else {
-                // #509 — idempotent replay that lands after a day transition (e.g. the day
+                // idempotent replay that lands after a day transition (e.g. the day
                 // was remitted between the original create and this retry) already committed;
                 // the concern read gates on day readability, so tolerate its 403 and still
                 // acknowledge the write with an empty list instead of failing the retry.
@@ -483,7 +483,7 @@ object SessionRoutes {
         val request = context.bodyAsClass<UpdateSessionStatusRequest>()
 
         val newStatus = request.status
-        // #876 — the forward-compat sentinel is never valid input; without this it would
+        // the forward-compat sentinel is never valid input; without this it would
         // pass transition checks as a routine mark and persist (the Postgres enum column
         // carries no such label). Unknown strings still 400 at decode.
         if (newStatus == SessionStatus.UNKNOWN) throw BadRequestResponse("Unknown session status")
@@ -706,10 +706,10 @@ private fun registerCreateGate(config: JavalinConfig) {
         if (context.method() != HandlerType.POST) return@before
         val request = context.bodyAsClass<CreateSessionRequest>()
         val branchId = uuidOrThrow(request.branchId, "branch id")
-        // #733 — 404 precedence for an unknown branch before the today gate
-        // (#730/#732 precedent; same shape as registerPreview above).
+        // 404 precedence for an unknown branch before the today gate
+        //  (precedent; same shape as registerPreview above).
         BranchService.findById(branchId)
-        // Day-scoped (#157) via the shared today gate (#452): a BRANCH_DAY relief
+        // Day-scoped via the shared today gate: a BRANCH_DAY relief
         // grant for today satisfies the create gate. The resolved day is handed to
         // the handler so the gate and the write share one resolution (no
         // midnight-boundary divergence); a 403'd attempt leaves no day row behind.
@@ -790,7 +790,7 @@ private fun registerConcernGates(config: JavalinConfig) {
         )
     }
 
-    // #304 — the DELETE child path needs its own gate: Javalin path filters match
+    // the DELETE child path needs its own gate: Javalin path filters match
     // exact literals, so the parent /concerns filter never fires for /concerns/{concernId}.
     config.routes.before(ApiRoutes.SESSION_CONCERN_PATH) { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
@@ -802,7 +802,7 @@ private fun registerConcernGates(config: JavalinConfig) {
     }
 
     config.routes.before(ApiRoutes.CONCERNS) { context ->
-        // #660: the catalog list is global with no branch context, so the gate accepts
+        // the catalog list is global with no branch context, so the gate accepts
         // EDIT_BRANCH_DATA in any context (BRANCH/BRANCH_DAY/GLOBAL) — the same capability
         // the session-anchored promote write requires at its session branch. A GLOBAL-only
         // gate 403'd every role-derived branch holder (EDIT_BRANCH_DATA never derives GLOBAL).
@@ -814,7 +814,7 @@ private fun registerConcernGates(config: JavalinConfig) {
     }
 
     config.routes.before(ApiRoutes.CONCERN_PATH) { context ->
-        // #660: the catalog list is global with no branch context, so the gate accepts
+        // the catalog list is global with no branch context, so the gate accepts
         // EDIT_BRANCH_DATA in any context (BRANCH/BRANCH_DAY/GLOBAL) — the same capability
         // the session-anchored promote write requires at its session branch. A GLOBAL-only
         // gate 403'd every role-derived branch holder (EDIT_BRANCH_DATA never derives GLOBAL).

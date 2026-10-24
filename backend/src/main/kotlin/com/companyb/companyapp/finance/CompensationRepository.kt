@@ -40,7 +40,7 @@ data class CompensationWithUser(
 )
 
 internal object CompensationRepository {
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: CompensationCreateParams): CompensationCreateResult {
         val insertedCount =
             CompensationTable
@@ -73,7 +73,7 @@ internal object CompensationRepository {
     }
 
     /**
-     * #511 — ownership-validated replay (mirrors expense): a same-id row only acks the
+     * ownership-validated replay (mirrors expense): a same-id row only acks the
      * caller's own identical request; a foreign row fails closed so the service-level
      * pre-gate replay is not silently widened here.
      */
@@ -101,7 +101,7 @@ internal object CompensationRepository {
     ): Boolean = existing.amount.compareTo(params.amount) == 0 && existing.note == params.note
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — optimistic-version write on the caller's
+     * In-transaction store operation (ADR-0024) — optimistic-version write on the caller's
      * command transaction; a version mismatch throws before any audit can be written.
      */
     fun updateInTransaction(

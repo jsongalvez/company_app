@@ -27,7 +27,7 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
-/** Before/after projection for invite status mutations (#323). */
+/** Before/after projection for invite status mutations. */
 data class ReliefInviteMutation(
     val before: ReliefInvite,
     val after: ReliefInvite,
@@ -42,7 +42,7 @@ internal object ReliefInviteRepository {
      * constraint class here is exactly the per-person guard, and the read-back by id
      * can only miss if the insert was swallowed).
      *
-     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
+     * In-transaction store operation (ADR-0024) — runs on the caller's command
      * transaction.
      */
     fun insertInTransaction(
@@ -119,7 +119,7 @@ internal object ReliefInviteRepository {
         }
 
     /**
-     * #913 — in-transaction twin of [hasActiveGrant]: true when [userId] holds an
+     * in-transaction twin of [hasActiveGrant]: true when [userId] holds an
      * ACTIVE day-scoped grant for [branchDayId] (either path's grant — both write
      * the same capability). Runs on the caller's command transaction after the day
      * lock, so the per-person duty check commits atomically with the insert it gates.
@@ -143,9 +143,9 @@ internal object ReliefInviteRepository {
             .not()
 
     /**
-     * #359 — ACCEPTED invites whose duty day is [dutyDate]: the reminder-job scan set.
+     * ACCEPTED invites whose duty day is [dutyDate]: the reminder-job scan set.
      * Suppression lives in current state, not events — declined/retracted/revoked/expired
-     * rows are other statuses and never appear here; a revocation (#374) suppresses by
+     * rows are other statuses and never appear here; a revocation suppresses by
      * moving the row OUT of ACCEPTED (REVOKED), no marker cleanup.
      */
     fun findAcceptedForDutyDate(dutyDate: java.time.LocalDate): List<AcceptedInviteWithBranch> =
@@ -266,7 +266,7 @@ internal object ReliefInviteRepository {
     /**
      * Received invites (caller = invitee) — PENDING only, newest first. Resolved rows
      * (ACCEPTED/DECLINED/RETRACTED) never leave the server: the section renders rows
-     * until RESOLVED, not until read (#159 Q5), so a re-entry or cross-device load must
+     * until RESOLVED, not until read, so a re-entry or cross-device load must
      * not resurrect an answered invite with live buttons.
      */
     fun findReceivedByInvitee(invitee: UUID): List<ReliefInviteView> =
@@ -377,7 +377,7 @@ internal object ReliefInviteRepository {
      * WHERE carries the status, so a concurrent response wins and this update hits
      * 0 rows → null → the service 409s). `respondedAt` stamps the DB clock.
      *
-     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
+     * In-transaction store operation (ADR-0024) — runs on the caller's command
      * transaction. Returns null when the invite is missing, not PENDING, or lost a race.
      */
     fun respondInTransaction(
@@ -393,7 +393,7 @@ internal object ReliefInviteRepository {
                 it[ReliefInviteTable.status] = status
                 it[ReliefInviteTable.respondedAt] = CurrentTimestampWithTimeZone
             }
-        // #601 max-2: lost-race and missing-readback nulls share one exit.
+        // max-2: lost-race and missing-readback nulls share one exit.
         val after = if (updated == 0) null else findByIdInTransaction(id)
         if (after == null) return null
         return ReliefInviteMutation(before, after)
@@ -401,11 +401,11 @@ internal object ReliefInviteRepository {
 
     /**
      * Atomic accept: PENDING → ACCEPTED in one atomic store operation. The day-scoped
-     * relief grant is written by the command through the authorization seam (#538) in
+     * relief grant is written by the command through the authorization seam in
      * the same transaction (the grant must not outlive a failed status flip, and
      * the status flip must not commit without the grant).
      *
-     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
+     * In-transaction store operation (ADR-0024) — runs on the caller's command
      * transaction. Returns null when the invite is not PENDING (concurrent response won,
      * or a stale client).
      */
@@ -419,20 +419,20 @@ internal object ReliefInviteRepository {
                 it[ReliefInviteTable.status] = ReliefInviteStatus.ACCEPTED
                 it[ReliefInviteTable.respondedAt] = CurrentTimestampWithTimeZone
             }
-        // #601 max-2: lost-race and missing-readback nulls share one exit.
+        // max-2: lost-race and missing-readback nulls share one exit.
         val after = if (updated == 0) null else findByIdInTransaction(id)
         if (after == null) return null
         return ReliefInviteMutation(before, after)
     }
 
     /**
-     * Atomic revocation (#374): only an ACCEPTED row moves to REVOKED (the WHERE carries
+     * Atomic revocation: only an ACCEPTED row moves to REVOKED (the WHERE carries
      * the status, so a concurrent decision wins and this update hits 0 rows → null → the
      * service 409s; DECLINED/RETRACTED/REVOKED rows are already-decided). Grant removal
      * itself lives in the authorization seam — the
      * command pairs the two inside its one transaction.
      *
-     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
+     * In-transaction store operation (ADR-0024) — runs on the caller's command
      * transaction. Returns null when the invite is missing, not ACCEPTED, or lost a race.
      */
     fun revokeInTransaction(id: UUID): ReliefInviteMutation? {
@@ -445,7 +445,7 @@ internal object ReliefInviteRepository {
                 it[ReliefInviteTable.status] = ReliefInviteStatus.REVOKED
                 it[ReliefInviteTable.respondedAt] = CurrentTimestampWithTimeZone
             }
-        // #601 max-2: lost-race and missing-readback nulls share one exit.
+        // max-2: lost-race and missing-readback nulls share one exit.
         val after = if (updated == 0) null else findByIdInTransaction(id)
         if (after == null) return null
         return ReliefInviteMutation(before, after)

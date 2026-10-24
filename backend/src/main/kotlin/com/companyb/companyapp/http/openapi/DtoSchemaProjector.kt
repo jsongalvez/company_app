@@ -153,14 +153,14 @@ import kotlinx.serialization.descriptors.SerialKind
 import kotlinx.serialization.descriptors.StructureKind
 
 /**
- * #495 — backend-local serializer-descriptor projection for shared DTO component schemas.
+ * backend-local serializer-descriptor projection for shared DTO component schemas.
  * One finite catalog maps generated component names to actual serializers; nested
  * objects stay references, enums/primitives/lists inline. Unknown kinds fail closed.
  */
 internal object DtoSchemaProjector {
     private val mapper = ObjectMapper()
 
-    // Finite catalog: generated component name -> actual shared DTO serializer. #495
+    // Finite catalog: generated component name -> actual shared DTO serializer.
     val catalog: Map<String, KSerializer<*>> =
         mapOf(
             "AcceptInviteRequest" to AcceptInviteRequest.serializer(),
@@ -347,7 +347,7 @@ internal object DtoSchemaProjector {
         return wrapNullable(descriptor, base)
     }
 
-    // #495 — non-null base shape for one descriptor kind.
+    // non-null base shape for one descriptor kind.
     private fun baseSchemaFor(descriptor: SerialDescriptor): ObjectNode =
         when (descriptor.kind) {
             PrimitiveKind.STRING -> {
@@ -388,7 +388,7 @@ internal object DtoSchemaProjector {
             }
         }
 
-    // #495 — nested catalog DTOs stay references so components own their schemas.
+    // nested catalog DTOs stay references so components own their schemas.
     private fun classReferenceOrInline(descriptor: SerialDescriptor): ObjectNode {
         val simpleName = descriptor.serialName.substringAfterLast('.')
         if (simpleName in catalog) {
@@ -397,7 +397,7 @@ internal object DtoSchemaProjector {
         return projectClass(descriptor)
     }
 
-    // #495 — OpenAPI 3.1 null union for an already-projected base schema.
+    // OpenAPI 3.1 null union for an already-projected base schema.
     private fun wrapNullable(
         descriptor: SerialDescriptor,
         base: ObjectNode,

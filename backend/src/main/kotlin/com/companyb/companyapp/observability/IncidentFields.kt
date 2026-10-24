@@ -5,7 +5,7 @@ import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
 
-/** #499 — field helpers extracted from IncidentService to stay under TooManyFunctions. */
+/** field helpers extracted from IncidentService to stay under TooManyFunctions. */
 internal object IncidentFields {
     fun validated(
         value: String,

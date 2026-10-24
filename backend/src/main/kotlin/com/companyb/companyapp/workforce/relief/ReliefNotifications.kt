@@ -28,14 +28,14 @@ data class ReliefEventContext(
 }
 
 /**
- * Relief notification events (#358, rules from the #352 resolution). Every function runs
+ * Relief notification events (rules from the resolution). Every function runs
  * inside the owning command's transaction — the broadcast commits with the change it
  * announces (ADR-0024 shape; a failing insert rolls the mutation back).
  *
  * Audience (owner Q5): every member of the branch, clocked in or not, one message per
  * person. Outcomes also reach the requester — "let ben know carla's response in addition
  * to ana". Expiry reaches the original ping list: the users holding the request's
- * RELIEF_REQUESTED rows. Cancellation is deliberately silent — not in the #352 event list.
+ * RELIEF_REQUESTED rows. Cancellation is deliberately silent — not in the event list.
  */
 internal object ReliefNotifications {
     const val REQUESTED = "RELIEF_REQUESTED"
@@ -46,7 +46,7 @@ internal object ReliefNotifications {
     const val INVITE_DECLINED = "RELIEF_INVITE_DECLINED"
     const val INVITE_REVOKED = "RELIEF_INVITE_REVOKED"
 
-    // #359 — accepted-invite reminders: T-3 days, T-1 day, day-of (Manila calendar days).
+    // accepted-invite reminders: T-3 days, T-1 day, day-of (Manila calendar days).
     // sourceId = the invite; one marker row per (event, invite) makes job re-runs idempotent.
     const val REMINDER_3_DAYS = "RELIEF_REMINDER_3_DAYS"
     const val REMINDER_1_DAY = "RELIEF_REMINDER_1_DAY"
@@ -120,7 +120,7 @@ internal object ReliefNotifications {
     }
 
     /**
-     * Accepted-invite revocation (#374, #363 rulings 4): the whole branch hears it — the
+     * Accepted-invite revocation (rulings 4): the whole branch hears it — the
      * accept was broadcast and created reliance on both sides, so revocation departs from
      * request-cancellation silence — and the invitee additionally gets an explicit notice
      * naming branch + date.
@@ -146,7 +146,7 @@ internal object ReliefNotifications {
                 dedupKey = reliefOccurrenceKey(INVITE_REVOKED, inviteId),
             ),
         )
-        // #508 — the invitee's explicit notice shares the event + source but carries its own
+        // the invitee's explicit notice shares the event + source but carries its own
         // occurrence key: per (occurrence, recipient) uniqueness must keep BOTH rows even
         // when the invitee is a branch member holding the broadcast above.
         broadcastInTransaction(
@@ -163,8 +163,8 @@ internal object ReliefNotifications {
     }
 
     /**
-     * Accepted-invite reminder (#359): goes to the invitee only — the branch stays quiet
-     * until the duty day itself (#352 reminders ruling). The phrase follows the slot, not
+     * Accepted-invite reminder: goes to the invitee only — the branch stays quiet
+     * until the duty day itself (reminders ruling). The phrase follows the slot, not
      * a clock read: the day-of sweep says "for today", the earlier sweeps name the date.
      */
     fun inviteReminder(
@@ -187,7 +187,7 @@ internal object ReliefNotifications {
     }
 
     /**
-     * Unanswered requests announce themselves when their Branch Day ends (#358). The notice
+     * Unanswered requests announce themselves when their Branch Day ends. The notice
      * goes to the original ping list only — resolved from the stored RELIEF_REQUESTED rows.
      */
     fun requestExpired(
@@ -213,16 +213,16 @@ internal object ReliefNotifications {
         )
     }
 
-    // #409 — ACTIVE members only: deactivation revokes access but leaves the assignment
+    // ACTIVE members only: deactivation revokes access but leaves the assignment
     // open, so the assignment-only read would keep broadcasting to users who can never
-    // sign in again. Same definition as the #366 directory read (BranchMemberRepository).
+    // sign in again. Same definition as the directory read (BranchMemberRepository).
     private fun members(branchId: UUID): List<UUID> = BranchMemberRepository.findActiveMemberIds(branchId)
 
     /** Same-day messages say today; future/past ones name the date (owner Q5). */
     private fun dayPhrase(date: LocalDate): String =
         if (date == BranchDayService.currentOperationalDate()) "for today" else "on $date"
 
-    // #614 — producer-owned occurrence keys: the mailbox store persists the supplied
+    // producer-owned occurrence keys: the mailbox store persists the supplied
     // key verbatim and never derives identity from payload fields.
     private fun reliefOccurrenceKey(
         eventType: String,
@@ -234,7 +234,7 @@ internal object ReliefNotifications {
         sourceId: UUID,
     ): String = "$eventType:$sourceId:direct"
 
-    // #508 — one broadcast param object: the revocation direct notice carries its own
+    // one broadcast param object: the revocation direct notice carries its own
     // occurrence key alongside the shared event + source identity.
     private data class ReliefBroadcast(
         val eventType: String,
@@ -261,7 +261,7 @@ internal object ReliefNotifications {
             },
         )
 
-    // #602 — command-transaction broadcast: relief commands that already own a transaction
+    // command-transaction broadcast: relief commands that already own a transaction
     // persist the rows on that transaction so the notice commits atomically with the change.
     // Job entry points without an outer transaction keep using [broadcast].
     private fun broadcastInTransaction(broadcast: ReliefBroadcast): Int =

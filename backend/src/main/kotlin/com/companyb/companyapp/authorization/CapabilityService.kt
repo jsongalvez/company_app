@@ -45,9 +45,9 @@ object CapabilityService {
     fun findBranchWindow(userId: UUID): List<UUID> = CapabilityRepository.findBranchWindow(userId)
 
     /**
-     * Day-scoped gate (#157): true when [userId] holds [capabilityCode] at [branchId]
+     * Day-scoped gate: true when [userId] holds [capabilityCode] at [branchId]
      * (BRANCH) or at [branchDayId] (BRANCH_DAY — a relief grant for that day).
-     * GLOBAL grants do NOT satisfy this check (the #131 strictness).
+     * GLOBAL grants do NOT satisfy this check (the strictness).
      */
     fun hasCapabilityForBranchDay(
         userId: UUID,

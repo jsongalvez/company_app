@@ -25,7 +25,7 @@ import java.util.UUID
  * Day state is lazily evaluated against the current operational date: a day that is still OPEN
  * but whose date precedes [currentOperationalDate] is treated as PAST. The operational day rolls
  * over at 04:00 Asia/Manila, not at calendar midnight — the pure cutoff rule lives in shared
- * [OperationalDay] (#875, the single owner both sides delegate to); this service is the backend
+ * [OperationalDay] (the single owner both sides delegate to); this service is the backend
  * authority applying it, and consumers must never derive it independently.
  */
 object BranchDayService {
@@ -80,7 +80,7 @@ object BranchDayService {
     /**
      * Branch-scoped variant of [requireBranchDayExists] (the parent-child convention): the
      * day must belong to [branchId], else 404 — a foreign day is indistinguishable from a
-     * missing one. Used by the #157 session-create gated-day guard.
+     * missing one. Used by the session-create gated-day guard.
      */
     fun requireBranchDayForBranch(
         branchDayId: UUID,
@@ -101,7 +101,7 @@ object BranchDayService {
     }
 
     /**
-     * Find-only branch-day lookup by explicit date — never creates. The #158 read-side
+     * Find-only branch-day lookup by explicit date — never creates. The read-side
      * day gates use this to resolve the day a single-day summary read refers to.
      */
     fun findByBranchAndDate(
@@ -310,13 +310,13 @@ object BranchDayService {
     }
 
     /**
-     * In-transaction Branch Day transitions for a remittance submission (#320, audited #603):
+     * In-transaction Branch Day transitions for a remittance submission (audited):
      * marks every covered day REMITTED and writes its own domain audit inside the caller's
      * open transaction — no transaction of its own (ADR-0024 rule 2). This is the Branch Day
      * feature boundary: remittance code never touches branch-day tables and never carries
      * before/after images for this audit.
      *
-     * #507 — locks days in stable sorted order (same order as the undo release) so
+     * locks days in stable sorted order (same order as the undo release) so
      * concurrent cross-type submit/undo serialize instead of deadlocking. Days already
      * REMITTED by surviving coverage are skipped: no write, no audit row.
      */
@@ -340,7 +340,7 @@ object BranchDayService {
 
     /**
      * Locks the given days in stable sorted order on the caller's open transaction.
-     * #507 — the undo path holds these locks while checking surviving SUBMITTED coverage,
+     * the undo path holds these locks while checking surviving SUBMITTED coverage,
      * so the check and the conditional release join the same serialization order as submit.
      */
     fun lockDaysInTransaction(branchDayIds: List<UUID>) {
@@ -351,12 +351,12 @@ object BranchDayService {
     }
 
     /**
-     * In-transaction inverse of [markDaysRemittedInTransaction] (#320, audited #603): each released
+     * In-transaction inverse of [markDaysRemittedInTransaction] (audited): each released
      * day re-derives its status from its operational date via [evaluateStatus] (an OPEN day whose
      * date has passed becomes PAST) and writes its own domain audit inside the caller's open
      * transaction.
      *
-     * #507 — days in [retainRemitted] stay REMITTED (surviving SUBMITTED coverage from the
+     * days in [retainRemitted] stay REMITTED (surviving SUBMITTED coverage from the
      * other flow) and produce no audit row, so audit rows match actual state changes.
      * Locks in stable sorted order, shared with [markDaysRemittedInTransaction].
      */

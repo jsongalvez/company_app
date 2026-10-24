@@ -15,7 +15,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 /**
- * Store operations for single-use credential tokens (#350, ADR-0024 rule 2): every function
+ * Store operations for single-use credential tokens (ADR-0024 rule 2): every function
  * runs on the caller's command transaction and opens none. The raw token never reaches this
  * layer — callers pass the [com.companyb.companyapp.identity.CredentialTokens.hash] digest.
  */
@@ -69,7 +69,7 @@ internal object CredentialTokenRepository {
             it[consumedAt] = CurrentTimestampWithTimeZone
         } > 0
 
-    /** Unconsumed tokens for [userId] + [purpose], any expiry — the re-invite recovery window (#350). */
+    /** Unconsumed tokens for [userId] + [purpose], any expiry — the re-invite recovery window. */
     fun hasOutstandingInTransaction(
         userId: UUID,
         purpose: CredentialTokenPurpose,

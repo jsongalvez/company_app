@@ -3,7 +3,7 @@ package com.companyb.companyapp.finance
 import java.util.UUID
 
 /**
- * Named finance-read seams for cross-owner consumers (map #533 #546): authorization expense
+ * Named finance-read seams for cross-owner consumers: authorization expense
  * resolution and compensation route gating. Thin delegations to the internal finance stores —
  * not a facade over every method. Service-to-service calls need no architecture allowlist
  * entry; direct store imports from other owners stay banned.

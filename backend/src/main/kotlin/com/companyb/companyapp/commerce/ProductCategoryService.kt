@@ -33,7 +33,7 @@ object ProductCategoryService {
 }
 
 /**
- * Product-category audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * Product-category audit vocabulary (ADR-0024 rule 3). Called by the command inside its own
  * transaction so the audit row commits atomically with the mutation. Owns the persistence-table
  * imports so the public command surface does not.
  */

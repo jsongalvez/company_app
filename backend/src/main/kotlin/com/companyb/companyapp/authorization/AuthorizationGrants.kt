@@ -3,9 +3,9 @@ package com.companyb.companyapp.authorization
 import java.util.UUID
 
 /**
- * Narrow grant seam for workforce commands (#538): the relief request/accept/revoke and
+ * Narrow grant seam for workforce commands: the relief request/accept/revoke and
  * delegate assign/revoke flows write grants only through here — thin delegations to the
- * internal [GrantStore], not a facade over every store method (the #537 `AccountReads`
+ * internal [GrantStore], not a facade over every store method (the `AccountReads`
  * precedent). Service-to-service calls need no architecture allowlist entry; direct
  * grant-table imports from other owners stay banned.
  */
@@ -25,7 +25,7 @@ object AuthorizationGrants {
 
     /**
      * Writes the branch-scoped delegate grant for the delegate-assign flow.
-     * Owns the fixed capability, source, context and priority (#606) — callers
+     * Owns the fixed capability, source, context and priority — callers
      * supply only target user, branch and delegate identity.
      * Runs on the caller's command transaction.
      */

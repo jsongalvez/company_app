@@ -9,10 +9,10 @@ import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
 
 /**
- * #551 — small executor owner for daily sweeps. Concrete jobs (tasks + initial-delay
+ * small executor owner for daily sweeps. Concrete jobs (tasks + initial-delay
  * functions) are supplied at application composition ([com.companyb.companyapp.main] wires
  * the production NextAppointment/Relief jobs); this owner keeps only executor lifecycle,
- * 24h periods (#503) and failure isolation. Delays stay in milliseconds.
+ * 24h periods and failure isolation. Delays stay in milliseconds.
  */
 data class ScheduledJob(
     val name: String,
@@ -29,7 +29,7 @@ class SchedulerLifecycle(
 
     @Suppress("TooGenericExceptionCaught") // #600 best-effort sweep must not kill the scheduler:
     // scheduleAtFixedRate suppresses all future runs once its Runnable throws, so catch
-    // Exception (not just RuntimeException) — Errors still propagate. ref #914
+    // Exception (not just RuntimeException) — Errors still propagate. ref
     private fun runTask(
         name: String,
         block: () -> Unit,

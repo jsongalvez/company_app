@@ -50,7 +50,7 @@ data class SellProductResult(
 
 internal object ProductSaleRepository {
     /**
-     * In-transaction store operation (#323, ADR-0024) — idempotent fast-path for a same-day retry:
+     * In-transaction store operation (ADR-0024) — idempotent fast-path for a same-day retry:
      * returns the existing sale after ownership validation, null when the id belongs to a sale of a
      * different branch day so the caller falls through to the day gate (gate-beats-NotFound).
      */
@@ -61,7 +61,7 @@ internal object ProductSaleRepository {
         return existing
     }
 
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun insertSaleInTransaction(params: SellProductParams): Boolean =
         ProductSaleTable
             .insertIgnore {
@@ -81,7 +81,7 @@ internal object ProductSaleRepository {
                 it[ProductSaleTable.soldAt] = CurrentTimestampWithTimeZone
             }.insertedCount > 0
 
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun insertSaleMovementInTransaction(params: SellProductParams) {
         InventoryMovementTable.insert {
             it[InventoryMovementTable.productId] = params.productId
@@ -131,7 +131,7 @@ internal object ProductSaleRepository {
             findByIdInTransaction(id)
         }
 
-    /** In-transaction read (#497) — runs on the caller's transaction for the shared aggregation. */
+    /** In-transaction read — runs on the caller's transaction for the shared aggregation. */
     fun findNonVoidedSalesByBranchDayInTransaction(branchDayId: UUID): List<ProductSale> =
         ProductSaleTable
             .join(
@@ -154,7 +154,7 @@ internal object ProductSaleRepository {
                     (ActiveSessionVoidsView.sessionId.isNull())
             }.map { it.toProductSale() }
 
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun findByIdInTransaction(id: UUID): ProductSale? =
         ProductSaleTable
             .selectAll()

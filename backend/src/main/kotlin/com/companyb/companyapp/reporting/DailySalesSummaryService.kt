@@ -28,7 +28,7 @@ object DailySalesSummaryService {
      * Paged feed over `(date DESC, branch_day_id DESC)`. [limit] entries are
      * returned plus the [DailySalesSummaryBrowseResponse.nextCursor] to fetch
      * the next page; `null` cursor = no more pages. [from]/[to] bound the
-     * window inclusively (null = unbounded) — the #105 D4 feed modes.
+     * window inclusively (null = unbounded) — the feed modes.
      */
     fun browseDailySummaries(
         branchId: UUID,

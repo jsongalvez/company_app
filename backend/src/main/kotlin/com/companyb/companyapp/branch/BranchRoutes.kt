@@ -101,20 +101,20 @@ object BranchRoutes {
             )
         }
 
-        // #656 (same class as #653): before(BRANCHES) is exact-segment (#114)
+        // (same class as): before(BRANCHES) is exact-segment
         // and never fires on this 3-segment item path, which had no gate of its
         // own — any authenticated caller could read any branch by UUID,
-        // bypassing the BranchReadScope window. Gate on the #131 read window
+        // bypassing the BranchReadScope window. Gate on the read window
         // (BRANCH or GLOBAL VIEW_BRANCH_DATA, mirroring the summary/browse reads).
         // Deliberately not a wildcard broadening of before(BRANCHES) —
-        // BRANCHES_ACCESSIBLE stays open per #131. Its static 3-segment path
+        // BRANCHES_ACCESSIBLE stays open. Its static 3-segment path
         // also matches this {branchId} filter, so skip that segment here;
         // otherwise the picker 400s on UUID parsing for zero-grant callers.
         config.routes.before(ApiRoutes.BRANCH_PATH) { context ->
             val rawSegment = context.pathParam(BRANCH_ID_PARAM)
             if (rawSegment == ApiRoutes.BRANCHES_ACCESSIBLE.substringAfterLast("/")) return@before
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            // #745 — 404 precedence for an unknown branch before the capability gate (#730/#732/#744 precedent).
+            // 404 precedence for an unknown branch before the capability gate (precedent).
             BranchService.findById(branchId)
             CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
                 context,
@@ -123,7 +123,7 @@ object BranchRoutes {
             )
         }
 
-        // #131: the Reports picker data source — the caller's read window
+        // the Reports picker data source — the caller's read window
         // (distinct BRANCH grants, or all branches for a GLOBAL
         // VIEW_BRANCH_DATA holder). No capability gate: zero-grant callers
         // get an empty list (audit-log "zero-grant empty-not-403" pattern).
@@ -148,7 +148,7 @@ object BranchRoutes {
             val branchId = uuidOrThrow(request.id, "branch id")
             val name = request.name.trim()
             if (name.isBlank()) throw BadRequestResponse("Branch name is required")
-            // #876 — the forward-compat sentinel is never valid input (the Postgres enum
+            // the forward-compat sentinel is never valid input (the Postgres enum
             // column carries no such label). Unknown strings still 400 at decode.
             if (request.branchType == BranchType.UNKNOWN) throw BadRequestResponse("Unknown branch type")
             val result =

@@ -19,7 +19,7 @@ data class AllowanceCreateResult(
 )
 
 internal object AllowanceRepository {
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: AllowanceCreateParams): AllowanceCreateResult {
         val insertedCount =
             AllowanceTable
@@ -44,7 +44,7 @@ internal object AllowanceRepository {
     }
 
     /**
-     * Ownership-validated replay (mirrors expense #510 / compensation #511): a same-id row
+     * Ownership-validated replay (mirrors expense / compensation): a same-id row
      * only acks the caller's own identical request; a foreign row fails closed so the
      * service-level pre-gate replay is not silently widened here.
      */

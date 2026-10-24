@@ -15,7 +15,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 /**
- * Session practitioner commands (#323, ADR-0024). Each mutating command owns exactly one
+ * Session practitioner commands (ADR-0024). Each mutating command owns exactly one
  * business transaction: the before-state read, day gate, store write (with its session-version
  * bump), and the audit insert all run on it — so domain write + audit commit atomically.
  */
@@ -54,7 +54,7 @@ internal object SessionPractitionerService {
         return transaction {
             val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason)
 
-            // #926 — status-only INACTIVE guard (#366 parity): unknown users 404 above,
+            // status-only INACTIVE guard (parity): unknown users 404 above,
             // deactivated users 400 here before the slot snapshot. Never a membership
             // check — ACTIVE outsiders (relief) stay eligible for the 999 fallback.
             requireActivePractitionerInTransaction(practitionerId)
@@ -159,7 +159,7 @@ internal object SessionPractitionerService {
     }
 
     /**
-     * #926 — status-only practitioner guard (runs on the caller's command transaction):
+     * status-only practitioner guard (runs on the caller's command transaction):
      * INACTIVE targets fail closed with 400 before any slot snapshot or row write.
      */
     private fun requireActivePractitionerInTransaction(practitionerId: UUID) {
@@ -174,11 +174,11 @@ internal object SessionPractitionerService {
         reason: String?,
     ): Triple<Session, BranchDay, Boolean> {
         val session = SessionRepository.findByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
-        // #910 — client-first lock order (the #509 precedent): serialize with
+        // client-first lock order (the precedent): serialize with
         // ClientService.anonymize on the client row so a practitioner write can
         // never commit inside the anonymize census-to-redaction window. Writes
         // for anonymized clients 409 (sticky anonymization, the session-create
-        // #692 and PENDING-reopen 409 precedent) instead of reintroducing the
+        // and PENDING-reopen 409 precedent) instead of reintroducing the
         // free text #908 scrubs; reads stay open via getForSession.
         val client =
             ClientReads.acquireLockInTransaction(session.clientId) ?: throw NotFoundException("Client not found")
@@ -192,7 +192,7 @@ internal object SessionPractitionerService {
 }
 
 /**
- * Session-practitioner audit vocabulary (#323, ADR-0024 rule 3). Called by the commands inside
+ * Session-practitioner audit vocabulary (ADR-0024 rule 3). Called by the commands inside
  * their own transaction so audit rows commit atomically with the mutation. Owns the
  * persistence-table import so the public command surface does not.
  */

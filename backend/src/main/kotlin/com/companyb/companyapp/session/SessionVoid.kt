@@ -35,7 +35,7 @@ internal object SessionVoidTable : Table("session_void") {
         mapOf(
             "id" to entity.id.toString(),
             "sessionId" to entity.sessionId.toString(),
-            // #525 field policy — the full void lifecycle is value-diffed: the void
+            // field policy — the full void lifecycle is value-diffed: the void
             // event (actor/time/reason) and the unvoid event (actor/time/reason).
             // No manual additions exist in SessionService beyond this mapping.
             "voidedAt" to entity.voidedAt.toString(),

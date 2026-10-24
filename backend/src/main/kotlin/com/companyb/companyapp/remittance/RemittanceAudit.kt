@@ -4,7 +4,7 @@ import com.companyb.companyapp.audit.AuditLog
 import java.util.UUID
 
 /**
- * Remittance audit vocabulary (#320, ADR-0024 rule 3). The feature command calls these helpers
+ * Remittance audit vocabulary (ADR-0024 rule 3). The feature command calls these helpers
  * directly inside its own transaction — no callback coordination — so each audit row commits
  * with the mutation it describes. Centralizing them here keeps persistence `*Table` imports out
  * of the public command surface.

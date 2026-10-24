@@ -43,7 +43,7 @@ data class BranchDayUser(
     val displayName: String,
 )
 
-/** #404 — one active home member projected for the attendance roster. */
+/** one active home member projected for the attendance roster. */
 data class RosterMember(
     val assignmentId: UUID,
     val userId: UUID,
@@ -52,7 +52,7 @@ data class RosterMember(
 )
 
 /**
- * #669 — one open clock-in window on the operational day: the resume fact. Carries the
+ * one open clock-in window on the operational day: the resume fact. Carries the
  * branch identity the client needs to republish its clock context without a second
  * clock-in. Most-recent clock-in wins when several windows stand open (cross-branch
  * doubles are possible — ShiftGuard guards per branch day, not per user).
@@ -67,7 +67,7 @@ data class ActiveShift(
 )
 
 /**
- * Attendance persistence (#321, ADR-0024). Mutating functions are **in-transaction store
+ * Attendance persistence (ADR-0024). Mutating functions are **in-transaction store
  * operations**: they open no transaction of their own and take no audit callback — they execute
  * on the caller's (command-owned) transaction, which [AttendanceService] also uses to insert
  * the audit row atomically. Read helpers keep their convenient transaction wrappers.
@@ -200,7 +200,7 @@ internal object AttendanceRepository {
             ?.toAttendance()
 
     /**
-     * #404 — the target's open clock-in at one branch day, or null when absent.
+     * the target's open clock-in at one branch day, or null when absent.
      * In-transaction store read for the mark-absent command.
      */
     fun findActiveByUserAndBranchDayInTransaction(
@@ -217,7 +217,7 @@ internal object AttendanceRepository {
             ?.toAttendance()
 
     /**
-     * #669 — the caller's open clock-in window on [date], or null when absent/closed.
+     * the caller's open clock-in window on [date], or null when absent/closed.
      * Find-only store read for the launch/login resume: a missing day row matches nothing,
      * so the read never creates days and writes no audit row. Most-recent clock-in wins.
      */
@@ -261,7 +261,7 @@ internal object AttendanceRepository {
         )
     }
 
-    /** #404 — user ids with an open clock-in at the branch day (roster presence flags). */
+    /** user ids with an open clock-in at the branch day (roster presence flags). */
     fun activeClockInUserIds(branchDayId: UUID): Set<UUID> =
         transaction {
             AttendanceTable
@@ -273,7 +273,7 @@ internal object AttendanceRepository {
         }.toSet()
 
     /**
-     * #519 — lock the distinct participant set in stable user-ID order, then evaluate
+     * lock the distinct participant set in stable user-ID order, then evaluate
      * membership from those locked facts. Reciprocal marks (A marks B while B marks A)
      * take the same order, so neither can hold one participant's rows while waiting on
      * the other's. One locked read per participant — the reads are the evaluation, so
@@ -295,7 +295,7 @@ internal object AttendanceRepository {
     }
 
     /**
-     * #404 — ACTIVE-user home membership at the branch, read under the assignment row lock so a
+     * ACTIVE-user home membership at the branch, read under the assignment row lock so a
      * concurrent revocation serializes with the mark command instead of racing its gate.
      */
     fun hasActiveMembershipInTransaction(
@@ -352,7 +352,7 @@ internal object AttendanceRepository {
         }
 
     /**
-     * In-transaction full-window read (#497) — the shared commission aggregation needs every
+     * In-transaction full-window read — the shared commission aggregation needs every
      * clock-in/out window for the day, not just the open ones.
      */
     fun findByBranchDayIdInTransaction(branchDayId: UUID): List<Attendance> =
@@ -379,7 +379,7 @@ internal object AttendanceRepository {
         }.also { logger.info { "[FIND-BRANCH-DAY-USERS] Found ${it.size} users for branch_day $branchDayId" } }
 
     /**
-     * #404 — the branch's ACTIVE home members with names and Branch Slots, ordered slot
+     * the branch's ACTIVE home members with names and Branch Slots, ordered slot
      * first (1 = senior), then display name, then user id (deterministic ties). Presence
      * flags are applied by the caller.
      */

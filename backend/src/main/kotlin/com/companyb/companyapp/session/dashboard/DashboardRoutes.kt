@@ -119,24 +119,24 @@ object DashboardRoutes {
     }
 }
 
-/** #366 — the per-read enrichment tables [mapDashboardSession] joins the session rows with. */
+/** the per-read enrichment tables [mapDashboardSession] joins the session rows with. */
 internal data class DashboardSessionEnrichment(
     val clientNames: Map<UUID, ClientNames>,
     val voidedSessionIds: Set<UUID>,
     val practitionerBySession: Map<UUID, List<SessionPractitionerWithName>>,
     val concernsBySession: Map<UUID, List<ConcernWithSessionId>>,
-    /** #366 — requested-practitioner display names keyed by user id (#366). */
+    /** requested-practitioner display names keyed by user id. */
     val requestedPractitionerNames: Map<UUID, String> = emptyMap(),
     /**
-     * #382 — owning branch per session id. The dashboard path knows it from the route; the
+     * owning branch per session id. The dashboard path knows it from the route; the
      * single-session detail read resolves it from the session's branch day.
      */
     val branchIdBySession: Map<UUID, UUID> = emptyMap(),
 )
 
 /**
- * Shared session → [DashboardSessionResponse] mapping — the dashboard list and the #152
- * session-detail read render byte-identical (#151 Q3: reuse the DTO, no new shape).
+ * Shared session → [DashboardSessionResponse] mapping — the dashboard list and the
+ * session-detail read render byte-identical (reuse the DTO, no new shape).
  * The practitioner/concern lists arrive pre-grouped by session so the dashboard list path
  * groups once instead of per session.
  */
@@ -184,7 +184,7 @@ internal fun mapDashboardSession(
     )
 }
 
-/** Single Concern → [ConcernResponse] seam (#459): dashboard and session reads share it. */
+/** Single Concern → [ConcernResponse] seam: dashboard and session reads share it. */
 internal fun Concern.toResponse(): ConcernResponse =
     ConcernResponse(
         id = id.toString(),

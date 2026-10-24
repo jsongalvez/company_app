@@ -12,7 +12,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 /**
- * Session concern commands (#323, ADR-0024). Each mutating command owns exactly one business
+ * Session concern commands (ADR-0024). Each mutating command owns exactly one business
  * transaction: the before-state read, day gate, store write, and the audit insert(s) run on it.
  * [promoteConcern] writes THREE audit rows (concern insert, link insert, session other-concerns
  * clear) into that one transaction.
@@ -162,11 +162,11 @@ internal object SessionConcernService {
         reason: String?,
     ): Triple<Session, BranchDay, Boolean> {
         val session = SessionRepository.findByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
-        // #910 — client-first lock order (the #509 precedent): serialize with
+        // client-first lock order (the precedent): serialize with
         // ClientService.anonymize on the client row so a concern write can
         // never commit inside the anonymize census-to-redaction window. Writes
         // for anonymized clients 409 (sticky anonymization, the session-create
-        // #692 and PENDING-reopen 409 precedent) instead of reintroducing the
+        // and PENDING-reopen 409 precedent) instead of reintroducing the
         // free text #908 scrubs; reads stay open via getForSession.
         val client =
             ClientReads.acquireLockInTransaction(session.clientId) ?: throw NotFoundException("Client not found")
@@ -180,7 +180,7 @@ internal object SessionConcernService {
 }
 
 /**
- * Session-concern audit vocabulary (#323, ADR-0024 rule 3). Called by the commands inside their
+ * Session-concern audit vocabulary (ADR-0024 rule 3). Called by the commands inside their
  * own transaction so the audit rows commit atomically with the mutation. Owns the persistence-
  * table imports (session_concern + the concern/session rows promotion touches).
  */

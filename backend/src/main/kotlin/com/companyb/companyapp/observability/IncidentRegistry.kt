@@ -4,7 +4,7 @@ import com.companyb.companyapp.contracts.incident.IncidentPacket
 import java.util.Collections
 
 /**
- * #475 — bounded in-memory dedup for incident packets. Repeat reports for one
+ * bounded in-memory dedup for incident packets. Repeat reports for one
  * trace id collapse to the first packet (user hammer + 5xx auto-file for the
  * same request stay one issue). Last-1000 window mirrors [RateLimiter]'s cap.
  */
@@ -38,7 +38,7 @@ internal object IncidentRegistry {
     fun find(traceId: String): IncidentPacket? = synchronized(filed) { filed[traceId] }
 
     /**
-     * #526 — evicts a receipt whose delivery never reached the network
+     * evicts a receipt whose delivery never reached the network
      * (absent/rejected executor), so a later report for the same trace retries
      * instead of being misreported as a duplicate. Ambiguous post-send
      * failures stay filed: the packet may already be an issue.

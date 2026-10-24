@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import io.javalin.openapi.plugin.DefinitionProcessor
 
 /**
- * #495 — canonical OpenAPI document owner. Starts from kapt's generated operation
+ * canonical OpenAPI document owner. Starts from kapt's generated operation
  * document and replaces DTO component schemas from their actual serializers.
  * Production OpenApiPlugin and the Gradle export/contract check call this same
  * function. Descriptor field/enum names preserve `is`-prefixes; requiredness
@@ -17,7 +17,7 @@ object OpenApiCanonical {
 
     val processor: DefinitionProcessor = DefinitionProcessor { document -> canonicalize(document.toString()) }
 
-    /** #495 — named classpath boundary for the kapt resource (ref #468). */
+    /** named classpath boundary for the kapt resource. */
     fun kaptResourceText(): String {
         val stream =
             OpenApiCanonical::class.java.getResourceAsStream("/openapi-plugin/openapi-default.json")
@@ -75,7 +75,7 @@ object OpenApiCanonical {
         }
     }
 
-    // #495 — one path's operations share the same security rule.
+    // one path's operations share the same security rule.
     private fun fixPathSecurity(
         path: String,
         methods: com.fasterxml.jackson.databind.JsonNode?,

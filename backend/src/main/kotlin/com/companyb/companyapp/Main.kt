@@ -131,7 +131,7 @@ private fun configurePlugins(config: io.javalin.config.JavalinConfig) {
                 }
                 builder.withBearerAuth("BearerAuth")
             }
-            // #495 — one canonical transformation owns the served document; offline
+            // one canonical transformation owns the served document; offline
             // export calls the same function so the packaged app and export agree.
             openapi.withDefinitionProcessor(OpenApiCanonical.processor)
         },
@@ -179,7 +179,7 @@ private fun configureAuth(config: io.javalin.config.JavalinConfig) {
 }
 
 /**
- * #495 — narrow production route seam callable by contract tests without database
+ * narrow production route seam callable by contract tests without database
  * or scheduler startup. Retains #471 TraceIdFilter behavior via the caller's
  * config; tests capture method/path pairs with `config.events.handlerAdded`.
  */
@@ -271,7 +271,7 @@ private fun registerExceptionHandlers(config: io.javalin.config.JavalinConfig) {
 }
 
 /**
- * #475 — 5xx auto-file. A status handler (not a generic `Exception` handler)
+ * 5xx auto-file. A status handler (not a generic `Exception` handler)
  * so the domain handlers above keep their specificity: any response that
  * leaves the server as 500 files the same packet shape as a user report,
  * without user action. Dedup by trace id collapses the auto-file with a
@@ -297,8 +297,8 @@ private fun registerServerErrorHandler(config: io.javalin.config.JavalinConfig) 
 }
 
 /**
- * #551 — application composition owns the concrete daily jobs; [SchedulerLifecycle]
- * keeps only executor lifecycle. Same three sweeps, same 24h periods (#503):
+ * application composition owns the concrete daily jobs; [SchedulerLifecycle]
+ * keeps only executor lifecycle. Same three sweeps, same 24h periods:
  * appointments + relief-reminder at 07:00 Manila, relief-expiry at 04:05 Manila.
  */
 private val schedulerLifecycle =
@@ -311,14 +311,14 @@ private val schedulerLifecycle =
                     initialDelayMs = NextAppointmentScheduler::nextRunDelayMs,
                     task = { NextAppointmentScheduler.run(java.time.Clock.system(BranchDayService.manilaZone)) },
                 ),
-                // #358 — expired relief requests announce themselves just after the 04:00 Manila
+                // expired relief requests announce themselves just after the 04:00 Manila
                 // day boundary; same executor, own schedule.
                 ScheduledJob(
                     name = "Relief-expiry",
                     initialDelayMs = ReliefRequestExpiryJob::nextRunDelayMs,
                     task = { ReliefRequestExpiryJob.run(java.time.Clock.system(BranchDayService.manilaZone)) },
                 ),
-                // #359 — accepted-invite reminders sweep at 07:00 Manila, same slot as appointments.
+                // accepted-invite reminders sweep at 07:00 Manila, same slot as appointments.
                 ScheduledJob(
                     name = "Relief-reminder",
                     initialDelayMs = ReliefInviteReminderJob::nextRunDelayMs,
@@ -328,7 +328,7 @@ private val schedulerLifecycle =
     )
 
 /**
- * Single shutdown seam (#455): every Javalin lifecycle event and the init
+ * Single shutdown seam: every Javalin lifecycle event and the init
  * failure path drain through here with the same order (scheduler → mail →
  * database). Flags select the subset each event owns: stopping never owned
  * the database, stopped/stop-failed never owned the scheduler.

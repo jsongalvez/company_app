@@ -15,7 +15,7 @@ import java.math.BigDecimal
 import java.util.UUID
 
 /**
- * Product-sale feature command (#323, ADR-0024). [sell] owns exactly one transaction: the day
+ * Product-sale feature command (ADR-0024). [sell] owns exactly one transaction: the day
  * gate, lookups, idempotent insert, locked card read + stock guard, movement insert, both audit
  * rows, and the commission recalculation all run inside it — sale, stock decrement, movement,
  * audit, and commission splits commit atomically or not at all.
@@ -23,7 +23,7 @@ import java.util.UUID
 object ProductSaleService {
     private val logger = KotlinLogging.logger {}
 
-    // #597: 10-param sale command stays whole per #535; the single command-owned transaction
+    // 10-param sale command stays whole; the single command-owned transaction
     // (ADR-0024) keeps day gate + stock guard + audit + commission recalc atomic — splitting
     // the sequence would break atomicity (same precedent as RemittanceService.submit #595).
     @Suppress("LongParameterList", "CyclomaticComplexMethod", "LongMethod") // #597
@@ -39,9 +39,9 @@ object ProductSaleService {
         expectedVersion: Int?,
         reason: String? = null,
     ): ProductSale {
-        // #921: product_sale.quantity is SMALLINT (V1:412) while the wire type is
+        // product_sale.quantity is SMALLINT (V1:412) while the wire type is
         // Int — fail closed with 400 before the insert instead of surfacing the
-        // DB range violation as a 500 (#475 auto-file). Widening the column to
+        // DB range violation as a 500 (auto-file). Widening the column to
         // INT is a separate migration decision (chief/human).
         if (quantity > Short.MAX_VALUE) throw ValidationException("Quantity exceeds maximum supported value")
 
@@ -66,21 +66,21 @@ object ProductSaleService {
                 ProductSaleRepository.findSameDaySaleInTransaction(retryParams)?.let {
                     return@transaction SellProductResult(it, created = false)
                 }
-                // Locked day read (#454): serializes this sale with remittance's
+                // Locked day read: serializes this sale with remittance's
                 // REMITTED transition inside the same command transaction. The day row
                 // is locked before the product row (#518 day → product → card order,
                 // shared with InventoryService.recordMovement).
                 val (branchDay, isRemitted) =
                     BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason)
 
-                // #710 precedence preserved via findById (throws the same 404):
+                // precedence preserved via findById (throws the same 404):
                 // an unknown branch fails closed before the product/session gates.
                 BranchService.findById(branchDay.branchId)
 
                 // 503bf228 — the branch's own price and commission win over the shared ones.
                 val product = BranchPriceService.priceAtBranch(requireActiveProduct(productId), branchDay.branchId)
 
-                // #925 — persisted-range pre-gate (the #924 fail-closed class): the sale
+                // persisted-range pre-gate (the fail-closed class): the sale
                 // snapshots unit_price_at_time and the computed total_amount_at_time into
                 // NUMERIC(10,2) columns, so a max-legal product price times quantity can
                 // still overflow the total — 400 before the insert, never 500 from Postgres.
@@ -141,7 +141,7 @@ object ProductSaleService {
                 ProductSaleAudit.inserted(context, sale)
                 ProductSaleAudit.updated(context, beforeCard, newCard)
 
-                // #687 — PAST/REMITTED sales force the recalc: the day gate above already
+                // PAST/REMITTED sales force the recalc: the day gate above already
                 // required EDIT_PAST_DAY (+reason on REMITTED), so the caller holds the same
                 // authority the manual-recalculate route requires; joining the splits in this
                 // transaction keeps persisted commission_split equal to liveCommissions
@@ -175,7 +175,7 @@ object ProductSaleService {
     }
 
     /**
-     * #858 — same-day + void gate for sell (runs on the caller's command
+     * same-day + void gate for sell (runs on the caller's command
      * transaction): the in-transaction reads join the sale's atomic commit, so a
      * void committed before this transaction's snapshot is observed. A concurrent
      * void racing the insert stays tolerable: the sale then lands linked to a
@@ -197,7 +197,7 @@ object ProductSaleService {
     }
 
     /**
-     * #858 void gate extracted so [requireSessionInDay] stays under the
+     * void gate extracted so [requireSessionInDay] stays under the
      * ThrowsCount gate (RED repair on 84079f7).
      */
     private fun requireSessionNotVoided(sessionId: UUID) {
@@ -207,7 +207,7 @@ object ProductSaleService {
     }
 
     /**
-     * #684 — client existence gate for sell (runs on the caller's command
+     * client existence gate for sell (runs on the caller's command
      * transaction): unknown clientId fails closed with 404 before the insert,
      * so the FK never surfaces as a 500. Null stays allowed (anonymous walk-in).
      */
@@ -218,7 +218,7 @@ object ProductSaleService {
 }
 
 /**
- * Product-sale audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * Product-sale audit vocabulary (ADR-0024 rule 3). Called by the command inside its own
  * transaction so both rows commit atomically with the mutation. Owns the persistence-table
  * imports so the public command surface does not.
  */

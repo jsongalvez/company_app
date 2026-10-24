@@ -124,7 +124,7 @@ object AttendanceRoutes {
         }
     }
 
-    /** #404 — membership-gated roster: home members with live presence flags for today. */
+    /** membership-gated roster: home members with live presence flags for today. */
     fun rosterToday(config: JavalinConfig) {
         config.routes.get(ApiRoutes.BRANCH_ATTENDANCE_TODAY_PATH) { context ->
             val callerId = context.callerUuid()
@@ -144,7 +144,7 @@ object AttendanceRoutes {
         }
     }
 
-    /** #404 — member marks member present/absent at the branch today. */
+    /** member marks member present/absent at the branch today. */
     fun mark(config: JavalinConfig) {
         config.routes.post(ApiRoutes.BRANCH_ATTENDANCE_MARKS_PATH) { context ->
             val callerId = context.callerUuid()
@@ -169,7 +169,7 @@ object AttendanceRoutes {
         }
     }
 
-    /** Route-layer wire mapping (#403 shape): null attendance survives as a null payload. */
+    /** Route-layer wire mapping (shape): null attendance survives as a null payload. */
     private fun AttendanceMarkResult.toClockInResponse(): ClockInResponse? =
         attendance?.let { row ->
             ClockInResponse(
