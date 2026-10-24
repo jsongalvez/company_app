@@ -4,7 +4,7 @@ import com.companyb.companyapp.contracts.branch.BranchType
 import kotlinx.serialization.Serializable
 
 /**
- * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
  * `docs/architecture.md`): old clients decode newer server values as UNKNOWN instead of failing
  * the whole response. Never persisted, never sent.
  */
@@ -45,7 +45,7 @@ data class ClockOutResponse(
 )
 
 /**
- * #669 — the caller's authoritative active shift for the current operational day
+ * the caller's authoritative active shift for the current operational day
  * (Asia/Manila): the exact identifiers AppSessionState needs to resume without another
  * clock-in. A null shift means no active shift — the client opens branch selection.
  */
@@ -66,7 +66,7 @@ data class ActiveAttendanceResponse(
 )
 
 /**
- * #404 — mark another home-branch member present or absent at one branch today.
+ * mark another home-branch member present or absent at one branch today.
  * `attendanceId` is the client-generated idempotency key and is required when
  * [present] is true; absent-marks close the target's open window and need no id.
  */
@@ -83,7 +83,7 @@ data class AttendanceMarkResponse(
     val attendance: ClockInResponse?,
 )
 
-/** #404 — one home-branch member's live attendance state at the branch today. */
+/** one home-branch member's live attendance state at the branch today. */
 @Serializable
 data class MemberAttendanceResponse(
     val assignmentId: String,
@@ -126,7 +126,7 @@ data class ReliefAccessResponse(
     val branchName: String? = null,
     val date: String? = null,
     /**
-     * #358 — requester display name; populated on the per-day read (the deep-link panel
+     * requester display name; populated on the per-day read (the deep-link panel
      * labels rows with it). Null on the mine list (the caller is the requester).
      */
     val requesterName: String? = null,

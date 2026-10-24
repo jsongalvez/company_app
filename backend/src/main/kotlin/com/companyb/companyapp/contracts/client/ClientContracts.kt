@@ -3,7 +3,7 @@ package com.companyb.companyapp.contracts.client
 import kotlinx.serialization.Serializable
 
 /**
- * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
  * `docs/architecture.md`), not a third gender: it marks a server value this client predates.
  * Never persisted, never sent.
  */
@@ -42,7 +42,7 @@ data class UpdateClientRequest(
     val diastolicBp: Short? = null,
     val medicalConditions: String? = null,
     /**
-     * Explicit clear intent per field name (#523). A present value means set, an absent
+     * Explicit clear intent per field name. A present value means set, an absent
      * value means unchanged, a [ClientPatchField] entry here means clear (optional text
      * to null, address to its N/A default, BP only as a pair). Required
      * firstName/lastName/gender/age cannot be cleared. Explicit JSON nulls decode the
@@ -52,7 +52,7 @@ data class UpdateClientRequest(
 )
 
 /**
- * Field names accepted in [UpdateClientRequest.clearFields] (#523). Narrow to the
+ * Field names accepted in [UpdateClientRequest.clearFields]. Narrow to the
  * existing client fields — not a repository-wide patch framework.
  */
 object ClientPatchField {

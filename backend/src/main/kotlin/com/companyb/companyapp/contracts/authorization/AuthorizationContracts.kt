@@ -17,14 +17,14 @@ object CapabilityCodes {
 }
 
 /**
- * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
  * `docs/architecture.md`). Unknown contexts grant nothing client-side; never persisted, never sent.
  */
 @Serializable
 enum class CapabilityContextType { GLOBAL, BRANCH, BRANCH_DAY, MEDICAL_MISSION, PROVINCIAL_TOUR, UNKNOWN }
 
 /**
- * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
  * `docs/architecture.md`). Unknown sources grant nothing client-side; never persisted, never sent.
  */
 @Serializable

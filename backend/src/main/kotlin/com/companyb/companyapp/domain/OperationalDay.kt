@@ -1,7 +1,7 @@
 package com.companyb.companyapp.domain
 
 /**
- * Single owner of the operational-day boundary rule (#875): branch days roll over at 04:00
+ * Single owner of the operational-day boundary rule: branch days roll over at 04:00
  * Asia/Manila, not at calendar midnight.
  *
  * The rule stays portable on purpose — a zone-id [String], an hour [Int], and a pure function
