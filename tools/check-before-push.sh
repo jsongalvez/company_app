@@ -8,6 +8,9 @@
 # from CI, and runs only the modules your change touches.
 #
 # NOT a git hook: the repo has no git hooks. CI and this script are the checks.
+# tools/push.sh runs this script and then `git push`; use it instead of bare `git push`.
+# Also runs tools/quality/check-references.sh: dead paths and Gradle tasks fail here
+# before they fail CI.
 #
 # Usage:
 #   tools/check-before-push.sh            # changed since merge-base with origin/master (+ uncommitted)
@@ -29,7 +32,7 @@ for arg in "$@"; do
   case "$arg" in
     --all) mode=all ;;
     --plan) plan_only=1 ;;
-    -h|--help) sed -n 2,19p "$0"; exit 0 ;;
+    -h|--help) sed -n 2,22p "$0"; exit 0 ;;
     *) echo "check-before-push: unknown argument $arg" >&2; exit 2 ;;
   esac
 done
@@ -120,13 +123,18 @@ echo "check-before-push: mode=$mode modules=[$(printf '%s\n' $want_modules | sor
 if [ ${#tasks[@]} -gt 0 ]; then
   echo "check-before-push: ./gradlew ${tasks[*]} -PwarningsAsErrors=true"
 fi
+refs_flag=""
+[ ${#tasks[@]} -gt 0 ] && refs_flag="--gradle"
 if [ $plan_only -eq 1 ]; then
+  echo "check-before-push: tools/quality/check-references.sh $refs_flag"
   [ $want_shell -eq 1 ] && ci_shell_tests | sed 's/^/check-before-push: shell test: /'
   exit 0
 fi
 
 start=$SECONDS
 status=0
+
+tools/quality/check-references.sh $refs_flag || status=1
 
 if [ ${#tasks[@]} -gt 0 ]; then
   # --continue: report every red check in one run instead of one per push.

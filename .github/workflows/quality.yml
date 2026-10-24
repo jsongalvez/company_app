@@ -25,11 +25,12 @@ on:
       - 'tools/quality/lib/**'
       - 'tools/quality/*.sh'
       - 'tools/check-before-push.sh'
+      - 'tools/push.sh'
       - 'tools/performance/**'
       - 'scripts/**'
       - 'config/deadcode/**'
       - 'docker/**'
-      - '.github/workflows/quality.yml'
+      - '.github/workflows/**'
   pull_request:
     paths:
       - 'backend/**'
@@ -46,11 +47,12 @@ on:
       - 'tools/quality/lib/**'
       - 'tools/quality/*.sh'
       - 'tools/check-before-push.sh'
+      - 'tools/push.sh'
       - 'tools/performance/**'
       - 'scripts/**'
       - 'config/deadcode/**'
       - 'docker/**'
-      - '.github/workflows/quality.yml'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
@@ -116,6 +118,11 @@ jobs:
             sleep 2
           done
 
+      # A path or Gradle task named in a workflow or tool script that no longer exists
+      # (the removed :shared:detektMetadataCommonMain case, 3f7f0c48). Fails in under a minute.
+      - name: Dead references (paths, modules, Gradle tasks)
+        run: bash tools/quality/check-references.sh --gradle
+
       - name: Run backend quality, shared Detekt, shared JVM compilation, and OpenAPI contract
         run: >-
           ./gradlew :backend:detekt :backend:ktlintCheck :shared:ktlintCheck :backend:test
@@ -152,10 +159,13 @@ jobs:
 
       - name: Syntax-check owned shell files
         run: |
-          for f in tools/check-before-push.sh tools/quality/*.sh tools/quality/lib/*.sh tools/database/*.sh tools/database/lib/*.sh tools/performance/*.sh scripts/*.sh; do
+          for f in tools/check-before-push.sh tools/push.sh tools/quality/*.sh tools/quality/lib/*.sh tools/database/*.sh tools/database/lib/*.sh tools/performance/*.sh scripts/*.sh; do
             [ -f "$f" ] || continue
             bash -n "$f"
           done
+
+      - name: Dead references (paths and modules)
+        run: bash tools/quality/check-references.sh
 
       - name: Run DB-free shell self-tests
         run: |
@@ -166,3 +176,5 @@ jobs:
           bash tools/database/source-env-test.sh
           bash tools/performance/check-baselines-test.sh
           bash tools/quality/check-before-push-test.sh
+          bash tools/quality/check-references-test.sh
+          bash tools/quality/push-test.sh
