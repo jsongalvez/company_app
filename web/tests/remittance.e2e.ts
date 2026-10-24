@@ -1,8 +1,9 @@
 import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
+import { businessDate } from "./clock";
 import { doneSessionForNewClient } from "./support";
 
-const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date(Date.now() - 4 * 3600e3));
+const today = businessDate();
 
 test("send a remittance for today, then undo it", { session: "owner" }, async ({ app, screen, browser }) => {
     const client = await doneSessionForNewClient(app, screen, browser);

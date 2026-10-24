@@ -1,4 +1,4 @@
-import { plain } from "../lib/format";
+import { nowIso, plain } from "../lib/format";
 import createClient, { type Middleware } from "openapi-fetch";
 import type { components, paths } from "./schema";
 import { net, onlineOrTimeout, reportNetFailure, reportNetOk } from "../lib/net.svelte";
@@ -56,7 +56,7 @@ const auth: Middleware = {
     onResponse({ response, request }) {
         const path = new URL(request.url).pathname;
         if (response.status >= 400 && response.status !== 401 && path !== "/api/feedback-notes")
-            lastError.value = { at: new Date().toISOString(), method: request.method, path, status: response.status };
+            lastError.value = { at: nowIso(), method: request.method, path, status: response.status };
         if (response.status === 401 && new URL(request.url).pathname.startsWith("/api/")) onUnauthorized();
         return response;
     },

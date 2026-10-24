@@ -1,5 +1,6 @@
 import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
+import { businessDate } from "./clock";
 
 test("invite a practitioner, they sign in, add them to a new branch", { session: "owner" }, async ({ app, screen }) => {
     const tag = Date.now().toString().slice(-6);
@@ -71,8 +72,7 @@ test("invite a practitioner, they sign in, add them to a new branch", { session:
     await expect(screen.getByRole("heading", "Pay")).toBeHidden();
 
     // They ask to work a shift at the owner's branch a few days out.
-    const d = new Date(Date.now() + 5 * 864e5);
-    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const iso = businessDate(5);
     await app.open("/#/relief");
     await screen.getByRole("button", "Ask for relief").tap();
     const ask = screen.getByRole("dialog", "Ask for relief");

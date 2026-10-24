@@ -227,7 +227,7 @@ function applyHeldClock() {
             branchId: h.branchId,
             branchName: branchName(h.branchId),
             branchDayId: app.branchId === h.branchId && app.today ? app.today.branchDayId : "",
-            date: new Date().toLocaleDateString("en-CA"),
+            date: operationalDate(),
             isRelief: false,
         };
 }

@@ -42,9 +42,13 @@ export function day(d: string | null | undefined): string {
     return df.format(new Date(Date.UTC(y!, m! - 1, dd!, 12)));
 }
 
+/** The one place the app reads the wall clock for a date or a timestamp. */
+export const now = (): Date => new Date();
+export const nowIso = (): string => now().toISOString();
+
 /** Today's operational date in Manila (the day boundary is 04:00). */
-export function operationalDate(now = new Date()): string {
-    const shifted = new Date(now.getTime() - 4 * 3600_000);
+export function operationalDate(at = now()): string {
+    const shifted = new Date(at.getTime() - 4 * 3600_000);
     return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(shifted);
 }
 export function addDays(d: string, n: number): string {
@@ -54,6 +58,11 @@ export function addDays(d: string, n: number): string {
 }
 export function monthStart(d: string): string {
     return d.slice(0, 8) + "01";
+}
+/** First and last day of the month `shift` months from year/month (month is 1-12). */
+export function monthBounds(year: number, month: number, shift: number): { from: string; to: string } {
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    return { from: iso(new Date(Date.UTC(year, month - 1 + shift, 1))), to: iso(new Date(Date.UTC(year, month + shift, 0))) };
 }
 
 /** App words for backend codes. Keep in sync with CONTEXT.md. */
