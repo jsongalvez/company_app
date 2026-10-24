@@ -111,23 +111,25 @@ object CommissionService {
         if (!AccountReads.userExists(userId)) {
             throw NotFoundException("User not found")
         }
-        return transaction {
-            createManualInclusionInTransaction(callerId, id, productSaleId, userId, isIncluded, reason)
-        }
+        val params =
+            CommissionManualInclusionUpsertParams(
+                id = id,
+                productSaleId = productSaleId,
+                userId = userId,
+                isIncluded = isIncluded,
+                reason = reason,
+                assignedBy = callerId,
+            )
+        return transaction { createManualInclusionInTransaction(params) }
     }
 
-    // #596: private transaction body mirrors the public 6-param command per ADR-0024; stays whole with it.
-    @Suppress("LongParameterList") // #596
     private fun createManualInclusionInTransaction(
-        callerId: UUID,
-        id: UUID,
-        productSaleId: UUID,
-        userId: UUID,
-        isIncluded: Boolean,
-        reason: String?,
+        params: CommissionManualInclusionUpsertParams,
     ): CommissionManualInclusion {
+        val callerId = params.assignedBy
+        val reason = params.reason
         val sale =
-            CommerceReads.findSaleById(productSaleId)
+            CommerceReads.findSaleById(params.productSaleId)
                 ?: throw NotFoundException("Product sale not found")
 
         // locked day read: serializes this inclusion with remittance's
@@ -136,16 +138,7 @@ object CommissionService {
             BranchDayService.checkBranchDayEditableInTransaction(callerId, sale.branchDayId, reason)
 
         val mutation =
-            CommissionManualInclusionRepository.upsertInTransaction(
-                CommissionManualInclusionUpsertParams(
-                    id = id,
-                    productSaleId = productSaleId,
-                    userId = userId,
-                    isIncluded = isIncluded,
-                    reason = reason,
-                    assignedBy = callerId,
-                ),
-            )
+            CommissionManualInclusionRepository.upsertInTransaction(params)
 
         val context = AuditContext(callerId, branchDay.branchId, isRemitted, reason)
         if (mutation.existing == null) {
@@ -162,8 +155,8 @@ object CommissionService {
         recalculateInTransaction(sale.branchDayId, force = true)
 
         logger.info {
-            "[COMMISSION-INCLUSION] Created inclusion ${mutation.inclusion.id} for productSale=$productSaleId " +
-                "userId=$userId isIncluded=$isIncluded"
+            "[COMMISSION-INCLUSION] Created inclusion ${mutation.inclusion.id} " +
+                "for productSale=${params.productSaleId} userId=${params.userId} isIncluded=${params.isIncluded}"
         }
         return mutation.inclusion
     }
