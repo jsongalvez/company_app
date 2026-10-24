@@ -117,3 +117,143 @@ test("a dialog keeps at most one short consequence line", () => {
     }
     fail(problems);
 });
+
+// Labels a past fix replaced. Each entry is a wording users could not parse, the word that replaced it, and the commit that made the swap.
+// `example` is a snippet of the old label as it was written; the test below proves `pattern` catches it, so a pattern cannot rot into a no-op.
+type Banned = { label: string; use: string; commit: string; pattern: RegExp; example: string; files?: RegExp; exampleFile?: string };
+const BANNED: Banned[] = [
+    {
+        label: "Concerns",
+        use: "Illnesses (singular: illness)",
+        commit: "9d2b89ab",
+        pattern: /\bConcerns?\b/,
+        example: "<h2>Concerns</h2>",
+    },
+    {
+        label: "Concerns (lowercase phrase)",
+        use: "Illnesses (singular: illness)",
+        commit: "9d2b89ab",
+        pattern: /\b(?:[Aa]n?|[Oo]ther|[Nn]ew|[Aa]dd|[Ss]aved|[Ll]isted|[Cc]ommon) concerns?\b/,
+        example: 'aria-label="Add concern"',
+    },
+    {
+        label: "TMJ (Temporo-Mandibular Joint)",
+        use: "TMJ",
+        commit: "9d2b89ab",
+        pattern: /Temporo-Mandibular/,
+        example: 'const COMMON = ["TMJ (Temporo-Mandibular Joint)"]',
+    },
+    {
+        label: "Go to Today / Back to today",
+        use: "Sessions (the page was renamed from Today)",
+        commit: "04d33f2c",
+        pattern: /\b(?:Go|Back) to [Tt]oday\b/,
+        example: '<a href="#/today">Go to Today</a>',
+    },
+    {
+        label: "Today (nav item)",
+        use: "Sessions",
+        commit: "04d33f2c",
+        pattern: /text:\s*"Today"/,
+        example: '{ path: "/today", text: "Today", show: view }',
+        files: /components\/Shell\.svelte$/,
+        exampleFile: "components/Shell.svelte",
+    },
+    {
+        label: "bare day status (Open or Closed) on a remittance",
+        use: "the Already remitted mark, shown only on remitted days",
+        commit: "1ca78c8d",
+        pattern: /\{label\(d\.status\)\}/,
+        example: '<span class="mark plain">{label(d.status)}</span>',
+        files: /pages\/Remittance[^/]*\.svelte$/,
+        exampleFile: "pages/RemittanceDetail.svelte",
+    },
+    {
+        label: "Pending / Completed as session words",
+        use: "Waiting / Done",
+        commit: "dd4041ba",
+        pattern: /(?:>|["'`])(?:Pending|Completed)(?:<|["'`])|No-show \/ cancelled/,
+        example: '["PENDING", "Pending"], ["COMPLETED", "Completed"]',
+    },
+    {
+        label: "Unvoid",
+        use: "Restore session",
+        commit: "dd4041ba",
+        pattern: /(?:>|["'`])Unvoid(?:<|["'`])/,
+        example: '{voided ? "Unvoid" : "Void session"}',
+    },
+    {
+        label: "Anonymize",
+        use: "Erase personal details",
+        commit: "dd4041ba",
+        pattern: /(?:>|["'`])Anonymi[sz]e(?:<|["'`])|\(anonymized\)/,
+        example: '<button class="danger">Anonymize</button>',
+    },
+    {
+        label: "compensation (as a screen word)",
+        use: "pay",
+        commit: "dd4041ba",
+        pattern: /\b(?:Add|Edit) compensation\b/,
+        example: 'title={cEdit ? "Edit compensation" : "Add compensation"}',
+    },
+    {
+        label: "Product commission split",
+        use: "Commission share",
+        commit: "dd4041ba",
+        pattern: /Product commission split/,
+        example: "<h2>Product commission split</h2>",
+    },
+    {
+        label: "Adjust / Adjusted (stock count)",
+        use: "Fix count",
+        commit: "dd4041ba",
+        pattern: /(?:>|["'`])Adjust(?:ed)?(?:<|["'`])/,
+        example: '<button class="sm">Adjust</button>',
+    },
+];
+
+/** Source without comments, so a note about an old word does not trip the check. */
+function withoutComments(src: string): string {
+    return src
+        .replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, " "))
+        .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
+        .replace(/(^|\s)\/\/.*$/gm, "$1");
+}
+
+/** Every banned label found in `src`, as "file:line: message". `rel` is the path under web/src. */
+function bannedIn(rel: string, src: string): string[] {
+    const code = withoutComments(src);
+    const problems: string[] = [];
+    for (const b of BANNED) {
+        if (b.files && !b.files.test(rel)) continue;
+        const flags = b.pattern.flags.includes("g") ? b.pattern.flags : b.pattern.flags + "g";
+        for (const m of code.matchAll(new RegExp(b.pattern.source, flags)))
+            problems.push(
+                `web/src/${rel}:${lineOf(code, m.index)}: "${m[0]}" is the old wording for ${b.label}. Write ${b.use} (changed in ${b.commit}; word list in CONTEXT.md).`,
+            );
+    }
+    return problems;
+}
+
+test("every banned label is caught when it is put back", () => {
+    for (const b of BANNED) {
+        const rel = b.exampleFile ?? "pages/Any.svelte";
+        const found = bannedIn(rel, b.example);
+        if (!found.some((p) => p.includes(`for ${b.label}.`))) throw new Error(`banned label "${b.label}" no longer matches its example: ${b.example}`);
+    }
+});
+
+test("a banned label in a comment is ignored", () => {
+    const found = bannedIn("pages/Any.svelte", "// Concerns: the old word\n/* Go to Today */\n<!-- Anonymize -->");
+    if (found.length) throw new Error(found.join("\n"));
+});
+
+test("no screen uses a label a past fix replaced", () => {
+    const tsFiles = (dir: string): string[] =>
+        readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+            const p = join(dir, e.name);
+            return e.isDirectory() ? (e.name === "api" ? [] : tsFiles(p)) : p.endsWith(".ts") ? [p] : [];
+        });
+    const sources = [...files.map((f) => ({ rel: f.rel, src: f.src })), ...tsFiles(SRC).map((f) => ({ rel: relative(SRC, f), src: readFileSync(f, "utf8") }))];
+    fail(sources.flatMap((f) => bannedIn(f.rel, f.src)));
+});
