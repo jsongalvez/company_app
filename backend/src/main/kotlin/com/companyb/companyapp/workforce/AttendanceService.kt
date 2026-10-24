@@ -16,11 +16,11 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 /**
- * Attendance feature commands (#321, ADR-0024). Each mutating command owns exactly one business
+ * Attendance feature commands (ADR-0024). Each mutating command owns exactly one business
  * transaction: persistence runs on it via `AttendanceRepository.*InTransaction` store operations,
  * the before/after state is captured inside it (ADR-0019 invariant), and the audit row is
  * inserted directly into it — so domain write + audit commit atomically or not at all.
- * Operational-day resolution goes through the Branch Day boundary (#318); the commission
+ * Operational-day resolution goes through the Branch Day boundary; the commission
  * recalculation triggered by clock-in/out joins the same transaction, keeping side effects
  * atomic with the attendance mutation.
  */
@@ -43,7 +43,7 @@ object AttendanceService {
     }
 
     /**
-     * #404 — a home member marks another home member present or absent at [branchId] today
+     * a home member marks another home member present or absent at [branchId] today
      * (BR: practitioners mark other members of their home branch; coordinators mark
      * practitioners at their branch). One membership rule covers both sentences: the caller
      * and the target must each hold an active assignment at the branch — cross-branch
@@ -65,13 +65,13 @@ object AttendanceService {
         present: Boolean,
         attendanceId: UUID?,
     ): AttendanceMarkResult {
-        // #712 — 404 precedence for an unknown branch before the membership gate:
+        // 404 precedence for an unknown branch before the membership gate:
         // findActiveMembers would otherwise yield empty membership and surface 403
-        // (403-masking-404; same position as #704 clockIn guard).
+        //  (403-masking-404; same position as clockIn guard).
         BranchService.findById(branchId)
-        // #716 — 404 precedence for an unknown target before the membership gate:
+        // 404 precedence for an unknown target before the membership gate:
         // findActiveMembers would otherwise yield non-membership and surface 403
-        // (403-masking-404; same position as #705/#707/#708 userExists guard).
+        //  (403-masking-404; same position as/ userExists guard).
         // Extracted so [mark] stays under the ThrowsCount gate (RED repair).
         requireTargetExists(targetUserId)
         return transaction {
@@ -115,7 +115,7 @@ object AttendanceService {
         val today = BranchDayService.currentOperationalDate()
         val branchDay = BranchDayService.resolveOrCreate(branchId, today)
 
-        // #376 — same serialization as self clock-in: the retraction-cutoff commands
+        // same serialization as self clock-in: the retraction-cutoff commands
         // hold this lock while deciding, so a duty can never start behind a mark that
         // then lands; the idempotent readback re-runs under it.
         BranchDayService.lockDayInTransaction(branchDay.id)
@@ -160,7 +160,7 @@ object AttendanceService {
 
     /**
      * The absent leg: closes the target's open window (a clock-out on behalf). Find-only
-     * day resolution (#157 discipline) — an absent-mark never creates a branch day; with no
+     * day resolution (discipline) — an absent-mark never creates a branch day; with no
      * day row or no open window it is an idempotent no-op. The audit attributes the marker
      * via changedBy and the recalculation joins the same transaction.
      */
@@ -200,7 +200,7 @@ object AttendanceService {
     }
 
     /**
-     * #404 — the home-branch roster with live presence flags at [branchId] today. Membership-gated
+     * the home-branch roster with live presence flags at [branchId] today. Membership-gated
      * read (the same authority that marks); day resolution stays find-only — a missing day row means
      * nobody is present and no day is created by the read. Ordered by Branch Slot then display name.
      */
@@ -208,9 +208,9 @@ object AttendanceService {
         callerId: UUID,
         branchId: UUID,
     ): List<AttendanceRosterEntry> {
-        // #713 — 404 precedence for an unknown branch before the membership gate:
+        // 404 precedence for an unknown branch before the membership gate:
         // hasActiveMembership would otherwise yield no membership and surface 403
-        // (403-masking-404; same position as #712 mark / #704 clockIn guard).
+        //  (403-masking-404; same position as mark / clockIn guard).
         BranchService.findById(branchId)
         return transaction {
             requireActiveMember(callerId, branchId, "Home-branch membership required to view this branch's attendance")
@@ -279,9 +279,9 @@ object AttendanceService {
         branchId: UUID,
         callerId: UUID,
     ): AttendanceServiceResult {
-        // #704 — 404 precedence for an unknown branch before the command transaction:
+        // 404 precedence for an unknown branch before the command transaction:
         // resolveOrCreate would otherwise hit the branch_day.branch_id FK and surface
-        // 500 (same class as #692/#694/#696/#703; getToday precedent).
+        // 500 (same class as; getToday precedent).
         BranchService.findById(branchId)
         return transaction {
             retryOutcomeOrNull(attendanceId, branchId, callerId, callerId)?.let { return@transaction it }
@@ -289,13 +289,13 @@ object AttendanceService {
             val today = BranchDayService.currentOperationalDate()
             val branchDay = BranchDayService.resolveOrCreate(branchId, today)
 
-            // #376 — take the branch-day row lock BEFORE the guard so clock-in serializes
+            // take the branch-day row lock BEFORE the guard so clock-in serializes
             // against the retraction cutoff commands (they hold it while deciding); the
             // commission recalculation below re-acquires it harmlessly in this transaction.
             BranchDayService.lockDayInTransaction(branchDay.id)
 
             // A concurrent same-id retry may have committed while this transaction waited
-            // on the lock — the idempotent readback must run again under it (#376 review).
+            // on the lock — the idempotent readback must run again under it (review).
             retryOutcomeOrNull(attendanceId, branchId, callerId, callerId)?.let { return@transaction it }
 
             ShiftGuard.ensureNoActiveClockIn(callerId, branchDay.id)
@@ -361,7 +361,7 @@ object AttendanceService {
 }
 
 /**
- * #404 — the mark command's outcome. [attendance] is null only for an absent-mark that found
+ * the mark command's outcome. [attendance] is null only for an absent-mark that found
  * no open window (the idempotent no-op — nothing was written, no audit row exists).
  */
 data class AttendanceMarkResult(
@@ -370,7 +370,7 @@ data class AttendanceMarkResult(
     val isRelief: Boolean,
 )
 
-/** #404 — one roster row for the membership-gated attendance read. */
+/** one roster row for the membership-gated attendance read. */
 data class AttendanceRosterEntry(
     val assignmentId: UUID,
     val userId: UUID,
@@ -380,7 +380,7 @@ data class AttendanceRosterEntry(
 )
 
 /**
- * The mark/roster gate (#404): an ACTIVE user holding an active home assignment at the
+ * The mark/roster gate: an ACTIVE user holding an active home assignment at the
  * branch — membership + liveness, never a capability check. Runs on the caller's open
  * transaction (the assignment row is read FOR UPDATE, so a concurrent revocation
  * serializes with the command). File-level helper so AttendanceService stays inside its
@@ -397,7 +397,7 @@ private fun requireActiveMember(
 }
 
 /**
- * #716 — unknown-target 404 precedence for mark (runs before the command
+ * unknown-target 404 precedence for mark (runs before the command
  * transaction): an unknown user fails closed with 404 before the membership
  * gate, so a non-member never surfaces as 403-masking-404. Extracted so
  * [AttendanceService.mark] stays under the ThrowsCount gate (RED repair).
@@ -409,7 +409,7 @@ private fun requireTargetExists(targetUserId: UUID) {
 }
 
 /**
- * Folded from AssignmentResolver (#539): two pass-through relief lookups with no
+ * Folded from AssignmentResolver: two pass-through relief lookups with no
  * independent responsibility. File-level helpers so AttendanceService stays inside
  * its function-count pin.
  */

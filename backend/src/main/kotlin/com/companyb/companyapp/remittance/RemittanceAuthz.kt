@@ -7,7 +7,7 @@ import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 /**
- * Remittance-owned HTTP authorization composition (#605).
+ * Remittance-owned HTTP authorization composition.
  *
  * Resolves the remittance record, then delegates to the common
  * branch-scope check on [CapabilityFilter]. Authorization keeps

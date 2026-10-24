@@ -22,7 +22,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 /**
- * Persistence for the Me surface (#324): every `*Table` join and query lives behind this
+ * Persistence for the Me surface: every `*Table` join and query lives behind this
  * internal store; MeService keeps only the active-user policy, the operational-day question,
  * and response shaping. Runs on the caller's (service-owned) transaction.
  */
@@ -44,7 +44,7 @@ internal object MeRepository {
         val assigned: Boolean,
         /** The user has an active clock-in at this branch today (operational day). */
         val clockedInHereToday: Boolean,
-        /** #381 — the active assignment's slot; null for relief rows (no assignment). */
+        /** the active assignment's slot; null for relief rows (no assignment). */
         val slot: Short?,
         /** The active assignment id; null for relief rows. */
         val assignmentId: UUID?,
@@ -100,7 +100,7 @@ internal object MeRepository {
         userId: UUID,
         operationalDay: LocalDate,
     ): List<MeBranchRow> {
-        // #381 — the active assignments carry the Branch Slot per branch.
+        // the active assignments carry the Branch Slot per branch.
         val assignmentsByBranchId =
             UserBranchAssignmentTable
                 .selectAll()

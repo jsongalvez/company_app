@@ -20,7 +20,7 @@ data class ProductCreateResult(
     val created: Boolean,
 )
 
-/** Nullable-field update payload (#323): only non-null fields are written to the product row. */
+/** Nullable-field update payload: only non-null fields are written to the product row. */
 data class ProductUpdate(
     val name: String? = null,
     val productCategoryId: UUID? = null,
@@ -30,7 +30,7 @@ data class ProductUpdate(
 )
 
 internal object ProductRepository {
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: ProductCreateParams): ProductCreateResult {
         val insertedCount =
             ProductTable
@@ -73,7 +73,7 @@ internal object ProductRepository {
                 .map { it.toProduct() }
         }.also { logger.info { "[FIND-PRODUCTS] Fetched ${it.size} active product(s)" } }
 
-    /** Admin catalog read (#445): active + inactive, same ordering as [findAllActive]. */
+    /** Admin catalog read: active + inactive, same ordering as [findAllActive]. */
     fun findAll(): List<Product> =
         transaction {
             ProductTable
@@ -83,7 +83,7 @@ internal object ProductRepository {
         }.also { logger.info { "[FIND-PRODUCTS] Fetched ${it.size} product(s) including inactive" } }
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction.
+     * In-transaction store operation (ADR-0024) — runs on the caller's command transaction.
      * Returns the updated row count and the post-write row (null when the product does not exist);
      * the command decides audit from the count.
      */

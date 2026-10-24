@@ -37,7 +37,7 @@ data class Client(
 private const val PHONE_COLUMN_WIDTH = 20
 
 /**
- * Persisted-field bounds (#923): mirrors the `client` table CHECKs
+ * Persisted-field bounds: mirrors the `client` table CHECKs
  * (`V1__full_schema.sql`: age 0–120, systolic 40–300, diastolic 20–200) and
  * the `phone_number` varchar width. Route + service pre-gates reference these
  * so out-of-range input fails closed with 400 before Postgres surfaces a 500.
@@ -68,7 +68,7 @@ internal const val CLIENT_DIASTOLIC_MAX: Short = 200
 internal const val CLIENT_PHONE_MAX_LENGTH = PHONE_COLUMN_WIDTH
 internal const val CLIENT_EARLIER_VISITS_MAX = 1000
 
-/** Empty address representation (#523): clears reset here, matching create + column default. */
+/** Empty address representation: clears reset here, matching create + column default. */
 const val DEFAULT_CLIENT_ADDRESS = "N/A"
 
 internal object ClientTable : Table("client") {
@@ -93,7 +93,7 @@ internal object ClientTable : Table("client") {
     fun auditFields(entity: Client): Map<String, String?> =
         mapOf(
             "id" to entity.id.toString(),
-            // #525 field policy — every externally writable client field is a value
+            // field policy — every externally writable client field is a value
             // diff so business changes cannot become empty diffs. Names/phone/address
             // are identifying (redacted on anonymize); BP/conditions are health values
             // redacted on anonymize so the audit never becomes a second PII store.

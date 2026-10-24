@@ -28,14 +28,14 @@ data class GrantWithCapabilityParams(
     val grantedBy: UUID,
 )
 
-/** Mutation projection for grant/deny/cancel (#323): `updated=false` marks a preserved early-return path. */
+/** Mutation projection for grant/deny/cancel: `updated=false` marks a preserved early-return path. */
 data class ReliefAccessMutation(
     val before: ReliefAccess,
     val after: ReliefAccess,
     val updated: Boolean,
 )
 
-/** A request row joined with its branch-day context — the caller's own-list shape (#357). */
+/** A request row joined with its branch-day context — the caller's own-list shape. */
 data class ReliefRequestWithBranch(
     val access: ReliefAccess,
     val branchId: UUID,
@@ -57,7 +57,7 @@ internal object ReliefAccessRepository {
             .singleOrNull()
             ?.toReliefAccess()
 
-    /** Every request on one branch day — the member surface (#357 broadcast model). */
+    /** Every request on one branch day — the member surface (broadcast model). */
     fun findByBranchDayId(branchDayId: UUID): List<ReliefAccess> =
         transaction {
             GrantReliefAccessTable
@@ -66,7 +66,7 @@ internal object ReliefAccessRepository {
                 .map { it.toReliefAccess() }
         }
 
-    /** The caller's own requests across all branches/days, newest day first (#357). */
+    /** The caller's own requests across all branches/days, newest day first. */
     fun findMine(userId: UUID): List<ReliefRequestWithBranch> =
         transaction {
             GrantReliefAccessTable
@@ -94,7 +94,7 @@ internal object ReliefAccessRepository {
         }
 
     /**
-     * #358 — PENDING requests whose Branch Day has ended (date strictly before the current
+     * PENDING requests whose Branch Day has ended (date strictly before the current
      * operational date): the expiry-notice scan set. Status stays PENDING by design (#159 Q6
      * invite precedent); the stored EXPIRED notice is the only expiry marker.
      */
@@ -127,7 +127,7 @@ internal object ReliefAccessRepository {
         }
 
     /**
-     * #913 — in-transaction sibling-duty read: any GRANTED row for
+     * in-transaction sibling-duty read: any GRANTED row for
      * ([requestedBy], [branchDayId]) other than [excludeId] (null excludes
      * nothing — the creation path has no self row yet). Runs on the caller's
      * command transaction after the day lock, so the check+write are atomic:
@@ -153,11 +153,11 @@ internal object ReliefAccessRepository {
     }
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
+     * In-transaction store operation (ADR-0024) — runs on the caller's command
      * transaction. The FOR UPDATE row lock + PENDING guard + conditional status update
      * stay here so the grant check+write is atomic; the day-scoped grant itself is
-     * written by the command through the authorization seam (#538) in the same
-     * transaction. #357: the #354 cross-request winner sweep is retired (multiple
+     * written by the command through the authorization seam in the same
+     * transaction. #357: the cross-request winner sweep is retired (multiple
      * relief workers per branch-day are allowed — there is nothing left to
      * supersede); a redundant second grant is an idempotent replay via the
      * non-PENDING early return.
@@ -171,7 +171,7 @@ internal object ReliefAccessRepository {
                 .singleOrNull()
                 ?.toReliefAccess() ?: return null
 
-        // #601 max-2: idempotent replay and fresh grant share one exit.
+        // max-2: idempotent replay and fresh grant share one exit.
         return if (before.requestStatus != ReliefAccessStatus.PENDING) {
             ReliefAccessMutation(before, before, updated = false)
         } else {
@@ -197,7 +197,7 @@ internal object ReliefAccessRepository {
     }
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
+     * In-transaction store operation (ADR-0024) — runs on the caller's command
      * transaction. The FOR UPDATE row lock + non-PENDING early return stay here so the
      * deny check+write is atomic.
      */
@@ -233,8 +233,8 @@ internal object ReliefAccessRepository {
     }
 
     /**
-     * Withdraw/cancel terminal state (#357): PENDING → CANCELLED, atomic under the same
-     * row lock as deny. In-transaction store operation (#323, ADR-0024).
+     * Withdraw/cancel terminal state: PENDING → CANCELLED, atomic under the same
+     * row lock as deny. In-transaction store operation (ADR-0024).
      */
     fun cancelInTransaction(requestId: UUID): ReliefAccessMutation {
         val before =
@@ -268,9 +268,9 @@ internal object ReliefAccessRepository {
     }
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
+     * In-transaction store operation (ADR-0024) — runs on the caller's command
      * transaction. Three outcomes under the partial unique index
-     * `idx_one_live_relief_request` (#352 Q4 flood control):
+     * `idx_one_live_relief_request` (flood control):
      * - `(row, true)` — freshly inserted;
      * - `(row, false)` — the same [id] already existed (an idempotent replay);
      * - `(null, false)` — a different LIVE request stands for (requester, day): the index
@@ -329,7 +329,7 @@ internal object ReliefAccessRepository {
     fun isActiveUser(userId: UUID): Boolean = transaction { isActiveUserInTransaction(userId) }
 
     /**
-     * In-transaction status read (#354 edge 4) — a deactivated user must not hold a live
+     * In-transaction status read (edge 4) — a deactivated user must not hold a live
      * requester identity; runs on the caller's command transaction.
      */
     fun isActiveUserInTransaction(userId: UUID): Boolean =

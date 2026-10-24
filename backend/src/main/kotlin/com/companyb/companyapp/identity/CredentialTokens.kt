@@ -5,7 +5,7 @@ import java.security.SecureRandom
 import java.util.Base64
 
 /**
- * Raw-token generation and hashing for `credential_token` rows (#350). The raw code exists
+ * Raw-token generation and hashing for `credential_token` rows. The raw code exists
  * only in the minted link/response and in the invitee's possession; the database stores its
  * SHA-256 digest, so a database leak cannot expose live links.
  */

@@ -43,7 +43,7 @@ internal object ConcernRepository {
             .singleOrNull()
             ?.toConcern()
 
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun addToSessionInTransaction(
         sessionId: UUID,
         concernId: UUID,
@@ -54,7 +54,7 @@ internal object ConcernRepository {
                 it[SessionConcernTable.concernId] = concernId
             }.insertedCount > 0
 
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun removeFromSessionInTransaction(
         sessionId: UUID,
         concernId: UUID,
@@ -79,7 +79,7 @@ internal object ConcernRepository {
         }
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — the concern insert, link insert, and
+     * In-transaction store operation (ADR-0024) — the concern insert, link insert, and
      * session other-concerns clear run on the caller's command transaction; the command writes
      * the three audit rows into that same transaction from [PromoteConcernResult].
      */

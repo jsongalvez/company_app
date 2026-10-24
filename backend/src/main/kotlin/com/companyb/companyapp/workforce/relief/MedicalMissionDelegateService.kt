@@ -14,7 +14,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 /**
- * Medical-mission-delegate feature commands (#323, ADR-0024). Each mutating command owns
+ * Medical-mission-delegate feature commands (ADR-0024). Each mutating command owns
  * exactly one transaction: persistence runs via `MedicalMissionDelegateRepository.*InTransaction`
  * store operations and the audit row is inserted into the same transaction.
  */
@@ -31,7 +31,7 @@ object MedicalMissionDelegateService {
         if (branch.branchType != BranchType.MEDICAL_MISSION) {
             throw ValidationException("Medical mission delegate requires a medical mission Branch")
         }
-        // #708 — unknown targets 404 before the eligibility 400 (#705/#707 precedent):
+        // unknown targets 404 before the eligibility 400 (precedent):
         // isActiveManagerInTransaction alone conflates "unknown user" with "known but ineligible".
         if (!AccountReads.userExists(targetUserId)) {
             throw NotFoundException("User not found")
@@ -146,7 +146,7 @@ object MedicalMissionDelegateService {
 }
 
 /**
- * Medical-mission-delegate audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside
+ * Medical-mission-delegate audit vocabulary (ADR-0024 rule 3). Called by the command inside
  * its own transaction so the audit row commits atomically with the mutation. Owns the
  * persistence-table imports so the public command surface does not.
  */

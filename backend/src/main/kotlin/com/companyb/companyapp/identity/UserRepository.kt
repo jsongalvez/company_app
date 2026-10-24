@@ -51,7 +51,7 @@ data class UserCreateParams(
     val displayName: String,
 )
 
-/** Before/after status projection for deactivate/reactivate (#323): `changed=false` marks the idempotent no-op skip. */
+/** Before/after status projection for deactivate/reactivate: `changed=false` marks the idempotent no-op skip. */
 data class UserStatusTransition(
     val before: AppUser,
     val after: AppUser,
@@ -80,7 +80,7 @@ internal object UserRepository {
                 }.singleOrNull()
         }.also { logger.info { "[FIND-BY-USERNAME] Fetched username" } }
 
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun createUserInTransaction(params: UserCreateParams): UUID {
         val insert =
             AppUserTable.insertIgnore {
@@ -156,7 +156,7 @@ internal object UserRepository {
     }
 
     /**
-     * In-transaction duplicate lookup for the invite-mint re-invite path (#350): matches on
+     * In-transaction duplicate lookup for the invite-mint re-invite path: matches on
      * username OR email so either conflict field can resolve to a recoverable account.
      */
     fun findByUsernameOrEmailInTransaction(
@@ -181,7 +181,7 @@ internal object UserRepository {
         val email: String,
     )
 
-    /** Store half of the accept-invite password set (#350). Runs on the caller's command transaction. */
+    /** Store half of the accept-invite password set. Runs on the caller's command transaction. */
     fun setPasswordHashInTransaction(
         userId: UUID,
         passwordHash: String,
@@ -201,7 +201,7 @@ internal object UserRepository {
     }
 
     /**
-     * Login revalidation (#505): runs on the login command's transaction after the
+     * Login revalidation: runs on the login command's transaction after the
      * expensive bcrypt check. Locks the account row, then proves the verified hash is
      * still current and the account is ACTIVE. Returns the live version, or null when
      * the credential rotated, the account deactivated, or the row vanished.
@@ -229,7 +229,7 @@ internal object UserRepository {
             .singleOrNull()
             ?.get(AppUserTable.jwtRevokedAt)
 
-    /** DB clock read for version-bound token issuance (#505) — runs on the caller's command transaction. */
+    /** DB clock read for version-bound token issuance — runs on the caller's command transaction. */
     fun dbNowInTransaction(): OffsetDateTime =
         AppUserTable
             .select(clockTimestamp)
@@ -237,7 +237,7 @@ internal object UserRepository {
 
     /**
      * Advances the persisted JWT revocation boundary to the database clock time taken after
-     * acquiring the user-row lock (#492). Retains the maximum boundary so concurrent
+     * acquiring the user-row lock. Retains the maximum boundary so concurrent
      * reset/logout/deactivation cannot move it backward. Runs on the caller's command
      * transaction and returns the stored boundary.
      */
@@ -390,7 +390,7 @@ internal object UserRepository {
         }.also { logger.info { "[FIND-ACTIVE-ASSIGNMENTS-WITH-BRANCH] Fetched ${it.size} active assignment(s)" } }
 
     /**
-     * Token-aware authorization read (#492, #505): one query evaluates ACTIVE status,
+     * Token-aware authorization read: one query evaluates ACTIVE status,
      * the credential generation, plus the persisted revocation boundary. A token is
      * accepted iff its owner exists, is ACTIVE, carries the current generation, and
      * was issued strictly after that user's nullable boundary. Same-second issuance

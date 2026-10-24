@@ -6,12 +6,12 @@ import java.util.UUID
 
 internal object StockValidator {
     /**
-     * Day gate + quantity validation for inventory movements (#454). Must be called
+     * Day gate + quantity validation for inventory movements. Must be called
      * inside the caller's command transaction: the day row is locked
      * ([checkBranchDayEditableInTransaction]) so the gate serializes with
      * remittance's REMITTED transition instead of racing it.
      *
-     * #597: 6-param movement gate stays whole per #535; caller passes the command's day + delta through.
+     * 6-param movement gate stays whole; caller passes the command's day + delta through.
      */
     @Suppress("LongParameterList") // #597
     fun validateMovement(

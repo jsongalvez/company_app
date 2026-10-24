@@ -16,7 +16,7 @@ import java.util.UUID
 private const val LOW_STOCK_DEFAULT_THRESHOLD = 5
 
 /**
- * Response-ready inventory aggregate (#454): cards plus their 5-value breakdowns,
+ * Response-ready inventory aggregate: cards plus their 5-value breakdowns,
  * loaded behind one seam so routes never orchestrate two service calls. Single
  * branch existence check and single movement-ledger scan per call.
  */
@@ -26,7 +26,7 @@ data class InventoryWithBreakdowns(
 )
 
 /**
- * Inventory feature commands (#323, ADR-0024). Each mutating command owns exactly one
+ * Inventory feature commands (ADR-0024). Each mutating command owns exactly one
  * transaction: the day gate and guards run inside it, persistence runs via
  * `BranchInventoryRepository.*InTransaction` store operations, and the audit rows are
  * inserted into the same transaction — mutation + audit commit atomically or not at all.
@@ -34,7 +34,7 @@ data class InventoryWithBreakdowns(
 object InventoryService {
     private val logger = KotlinLogging.logger {}
 
-    // #597: 9-param movement command stays whole per #535; the single command-owned transaction
+    // 9-param movement command stays whole; the single command-owned transaction
     // (ADR-0024) keeps day gate + card lock + audit atomic — splitting would break atomicity.
     @Suppress("LongParameterList", "LongMethod") // #597
     fun recordMovement(
@@ -71,7 +71,7 @@ object InventoryService {
                 if (BranchService.findByIdOrNull(branchId) == null) throw NotFoundException("Branch not found")
                 BranchDayService.requireBranchDayForBranch(branchDayId, branchId)
 
-                // #518 — day → product → card lock order (shared with ProductSaleService.sell):
+                // day → product → card lock order (shared with ProductSaleService.sell):
                 // the day gate locks the day row before the product row so a sale and a
                 // movement on the same day serialize instead of deadlocking.
                 val isRemitted =
@@ -132,7 +132,7 @@ object InventoryService {
     }
 
     /**
-     * #442 — branch-scoped all-history breakdown per product, derived from the movement
+     * branch-scoped all-history breakdown per product, derived from the movement
      * ledger (legacy rows included). Available stays the persisted live count
      * (`currentStock`, the low-stock/sale-guard authority); the map reconciles it as
      * Stock - Sales - TesterSample - Missing + Adjustment.
@@ -152,7 +152,7 @@ object InventoryService {
     }
 
     /**
-     * Aggregate read seam (#454): one branch lookup + one card scan + one movement
+     * Aggregate read seam: one branch lookup + one card scan + one movement
      * scan. Replaces the route-level `getBreakdowns` + `getStock` orchestration.
      */
     fun getInventory(branchId: UUID): InventoryWithBreakdowns {
@@ -172,7 +172,7 @@ object InventoryService {
     }
 
     /**
-     * Low-stock aggregate read seam (#454): one branch lookup + one card scan + one
+     * Low-stock aggregate read seam: one branch lookup + one card scan + one
      * movement scan. Filtered cards paired with the full breakdown map, matching the
      * former route-level `getBreakdowns` + `getLowStockAlerts` pairing.
      */
@@ -250,7 +250,7 @@ object InventoryService {
             if (result.created) {
                 BranchInventoryAudit.inserted(AuditContext(callerId, branchId), result.card)
             }
-            // No audit on existing card (#749): audit log is immutable mutation history.
+            // No audit on existing card: audit log is immutable mutation history.
             result.card
         }.also {
             logger.info { "[ENSURE-CARD] Inventory card ensured for branch=$branchId product=$productId" }
@@ -307,7 +307,7 @@ internal object InventoryReadSupport {
 }
 
 /**
- * Inventory audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * Inventory audit vocabulary (ADR-0024 rule 3). Called by the command inside its own
  * transaction so the audit rows commit atomically with the mutation. Owns the persistence-table
  * imports so the public command surface does not.
  */
@@ -341,7 +341,7 @@ internal object BranchInventoryAudit {
         reason = context.reason,
     )
 
-    /** INSERT vocabulary for the inventory card itself (#393 — ensure-card audit gap). */
+    /** INSERT vocabulary for the inventory card itself (ensure-card audit gap). */
     fun inserted(
         context: AuditContext,
         card: BranchInventory,

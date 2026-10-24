@@ -26,7 +26,7 @@ data class CommissionManualInclusionUpsertParams(
     val assignedBy: UUID,
 )
 
-/** Upsert outcome: [existing] is null when the row was freshly inserted (#323). */
+/** Upsert outcome: [existing] is null when the row was freshly inserted. */
 data class CommissionManualInclusionUpsertResult(
     val existing: CommissionManualInclusion?,
     val inclusion: CommissionManualInclusion,

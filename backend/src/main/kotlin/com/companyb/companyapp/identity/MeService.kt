@@ -25,9 +25,9 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 /**
- * Me-surface reads (#324). SQL lives behind [MeRepository]; this service owns the active-user
+ * Me-surface reads. SQL lives behind [MeRepository]; this service owns the active-user
  * policy (404 unknown / 403 inactive), asks the Branch Day authority for the operational day
- * (#322), and shapes responses. Each read owns one transaction.
+ * , and shapes responses. Each read owns one transaction.
  */
 object MeService {
     private const val NAME_MAX = 50
@@ -111,7 +111,7 @@ object MeService {
     fun getCapabilities(userId: UUID): List<UserCapabilityResponse> = CapabilityService.getCapabilitiesForUser(userId)
 
     /**
-     * #669 — the caller's authoritative active shift for the current operational day.
+     * the caller's authoritative active shift for the current operational day.
      * Read-only: resolves the day find-only through the workforce seam (never creates
      * days, never marks attendance, no audit row). A revoked assignment does not hide an
      * open window — resume is an attendance fact; access stays capability-gated.

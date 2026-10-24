@@ -1,7 +1,7 @@
 package com.companyb.companyapp.notification
 
 /**
- * Named notification-append seam for cross-owner producers (map #533 #550): relief event
+ * Named notification-append seam for cross-owner producers: relief event
  * broadcasts and appointment sweeps outside this owner. Thin delegation to the internal
  * notification store — not a facade over every method. Service-to-service calls need no
  * architecture allowlist entry; direct store imports from other owners stay banned.
@@ -20,7 +20,7 @@ object NotificationAppender {
     fun append(params: List<NotificationCreateParams>): Int = NotificationRepository.insertBatch(params)
 
     /**
-     * Store operation for the owning command (ADR-0024, #602): runs on the caller's transaction
+     * Store operation for the owning command (ADR-0024): runs on the caller's transaction
      * and opens none. Commands that already own a transaction (relief broadcasts, the
      * next-appointment sweep) call this so the rows commit atomically with the change they
      * announce. No audit row (system read-state, not a §12.1 covered table).

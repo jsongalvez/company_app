@@ -83,7 +83,7 @@ internal object BranchInventoryRepository {
     }
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction.
+     * In-transaction store operation (ADR-0024) — runs on the caller's command transaction.
      * Idempotently materializes the inventory card and reports whether this call created it
      * (via `insertedCount`, exact under concurrent ensure races); the audit rows stay the
      * command's job.
@@ -110,7 +110,7 @@ internal object BranchInventoryRepository {
     }
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — idempotent movement-row write with the
+     * In-transaction store operation (ADR-0024) — idempotent movement-row write with the
      * duplicate-request classification kept verbatim from the retired recordMovement wrapper:
      * a lost insert race re-reads the row and either returns it (same request) or conflicts.
      * The caller performs the stock update and audit writes only when [RecordMovementResult.created].
@@ -145,7 +145,7 @@ internal object BranchInventoryRepository {
         )
     }
 
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun findMovementInTransaction(movementId: UUID): InventoryMovement? =
         InventoryMovementTable
             .selectAll()
@@ -198,10 +198,10 @@ internal object BranchInventoryRepository {
             ?.let { it.toBranchInventory() }
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction.
+     * In-transaction store operation (ADR-0024) — runs on the caller's command transaction.
      * Folds the former acquireInventoryLock + read pair into one locked read: a row-level
      * branch_inventory lock prevents TOCTOU races on concurrent stock checks during sales
-     * (CR-018 D2). The terminal op materializes the FOR UPDATE lock (#136).
+     * (CR-018 D2). The terminal op materializes the FOR UPDATE lock.
      */
     fun findCardForUpdateInTransaction(
         branchId: UUID,

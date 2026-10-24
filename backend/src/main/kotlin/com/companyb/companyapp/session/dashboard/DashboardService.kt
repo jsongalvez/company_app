@@ -26,15 +26,15 @@ data class DashboardData(
     val practitioners: List<SessionPractitionerWithName>,
     val concerns: List<ConcernWithSessionId>,
     val commission: CommissionSummary,
-    /** #366 — requested-practitioner display names, keyed by user id. */
+    /** requested-practitioner display names, keyed by user id. */
     val requestedPractitionerNames: Map<UUID, String> = emptyMap(),
-    /** #382 — owning branch per session id (one branch per dashboard read). */
+    /** owning branch per session id (one branch per dashboard read). */
     val branchIdBySession: Map<UUID, UUID> = emptyMap(),
 )
 
 /**
  * Enrichment for a single session — [DashboardData] minus the caller-scoped commission, which
- * is a dashboard-card concern, not part of `DashboardSessionResponse` (#151 Q3).
+ * is a dashboard-card concern, not part of `DashboardSessionResponse`.
  */
 data class SessionDetailData(
     val session: Session,
@@ -42,9 +42,9 @@ data class SessionDetailData(
     val voidedSessionIds: Set<UUID>,
     val practitioners: List<SessionPractitionerWithName>,
     val concerns: List<ConcernWithSessionId>,
-    /** #366 — requested-practitioner display names, keyed by user id. */
+    /** requested-practitioner display names, keyed by user id. */
     val requestedPractitionerNames: Map<UUID, String> = emptyMap(),
-    /** #382 — owning branch of the session's day (single-entry map). */
+    /** owning branch of the session's day (single-entry map). */
     val branchIdBySession: Map<UUID, UUID> = emptyMap(),
 )
 
@@ -69,7 +69,7 @@ object DashboardService {
         branchId: UUID,
     ): DashboardData {
         BranchService.findById(branchId)
-        // Find-only day resolution (#920): a 403'd attempt must not leave a day row
+        // Find-only day resolution: a 403'd attempt must not leave a day row
         // behind. A missing day means no active clock-in can exist for it.
         val branchDay =
             BranchDayService.findToday(branchId)
@@ -135,18 +135,18 @@ object DashboardService {
     }
 
     /**
-     * #152 single-session detail read for the notifications bearer path (#151 Q1/Q4/Q5) with the
-     * #907 lifetime bound: the caller may fetch iff a notification row exists for
+     * single-session detail read for the notifications bearer path (Q4/Q5) with the
+     * lifetime bound: the caller may fetch iff a notification row exists for
      * `(sessionId, caller)` — any read state — AND the caller still holds
-     * `VIEW_BRANCH_DATA` at the session's branch (BRANCH) or everywhere (GLOBAL, the #131
+     * `VIEW_BRANCH_DATA` at the session's branch (BRANCH) or everywhere (GLOBAL, the
      * all-branches window). The bearer is a delivery event, not a durable grant: ending the
      * branch assignment or removing the role revokes the BRANCH leg via the
      * `active_user_capabilities` view, so the read fails closed. 404 for non-bearer, missing
      * sessions, missing days, and revoked readers alike — one UI fallback, UUIDs are not
-     * guessable. No day-state gate: the #138 `checkBranchDayReadable` rule governs
+     * guessable. No day-state gate: the `checkBranchDayReadable` rule governs
      * capability-gated browsing surfaces; notified sessions are COMPLETED with
      * `nextAppointmentDate = today+2`, so their branch day is today-or-past and a
-     * PAST/REMITTED `EDIT_PAST_DAY` requirement would 403 the primary case (#151 Q2).
+     * PAST/REMITTED `EDIT_PAST_DAY` requirement would 403 the primary case.
      *
      * @throws NotFoundException if no notification row exists for (sessionId, caller), the
      * session does not exist, its day/branch is missing, or the caller holds no current
@@ -161,7 +161,7 @@ object DashboardService {
             SessionReads.findById(sessionId)
                 ?: throw NotFoundException("Session not found")
 
-        // #907 — read-time re-check (mailbox rows are never deleted): the bearer alone no
+        // read-time re-check (mailbox rows are never deleted): the bearer alone no
         // longer authorizes. Resolve the owning branch find-only and require a current read
         // window; a revoked/transferred/demoted caller keeps the history row but loses the
         // VIEW leg, so this 404s exactly where the old bearer-only gate returned 200.
@@ -187,14 +187,14 @@ object DashboardService {
                 session.requestedPractitionerId?.let {
                     DashboardRepository.findUserDisplayNames(listOf(it))
                 } ?: emptyMap(),
-            // #382 — the detail read has no route branch context; reuse the resolved branch.
+            // the detail read has no route branch context; reuse the resolved branch.
             branchIdBySession = mapOf(session.id to branchId),
         )
     }
 
     /**
-     * #907 — current-read window for the bearer detail: BRANCH `VIEW_BRANCH_DATA` at
-     * [branchId] OR GLOBAL `VIEW_BRANCH_DATA` (the #131 all-branches window, e.g.
+     * current-read window for the bearer detail: BRANCH `VIEW_BRANCH_DATA` at
+     * [branchId] OR GLOBAL `VIEW_BRANCH_DATA` (the all-branches window, e.g.
      * Owner/Accountant). The `active_user_capabilities` view already excludes INACTIVE users
      * and out-of-window grants, so assignment end / role removal revokes without a cleanup
      * path and mailbox history stays intact.

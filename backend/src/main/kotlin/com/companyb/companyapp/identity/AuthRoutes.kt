@@ -48,7 +48,7 @@ import io.javalin.openapi.OpenApiSecurity
     operationId = "auth_forgot_password",
     security = [],
     requestBody = OpenApiRequestBody(content = [OpenApiContent(from = ForgotPasswordRequest::class)]),
-    // 204 regardless of whether the identifier matched — enumeration resistance (#353).
+    // 204 regardless of whether the identifier matched — enumeration resistance.
     responses = [
         OpenApiResponse(status = "204"),
         OpenApiResponse(status = "429"),
@@ -104,7 +104,7 @@ object AuthRoutes {
     }
 
     /**
-     * #350 — public invite redemption: the code IS the authorization. Registered directly
+     * public invite redemption: the code IS the authorization. Registered directly
      * outside the authenticated api prefix, like login; failures are domain 400s with
      * distinct messages.
      */
@@ -117,7 +117,7 @@ object AuthRoutes {
     }
 
     /**
-     * #353 — public forgot-password request leg. Always 204 on success (the body reveals
+     * public forgot-password request leg. Always 204 on success (the body reveals
      * nothing about identifier existence); 429 when the caller's IP exceeds its budget.
      */
     fun forgotPassword(config: JavalinConfig) {
@@ -133,7 +133,7 @@ object AuthRoutes {
     }
 
     /**
-     * #353 — public reset redemption leg; the code IS the authorization, exactly like
+     * public reset redemption leg; the code IS the authorization, exactly like
      * [acceptInvite]. Failures are domain 400s with distinct messages.
      */
     fun resetPassword(config: JavalinConfig) {

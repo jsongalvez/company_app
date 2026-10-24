@@ -118,7 +118,7 @@ object AuditLogRoutes {
     fun register(config: JavalinConfig) {
         // No route gate (D9: always-visible; backend-authoritative read scoping
         // inside the service). The pre-#122 GLOBAL ASSIGN_COMPENSATION filter was
-        // broken by construction (#104 F2) and is removed here.
+        // broken by construction (F2) and is removed here.
 
         config.routes.get(ApiRoutes.AUDIT_LOG_ENTRIES_PATH) { context ->
             val response = handleBrowse(context)
@@ -216,7 +216,7 @@ object AuditLogRoutes {
         if (raw == null) return null
         return runCatching {
             AuditAction.valueOf(raw).also {
-                // #876 — the forward-compat sentinel is never a valid filter; folding into
+                // the forward-compat sentinel is never a valid filter; folding into
                 // the runCatching keeps the exact existing 400 shape.
                 require(it != AuditAction.UNKNOWN) { "sentinel" }
             }

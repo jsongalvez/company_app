@@ -160,7 +160,7 @@ object UserRoutes {
     }
 
     /**
-     * #350 — mint a single-use invite link (GLOBAL MANAGE_USERS per ADR-0007; service
+     * mint a single-use invite link (GLOBAL MANAGE_USERS per ADR-0007; service
      * commands stay capability-free). Public account creation itself happens at
      * /auth/accept-invite with the code, outside this gate.
      */

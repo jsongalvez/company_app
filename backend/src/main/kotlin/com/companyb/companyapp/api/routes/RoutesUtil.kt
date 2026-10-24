@@ -75,7 +75,7 @@ fun parsePositiveBigDecimal(
 }
 
 /**
- * Persisted-range route mirror (#925, the #924 requireSessionMoney shape shared): the owning
+ * Persisted-range route mirror (the requireSessionMoney shape shared): the owning
  * service validates the same bound, this maps its ValidationException to BadRequestResponse
  * so HTTP callers get 400 before the write. NUMERIC(10,2) money legs call it right after
  * parsing; wider NUMERIC(15,4) legs never call it.

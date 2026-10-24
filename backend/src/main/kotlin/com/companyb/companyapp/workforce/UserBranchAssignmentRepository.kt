@@ -23,19 +23,19 @@ data class AssignmentCreateResult(
     val created: Boolean,
 )
 
-/** Before/after projection for single-assignment mutations (#323). */
+/** Before/after projection for single-assignment mutations. */
 data class AssignmentMutation(
     val before: UserBranchAssignment,
     val after: UserBranchAssignment,
 )
 
 internal object UserBranchAssignmentRepository {
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: UserBranchAssignmentCreateParams): AssignmentCreateResult {
-        // #453 — the single ownership seam: same-ID classification + active-key guard both
+        // the single ownership seam: same-ID classification + active-key guard both
         // live here, transaction-local. Same-ID replay returns idempotent; different owner
         // reusing the id fails closed with 409; an occupied active key is a 400.
-        // #460 — throw sites split into named guards (ThrowsCount budget is 2 per function).
+        // throw sites split into named guards (ThrowsCount budget is 2 per function).
         findByIdInTransaction(params.id)?.let { existing ->
             ensureSameRequestOwnership(existing, params)
             return AssignmentCreateResult(existing, created = false)
@@ -159,7 +159,7 @@ internal object UserBranchAssignmentRepository {
             .singleOrNull()
             ?.toAssignment()
 
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun setEndedAtInTransaction(id: UUID): AssignmentMutation {
         val before =
             UserBranchAssignmentTable
@@ -181,7 +181,7 @@ internal object UserBranchAssignmentRepository {
         return AssignmentMutation(before, after)
     }
 
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun updateSlotInTransaction(
         id: UUID,
         slot: Short,

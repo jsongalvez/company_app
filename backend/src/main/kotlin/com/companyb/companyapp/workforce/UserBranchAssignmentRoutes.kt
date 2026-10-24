@@ -157,7 +157,7 @@ object UserBranchAssignmentRoutes {
         )
     }
 
-    /** #366 — active-member directory for the requested-practitioner picker (membership-gated). */
+    /** active-member directory for the requested-practitioner picker (membership-gated). */
     private fun handleGetMembers(context: Context) {
         val callerId = context.callerUuid()
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)

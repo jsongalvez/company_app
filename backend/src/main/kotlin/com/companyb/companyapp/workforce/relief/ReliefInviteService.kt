@@ -21,14 +21,14 @@ import java.time.LocalDate
 import java.util.UUID
 
 /**
- * Branch-initiated relief invites (#159, the #160 build). The inviter is anyone with an
+ * Branch-initiated relief invites (the build). The inviter is anyone with an
  * ACTIVE `user_branch_assignment` at the branch — the app's only membership record — and
  * the invitee is any ACTIVE user (capabilities ≠ assignments; a redundant grant is
  * harmless). One day per invite; accept writes the day-scoped grant immediately via the
  * authorization seam ([AuthorizationGrants.grantReliefCapabilityInTransaction]); day-state
  * is the expiry (a past/REMITTED day accept 400s — no cron).
  *
- * Mutating commands own exactly one transaction (#323, ADR-0024): persistence runs via
+ * Mutating commands own exactly one transaction (ADR-0024): persistence runs via
  * `ReliefInviteRepository.*InTransaction` store operations and the audit row is inserted
  * into the same transaction. Accept's day-open gate and expiration live inside its command
  * transaction so the expiry decision commits atomically with the grant it authorizes.
@@ -42,7 +42,7 @@ object ReliefInviteService {
      * Day resolution is a resolve-or-create (NOT find-only): the invite is a real write
      * referencing the day row, and the invite use case is FUTURE-day planning — a lazy
      * day row for tomorrow usually does not exist yet, so find-only would 404 the
-     * primary flow (the #158 find-only discipline governs gates, never writes; the
+     * primary flow (the find-only discipline governs gates, never writes; the
      * request flow's own grant path is the resolve-or-create precedent).
      *
      * @throws ForbiddenException when the caller lacks an active assignment at the branch,
@@ -60,10 +60,10 @@ object ReliefInviteService {
     ): ReliefInvite {
         // Advisory pre-transaction fast-path (unchanged): the insertIgnore swallow below
         // is the atomic per-person guard; these reads only fail fast.
-        // #598: eligibility + advisory guards split into named checks (ThrowsCount budget is 2).
-        // #711 — 404 precedence for an unknown branch before the membership gate:
+        // eligibility + advisory guards split into named checks (ThrowsCount budget is 2).
+        // 404 precedence for an unknown branch before the membership gate:
         // requireActiveAssignment alone conflates "unknown branch" with "known but
-        // non-member" (the #704 clockIn / requestReliefAccess order).
+        // non-member" (the clockIn / requestReliefAccess order).
         BranchService.findById(branchId)
         requireActiveAssignment(callerId, branchId)
         requireInviteeEligible(inviteeUserId, callerId)
@@ -73,7 +73,7 @@ object ReliefInviteService {
 
         val (invite, isNew) =
             transaction {
-                // #515 — membership at commit, day resolution, and the locked day gate all
+                // membership at commit, day resolution, and the locked day gate all
                 // inside the command transaction: the pre-transaction gate above could no
                 // longer see a concurrent remittance submit flipping the day to REMITTED.
                 requireActiveMemberInTransaction(callerId, branchId)
@@ -111,9 +111,9 @@ object ReliefInviteService {
         callerId: UUID,
         branchId: UUID,
     ): List<ReliefInviteView> {
-        // #715 — 404 precedence for an unknown branch before the membership gate:
+        // 404 precedence for an unknown branch before the membership gate:
         // requireActiveAssignment alone conflates "unknown branch" with "known but
-        // non-member" (the #711 createInvite / #704 clockIn order).
+        // non-member" (the createInvite / clockIn order).
         BranchService.findById(branchId)
         requireActiveAssignment(callerId, branchId)
         return ReliefInviteRepository.findSentByInviterAndBranch(callerId, branchId)
@@ -123,7 +123,7 @@ object ReliefInviteService {
     fun listReceived(callerId: UUID): List<ReliefInviteView> = ReliefInviteRepository.findReceivedByInvitee(callerId)
 
     /**
-     * #377 discovery read — every ACCEPTED duty at [branchId] whose day is still
+     * discovery read — every ACCEPTED duty at [branchId] whose day is still
      * revocable (on/after the current operational date), across all inviters. Same gate as
      * create/listSent: an active assignment at the branch. This is what makes ruling 2
      * ("any active member may revoke") reachable from the client.
@@ -132,16 +132,16 @@ object ReliefInviteService {
         callerId: UUID,
         branchId: UUID,
     ): List<ReliefInviteView> {
-        // #715 — same 404 precedence as listSent (#711 precedent).
+        // same 404 precedence as listSent (precedent).
         BranchService.findById(branchId)
         requireActiveAssignment(callerId, branchId)
         return ReliefInviteRepository.findAcceptedByBranch(branchId, BranchDayService.currentOperationalDate())
     }
 
     /**
-     * #401 deep-link day read — the notification tap's truth surface: every invite at
+     * deep-link day read — the notification tap's truth surface: every invite at
      * [branchId] on [date] with its current status. Bearer-only, no capability gate (the
-     * #358 deep-link precedent — the audiences a relief notification reaches are members,
+     * deep-link precedent — the audiences a relief notification reaches are members,
      * the requester, and the invitee; none hold capabilities by definition). Audience
      * scoping mirrors ReliefAccessService.listForCaller: an active branch member sees all
      * rows (the broadcast told them); anyone else sees only the rows where they are the
@@ -152,7 +152,7 @@ object ReliefInviteService {
         branchId: UUID,
         date: LocalDate,
     ): List<ReliefInviteView> {
-        // #721 — 404 precedence for an unknown branch before the day read (#715
+        // 404 precedence for an unknown branch before the day read (#715
         // precedent): findByBranchAndDate alone conflates "unknown branch" with
         // "known branch with no invites on the date".
         BranchService.findById(branchId)
@@ -168,7 +168,7 @@ object ReliefInviteService {
      * invitedBy + respondedAt; the capability row's sourceId ties it to the invite).
      *
      * @throws ValidationException when the day is past/REMITTED — the invite expired
-     *   (day-state is the expiry, #159 Q6; no cron).
+     *  (day-state is the expiry; no cron).
      * @throws ConflictException when the invite was already responded to.
      */
     fun acceptInvite(
@@ -179,7 +179,7 @@ object ReliefInviteService {
 
         val result =
             transaction {
-                // #515 — locked day read: serializes accept with remittance's REMITTED
+                // locked day read: serializes accept with remittance's REMITTED
                 // transition. The OPEN-only expiry rule itself is unchanged (still 400s
                 // when PAST/REMITTED — day-state remains the expiry, #159 Q6).
                 val branchDay = BranchDayService.findLockedDayInTransaction(invite.branchDayId)
@@ -194,7 +194,7 @@ object ReliefInviteService {
                 }
                 val validTo = BranchDayService.expirationUtc(branchDay.date)
 
-                // #918 — one duty per person per day (the #913 rule, cross-path
+                // one duty per person per day (the rule, cross-path
                 // twin): the invitee must not already hold the day through either
                 // path (a GRANTED request or any active day grant). Without it an
                 // accepted invite stacks a second active capability row next to
@@ -215,7 +215,7 @@ object ReliefInviteService {
                     ),
                 )
                 ReliefInviteAudit.updated(AuditContext(callerId, branchDay.branchId), mutation.before, mutation.after)
-                // #358 — "everyone is notified when the person accepts or not".
+                // "everyone is notified when the person accepts or not".
                 ReliefNotifications.inviteResponded(
                     eventType = ReliefNotifications.INVITE_ACCEPTED,
                     inviteId = inviteId,
@@ -243,7 +243,7 @@ object ReliefInviteService {
                     ReliefInviteRepository.respondInTransaction(inviteId, ReliefInviteStatus.DECLINED)
                         ?: throw ConflictException("This invite was already responded to")
                 ReliefInviteAudit.updated(AuditContext(callerId, branchDay.branchId), mutation.before, mutation.after)
-                // #358 — decline broadcast, same audience as accept.
+                // decline broadcast, same audience as accept.
                 ReliefNotifications.inviteResponded(
                     eventType = ReliefNotifications.INVITE_DECLINED,
                     inviteId = inviteId,
@@ -281,7 +281,7 @@ object ReliefInviteService {
     }
 
     /**
-     * Revokes an ACCEPTED invite (#374, the #363 owner rulings): any active branch member
+     * Revokes an ACCEPTED invite (the owner rulings): any active branch member
      * — clocked in or not — may undo a wrong/stale acceptance. The command owns exactly
      * one transaction per ADR-0024: the clock-in lock is checked inside it before any
      * mutation (ruling 3: ALL revocation stops once the invitee clocks in at that branch
@@ -289,7 +289,7 @@ object ReliefInviteService {
      * conditionally (0 rows ⇒ already decided → 409), and the day grant is removed by its
      * capability sourceId in the same transaction.
      *
-     * Day-state edge (agent-owned per #363): a past/REMITTED duty cannot be revoked — same
+     * Day-state edge (agent-owned): a past/REMITTED duty cannot be revoked — same
      * effective-status discipline as accept; the grant window has lapsed either way.
      *
      * @throws ForbiddenException when the caller lacks an active assignment at the branch.
@@ -308,7 +308,7 @@ object ReliefInviteService {
 
         val result =
             transaction {
-                // #376 — membership at commit: the FOR UPDATE re-read orders against any
+                // membership at commit: the FOR UPDATE re-read orders against any
                 // concurrently committing assignment removal; the pre-transaction check alone raced.
                 requireActiveMemberInTransaction(callerId, branchDay.branchId)
                 ShiftGuard.ensureRetractionAllowed(
@@ -327,7 +327,7 @@ object ReliefInviteService {
                     sourceId = inviteId,
                 )
                 ReliefInviteAudit.updated(AuditContext(callerId, branchDay.branchId), mutation.before, mutation.after)
-                // #363 ruling 4 — the branch hears it; the invitee gets an explicit notice.
+                // ruling 4 — the branch hears it; the invitee gets an explicit notice.
                 ReliefNotifications.inviteRevoked(
                     actorId = callerId,
                     inviteeId = mutation.after.invitee,
@@ -345,7 +345,7 @@ object ReliefInviteService {
      * Candidate search for the inviter side: ACTIVE users whose username/displayName
      * starts with [query] (blank → all), minus the caller and anyone already
      * PENDING/ACCEPTED/GRANTED for the day. The day resolves find-only: no day row means
-     * no invites/grants can exist for it, so no exclusions apply (the #158 gate shape —
+     * no invites/grants can exist for it, so no exclusions apply (the gate shape —
      * a search must never create rows).
      */
     fun searchCandidates(
@@ -354,7 +354,7 @@ object ReliefInviteService {
         query: String,
         date: LocalDate,
     ): List<ReliefCandidate> {
-        // #715 — same 404 precedence as listSent (#711 precedent).
+        // same 404 precedence as listSent (precedent).
         BranchService.findById(branchId)
         requireActiveAssignment(callerId, branchId)
 
@@ -394,7 +394,7 @@ object ReliefInviteService {
     }
 
     /**
-     * #376 — in-transaction membership gate with a FOR UPDATE read of the assignment row:
+     * in-transaction membership gate with a FOR UPDATE read of the assignment row:
      * an assignment ending concurrently blocks here or is already visible, so the caller's
      * membership holds at command commit, not just at entry.
      */
@@ -407,7 +407,7 @@ object ReliefInviteService {
     }
 
     /**
-     * #598: invitee eligibility split from createInvite (ThrowsCount budget is 2 per function).
+     * invitee eligibility split from createInvite (ThrowsCount budget is 2 per function).
      */
     private fun requireInviteeEligible(
         inviteeUserId: UUID,
@@ -416,7 +416,7 @@ object ReliefInviteService {
         if (inviteeUserId == callerId) {
             throw ValidationException("You cannot invite yourself")
         }
-        // #707 — unknown users 404 before the eligibility 400 (#705 precedent):
+        // unknown users 404 before the eligibility 400 (precedent):
         // isActiveUser alone conflates "unknown user" with "known but inactive".
         if (!AccountReads.userExists(inviteeUserId)) {
             throw NotFoundException("User not found")
@@ -439,7 +439,7 @@ object ReliefInviteService {
     }
 
     /**
-     * #918 — accept-path duty guard (ThrowsCount split, #598): mirrors the
+     * accept-path duty guard (ThrowsCount split): mirrors the
      * request creation guard — the invitee must hold neither a GRANTED request
      * nor an active day grant (either path's grant writes the same day-scoped
      * capability) for the day.
@@ -458,7 +458,7 @@ object ReliefInviteService {
 }
 
 /**
- * Relief-invite audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * Relief-invite audit vocabulary (ADR-0024 rule 3). Called by the command inside its own
  * transaction so the audit row commits atomically with the mutation. Owns the persistence-table
  * imports so the public command surface does not.
  */

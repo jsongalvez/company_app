@@ -6,13 +6,13 @@ import java.time.Clock
 import java.time.ZonedDateTime
 
 /**
- * #358 — unanswered relief requests announce themselves when their Branch Day ends
- * (#352 Q3, owner: "let carla know she had a relief duty request that day that expired").
+ * unanswered relief requests announce themselves when their Branch Day ends
+ *  (owner: "let carla know she had a relief duty request that day that expired").
  * Runs daily just after the 04:00 Manila day boundary.
  *
- * Request status deliberately stays PENDING — the invite precedent (#159 Q6): the
+ * Request status deliberately stays PENDING — the invite precedent: the
  * day-state IS the expiry, no status migration. Re-run safety is the UNIQUE
- * (dedup_key, user_id) constraint (#508): an already-announced request inserts nothing,
+ * (dedup_key, user_id) constraint: an already-announced request inserts nothing,
  * so the job broadcasts unconditionally and counts actual deliveries — no check-then-insert
  * race between the marker read and the write.
  */

@@ -24,7 +24,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 /**
- * Remittance feature commands (#320, ADR-0024). Each mutating command owns exactly one business
+ * Remittance feature commands (ADR-0024). Each mutating command owns exactly one business
  * transaction — SERIALIZABLE for the financial submit/undo workflow — choosing its isolation
  * there. Persistence runs on that transaction via the internal `*InTransaction` stores, Branch
  * Day transitions go through the [BranchDayService] boundary (which writes its own domain audit
@@ -37,7 +37,7 @@ object RemittanceService {
 
     private const val SERIALIZABLE_ISOLATION = Connection.TRANSACTION_SERIALIZABLE
 
-    // #595: SERIALIZABLE submit workflow stays in one command-owned transaction (ADR-0024);
+    // SERIALIZABLE submit workflow stays in one command-owned transaction (ADR-0024);
     // splitting the snapshot/day-transition sequence would break atomicity.
 
     /**
@@ -62,12 +62,12 @@ object RemittanceService {
                     RemittancePolicy.assertSubmittable(before.status, before.version, expectedVersion, remittanceId)
 
                     val breakdownIds = RemittanceRepository.findBreakdownDayIdsInTransaction(remittanceId)
-                    // #517 — lock covered days before the aggregate reads so a concurrent
+                    // lock covered days before the aggregate reads so a concurrent
                     // day-gated write cannot commit between the sums and the REMITTED
                     // transition (same sorted order as #507 undo; the later
                     // markDaysRemittedInTransaction re-lock is a no-op).
                     BranchDayService.lockDaysInTransaction(breakdownIds)
-                    // #866 — lines and breakdowns must describe the same days before the
+                    // lines and breakdowns must describe the same days before the
                     // immutable snapshot freezes gross (lines) with comp/expenses
                     // (breakdowns); all reads stay `*InTransaction` on this SERIALIZABLE
                     // transaction and run before any state change.
@@ -79,7 +79,7 @@ object RemittanceService {
 
                     val insertedSnapshot =
                         if (RemittancePolicy.requiresSnapshot(before.type)) {
-                            // #925 — aggregate persisted-range pre-gate (SESSION snapshots only;
+                            // aggregate persisted-range pre-gate (SESSION snapshots only;
                             // PRODUCT remittances freeze nothing, so their sums stay ungated):
                             // individually legal rows can still sum past NUMERIC(10,2), so the
                             // frozen snapshot must 400 here instead of 500ing on the insert
@@ -189,7 +189,7 @@ object RemittanceService {
             reason = reason,
         )
 
-    // #595: SERIALIZABLE undo workflow stays in one command-owned transaction (ADR-0024);
+    // SERIALIZABLE undo workflow stays in one command-owned transaction (ADR-0024);
     // splitting the snapshot-delete/day-release sequence would break atomicity.
 
     /**
@@ -232,7 +232,7 @@ object RemittanceService {
                 RemittanceRepository.markRevertedToDraftInTransaction(remittanceId, expectedVersion)
                 val snapshotBefore =
                     RemittanceFinancialSnapshotRepository.deleteByRemittanceIdInTransaction(remittanceId)
-                // #507 — surviving SUBMITTED coverage keeps REMITTED. Lock days in stable
+                // surviving SUBMITTED coverage keeps REMITTED. Lock days in stable
                 // order before the coverage read so cross-type submit/undo serialize.
                 BranchDayService.lockDaysInTransaction(breakdownIds)
                 val retainRemitted =
@@ -279,7 +279,7 @@ object RemittanceService {
     ): Remittance {
         val remittance =
             transaction {
-                // #506 — parent lock first, then draft + content checks under it so a
+                // parent lock first, then draft + content checks under it so a
                 // concurrent breakdown insert cannot orphan content outside the new range.
                 val locked =
                     RemittanceRepository.lockByIdInTransaction(remittanceId)
@@ -326,12 +326,12 @@ object RemittanceService {
         productSaleId: UUID?,
         amount: BigDecimal,
     ): RemittanceLine {
-        // #925 — persisted-range pre-gate (the #924 fail-closed class): remittance_line.amount
+        // persisted-range pre-gate (the fail-closed class): remittance_line.amount
         // is NUMERIC(10,2) and caller-chosen, so overflow must 400 before the write.
         validateMoneyAmount(amount, "amount")
         val line =
             transaction {
-                // #506 — parent lock first so the draft check, range check, and version
+                // parent lock first so the draft check, range check, and version
                 // bump serialize with submit/undo and sibling mutations.
                 val locked =
                     RemittanceRepository.lockByIdInTransaction(remittanceId)
@@ -378,12 +378,12 @@ object RemittanceService {
                     val session =
                         SessionReads.findByIdInTransaction(sourceId)
                             ?: throw NotFoundException("Session not found")
-                    // #750 — voided sessions stay visible but are excluded from financial
+                    // voided sessions stay visible but are excluded from financial
                     // calculations, so attaching one is an explicit 400 (branch mismatch stays 404).
                     if (SessionReads.isVoidedInTransaction(sourceId)) {
                         throw ValidationException("Session is voided")
                     }
-                    // #857 — PENDING income is unrealized and NO_SHOW/CANCELLED sessions
+                    // PENDING income is unrealized and NO_SHOW/CANCELLED sessions
                     // produce no income, while daily_sales_summary.gross_income counts only
                     // COMPLETED sessions: attaching any other status is an explicit 400 so
                     // the frozen snapshot can never diverge from the reporting view.
@@ -400,7 +400,7 @@ object RemittanceService {
                     val sale =
                         CommerceReads.findSaleByIdInTransaction(sourceId)
                             ?: throw NotFoundException("Product sale not found")
-                    // #858 — voided-session sales are excluded from all financial
+                    // voided-session sales are excluded from all financial
                     // calculations, so attaching one is an explicit 400 (same as
                     // SESSION #750; unknown sale stays 404 above).
                     val linkedSessionId = sale.sessionId
@@ -410,12 +410,12 @@ object RemittanceService {
                     sale.branchDayId
                 }
 
-                // #876 — the forward-compat sentinel is never valid input.
+                // the forward-compat sentinel is never valid input.
                 RemittanceLineType.UNKNOWN -> {
                     throw ValidationException("Unknown remittance line type")
                 }
             }
-        // #483 — the pickers only offer the loaded range, so an out-of-range source is a
+        // the pickers only offer the loaded range, so an out-of-range source is a
         // stale-client or forged write; the branch check stays 404 (indistinguishable),
         // the range check is an explicit 400.
         val day =
@@ -439,7 +439,7 @@ object RemittanceService {
     ): RemittanceLine {
         val line =
             transaction {
-                // #506 — parent lock first so the draft check and version bump join the
+                // parent lock first so the draft check and version bump join the
                 // same serialization order as every other aggregate mutation.
                 val locked =
                     RemittanceRepository.lockByIdInTransaction(remittanceId)
@@ -474,7 +474,7 @@ object RemittanceService {
     ): RemittanceDayBreakdown {
         val breakdown =
             transaction {
-                // #506 — parent lock first, then draft + range checks; the version bump
+                // parent lock first, then draft + range checks; the version bump
                 // makes this content change visible to submit/header stale-version guards.
                 val locked =
                     RemittanceRepository.lockByIdInTransaction(remittanceId)
@@ -482,7 +482,7 @@ object RemittanceService {
 
                 RemittancePolicy.assertDraft(locked.status, "add day breakdowns to")
 
-                // #483 — same range contract as lines: the day picker only offers the loaded
+                // same range contract as lines: the day picker only offers the loaded
                 // range, so an out-of-range day is a stale-client or forged write (400).
                 val day = BranchDayService.requireBranchDayForBranch(branchDayId, locked.branchId)
                 RemittancePolicy.assertDateInRange(
@@ -516,7 +516,7 @@ object RemittanceService {
     ): RemittanceDayBreakdown {
         val breakdown =
             transaction {
-                // #506 — parent lock first; the version bump keeps submit/header guards
+                // parent lock first; the version bump keeps submit/header guards
                 // honest about this content change. No-op misses bump nothing.
                 val locked =
                     RemittanceRepository.lockByIdInTransaction(remittanceId)
@@ -540,7 +540,7 @@ object RemittanceService {
     }
 
     /**
-     * #866 — submit-time reconciliation: gross is summed over lines while comp/expenses are
+     * submit-time reconciliation: gross is summed over lines while comp/expenses are
      * summed over day breakdowns, so every active line's source branch day must sit in the
      * breakdown set and the set itself must be non-empty. All reads are `*InTransaction`
      * on the caller's open SERIALIZABLE transaction and run before any state change.
@@ -568,7 +568,7 @@ object RemittanceService {
 
             RemittanceLineType.PRODUCT_SALE -> productSaleLineBranchDayIdInTransaction(line.productSaleId)
 
-            // #876 — unreachable: the Postgres enum column carries no UNKNOWN label,
+            // unreachable: the Postgres enum column carries no UNKNOWN label,
             // so row mapping fails before this runs. Fail closed, never silently skip.
             RemittanceLineType.UNKNOWN -> throw ValidationException("Unknown remittance line type")
         }
@@ -587,7 +587,7 @@ object RemittanceService {
     }
 
     /**
-     * #483 — a header range edit must not orphan already-added content: every active line's
+     * a header range edit must not orphan already-added content: every active line's
      * source date and every covered day must sit inside the new range, else 400. All reads
      * here are `*InTransaction` on the caller's open transaction.
      */
@@ -714,7 +714,7 @@ data class RemittanceDrift(
     val currentNet: BigDecimal,
 )
 
-/** One pickable branch day for the remittance day-range picker (#343) — no Branch Day record crosses the seam. */
+/** One pickable branch day for the remittance day-range picker — no Branch Day record crosses the seam. */
 data class RemittanceDayPickerEntry(
     val id: UUID,
     val date: LocalDate,

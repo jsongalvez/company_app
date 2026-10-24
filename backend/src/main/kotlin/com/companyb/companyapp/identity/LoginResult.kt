@@ -1,6 +1,6 @@
 package com.companyb.companyapp.identity
 
-/** Backend-only login outcome, beside the auth command that produces it (map #533 #537). */
+/** Backend-only login outcome, beside the auth command that produces it. */
 sealed class LoginResult {
     data class Success(
         val token: String,

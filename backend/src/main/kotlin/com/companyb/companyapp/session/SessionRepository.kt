@@ -56,7 +56,7 @@ internal object SessionRepository {
             countPriorNonMedicalMissionSessionsInTransaction(clientId)
         }
 
-    /** In-transaction store read (#751) — runs on the caller's command transaction. */
+    /** In-transaction store read — runs on the caller's command transaction. */
     fun countPriorNonMedicalMissionSessionsInTransaction(clientId: UUID): Long =
         earlierVisitsInTransaction(clientId) + countRecordedNonMedicalMissionSessions(clientId)
 
@@ -83,7 +83,7 @@ internal object SessionRepository {
             }.count()
 
     /**
-     * #424 — final price of the client's most recent non-MEDICAL_MISSION, non-voided session.
+     * final price of the client's most recent non-MEDICAL_MISSION, non-voided session.
      * Same history definition as [countPriorNonMedicalMissionSessions] (mission sessions never
      * count; voids via `active_session_voids` don't count); null when no such session exists.
      */
@@ -92,7 +92,7 @@ internal object SessionRepository {
             findMostRecentPriorSessionFinalPriceInTransaction(clientId)
         }
 
-    /** In-transaction store read (#751) — runs on the caller's command transaction. */
+    /** In-transaction store read — runs on the caller's command transaction. */
     fun findMostRecentPriorSessionFinalPriceInTransaction(clientId: UUID): BigDecimal? =
         SessionTable
             .leftJoin(
@@ -132,12 +132,12 @@ internal object SessionRepository {
                 .not()
         }
 
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: SessionCreateParams): SessionCreateResult {
-        // Client-first lock order lives with the command (#541): SessionService.create locks
+        // Client-first lock order lives with the command: SessionService.create locks
         // the client row via the client seam before opening this store write, so the lock
         // and the anonymized-client guard stay in the command transaction, not in persistence.
-        // #601 max-2: the before/after idempotent probes share one ownership-checked exit
+        // max-2: the before/after idempotent probes share one ownership-checked exit
         // (same transaction, no intervening write — the second collapses to the first).
         val replayed = findByIdInTransaction(params.id)
         if (replayed != null) {
@@ -196,7 +196,7 @@ internal object SessionRepository {
         existing: Session,
         params: SessionCreateParams,
     ): SessionCreateResult {
-        // #453 — ownership is transaction-local on the row (created_by); no audit read.
+        // ownership is transaction-local on the row (created_by); no audit read.
         val sameClient = existing.clientId == params.clientId
         val sameBranchDay = existing.branchDayId == params.branchDayId
         val sameCaller = existing.createdBy == params.changedBy
@@ -207,8 +207,8 @@ internal object SessionRepository {
     }
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — optimistic-version write on the caller's
-     * command transaction. The affected-row count is load-bearing (the #149 count-0 misfire
+     * In-transaction store operation (ADR-0024) — optimistic-version write on the caller's
+     * command transaction. The affected-row count is load-bearing (the count-0 misfire
      * lesson): a concurrent commit between the command's version pre-check and this conditional
      * UPDATE matches 0 rows — the command must not read back the OTHER writer's row and serve it
      * as its own success (a silent lost update, archived ADR-0022).
@@ -234,7 +234,7 @@ internal object SessionRepository {
     }
 
     /**
-     * In-transaction store operation (#323, ADR-0024). Count-0 misfire guard (the #149 lesson):
+     * In-transaction store operation (ADR-0024). Count-0 misfire guard (the lesson):
      * 0 affected rows = a concurrent commit won the version — the caller must 409, never read
      * back the other writer's row.
      */
@@ -264,7 +264,7 @@ internal object SessionRepository {
         }
 
     /**
-     * Void-state store read (#750) — runs on the caller's open transaction. Authority is
+     * Void-state store read — runs on the caller's open transaction. Authority is
      * `active_session_voids` (unvoided rows drop out of the view, so presence means voided).
      */
     fun isVoidedInTransaction(sessionId: UUID): Boolean =
@@ -283,7 +283,7 @@ internal object SessionRepository {
             ?.toSession()
 
     /**
-     * In-transaction store read (#908) — ids of every session holding one
+     * In-transaction store read — ids of every session holding one
      * client's operator-entered free text, any status.
      */
     fun findSessionIdsForClientInTransaction(clientId: UUID): List<UUID> =
@@ -293,11 +293,11 @@ internal object SessionRepository {
             .map { it[SessionTable.id] }
 
     /**
-     * In-transaction store operation (#908) — nulls operator-entered free text
+     * In-transaction store operation — nulls operator-entered free text
      * on every session of one anonymized client. Runs on the caller's command
      * transaction with no audit row of its own: the client's anonymization
      * event is the command's audit, and a scrub event would re-persist the
-     * removed text (the #524 no-new-events precedent).
+     * removed text (the no-new-events precedent).
      */
     fun scrubFreeTextForClientInTransaction(clientId: UUID): Int =
         SessionTable.update({ SessionTable.clientId eq clientId }) {

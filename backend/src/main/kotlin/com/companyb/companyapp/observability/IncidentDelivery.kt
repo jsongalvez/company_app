@@ -15,7 +15,7 @@ internal fun interface IncidentSender {
     fun send(packet: IncidentPacket)
 }
 
-/** #526 — what happened to a filed packet. Pre-send outcomes never touched the network. */
+/** what happened to a filed packet. Pre-send outcomes never touched the network. */
 internal enum class IncidentDeliveryOutcome {
     RELAYED,
     QUEUED,
@@ -25,13 +25,13 @@ internal enum class IncidentDeliveryOutcome {
 }
 
 /**
- * #475 — async issue delivery for incident packets. Mirrors
+ * async issue delivery for incident packets. Mirrors
  * [PasswordResetDelivery]: optional external delivery (GitHub needs-triage
  * issue when [GithubIssueConfig] is present), server-log relay otherwise, so
  * filing never needs a secret to run. Delivery failures are logged and never
  * break the request that filed.
  *
- * #526 — receipt, queueing, and delivery are distinct outcomes: the sanitized
+ * receipt, queueing, and delivery are distinct outcomes: the sanitized
  * packet is written to the structured log before risky async dispatch (so a
  * rejected queue, a send failure, or shutdown never loses it), and [deliver]
  * reports which outcome happened. Pre-send failures (absent/rejected
@@ -48,7 +48,7 @@ internal object IncidentDelivery {
     private var configuredSender: IncidentSender? = null
 
     /**
-     * #526 — test probe for the durable relay write. When set, [logRelay]
+     * test probe for the durable relay write. When set, [logRelay]
      * captures instead of logging, so tests prove packet survival without
      * network calls or log scraping.
      */
@@ -71,7 +71,7 @@ internal object IncidentDelivery {
 
     /**
      * Stops queued delivery during application shutdown; filed packets stay in the registry.
-     * #526 — every queued packet already has its durable relay write (see [deliver]), so
+     * every queued packet already has its durable relay write (see [deliver]), so
      * shutdown drops at most redelivery, never diagnostics; the drop count is logged.
      */
     @Synchronized
@@ -87,7 +87,7 @@ internal object IncidentDelivery {
         configuredSender = null
     }
 
-    /** Test seam (#526): installs a sender/executor pair without environment config. */
+    /** Test seam: installs a sender/executor pair without environment config. */
     internal fun installForTest(
         sender: IncidentSender?,
         executor: ThreadPoolExecutor?,
@@ -100,7 +100,7 @@ internal object IncidentDelivery {
         }
     }
 
-    /** Test seam (#526): clears installed delivery state and the relay probe. */
+    /** Test seam: clears installed delivery state and the relay probe. */
     internal fun resetForTest() {
         synchronized(this) {
             senderExecutor?.shutdownNow()

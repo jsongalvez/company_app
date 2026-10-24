@@ -27,7 +27,7 @@ data class ExpenseCreateResult(
 )
 
 /**
- * Expense persistence store (#319, ADR-0024).
+ * Expense persistence store (ADR-0024).
  *
  * Mutating functions (`*InTransaction`) are **in-transaction store operations**: they open no
  * transaction of their own and take no audit callback — they execute on the caller's
@@ -104,8 +104,8 @@ internal object ExpenseRepository {
     /**
      * Restores a soft-deleted expense: clears `deleted_at`/`deleted_by`/`deleted_reason` in one
      * atomic statement scoped to `deletedAt IS NOT NULL` — a concurrent double-restore's second
-     * UPDATE matches zero rows and the service maps the null to 400 (the #141 ownership-in-WHERE
-     * class; #153 Q5). `version` is deliberately untouched (#153 Q6: restore changes no content).
+     * UPDATE matches zero rows and the service maps the null to 400 (the ownership-in-WHERE
+     * class). `version` is deliberately untouched (restore changes no content).
      */
     fun restoreInTransaction(expenseId: UUID): Expense? {
         val updatedCount =
@@ -126,9 +126,9 @@ internal object ExpenseRepository {
         return result
     }
 
-    // #153 Q1 — the GET includes soft-deleted rows (the Finance build's dimmed + reason rendering
+    // Q1 — the GET includes soft-deleted rows (the Finance build's dimmed + reason rendering
     // needs the payload; the summary view already excludes them from totals). Deterministic
-    // insertion order (createdAt ASC, id ASC tiebreak — #115 lesson).
+    // insertion order (createdAt ASC, id ASC tiebreak — lesson).
     fun findByBranchDayId(branchDayId: UUID): List<Expense> =
         transaction {
             ExpenseTable

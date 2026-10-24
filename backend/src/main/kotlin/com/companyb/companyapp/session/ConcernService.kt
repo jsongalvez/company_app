@@ -5,7 +5,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 /**
- * Catalog concern reads (map #533 #542): the shared concern catalog listing stays distinct
+ * Catalog concern reads: the shared concern catalog listing stays distinct
  * from session-concern mutation ([SessionConcernService]) while colocated in the session owner.
  */
 object ConcernService {
