@@ -50,22 +50,24 @@ object InventoryService {
         reason: String? = null,
     ): InventoryMovement {
         val movementReason = movementType.toInventoryMovementReason()
+        val params =
+            RecordMovementParams(
+                movementId = movementId,
+                branchId = branchId,
+                productId = productId,
+                reason = movementReason,
+                quantityChange = quantityChange,
+                notes = notes,
+                branchDayId = branchDayId,
+                movedBy = callerId,
+            )
 
         val result =
             transaction {
                 val existingMovement = BranchInventoryRepository.findMovementInTransaction(movementId)
                 if (existingMovement != null) {
                     // Idempotent retries remain safe no-ops even if product was later deactivated.
-                    ensureRequestOwnership(
-                        existingMovement,
-                        branchId,
-                        productId,
-                        movementReason,
-                        quantityChange,
-                        notes,
-                        branchDayId,
-                        callerId,
-                    )
+                    ensureRequestOwnership(existingMovement, params)
                     return@transaction RecordMovementResult(existingMovement, created = false)
                 }
 
@@ -92,18 +94,7 @@ object InventoryService {
                 val oldCard = BranchInventoryRepository.ensureCardInTransaction(branchId, productId).card
 
                 val inserted =
-                    BranchInventoryRepository.insertMovementInTransaction(
-                        RecordMovementParams(
-                            movementId = movementId,
-                            branchId = branchId,
-                            productId = productId,
-                            reason = movementReason,
-                            quantityChange = quantityChange,
-                            notes = notes,
-                            branchDayId = branchDayId,
-                            movedBy = callerId,
-                        ),
-                    )
+                    BranchInventoryRepository.insertMovementInTransaction(params)
                 if (!inserted.created) return@transaction inserted
 
                 val newCard =
@@ -197,46 +188,23 @@ object InventoryService {
         return BranchInventoryRepository.findByBranch(branchId).map { it.copy(branchCommissionAmount = commission) }
     }
 
-    // #597: 8-param idempotency ownership check stays whole per #535; mirrors the insert params 1:1.
-    @Suppress("LongParameterList") // #597
     private fun ensureRequestOwnership(
         existingMovement: InventoryMovement,
-        branchId: UUID,
-        productId: UUID,
-        movementReason: InventoryMovementReason,
-        quantityChange: Int,
-        notes: String?,
-        branchDayId: UUID,
-        callerId: UUID,
+        request: RecordMovementParams,
     ) {
-        if (!sameMovementIdentity(existingMovement, branchId, productId, branchDayId, callerId) ||
-            !sameMovementPayload(existingMovement, movementReason, quantityChange, notes)
-        ) {
+        val sameIdentity =
+            existingMovement.branchId == request.branchId &&
+                existingMovement.productId == request.productId &&
+                existingMovement.branchDayId == request.branchDayId &&
+                existingMovement.movedBy == request.movedBy
+        val samePayload =
+            existingMovement.reason == request.reason &&
+                existingMovement.quantityChange == request.quantityChange &&
+                existingMovement.notes == request.notes
+        if (!sameIdentity || !samePayload) {
             throw ConflictException("Movement ID already belongs to another request")
         }
     }
-
-    private fun sameMovementIdentity(
-        existingMovement: InventoryMovement,
-        branchId: UUID,
-        productId: UUID,
-        branchDayId: UUID,
-        callerId: UUID,
-    ): Boolean =
-        existingMovement.branchId == branchId &&
-            existingMovement.productId == productId &&
-            existingMovement.branchDayId == branchDayId &&
-            existingMovement.movedBy == callerId
-
-    private fun sameMovementPayload(
-        existingMovement: InventoryMovement,
-        movementReason: InventoryMovementReason,
-        quantityChange: Int,
-        notes: String?,
-    ): Boolean =
-        existingMovement.reason == movementReason &&
-            existingMovement.quantityChange == quantityChange &&
-            existingMovement.notes == notes
 
     fun ensureCard(
         callerId: UUID,

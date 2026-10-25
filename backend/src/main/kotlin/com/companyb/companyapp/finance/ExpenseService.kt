@@ -75,7 +75,6 @@ object ExpenseService {
         }
     }
 
-    @Suppress("LongParameterList") // #922: replay payload comparison stays whole with create
     private fun samePayload(
         existing: Expense,
         amount: BigDecimal,

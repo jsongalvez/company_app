@@ -70,8 +70,18 @@ object CompensationService {
         // persisted-range pre-gate (the fail-closed class): compensation.amount
         // is NUMERIC(10,2), so overflow must 400 before the write, never 500 from Postgres.
         validateMoneyAmount(amount, "amount")
+        val params =
+            CompensationCreateParams(
+                id = id,
+                workBranchDayId = workBranchDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = userId,
+                amount = amount,
+                assignedBy = callerId,
+                note = note,
+            )
         return transaction {
-            replayIfExistsInTransaction(id, workBranchDayId, payingBranchDayId, userId, callerId, amount, note)?.let {
+            replayIfExistsInTransaction(params)?.let {
                 return@transaction it
             }
             // gate BOTH legs — the work day carries the duty being priced, so a
@@ -80,18 +90,7 @@ object CompensationService {
                 checkWorkAndPayingDaysEditableInTransaction(callerId, workBranchDayId, payingBranchDayId, reason)
             assertPayingMatchesWork(gate.workDay, gate.payingDay)
 
-            val result =
-                CompensationRepository.createInTransaction(
-                    CompensationCreateParams(
-                        id = id,
-                        workBranchDayId = workBranchDayId,
-                        payingBranchDayId = payingBranchDayId,
-                        userId = userId,
-                        amount = amount,
-                        assignedBy = callerId,
-                        note = note,
-                    ),
-                )
+            val result = CompensationRepository.createInTransaction(params)
             if (result.created) {
                 CompensationAudit.inserted(
                     AuditContext(callerId, gate.payingDay.branchId, gate.isRemitted, reason),
@@ -140,25 +139,16 @@ object CompensationService {
      * after a day transition still ack; a foreign row fails closed.
      * Extracted so [create] stays under the ThrowsCount gate (repair).
      */
-    @Suppress("LongParameterList") // #922: replay must compare full payload (amount/note)
-    private fun replayIfExistsInTransaction(
-        id: UUID,
-        workBranchDayId: UUID,
-        payingBranchDayId: UUID,
-        userId: UUID,
-        callerId: UUID,
-        amount: BigDecimal,
-        note: String?,
-    ): Compensation? {
-        val existing = CompensationRepository.findByIdInTransaction(id) ?: return null
-        if (existing.workBranchDayId != workBranchDayId ||
-            existing.payingBranchDayId != payingBranchDayId
+    private fun replayIfExistsInTransaction(request: CompensationCreateParams): Compensation? {
+        val existing = CompensationRepository.findByIdInTransaction(request.id) ?: return null
+        if (existing.workBranchDayId != request.workBranchDayId ||
+            existing.payingBranchDayId != request.payingBranchDayId
         ) {
             throw NotFoundException("Compensation not found for this branch day")
         }
-        if (existing.userId != userId ||
-            existing.assignedBy != callerId ||
-            !samePayload(existing, amount, note)
+        if (existing.userId != request.userId ||
+            existing.assignedBy != request.assignedBy ||
+            !samePayload(existing, request.amount, request.note)
         ) {
             throw ConflictException("Compensation id already belongs to another create request")
         }
