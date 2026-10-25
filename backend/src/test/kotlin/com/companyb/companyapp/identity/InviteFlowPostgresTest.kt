@@ -51,6 +51,10 @@ class InviteFlowPostgresTest : BasePostgresTest() {
         roles: List<String> = emptyList(),
     ) = UserService.mintInvite(callerId, InviteMintRequest(username, email, displayName, roles))
 
+    // The login rate budget is per IP string and shared by every test in the JVM; a unique
+    // string per login keeps these tests from spending other tests' budget.
+    private fun freshIp() = "invite-test-${UUID.randomUUID()}"
+
     private fun backdateAllInvites(userId: UUID) {
         transaction {
             CredentialTokenTable.update({ CredentialTokenTable.userId eq userId }) {
@@ -112,13 +116,13 @@ class InviteFlowPostgresTest : BasePostgresTest() {
 
         assertEquals(
             LoginResult.InvalidCredentials,
-            AuthService.login("invitee-1", "any-password", "127.0.0.1"),
+            AuthService.login("invitee-1", "any-password", freshIp()),
             "the random unusable hash must reject login before acceptance",
         )
 
         AuthService.acceptInvite(minted.inviteCode, "valid-password")
 
-        assertIs<LoginResult.Success>(AuthService.login("invitee-1", "valid-password", "127.0.0.1"))
+        assertIs<LoginResult.Success>(AuthService.login("invitee-1", "valid-password", freshIp()))
     }
 
     @Test
@@ -131,7 +135,7 @@ class InviteFlowPostgresTest : BasePostgresTest() {
             AcceptProfile(username = "self-named", email = "self-named@example.test", displayName = "Self Named"),
         )
 
-        assertIs<LoginResult.Success>(AuthService.login("self-named", "valid-password", "127.0.0.1"))
+        assertIs<LoginResult.Success>(AuthService.login("self-named", "valid-password", freshIp()))
         val row = transaction { AppUserTable.selectAll().where { AppUserTable.username eq "self-named" }.single() }
         assertEquals("Self Named", row[AppUserTable.displayName])
         assertEquals("self-named@example.test", row[AppUserTable.email])
@@ -153,7 +157,7 @@ class InviteFlowPostgresTest : BasePostgresTest() {
             "valid-password",
             AcceptProfile(username = "retry-ok", email = "retry-ok@example.test", displayName = "Retry"),
         )
-        assertIs<LoginResult.Success>(AuthService.login("retry-ok", "valid-password", "127.0.0.1"))
+        assertIs<LoginResult.Success>(AuthService.login("retry-ok", "valid-password", freshIp()))
     }
 
     @Test
@@ -197,7 +201,7 @@ class InviteFlowPostgresTest : BasePostgresTest() {
             "valid-password",
             AcceptProfile(username = "other", email = "other@example.test", displayName = "Other"),
         )
-        assertIs<LoginResult.Success>(AuthService.login("filled-in", "valid-password", "127.0.0.1"))
+        assertIs<LoginResult.Success>(AuthService.login("filled-in", "valid-password", freshIp()))
     }
 
     @Test
