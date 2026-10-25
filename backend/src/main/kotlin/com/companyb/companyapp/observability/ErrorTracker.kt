@@ -100,27 +100,28 @@ internal object ErrorTracker {
     internal fun event(
         cfg: ErrorTrackerConfig,
         report: ServerErrorReport,
-    ): JsonObject {
-        val (traceId, method, route, status, error) = report
-        return buildJsonObject {
+    ): JsonObject =
+        buildJsonObject {
             put("event_id", UUID.randomUUID().toString().replace("-", ""))
             put("timestamp", Instant.now().toString())
             put("platform", "java")
             put("level", "error")
             put("environment", cfg.environment)
-            put("message", "$method $route -> $status")
+            put("message", "${report.method} ${report.route} -> ${report.status}")
             putJsonObject("tags") {
-                put("trace_id", traceId)
-                put("method", method)
-                put("route", route)
-                put("status", status.toString())
+                put("trace_id", report.traceId)
+                put("method", report.method)
+                put("route", report.route)
+                put("status", report.status.toString())
             }
+            val error = report.error
             if (error != null) {
                 putJsonObject("exception") {
                     putJsonArray("values") {
                         add(
                             buildJsonObject {
-                                put("type", error::class.qualifiedName ?: "Throwable")
+                                // toString() is "class: message"; only the class part is kept.
+                                put("type", error.toString().substringBefore(':'))
                                 putJsonObject("stacktrace") {
                                     putJsonArray("frames") {
                                         // Sentry wants the oldest frame first.
@@ -146,7 +147,6 @@ internal object ErrorTracker {
                 }
             }
         }
-    }
 
     private fun envelope(event: JsonObject): String {
         val header =

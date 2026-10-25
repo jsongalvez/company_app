@@ -46,7 +46,7 @@ internal class NtfyIncidentSender(
         heldBefore: Int,
     ): String =
         buildString {
-            append("${packet.method} ${packet.route} answered ${packet.status ?: 500}\n")
+            append("${packet.method} ${packet.route} answered ${packet.status ?: DEFAULT_STATUS}\n")
             append("trace ${packet.traceId}")
             if (heldBefore > 0) append("\n+$heldBefore more errors since the last alert")
         }
@@ -68,7 +68,9 @@ internal class NtfyIncidentSender(
     }
 
     private companion object {
-        val DEFAULT_WINDOW_MS: Long = Duration.ofMinutes(10).toMillis()
+        val DEFAULT_WINDOW_MS: Long = Duration.ofMinutes(WINDOW_MINUTES).toMillis()
+        const val WINDOW_MINUTES = 10L
+        const val DEFAULT_STATUS = 500
         const val HTTP_OK_MIN = 200
         const val HTTP_OK_MAX = 299
         val REQUEST_TIMEOUT: Duration = Duration.ofSeconds(5)
