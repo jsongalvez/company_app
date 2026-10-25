@@ -65,7 +65,9 @@ internal object IncidentDelivery {
         configuredSender = config?.let(::GithubIssueSender) ?: ntfy?.let { NtfyIncidentSender(it) }
         senderExecutor = configuredSender?.let { createSenderExecutor() }
         if (config == null && ntfy != null) {
-            logger.info { "[INCIDENT] GitHub issue delivery is not configured; sending 5xx alerts to ntfy and the server log." }
+            logger.info {
+                "[INCIDENT] GitHub issue delivery is not configured; sending 5xx alerts to ntfy and the server log."
+            }
         } else if (config == null) {
             logger.warn {
                 "[INCIDENT] GitHub issue delivery is not configured; using server-log relay. " +

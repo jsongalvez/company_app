@@ -35,7 +35,9 @@ class ErrorTrackerTest {
     @BeforeTest
     fun fakeTracker() {
         ErrorTracker.configure(
-            ErrorTrackerConfig.fromEnvironment(mapOf(ErrorTrackerConfig.DSN_ENV to "https://abc123@tracker.example/42")),
+            ErrorTrackerConfig.fromEnvironment(
+                mapOf(ErrorTrackerConfig.DSN_ENV to "https://abc123@tracker.example/42"),
+            ),
         ) { url, auth, body -> sent += Sent(url, auth, body) }
     }
 
@@ -63,7 +65,12 @@ class ErrorTrackerTest {
         assertEquals(traceId, event["tags"]!!.jsonObject["trace_id"]!!.jsonPrimitive.content)
         assertEquals("GET", event["tags"]!!.jsonObject["method"]!!.jsonPrimitive.content)
         assertEquals("/boom", event["tags"]!!.jsonObject["route"]!!.jsonPrimitive.content)
-        val error = event["exception"]!!.jsonObject["values"]!!.jsonArray.single().jsonObject
+        val error =
+            event["exception"]!!
+                .jsonObject["values"]!!
+                .jsonArray
+                .single()
+                .jsonObject
         assertEquals("java.lang.IllegalStateException", error["type"]!!.jsonPrimitive.content)
         assertTrue(error["stacktrace"]!!.jsonObject["frames"]!!.jsonArray.isNotEmpty())
         assertFalse("kaboom" in one.body, "exception message (may quote client data) must not leave the server")

@@ -72,7 +72,10 @@ data class AppConfig(
                     ),
                 ntfy =
                     NtfyConfig.fromEnvironment(
-                        mapOf(NtfyConfig.URL_ENV to env[NtfyConfig.URL_ENV], NtfyConfig.TOPIC_ENV to env[NtfyConfig.TOPIC_ENV]),
+                        mapOf(
+                            NtfyConfig.URL_ENV to env[NtfyConfig.URL_ENV],
+                            NtfyConfig.TOPIC_ENV to env[NtfyConfig.TOPIC_ENV],
+                        ),
                     ),
                 errorTracker =
                     ErrorTrackerConfig.fromEnvironment(

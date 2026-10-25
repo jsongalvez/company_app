@@ -41,8 +41,8 @@ import com.companyb.companyapp.logging.RequestLog
 import com.companyb.companyapp.notification.NextAppointmentScheduler
 import com.companyb.companyapp.notification.NotificationRoutes
 import com.companyb.companyapp.observability.Auto5xxReport
-import com.companyb.companyapp.observability.FeedbackRoutes
 import com.companyb.companyapp.observability.ErrorTracker
+import com.companyb.companyapp.observability.FeedbackRoutes
 import com.companyb.companyapp.observability.IncidentDelivery
 import com.companyb.companyapp.observability.IncidentService
 import com.companyb.companyapp.observability.MetricsRoutes

@@ -30,7 +30,12 @@ class NtfyAlertTest {
     fun startFakeNtfy() {
         server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { ex ->
-            alerts += Alert(ex.requestURI.path, ex.requestHeaders.getFirst("Title"), ex.requestBody.readBytes().decodeToString())
+            alerts +=
+                Alert(
+                    ex.requestURI.path,
+                    ex.requestHeaders.getFirst("Title"),
+                    ex.requestBody.readBytes().decodeToString(),
+                )
             ex.sendResponseHeaders(200, -1)
             ex.close()
         }

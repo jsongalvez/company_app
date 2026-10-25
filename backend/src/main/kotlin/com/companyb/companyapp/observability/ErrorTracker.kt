@@ -58,7 +58,11 @@ internal object ErrorTracker {
         config = newConfig
         transport = newTransport ?: httpTransport()
         executor = newConfig?.let { newExecutor() }
-        if (newConfig == null) logger.info { "[ERROR-TRACKER] Not configured (SENTRY_DSN unset); errors stay in the server log." }
+        if (newConfig ==
+            null
+        ) {
+            logger.info { "[ERROR-TRACKER] Not configured (SENTRY_DSN unset); errors stay in the server log." }
+        }
     }
 
     @Synchronized
@@ -125,7 +129,11 @@ internal object ErrorTracker {
                                                     put("module", f.className)
                                                     put("function", f.methodName)
                                                     put("filename", f.fileName?.let { JsonPrimitive(it) } ?: JsonNull)
-                                                    put("lineno", f.lineNumber.takeIf { it > 0 }?.let { JsonPrimitive(it) } ?: JsonNull)
+                                                    put(
+                                                        "lineno",
+                                                        f.lineNumber.takeIf { it > 0 }?.let { JsonPrimitive(it) }
+                                                            ?: JsonNull,
+                                                    )
                                                 },
                                             )
                                         }
@@ -139,7 +147,13 @@ internal object ErrorTracker {
         }
 
     private fun envelope(event: JsonObject): String {
-        val header = JsonObject(mapOf("event_id" to event.getValue("event_id"), "sent_at" to JsonPrimitive(Instant.now().toString())))
+        val header =
+            JsonObject(
+                mapOf(
+                    "event_id" to event.getValue("event_id"),
+                    "sent_at" to JsonPrimitive(Instant.now().toString()),
+                ),
+            )
         val item = JsonObject(mapOf("type" to JsonPrimitive("event")))
         return listOf(header, item, event).joinToString("\n")
     }
