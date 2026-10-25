@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { askReason } from "../lib/ask.svelte";
     import { goBack } from "../lib/router.svelte";
     import { sortConcerns } from "../lib/concerns";
     import { api, ok, uuid, BASE_STATUS, type S } from "../api/client";
@@ -59,15 +60,10 @@
     const edit = $derived(can("EDIT_BRANCH_DATA") || can("EDIT_PAST_DAY"));
     const correct = $derived(can("EDIT_PAST_DAY"));
     const needReason = $derived(dayStatus !== "OPEN");
-    let reason = $state("");
-    const r = () => (reason.trim() ? reason.trim() : null);
-    let reasonBox = $state<HTMLInputElement>();
-    // Past days need a reason for every change; say so before anything is sent.
-    function hasReason() {
-        if (!needReason || r()) return true;
-        alert("This day is closed. Write the reason for the change in the reason box first.");
-        reasonBox?.focus();
-        return false;
+    // Past days need a reason for every change: ask for it when the change is made.
+    // Gives "" when none is needed, null when the person cancels.
+    function why(what: string, need = needReason): Promise<string | null> {
+        return need ? askReason(what) : Promise.resolve("");
     }
 
     function refresh() {
@@ -77,19 +73,16 @@
 
     async function setStatus(to: Status) {
         if (!s) return;
-        if (!hasReason()) return;
         const from = s.sessionStatus as Status;
-        if (isCorrection(from, to) && !r()) {
-            alert("A correction needs a reason. Fill in the reason box first.");
-            return;
-        }
+        const rs = await why(to === "PENDING" ? "Undo" : `Mark ${label(to)}`, needReason || isCorrection(from, to));
+        if (rs === null) return;
         if (
             await act(
                 () =>
                     ok(
                         api.PATCH("/api/sessions/{sessionId}/status", {
                             params: { path: { sessionId: id } },
-                            body: { status: to, version: s.version, reason: r() },
+                            body: { status: to, version: s.version, reason: rs || null },
                             headers: { [BASE_STATUS]: s.sessionStatus },
                         }),
                     ),
@@ -105,14 +98,15 @@
     let price = $state("");
     async function savePrice() {
         if (!s) return;
-        if (!hasReason()) return;
+        const rs = await why("Change price");
+        if (rs === null) return;
         if (
             await pa.run(
                 () =>
                     ok(
                         api.PATCH("/api/sessions/{sessionId}/final-price", {
                             params: { path: { sessionId: id } },
-                            body: { finalPrice: price.trim(), version: s.version, reason: r() },
+                            body: { finalPrice: price.trim(), version: s.version, reason: rs || null },
                         }),
                     ),
                 "Price updated",
@@ -127,13 +121,14 @@
     let addPid = $state("");
     async function addPractitioner() {
         if (!addPid) return;
-        if (!hasReason()) return;
+        const rs = await why("Add person");
+        if (rs === null) return;
         if (
             await act(() =>
                 ok(
                     api.POST("/api/sessions/{sessionId}/practitioners", {
                         params: { path: { sessionId: id } },
-                        body: { id: uuid(), practitionerId: addPid, reason: r() },
+                        body: { id: uuid(), practitionerId: addPid, reason: rs || null },
                     }),
                 ),
             )
@@ -143,14 +138,15 @@
         }
     }
     async function removePractitioner(p: S["DashboardPractitionerResponse"]) {
-        if (!hasReason()) return;
         if (!confirm(`Remove ${p.displayName} from this session?`)) return;
+        const rs = await why(`Remove ${p.displayName}`);
+        if (rs === null) return;
         if (
             await act(() =>
                 ok(
                     api.DELETE("/api/sessions/{sessionId}/practitioners/{practitionerId}", {
                         params: { path: { sessionId: id, practitionerId: p.practitionerId } },
-                        body: { reason: r() },
+                        body: { reason: rs || null },
                     }),
                 ),
             )
@@ -158,15 +154,16 @@
             refresh();
     }
     async function editRemarks(p: S["DashboardPractitionerResponse"]) {
-        if (!hasReason()) return;
         const v = prompt(`Remarks for ${p.displayName}`, p.remarks ?? "");
         if (v === null) return;
+        const rs = await why(`Remarks for ${p.displayName}`);
+        if (rs === null) return;
         if (
             await act(() =>
                 ok(
                     api.PATCH("/api/sessions/{sessionId}/practitioners/{practitionerId}", {
                         params: { path: { sessionId: id, practitionerId: p.practitionerId } },
-                        body: { remarks: v.trim() || null, reason: r() },
+                        body: { remarks: v.trim() || null, reason: rs || null },
                     }),
                 ),
             )
@@ -185,23 +182,29 @@
     });
     const cExact = $derived((cq.data ?? []).find((c) => c.label.toLowerCase() === cTyped.toLowerCase()) ?? null);
     async function addConcern(concernId: string) {
-        if (!hasReason()) return;
-        if (await act(() => ok(api.POST("/api/sessions/{sessionId}/concerns", { params: { path: { sessionId: id } }, body: { concernId, reason: r() } })))) {
+        const rs = await why("Add illness");
+        if (rs === null) return;
+        if (
+            await act(() =>
+                ok(api.POST("/api/sessions/{sessionId}/concerns", { params: { path: { sessionId: id } }, body: { concernId, reason: rs || null } })),
+            )
+        ) {
             cText = "";
             refresh();
         }
     }
     async function addNewConcern() {
-        if (!hasReason()) return;
         const name = cTyped;
         if (!name) return;
+        const rs = await why("Add illness");
+        if (rs === null) return;
         if (
             await act(
                 () =>
                     ok(
                         api.POST("/api/sessions/{sessionId}/promote-concern", {
                             params: { path: { sessionId: id } },
-                            body: { id: uuid(), label: name, reason: r(), clearOtherConcerns: false },
+                            body: { id: uuid(), label: name, reason: rs || null, clearOtherConcerns: false },
                         }),
                     ),
                 "Illness added",
@@ -220,13 +223,14 @@
         else if (!cExact && cTyped) addNewConcern();
     }
     async function removeConcern(c: S["ConcernResponse"]) {
-        if (!hasReason()) return;
+        const rs = await why("Remove illness");
+        if (rs === null) return;
         if (
             await act(() =>
                 ok(
                     api.DELETE("/api/sessions/{sessionId}/concerns/{concernId}", {
                         params: { path: { sessionId: id, concernId: c.id } },
-                        body: { reason: r() },
+                        body: { reason: rs || null },
                     }),
                 ),
             )
@@ -242,16 +246,17 @@
         }
     }
     async function promote() {
-        if (!hasReason()) return;
         const v = prompt("New illness (added to the list for everyone)", s?.otherConcerns ?? "");
         if (!v?.trim()) return;
+        const rs = await why("Add illness");
+        if (rs === null) return;
         if (
             await act(
                 () =>
                     ok(
                         api.POST("/api/sessions/{sessionId}/promote-concern", {
                             params: { path: { sessionId: id } },
-                            body: { id: uuid(), label: v.trim(), reason: r() },
+                            body: { id: uuid(), label: v.trim(), reason: rs || null },
                         }),
                     ),
                 "Illness added",
@@ -317,15 +322,6 @@
                     {/if}
                 </header>
                 <div class="body">
-                    {#if needReason && edit}
-                        <label class="field reason"
-                            >Reason for changes (required, this day is closed)<input
-                                bind:this={reasonBox}
-                                bind:value={reason}
-                                placeholder="Why this is being changed"
-                            /></label
-                        >
-                    {/if}
                     <dl class="kv">
                         <dt>Client</dt>
                         <dd>
@@ -338,8 +334,7 @@
                         <dd>
                             <b>{peso(s.finalPrice)}</b>
                             {#if s.finalPrice !== s.basePrice}<span class="muted">(base {peso(s.basePrice)})</span>{/if}
-                            {#if edit && !voided}<button class="sm" onclick={() => hasReason() && ((price = s.finalPrice), pa.reset(), (priceOpen = true))}
-                                    >Change</button
+                            {#if edit && !voided}<button class="sm" onclick={() => ((price = s.finalPrice), pa.reset(), (priceOpen = true))}>Change</button
                                 >{/if}
                         </dd>
                         <dt>Booked</dt>
@@ -530,9 +525,6 @@
     }
     .pre {
         white-space: pre-wrap;
-    }
-    .reason {
-        margin-bottom: 10px;
     }
     .small {
         font-size: 12px;

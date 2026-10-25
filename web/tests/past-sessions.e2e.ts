@@ -12,12 +12,14 @@ test("open a past session from Expenses & pay", { session: "owner" }, async ({ a
         .filter({ hasText: /Waiting|Done|No show|Cancelled/ })
         .first()
         .tap();
-    await expect(screen.getByText(/Reason/).first()).toBeVisible();
-    // Feedback 5cb3013b: a past day's change needs a reason, then goes through.
-    await screen.getByLabel(/^Reason for changes \(required/).fill("Wrong price entered");
+    // Feedback 5cb3013b, 9e138f2b: a past day's change asks for its reason on save, then goes through.
     await screen.getByRole("button", "Change").first().tap();
     await screen.getByRole("dialog", "Change price").getByLabel("Final price").fill("1234");
     await screen.getByRole("dialog", "Change price").getByRole("button", "Save").tap();
+    const ask = screen.getByRole("dialog", "Reason for change");
+    await expect(ask.getByRole("button", "Save")).toBeDisabled();
+    await ask.getByLabel("Reason").fill("Wrong price entered");
+    await ask.getByRole("button", "Save").tap();
     await expect(screen.getByText(/1,234/).first()).toBeVisible();
     // Feedback d70d691f: Back returns to the same past day, not to today.
     await screen.getByRole("button", "‹ Back").tap();

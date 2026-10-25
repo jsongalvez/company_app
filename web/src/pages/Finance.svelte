@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { askReason, keepReason, lastReason } from "../lib/ask.svelte";
     import { api, ok, uuid, type S } from "../api/client";
     import { app, can } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
@@ -76,8 +77,13 @@
     const closed = $derived(status !== undefined && status !== "OPEN");
     const edit = $derived(closed ? can("EDIT_PAST_DAY") : can("EDIT_BRANCH_DATA"));
     const pay = $derived(can("ASSIGN_COMPENSATION"));
+    // Closed days need a reason for every change. Forms show a reason field; one-tap actions ask for it.
     let reason = $state("");
-    const r = () => reason.trim() || null;
+    function r() {
+        keepReason(reason);
+        return reason.trim() || null;
+    }
+    const startReason = () => (reason = closed ? lastReason() : "");
 
     function refresh() {
         invalidate(`exp:${dayId}`, `comp:${dayId}`, `allow:${dayId}`, `split:${dayId}`, `dsum:${bid}:${date}`);
@@ -100,6 +106,7 @@
         eAmount = e?.amount ?? "";
         eCat = (e?.category as typeof eCat) ?? "PANTRY";
         eNotes = e?.notes ?? "";
+        startReason();
         ea.reset();
         eOpen = true;
     }
@@ -123,15 +130,15 @@
         }
     }
     async function deleteExpense(e: S["ExpenseResponse"]) {
-        const why = prompt("Reason for deleting this expense (required)", reason);
-        if (!why?.trim()) return;
+        const why = await askReason("Delete expense");
+        if (!why) return;
         if (
             await act(
                 () =>
                     ok(
                         api.DELETE("/api/expenses/{expenseId}", {
                             params: { path: { expenseId: e.id } },
-                            body: { reason: why.trim(), expectedVersion: e.version },
+                            body: { reason: why, expectedVersion: e.version },
                         }),
                     ),
                 "Expense deleted",
@@ -140,9 +147,11 @@
             refresh();
     }
     async function restoreExpense(e: S["ExpenseResponse"]) {
+        const why = closed ? await askReason("Restore expense") : "";
+        if (why === null) return;
         if (
             await act(
-                () => ok(api.POST("/api/expenses/{expenseId}/restore", { params: { path: { expenseId: e.id } }, body: { reason: r() } })),
+                () => ok(api.POST("/api/expenses/{expenseId}/restore", { params: { path: { expenseId: e.id } }, body: { reason: why || null } })),
                 "Expense restored",
             )
         )
@@ -166,6 +175,7 @@
         cUser = c?.userId ?? "";
         cAmount = c?.amount ?? "";
         cNote = c?.note ?? "";
+        startReason();
         ca.reset();
         cOpen = true;
     }
@@ -245,7 +255,6 @@
         <span class="mark {status === 'OPEN' ? 'ok' : status === 'REMITTED' ? 'info' : 'plain'}">{label(status)}</span>
         {#if closed}
             <span class="muted">{edit ? "Coordinator edit." : "Read only."}</span>
-            {#if edit}<input class="grow reason" bind:value={reason} placeholder="Reason for changes (required)" />{/if}
         {/if}
     </div>
 
@@ -395,7 +404,8 @@
                     <h2>Allowances</h2>
                     <span class="faint">{peso(sum((allow.data ?? []).map((a) => a.amount)))}</span>
                     <span class="spacer"></span>
-                    {#if pay}<button class="sm primary" onclick={() => ((aUser = ""), (aAmount = ""), aa.reset(), (aOpen = true))}>Add</button>{/if}
+                    {#if pay}<button class="sm primary" onclick={() => ((aUser = ""), (aAmount = ""), startReason(), aa.reset(), (aOpen = true))}>Add</button
+                        >{/if}
                 </header>
                 <State q={allow} empty={!!allow.data && allow.data.length === 0} emptyText="No allowances." />
                 {#if allow.data?.length}
@@ -442,6 +452,7 @@
         </label>
         <label class="field"><span class="req">Amount</span><input class="num" inputmode="decimal" bind:value={eAmount} required /></label>
         <label class="field wide">Notes<input bind:value={eNotes} /></label>
+        {#if closed}<label class="field wide"><span class="req">Reason for change</span><input bind:value={reason} required /></label>{/if}
     </div>
 </Dialog>
 
@@ -456,6 +467,7 @@
         </label>
         <label class="field"><span class="req">Amount</span><input class="num" inputmode="decimal" bind:value={cAmount} required /></label>
         <label class="field wide">Note<input bind:value={cNote} /></label>
+        {#if closed}<label class="field wide"><span class="req">Reason for change</span><input bind:value={reason} required /></label>{/if}
     </div>
 </Dialog>
 
@@ -469,6 +481,7 @@
             </select>
         </label>
         <label class="field"><span class="req">Amount</span><input class="num" inputmode="decimal" bind:value={aAmount} required /></label>
+        {#if closed}<label class="field wide"><span class="req">Reason for change</span><input bind:value={reason} required /></label>{/if}
     </div>
 </Dialog>
 
@@ -479,9 +492,6 @@
     }
     .mb {
         margin-bottom: 10px;
-    }
-    .reason {
-        max-width: 420px;
     }
     .cols {
         display: grid;

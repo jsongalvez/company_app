@@ -4,6 +4,7 @@
     import Login from "./pages/Login.svelte";
     import Shell from "./components/Shell.svelte";
     import Toast from "./components/Toast.svelte";
+    import ReasonAsk from "./components/ReasonAsk.svelte";
 
     void boot();
 
@@ -19,6 +20,7 @@
     <Shell />
 {/if}
 <Toast />
+<ReasonAsk />
 
 <style>
     .boot {
