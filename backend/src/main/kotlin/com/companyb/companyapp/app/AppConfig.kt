@@ -70,20 +70,8 @@ data class AppConfig(
                             GithubIssueConfig.REPOSITORY_ENV to env[GithubIssueConfig.REPOSITORY_ENV],
                         ),
                     ),
-                ntfy =
-                    NtfyConfig.fromEnvironment(
-                        mapOf(
-                            NtfyConfig.URL_ENV to env[NtfyConfig.URL_ENV],
-                            NtfyConfig.TOPIC_ENV to env[NtfyConfig.TOPIC_ENV],
-                        ),
-                    ),
-                errorTracker =
-                    ErrorTrackerConfig.fromEnvironment(
-                        mapOf(
-                            ErrorTrackerConfig.DSN_ENV to env[ErrorTrackerConfig.DSN_ENV],
-                            ErrorTrackerConfig.ENVIRONMENT_ENV to env[ErrorTrackerConfig.ENVIRONMENT_ENV],
-                        ),
-                    ),
+                ntfy = NtfyConfig.fromLookup { env[it] },
+                errorTracker = ErrorTrackerConfig.fromLookup { env[it] },
                 webDir = env["WEB_DIR"]?.takeIf { it.isNotBlank() },
             )
         }

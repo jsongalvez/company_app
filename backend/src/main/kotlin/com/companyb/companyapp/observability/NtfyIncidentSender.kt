@@ -68,7 +68,7 @@ internal class NtfyIncidentSender(
     }
 
     private companion object {
-        const val DEFAULT_WINDOW_MS = 10 * 60 * 1000L
+        val DEFAULT_WINDOW_MS: Long = Duration.ofMinutes(10).toMillis()
         const val HTTP_OK_MIN = 200
         const val HTTP_OK_MAX = 299
         val REQUEST_TIMEOUT: Duration = Duration.ofSeconds(5)

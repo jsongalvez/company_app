@@ -20,6 +20,15 @@ import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
+/** What the 500 handler knows about a failed request. The exception is kept for its class and frames only. */
+internal data class ServerErrorReport(
+    val traceId: String,
+    val method: String,
+    val route: String,
+    val status: Int,
+    val error: Throwable?,
+)
+
 /** One HTTP POST to the tracker; a test replaces it to see what would be sent. */
 internal fun interface ErrorTrackerTransport {
     fun post(
@@ -42,6 +51,7 @@ internal object ErrorTracker {
     private const val MAX_FRAMES = 30
     private const val TIMEOUT_SECONDS = 3L
     private const val SENTRY_VERSION = 7
+    private const val HTTP_REDIRECT = 300
 
     @Volatile private var config: ErrorTrackerConfig? = null
 
@@ -73,35 +83,26 @@ internal object ErrorTracker {
         config = null
     }
 
-    fun captureServerError(
-        traceId: String,
-        method: String,
-        route: String,
-        status: Int,
-        error: Throwable?,
-    ) {
+    fun captureServerError(report: ServerErrorReport) {
         val cfg = config ?: return
-        val body = envelope(event(cfg, traceId, method, route, status, error))
+        val body = envelope(event(cfg, report))
         val auth = "Sentry sentry_version=$SENTRY_VERSION, sentry_client=company-app/1, sentry_key=${cfg.publicKey}"
         try {
             executor?.execute {
                 runCatching { transport.post(cfg.envelopeUrl, auth, body) }
-                    .onFailure { logger.warn { "[ERROR-TRACKER] Delivery failed: ${it.javaClass.simpleName}" } }
+                    .onFailure { logger.warn(it) { "[ERROR-TRACKER] Delivery failed (trace ${report.traceId})" } }
             }
-        } catch (_: RejectedExecutionException) {
-            logger.warn { "[ERROR-TRACKER] Queue full or stopped; event dropped (trace $traceId)" }
+        } catch (rejected: RejectedExecutionException) {
+            logger.warn(rejected) { "[ERROR-TRACKER] Queue full or stopped; event dropped (trace ${report.traceId})" }
         }
     }
 
     internal fun event(
         cfg: ErrorTrackerConfig,
-        traceId: String,
-        method: String,
-        route: String,
-        status: Int,
-        error: Throwable?,
-    ): JsonObject =
-        buildJsonObject {
+        report: ServerErrorReport,
+    ): JsonObject {
+        val (traceId, method, route, status, error) = report
+        return buildJsonObject {
             put("event_id", UUID.randomUUID().toString().replace("-", ""))
             put("timestamp", Instant.now().toString())
             put("platform", "java")
@@ -119,7 +120,7 @@ internal object ErrorTracker {
                     putJsonArray("values") {
                         add(
                             buildJsonObject {
-                                put("type", error.javaClass.name)
+                                put("type", error::class.qualifiedName ?: "Throwable")
                                 putJsonObject("stacktrace") {
                                     putJsonArray("frames") {
                                         // Sentry wants the oldest frame first.
@@ -145,6 +146,7 @@ internal object ErrorTracker {
                 }
             }
         }
+    }
 
     private fun envelope(event: JsonObject): String {
         val header =
@@ -175,7 +177,7 @@ internal object ErrorTracker {
                     .POST(HttpRequest.BodyPublishers.ofString(body))
                     .build()
             val response = client.send(request, HttpResponse.BodyHandlers.discarding())
-            check(response.statusCode() < 300) { "tracker answered ${response.statusCode()}" }
+            check(response.statusCode() < HTTP_REDIRECT) { "tracker answered ${response.statusCode()}" }
         }
     }
 }

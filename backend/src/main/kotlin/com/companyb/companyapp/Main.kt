@@ -48,6 +48,7 @@ import com.companyb.companyapp.observability.IncidentService
 import com.companyb.companyapp.observability.MetricsRoutes
 import com.companyb.companyapp.observability.RequestMetrics
 import com.companyb.companyapp.observability.RouteLabels
+import com.companyb.companyapp.observability.ServerErrorReport
 import com.companyb.companyapp.observability.UserFeedbackRoutes
 import com.companyb.companyapp.remittance.RemittancePickerRoutes
 import com.companyb.companyapp.remittance.RemittanceRoutes
@@ -290,11 +291,13 @@ internal fun registerServerErrorHandler(config: io.javalin.config.JavalinConfig)
     config.routes.error(HttpStatus.INTERNAL_SERVER_ERROR) { ctx ->
         TraceIdFilter.echo(ctx)
         ErrorTracker.captureServerError(
-            traceId = ctx.attribute<String>(TraceIdFilter.ATTRIBUTE) ?: TRACE_UNKNOWN,
-            method = RouteLabels.normalizeMethod(ctx.method().name),
-            route = RouteLabels.routeLabel(ctx),
-            status = HTTP_INTERNAL_ERROR,
-            error = ctx.attribute<Throwable>(SERVER_ERROR_ATTRIBUTE),
+            ServerErrorReport(
+                traceId = ctx.attribute<String>(TraceIdFilter.ATTRIBUTE) ?: TRACE_UNKNOWN,
+                method = RouteLabels.normalizeMethod(ctx.method().name),
+                route = RouteLabels.routeLabel(ctx),
+                status = HTTP_INTERNAL_ERROR,
+                error = ctx.attribute<Throwable>(SERVER_ERROR_ATTRIBUTE),
+            ),
         )
         IncidentService.fileAuto5xx(
             Auto5xxReport(

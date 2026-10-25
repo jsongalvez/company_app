@@ -16,6 +16,14 @@ data class NtfyConfig(
 
         private val TOPIC_PATTERN = Regex("^[A-Za-z0-9_-]{1,64}$")
 
+        fun fromLookup(get: (String) -> String?): NtfyConfig? =
+            fromEnvironment(
+                mapOf(
+                    URL_ENV to get(URL_ENV),
+                    TOPIC_ENV to get(TOPIC_ENV),
+                ),
+            )
+
         /** Returns null for absent or malformed configuration. */
         fun fromEnvironment(environment: Map<String, String?>): NtfyConfig? {
             val raw = environment[URL_ENV]?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() } ?: return null

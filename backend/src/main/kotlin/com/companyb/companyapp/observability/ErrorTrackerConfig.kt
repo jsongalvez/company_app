@@ -16,6 +16,9 @@ data class ErrorTrackerConfig(
         const val ENVIRONMENT_ENV = "SENTRY_ENVIRONMENT"
         private const val DEFAULT_ENVIRONMENT = "production"
 
+        fun fromLookup(get: (String) -> String?): ErrorTrackerConfig? =
+            fromEnvironment(mapOf(DSN_ENV to get(DSN_ENV), ENVIRONMENT_ENV to get(ENVIRONMENT_ENV)))
+
         /** Returns null for an absent or malformed DSN (`https://KEY@host/PROJECT`). */
         fun fromEnvironment(environment: Map<String, String?>): ErrorTrackerConfig? {
             val raw = environment[DSN_ENV]?.trim()?.takeIf { it.isNotEmpty() } ?: return null
