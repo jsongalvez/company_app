@@ -22,7 +22,7 @@
 
     const manageUsers = $derived(canAnywhere("MANAGE_USERS"));
     const manageHelpers = $derived(canAnywhere("ASSIGN_DELEGATE"));
-    // 503bf228: any branch member sees its prices; anyone who can edit the branch changes them.
+    // 503bf228: any branch member sees its session prices; anyone who can edit the branch changes them. Product prices and commission live on Stock.
     const seeRates = $derived(!!sel && canAtBranch("VIEW_BRANCH_DATA", sel));
     const manageRates = $derived(!!sel && canAtBranch("EDIT_BRANCH_DATA", sel));
 
@@ -39,7 +39,6 @@
     const staff = new Query<S["AssignmentResponse"][]>();
     const rates = new Query<S["RateResponse"][]>();
     const helpers = new Query<S["DelegateResponse"][]>();
-    const stock = new Query<S["BranchInventoryResponse"][]>();
     $effect(() => {
         if (!sel) return;
         const a = load.assignments(sel);
@@ -48,10 +47,6 @@
         if (seeRates) {
             const r = load.rates(sel);
             rates.load(r.key, r.fn);
-        }
-        if (manageRates) {
-            const i = load.inventory(sel);
-            stock.load(i.key, i.fn);
         }
         if (branch?.branchType === "MEDICAL_MISSION") {
             const d = load.delegates(sel);
@@ -71,7 +66,6 @@
         invalidate(...keys);
         staff.refresh();
         if (seeRates) rates.refresh();
-        if (manageRates) stock.refresh();
         if (branch?.branchType === "MEDICAL_MISSION") helpers.refresh();
     }
 
@@ -188,45 +182,6 @@
         }
     }
 
-    // Product prices at this branch (503bf228). Blank = the shared price from Products.
-    const xa = new Action();
-    let xOpen = $state(false);
-    let xItem = $state<S["BranchInventoryResponse"] | null>(null);
-    let xPrice = $state("");
-    function openProductPrice(i: S["BranchInventoryResponse"]) {
-        xa.reset();
-        xItem = i;
-        xPrice = i.branchUnitPrice ?? "";
-        xOpen = true;
-    }
-    async function saveProductPrice(shared = false) {
-        if (!xItem) return;
-        const body = shared ? {} : { unitPrice: xPrice.trim() || null };
-        const path = { branchId: sel, productId: xItem.productId };
-        if (await xa.run(() => ok(api.PUT("/api/branches/{branchId}/inventory/{productId}/price", { params: { path }, body })), "Price saved")) {
-            xOpen = false;
-            refresh(`inv:${sel}`);
-        }
-    }
-
-    // One commission for every product sold here (503bf228). Blank = each product's shared one.
-    const ca = new Action();
-    let cOpen = $state(false);
-    let cAmount = $state("");
-    function openCommission() {
-        ca.reset();
-        cAmount = branch?.commissionAmount ?? "";
-        cOpen = true;
-    }
-    async function saveCommission(shared = false) {
-        const body = { commissionAmount: shared ? null : cAmount.trim() || null };
-        if (await ca.run(() => ok(api.PUT("/api/branches/{branchId}/commission", { params: { path: { branchId: sel } }, body })), "Commission saved")) {
-            cOpen = false;
-            refresh(load.branches().key);
-            refresh(`inv:${sel}`);
-        }
-    }
-
     // Mission helpers
     const ha = new Action();
     let hOpen = $state(false);
@@ -326,44 +281,6 @@
                 </section>
             {/if}
 
-            {#if manageRates}
-                <section class="panel">
-                    <header>
-                        <h2>Product prices</h2>
-                        <span class="spacer"></span><a class="faint" href="#/audit?table=branch_inventory">Change history</a>
-                    </header>
-                    <div class="row" style="padding: 8px 12px">
-                        <span
-                            >Commission on every product here:
-                            {#if branch.commissionAmount != null}<b>{peso(branch.commissionAmount)}</b><span class="mark ok">this branch</span>{:else}<span
-                                    class="muted">each product's shared commission</span
-                                >{/if}</span
-                        >
-                        <span class="spacer"></span><button class="sm" onclick={openCommission} aria-label="Change commission">Change</button>
-                    </div>
-                    <State q={stock} empty={stock.data?.length === 0} emptyText="No products stocked here yet." />
-                    {#if stock.data?.length}
-                        <table class="grid stack">
-                            <thead><tr><th>Product</th><th class="num">List price</th><th class="num">Commission</th><th></th></tr></thead>
-                            <tbody>
-                                {#each stock.data as i (i.id)}
-                                    <tr>
-                                        <td class="lead">{i.productName}</td>
-                                        <td class="num" data-label="Price"
-                                            >{peso(i.unitPrice)}{#if i.branchUnitPrice != null}<span class="mark ok">this branch</span>{/if}</td
-                                        >
-                                        <td class="num" data-label="Commission"
-                                            >{peso(i.commissionAmount)}{#if i.branchCommissionAmount != null}<span class="mark ok">this branch</span>{/if}</td
-                                        >
-                                        <td class="right"><button class="sm" onclick={() => openProductPrice(i)}>Change</button></td>
-                                    </tr>
-                                {/each}
-                            </tbody>
-                        </table>
-                    {/if}
-                </section>
-            {/if}
-
             {#if branch.branchType === "MEDICAL_MISSION"}
                 <section class="panel">
                     <header>
@@ -433,32 +350,6 @@
     <label class="field"
         ><span class="req">Price</span><input class="num" inputmode="decimal" bind:value={pRate} required pattern={"\\d+(\\.\\d{1,2})?"} /></label
     >
-</Dialog>
-
-<Dialog
-    bind:open={xOpen}
-    title="Price at {branch?.name ?? 'this branch'}: {xItem?.productName ?? ''}"
-    width={360}
-    onsubmit={() => saveProductPrice()}
-    busy={xa.busy}
-    error={xa.error}
->
-    <label class="field"
-        >List price<input class="num" inputmode="decimal" bind:value={xPrice} placeholder={xItem?.sharedUnitPrice} pattern={"\\d+(\\.\\d{1,2})?"} /></label
-    >
-    <div class="muted">Shared price {peso(xItem?.sharedUnitPrice)}</div>
-    {#if xItem?.branchUnitPrice != null}
-        <div class="row"><button type="button" class="sm" onclick={() => saveProductPrice(true)} disabled={xa.busy}>Use shared price</button></div>
-    {/if}
-</Dialog>
-
-<Dialog bind:open={cOpen} title="Commission at {branch?.name ?? 'this branch'}" width={360} onsubmit={() => saveCommission()} busy={ca.busy} error={ca.error}>
-    <label class="field"
-        >Commission on every product<input class="num" inputmode="decimal" bind:value={cAmount} placeholder="Shared" pattern={"\\d+(\\.\\d{1,2})?"} /></label
-    >
-    {#if branch?.commissionAmount != null}
-        <div class="row"><button type="button" class="sm" onclick={() => saveCommission(true)} disabled={ca.busy}>Use shared commissions</button></div>
-    {/if}
 </Dialog>
 
 <Dialog bind:open={hOpen} title="Add mission helper" width={400} onsubmit={addHelper} submitText="Add" busy={ha.busy || !hUser} error={ha.error}>

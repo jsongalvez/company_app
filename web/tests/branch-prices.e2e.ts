@@ -37,12 +37,11 @@ test("a branch sets its own product price and sells at it", { session: "owner" }
     await restock.getByRole("button", "Restock").tap();
     await expect(restock).toBeHidden();
 
-    // Branches page: this branch's price 300, and commission 40 on every product.
-    await app.open("/#/branches");
-    await screen.getByRole("row").filter({ hasText: "Fixture Branch" }).first().tap();
+    // Stock page (Branches is for people who manage users; coordinators and practitioners cannot open it): this branch's
+    // price 300, and commission 40 on every product.
     const priced = screen.getByRole("row").filter({ hasText: product });
-    await priced.getByRole("button", "Change").tap();
-    const dlg = screen.getByRole("dialog", new RegExp(`Price at .*: ${product}`));
+    await priced.getByRole("button", "Change price").tap();
+    const dlg = screen.getByRole("dialog", new RegExp(`Price at this branch: ${product}`));
     await dlg.getByLabel(/^List price/).fill("300");
     await dlg.getByRole("button", "Save").tap();
     await expect(dlg).toBeHidden();
@@ -55,7 +54,6 @@ test("a branch sets its own product price and sells at it", { session: "owner" }
     await expect(priced.getByText(/^40\.00/)).toBeVisible();
 
     // A sale here charges the branch price.
-    await app.open("/#/inventory");
     await screen.getByRole("button", "Product sale").tap();
     const sale = screen.getByRole("dialog", "Product sale");
     await sale.getByLabel(/^Product/).selectOption({ label: `${product} · 300.00 · 5 left` });
@@ -64,9 +62,7 @@ test("a branch sets its own product price and sells at it", { session: "owner" }
     await sale.getByRole("button", "Close").tap();
 
     // Back to the shared price.
-    await app.open("/#/branches");
-    await screen.getByRole("row").filter({ hasText: "Fixture Branch" }).first().tap();
-    await priced.getByRole("button", "Change").tap();
+    await priced.getByRole("button", "Change price").tap();
     await dlg.getByRole("button", "Use shared price").tap();
     await expect(dlg).toBeHidden();
     await screen.getByRole("button", "Change commission").tap();

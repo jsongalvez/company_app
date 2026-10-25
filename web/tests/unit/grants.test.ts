@@ -52,3 +52,14 @@ test("a day grant edits only that branch day", () => {
     assert.equal(can(reliefHelper, "EDIT_BRANCH_DATA", "b1", "d1"), true);
     assert.equal(can(reliefHelper, "EDIT_BRANCH_DATA", "b1", "d2"), false);
 });
+
+// Feedback 88baaf43: a coordinator or practitioner holds EDIT_BRANCH_DATA at their branch (V2 seed), which is what
+// the server's price and commission routes ask for, but no user-management grant, so Branches is closed to them.
+// Branch prices and commission therefore live on Stock, gated on the same grant as the server.
+test("a branch worker can change branch prices and commission from Stock but cannot open Branches", () => {
+    const worker = [g("VIEW_BRANCH_DATA", "BRANCH", "b1"), g("EDIT_BRANCH_DATA", "BRANCH", "b1")];
+    assert.equal(can(worker, "EDIT_BRANCH_DATA"), true);
+    assert.equal(can(worker, "EDIT_BRANCH_DATA", "b2"), false);
+    assert.equal(can(worker, "MANAGE_USERS"), false);
+    assert.equal(can(worker, "ASSIGN_DELEGATE"), false);
+});
