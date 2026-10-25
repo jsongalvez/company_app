@@ -14,7 +14,6 @@ COPY gradle gradle
 COPY gradle.properties gradle.properties
 COPY settings.gradle.kts settings.gradle.kts
 COPY build.gradle.kts build.gradle.kts
-COPY shared shared
 COPY backend backend
 COPY detekt-rules detekt-rules
 RUN chmod +x gradlew && ./gradlew :backend:installDist --no-daemon
