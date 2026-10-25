@@ -11,6 +11,7 @@
     import State from "../components/State.svelte";
     import Dialog from "../components/Dialog.svelte";
     import PersonPicker from "../components/PersonPicker.svelte";
+    import PeopleChecklist from "../components/PeopleChecklist.svelte";
 
     const list = new Query(load.branches().key, load.branches().fn);
     const sel = $derived(route.current.query.get("id") ?? "");
@@ -112,20 +113,33 @@
     // Staff
     const sa = new Action();
     let sOpen = $state(false);
-    let sUser = $state("");
-    let sSlot = $state(1);
+    let sPicked = $state<string[]>([]);
     function openStaff() {
         sa.reset();
-        sUser = "";
-        sSlot = (activeStaff.at(-1)?.slot ?? 0) + 1;
+        sPicked = [];
         sOpen = true;
     }
+    // Slots go on after the last one, in tap order. A failure stops the rest; those already added stay.
     async function addStaff() {
-        const body = { id: uuid(), userId: sUser, slot: sSlot };
-        if (await sa.run(() => ok(api.POST("/api/branches/{branchId}/assignments", { params: { path: { branchId: sel } }, body })), "Added")) {
-            sOpen = false;
-            refresh(`assign:${sel}`, "users");
-        }
+        const first = (activeStaff.at(-1)?.slot ?? 0) + 1;
+        const added = new Set<string>();
+        const done = await sa.run(
+            async () => {
+                for (const [i, userId] of sPicked.entries()) {
+                    await ok(
+                        api.POST("/api/branches/{branchId}/assignments", {
+                            params: { path: { branchId: sel } },
+                            body: { id: uuid(), userId, slot: first + i },
+                        }),
+                    );
+                    added.add(userId);
+                }
+            },
+            sPicked.length === 1 ? "Added" : `Added ${sPicked.length} people`,
+        );
+        if (added.size) refresh(`assign:${sel}`, "users");
+        if (done) sOpen = false;
+        else sPicked = sPicked.filter((id) => !added.has(id));
     }
     async function removeStaff(a: S["AssignmentResponse"]) {
         if (!confirm(`Remove ${nameOf[a.userId] ?? "this person"} from ${branch?.name}? Their past records stay.`)) return;
@@ -271,8 +285,14 @@
                                     <td class="muted hide-sm">{dateTime(a.assignedAt)}</td>
                                     <td class="right nowrap">
                                         {#if manageUsers}
-                                            <button class="sm" onclick={() => move(i, -1)} disabled={i === 0} title="Move up">↑</button>
-                                            <button class="sm" onclick={() => move(i, 1)} disabled={i === activeStaff.length - 1} title="Move down">↓</button>
+                                            <button class="sm" onclick={() => move(i, -1)} disabled={i === 0} title="Move up" aria-label="Move up">↑</button>
+                                            <button
+                                                class="sm"
+                                                onclick={() => move(i, 1)}
+                                                disabled={i === activeStaff.length - 1}
+                                                title="Move down"
+                                                aria-label="Move down">↓</button
+                                            >
                                             <button class="sm" onclick={() => removeStaff(a)}>Remove</button>
                                         {/if}
                                     </td>
@@ -397,9 +417,16 @@
     <label class="field"><span class="req">New name</span><input bind:value={rName} maxlength="100" required /></label>
 </Dialog>
 
-<Dialog bind:open={sOpen} title="Add person to {branch?.name}" width={400} onsubmit={addStaff} submitText="Add" busy={sa.busy || !sUser} error={sa.error}>
-    <div class="field"><span class="req">Person</span><PersonPicker people={unassigned} bind:value={sUser} /></div>
-    <label class="field">Order in lists<input class="num" type="number" min="1" bind:value={sSlot} /></label>
+<Dialog
+    bind:open={sOpen}
+    title="Add person to {branch?.name}"
+    width={400}
+    onsubmit={addStaff}
+    submitText={sPicked.length ? `Add ${sPicked.length}` : "Add"}
+    busy={sa.busy || !sPicked.length}
+    error={sa.error}
+>
+    <div class="field"><span class="req">People</span><PeopleChecklist people={unassigned} bind:value={sPicked} /></div>
 </Dialog>
 
 <Dialog bind:open={pOpen} title="Price: {label(pType)}" width={340} onsubmit={saveRate} busy={pa.busy} error={pa.error}>

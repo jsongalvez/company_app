@@ -40,7 +40,7 @@ test("invite a practitioner, they sign in, add them to a new branch", { session:
     await add.getByLabel("Search people").fill(tag);
     await add.getByRole("row").filter({ hasText: name }).tap();
     await expect(add.getByText(username)).toBeVisible();
-    await add.getByRole("button", "Add").tap();
+    await add.getByRole("button", "Add 1").tap();
     await expect(add).toBeHidden();
     await expect(screen.getByRole("row").filter({ hasText: name })).toBeVisible();
 
