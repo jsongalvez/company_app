@@ -66,12 +66,14 @@ data class UserAssignmentResponse(
  * admin mint of a single-use invite link (decision 2). No password field:
  * the admin never knows a credential — the invitee sets their own password on accept.
  * [roles] follows the create-user shape (full-replace bundle, SUPERUSER guarded).
+ * [username], [email] and [displayName] are all filled or all blank; blank means the
+ * invitee supplies them when they accept.
  */
 @Serializable
 data class InviteMintRequest(
-    val username: String,
-    val email: String,
-    val displayName: String,
+    val username: String = "",
+    val email: String = "",
+    val displayName: String = "",
     val roles: List<String> = emptyList(),
 )
 

@@ -26,6 +26,13 @@ import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
+/** Identity fields an invitee supplies at accept when the invite was minted without them. */
+data class AcceptProfile(
+    val username: String = "",
+    val email: String = "",
+    val displayName: String = "",
+)
+
 object AuthService {
     private data class MintedResetCode(
         val recipient: String,
@@ -126,10 +133,13 @@ object AuthService {
     fun acceptInvite(
         rawCode: String,
         newPassword: String,
+        profile: AcceptProfile = AcceptProfile(),
     ) {
         if (!PasswordPolicy.isValid(newPassword) || Password.exceedsMaxBytes(newPassword)) {
             throw ValidationException(WEAK_PASSWORD_MESSAGE)
         }
+        val trimmed =
+            AcceptProfile(profile.username.trim(), profile.email.trim(), profile.displayName.trim())
         val consumedUserId: UUID =
             transaction {
                 val row =
@@ -153,6 +163,13 @@ object AuthService {
                     throw ValidationException(
                         if (reread.consumedAt != null) INVITE_USED_MESSAGE else INVITE_EXPIRED_MESSAGE,
                     )
+                }
+                // A code-only invite: the invitee names themselves here. Any failure rolls the
+                // consume back, so the code stays live for a corrected retry.
+                if (UserRepository.isProfilePendingInTransaction(userId)) {
+                    UserService.validateProfile(trimmed)
+                    UserRepository.completeProfileInTransaction(userId, trimmed)
+                    UserAudit.profileCompleted(userId, trimmed.username, trimmed.displayName)
                 }
                 UserRepository.setPasswordHashInTransaction(userId, Password.create(newPassword))
                 // Accepting replaces the credential: kill pre-invite tokens durably.

@@ -57,6 +57,11 @@ object UserService {
     private const val EMAIL_TOO_LONG_MESSAGE = "Email must be at most 50 characters"
     private const val DISPLAY_NAME_TOO_LONG_MESSAGE = "Display name must be at most 50 characters"
     private const val INVITE_VALID_DAYS = 7L
+    private const val PARTIAL_PROFILE_MESSAGE = "Fill in name, username and email, or leave all three blank"
+    private const val PLACEHOLDER_PREFIX = "invite-"
+    private const val PLACEHOLDER_SUFFIX_LENGTH = 10
+    private const val PLACEHOLDER_EMAIL_DOMAIN = "invite.invalid"
+    private const val PLACEHOLDER_DISPLAY_NAME = "Invited user"
     private const val TOKEN_TABLE_NAME = "credential_token"
 
     /**
@@ -74,29 +79,12 @@ object UserService {
         callerId: UUID,
         request: InviteMintRequest,
     ): InviteMintResponse {
-        if (!EmailPolicy.isValid(request.email)) {
-            throw ValidationException(INVALID_EMAIL_MESSAGE)
-        }
         if (request.roles.contains(SUPERUSER_ROLE)) {
             throw ValidationException(SUPERUSER_GUARD_MESSAGE)
         }
-        // Identity bounds mirror the app_user varchar widths: blank names
-        // would persist as empty strings and overlong fields would surface as
-        // unmapped 500s — fail closed with 400 before the transaction instead.
-        if (request.username.isBlank()) {
-            throw ValidationException(BLANK_USERNAME_MESSAGE)
-        }
-        if (request.displayName.isBlank()) {
-            throw ValidationException(BLANK_DISPLAY_NAME_MESSAGE)
-        }
-        if (request.username.length > USERNAME_MAX_LENGTH) {
-            throw ValidationException(USERNAME_TOO_LONG_MESSAGE)
-        }
-        if (request.email.length > EMAIL_MAX_LENGTH) {
-            throw ValidationException(EMAIL_TOO_LONG_MESSAGE)
-        }
-        if (request.displayName.length > DISPLAY_NAME_MAX_LENGTH) {
-            throw ValidationException(DISPLAY_NAME_TOO_LONG_MESSAGE)
+        val profile = request.asProfile()
+        if (profile != null) {
+            validateProfile(profile)
         }
         // Invite validity is credential lifecycle: the auth cluster owns JVM-clock reads.
         val expiresAt =
@@ -104,7 +92,7 @@ object UserService {
                 Instant.now().plus(INVITE_VALID_DAYS, ChronoUnit.DAYS),
                 ZoneOffset.UTC,
             )
-        val minted: MintedInvite = transaction { mintInviteInTransaction(callerId, request, expiresAt) }
+        val minted: MintedInvite = transaction { mintInviteInTransaction(callerId, request, profile, expiresAt) }
         logger.info {
             val action = if (minted.createdNew) "Created user" else "Re-invited existing user"
             "[INVITE-MINT] $action ${minted.userId.toString().maskUUID()}"
@@ -116,13 +104,45 @@ object UserService {
         )
     }
 
+    /** The identity an invite carries, or null for a code-only invite; partly filled is a 400. */
+    private fun InviteMintRequest.asProfile(): AcceptProfile? {
+        val filled = listOf(username, email, displayName).count { it.isNotBlank() }
+        return when (filled) {
+            0 -> null
+            3 -> AcceptProfile(username = username, email = email, displayName = displayName)
+            else -> throw ValidationException(PARTIAL_PROFILE_MESSAGE)
+        }
+    }
+
+    private fun placeholderProfile(): AcceptProfile {
+        val name = PLACEHOLDER_PREFIX + CredentialTokens.generate().take(PLACEHOLDER_SUFFIX_LENGTH).lowercase()
+        return AcceptProfile(username = name, email = "$name@$PLACEHOLDER_EMAIL_DOMAIN", displayName = PLACEHOLDER_DISPLAY_NAME)
+    }
+
+    /**
+     * Identity bounds mirror the app_user varchar widths: blank names would persist as empty
+     * strings and overlong fields would surface as unmapped 500s — fail closed with 400.
+     */
+    internal fun validateProfile(profile: AcceptProfile) {
+        if (profile.username.isBlank()) throw ValidationException(BLANK_USERNAME_MESSAGE)
+        if (profile.displayName.isBlank()) throw ValidationException(BLANK_DISPLAY_NAME_MESSAGE)
+        if (!EmailPolicy.isValid(profile.email)) throw ValidationException(INVALID_EMAIL_MESSAGE)
+        if (profile.username.length > USERNAME_MAX_LENGTH) throw ValidationException(USERNAME_TOO_LONG_MESSAGE)
+        if (profile.email.length > EMAIL_MAX_LENGTH) throw ValidationException(EMAIL_TOO_LONG_MESSAGE)
+        if (profile.displayName.length > DISPLAY_NAME_MAX_LENGTH) throw ValidationException(DISPLAY_NAME_TOO_LONG_MESSAGE)
+    }
+
     /** The mint command's transaction body (ADR-0024): one transaction, audit rows inside. */
     private fun mintInviteInTransaction(
         callerId: UUID,
         request: InviteMintRequest,
+        profile: AcceptProfile?,
         expiresAt: OffsetDateTime,
     ): MintedInvite {
-        val existing = UserRepository.findByUsernameOrEmailInTransaction(request.username, request.email)
+        val identity = profile ?: placeholderProfile()
+        // Code-only invite: nothing to match against, always a new placeholder account.
+        val existing =
+            profile?.let { UserRepository.findByUsernameOrEmailInTransaction(it.username, it.email) }
         // serialize with acceptInvite on the account lock before observing or
         // invalidating outstanding codes; the check-then-invalidate runs under the lock.
         if (existing != null) {
@@ -146,10 +166,11 @@ object UserService {
             targetId =
                 UserRepository.createUserInTransaction(
                     UserCreateParams(
-                        username = request.username,
+                        username = identity.username,
                         passwordHash = Password.create(CredentialTokens.generate()),
-                        email = request.email,
-                        displayName = request.displayName,
+                        email = identity.email,
+                        displayName = identity.displayName,
+                        profilePending = profile == null,
                     ),
                 )
         }
@@ -165,8 +186,8 @@ object UserService {
             UserAudit.userInserted(
                 recordId = targetId,
                 changedBy = callerId,
-                username = request.username,
-                displayName = request.displayName,
+                username = identity.username,
+                displayName = identity.displayName,
             )
         }
         val rawCode = insertInviteToken(targetId, callerId, expiresAt)
@@ -385,6 +406,17 @@ internal object UserAudit {
                 "status" to UserStatus.ACTIVE.name,
                 "displayName" to displayName,
             ),
+    )
+
+    fun profileCompleted(
+        recordId: UUID,
+        username: String,
+        displayName: String,
+    ) = AuditLog.recordUpdate(
+        context = AuditContext(changedBy = recordId),
+        row = AuditedRow(AppUserTable.tableName, recordId),
+        oldFields = mapOf("username" to "(pending invite)", "displayName" to "(pending invite)"),
+        newFields = mapOf("username" to username, "displayName" to displayName),
     )
 
     fun rolesReplaced(

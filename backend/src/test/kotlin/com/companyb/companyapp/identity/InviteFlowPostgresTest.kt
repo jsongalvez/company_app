@@ -5,6 +5,8 @@ import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.identity.InviteMintRequest
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.identity.AcceptProfile
+import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.identity.CredentialTokenRepository
 import com.companyb.companyapp.identity.CredentialTokenTable
 import com.companyb.companyapp.identity.LoginResult
@@ -117,6 +119,82 @@ class InviteFlowPostgresTest : BasePostgresTest() {
         AuthService.acceptInvite(minted.inviteCode, "valid-password")
 
         assertIs<LoginResult.Success>(AuthService.login("invitee-1", "valid-password", "127.0.0.1"))
+    }
+
+    @Test
+    fun `a code-only invite lets the invitee supply name username and email at accept`() {
+        val minted = UserService.mintInvite(callerId, InviteMintRequest(roles = emptyList()))
+
+        AuthService.acceptInvite(
+            minted.inviteCode,
+            "valid-password",
+            AcceptProfile(username = "self-named", email = "self-named@example.test", displayName = "Self Named"),
+        )
+
+        assertIs<LoginResult.Success>(AuthService.login("self-named", "valid-password", "127.0.0.1"))
+        val row = transaction { AppUserTable.selectAll().where { AppUserTable.username eq "self-named" }.single() }
+        assertEquals("Self Named", row[AppUserTable.displayName])
+        assertEquals("self-named@example.test", row[AppUserTable.email])
+        assertEquals(false, row[AppUserTable.profilePending])
+    }
+
+    @Test
+    fun `a code-only invite rejects an accept that leaves the profile blank and keeps the code live`() {
+        val minted = UserService.mintInvite(callerId, InviteMintRequest())
+
+        val error = assertFailsWith<ValidationException> { AuthService.acceptInvite(minted.inviteCode, "valid-password") }
+        assertTrue(error.message!!.contains("required"), "got: ${error.message}")
+
+        AuthService.acceptInvite(
+            minted.inviteCode,
+            "valid-password",
+            AcceptProfile(username = "retry-ok", email = "retry-ok@example.test", displayName = "Retry"),
+        )
+        assertIs<LoginResult.Success>(AuthService.login("retry-ok", "valid-password", "127.0.0.1"))
+    }
+
+    @Test
+    fun `a code-only invite checks username is free and email is valid at accept`() {
+        mint("taken-name", "taken-name@example.test")
+        val minted = UserService.mintInvite(callerId, InviteMintRequest())
+
+        assertFailsWith<ConflictException> {
+            AuthService.acceptInvite(
+                minted.inviteCode,
+                "valid-password",
+                AcceptProfile(username = "taken-name", email = "fresh@example.test", displayName = "X"),
+            )
+        }
+        assertFailsWith<ValidationException> {
+            AuthService.acceptInvite(
+                minted.inviteCode,
+                "valid-password",
+                AcceptProfile(username = "fresh-name", email = "not-an-email", displayName = "X"),
+            )
+        }
+        AuthService.acceptInvite(
+            minted.inviteCode,
+            "valid-password",
+            AcceptProfile(username = "fresh-name", email = "fresh@example.test", displayName = "X"),
+        )
+    }
+
+    @Test
+    fun `mint with only some of name username email is rejected`() {
+        assertFailsWith<ValidationException> {
+            UserService.mintInvite(callerId, InviteMintRequest(username = "half", email = "", displayName = ""))
+        }
+    }
+
+    @Test
+    fun `a filled-in invite ignores profile fields sent at accept`() {
+        val minted = mint("filled-in", "filled-in@example.test", "Filled In")
+        AuthService.acceptInvite(
+            minted.inviteCode,
+            "valid-password",
+            AcceptProfile(username = "other", email = "other@example.test", displayName = "Other"),
+        )
+        assertIs<LoginResult.Success>(AuthService.login("filled-in", "valid-password", "127.0.0.1"))
     }
 
     @Test
