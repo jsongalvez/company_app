@@ -89,12 +89,11 @@ class OutboxReplayContractTest : BasePostgresTest() {
         CommerceFinanceFixtures.insertTestCategory(categoryId)
         CommerceFinanceFixtures.insertTestProduct(productId, categoryId = categoryId)
         transaction {
-            BranchInventoryTable.insert {
-                it[BranchInventoryTable.branchId] = this@OutboxReplayContractTest.branchId
-                it[BranchInventoryTable.productId] = this@OutboxReplayContractTest.productId
-                it[BranchInventoryTable.currentStock] = STOCK
-                it[BranchInventoryTable.version] = 1
-            }
+            CommerceFinanceFixtures.insertTestCard(
+                this@OutboxReplayContractTest.branchId,
+                this@OutboxReplayContractTest.productId,
+                STOCK,
+            )
         }
         grant(staff, CapabilityCodes.EDIT_BRANCH_DATA)
         grant(finance, CapabilityCodes.ASSIGN_COMPENSATION)

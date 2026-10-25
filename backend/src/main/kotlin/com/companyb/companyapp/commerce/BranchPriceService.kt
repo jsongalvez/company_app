@@ -10,9 +10,8 @@ import java.math.BigDecimal
 import java.util.UUID
 
 /**
- * Per-branch product price (feedback 503bf228). Any member who can edit the branch sets it;
- * null puts the product back on the shared price. Commission is branch-wide
- * (Branch.commissionAmount). Each change is an audited
+ * Each product's own list price and commission at a branch (503bf228, a6946922). Any member who
+ * can edit the branch sets them; a value left out stays as it is. Each change is an audited
  * UPDATE of the branch's inventory card, so Change history shows who set what and when.
  */
 internal object BranchPriceService {
@@ -23,6 +22,7 @@ internal object BranchPriceService {
         branchId: UUID,
         productId: UUID,
         unitPrice: BigDecimal?,
+        commissionAmount: BigDecimal?,
     ): BranchInventory =
         transaction {
             if (BranchService.findByIdOrNull(branchId) == null) throw NotFoundException("Branch not found")
@@ -31,6 +31,7 @@ internal object BranchPriceService {
                 ?.takeIf { it.isActive }
                 ?: throw NotFoundException("Product not found")
             unitPrice?.let { validateMoneyAmount(it, "unitPrice") }
+            commissionAmount?.let { validateMoneyAmount(it, "commissionAmount") }
 
             val context = AuditContext(callerId, branchId)
             val ensured = BranchInventoryRepository.ensureCardInTransaction(branchId, productId)
@@ -38,28 +39,30 @@ internal object BranchPriceService {
             val before =
                 BranchInventoryRepository.findCardForUpdateInTransaction(branchId, productId)
                     ?: error("inventory card vanished for branch=$branchId product=$productId")
-            if (same(before.unitPrice, unitPrice)) return@transaction before
-            BranchInventoryRepository.setPriceInTransaction(before.id, unitPrice)
-            val after = before.copy(unitPrice = unitPrice)
+            val after =
+                before.copy(
+                    unitPrice = unitPrice ?: before.unitPrice,
+                    commissionAmount = commissionAmount ?: before.commissionAmount,
+                )
+            if (before.unitPrice.compareTo(after.unitPrice) == 0 &&
+                before.commissionAmount.compareTo(after.commissionAmount) == 0
+            ) {
+                return@transaction before
+            }
+            BranchInventoryRepository.setPriceInTransaction(before.id, after.unitPrice, after.commissionAmount)
             BranchInventoryAudit.updated(context, before, after)
             after
         }.also { logger.info { "[SET-BRANCH-PRICE] branch=$branchId product=$productId" } }
 
-    private fun same(
-        a: BigDecimal?,
-        b: BigDecimal?,
-    ): Boolean = if (a == null || b == null) a == b else a.compareTo(b) == 0
-
-    /** The product as sold at [branchId]: the card's own price and the branch's commission win. */
+    /** The product as sold at [branchId]: the card's own price and commission win. */
     fun priceAtBranch(
         product: Product,
         branchId: UUID,
     ): Product {
         val card = BranchInventoryRepository.findCardInTransaction(branchId, product.id)
-        val commission = BranchService.findByIdOrNull(branchId)?.commissionAmount
         return product.copy(
             unitPrice = card?.unitPrice ?: product.unitPrice,
-            commissionAmount = commission ?: product.commissionAmount,
+            commissionAmount = card?.commissionAmount ?: product.commissionAmount,
         )
     }
 }

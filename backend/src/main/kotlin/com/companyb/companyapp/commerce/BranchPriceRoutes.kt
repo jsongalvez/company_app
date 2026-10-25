@@ -5,7 +5,6 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.CapabilityFilter
-import com.companyb.companyapp.branch.BranchCommissionRoutes
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.commerce.SetBranchPriceRequest
@@ -45,7 +44,6 @@ object BranchPriceRoutes {
     private const val PRODUCT_ID_PARAM = "productId"
 
     fun register(config: JavalinConfig) {
-        BranchCommissionRoutes.register(config)
         // 503bf228 — any branch member who can edit the branch sets its prices (unknown branch 404s first).
         config.routes.before(ApiRoutes.BRANCH_INVENTORY_PRICE_PATH) { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
@@ -59,15 +57,16 @@ object BranchPriceRoutes {
                 callerId = context.callerUuid(),
                 branchId = context.pathParamAsUuid(BRANCH_ID_PARAM),
                 productId = context.pathParamAsUuid(PRODUCT_ID_PARAM),
-                unitPrice =
-                    request.unitPrice?.takeIf { it.isNotBlank() }?.let {
-                        parseNonNegativeBigDecimal(
-                            it,
-                            "unitPrice",
-                        )
-                    },
+                unitPrice = request.unitPrice.optionalMoney("unitPrice"),
+                commissionAmount = request.commissionAmount.optionalMoney("commissionAmount"),
             )
             context.status(HttpStatus.NO_CONTENT)
         }
     }
+
+    private fun String?.optionalMoney(field: String) =
+        this
+            ?.takeIf {
+                it.isNotBlank()
+            }?.let { parseNonNegativeBigDecimal(it, field) }
 }

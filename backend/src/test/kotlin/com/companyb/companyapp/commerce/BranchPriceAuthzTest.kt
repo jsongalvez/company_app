@@ -17,6 +17,10 @@ import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.junit.ClassRule
 import java.util.UUID
@@ -25,7 +29,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** 503bf228 — any member who can edit a branch sets its own product prices and one commission for all its products. */
+/** 503bf228, a6946922 — any member who can edit a branch sets each product's own price and commission there. */
 class BranchPriceAuthzTest : BasePostgresTest() {
     private val member = TestFixtures.uuid()
     private val outsider = TestFixtures.uuid()
@@ -33,6 +37,7 @@ class BranchPriceAuthzTest : BasePostgresTest() {
     private val otherBranchId = TestFixtures.uuid()
     private val categoryId = TestFixtures.uuid()
     private val productId = TestFixtures.uuid()
+    private val otherProductId = TestFixtures.uuid()
 
     override fun initTestData() {
         IdentityFixtures.insertTestUser(member, "price-member")
@@ -48,6 +53,7 @@ class BranchPriceAuthzTest : BasePostgresTest() {
         )
         CommerceFinanceFixtures.insertTestCategory(categoryId)
         CommerceFinanceFixtures.insertTestProduct(productId, categoryId = categoryId)
+        CommerceFinanceFixtures.insertTestProduct(otherProductId, categoryId = categoryId)
     }
 
     companion object {
@@ -84,11 +90,25 @@ class BranchPriceAuthzTest : BasePostgresTest() {
         body: Map<String, String?>,
     ): Int = testServer.client.put("/api/branches/$branch/inventory/$productId/price", body, asUser(user)).code
 
-    private fun putCommission(
+    private fun putFor(
         user: UUID,
         branch: UUID,
+        product: UUID,
         body: Map<String, String?>,
-    ): Int = testServer.client.put("/api/branches/$branch/commission", body, asUser(user)).code
+    ): Int = testServer.client.put("/api/branches/$branch/inventory/$product/price", body, asUser(user)).code
+
+    private fun cards(): Map<UUID, Pair<String, String>> =
+        Json
+            .parseToJsonElement(inventory())
+            .jsonArray
+            .associate {
+                val row = it.jsonObject
+                UUID.fromString(row.getValue("productId").jsonPrimitive.content) to
+                    (
+                        row.getValue("unitPrice").jsonPrimitive.content to
+                            row.getValue("commissionAmount").jsonPrimitive.content
+                    )
+            }
 
     private fun inventory(): String =
         testServer.client
@@ -97,26 +117,25 @@ class BranchPriceAuthzTest : BasePostgresTest() {
             .string()
 
     @Test
-    fun `member sets one branch commission, every product shows it, and blank puts it back`() {
-        assertEquals(204, put(member, branchId, mapOf("unitPrice" to "100")))
-        assertEquals(204, putCommission(member, branchId, mapOf("commissionAmount" to "12")))
-        val shown = inventory()
-        assertTrue(shown.contains("\"branchCommissionAmount\":\"12"), shown)
-        assertTrue(shown.contains("\"commissionAmount\":\"12"), shown)
-        assertEquals(204, putCommission(member, branchId, mapOf("commissionAmount" to "")))
-        assertTrue(!inventory().contains("\"branchCommissionAmount\":\""), inventory())
+    fun `each product keeps its own price and commission at the branch`() {
+        assertEquals(204, put(member, branchId, mapOf("unitPrice" to "300", "commissionAmount" to "40")))
+        assertEquals(204, putFor(member, branchId, otherProductId, mapOf("unitPrice" to "55")))
+        val rows = cards()
+        assertEquals("300.00" to "40.00", rows.getValue(productId))
+        assertEquals("55.00" to "10.00", rows.getValue(otherProductId))
+        assertEquals(204, put(member, branchId, mapOf("commissionAmount" to "7.50")))
+        assertEquals("300.00" to "7.50", cards().getValue(productId))
     }
 
     @Test
-    fun `only branch editors set the commission`() {
-        assertEquals(403, putCommission(outsider, branchId, mapOf("commissionAmount" to "1")))
-        assertEquals(403, putCommission(member, otherBranchId, mapOf("commissionAmount" to "1")))
-        assertEquals(404, putCommission(outsider, TestFixtures.uuid(), mapOf("commissionAmount" to "1")))
-        assertTrue(putCommission(member, branchId, mapOf("commissionAmount" to "-1")) in 400..499)
+    fun `a negative commission is refused and only branch editors set it`() {
+        assertTrue(put(member, branchId, mapOf("commissionAmount" to "-1")) in 400..499)
+        assertEquals(403, put(outsider, branchId, mapOf("commissionAmount" to "1")))
+        assertEquals(403, put(member, otherBranchId, mapOf("commissionAmount" to "1")))
     }
 
     @Test
-    fun `member sets a branch price, the inventory shows it, and shared puts it back`() {
+    fun `member sets a branch price and the inventory shows it`() {
         assertEquals(204, put(member, branchId, mapOf("unitPrice" to "777.50")))
         val shown =
             testServer.client
@@ -124,14 +143,6 @@ class BranchPriceAuthzTest : BasePostgresTest() {
                 .body
                 .string()
         assertTrue(shown.contains("\"unitPrice\":\"777.50\""), shown)
-
-        assertEquals(204, put(member, branchId, mapOf()))
-        val back =
-            testServer.client
-                .get("/api/branches/$branchId/inventory", asUser(member))
-                .body
-                .string()
-        assertTrue(!back.contains("777.50") && !back.contains("\"branchUnitPrice\":\""), back)
     }
 
     @Test

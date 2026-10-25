@@ -340,22 +340,6 @@ export interface paths {
         patch: operations["bookings_update"];
         trace?: never;
     };
-    "/api/branches/{branchId}/commission": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put: operations["branch_commission_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/branches/{branchId}/daily-summaries": {
         parameters: {
             query?: never;
@@ -2164,7 +2148,6 @@ export interface components {
             name: string;
             /** @enum {string} */
             branchType?: "CLINIC" | "PROVINCIAL_TOUR" | "MEDICAL_MISSION" | "UNKNOWN";
-            commissionAmount?: string | null;
         };
         CreateBranchRequest: {
             id: string;
@@ -2185,9 +2168,6 @@ export interface components {
         };
         RenameBranchRequest: {
             name: string;
-        };
-        SetBranchCommissionRequest: {
-            commissionAmount?: string | null;
         };
         BranchDayTodayResponse: {
             branchDayId: string;
@@ -2259,10 +2239,6 @@ export interface components {
             version: number;
             unitPrice: string;
             commissionAmount: string;
-            sharedUnitPrice: string;
-            sharedCommissionAmount: string;
-            branchUnitPrice?: string | null;
-            branchCommissionAmount?: string | null;
             available?: number;
             stock?: number;
             sales?: number;
@@ -2349,6 +2325,7 @@ export interface components {
         };
         SetBranchPriceRequest: {
             unitPrice?: string | null;
+            commissionAmount?: string | null;
         };
         UpdateProductRequest: {
             name?: string | null;
@@ -4281,66 +4258,6 @@ export interface operations {
             };
             /** @description Bad Request */
             400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    branch_commission_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                branchId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["SetBranchCommissionRequest"];
-            };
-        };
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
                 headers: {
                     [name: string]: unknown;
                 };

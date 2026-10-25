@@ -3,6 +3,7 @@ package com.companyb.companyapp.commerce
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -94,12 +95,21 @@ internal object BranchInventoryRepository {
     ): EnsureCardResult {
         findCardInTransaction(branchId, productId)?.let { return EnsureCardResult(it, created = false) }
 
+        // A new card starts at the product's current price and commission; the branch changes them from there.
+        val product =
+            ProductTable
+                .selectAll()
+                .where { ProductTable.id eq productId }
+                .singleOrNull()
+                ?: throw NotFoundException("Product not found")
         val inserted =
             BranchInventoryTable.insertIgnore {
                 it[BranchInventoryTable.branchId] = branchId
                 it[BranchInventoryTable.productId] = productId
                 it[BranchInventoryTable.currentStock] = 0
                 it[BranchInventoryTable.version] = 1
+                it[BranchInventoryTable.unitPrice] = product[ProductTable.unitPrice]
+                it[BranchInventoryTable.commissionAmount] = product[ProductTable.commissionAmount]
             }
 
         return EnsureCardResult(
@@ -175,13 +185,15 @@ internal object BranchInventoryRepository {
             existing.quantityChange == params.quantityChange &&
             existing.notes == params.notes
 
-    /** Sets the branch's own price on a locked card (503bf228); null = shared. */
+    /** Sets the branch's own price and commission on a locked card (503bf228, a6946922). */
     fun setPriceInTransaction(
         cardId: UUID,
-        unitPrice: BigDecimal?,
+        unitPrice: BigDecimal,
+        commissionAmount: BigDecimal,
     ) {
         BranchInventoryTable.update({ BranchInventoryTable.id eq cardId }) {
             it[BranchInventoryTable.unitPrice] = unitPrice
+            it[BranchInventoryTable.commissionAmount] = commissionAmount
         }
     }
 
@@ -279,8 +291,6 @@ internal object BranchInventoryRepository {
                     BranchInventoryWithProduct(
                         inventory = row.toBranchInventory(),
                         productName = row[ProductTable.name],
-                        sharedUnitPrice = row[ProductTable.unitPrice],
-                        sharedCommissionAmount = row[ProductTable.commissionAmount],
                     )
                 }
         }.also { logger.info { "[FIND-INVENTORY] Fetched ${it.size} inventory card(s) for branch $branchId" } }
@@ -293,6 +303,7 @@ internal object BranchInventoryRepository {
             currentStock = this[BranchInventoryTable.currentStock],
             version = this[BranchInventoryTable.version],
             unitPrice = this[BranchInventoryTable.unitPrice],
+            commissionAmount = this[BranchInventoryTable.commissionAmount],
         )
 
     private fun ResultRow.toInventoryMovement(): InventoryMovement =

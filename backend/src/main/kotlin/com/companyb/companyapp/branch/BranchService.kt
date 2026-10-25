@@ -7,10 +7,8 @@ import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.session.SessionBaseRateService
-import com.companyb.companyapp.utils.validateMoneyAmount
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.math.BigDecimal
 import java.util.UUID
 
 object BranchService {
@@ -55,28 +53,6 @@ object BranchService {
             if (old.name != name) BranchAudit.renamed(callerId, old, renamed)
             renamed
         }.also { logger.info { "[RENAME-BRANCH] Branch ${id.toString().maskUUID()} renamed" } }
-
-    /** 503bf228 — the branch's commission for all its products; null = each product's shared one. Audited. */
-    fun setCommission(
-        callerId: UUID,
-        id: UUID,
-        commissionAmount: BigDecimal?,
-    ): Branch =
-        transaction {
-            commissionAmount?.let { validateMoneyAmount(it, "commissionAmount") }
-            val old =
-                BranchRepository.setCommissionInTransaction(id, commissionAmount)
-                    ?: throw NotFoundException("Branch not found")
-            val updated = old.copy(commissionAmount = commissionAmount)
-            val same =
-                if (old.commissionAmount == null || commissionAmount == null) {
-                    old.commissionAmount == commissionAmount
-                } else {
-                    old.commissionAmount.compareTo(commissionAmount) == 0
-                }
-            if (!same) BranchAudit.renamed(callerId, old, updated)
-            updated
-        }.also { logger.info { "[SET-BRANCH-COMMISSION] Branch ${id.toString().maskUUID()}" } }
 
     fun findAll(): List<Branch> = BranchRepository.findAll()
 

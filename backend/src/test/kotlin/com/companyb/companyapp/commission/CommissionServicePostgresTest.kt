@@ -442,12 +442,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         stock: Int,
     ) {
         transaction {
-            BranchInventoryTable.insertIgnore {
-                it[BranchInventoryTable.branchId] = branchId
-                it[BranchInventoryTable.productId] = productId
-                it[BranchInventoryTable.currentStock] = stock
-                it[BranchInventoryTable.version] = 1
-            }
+            CommerceFinanceFixtures.insertTestCard(branchId, productId, stock)
         }
     }
 

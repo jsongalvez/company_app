@@ -60,8 +60,6 @@
 
     const edit = $derived(can("EDIT_BRANCH_DATA"));
     const manage = $derived(canAtBranch("MANAGE_PRODUCTS"));
-    // One commission for every product sold here; blank = each product's shared one.
-    const branchCommission = $derived(inv.data?.find((i) => i.branchCommissionAmount != null)?.branchCommissionAmount ?? null);
     const LOW = 5;
     const nameVs = viewSetting("q", "");
     let filter = $state(nameVs.read);
@@ -139,40 +137,25 @@
         );
     }
 
-    // Price of one product at this branch (503bf228). Blank = the shared price from Products.
+    // List price and commission of one product at this branch (503bf228, a6946922).
     const xa = new Action();
     let xOpen = $state(false);
     let xItem = $state<S["BranchInventoryResponse"] | null>(null);
     let xPrice = $state("");
+    let xCommission = $state("");
     function openProductPrice(i: S["BranchInventoryResponse"]) {
         xa.reset();
         xItem = i;
-        xPrice = i.branchUnitPrice ?? "";
+        xPrice = i.unitPrice;
+        xCommission = i.commissionAmount;
         xOpen = true;
     }
-    async function saveProductPrice(shared = false) {
+    async function saveProductPrice() {
         if (!xItem) return;
-        const body = shared ? {} : { unitPrice: xPrice.trim() || null };
+        const body = { unitPrice: xPrice.trim(), commissionAmount: xCommission.trim() };
         const path = { branchId: bid, productId: xItem.productId };
-        if (await xa.run(() => ok(api.PUT("/api/branches/{branchId}/inventory/{productId}/price", { params: { path }, body })), "Price saved")) {
+        if (await xa.run(() => ok(api.PUT("/api/branches/{branchId}/inventory/{productId}/price", { params: { path }, body })), "Prices saved")) {
             xOpen = false;
-            refresh();
-        }
-    }
-
-    const ca = new Action();
-    let cOpen = $state(false);
-    let cAmount = $state("");
-    function openCommission() {
-        ca.reset();
-        cAmount = branchCommission ?? "";
-        cOpen = true;
-    }
-    async function saveCommission(shared = false) {
-        const body = { commissionAmount: shared ? null : cAmount.trim() || null };
-        if (await ca.run(() => ok(api.PUT("/api/branches/{branchId}/commission", { params: { path: { branchId: bid } }, body })), "Commission saved")) {
-            cOpen = false;
-            invalidate(load.branches().key);
             refresh();
         }
     }
@@ -213,17 +196,6 @@
     {#if edit}<button class="primary" onclick={() => (saleOpen = true)}>Product sale</button>{/if}
 </PageHead>
 
-{#if edit && rows.length}
-    <div class="row mb">
-        <span
-            >Commission on every product here:
-            {#if branchCommission != null}<b>{peso(branchCommission)}</b><span class="mark ok">this branch</span>{:else}<span class="muted"
-                    >each product's shared commission</span
-                >{/if}</span
-        >
-        <span class="spacer"></span><button class="sm" onclick={openCommission} aria-label="Change commission">Change</button>
-    </div>
-{/if}
 <State q={inv} empty={!!inv.data && inv.data.length === 0} emptyText="This branch has no products in stock yet." />
 {#if rows.length}
     <div class="table-wrap mb">
@@ -245,12 +217,8 @@
                 {#each rows as i (i.id)}
                     <tr>
                         <td>{i.productName}</td>
-                        <td class="num"
-                            >{peso(i.unitPrice)}{#if i.branchUnitPrice != null}<span class="mark ok">this branch</span>{/if}</td
-                        >
-                        <td class="num muted"
-                            >{peso(i.commissionAmount)}{#if i.branchCommissionAmount != null}<span class="mark ok">this branch</span>{/if}</td
-                        >
+                        <td class="num">{peso(i.unitPrice)}</td>
+                        <td class="num muted">{peso(i.commissionAmount)}</td>
                         <td class="num">
                             <b class:low={i.currentStock <= LOW}>{num(i.currentStock)}</b>
                             {#if i.currentStock === 0}<span class="mark bad">Out</span>{:else if i.currentStock <= LOW}<span class="mark warn">Low</span>{/if}
@@ -263,7 +231,7 @@
                             <td class="right nowrap">
                                 <button class="sm" onclick={() => openFor(i, "restock")}>Restock</button>
                                 <button class="sm" onclick={() => openFor(i, "adjust")}>Fix count</button>
-                                <button class="sm" onclick={() => openProductPrice(i)}>Change price</button>
+                                <button class="sm" onclick={() => openProductPrice(i)}>Change prices</button>
                             </td>
                         {/if}
                     </tr>
@@ -365,30 +333,21 @@
     {#if products.length === 0}<div class="faint">All products stocked.</div>{/if}
 </Dialog>
 
-<Dialog
-    bind:open={xOpen}
-    title="Price at this branch: {xItem?.productName ?? ''}"
-    width={360}
-    onsubmit={() => saveProductPrice()}
-    busy={xa.busy}
-    error={xa.error}
->
-    <label class="field"
-        >List price<input class="num" inputmode="decimal" bind:value={xPrice} placeholder={xItem?.sharedUnitPrice} pattern={"\\d+(\\.\\d{1,2})?"} /></label
-    >
-    <div class="muted">Shared price {peso(xItem?.sharedUnitPrice)}</div>
-    {#if xItem?.branchUnitPrice != null}
-        <div class="row"><button type="button" class="sm" onclick={() => saveProductPrice(true)} disabled={xa.busy}>Use shared price</button></div>
-    {/if}
-</Dialog>
-
-<Dialog bind:open={cOpen} title="Commission at this branch" width={360} onsubmit={() => saveCommission()} busy={ca.busy} error={ca.error}>
-    <label class="field"
-        >Commission on every product<input class="num" inputmode="decimal" bind:value={cAmount} placeholder="Shared" pattern={"\\d+(\\.\\d{1,2})?"} /></label
-    >
-    {#if branchCommission != null}
-        <div class="row"><button type="button" class="sm" onclick={() => saveCommission(true)} disabled={ca.busy}>Use shared commissions</button></div>
-    {/if}
+<Dialog bind:open={xOpen} title="Prices at this branch: {xItem?.productName ?? ''}" width={360} onsubmit={saveProductPrice} busy={xa.busy} error={xa.error}>
+    <div class="form-grid">
+        <label class="field"
+            ><span class="req">List price</span><input class="num" inputmode="decimal" bind:value={xPrice} required pattern={"\\d+(\\.\\d{1,2})?"} /></label
+        >
+        <label class="field"
+            ><span class="req">Commission</span><input
+                class="num"
+                inputmode="decimal"
+                bind:value={xCommission}
+                required
+                pattern={"\\d+(\\.\\d{1,2})?"}
+            /></label
+        >
+    </div>
 </Dialog>
 
 <ProductSale bind:open={saleOpen} onsaved={refresh} />

@@ -120,7 +120,7 @@ object InventoryService {
 
     fun getStock(branchId: UUID): List<BranchInventoryWithProduct> {
         InventoryReadSupport.requireBranchExists(branchId)
-        return cardsAt(branchId)
+        return BranchInventoryRepository.findByBranch(branchId)
     }
 
     /**
@@ -149,7 +149,7 @@ object InventoryService {
      */
     fun getInventory(branchId: UUID): InventoryWithBreakdowns {
         InventoryReadSupport.requireBranchExists(branchId)
-        val cards = cardsAt(branchId)
+        val cards = BranchInventoryRepository.findByBranch(branchId)
         val breakdowns = InventoryReadSupport.breakdownsFromLedger(branchId)
         return InventoryWithBreakdowns(cards, breakdowns)
     }
@@ -159,7 +159,7 @@ object InventoryService {
         thresholdOverride: Int? = null,
     ): List<BranchInventoryWithProduct> {
         InventoryReadSupport.requireBranchExists(branchId)
-        val allInventory = cardsAt(branchId)
+        val allInventory = BranchInventoryRepository.findByBranch(branchId)
         return InventoryReadSupport.filterLowStock(allInventory, thresholdOverride)
     }
 
@@ -175,17 +175,11 @@ object InventoryService {
         InventoryReadSupport.requireBranchExists(branchId)
         val cards =
             InventoryReadSupport.filterLowStock(
-                cardsAt(branchId),
+                BranchInventoryRepository.findByBranch(branchId),
                 thresholdOverride,
             )
         val breakdowns = InventoryReadSupport.breakdownsFromLedger(branchId)
         return InventoryWithBreakdowns(cards, breakdowns)
-    }
-
-    /** The branch's cards with its branch-wide commission (503bf228) filled in. */
-    private fun cardsAt(branchId: UUID): List<BranchInventoryWithProduct> {
-        val commission = BranchService.findByIdOrNull(branchId)?.commissionAmount
-        return BranchInventoryRepository.findByBranch(branchId).map { it.copy(branchCommissionAmount = commission) }
     }
 
     private fun ensureRequestOwnership(
