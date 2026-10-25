@@ -133,13 +133,20 @@ internal object UserRepository {
         userId: UUID,
         profile: AcceptProfile,
     ) {
-        val others = AppUserTable.select(AppUserTable.id)
-        if (!others.where { (AppUserTable.username eq profile.username) and (AppUserTable.id neq userId) }.empty()) {
-            throw RegistrationConflictException(RegistrationConflictField.USERNAME)
-        }
-        if (!others.where { (AppUserTable.email eq profile.email) and (AppUserTable.id neq userId) }.empty()) {
-            throw RegistrationConflictException(RegistrationConflictField.EMAIL)
-        }
+        val usernameTaken =
+            AppUserTable
+                .select(AppUserTable.id)
+                .where { (AppUserTable.username eq profile.username) and (AppUserTable.id neq userId) }
+                .empty()
+                .not()
+        if (usernameTaken) throw RegistrationConflictException(RegistrationConflictField.USERNAME)
+        val emailTaken =
+            AppUserTable
+                .select(AppUserTable.id)
+                .where { (AppUserTable.email eq profile.email) and (AppUserTable.id neq userId) }
+                .empty()
+                .not()
+        if (emailTaken) throw RegistrationConflictException(RegistrationConflictField.EMAIL)
         AppUserTable.update({ AppUserTable.id eq userId }) {
             it[AppUserTable.username] = profile.username
             it[AppUserTable.email] = profile.email
