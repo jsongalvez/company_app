@@ -16,11 +16,16 @@ data class LoginResponse(
 /**
  * public accept-invite call. [token] is the raw invite code from the minted link;
  * the server stores only its hash, so this is the sole chance to redeem it.
+ * [username], [email] and [displayName] are required only when the invite was minted
+ * without them; otherwise they are ignored.
  */
 @Serializable
 data class AcceptInviteRequest(
     val token: String,
     val newPassword: String,
+    val username: String = "",
+    val email: String = "",
+    val displayName: String = "",
 )
 
 /**

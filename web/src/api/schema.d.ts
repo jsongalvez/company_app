@@ -2462,6 +2462,9 @@ export interface components {
         AcceptInviteRequest: {
             token: string;
             newPassword: string;
+            username?: string;
+            email?: string;
+            displayName?: string;
         };
         ChangePasswordRequest: {
             currentPassword: string;
@@ -2471,9 +2474,9 @@ export interface components {
             identifier: string;
         };
         InviteMintRequest: {
-            username: string;
-            email: string;
-            displayName: string;
+            username?: string;
+            email?: string;
+            displayName?: string;
             roles?: string[];
         };
         InviteMintResponse: {

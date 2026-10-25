@@ -46,6 +46,7 @@ internal object AppUserTable : Table("app_user") {
     val deactivatedAt = timestampWithTimeZone("deactivated_at").nullable()
     val jwtRevokedAt = timestampWithTimeZone("jwt_revoked_at").nullable()
     val credentialVersion = long("credential_version").default(0L)
+    val profilePending = bool("profile_pending").default(false)
     val createdAt =
         timestampWithTimeZone("created_at")
             .defaultExpression(CurrentTimestampWithTimeZone)

@@ -164,7 +164,7 @@
     error={ia.error}
 >
     {#if minted}
-        <div>Invite code for {iName}</div>
+        <div>{iName.trim() ? `Invite code for ${iName.trim()}` : "Invite code"}</div>
         <div class="code row">
             <input class="mono grow" readonly value={minted.inviteCode} aria-label="Invite code" onfocus={(e) => e.currentTarget.select()} />
             <button type="button" class="sm" onclick={() => copy(minted?.inviteCode ?? "")}>Copy</button>
@@ -172,9 +172,9 @@
         <div class="muted">Works until {dateTime(minted.expiresAt)}.</div>
     {:else}
         <div class="form-grid">
-            <label class="field wide"><span class="req">Full name</span><input bind:value={iName} required /></label>
-            <label class="field"><span class="req">Username</span><input bind:value={iUser} required autocomplete="off" /></label>
-            <label class="field"><span class="req">Email</span><input type="email" bind:value={iEmail} required /></label>
+            <label class="field wide"><span>Full name</span><input bind:value={iName} placeholder="Invitee fills in" /></label>
+            <label class="field"><span>Username</span><input bind:value={iUser} placeholder="Invitee fills in" autocomplete="off" /></label>
+            <label class="field"><span>Email</span><input type="email" bind:value={iEmail} placeholder="Invitee fills in" /></label>
         </div>
         <div class="muted">Roles</div>
         <div class="row wrap">

@@ -19,6 +19,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -49,6 +50,7 @@ data class UserCreateParams(
     val passwordHash: String,
     val email: String,
     val displayName: String,
+    val profilePending: Boolean = false,
 )
 
 /** Before/after status projection for deactivate/reactivate: `changed=false` marks the idempotent no-op skip. */
@@ -88,6 +90,7 @@ internal object UserRepository {
                 it[AppUserTable.passwordHash] = params.passwordHash
                 it[AppUserTable.email] = params.email
                 it[AppUserTable.displayName] = params.displayName
+                it[AppUserTable.profilePending] = params.profilePending
                 it[AppUserTable.status] = UserStatus.ACTIVE
                 it[AppUserTable.createdAt] = CurrentTimestampWithTimeZone
             }
@@ -117,6 +120,39 @@ internal object UserRepository {
             throw RegistrationConflictException(conflict)
         }
         return insert[AppUserTable.id]
+    }
+
+    fun isProfilePendingInTransaction(userId: UUID): Boolean =
+        AppUserTable
+            .select(AppUserTable.profilePending)
+            .where { AppUserTable.id eq userId }
+            .single()[AppUserTable.profilePending]
+
+    /** Replaces an invite's stand-in identity; a taken username or email is a conflict. */
+    fun completeProfileInTransaction(
+        userId: UUID,
+        profile: AcceptProfile,
+    ) {
+        val usernameTaken =
+            AppUserTable
+                .select(AppUserTable.id)
+                .where { (AppUserTable.username eq profile.username) and (AppUserTable.id neq userId) }
+                .empty()
+                .not()
+        if (usernameTaken) throw RegistrationConflictException(RegistrationConflictField.USERNAME)
+        val emailTaken =
+            AppUserTable
+                .select(AppUserTable.id)
+                .where { (AppUserTable.email eq profile.email) and (AppUserTable.id neq userId) }
+                .empty()
+                .not()
+        if (emailTaken) throw RegistrationConflictException(RegistrationConflictField.EMAIL)
+        AppUserTable.update({ AppUserTable.id eq userId }) {
+            it[AppUserTable.username] = profile.username
+            it[AppUserTable.email] = profile.email
+            it[AppUserTable.displayName] = profile.displayName
+            it[AppUserTable.profilePending] = false
+        }
     }
 
     fun existsById(userId: UUID): Boolean =

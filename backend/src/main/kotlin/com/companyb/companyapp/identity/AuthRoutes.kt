@@ -111,7 +111,11 @@ object AuthRoutes {
     fun acceptInvite(config: JavalinConfig) {
         config.routes.post(ApiRoutes.AUTH_ACCEPT_INVITE) { context ->
             val request = context.bodyAsClass<AcceptInviteRequest>()
-            AuthService.acceptInvite(request.token, request.newPassword)
+            AuthService.acceptInvite(
+                request.token,
+                request.newPassword,
+                AcceptProfile(request.username, request.email, request.displayName),
+            )
             context.status(HttpStatus.NO_CONTENT)
         }
     }

@@ -9,6 +9,9 @@
     let username = $state("");
     let password = $state("");
     let password2 = $state("");
+    let displayName = $state("");
+    let newUsername = $state("");
+    let email = $state("");
     let identifier = $state("");
     let busy = $state(false);
     let error = $state<string | null>(null);
@@ -28,7 +31,13 @@
                 if (password !== password2) throw new Error("Passwords don't match");
                 const body = { token: code.trim(), newPassword: password };
                 if (mode === "reset-password") await ok(api.POST("/auth/reset-password", { body }));
-                else await ok(api.POST("/auth/accept-invite", { body }));
+                else {
+                    await ok(
+                        api.POST("/auth/accept-invite", {
+                            body: { ...body, displayName: displayName.trim(), username: newUsername.trim(), email: email.trim() },
+                        }),
+                    );
+                }
                 info = "Password set. Sign in with it now.";
                 password = password2 = "";
                 go("/");
@@ -75,6 +84,13 @@
                         autocapitalize="none"
                     /></label
                 >
+                {#if mode === "accept-invite"}
+                    <label class="field">Full name<input bind:value={displayName} placeholder="If not set for you" autocomplete="name" /></label>
+                    <label class="field"
+                        >Username<input bind:value={newUsername} placeholder="If not set for you" autocomplete="username" autocapitalize="none" /></label
+                    >
+                    <label class="field">Email<input type="email" bind:value={email} placeholder="If not set for you" autocomplete="email" /></label>
+                {/if}
                 <label class="field">New password<input type="password" bind:value={password} required minlength="8" autocomplete="new-password" /></label>
                 <label class="field">Repeat password<input type="password" bind:value={password2} required autocomplete="new-password" /></label>
             {:else}
