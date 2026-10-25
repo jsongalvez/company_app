@@ -1,5 +1,6 @@
 package com.companyb.companyapp.testsupport.fixtures
 
+import com.companyb.companyapp.commerce.BranchInventoryTable
 import com.companyb.companyapp.commerce.ProductCategoryTable
 import com.companyb.companyapp.commerce.ProductSaleTable
 import com.companyb.companyapp.commerce.ProductTable
@@ -10,6 +11,7 @@ import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -50,6 +52,25 @@ object CommerceFinanceFixtures {
                 it[ProductTable.unitPrice] = unitPrice
                 it[ProductTable.commissionAmount] = commissionAmount
                 if (reorderPoint != null) it[ProductTable.reorderPoint] = reorderPoint
+            }
+        }
+    }
+
+    /** Inserts a branch inventory card at the product's current price and commission, as production does. */
+    fun insertTestCard(
+        branchId: UUID,
+        productId: UUID,
+        stock: Int,
+    ) {
+        transaction {
+            val product = ProductTable.selectAll().where { ProductTable.id eq productId }.single()
+            BranchInventoryTable.insertIgnore {
+                it[BranchInventoryTable.branchId] = branchId
+                it[BranchInventoryTable.productId] = productId
+                it[BranchInventoryTable.currentStock] = stock
+                it[BranchInventoryTable.version] = 1
+                it[BranchInventoryTable.unitPrice] = product[ProductTable.unitPrice]
+                it[BranchInventoryTable.commissionAmount] = product[ProductTable.commissionAmount]
             }
         }
     }

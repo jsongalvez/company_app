@@ -67,6 +67,28 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `a sale records the price and commission the branch set for that product`() {
+        BranchPriceService.setPrice(callerId, branchId, productId, BigDecimal("300"), BigDecimal("40"))
+
+        val sale =
+            ProductSaleService.sell(
+                callerId = callerId,
+                id = TestFixtures.uuid(),
+                branchDayId = branchDayId,
+                sessionId = sessionId,
+                clientId = null,
+                isWalkIn = false,
+                productId = productId,
+                quantity = 2,
+                expectedVersion = 1,
+            )
+
+        assertEquals(0, BigDecimal("300.00").compareTo(sale.unitPriceAtTime))
+        assertEquals(0, BigDecimal("600.00").compareTo(sale.totalAmountAtTime))
+        assertEquals(0, BigDecimal("40.00").compareTo(sale.commissionAmountAtTime))
+    }
+
+    @Test
     fun `sell on REMITTED day with reason succeeds and flags audit entries`() {
         val remittedDayId =
             BranchWorkforceFixtures.createRemittedBranchDay(
@@ -893,12 +915,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         stock: Int,
     ) {
         transaction {
-            BranchInventoryTable.insertIgnore {
-                it[BranchInventoryTable.branchId] = branchId
-                it[BranchInventoryTable.productId] = productId
-                it[BranchInventoryTable.currentStock] = stock
-                it[BranchInventoryTable.version] = 1
-            }
+            CommerceFinanceFixtures.insertTestCard(branchId, productId, stock)
         }
     }
 

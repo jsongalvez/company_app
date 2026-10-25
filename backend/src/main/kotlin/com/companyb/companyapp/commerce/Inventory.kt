@@ -16,8 +16,9 @@ data class BranchInventory(
     val productId: UUID,
     val currentStock: Int,
     val version: Int,
-    // Branch's own price (503bf228); null = the product's shared one.
-    val unitPrice: BigDecimal? = null,
+    // This branch's own list price and commission for the product (503bf228, a6946922).
+    val unitPrice: BigDecimal,
+    val commissionAmount: BigDecimal,
 )
 
 data class InventoryMovement(
@@ -35,19 +36,13 @@ data class InventoryMovement(
 data class BranchInventoryWithProduct(
     val inventory: BranchInventory,
     val productName: String,
-    val sharedUnitPrice: BigDecimal,
-    val sharedCommissionAmount: BigDecimal,
-    // The branch-wide commission (503bf228); null = the product's shared one.
-    val branchCommissionAmount: BigDecimal? = null,
 ) {
-    /** What a sale at this branch charges: the branch's own price, else the shared one. */
-    val unitPrice: BigDecimal get() = inventory.unitPrice ?: sharedUnitPrice
-    val commissionAmount: BigDecimal get() = branchCommissionAmount ?: sharedCommissionAmount
+    val unitPrice: BigDecimal get() = inventory.unitPrice
+    val commissionAmount: BigDecimal get() = inventory.commissionAmount
 }
 
 private const val PRICE_PRECISION = 10
 private const val PRICE_SCALE = 2
-private const val SHARED = "shared"
 
 internal object BranchInventoryTable : Table("branch_inventory") {
     val id = javaUUID("id").autoGenerate()
@@ -55,7 +50,8 @@ internal object BranchInventoryTable : Table("branch_inventory") {
     val productId = javaUUID("product_id")
     val currentStock = integer("current_stock").default(0)
     val version = integer("version").default(1)
-    val unitPrice = decimal("unit_price", PRICE_PRECISION, PRICE_SCALE).nullable()
+    val unitPrice = decimal("unit_price", PRICE_PRECISION, PRICE_SCALE)
+    val commissionAmount = decimal("commission_amount", PRICE_PRECISION, PRICE_SCALE)
 
     override val primaryKey = PrimaryKey(id)
 
@@ -66,7 +62,8 @@ internal object BranchInventoryTable : Table("branch_inventory") {
             "productId" to entity.productId.toString(),
             "currentStock" to entity.currentStock.toString(),
             "version" to entity.version.toString(),
-            "branchPrice" to (entity.unitPrice?.toPlainString() ?: SHARED),
+            "unitPrice" to entity.unitPrice.toPlainString(),
+            "commissionAmount" to entity.commissionAmount.toPlainString(),
         )
 }
 

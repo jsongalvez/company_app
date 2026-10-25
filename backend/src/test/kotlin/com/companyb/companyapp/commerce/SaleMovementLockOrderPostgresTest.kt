@@ -220,12 +220,7 @@ class SaleMovementLockOrderPostgresTest : BasePostgresTest() {
         productId: UUID,
     ) {
         transaction {
-            BranchInventoryTable.insertIgnore {
-                it[BranchInventoryTable.branchId] = branchId
-                it[BranchInventoryTable.productId] = productId
-                it[BranchInventoryTable.currentStock] = INITIAL_STOCK
-                it[BranchInventoryTable.version] = 1
-            }
+            CommerceFinanceFixtures.insertTestCard(branchId, productId, INITIAL_STOCK)
         }
     }
 

@@ -4,15 +4,12 @@ import com.companyb.companyapp.contracts.branch.BranchType
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.postgresql.util.PGobject
-import java.math.BigDecimal
 import java.util.UUID
 
 data class Branch(
     val id: UUID,
     val name: String,
     val branchType: BranchType,
-    // 503bf228 — the branch's own commission for every product sold there; null = each product's shared one.
-    val commissionAmount: BigDecimal? = null,
 )
 
 data class BranchCreateParams(
@@ -21,9 +18,6 @@ data class BranchCreateParams(
     val branchType: BranchType,
     val changedBy: UUID,
 )
-
-private const val COMMISSION_PRECISION = 10
-private const val COMMISSION_SCALE = 2
 
 object BranchTable : Table("branch") {
     val id = javaUUID("id").autoGenerate()
@@ -41,7 +35,6 @@ object BranchTable : Table("branch") {
             },
         ).default(BranchType.CLINIC)
     val name = text("name")
-    val commissionAmount = decimal("commission_amount", COMMISSION_PRECISION, COMMISSION_SCALE).nullable()
 
     override val primaryKey = PrimaryKey(id)
 
@@ -50,6 +43,5 @@ object BranchTable : Table("branch") {
             "id" to entity.id.toString(),
             "name" to entity.name,
             "branchType" to entity.branchType.name,
-            "branchCommission" to (entity.commissionAmount?.toPlainString() ?: "shared"),
         )
 }
