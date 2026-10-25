@@ -5,6 +5,7 @@ import { RECONNECTED } from "./net.svelte";
 import { doneText, heldClock, heldSoFar, SENT } from "./outbox.svelte";
 import { operationalDate } from "./format";
 import { applies } from "./grants";
+import { load, warm } from "./data";
 
 type Cap = S["UserCapabilityResponse"];
 
@@ -73,6 +74,8 @@ setUnauthorizedHandler(() => signOut(false));
 export async function signIn(username: string, password: string) {
     const r = await ok(api.POST("/auth/login", { body: { username, password } }));
     setToken(r.token);
+    // Wait for the person's access before showing a page; else Shell lands on Relief first.
+    app.ready = false;
     app.signedIn = true;
     await boot();
 }
@@ -141,7 +144,9 @@ export async function boot() {
         if (!known.has(app.branchId)) {
             const here = branches.find((b) => b.clockInStatus === "CLOCKED_IN_HERE");
             selectBranch(here?.branchId ?? branches[0]?.branchId ?? accessible[0]?.id ?? "");
+            warmToday();
         } else {
+            warmToday();
             await refreshBranchDay();
         }
         void refreshShift();
@@ -150,6 +155,15 @@ export async function boot() {
     } finally {
         app.ready = true;
     }
+}
+
+/** Opening on Today: ask for its lists now, alongside the branch's day, instead of after it. */
+function warmToday() {
+    const id = app.branchId;
+    if (!id || !["", "#", "#/", "#/today"].includes(location.hash) || !can("VIEW_BRANCH_DATA", id)) return;
+    warm(load.dashboard(id));
+    warm(load.bookings(id));
+    if (app.branches.some((b) => b.branchId === id && !!b.assignmentId)) warm(load.roster(id));
 }
 
 // Opened with no signal: finish starting up once the connection is back; else catch up.
