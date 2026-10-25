@@ -42,7 +42,11 @@ class ErrorTrackerTest {
     }
 
     @AfterTest
-    fun noTracker() = ErrorTracker.configure(null)
+    fun noTracker() {
+        ErrorTracker.configure(null)
+        // The real 500 handler counts requests in the process-wide metrics; leave them as found.
+        RequestMetrics.reset()
+    }
 
     private fun awaitSent(count: Int) {
         val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)

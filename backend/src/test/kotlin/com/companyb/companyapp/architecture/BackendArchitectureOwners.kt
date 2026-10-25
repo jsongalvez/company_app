@@ -135,11 +135,12 @@ object BackendArchitectureOwners {
             "observability/" to "observability",
         )
 
-    /** Recorded Instant.now owners (#322, retained): auth lifecycle, branch-day clock, incident filing. */
+    /** Recorded Instant.now owners (#322, retained): auth lifecycle, branch-day clock, incident filing, error-tracker event time. */
     val instantOwners: Set<String> =
         setOf(
             "identity/JwtService.kt",
             "observability/IncidentService.kt",
+            "observability/ErrorTracker.kt",
             "identity/AuthService.kt",
             "identity/UserService.kt",
             "branchday/BranchDayService.kt",
