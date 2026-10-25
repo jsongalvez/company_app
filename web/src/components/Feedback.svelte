@@ -1,6 +1,6 @@
 <script lang="ts">
     import Dialog from "./Dialog.svelte";
-    import { api, ok, errText, uuid, lastError } from "../api/client";
+    import { api, ok, errText, uuid, lastError, recentRequests } from "../api/client";
     import { toast } from "../lib/app.svelte";
 
     let { open = $bindable(false) }: { open?: boolean } = $props();
@@ -22,12 +22,21 @@
         }
     });
 
+    /** Trace ids first: the server keeps only the first 2000 characters of the details. */
+    function traceLines(): string[] {
+        const lines = recentText ? [recentText] : [];
+        if (recent?.traceId) lines.push(`Trace: ${recent.traceId}`);
+        const rest = recentRequests.map((r) => `${r.method} ${r.path} ${r.status}${r.traceId ? ` ${r.traceId}` : ""}`);
+        if (rest.length) lines.push(`Recent requests:\n${rest.join("\n")}`);
+        return lines;
+    }
+
     async function send() {
         busy = true;
         error = "";
         try {
             const details = [`Screen: ${innerWidth}×${innerHeight}`, `Browser: ${navigator.userAgent}`];
-            if (kind === "PROBLEM" && attach && recentText) details.unshift(recentText);
+            if (kind === "PROBLEM" && attach) details.unshift(...traceLines());
             await ok(
                 api.POST("/api/feedback-notes", {
                     body: { id, kind, message, page: location.hash || "#/", details: details.join("\n"), appVersion: __APP_VERSION__ },

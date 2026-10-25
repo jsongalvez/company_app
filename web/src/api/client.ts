@@ -44,7 +44,12 @@ export function setUnauthorizedHandler(fn: () => void) {
 }
 
 /** The last request the server refused, attached to problem reports so they're easy to trace. */
-export const lastError: { value: { at: string; method: string; path: string; status: number } | null } = { value: null };
+export const lastError: { value: { at: string; method: string; path: string; status: number; traceId: string | null } | null } = { value: null };
+
+/** The last few answered requests with the server's trace id, so a report can be matched to the server log. */
+export const recentRequests: { at: string; method: string; path: string; status: number; traceId: string | null }[] = [];
+const RECENT_MAX = 5;
+export const TRACE_HEADER = "X-Trace-Id";
 
 const auth: Middleware = {
     onRequest({ request }) {
@@ -55,8 +60,12 @@ const auth: Middleware = {
     },
     onResponse({ response, request }) {
         const path = new URL(request.url).pathname;
-        if (response.status >= 400 && response.status !== 401 && path !== "/api/feedback-notes")
-            lastError.value = { at: nowIso(), method: request.method, path, status: response.status };
+        const entry = { at: nowIso(), method: request.method, path, status: response.status, traceId: response.headers.get(TRACE_HEADER) };
+        if (path !== "/api/feedback-notes") {
+            recentRequests.push(entry);
+            if (recentRequests.length > RECENT_MAX) recentRequests.shift();
+            if (response.status >= 400 && response.status !== 401) lastError.value = entry;
+        }
         if (response.status === 401 && new URL(request.url).pathname.startsWith("/api/")) onUnauthorized();
         return response;
     },
