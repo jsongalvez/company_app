@@ -443,7 +443,7 @@ class SemanticOwnershipArchitectureTest {
     private companion object {
         /**
          * Owners that may declare persistence tables (#607: no shared/mechanism tables;
-         * #608: observability owns its `pg_stat_statements` view mapping for slow-query reads).
+         * #608).
          */
         val FEATURE_TABLE_OWNERS =
             setOf(

@@ -43,6 +43,28 @@ test("send a problem report and mark it done in the inbox", { session: "owner" }
     await expect(screen.getByRole("row").filter({ hasText: message })).toBeVisible();
 });
 
+test("a problem report carries the trace id of the refused request", { session: "owner" }, async ({ app, screen, browser }) => {
+    const trace = `trace${Date.now()}`;
+    const message = `History would not load ${Date.now()}`;
+    await browser.route(/\/api\/me\/history/, (route) => route.fulfill({ status: 500, headers: { "X-Trace-Id": trace }, json: { error: "boom" } }));
+    await app.open("/#/my-history");
+    await expect(screen.getByRole("button", "Retry")).toBeVisible({ timeout: 15_000 });
+    await browser.unroute(/\/api\/me\/history/);
+
+    await screen.getByRole("button", "Feedback").tap();
+    const fb = screen.getByRole("dialog", "Send feedback");
+    await fb.getByRole("button", "Something's wrong").tap();
+    await fb.getByLabel(/^What happened/).fill(message);
+    await fb.getByRole("button", "Send").tap();
+    await expect(fb).toBeHidden();
+
+    await app.open("/#/feedback");
+    const row = screen.getByRole("row").filter({ hasText: message });
+    await row.tap();
+    await expect(row).toContainText(`Trace: ${trace}`);
+    await row.getByRole("button", "Mark done").tap();
+});
+
 test("day and night icon switches the theme", { session: "owner" }, async ({ app, screen }) => {
     await app.open("/#/today");
     const toNight = screen.getByRole("button", "Switch to night mode");

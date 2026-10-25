@@ -5,6 +5,9 @@ WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY web/ ./
+# Error tracker address for the browser; empty means the build sends nothing. Same value as the server's SENTRY_DSN.
+ARG SENTRY_DSN=
+ENV VITE_SENTRY_DSN=$SENTRY_DSN
 RUN npx vite build
 
 FROM eclipse-temurin:21-jdk AS build

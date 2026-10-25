@@ -41,12 +41,14 @@ import com.companyb.companyapp.logging.RequestLog
 import com.companyb.companyapp.notification.NextAppointmentScheduler
 import com.companyb.companyapp.notification.NotificationRoutes
 import com.companyb.companyapp.observability.Auto5xxReport
+import com.companyb.companyapp.observability.ErrorTracker
 import com.companyb.companyapp.observability.FeedbackRoutes
 import com.companyb.companyapp.observability.IncidentDelivery
 import com.companyb.companyapp.observability.IncidentService
 import com.companyb.companyapp.observability.MetricsRoutes
 import com.companyb.companyapp.observability.RequestMetrics
 import com.companyb.companyapp.observability.RouteLabels
+import com.companyb.companyapp.observability.ServerErrorReport
 import com.companyb.companyapp.observability.UserFeedbackRoutes
 import com.companyb.companyapp.remittance.RemittancePickerRoutes
 import com.companyb.companyapp.remittance.RemittanceRoutes
@@ -84,6 +86,7 @@ private const val HTTP_NOT_FOUND = 404
 private const val HTTP_CONFLICT = 409
 private const val HTTP_INTERNAL_ERROR = 500
 private const val TRACE_UNKNOWN = "unknown"
+private const val SERVER_ERROR_ATTRIBUTE = "serverError"
 
 fun initializeJavalin(config: AppConfig) {
     logger.info { "[INITIALIZE-JAVALIN] Starting application" }
@@ -277,9 +280,25 @@ private fun registerExceptionHandlers(config: io.javalin.config.JavalinConfig) {
  * without user action. Dedup by trace id collapses the auto-file with a
  * user report for the same request.
  */
-private fun registerServerErrorHandler(config: io.javalin.config.JavalinConfig) {
+internal fun registerServerErrorHandler(config: io.javalin.config.JavalinConfig) {
+    // Catch-all, nearest class wins: the HTTP-response and domain handlers above keep their statuses. It
+    // only takes what Javalin would have answered as an uncaught 500, to keep the exception for the tracker.
+    config.routes.exception(Exception::class.java) { e, ctx ->
+        logger.error(e) { "[UNHANDLED] ${ctx.method().name} ${RouteLabels.routeLabel(ctx)}" }
+        ctx.attribute(SERVER_ERROR_ATTRIBUTE, e)
+        ctx.status(HttpStatus.INTERNAL_SERVER_ERROR)
+    }
     config.routes.error(HttpStatus.INTERNAL_SERVER_ERROR) { ctx ->
         TraceIdFilter.echo(ctx)
+        ErrorTracker.captureServerError(
+            ServerErrorReport(
+                traceId = ctx.attribute<String>(TraceIdFilter.ATTRIBUTE) ?: TRACE_UNKNOWN,
+                method = RouteLabels.normalizeMethod(ctx.method().name),
+                route = RouteLabels.routeLabel(ctx),
+                status = HTTP_INTERNAL_ERROR,
+                error = ctx.attribute<Throwable>(SERVER_ERROR_ATTRIBUTE),
+            ),
+        )
         IncidentService.fileAuto5xx(
             Auto5xxReport(
                 traceId = ctx.attribute<String>(TraceIdFilter.ATTRIBUTE) ?: TRACE_UNKNOWN,
@@ -340,6 +359,7 @@ private fun shutdownLifecycle(
     if (stopScheduler) shutdownScheduler()
     PasswordResetDelivery.shutdown()
     IncidentDelivery.shutdown()
+    ErrorTracker.shutdown()
     if (closeDb) DatabaseConfig.close()
 }
 
@@ -359,7 +379,8 @@ fun main(config: AppConfig) {
     JwtService.init(config)
     Password.init(config.authDummyPassword)
     PasswordResetDelivery.configure(config.smtp, config.passwordResetDevRelay)
-    IncidentDelivery.configure(config.githubIssue)
+    IncidentDelivery.configure(config.githubIssue, config.ntfy)
+    ErrorTracker.configure(config.errorTracker)
 
     DatabaseConfig.initialize(config)
     runCatching {

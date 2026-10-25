@@ -57,14 +57,21 @@ internal object IncidentDelivery {
 
     /** Selects GitHub delivery once during application startup. Null keeps the log relay active. */
     @Synchronized
-    fun configure(config: GithubIssueConfig?) {
+    fun configure(
+        config: GithubIssueConfig?,
+        ntfy: NtfyConfig? = null,
+    ) {
         senderExecutor?.shutdownNow()
-        configuredSender = config?.let(::GithubIssueSender)
-        senderExecutor = config?.let { createSenderExecutor() }
-        if (config == null) {
+        configuredSender = config?.let(::GithubIssueSender) ?: ntfy?.let { NtfyIncidentSender(it) }
+        senderExecutor = configuredSender?.let { createSenderExecutor() }
+        if (config == null && ntfy != null) {
+            logger.info {
+                "[INCIDENT] GitHub issue delivery is not configured; sending 5xx alerts to ntfy and the server log."
+            }
+        } else if (config == null) {
             logger.warn {
                 "[INCIDENT] GitHub issue delivery is not configured; using server-log relay. " +
-                    "Set GITHUB_TOKEN and GITHUB_REPOSITORY."
+                    "Set GITHUB_TOKEN and GITHUB_REPOSITORY, or NTFY_URL and NTFY_TOPIC."
             }
         }
     }
