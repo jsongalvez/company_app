@@ -142,7 +142,10 @@ class InviteFlowPostgresTest : BasePostgresTest() {
     fun `a code-only invite rejects an accept that leaves the profile blank and keeps the code live`() {
         val minted = UserService.mintInvite(callerId, InviteMintRequest())
 
-        val error = assertFailsWith<ValidationException> { AuthService.acceptInvite(minted.inviteCode, "valid-password") }
+        val error =
+            assertFailsWith<ValidationException> {
+                AuthService.acceptInvite(minted.inviteCode, "valid-password")
+            }
         assertTrue(error.message!!.contains("required"), "got: ${error.message}")
 
         AuthService.acceptInvite(

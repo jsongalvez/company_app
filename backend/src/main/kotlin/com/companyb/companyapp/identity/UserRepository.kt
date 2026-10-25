@@ -15,11 +15,11 @@ import org.jetbrains.exposed.v1.core.CustomFunction
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -128,17 +128,18 @@ internal object UserRepository {
             .where { AppUserTable.id eq userId }
             .single()[AppUserTable.profilePending]
 
-    /** Replaces an invite's placeholder identity; a taken username or email is a conflict. */
+    /** Replaces an invite's stand-in identity; a taken username or email is a conflict. */
     fun completeProfileInTransaction(
         userId: UUID,
         profile: AcceptProfile,
     ) {
-        val takenUsername =
-            AppUserTable.select(AppUserTable.id).where { (AppUserTable.username eq profile.username) and (AppUserTable.id neq userId) }
-        if (!takenUsername.empty()) throw RegistrationConflictException(RegistrationConflictField.USERNAME)
-        val takenEmail =
-            AppUserTable.select(AppUserTable.id).where { (AppUserTable.email eq profile.email) and (AppUserTable.id neq userId) }
-        if (!takenEmail.empty()) throw RegistrationConflictException(RegistrationConflictField.EMAIL)
+        val others = AppUserTable.select(AppUserTable.id)
+        if (!others.where { (AppUserTable.username eq profile.username) and (AppUserTable.id neq userId) }.empty()) {
+            throw RegistrationConflictException(RegistrationConflictField.USERNAME)
+        }
+        if (!others.where { (AppUserTable.email eq profile.email) and (AppUserTable.id neq userId) }.empty()) {
+            throw RegistrationConflictException(RegistrationConflictField.EMAIL)
+        }
         AppUserTable.update({ AppUserTable.id eq userId }) {
             it[AppUserTable.username] = profile.username
             it[AppUserTable.email] = profile.email

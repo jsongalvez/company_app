@@ -106,17 +106,21 @@ object UserService {
 
     /** The identity an invite carries, or null for a code-only invite; partly filled is a 400. */
     private fun InviteMintRequest.asProfile(): AcceptProfile? {
-        val filled = listOf(username, email, displayName).count { it.isNotBlank() }
-        return when (filled) {
-            0 -> null
-            3 -> AcceptProfile(username = username, email = email, displayName = displayName)
+        val fields = listOf(username, email, displayName)
+        return when {
+            fields.all { it.isBlank() } -> null
+            fields.none { it.isBlank() } -> AcceptProfile(username = username, email = email, displayName = displayName)
             else -> throw ValidationException(PARTIAL_PROFILE_MESSAGE)
         }
     }
 
     private fun placeholderProfile(): AcceptProfile {
         val name = PLACEHOLDER_PREFIX + CredentialTokens.generate().take(PLACEHOLDER_SUFFIX_LENGTH).lowercase()
-        return AcceptProfile(username = name, email = "$name@$PLACEHOLDER_EMAIL_DOMAIN", displayName = PLACEHOLDER_DISPLAY_NAME)
+        return AcceptProfile(
+            username = name,
+            email = "$name@$PLACEHOLDER_EMAIL_DOMAIN",
+            displayName = PLACEHOLDER_DISPLAY_NAME,
+        )
     }
 
     /**
@@ -129,7 +133,9 @@ object UserService {
         if (!EmailPolicy.isValid(profile.email)) throw ValidationException(INVALID_EMAIL_MESSAGE)
         if (profile.username.length > USERNAME_MAX_LENGTH) throw ValidationException(USERNAME_TOO_LONG_MESSAGE)
         if (profile.email.length > EMAIL_MAX_LENGTH) throw ValidationException(EMAIL_TOO_LONG_MESSAGE)
-        if (profile.displayName.length > DISPLAY_NAME_MAX_LENGTH) throw ValidationException(DISPLAY_NAME_TOO_LONG_MESSAGE)
+        if (profile.displayName.length > DISPLAY_NAME_MAX_LENGTH) {
+            throw ValidationException(DISPLAY_NAME_TOO_LONG_MESSAGE)
+        }
     }
 
     /** The mint command's transaction body (ADR-0024): one transaction, audit rows inside. */
@@ -140,7 +146,7 @@ object UserService {
         expiresAt: OffsetDateTime,
     ): MintedInvite {
         val identity = profile ?: placeholderProfile()
-        // Code-only invite: nothing to match against, always a new placeholder account.
+        // Code-only invite: nothing to match against, always a new stand-in account.
         val existing =
             profile?.let { UserRepository.findByUsernameOrEmailInTransaction(it.username, it.email) }
         // serialize with acceptInvite on the account lock before observing or

@@ -138,8 +138,6 @@ object AuthService {
         if (!PasswordPolicy.isValid(newPassword) || Password.exceedsMaxBytes(newPassword)) {
             throw ValidationException(WEAK_PASSWORD_MESSAGE)
         }
-        val trimmed =
-            AcceptProfile(profile.username.trim(), profile.email.trim(), profile.displayName.trim())
         val consumedUserId: UUID =
             transaction {
                 val row =
@@ -166,11 +164,7 @@ object AuthService {
                 }
                 // A code-only invite: the invitee names themselves here. Any failure rolls the
                 // consume back, so the code stays live for a corrected retry.
-                if (UserRepository.isProfilePendingInTransaction(userId)) {
-                    UserService.validateProfile(trimmed)
-                    UserRepository.completeProfileInTransaction(userId, trimmed)
-                    UserAudit.profileCompleted(userId, trimmed.username, trimmed.displayName)
-                }
+                completePendingProfile(userId, profile)
                 UserRepository.setPasswordHashInTransaction(userId, Password.create(newPassword))
                 // Accepting replaces the credential: kill pre-invite tokens durably.
                 UserRepository.advanceRevocationBoundaryInTransaction(userId)
@@ -188,6 +182,18 @@ object AuthService {
                 userId
             }
         logger.info { "[INVITE-ACCEPT] Invite redeemed for ${consumedUserId.toString().maskUUID()}" }
+    }
+
+    /** A code-only invite: the invitee names themselves here, in the accept transaction. */
+    private fun completePendingProfile(
+        userId: UUID,
+        profile: AcceptProfile,
+    ) {
+        if (!UserRepository.isProfilePendingInTransaction(userId)) return
+        val named = AcceptProfile(profile.username.trim(), profile.email.trim(), profile.displayName.trim())
+        UserService.validateProfile(named)
+        UserRepository.completeProfileInTransaction(userId, named)
+        UserAudit.profileCompleted(userId, named.username, named.displayName)
     }
 
     /**
