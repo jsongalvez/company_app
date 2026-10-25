@@ -3,7 +3,7 @@ package com.companyb.companyapp.contracts.identity
 import kotlinx.serialization.Serializable
 
 /**
- * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
  * `docs/architecture.md`). Never persisted, never sent.
  */
 @Serializable
@@ -63,9 +63,9 @@ data class UserAssignmentResponse(
 )
 
 /**
- * #350 — admin mint of a single-use invite link (#346 decision 2). No password field:
+ * admin mint of a single-use invite link (decision 2). No password field:
  * the admin never knows a credential — the invitee sets their own password on accept.
- * [roles] follows the #344 create-user shape (full-replace bundle, SUPERUSER guarded).
+ * [roles] follows the create-user shape (full-replace bundle, SUPERUSER guarded).
  */
 @Serializable
 data class InviteMintRequest(

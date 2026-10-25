@@ -49,7 +49,7 @@ internal val FAR_FUTURE: OffsetDateTime =
 
 /**
  * The BR "Base Rates" documented defaults, one per session type — provisioned at branch
- * creation (#418) so a fresh branch never fails session create with "No base rate configured".
+ * creation so a fresh branch never fails session create with "No base rate configured".
  */
 internal val DEFAULT_BASE_RATES: Map<SessionType, BigDecimal> =
     mapOf(
@@ -70,10 +70,10 @@ data class SetRateResult(
 
 internal object SessionBaseRateRepository {
     /**
-     * In-transaction store operation (#323, ADR-0024) — seeds the BR-documented default base
-     * rates for a freshly created branch (#418). Runs on the caller's command transaction
+     * In-transaction store operation (ADR-0024) — seeds the BR-documented default base
+     * rates for a freshly created branch. Runs on the caller's command transaction
      * (branch creation); no per-rate audit rows — mechanism write riding the audited
-     * branch-create domain event (#414 deflation precedent).
+     * branch-create domain event (deflation precedent).
      */
     fun insertDefaultsInTransaction(
         branchId: UUID,
@@ -96,7 +96,7 @@ internal object SessionBaseRateRepository {
     }
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — branch lock, retry-ownership check,
+     * In-transaction store operation (ADR-0024) — branch lock, retry-ownership check,
      * rate rotation, and insert run on the caller's command transaction; the SQLSTATE 23P01
      * exclusion-violation translation is preserved here.
      */
@@ -162,7 +162,7 @@ internal object SessionBaseRateRepository {
 
     /**
      * Reads the still-open previous rate for the branch+session type and closes it by rotating
-     * `effectiveUntil` to now — the rotation half of the rate handover (#323, ADR-0024).
+     * `effectiveUntil` to now — the rotation half of the rate handover (ADR-0024).
      */
     private fun closePreviousRate(
         branchId: UUID,
@@ -214,7 +214,7 @@ internal object SessionBaseRateRepository {
             }
         }
 
-    /** In-transaction store read (#751) — runs on the caller's command transaction. */
+    /** In-transaction store read — runs on the caller's command transaction. */
     fun findActiveByBranchInTransaction(branchId: UUID): List<SessionBaseRate> =
         SessionBaseRateTable
             .selectAll()

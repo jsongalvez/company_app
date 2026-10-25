@@ -11,19 +11,19 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
 
-// #356 — session_id is nullable: appointment reminders carry it (session access rides the
-// row, #151), while non-session events (relief, #358) have none. Uniqueness is per
-// (occurrence, recipient) via UNIQUE (dedup_key, user_id) (#508) — one person holds
+// session_id is nullable: appointment reminders carry it (session access rides the
+// row, #151), while non-session events (relief) have none. Uniqueness is per
+// (occurrence, recipient) via UNIQUE (dedup_key, user_id) — one person holds
 // many rows across occurrences, never two deliveries of the same occurrence.
 //
-// #358 — relief rows carry the event family (event_type), the causing record (source_id —
+// relief rows carry the event family (event_type), the causing record (source_id —
 // polymorphic: grant_relief_access or relief_invite id, no FK), and the branch day the tap
 // destination points at (target_date). Appointment rows carry the sweep identity instead:
 // event_type APPOINTMENT_REMINDER, source_id = the session, target_date = the upcoming
 // appointment date the sweep announced (#508 — the occurrence dimension that lets a
 // genuinely later appointment survive while a same-sweep retry dedups).
 //
-// #508 — every row carries the stable occurrence key (dedup_key): appointment identity is
+// every row carries the stable occurrence key (dedup_key): appointment identity is
 // session + target date, relief identity event + source. UNIQUE (dedup_key, user_id) is the
 // durable idempotency guarantee — concurrent batches and job re-runs collapse atomically.
 data class Notification(
@@ -45,13 +45,13 @@ data class NotificationCreateParams(
     val userId: UUID,
     val branchId: UUID,
     val message: String,
-    // #358 — event rows (sessionId == null) carry navigation metadata for tap-through,
+    // event rows (sessionId == null) carry navigation metadata for tap-through,
     // source lookup and bearer access. #614 — metadata is distinct from dedup identity:
     // every producer supplies both explicitly, the store never derives one from the other.
     val eventType: String,
     val sourceId: UUID,
     val targetDate: LocalDate,
-    // #614 — producer-owned stable occurrence key (appointment: session + target date,
+    // producer-owned stable occurrence key (appointment: session + target date,
     // relief: event + source, revocation direct notice: event + source + ":direct").
     // Nonblank, preserved exactly across retries so old/new producer runs dedup.
     val dedupKey: String,
@@ -82,8 +82,8 @@ internal object NotificationTable : Table("notification") {
 }
 
 /**
- * Row mapping lives in its own internal seam (map #533 #550) so the mailbox store stays
- * within the raw function-count budget without an artificial split (#535 lane): table
+ * Row mapping lives in its own internal seam so the mailbox store stays
+ * within the raw function-count budget without an artificial split (lane): table
  * knowledge appears only inside `internal` bodies and public surfaces stay table-free.
  */
 internal object NotificationMapper {

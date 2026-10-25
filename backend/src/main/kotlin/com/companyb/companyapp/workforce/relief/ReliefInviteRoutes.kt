@@ -24,7 +24,7 @@ import java.time.LocalDate
 import java.util.UUID
 
 /**
- * Relief invite flow (#159/#160): branch-initiated, assignment-gated inviter surface
+ * Relief invite flow: branch-initiated, assignment-gated inviter surface
  * (`/api/branches/{branchId}/relief-*`) + bearer-gated invitee surface
  * (`/api/relief-invites`). All gates are service-level — the inviter gate is the active
  * `user_branch_assignment` (a membership record, not a capability), so no
@@ -206,7 +206,7 @@ object ReliefInviteRoutes {
             context.json(ReliefInviteService.listBranchAccepted(callerId, branchId).map { it.toResponse() })
         }
 
-        // #401 — deep-link day read: the notification tap's (branchId, date) pair, every
+        // deep-link day read: the notification tap's (branchId, date) pair, every
         // invite status at that day. Audience scoping lives in the service.
         config.routes.get(ApiRoutes.BRANCH_RELIEF_INVITES_BY_DATE_PATH) { context ->
             val callerId = context.callerUuid()

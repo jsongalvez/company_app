@@ -5,9 +5,9 @@ package com.companyb.companyapp.audit
  *
  * This is the contract of the audit write-sites: every table that gets an
  * [AuditLog.record*] call must be registered here, or it is invisible to
- * the Audit Log UI (the #122 table-list endpoint serves this registry, NOT
+ * the Audit Log UI (the table-list endpoint serves this registry, NOT
  * `DISTINCT table_name` from live data — a freshly audited table with zero rows
- * would otherwise be missing until its first write, per #104 D4).
+ * would otherwise be missing until its first write, D4).
  *
  * New audited tables must register here at their write-site.
  */

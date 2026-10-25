@@ -14,7 +14,7 @@ import java.math.BigDecimal
 import java.util.UUID
 
 /**
- * Allowance feature commands (#323, ADR-0024). The mutating command owns exactly one business
+ * Allowance feature commands (ADR-0024). The mutating command owns exactly one business
  * transaction: persistence runs on it via `AllowanceRepository.createInTransaction`, and the
  * audit row is inserted directly into it — so domain write + audit commit atomically or not at all.
  */
@@ -34,11 +34,11 @@ object AllowanceService {
         if (!AccountReads.userExists(userId)) {
             throw NotFoundException("User not found")
         }
-        // #925 — persisted-range pre-gate (the #924 fail-closed class): allowance.amount
+        // persisted-range pre-gate (the fail-closed class): allowance.amount
         // is NUMERIC(10,2), so overflow must 400 before the write, never 500 from Postgres.
         validateMoneyAmount(amount, "amount")
         return transaction {
-            // In-tx replay classification before the day gate (mirrors #509/#510/#511):
+            // In-tx replay classification before the day gate (mirrors):
             // a same-id row already committed acks without gating so retries landing
             // after a day transition still ack; ownership matches createInTransaction below.
             AllowanceRepository.findByIdInTransaction(id)?.let { existing ->
@@ -87,7 +87,7 @@ object AllowanceService {
 }
 
 /**
- * Allowance audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * Allowance audit vocabulary (ADR-0024 rule 3). Called by the command inside its own
  * transaction so the audit row commits atomically with the mutation. Owns the persistence-table
  * imports so the public command surface does not.
  */

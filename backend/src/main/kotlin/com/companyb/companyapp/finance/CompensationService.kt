@@ -16,7 +16,7 @@ import java.math.BigDecimal
 import java.util.UUID
 
 /**
- * Compensation feature commands (#323, ADR-0024). Each mutating command owns exactly one
+ * Compensation feature commands (ADR-0024). Each mutating command owns exactly one
  * business transaction: persistence runs on it via `CompensationRepository.*InTransaction`
  * store operations, the before/after state is captured inside it (ADR-0019 invariant), and
  * the audit row is inserted directly into it — so domain write + audit commit atomically or
@@ -31,7 +31,7 @@ object CompensationService {
     }
 
     /**
-     * #421: the paying branch day carries the financial effect (remittance snapshot and
+     * the paying branch day carries the financial effect (remittance snapshot and
      * daily-summary aggregation read the pay side), and business rules pin it to the duty
      * branch — "compensation is deducted from the branch where duty was performed". A day
      * pair spanning branches would let a caller authorized only at the work branch charge
@@ -59,21 +59,21 @@ object CompensationService {
         reason: String? = null,
     ): Compensation {
         // Fast-fail existence check before the transaction; the in-transaction locked
-        // gate below re-reads the work day for editability (#859).
+        // gate below re-reads the work day for editability.
         BranchDayService.requireBranchDayExists(workBranchDayId)
 
         if (!AccountReads.userExists(userId)) {
             throw NotFoundException("User not found")
         }
 
-        // #925 — persisted-range pre-gate (the #924 fail-closed class): compensation.amount
+        // persisted-range pre-gate (the fail-closed class): compensation.amount
         // is NUMERIC(10,2), so overflow must 400 before the write, never 500 from Postgres.
         validateMoneyAmount(amount, "amount")
         return transaction {
             replayIfExistsInTransaction(id, workBranchDayId, payingBranchDayId, userId, callerId, amount, note)?.let {
                 return@transaction it
             }
-            // #859: gate BOTH legs — the work day carries the duty being priced, so a
+            // gate BOTH legs — the work day carries the duty being priced, so a
             // REMITTED work day needs the same reason discipline even when the paying day is OPEN.
             val gate =
                 checkWorkAndPayingDaysEditableInTransaction(callerId, workBranchDayId, payingBranchDayId, reason)
@@ -106,7 +106,7 @@ object CompensationService {
     }
 
     /**
-     * #859 — locked editability gate for both compensation legs. Days lock in stable
+     * locked editability gate for both compensation legs. Days lock in stable
      * sorted-UUID order (the same order remittance submit uses), so a concurrent REMITTED
      * transition serializes with this command instead of deadlocking. Either leg REMITTED
      * flags the audit row. Uses the same `requiresEditPastDay = false` shape as the
@@ -134,10 +134,10 @@ object CompensationService {
     )
 
     /**
-     * #511 — in-tx replay classification before the day gate (mirrors #509/#510):
+     * in-tx replay classification before the day gate (mirrors):
      * a same-id row already committed acks without gating so retries landing
      * after a day transition still ack; a foreign row fails closed.
-     * Extracted so [create] stays under the ThrowsCount gate (#695 repair).
+     * Extracted so [create] stays under the ThrowsCount gate (repair).
      */
     @Suppress("LongParameterList") // #922: replay must compare full payload (amount/note)
     private fun replayIfExistsInTransaction(
@@ -180,7 +180,7 @@ object CompensationService {
         expectedVersion: Int,
         reason: String? = null,
     ): Compensation {
-        // #925 — same persisted-range pre-gate as create.
+        // same persisted-range pre-gate as create.
         validateMoneyAmount(amount, "amount")
         return transaction {
             // Transaction-local before-state (ADR-0019): read inside the command's transaction.
@@ -188,7 +188,7 @@ object CompensationService {
                 CompensationRepository.findByIdInTransaction(compensationId)
                     ?: throw NotFoundException("Compensation not found")
 
-            // #859: gate BOTH stored legs — the work day was previously re-read for the
+            // gate BOTH stored legs — the work day was previously re-read for the
             // same-branch invariant only, never for editability.
             val gate =
                 checkWorkAndPayingDaysEditableInTransaction(
@@ -197,7 +197,7 @@ object CompensationService {
                     before.payingBranchDayId,
                     reason,
                 )
-            // Same-branch invariant on the stored record too (#421): a legacy row whose days
+            // Same-branch invariant on the stored record too: a legacy row whose days
             // span branches must not stay updatable through either day's gate alone.
             assertPayingMatchesWork(gate.workDay, gate.payingDay)
 
@@ -217,7 +217,7 @@ object CompensationService {
 }
 
 /**
- * Compensation audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * Compensation audit vocabulary (ADR-0024 rule 3). Called by the command inside its own
  * transaction so the audit row commits atomically with the mutation. Owns the persistence-table
  * imports so the public command surface does not.
  */

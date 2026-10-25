@@ -132,7 +132,7 @@ object MeRoutes {
         }
     }
 
-    /** #669 — caller-only active-shift read for launch/login resume (null shift = none). */
+    /** caller-only active-shift read for launch/login resume (null shift = none). */
     fun getActiveAttendance(config: JavalinConfig) {
         config.routes.get(ApiRoutes.ME_ACTIVE_ATTENDANCE) { context ->
             val callerId = context.callerUuid()

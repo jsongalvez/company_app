@@ -2,16 +2,16 @@ package com.companyb.companyapp.contracts.incident
 
 import kotlinx.serialization.Serializable
 
-/** #475 — origin of a triage-ready incident packet; the packet shape is identical either way.
+/** origin of a triage-ready incident packet; the packet shape is identical either way.
  *
- * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
  * `docs/architecture.md`). Never persisted, never sent.
  */
 @Serializable
 enum class IncidentSource { USER_REPORT, AUTO_5XX, UNKNOWN }
 
 /**
- * #475 — in-app incident report call. [traceId] is the #471 echoed id of the slow
+ * in-app incident report call. [traceId] is the echoed id of the slow
  * request; [endpoint] is the client-observed route in `BugReport` shape
  * (`"METHOD /path"`, e.g. `"GET /api/clients"`); [appVersion] is the client
  * build; [elapsedMs] is the optional client-measured latency. No free-text
@@ -35,7 +35,7 @@ data class PoolSnapshot(
 )
 
 /**
- * #475 — triage-ready incident packet. Identical shape for user reports and
+ * triage-ready incident packet. Identical shape for user reports and
  * 5xx auto-files (only [source] differs) so the wolf-fence step 1 starts
  * done either way. [timestamp] is always server-stamped; [reporter] is the
  * masked caller id; the route carries no query string or raw ids.

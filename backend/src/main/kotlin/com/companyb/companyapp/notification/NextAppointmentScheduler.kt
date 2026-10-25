@@ -10,12 +10,12 @@ import java.time.LocalTime
 import java.time.ZonedDateTime
 
 /**
- * Daily next-appointment notification sweep (#322 time ownership, #324 boundaries). The run
+ * Daily next-appointment notification sweep (time ownership, boundaries). The run
  * date is the current **operational** date from the Branch Day authority — never a locally
  * derived calendar date; queries live behind [NextAppointmentRepository], this scheduler owns
  * no persistence or time policy of its own.
  *
- * Command-owned transaction (ADR-0024, #602): [run] opens exactly one transaction; the
+ * Command-owned transaction (ADR-0024): [run] opens exactly one transaction; the
  * repository reads and the batch append run as `*InTransaction` store operations on it.
  * No per-row audit (scheduler-owned batch write, ADR-recorded).
  */
@@ -25,10 +25,10 @@ object NextAppointmentScheduler {
     private const val RUN_MINUTE = 0
     private const val DAYS_AHEAD = 2L
 
-    // #508 — the sweep's occurrence identity: one delivery per (session, target date,
+    // the sweep's occurrence identity: one delivery per (session, target date,
     // recipient). A same-sweep retry reuses the key and inserts nothing; a genuinely later
-    // appointment date is a new occurrence and survives alongside the earlier row (#356).
-    // #614 — the key is producer-owned: built here, persisted verbatim by the mailbox store.
+    // appointment date is a new occurrence and survives alongside the earlier row.
+    // the key is producer-owned: built here, persisted verbatim by the mailbox store.
     const val APPOINTMENT_REMINDER = "APPOINTMENT_REMINDER"
 
     private fun appointmentOccurrenceKey(

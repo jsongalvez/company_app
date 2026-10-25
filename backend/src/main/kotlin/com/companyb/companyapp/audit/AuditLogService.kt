@@ -21,7 +21,7 @@ object AuditLogService {
     private fun canReadNullRows(callerId: UUID) = AuditLogReadScope.canReadNullRows(callerId)
 
     /**
-     * Per-record history (#104 D8 "Full history for this record"), scoped to
+     * Per-record history (D8 "Full history for this record"), scoped to
      * the caller's read window. A record whose rows all sit outside the window
      * returns an empty list — the rows are invisible, not an error.
      */
@@ -132,7 +132,7 @@ object AuditLogService {
         )
     }
 
-    /** Server-driven table list (D4): the #121 audited-table registry. */
+    /** Server-driven table list (D4): the audited-table registry. */
     fun listTables(): List<AuditLogTableResponse> =
         AuditLogTableRegistry.tables.map {
             AuditLogTableResponse(tableName = it.tableName, label = it.label)

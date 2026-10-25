@@ -9,13 +9,13 @@ import java.time.LocalTime
 import java.time.ZonedDateTime
 
 /**
- * #359 — accepted-invite reminders, daily 07:00 Manila sweep (same slot as the appointment
+ * accepted-invite reminders, daily 07:00 Manila sweep (same slot as the appointment
  * scheduler; the owner left times unspecified and the existing pattern is the default).
  * An ACCEPTED invite is reminded at T-3 days, T-1 day, and the duty day itself; only the
- * invitee hears it (#352 rulings — branch quiet until the day).
+ * invitee hears it (rulings — branch quiet until the day).
  *
- * Re-run safety mirrors the #358 expiry job: each reminder slot is its own occurrence key,
- * so the UNIQUE (dedup_key, user_id) constraint (#508) — not a pre-write marker read —
+ * Re-run safety mirrors the expiry job: each reminder slot is its own occurrence key,
+ * so the UNIQUE (dedup_key, user_id) constraint — not a pre-write marker read —
  * keeps re-runs and restarts from duplicating. Suppression still reads current state:
  * non-ACCEPTED invites never match the scan, and on the duty day an invitee who already
  * clocked in gets nothing.

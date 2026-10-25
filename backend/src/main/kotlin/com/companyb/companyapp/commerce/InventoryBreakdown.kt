@@ -3,7 +3,7 @@ package com.companyb.companyapp.commerce
 import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
 
 /**
- * #442 — the 5-value inventory sheet breakdown (owner decision 2026-09-03).
+ * the 5-value inventory sheet breakdown (owner decision 2026-09-03).
  * Branch-scoped all-history; legacy rows included, no rewrite. Corrections ride
  * ADJUSTMENT with reason; the sheet reconciles as
  * Available (= live currentStock) = Stock - Sales - TesterSample - Missing + Adjustment.
@@ -36,7 +36,7 @@ internal fun breakdownFromMovements(movements: List<InventoryMovement>): Invento
 
             InventoryMovementReason.ADJUSTMENT -> adjustment += movement.quantityChange
 
-            // #876 — unreachable: the Postgres enum column carries no UNKNOWN label, so
+            // unreachable: the Postgres enum column carries no UNKNOWN label, so
             // row mapping fails before this runs. Fail closed so a future value is handled
             // deliberately, never silently bucketed.
             InventoryMovementReason.UNKNOWN -> throw IllegalArgumentException("Unknown movement reason")

@@ -4,7 +4,7 @@ package com.companyb.companyapp.api
 object ApiRoutes {
     const val API_PREFIX = "/api/"
 
-    // #471 — opaque per-request id minted server-side; echoed on every response.
+    // opaque per-request id minted server-side; echoed on every response.
     const val TRACE_ID_HEADER = "X-Trace-Id"
     private const val API_ROOT = "/api"
     const val AUTH_LOGIN = "/auth/login"
@@ -99,12 +99,12 @@ object ApiRoutes {
     const val BRANCH_PATH = "$BRANCHES/{branchId}"
     const val BRANCH_RATES_PATH = "$BRANCH_PATH/rates"
 
-    // #348 — pre-create preview (query param: clientId).
+    // pre-create preview (query param: clientId).
     const val BRANCH_SESSION_PREVIEW_PATH = "$BRANCH_PATH/session-preview"
     const val BRANCH_RELIEF_INVITES_PATH = "$BRANCH_PATH/relief-invites"
     const val BRANCH_RELIEF_INVITES_ACCEPTED_PATH = "$BRANCH_PATH/relief-invites/accepted"
 
-    // #401 — deep-link day read (query param: date): every invite at the branch on that day.
+    // deep-link day read (query param: date): every invite at the branch on that day.
     const val BRANCH_RELIEF_INVITES_BY_DATE_PATH = "$BRANCH_RELIEF_INVITES_PATH/by-date"
     const val BRANCH_RELIEF_CANDIDATES_PATH = "$BRANCH_PATH/relief-candidates"
     const val BRANCH_MEMBERS_PATH = "$BRANCH_PATH/members"

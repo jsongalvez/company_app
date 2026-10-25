@@ -19,7 +19,7 @@ internal data class GithubIssueRequest(
 )
 
 /**
- * #475 — posts the incident packet as a needs-triage GitHub issue. The packet
+ * posts the incident packet as a needs-triage GitHub issue. The packet
  * is already PII-scrubbed (masked reporter, normalized route, no query/body),
  * so the issue body renders packet fields only. Stdlib HTTP client, no new
  * dependency — same zero-dep stance as #472/#473.

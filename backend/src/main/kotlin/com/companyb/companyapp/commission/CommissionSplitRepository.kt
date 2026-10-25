@@ -25,7 +25,7 @@ internal object CommissionSplitRepository {
         }
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — replaces the day's commission splits
+     * In-transaction store operation (ADR-0024) — replaces the day's commission splits
      * on the caller's command transaction.
      */
     fun replaceForBranchDayInTransaction(

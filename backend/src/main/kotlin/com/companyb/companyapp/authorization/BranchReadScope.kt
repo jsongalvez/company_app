@@ -6,7 +6,7 @@ import java.util.UUID
 
 /**
  * Branch read-scoping authority — the single place the all-branches read
- * window is declared (#131, extracted from the #122 `AuditLogReadScope`
+ * window is declared (#131, extracted from the `AuditLogReadScope`
  * pattern so reports/export routes share it).
  *
  * Read window = the caller's branches with any active grant (#98 union

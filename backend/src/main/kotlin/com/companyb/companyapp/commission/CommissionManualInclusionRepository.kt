@@ -13,7 +13,7 @@ import java.util.UUID
 
 internal object CommissionManualInclusionRepository {
     /**
-     * In-transaction store operation (#323, ADR-0024) — upserts the manual inclusion on the
+     * In-transaction store operation (ADR-0024) — upserts the manual inclusion on the
      * caller's command transaction and reports whether a row pre-existed so the command can
      * classify its audit write.
      */
@@ -71,7 +71,7 @@ internal object CommissionManualInclusionRepository {
         if (inserted.insertedCount == 0) {
             val existing =
                 findByProductSaleAndUserInTransaction(params.productSaleId, params.userId)
-                    // #894 (#865 precedent) — the id is owned by another (sale, user)
+                    // (precedent) — the id is owned by another (sale, user)
                     // pair, so this is a client conflict (409), never a 500.
                     ?: throw ConflictException(
                         "Commission inclusion ${params.id} is already used by another sale",
@@ -86,7 +86,7 @@ internal object CommissionManualInclusionRepository {
         return CommissionManualInclusionUpsertResult(null, created)
     }
 
-    /** In-transaction batched read (#497) — one query for the shared commission aggregation. */
+    /** In-transaction batched read — one query for the shared commission aggregation. */
     fun findBySaleIdsInTransaction(saleIds: List<UUID>): List<CommissionManualInclusion> =
         if (saleIds.isEmpty()) {
             emptyList()

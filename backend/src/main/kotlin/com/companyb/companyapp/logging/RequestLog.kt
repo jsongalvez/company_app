@@ -27,7 +27,7 @@ data class RequestCompletedEvent(
 )
 
 /**
- * Machine-readable per-request logs (#472). Emission-shape decision made
+ * Machine-readable per-request logs. Emission-shape decision made
  * in-ticket: manual JSON via kotlinx-serialization (already a dependency)
  * instead of an encoder library — zero new deps, all other log lines keep
  * their human-readable text pattern, and the per-request completed line is

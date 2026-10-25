@@ -7,7 +7,7 @@ import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 /**
- * Finance-owned HTTP authorization composition (#605).
+ * Finance-owned HTTP authorization composition.
  *
  * Resolves the expense record, then delegates to the common branch/day scope
  * check on [CapabilityFilter]. Authorization keeps capability-context
@@ -17,7 +17,7 @@ import java.util.UUID
 object ExpenseAuthz {
     /**
      * Day-scoped variant of [CapabilityFilter.requireBranchOrBranchDayCapability] for expenses
-     * (#157): accepts a BRANCH grant at the expense's branch OR a BRANCH_DAY grant for the
+     * : accepts a BRANCH grant at the expense's branch OR a BRANCH_DAY grant for the
      * expense's branch day.
      *
      * Throws ForbiddenException (403) if the caller holds neither form.

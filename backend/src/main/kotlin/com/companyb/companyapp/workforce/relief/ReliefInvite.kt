@@ -34,7 +34,7 @@ data class ReliefInviteView(
 )
 
 /**
- * #359 — ACCEPTED invite joined with its duty day and branch: the reminder-job scan row.
+ * ACCEPTED invite joined with its duty day and branch: the reminder-job scan row.
  * The duty date is the Branch Day's calendar date; reminders key off it, not respond time.
  */
 data class AcceptedInviteWithBranch(

@@ -56,7 +56,7 @@ internal object DailySalesSummaryRepository {
      * Keyset browse over `(date DESC, branch_day_id DESC)`. [cursor] is the
      * strictly-before position (exclusive). [limit] rows are returned; the
      * caller decides pagination via [encodeDailySummaryCursor] on the last row.
-     * [from]/[to] bound the window inclusively (null = unbounded) — the #105 D4
+     * [from]/[to] bound the window inclusively (null = unbounded) — the D4
      * feed modes (monthly month, date-range window, calendar-jump month) filter
      * server-side so pagination stays keyset-correct inside the window.
      */

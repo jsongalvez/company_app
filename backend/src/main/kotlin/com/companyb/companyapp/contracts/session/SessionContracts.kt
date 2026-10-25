@@ -3,7 +3,7 @@ package com.companyb.companyapp.contracts.session
 import kotlinx.serialization.Serializable
 
 /**
- * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
  * `docs/architecture.md`): old clients decode newer server values as UNKNOWN instead of failing
  * the whole response. Never persisted, never sent.
  */
@@ -11,7 +11,7 @@ import kotlinx.serialization.Serializable
 enum class SessionType { REGULAR, SECOND_SESSION, SUBSEQUENT, PROVINCIAL_FIRST, MEDICAL_MISSION, UNKNOWN }
 
 /**
- * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
  * `docs/architecture.md`): old clients decode newer server values as UNKNOWN and degrade the row
  * instead of failing the whole response. Never persisted, never sent: the lifecycle helpers
  * below never observe it from backend data, and the backend rejects it on input.
@@ -20,7 +20,7 @@ enum class SessionType { REGULAR, SECOND_SESSION, SUBSEQUENT, PROVINCIAL_FIRST, 
 enum class SessionStatus { PENDING, COMPLETED, NO_SHOW, CANCELLED, UNKNOWN }
 
 /**
- * #425 - the session status correction vocabulary (owner ruling 2026-08-26), shared so the
+ * the session status correction vocabulary (owner ruling 2026-08-26), shared so the
  * backend enforcement and the dashboard dropdown mirror can never diverge.
  *
  * - A ROUTINE MARK is the forward direction the lifecycle already allows anyone with edit
@@ -42,7 +42,7 @@ fun isRoutineStatusMark(
     to: SessionStatus,
 ): Boolean =
     from == SessionStatus.PENDING && to != SessionStatus.PENDING &&
-        // #876 — the forward-compat sentinel is never a legal transition endpoint: it is
+        // the forward-compat sentinel is never a legal transition endpoint: it is
         // rejected on input, so no stored status is ever UNKNOWN and no mark may target it.
         to != SessionStatus.UNKNOWN
 
@@ -168,7 +168,7 @@ data class SessionPractitionerResponse(
 )
 
 /**
- * #348 — pre-create preview for the SessionCreate screen: the session type the server WILL
+ * pre-create preview for the SessionCreate screen: the session type the server WILL
  * assign (same [SessionType] algorithm as create) and the base
  * rate that will default the final price. Server-authoritative — the frontend never replicates
  * history counting or rate lookup.

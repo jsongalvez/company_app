@@ -35,11 +35,11 @@ internal object SessionVoidRepository {
             ?.toSessionVoid()
 
     /**
-     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction.
+     * In-transaction store operation (ADR-0024) — runs on the caller's command transaction.
      *
-     * Ownership-validated replay with re-arm (#514): the insert spans two unique keys (PK
+     * Ownership-validated replay with re-arm: the insert spans two unique keys (PK
      * `id`, UNIQUE `session_id`), so a swallowed insert is disambiguated — a row owned by
-     * another session fails closed (the #511/#512 `validateReplayOwnership` precedent), a
+     * another session fails closed (the / `validateReplayOwnership` precedent), a
      * historical unvoided row for this session is re-armed in place (the single
      * per-session row invariant), and an active row for this session is an idempotent ack.
      */
@@ -72,7 +72,7 @@ internal object SessionVoidRepository {
             findBySessionIdInTransaction(sessionId)
                 ?: byId
                 ?: error("session_void row not found after idempotent insert for $id")
-        // #601 max-2: idempotent ack and re-arm share one exit.
+        // max-2: idempotent ack and re-arm share one exit.
         return if (existing.unvoidedAt == null) {
             VoidResult(existing, created = false)
         } else {
@@ -97,7 +97,7 @@ internal object SessionVoidRepository {
         }
     }
 
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun unvoidInTransaction(
         sessionVoidId: UUID,
         unvoidedBy: UUID,
@@ -115,9 +115,9 @@ internal object SessionVoidRepository {
     }
 
     /**
-     * In-transaction store read (#909) — void-row ids attached to the given
+     * In-transaction store read — void-row ids attached to the given
      * sessions, for the anonymize audit redaction. One stable row per session
-     * (the #514 single-row invariant), so this census covers all void history.
+     *  (the single-row invariant), so this census covers all void history.
      */
     fun findIdsForSessionsInTransaction(sessionIds: Collection<UUID>): List<UUID> =
         if (sessionIds.isEmpty()) {
@@ -130,7 +130,7 @@ internal object SessionVoidRepository {
         }
 
     /**
-     * In-transaction store operation (#909) — replaces operator-entered
+     * In-transaction store operation — replaces operator-entered
      * void/unvoid free text on every void row of one anonymized client's
      * sessions with the audit redaction marker. `void_reason` is NOT NULL and
      * the unvoid triple is CHECK-bound, so the marker (not null) is the scrub

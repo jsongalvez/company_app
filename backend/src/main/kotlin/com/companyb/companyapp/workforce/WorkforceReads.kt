@@ -6,7 +6,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 /**
- * Narrow workforce attendance fact for the shared commission aggregation (#604): the
+ * Narrow workforce attendance fact for the shared commission aggregation: the
  * clock-in/out window covering a sale. Carries only the membership/eligibility inputs
  * the engine needs — never the full persistence row, its marker, or its day id.
  */
@@ -17,7 +17,7 @@ data class AttendanceWindow(
 )
 
 /**
- * Named workforce-read seams for cross-owner consumers (map #615 #604): session
+ * Named workforce-read seams for cross-owner consumers: session
  * membership/slot facts and commission attendance windows. Thin delegations to the
  * internal workforce stores — not a facade over every method. Service-to-service calls
  * need no architecture allowlist entry; direct store imports from other owners stay banned.
@@ -42,7 +42,7 @@ object WorkforceReads {
         }
     }
 
-    /** ACTIVE member check for session create validation (#366) — runs on its own transaction. */
+    /** ACTIVE member check for session create validation — runs on its own transaction. */
     fun hasActiveMember(
         branchId: UUID,
         userId: UUID,
@@ -61,7 +61,7 @@ object WorkforceReads {
             ?.slot
 
     /**
-     * #669 — the caller's open clock-in window on [date] for launch/login resume. Runs on
+     * the caller's open clock-in window on [date] for launch/login resume. Runs on
      * the caller's transaction; null when no window stands open (absent or clocked out).
      */
     fun findActiveShiftInTransaction(
@@ -70,7 +70,7 @@ object WorkforceReads {
     ): ActiveShift? = AttendanceRepository.findActiveShiftInTransaction(userId, date)
 
     /**
-     * Full-window attendance read for the shared commission aggregation (#497) — runs on the
+     * Full-window attendance read for the shared commission aggregation — runs on the
      * caller's transaction so enclosing commands observe their own uncommitted writes.
      * One query per day; never per-sale or per-user.
      */

@@ -65,11 +65,11 @@ import java.util.UUID
 )
 object ExportRoutes {
     fun register(config: JavalinConfig) {
-        // #114 lesson: the wildcard is what makes the gate run on the 5-segment branch
+        // lesson: the wildcard is what makes the gate run on the 5-segment branch
         // export route (ReportsReadScopeAuthzTest proves 403 for zero-grant callers).
         config.routes.before("/api/branches/{branchId}/export/*") { context ->
             val branchId = context.pathParamAsUuid("branchId")
-            // #744 — 404 precedence for an unknown branch before the capability gate (#730/#732 precedent).
+            // 404 precedence for an unknown branch before the capability gate (precedent).
             BranchService.findById(branchId)
             CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
                 context,

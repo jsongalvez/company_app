@@ -14,7 +14,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 /**
- * Client feature commands (#323, ADR-0024). Each mutating command owns exactly one business
+ * Client feature commands (ADR-0024). Each mutating command owns exactly one business
  * transaction: persistence runs on it via `ClientRepository.*InTransaction` store operations,
  * the before/after state is captured inside it (ADR-0019 invariant), and the audit row is
  * inserted directly into it — so domain write + audit commit atomically or not at all.
@@ -24,7 +24,7 @@ import java.util.UUID
 object ClientService {
     private val logger = KotlinLogging.logger {}
 
-    // #599 13-param client creation stays whole per #535; the single command-owned transaction
+    // 13-param client creation stays whole; the single command-owned transaction
     // (ADR-0024) keeps persistence + audit atomic — splitting would break atomicity
     // (same precedent as SessionService.create #593, ProductSaleService.sell #597).
     @Suppress("LongParameterList") // #599
@@ -45,9 +45,9 @@ object ClientService {
         medicalConditions: String?,
     ): ClientCreateResult =
         transaction {
-            // #923: range pre-gate (mirrors the client CHECKs / varchar width) —
+            // range pre-gate (mirrors the client CHECKs / varchar width) —
             // fail closed with 400 before the insert instead of surfacing the DB
-            // violation as a 500 (#475 auto-file). Same class as #912/#921.
+            // violation as a 500 (auto-file). Same class as #912/#921.
             validateClientRanges(age, systolicBp, diastolicBp, phoneNumber)
             validateEarlierVisits(earlierVisits)
             val result =
@@ -88,7 +88,7 @@ object ClientService {
     fun findById(clientId: UUID): Client =
         ClientRepository.findById(clientId) ?: throw NotFoundException("Client not found")
 
-    // #599 14-param client update stays whole per #535; the single command-owned transaction
+    // 14-param client update stays whole; the single command-owned transaction
     // (ADR-0024) keeps lock + patch + audit atomic — splitting would break atomicity.
     @Suppress("LongParameterList") // #599
     fun update(
@@ -109,12 +109,12 @@ object ClientService {
         clearFields: Set<String> = emptySet(),
     ): Client =
         transaction {
-            // #923: same range pre-gate as create — age/BP/phone bypass patch
+            // same range pre-gate as create — age/BP/phone bypass patch
             // shape resolution as raw values, so the update command owns the
             // bounds for direct callers too (route mirrors with BadRequestResponse).
             validateClientRanges(age, systolicBp, diastolicBp, phoneNumber)
             validateEarlierVisits(earlierVisits)
-            // Locked before-state (#522): SELECT FOR UPDATE serializes concurrent
+            // Locked before-state: SELECT FOR UPDATE serializes concurrent
             // writers so the audit diff attributes only this actor's changes.
             val before =
                 ClientRepository.acquireLockInTransaction(clientId)
@@ -188,7 +188,7 @@ object ClientService {
                 val after =
                     ClientRepository.findByIdInTransaction(clientId)
                         ?: error("client not found after anonymize")
-                // Redact-then-record (#524, extended #908-#909): session free text
+                // Redact-then-record (extended): session free text
                 // and void/unvoid reasons are in-scope anonymization residue, so
                 // the live rows are scrubbed and the matching audit payloads
                 // (plus the duplicated audit reason column on void rows) are
@@ -208,7 +208,7 @@ object ClientService {
 }
 
 /**
- * Resolved three-state PATCH (#523): present values are trimmed sets, [clearFields]
+ * Resolved three-state PATCH: present values are trimmed sets, [clearFields]
  * entries are explicit clears, absent values are unchanged. Throws [ValidationException]
  * so HTTP callers get 400 through the centralized handler; the route mirrors the same
  * rules with [BadRequestResponse] to preserve its existing error shape.
@@ -229,7 +229,7 @@ internal data class ResolvedClientPatch(
     val clearAddress: Boolean,
     val clearMedicalConditions: Boolean,
     val clearBp: Boolean,
-    /** Normalized cleared names for the audit reason — values never recorded (#524 safe). */
+    /** Normalized cleared names for the audit reason — values never recorded (safe). */
     val clearedFields: Set<String>,
 )
 
@@ -237,7 +237,7 @@ private const val BP_PAIR_MESSAGE =
     "Both systolic and diastolic blood pressure must be provided together or not at all"
 
 /**
- * Persisted-range pre-gate (#923): every DB-bounded client field is checked
+ * Persisted-range pre-gate: every DB-bounded client field is checked
  * before the write so violations return 400 instead of an ExposedSQLException
  * 500. Nulls are absent values (unchanged on PATCH, unset on create) and pass;
  * the BP both-or-none shape stays owned by the pair guards. Throws
@@ -266,7 +266,7 @@ internal fun validateClientRanges(
     }
 }
 
-/** BP pair's three-state resolution (#523): set together, cleared together, or unchanged. */
+/** BP pair's three-state resolution: set together, cleared together, or unchanged. */
 internal data class BpPatch(
     val systolicBp: Short?,
     val diastolicBp: Short?,
@@ -294,7 +294,7 @@ internal fun resolveBpPatch(
     return BpPatch(systolicBp, diastolicBp, clearSystolic && clearDiastolic)
 }
 
-/** One optional text field's set-or-clear (#523): blank sets are rejected, never stored. */
+/** One optional text field's set-or-clear: blank sets are rejected, never stored. */
 internal fun resolveClearableText(
     label: String,
     value: String?,
@@ -310,7 +310,7 @@ internal fun resolveClearableText(
     return value?.trim()
 }
 
-/** Required names stay non-blankable (#523 preserves the existing rule). */
+/** Required names stay non-blankable (preserves the existing rule). */
 internal fun resolveRequiredName(
     value: String?,
     label: String,
@@ -402,7 +402,7 @@ internal fun resolveClientPatch(
 }
 
 /**
- * Client audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * Client audit vocabulary (ADR-0024 rule 3). Called by the command inside its own
  * transaction so the audit row commits atomically with the mutation. Owns the persistence-table
  * imports so the public command surface does not.
  */
@@ -428,7 +428,7 @@ internal object ClientAudit {
         before = before,
         after = after,
         changedBy = changedBy,
-        // Cleared-field identity without values (#523, #525): cleared PII never
+        // Cleared-field identity without values: cleared PII never
         // lands in a payload — old cleared values become REDACTED, new stays
         // null (or N/A for address) — while the reason names the cleared fields.
         auditFields = { client -> scrubCleared(ClientTable.auditFields(client), clearedFields) },
@@ -436,7 +436,7 @@ internal object ClientAudit {
     )
 
     /**
-     * Anonymization event (#524, extended #525): the before-image carries the
+     * Anonymization event (extended): the before-image carries the
      * redaction marker instead of every removed PII value, so the event itself
      * can never resurrect what anonymization just removed. The `anonymized`
      * reason is the audit-side marker of the anonymization.
@@ -478,7 +478,7 @@ internal object ClientAudit {
     }
 
     /**
-     * Cleared-field scrub (#523, #525): for keys in [cleared], a stored PII value
+     * Cleared-field scrub: for keys in [cleared], a stored PII value
      * becomes REDACTED while nulls and the N/A address default keep their shape,
      * so clears record the change without retaining the removed value.
      */

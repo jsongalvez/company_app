@@ -20,15 +20,15 @@ import java.time.LocalDate
 import java.util.UUID
 
 /**
- * Relief-access feature commands (#323, ADR-0024). Each mutating command owns exactly one
+ * Relief-access feature commands (ADR-0024). Each mutating command owns exactly one
  * transaction: the Branch Day gate runs inside it, persistence runs via
  * `ReliefAccessRepository.*InTransaction` store operations, and the audit row is inserted
  * into the same transaction — so mutation + audit commit atomically or not at all.
  *
- * #357 broadcast model: a request names no target user (the #352 rules change) and is
+ * broadcast model: a request names no target user (the rules change) and is
  * branch-day-scoped; any ACTIVE user without a home assignment at the branch may raise
  * one for today or a future date, every branch member can grant/deny/cancel it, and all
- * retraction locks once the requester clocks in. The #354 supersede machinery is retired:
+ * retraction locks once the requester clocks in. The supersede machinery is retired:
  * multiple relief workers per branch-day are allowed, so there is no cross-request race
  * to arbitrate.
  */
@@ -36,9 +36,9 @@ object ReliefAccessService {
     private val logger = KotlinLogging.logger {}
 
     /**
-     * Per-day request surface (#357): branch members see every request on the day (the
+     * Per-day request surface: branch members see every request on the day (the
      * broadcast audience); non-members see only their own rows. Authorization is bearer +
-     * row scoping (the #141 notification-as-authorization precedent); no capability gate.
+     * row scoping (the notification-as-authorization precedent); no capability gate.
      */
     fun listForCaller(
         callerId: UUID,
@@ -66,11 +66,11 @@ object ReliefAccessService {
         return if (isMember) requests else requests.filter { it.access.requestedBy == callerId }
     }
 
-    /** The caller's own requests across branches/days with branch context (#357). */
+    /** The caller's own requests across branches/days with branch context. */
     fun listMine(callerId: UUID): List<ReliefRequestWithBranch> = ReliefAccessRepository.findMine(callerId)
 
     /**
-     * #358 deep-link read: a notification tap carries (branchId, date), not a branch-day id.
+     * deep-link read: a notification tap carries (branchId, date), not a branch-day id.
      * Find-only day resolution — a stale link never materializes a missing day; empty list
      * when no such day exists. Same audience rules as [listForCaller].
      */
@@ -79,7 +79,7 @@ object ReliefAccessService {
         branchId: UUID,
         date: LocalDate,
     ): List<ReliefAccess> {
-        // #725 — 404 precedence for an unknown branch before the day read (#721
+        // 404 precedence for an unknown branch before the day read (#721
         // precedent): findByBranchAndDate alone conflates "unknown branch" with
         // "known branch with no day yet".
         BranchService.findById(branchId)
@@ -88,7 +88,7 @@ object ReliefAccessService {
     }
 
     /**
-     * Active branches for the pre-clock-in request picker (#357). Bearer-only: the
+     * Active branches for the pre-clock-in request picker. Bearer-only: the
      * requester holds no capabilities by definition (the dashboard universal-read
      * precedent — a capability gate would 403 the primary flow).
      */
@@ -99,7 +99,7 @@ object ReliefAccessService {
         callerId: UUID,
         reason: String? = null,
     ): ReliefAccess {
-        // Non-locking entry read (the #513 discipline — no lock widening): the day lock
+        // Non-locking entry read (the discipline — no lock widening): the day lock
         // inside the command transaction is the serializer, not the relief row.
         val request =
             ReliefAccessRepository.findById(requestId)
@@ -107,14 +107,14 @@ object ReliefAccessService {
 
         val result =
             transaction {
-                // #515 — membership at commit + locked day gate inside the command
+                // membership at commit + locked day gate inside the command
                 // transaction: a concurrent remittance submit flipping the day to REMITTED
                 // can no longer slip between the gate and the grant.
                 requireActiveMemberInTransaction(callerId, request.branchDayId)
                 val (branchDay, isRemitted) =
                     BranchDayService.checkBranchDayEditableInTransaction(callerId, request.branchDayId, reason)
 
-                // #913 — one duty per person per day (idx_one_grant_per_day backstop):
+                // one duty per person per day (idx_one_grant_per_day backstop):
                 // a sibling GRANTED for the same requester/day turns this grant into
                 // a 409 instead of a unique-violation 500. Day-lock serialized with
                 // the sibling's grant, so the check+flip are atomic.
@@ -128,7 +128,7 @@ object ReliefAccessService {
                         ),
                     ) ?: error("Grant failed: relief access request not found in transaction")
 
-                // #913 — granting an already-decided ask is a 409, not a silent 200
+                // granting an already-decided ask is a 409, not a silent 200
                 // carrying the wrong status (the deny/cancel decided-state discipline).
                 // The GRANTED replay leg stays idempotent (updated=false, after=GRANTED).
                 if (!mutation.updated && mutation.after.requestStatus != ReliefAccessStatus.GRANTED) {
@@ -136,7 +136,7 @@ object ReliefAccessService {
                         "This relief request was already decided (${mutation.after.requestStatus})",
                     )
                 }
-                // #918 — cross-path twin of the sibling guard (fresh flips only; the
+                // cross-path twin of the sibling guard (fresh flips only; the
                 // GRANTED replay leg above returns its own grant, which the view
                 // check would otherwise mistake for another path's duty):
                 // an ACCEPTED invite for the same user/day already wrote the
@@ -160,7 +160,7 @@ object ReliefAccessService {
                         mutation.before,
                         mutation.after,
                     )
-                    // #358 — outcome broadcast: everyone incl. who granted + the requester.
+                    // outcome broadcast: everyone incl. who granted + the requester.
                     ReliefNotifications.requestOutcome(
                         eventType = ReliefNotifications.GRANTED,
                         requestId = requestId,
@@ -184,9 +184,9 @@ object ReliefAccessService {
         callerId: UUID,
         reason: String? = null,
     ): ReliefAccess {
-        // Non-locking entry read (the #513 discipline — no lock widening): the store's
+        // Non-locking entry read (the discipline — no lock widening): the store's
         // conditional update arbitrates races. No pre-transaction decided-state
-        // fast-path (#928): the membership + day gates below must run on every leg
+        // fast-path: the membership + day gates below must run on every leg
         // so non-members get 403 on DENIED/GRANTED rows instead of a 200/400 oracle.
         val request =
             ReliefAccessRepository.findById(requestId)
@@ -194,7 +194,7 @@ object ReliefAccessService {
 
         val result =
             transaction {
-                // #515 — membership at commit + locked day gate in the same tx
+                // membership at commit + locked day gate in the same tx
                 // (same TOCTOU shape as grant).
                 requireActiveMemberInTransaction(callerId, request.branchDayId)
                 val (branchDay, isRemitted) =
@@ -207,7 +207,7 @@ object ReliefAccessService {
                         mutation.before,
                         mutation.after,
                     )
-                    // #358 — outcome broadcast: everyone incl. who denied + the requester.
+                    // outcome broadcast: everyone incl. who denied + the requester.
                     ReliefNotifications.requestOutcome(
                         eventType = ReliefNotifications.DENIED,
                         requestId = requestId,
@@ -229,7 +229,7 @@ object ReliefAccessService {
     }
 
     /**
-     * Withdraw/cancel (#357, owner rule "one rule for both"): the requester withdraws
+     * Withdraw/cancel (owner rule "one rule for both"): the requester withdraws
      * theirs, any active branch member cancels someone else's pending ask; both die once
      * the requester has clocked in at the branch day.
      */
@@ -246,7 +246,7 @@ object ReliefAccessService {
 
         val result =
             transaction {
-                // #376 — membership at commit for the member-cancel leg: the FOR UPDATE
+                // membership at commit for the member-cancel leg: the FOR UPDATE
                 // re-read orders against a concurrently committing assignment removal.
                 if (!isRequester) {
                     requireActiveMemberInTransaction(callerId, request.branchDayId)
@@ -313,10 +313,10 @@ object ReliefAccessService {
                 // below serializes against the remittance transition.
                 val branchDay = BranchDayService.resolveOrCreate(branchId, operationalDate)
 
-                // #515 — in-tx replay classification before the day gate (the #510
+                // in-tx replay classification before the day gate (the
                 // discipline): a same-id row already committed acks without re-gating so
                 // retries landing after a day transition still ack; ownership matches the
-                // insert below (the #510/#514 class).
+                // insert below (the / class).
                 ReliefAccessRepository.findByIdInTransaction(requestId)?.let { existing ->
                     requireReplayOwnership(existing, branchDay.id, callerId)
                     return@transaction existing to false
@@ -326,7 +326,7 @@ object ReliefAccessService {
                 val (lockedDay, isRemitted) =
                     BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDay.id, reason)
 
-                // #913 — per-person duty guard (mirrors the invite create guard): the
+                // per-person duty guard (mirrors the invite create guard): the
                 // requester must not already hold the day (a GRANTED request or an
                 // active day grant incl. the invite path). Without it a second grant
                 // would hit idx_one_grant_per_day as a 500.
@@ -339,7 +339,7 @@ object ReliefAccessService {
                         requestedBy = callerId,
                     )
                 if (pair.first == null) {
-                    // A different live request stands for this branch day — the #352 Q4
+                    // A different live request stands for this branch day — the Q4
                     // flood rule. Throw inside the transaction so the swallowed insert
                     // and the conflict commit atomically as nothing.
                     throw ConflictException("You already have a live relief request for this branch day")
@@ -349,7 +349,7 @@ object ReliefAccessService {
                         AuditContext(callerId, lockedDay.branchId, isRemitted, reason),
                         checkNotNull(pair.first),
                     )
-                    // #358 — the branch-wide ping commits with the request it announces.
+                    // the branch-wide ping commits with the request it announces.
                     ReliefNotifications.requestCreated(
                         requestId = requestId,
                         requesterId = callerId,
@@ -373,7 +373,7 @@ object ReliefAccessService {
     }
 
     /**
-     * #376 — in-transaction membership gate with a FOR UPDATE read of the assignment row:
+     * in-transaction membership gate with a FOR UPDATE read of the assignment row:
      * an assignment ending concurrently blocks here or is already visible, so membership
      * holds at command commit, not just at entry. Resolves the day's branch inside the
      * caller's transaction.
@@ -391,7 +391,7 @@ object ReliefAccessService {
     }
 
     /**
-     * #598: pre-transaction requester eligibility split from the command body
+     * pre-transaction requester eligibility split from the command body
      * (ThrowsCount budget is 2 per function).
      */
     private fun requireRequesterEligible(
@@ -426,7 +426,7 @@ object ReliefAccessService {
     }
 
     /**
-     * #913 — grant-path sibling guard (ThrowsCount split): the requester must not
+     * grant-path sibling guard (ThrowsCount split): the requester must not
      * already hold a GRANTED row for the day under a different request id.
      */
     private fun requireNoSiblingGrantedInTransaction(
@@ -442,7 +442,7 @@ object ReliefAccessService {
     }
 
     /**
-     * #918 — grant-path invite guard (ThrowsCount split): the requester must not
+     * grant-path invite guard (ThrowsCount split): the requester must not
      * already hold the day through the invite path (an ACCEPTED invite writes the
      * same day-scoped capability under another table, invisible to the sibling
      * guard above).
@@ -457,7 +457,7 @@ object ReliefAccessService {
     }
 
     /**
-     * #913 — creation-path duty guard (ThrowsCount split): the requester must hold
+     * creation-path duty guard (ThrowsCount split): the requester must hold
      * neither a GRANTED request nor an active day grant (either path's grant writes
      * the same day-scoped capability) for the day.
      */
@@ -475,7 +475,7 @@ object ReliefAccessService {
 }
 
 /**
- * Relief-access audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * Relief-access audit vocabulary (ADR-0024 rule 3). Called by the command inside its own
  * transaction so the audit row commits atomically with the mutation. Owns the persistence-table
  * imports so the public command surface does not.
  */

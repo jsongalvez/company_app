@@ -3,7 +3,7 @@ package com.companyb.companyapp.contracts.commerce
 import kotlinx.serialization.Serializable
 
 /**
- * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
  * `docs/architecture.md`): old clients decode newer server values as UNKNOWN instead of failing
  * the whole response. Never persisted, never sent.
  */
@@ -75,7 +75,7 @@ data class BranchInventoryResponse(
     val sharedCommissionAmount: String,
     val branchUnitPrice: String? = null,
     val branchCommissionAmount: String? = null,
-    // #442 — 5-value inventory sheet breakdown (owner 5-value decision 2026-09-03).
+    // 5-value inventory sheet breakdown (owner 5-value decision 2026-09-03).
     // Available is the live sellable count (equals currentStock, the low-stock authority).
     // Stock = RESTOCK sum baseline; Sales = SALE units (positive); TesterSample = TESTER+SAMPLE
     // combined display (movements stay separate); Missing = MISSING units (positive, notes-mandated);

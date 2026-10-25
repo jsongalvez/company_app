@@ -7,7 +7,7 @@ import io.javalin.openapi.OpenApi
 import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiResponse
 
-// #473 annotation added in #475: the contract gate requires every registered
+// annotation added in #475: the contract gate requires every registered
 // route to carry a source annotation (mirrors HealthRoutes' public shape).
 @OpenApi(
     path = ApiRoutes.METRICS,

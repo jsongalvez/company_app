@@ -115,11 +115,11 @@ object ClientRoutes {
     private const val CLIENT_ID_PARAM = "clientId"
 
     fun register(config: JavalinConfig) {
-        // #653 exact-segment lesson (#114): before(CLIENTS) does NOT fire on child
+        // exact-segment lesson: before(CLIENTS) does NOT fire on child
         // segments — item + anonymize routes need their own guards.
-        // #896: clients are global records with no branch context, so the gate accepts
-        // EDIT_BRANCH_DATA in any context (BRANCH/BRANCH_DAY/GLOBAL) — the #660 concern-catalog
-        // precedent and the #104 D6 any-context policy (AuditLogReadScope "client" agrees).
+        // clients are global records with no branch context, so the gate accepts
+        // EDIT_BRANCH_DATA in any context (BRANCH/BRANCH_DAY/GLOBAL) — the concern-catalog
+        // precedent and the any-context policy (AuditLogReadScope "client" agrees).
         // A GLOBAL-only gate 403'd every role-derived branch holder (EDIT_BRANCH_DATA never
         // derives GLOBAL). Relief day-grants satisfy for their windowed day (any day).
         config.routes.before(ApiRoutes.CLIENTS) { context ->
@@ -178,7 +178,7 @@ object ClientRoutes {
 
         val firstName = request.firstName.trim()
         val lastName = request.lastName.trim()
-        // #599: create guards split into named checks (ThrowsCount budget is 2 per function).
+        // create guards split into named checks (ThrowsCount budget is 2 per function).
         requireCreateNames(firstName, lastName)
         requireCreateBpPair(request.systolicBp, request.diastolicBp)
         requireKnownGender(request.gender)
@@ -274,16 +274,16 @@ object ClientRoutes {
     }
 
     /**
-     * PATCH shape validation (#523) — mirrors [resolveClientPatch] with
+     * PATCH shape validation — mirrors [resolveClientPatch] with
      * [BadRequestResponse] to preserve the route's existing error shape. The service
      * re-validates defensively for direct callers.
      */
     private fun validateClientPatch(request: UpdateClientRequest) {
         val clears = request.clearFields
-        // #876 — the forward-compat sentinel is never valid input (the column carries no
+        // the forward-compat sentinel is never valid input (the column carries no
         // such label). Unknown strings still 400 at decode.
         if (request.gender == Gender.UNKNOWN) throw BadRequestResponse("Unknown gender")
-        // Colocated clear-set policy (#541): the command owns the shape, the route only
+        // Colocated clear-set policy: the command owns the shape, the route only
         // maps its error to the route's existing BadRequestResponse shape.
         try {
             checkClearShape(clears)
@@ -332,7 +332,7 @@ object ClientRoutes {
     private fun Client.toResponse(): ClientResponse = toResponse(ClientService.countSessions(listOf(id))[id] ?: 0)
 
     /**
-     * #599: create name guards split from handleCreate (ThrowsCount budget is 2 per function).
+     * create name guards split from handleCreate (ThrowsCount budget is 2 per function).
      */
     private fun requireCreateNames(
         firstName: String,
@@ -343,7 +343,7 @@ object ClientRoutes {
     }
 
     /**
-     * #599: create BP-pair guard split from handleCreate (ThrowsCount budget is 2 per function).
+     * create BP-pair guard split from handleCreate (ThrowsCount budget is 2 per function).
      */
     private fun requireCreateBpPair(
         systolicBp: Short?,
@@ -359,7 +359,7 @@ object ClientRoutes {
     }
 
     /**
-     * #876: sentinel guard split into a named check (ThrowsCount budget is 2 per function).
+     * sentinel guard split into a named check (ThrowsCount budget is 2 per function).
      * The forward-compat sentinel is never valid input — the column carries no such label.
      */
     private fun requireKnownGender(gender: Gender) {
@@ -367,7 +367,7 @@ object ClientRoutes {
     }
 
     /**
-     * #923: persisted-range mirror split into a named check (same ThrowsCount
+     * persisted-range mirror split into a named check (same ThrowsCount
      * budget). The service owns the bounds ([validateClientRanges]); this maps
      * the ValidationException to the route's BadRequestResponse shape, same as
      * the clear-shape mapping in [validateClientPatch].
@@ -404,7 +404,7 @@ object ClientRoutes {
         )
 }
 
-/** Route-level PATCH mirrors (#523): BadRequestResponse shapes over the colocated policy. */
+/** Route-level PATCH mirrors: BadRequestResponse shapes over the colocated policy. */
 
 private fun checkRequiredName(
     value: String?,

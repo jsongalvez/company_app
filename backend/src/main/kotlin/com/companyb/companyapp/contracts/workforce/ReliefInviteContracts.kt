@@ -3,14 +3,14 @@ package com.companyb.companyapp.contracts.workforce
 import kotlinx.serialization.Serializable
 
 /**
- * Lifecycle of a branch-initiated relief invite (#159): PENDING until the invitee
+ * Lifecycle of a branch-initiated relief invite: PENDING until the invitee
  * responds (ACCEPTED/DECLINED), the inviter retracts (RETRACTED — PENDING only), or
- * any active branch member revokes an acceptance (REVOKED — #374, the #363 rulings;
+ * any active branch member revokes an acceptance (REVOKED — #374, the rulings;
  * removes the day grant atomically and stops before the invitee clocks in). The
  * accepted grant is written at ACCEPT time; day-state is the expiry (a PENDING invite
  * whose day is past renders "expired" — no cron).
  *
- * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
  * `docs/architecture.md`). Never persisted, never sent.
  */
 @Serializable

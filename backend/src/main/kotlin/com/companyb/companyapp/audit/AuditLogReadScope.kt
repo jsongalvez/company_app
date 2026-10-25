@@ -6,8 +6,8 @@ import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import java.util.UUID
 
 /**
- * Audit read scoping authority — the single place the #104 D6 window + per-table
- * policy is declared (#122 work item 1).
+ * Audit read scoping authority — the single place the window + per-table
+ * policy is declared (work item 1).
  *
  * Read window = the caller's branches with any active grant (#98 union pattern,
  * sourced from [CapabilityService.findBranchWindow]). Branchless (global)
@@ -43,10 +43,10 @@ object AuditLogReadScope {
 
     /**
      * Branch ids in the caller's read window — distinct branches where the
-     * caller holds any active grant (#98 union pattern, capability-sourced).
+     * caller holds any active grant (union pattern, capability-sourced).
      * `null` = all branches: the caller holds a GLOBAL `VIEW_BRANCH_DATA` grant
      * (the read-only-across-all-branches shape for SUPERUSER, OWNER, or ACCOUNTANT).
-     * Delegates to [BranchReadScope] — the shared all-branches window (#131).
+     * Delegates to [BranchReadScope] — the shared all-branches window.
      */
     fun windowBranchIds(callerId: UUID): List<UUID>? = BranchReadScope.windowBranchIds(callerId)
 
@@ -75,7 +75,7 @@ object AuditLogReadScope {
 
     /**
      * NULL-branch rows on unlisted tables (legacy backfill) — global-view
-     * proxy per #104 D6: a GLOBAL `VIEW_BRANCH_DATA` grant.
+     * proxy D6: a GLOBAL `VIEW_BRANCH_DATA` grant.
      */
     fun canReadNullRows(callerId: UUID): Boolean = BranchReadScope.hasGlobalView(callerId)
 

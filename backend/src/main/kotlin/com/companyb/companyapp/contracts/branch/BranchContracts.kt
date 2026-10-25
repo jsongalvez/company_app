@@ -3,7 +3,7 @@ package com.companyb.companyapp.contracts.branch
 import kotlinx.serialization.Serializable
 
 /**
- * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
  * `docs/architecture.md`): old clients decode newer server values as UNKNOWN instead of failing
  * the whole response. Never persisted, never sent.
  */
@@ -11,7 +11,7 @@ import kotlinx.serialization.Serializable
 enum class BranchType { CLINIC, PROVINCIAL_TOUR, MEDICAL_MISSION, UNKNOWN }
 
 /**
- * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
  * `docs/architecture.md`). Never persisted, never sent.
  */
 @Serializable
@@ -52,7 +52,7 @@ data class MeBranchResponse(
     val clockInStatus: BranchClockInStatus = BranchClockInStatus.UNKNOWN,
     val isRelief: Boolean,
     val assignmentId: String? = null,
-    // #381 — own-assignment slot (Branch Slot, 1 = senior); null for relief rows, which
+    // own-assignment slot (Branch Slot, 1 = senior); null for relief rows, which
     // have no branch assignment to order.
     val slot: Short? = null,
 )

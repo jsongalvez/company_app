@@ -33,10 +33,10 @@ import java.util.UUID
 
 /**
  * User administration. Deactivation revokes all access immediately by persisting INACTIVE
- * status plus the JWT revocation boundary in the same transaction (#492) — already-issued
+ * status plus the JWT revocation boundary in the same transaction — already-issued
  * tokens fail the persisted-boundary authorization read without any process-local state.
  *
- * Mutating commands own exactly one transaction (#323, ADR-0024): persistence runs on it
+ * Mutating commands own exactly one transaction (ADR-0024): persistence runs on it
  * via `UserRepository.*InTransaction` store operations and the audit row is inserted into
  * the same transaction, so status change + audit commit atomically or not at all.
  */
@@ -59,12 +59,12 @@ object UserService {
     private const val TOKEN_TABLE_NAME = "credential_token"
 
     /**
-     * Admin mint of a single-use invite link (#350, #346 decision 2). Creates an ACTIVE user
+     * Admin mint of a single-use invite link (decision 2). Creates an ACTIVE user
      * whose password hash nobody knows (random secret), applies the requested role bundle in
-     * the #344 shape, and returns the raw invite code — the only copy. The invitee sets their
+     * the shape, and returns the raw invite code — the only copy. The invitee sets their
      * own password via [AuthService.acceptInvite].
      *
-     * Re-invite recovery (#350): when username/email matches an existing account that still
+     * Re-invite recovery: when username/email matches an existing account that still
      * holds an unconsumed invite, no new user is created — the outstanding link is invalidated
      * and a fresh code is minted for the existing account (with the request's role bundle
      * applied as a full replace). Without an outstanding link the duplicate conflicts 409.
@@ -79,7 +79,7 @@ object UserService {
         if (request.roles.contains(SUPERUSER_ROLE)) {
             throw ValidationException(SUPERUSER_GUARD_MESSAGE)
         }
-        // Identity bounds mirror the app_user varchar widths (#919): blank names
+        // Identity bounds mirror the app_user varchar widths: blank names
         // would persist as empty strings and overlong fields would surface as
         // unmapped 500s — fail closed with 400 before the transaction instead.
         if (request.username.isBlank()) {
@@ -97,7 +97,7 @@ object UserService {
         if (request.displayName.length > DISPLAY_NAME_MAX_LENGTH) {
             throw ValidationException(DISPLAY_NAME_TOO_LONG_MESSAGE)
         }
-        // Invite validity is credential lifecycle (#322): the auth cluster owns JVM-clock reads.
+        // Invite validity is credential lifecycle: the auth cluster owns JVM-clock reads.
         val expiresAt =
             OffsetDateTime.ofInstant(
                 Instant.now().plus(INVITE_VALID_DAYS, ChronoUnit.DAYS),
@@ -122,7 +122,7 @@ object UserService {
         expiresAt: OffsetDateTime,
     ): MintedInvite {
         val existing = UserRepository.findByUsernameOrEmailInTransaction(request.username, request.email)
-        // #505 — serialize with acceptInvite on the account lock before observing or
+        // serialize with acceptInvite on the account lock before observing or
         // invalidating outstanding codes; the check-then-invalidate runs under the lock.
         if (existing != null) {
             val locked = UserRepository.acquireLockInTransaction(existing.id)
@@ -172,7 +172,7 @@ object UserService {
         return MintedInvite(targetId, rawCode, createdNew)
     }
 
-    /** Re-invite leg (#350): kill every outstanding code, one audit row each; returns the account id. */
+    /** Re-invite leg: kill every outstanding code, one audit row each; returns the account id. */
     private fun invalidateOutstandingInvites(
         callerId: UUID,
         targetId: UUID,
@@ -234,8 +234,8 @@ object UserService {
             .map { RoleResponse(name = it.name, capabilities = it.capabilities) }
 
     /**
-     * Full replace of the target's role memberships (#344). SUPERUSER is guarded in both
-     * directions (grant and removal) pending the #346 onboarding policy decisions.
+     * Full replace of the target's role memberships. SUPERUSER is guarded in both
+     * directions (grant and removal) pending the onboarding policy decisions.
      */
     fun replaceRoles(
         callerId: UUID,
@@ -353,7 +353,7 @@ object UserService {
 }
 
 /**
- * User audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * User audit vocabulary (ADR-0024 rule 3). Called by the command inside its own
  * transaction so the audit row commits atomically with the mutation. Owns the persistence-table
  * imports so the public command surface does not. Global-scoped — user administration has no
  * branch/day context.

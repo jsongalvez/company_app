@@ -67,7 +67,7 @@ internal object DashboardRepository {
             }
         }
 
-    /** #366 — display names for requested-practitioner ids (dashboard + session detail enrichment). */
+    /** display names for requested-practitioner ids (dashboard + session detail enrichment). */
     fun findUserDisplayNames(userIds: List<UUID>): Map<UUID, String> =
         if (userIds.isEmpty()) {
             emptyMap()
@@ -148,7 +148,7 @@ internal object DashboardRepository {
             }
         }
 
-    // Read-projection row mapping for the dashboard list (#542): the session store's
+    // Read-projection row mapping for the dashboard list: the session store's
     // row mapper stays private to the session owner, so this projection owns its mapping.
     private fun org.jetbrains.exposed.v1.core.ResultRow.toDashboardSession(): Session =
         Session(

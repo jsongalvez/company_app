@@ -10,7 +10,7 @@ import java.math.BigDecimal
 import java.util.UUID
 
 /**
- * Session base-rate command (#323, ADR-0024). Owns exactly one business transaction: the branch
+ * Session base-rate command (ADR-0024). Owns exactly one business transaction: the branch
  * lock, retry-ownership check, rate rotation/insert, and both audit rows (previous rate close +
  * new rate insert) run on it.
  */
@@ -18,9 +18,9 @@ internal object SessionBaseRateService {
     private val logger = KotlinLogging.logger {}
 
     /**
-     * Branch-creation hook (#536): provisions the five BR-documented default rates
+     * Branch-creation hook: provisions the five BR-documented default rates
      * on the branch-create command transaction. Mechanism write riding the audited
-     * branch-create event (#414 deflation precedent): no per-rate audit rows.
+     * branch-create event (deflation precedent): no per-rate audit rows.
      */
     internal fun provisionDefaultsInTransaction(
         branchId: UUID,
@@ -36,9 +36,9 @@ internal object SessionBaseRateService {
     ): SetRateResult =
         transaction {
             // MEDICAL_MISSION is always ₱0 (BR invariant) — normalize instead of constraining,
-            // mirroring #405's session-price decision (#418).
+            // mirroring #405's session-price decision.
             val effectiveRate = if (sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else rate
-            // #924 — persisted-range pre-gate on the normalized rate (mission ₱0 first, same as price).
+            // persisted-range pre-gate on the normalized rate (mission ₱0 first, same as price).
             validateSessionMoney(effectiveRate, "rate")
             val result =
                 SessionBaseRateRepository.setRateInTransaction(
@@ -75,7 +75,7 @@ internal object SessionBaseRateService {
         }
 
     fun findActiveRates(branchId: UUID): List<SessionBaseRate> {
-        // #730 — 404 precedence for an unknown branch before the repository read
+        // 404 precedence for an unknown branch before the repository read
         // (#715 listSent / #724 listActiveMembers precedent; the route before-filter
         // carries the same check for HTTP, this covers direct service callers).
         BranchService.findById(branchId)
@@ -84,7 +84,7 @@ internal object SessionBaseRateService {
 }
 
 /**
- * Session base-rate audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its
+ * Session base-rate audit vocabulary (ADR-0024 rule 3). Called by the command inside its
  * own transaction so audit rows commit atomically with the mutation. Owns the persistence-table
  * import so the public command surface does not.
  */

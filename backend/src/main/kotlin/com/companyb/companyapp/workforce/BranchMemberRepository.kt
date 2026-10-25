@@ -11,14 +11,14 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
-/** #366 — one active branch member for the requested-practitioner directory read. */
+/** one active branch member for the requested-practitioner directory read. */
 data class BranchMemberRow(
     val id: UUID,
     val displayName: String,
 )
 
 /**
- * #366 — the requested-practitioner directory reads: ACTIVE members (id + display name)
+ * the requested-practitioner directory reads: ACTIVE members (id + display name)
  * of one branch. Joins the user row and filters on status so deactivated users never
  * surface — the assignment query alone filters [UserBranchAssignmentTable.endedAt] only.
  */
@@ -55,7 +55,7 @@ internal object BranchMemberRepository {
                 .not()
         }
 
-    /** Active member ids only (no display names) — notification audiences (#409). */
+    /** Active member ids only (no display names) — notification audiences. */
     fun findActiveMemberIds(branchId: UUID): List<UUID> =
         transaction {
             activeMembersQuery(branchId).map { row -> row[AppUserTable.id] }

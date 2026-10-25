@@ -1,7 +1,7 @@
 package com.companyb.companyapp.observability
 
 /**
- * #475 — optional GitHub issue delivery for incident packets. Absent until the
+ * optional GitHub issue delivery for incident packets. Absent until the
  * operator sets both values (same opt-in shape as [SmtpConfig]: unconfigured
  * keeps the server-log relay, so no secret is required to run or test).
  */

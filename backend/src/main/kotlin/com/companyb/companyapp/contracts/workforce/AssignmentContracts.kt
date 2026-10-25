@@ -32,7 +32,7 @@ data class AssignmentResponse(
 )
 
 /**
- * #366 — one active member of a branch, the requested-practitioner picker's row shape.
+ * one active member of a branch, the requested-practitioner picker's row shape.
  * Deliberately no username: practitioners without MANAGE_USERS must not get a directory
  * of credential identifiers, only display names.
  */

@@ -26,7 +26,7 @@ object AuditLogTable : Table("audit_log") {
         )
 
     // No Exposed `.references()` FKs: Flyway SQL owns the schema and joins use
-    // explicit column pairs, matching the other feature tables (#549).
+    // explicit column pairs, matching the other feature tables.
     val changedBy = javaUUID("changed_by")
     val viewedAsBy = javaUUID("viewed_as_by").nullable()
     val branchId = javaUUID("branch_id").nullable()

@@ -3,7 +3,7 @@ package com.companyb.companyapp.contracts.finance
 import kotlinx.serialization.Serializable
 
 /**
- * #876 — [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
+ * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
  * `docs/architecture.md`): old clients decode newer server values (e.g. a future FUEL category)
  * as UNKNOWN and degrade the row instead of failing the whole response.
  * Never persisted, never sent.
@@ -38,7 +38,7 @@ data class DeleteExpenseRequest(
     val expectedVersion: Int,
 )
 
-// #153 — restore body carries only the optional day-state reason (required iff the owning
+// restore body carries only the optional day-state reason (required iff the owning
 // branch day is REMITTED); the restore itself needs no content.
 @Serializable
 data class RestoreExpenseRequest(
@@ -65,7 +65,7 @@ data class ExpenseResponse(
     val createdAt: String,
     val deletedBy: String?,
     val deletedAt: String?,
-    // #153 — additive nullable: the deletion reason (displayed dimmed on restored/soft-deleted
+    // additive nullable: the deletion reason (displayed dimmed on restored/soft-deleted
     // rows); null for live rows and for responses from pre-V18 serializers.
     val deletedReason: String? = null,
     val version: Int,
