@@ -53,8 +53,7 @@ internal data class AuditReadWindow(
 /**
  * Audit persistence: table/query internals behind the [AuditLog] append seam and
  * the [AuditLogService] scoped reads. Same-owner only — other owners cross [AuditLog].
- * record unanimity stays whole; the append seam mirrors store signatures 1:1
- *  so bundling would fork the seam without removing a parameter.
+ * [record] takes the same [AuditContext] and [AuditedRow] as the append seam.
  */
 internal object AuditLogStore {
     fun record(
