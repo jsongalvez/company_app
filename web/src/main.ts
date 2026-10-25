@@ -2,7 +2,9 @@ import "./app.css";
 import { mount } from "svelte";
 import App from "./App.svelte";
 import { startBackgroundSync } from "./lib/sync";
+import { installTracker } from "./lib/track";
 
+installTracker();
 startBackgroundSync();
 mount(App, { target: document.getElementById("app")! });
 

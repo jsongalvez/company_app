@@ -3,6 +3,7 @@ import createClient, { type Middleware } from "openapi-fetch";
 import type { components, paths } from "./schema";
 import { net, onlineOrTimeout, reportNetFailure, reportNetOk } from "../lib/net.svelte";
 import { canQueue, enqueue, mustQueue } from "../lib/outbox.svelte";
+import { track } from "../lib/track";
 
 export type S = components["schemas"];
 
@@ -65,6 +66,7 @@ const auth: Middleware = {
             recentRequests.push(entry);
             if (recentRequests.length > RECENT_MAX) recentRequests.shift();
             if (response.status >= 400 && response.status !== 401) lastError.value = entry;
+            track.captureApiFailure(entry);
         }
         if (response.status === 401 && new URL(request.url).pathname.startsWith("/api/")) onUnauthorized();
         return response;
