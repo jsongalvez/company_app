@@ -51,10 +51,6 @@ ORDER BY mean_exec_time DESC
 LIMIT 20;
 ```
 
-Same read from code (DSL over the view, no raw SQL):
-`SlowQueryRepository.topSlow()` in
-`backend/src/main/kotlin/com/companyb/companyapp/observability/SlowQueryRepository.kt`.
-
 ## 4. EXPLAIN recipes
 
 Copy the normalized text from §3, substitute a representative literal for each

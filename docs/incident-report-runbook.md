@@ -40,7 +40,15 @@ timestamp, pool{active,idle,awaiting,total}, reporter, source
 `GITHUB_REPOSITORY=owner/repo` set → async needs-triage GitHub issue
 (`GithubIssueSender`, stdlib HTTP, bounded single-thread queue, failures
 logged, request path never breaks). Unset → server-log relay: the packet is
-one JSON log line, and the triage loop files the issue.
+one JSON log line, and the triage loop files the issue. With `NTFY_URL` and
+`NTFY_TOPIC` set and no GitHub token, each new 5xx packet (never a user
+report) is also pushed to ntfy (`NtfyIncidentSender`): method, normalized
+route, status and trace id only. The first alert goes out at once, then at
+most one per 10 minutes; the next says how many were held back.
+
+`SENTRY_DSN` (optional, any Sentry-compatible server) is separate: every 5xx
+is sent as an event with the trace id, route, status and exception class and
+frames, never the exception message. Server `ErrorTracker`, web `track.ts`.
 
 Truthful delivery (#526): receipt, queueing, and delivery are distinct. The
 complete sanitized packet is written to the structured log **before** async

@@ -207,7 +207,7 @@ Not a semantic module — read only when the ticket touches it directly:
 `exception/ServiceExceptions.kt`, `api/routes/RoutesUtil.kt` (parsing/keyset limits),
 `database/DatabaseConfig.kt` + `DatabaseHealth.kt`, `app/AppConfig.kt` + `app/SchedulerLifecycle.kt` (#551 startup composition: composition-supplied jobs),
 `http/KotlinxSerializationMapper.kt` + `http/openapi/*` (canonical contract, projector, export — #551),
-`observability/*` (incident packets/delivery, metrics, feedback/metrics adapters, slow-query reads — #551),
+`observability/*` (incident packets/delivery, metrics, feedback/metrics adapters — #551),
 `logging/*` converters (tracing stays distinguishable from observability — #551),
 feature-colocated `*Table`/`*View` mappings (schema work only —
 `V1__full_schema.sql` (squashed baseline, #370/#461/#548) and `V2` seeds in

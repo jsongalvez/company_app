@@ -84,7 +84,7 @@ company-app/
 │       ├── notification/     # Mailbox, occurrence idempotency, appointment reminders + session-access reads; internal stores + tables, route adapters; NotificationReads/NotificationAppender seams (#550)
 │       ├── http/             # Transport + serialization + OpenAPI contract; openapi/ subcluster for canonical document/projector/export (#551)
 │       ├── app/              # Startup composition: AppConfig + SchedulerLifecycle executor with composition-supplied jobs (#551)
-│       ├── observability/    # Incident packets/delivery, metrics, feedback/metrics adapters, slow-query reads (#551)
+│       ├── observability/    # Incident packets/delivery, metrics, feedback/metrics adapters (#551)
 │       ├── database/         # HikariCP + Flyway + Exposed setup
 │       ├── logging/          # Logback converters, logging extensions
 │       ├── api/              # Thin remaining adapters: health probe, context extensions, trace filter, route utils
