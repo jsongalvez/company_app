@@ -145,21 +145,29 @@
         )
             refresh(`assign:${sel}`, "users");
     }
+    // One move at a time, and the new order shows at once: a second tap on a stale list would move the wrong person.
+    let moving = $state(false);
     async function move(i: number, dir: -1 | 1) {
         const a = activeStaff[i];
         const b = activeStaff[i + dir];
-        if (!a || !b) return;
-        if (
-            await act(() =>
+        if (!a || !b || moving) return;
+        moving = true;
+        try {
+            const swapped = await act(() =>
                 ok(
                     api.POST("/api/branches/{branchId}/slots/swap", {
                         params: { path: { branchId: sel } },
                         body: { assignmentIdA: a.id, assignmentIdB: b.id },
                     }),
                 ),
-            )
-        )
-            refresh(`assign:${sel}`);
+            );
+            if (swapped) {
+                staff.data = staff.data?.map((x) => (x.id === a.id ? { ...x, slot: b.slot } : x.id === b.id ? { ...x, slot: a.slot } : x));
+                refresh(`assign:${sel}`);
+            }
+        } finally {
+            moving = false;
+        }
     }
     const unassigned = $derived(users.filter((u) => u.status !== "INACTIVE" && !activeStaff.some((a) => a.userId === u.id)));
 
@@ -240,11 +248,13 @@
                                     <td class="muted hide-sm">{dateTime(a.assignedAt)}</td>
                                     <td class="right nowrap">
                                         {#if manageUsers}
-                                            <button class="sm" onclick={() => move(i, -1)} disabled={i === 0} title="Move up" aria-label="Move up">↑</button>
+                                            <button class="sm" onclick={() => move(i, -1)} disabled={moving || i === 0} title="Move up" aria-label="Move up"
+                                                >↑</button
+                                            >
                                             <button
                                                 class="sm"
                                                 onclick={() => move(i, 1)}
-                                                disabled={i === activeStaff.length - 1}
+                                                disabled={moving || i === activeStaff.length - 1}
                                                 title="Move down"
                                                 aria-label="Move down">↓</button
                                             >

@@ -57,6 +57,9 @@ test("tap several names to add them to a branch, then reorder them", { session: 
     await expect(rows).toHaveCount(3);
     await expect(rows.nth(2)).toContainText(names[1]);
     await rows.nth(2).getByRole("button", "Move up").tap();
+    // Each move shows before the next tap, as a person sees it; arrows are off while a move is saving.
+    await expect(rows.nth(1)).toContainText(names[1]);
+    await expect(rows.nth(1).getByRole("button", "Move up")).toBeEnabled();
     await rows.nth(1).getByRole("button", "Move up").tap();
     await expect(rows.nth(0)).toContainText(names[1]);
     await expect(rows.nth(1)).toContainText(names[2]);
