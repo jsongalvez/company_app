@@ -4,6 +4,8 @@ Which signal would have caught each company_app bug sooner, and by how much. Rea
 Window: 64 feedback reports, 2026-10-18 to 2026-10-25, plus the non-feedback incidents in the second table.
 Every claim carries a label: **checked** (read from the database, git, logs or a service this session), **inferred** (follows from checked facts), **guessed**.
 
+> **Caveat (owner, 2026-10-25):** all 64 feedback reports came from the owner testing the app. Do not assume real users will report problems at all. Read G as "only the owner's own testing caught it", not as "a user report will catch it". For real users, automatic signals (B, C, E, F) are the only ones that fire.
+
 ## Signals
 
 | Letter | Signal                                                             |
