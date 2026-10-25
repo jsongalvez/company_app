@@ -1,6 +1,8 @@
 package com.companyb.companyapp.remittance
 
+import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import java.util.UUID
 
 /**
@@ -14,10 +16,8 @@ internal object RemittanceAudit {
         changedBy: UUID,
         remittance: Remittance,
     ) = AuditLog.recordInsert(
-        tableName = RemittanceTable.tableName,
-        recordId = remittance.id,
-        changedBy = changedBy,
-        branchId = remittance.branchId,
+        context = AuditContext(changedBy = changedBy, branchId = remittance.branchId),
+        row = AuditedRow(RemittanceTable.tableName, remittance.id),
         fields = RemittanceTable.auditFields(remittance),
     )
 
@@ -27,13 +27,10 @@ internal object RemittanceAudit {
         after: Remittance,
         reason: String? = null,
     ) = AuditLog.recordUpdate(
-        tableName = RemittanceTable.tableName,
-        recordId = after.id,
+        context = AuditContext(changedBy = changedBy, branchId = after.branchId, reason = reason),
+        row = AuditedRow(RemittanceTable.tableName, after.id),
         before = before,
         after = after,
-        changedBy = changedBy,
-        branchId = after.branchId,
-        reason = reason,
         auditFields = RemittanceTable::auditFields,
     )
 
@@ -42,10 +39,8 @@ internal object RemittanceAudit {
         branchId: UUID,
         line: RemittanceLine,
     ) = AuditLog.recordInsert(
-        tableName = RemittanceLineTable.tableName,
-        recordId = line.id,
-        changedBy = changedBy,
-        branchId = branchId,
+        context = AuditContext(changedBy = changedBy, branchId = branchId),
+        row = AuditedRow(RemittanceLineTable.tableName, line.id),
         fields = RemittanceLineTable.auditFields(line),
     )
 
@@ -55,12 +50,10 @@ internal object RemittanceAudit {
         before: RemittanceLine,
         after: RemittanceLine,
     ) = AuditLog.recordUpdate(
-        tableName = RemittanceLineTable.tableName,
-        recordId = after.id,
+        context = AuditContext(changedBy = changedBy, branchId = branchId),
+        row = AuditedRow(RemittanceLineTable.tableName, after.id),
         before = before,
         after = after,
-        changedBy = changedBy,
-        branchId = branchId,
         auditFields = RemittanceLineTable::auditFields,
     )
 
@@ -69,10 +62,8 @@ internal object RemittanceAudit {
         branchId: UUID,
         breakdown: RemittanceDayBreakdown,
     ) = AuditLog.recordInsert(
-        tableName = RemittanceDayBreakdownTable.tableName,
-        recordId = breakdown.id,
-        changedBy = changedBy,
-        branchId = branchId,
+        context = AuditContext(changedBy = changedBy, branchId = branchId),
+        row = AuditedRow(RemittanceDayBreakdownTable.tableName, breakdown.id),
         fields = RemittanceDayBreakdownTable.auditFields(breakdown),
     )
 
@@ -81,11 +72,9 @@ internal object RemittanceAudit {
         branchId: UUID,
         before: RemittanceDayBreakdown,
     ) = AuditLog.recordDelete(
-        tableName = RemittanceDayBreakdownTable.tableName,
-        recordId = before.id,
+        context = AuditContext(changedBy = changedBy, branchId = branchId),
+        row = AuditedRow(RemittanceDayBreakdownTable.tableName, before.id),
         before = before,
-        changedBy = changedBy,
-        branchId = branchId,
         auditFields = RemittanceDayBreakdownTable::auditFields,
     )
 
@@ -94,10 +83,8 @@ internal object RemittanceAudit {
         branchId: UUID,
         snapshot: RemittanceFinancialSnapshot,
     ) = AuditLog.recordInsert(
-        tableName = RemittanceFinancialSnapshotTable.tableName,
-        recordId = snapshot.remittanceId,
-        changedBy = changedBy,
-        branchId = branchId,
+        context = AuditContext(changedBy = changedBy, branchId = branchId),
+        row = AuditedRow(RemittanceFinancialSnapshotTable.tableName, snapshot.remittanceId),
         fields = RemittanceFinancialSnapshotTable.auditFields(snapshot),
     )
 
@@ -107,12 +94,9 @@ internal object RemittanceAudit {
         before: RemittanceFinancialSnapshot,
         reason: String? = null,
     ) = AuditLog.recordDelete(
-        tableName = RemittanceFinancialSnapshotTable.tableName,
-        recordId = before.remittanceId,
+        context = AuditContext(changedBy = changedBy, branchId = branchId, reason = reason),
+        row = AuditedRow(RemittanceFinancialSnapshotTable.tableName, before.remittanceId),
         before = before,
-        changedBy = changedBy,
-        branchId = branchId,
-        reason = reason,
         auditFields = RemittanceFinancialSnapshotTable::auditFields,
     )
 }

@@ -2,8 +2,10 @@
 @file:Suppress("LargeClass") // #596
 
 package com.companyb.companyapp.finance
+import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -1088,10 +1090,9 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                         ),
                     )
                     AuditLog.record(
-                        tableName = ExpenseTable.tableName,
-                        recordId = expenseId,
+                        context = AuditContext(changedBy = callerId),
+                        row = AuditedRow(ExpenseTable.tableName, expenseId),
                         action = AuditAction.INSERT,
-                        changedBy = callerId,
                         oldValue = "{not-valid-json",
                     )
                 }

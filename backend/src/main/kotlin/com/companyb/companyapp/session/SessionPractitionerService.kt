@@ -2,6 +2,7 @@ package com.companyb.companyapp.session
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.client.ClientReads
@@ -201,13 +202,9 @@ internal object SessionPractitionerAudit {
         context: AuditContext,
         practitioner: SessionPractitioner,
     ) = AuditLog.recordInsert(
-        tableName = SessionPractitionerTable.tableName,
-        recordId = practitioner.id,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
+        context = context,
+        row = AuditedRow(SessionPractitionerTable.tableName, practitioner.id),
         fields = SessionPractitionerTable.auditFields(practitioner),
-        isFlagged = context.isFlagged,
-        reason = context.reason,
     )
 
     fun updated(
@@ -215,14 +212,10 @@ internal object SessionPractitionerAudit {
         before: SessionPractitioner,
         after: SessionPractitioner,
     ) = AuditLog.recordUpdate(
-        tableName = SessionPractitionerTable.tableName,
-        recordId = after.id,
+        context = context,
+        row = AuditedRow(SessionPractitionerTable.tableName, after.id),
         before = before,
         after = after,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
-        isFlagged = context.isFlagged,
-        reason = context.reason,
         auditFields = SessionPractitionerTable::auditFields,
     )
 
@@ -230,13 +223,9 @@ internal object SessionPractitionerAudit {
         context: AuditContext,
         practitioner: SessionPractitioner,
     ) = AuditLog.recordDelete(
-        tableName = SessionPractitionerTable.tableName,
-        recordId = practitioner.id,
+        context = context,
+        row = AuditedRow(SessionPractitionerTable.tableName, practitioner.id),
         before = practitioner,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
-        isFlagged = context.isFlagged,
-        reason = context.reason,
         auditFields = SessionPractitionerTable::auditFields,
     )
 }

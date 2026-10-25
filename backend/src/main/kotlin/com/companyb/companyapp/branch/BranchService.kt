@@ -1,6 +1,8 @@
 package com.companyb.companyapp.branch
 
+import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
@@ -95,9 +97,8 @@ internal object BranchAudit {
         changedBy: UUID,
         branch: Branch,
     ) = AuditLog.recordInsert(
-        tableName = BranchTable.tableName,
-        recordId = branch.id,
-        changedBy = changedBy,
+        context = AuditContext(changedBy = changedBy),
+        row = AuditedRow(BranchTable.tableName, branch.id),
         fields = BranchTable.auditFields(branch),
     )
 
@@ -107,10 +108,9 @@ internal object BranchAudit {
         old: Branch,
         new: Branch,
     ) = AuditLog.recordUpdate(
-        tableName = BranchTable.tableName,
-        recordId = new.id,
+        context = AuditContext(changedBy = changedBy),
+        row = AuditedRow(BranchTable.tableName, new.id),
         oldFields = BranchTable.auditFields(old),
         newFields = BranchTable.auditFields(new),
-        changedBy = changedBy,
     )
 }

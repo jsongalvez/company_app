@@ -1,6 +1,8 @@
 package com.companyb.companyapp.commerce
 
+import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.utils.validateMoneyAmount
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -121,9 +123,8 @@ internal object ProductAudit {
         changedBy: UUID,
         product: Product,
     ) = AuditLog.recordInsert(
-        tableName = ProductTable.tableName,
-        recordId = product.id,
-        changedBy = changedBy,
+        context = AuditContext(changedBy = changedBy),
+        row = AuditedRow(ProductTable.tableName, product.id),
         fields = ProductTable.auditFields(product),
     )
 
@@ -132,11 +133,10 @@ internal object ProductAudit {
         before: Product,
         after: Product,
     ) = AuditLog.recordUpdate(
-        tableName = ProductTable.tableName,
-        recordId = after.id,
+        context = AuditContext(changedBy = changedBy),
+        row = AuditedRow(ProductTable.tableName, after.id),
         before = before,
         after = after,
-        changedBy = changedBy,
         auditFields = ProductTable::auditFields,
     )
 }

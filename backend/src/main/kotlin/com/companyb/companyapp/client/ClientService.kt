@@ -1,7 +1,9 @@
 package com.companyb.companyapp.client
 
+import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditValues
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.contracts.client.ClientPatchField
 import com.companyb.companyapp.contracts.client.Gender
 import com.companyb.companyapp.exception.ConflictException
@@ -411,9 +413,8 @@ internal object ClientAudit {
         changedBy: UUID,
         client: Client,
     ) = AuditLog.recordInsert(
-        tableName = ClientTable.tableName,
-        recordId = client.id,
-        changedBy = changedBy,
+        context = AuditContext(changedBy = changedBy),
+        row = AuditedRow(ClientTable.tableName, client.id),
         fields = ClientTable.auditFields(client),
     )
 
@@ -423,16 +424,18 @@ internal object ClientAudit {
         after: Client,
         clearedFields: Set<String> = emptySet(),
     ) = AuditLog.recordUpdate(
-        tableName = ClientTable.tableName,
-        recordId = after.id,
+        context =
+            AuditContext(
+                changedBy = changedBy,
+                reason = clearedFields.takeIf { it.isNotEmpty() }?.let { "cleared: ${it.sorted().joinToString()}" },
+            ),
+        row = AuditedRow(ClientTable.tableName, after.id),
         before = before,
         after = after,
-        changedBy = changedBy,
         // Cleared-field identity without values: cleared PII never
         // lands in a payload — old cleared values become REDACTED, new stays
         // null (or N/A for address) — while the reason names the cleared fields.
         auditFields = { client -> scrubCleared(ClientTable.auditFields(client), clearedFields) },
-        reason = clearedFields.takeIf { it.isNotEmpty() }?.let { "cleared: ${it.sorted().joinToString()}" },
     )
 
     /**
@@ -457,11 +460,10 @@ internal object ClientAudit {
                 medicalConditions = before.medicalConditions?.let { AuditValues.REDACTED },
             )
         AuditLog.recordUpdate(
-            tableName = ClientTable.tableName,
-            recordId = after.id,
+            context = AuditContext(changedBy = changedBy, reason = ANONYMIZED_REASON),
+            row = AuditedRow(ClientTable.tableName, after.id),
             before = scrubbed,
             after = after,
-            changedBy = changedBy,
             // BP is numeric on the entity, so its marker is applied at the
             // payload level: non-null BP becomes REDACTED, nulls stay null.
             auditFields = { client ->
@@ -473,7 +475,6 @@ internal object ClientAudit {
                     }
                 }
             },
-            reason = ANONYMIZED_REASON,
         )
     }
 

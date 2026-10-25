@@ -27,6 +27,21 @@ data class AuditContext(
     val reason: String? = null,
 )
 
+/** The audited row: which table and which record in it. */
+data class AuditedRow(
+    val tableName: String,
+    val recordId: UUID,
+)
+
+/** Browse filters; every field is optional and an absent one matches everything. */
+data class AuditBrowseFilter(
+    val tableName: String? = null,
+    val action: AuditAction? = null,
+    val callerName: String? = null,
+    val dateFrom: OffsetDateTime? = null,
+    val dateTo: OffsetDateTime? = null,
+)
+
 /**
  * Cross-feature audit append seam: every mutating command records its audit row
  * through here, inside its own command transaction — never in routes, never opened from
@@ -35,133 +50,48 @@ data class AuditContext(
  */
 @Suppress("TooManyFunctions") // #549 ten-function append vocabulary on one seam
 object AuditLog {
-    @Suppress("LongParameterList") // #549 seam mirrors the store signature
     fun record(
-        tableName: String,
-        recordId: UUID,
+        context: AuditContext,
+        row: AuditedRow,
         action: AuditAction,
-        changedBy: UUID,
-        branchId: UUID? = null,
         oldValue: String? = null,
         newValue: String? = null,
-        reason: String? = null,
-        isFlagged: Boolean = false,
-    ) = AuditLogStore.record(
-        tableName = tableName,
-        recordId = recordId,
-        action = action,
-        changedBy = changedBy,
-        branchId = branchId,
-        oldValue = oldValue,
-        newValue = newValue,
-        reason = reason,
-        isFlagged = isFlagged,
-    )
+    ) = AuditLogStore.record(context, row, action, oldValue, newValue)
 
-    @Suppress("LongParameterList") // #549 seam mirrors the store signature
     fun recordInsert(
-        tableName: String,
-        recordId: UUID,
-        changedBy: UUID,
+        context: AuditContext,
+        row: AuditedRow,
         fields: Map<String, String?>,
-        branchId: UUID? = null,
-        isFlagged: Boolean = false,
-        reason: String? = null,
-    ) = AuditLogStore.recordInsert(
-        tableName = tableName,
-        recordId = recordId,
-        changedBy = changedBy,
-        fields = fields,
-        branchId = branchId,
-        isFlagged = isFlagged,
-        reason = reason,
-    )
+    ) = AuditLogStore.recordInsert(context, row, fields)
 
-    @Suppress("LongParameterList") // #549 seam mirrors the store signature
     fun recordUpdate(
-        tableName: String,
-        recordId: UUID,
+        context: AuditContext,
+        row: AuditedRow,
         oldFields: Map<String, String?>,
         newFields: Map<String, String?>,
-        changedBy: UUID,
-        branchId: UUID? = null,
-        isFlagged: Boolean = false,
-        reason: String? = null,
-    ) = AuditLogStore.recordUpdate(
-        tableName = tableName,
-        recordId = recordId,
-        oldFields = oldFields,
-        newFields = newFields,
-        changedBy = changedBy,
-        branchId = branchId,
-        isFlagged = isFlagged,
-        reason = reason,
-    )
+    ) = AuditLogStore.recordUpdate(context, row, oldFields, newFields)
 
-    @Suppress("LongParameterList") // #549 seam mirrors the store signature
     fun <T> recordUpdate(
-        tableName: String,
-        recordId: UUID,
+        context: AuditContext,
+        row: AuditedRow,
         before: T,
         after: T,
-        changedBy: UUID,
-        branchId: UUID? = null,
-        isFlagged: Boolean = false,
-        reason: String? = null,
         auditFields: (T) -> Map<String, String?>,
-    ) = AuditLogStore.recordUpdate(
-        tableName = tableName,
-        recordId = recordId,
-        before = before,
-        after = after,
-        changedBy = changedBy,
-        branchId = branchId,
-        isFlagged = isFlagged,
-        reason = reason,
-        auditFields = auditFields,
-    )
+    ) = AuditLogStore.recordUpdate(context, row, before, after, auditFields)
 
-    @Suppress("LongParameterList") // #549 seam mirrors the store signature
     fun <T> recordDelete(
-        tableName: String,
-        recordId: UUID,
+        context: AuditContext,
+        row: AuditedRow,
         before: T,
-        changedBy: UUID,
-        branchId: UUID? = null,
-        reason: String? = null,
-        isFlagged: Boolean = false,
         auditFields: (T) -> Map<String, String?>,
-    ) = AuditLogStore.recordDelete(
-        tableName = tableName,
-        recordId = recordId,
-        before = before,
-        changedBy = changedBy,
-        branchId = branchId,
-        reason = reason,
-        isFlagged = isFlagged,
-        auditFields = auditFields,
-    )
+    ) = AuditLogStore.recordDelete(context, row, before, auditFields)
 
-    @Suppress("LongParameterList") // #549 seam mirrors the store signature
     fun recordDelete(
-        tableName: String,
-        recordId: UUID,
+        context: AuditContext,
+        row: AuditedRow,
         oldFields: Map<String, String?>,
         newFields: Map<String, String?>,
-        changedBy: UUID,
-        branchId: UUID? = null,
-        reason: String? = null,
-        isFlagged: Boolean = false,
-    ) = AuditLogStore.recordDelete(
-        tableName = tableName,
-        recordId = recordId,
-        oldFields = oldFields,
-        newFields = newFields,
-        changedBy = changedBy,
-        branchId = branchId,
-        reason = reason,
-        isFlagged = isFlagged,
-    )
+    ) = AuditLogStore.recordDelete(context, row, oldFields, newFields)
 
     /**
      * Anonymization redaction — the single documented exception to

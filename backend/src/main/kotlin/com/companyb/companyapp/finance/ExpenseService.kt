@@ -2,6 +2,7 @@ package com.companyb.companyapp.finance
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.finance.ExpenseCategory
 import com.companyb.companyapp.exception.ConflictException
@@ -204,13 +205,9 @@ internal object ExpenseAudit {
         context: AuditContext,
         expense: Expense,
     ) = AuditLog.recordInsert(
-        tableName = ExpenseTable.tableName,
-        recordId = expense.id,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
+        context = context,
+        row = AuditedRow(ExpenseTable.tableName, expense.id),
         fields = ExpenseTable.auditFields(expense),
-        isFlagged = context.isFlagged,
-        reason = context.reason,
     )
 
     fun updated(
@@ -218,14 +215,10 @@ internal object ExpenseAudit {
         before: Expense,
         after: Expense,
     ) = AuditLog.recordUpdate(
-        tableName = ExpenseTable.tableName,
-        recordId = after.id,
+        context = context,
+        row = AuditedRow(ExpenseTable.tableName, after.id),
         before = before,
         after = after,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
-        isFlagged = context.isFlagged,
-        reason = context.reason,
         auditFields = ExpenseTable::auditFields,
     )
 
@@ -233,13 +226,9 @@ internal object ExpenseAudit {
         context: AuditContext,
         before: Expense,
     ) = AuditLog.recordDelete(
-        tableName = ExpenseTable.tableName,
-        recordId = before.id,
+        context = context,
+        row = AuditedRow(ExpenseTable.tableName, before.id),
         before = before,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
-        reason = context.reason,
-        isFlagged = context.isFlagged,
         auditFields = ExpenseTable::auditFields,
     )
 }

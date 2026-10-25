@@ -2,6 +2,7 @@ package com.companyb.companyapp.finance
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.ConflictException
@@ -226,13 +227,9 @@ internal object CompensationAudit {
         context: AuditContext,
         compensation: Compensation,
     ) = AuditLog.recordInsert(
-        tableName = CompensationTable.tableName,
-        recordId = compensation.id,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
+        context = context,
+        row = AuditedRow(CompensationTable.tableName, compensation.id),
         fields = CompensationTable.auditFields(compensation),
-        isFlagged = context.isFlagged,
-        reason = context.reason,
     )
 
     fun updated(
@@ -240,14 +237,10 @@ internal object CompensationAudit {
         before: Compensation,
         after: Compensation,
     ) = AuditLog.recordUpdate(
-        tableName = CompensationTable.tableName,
-        recordId = after.id,
+        context = context,
+        row = AuditedRow(CompensationTable.tableName, after.id),
         before = before,
         after = after,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
-        isFlagged = context.isFlagged,
-        reason = context.reason,
         auditFields = CompensationTable::auditFields,
     )
 }

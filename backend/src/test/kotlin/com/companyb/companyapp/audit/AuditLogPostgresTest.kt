@@ -46,10 +46,9 @@ class AuditLogPostgresTest : BasePostgresTest() {
     fun `record inside transaction writes row`() {
         transaction {
             AuditLog.record(
-                tableName = tableName,
-                recordId = recordId,
+                context = AuditContext(changedBy = callerId),
+                row = AuditedRow(tableName, recordId),
                 action = AuditAction.INSERT,
-                changedBy = callerId,
                 newValue = """{"status":"active"}""",
             )
         }
@@ -64,10 +63,9 @@ class AuditLogPostgresTest : BasePostgresTest() {
     fun `record outside transaction throws`() {
         assertFailsWith<Exception> {
             AuditLog.record(
-                tableName = tableName,
-                recordId = recordId,
+                context = AuditContext(changedBy = callerId),
+                row = AuditedRow(tableName, recordId),
                 action = AuditAction.INSERT,
-                changedBy = callerId,
             )
         }
     }
@@ -76,9 +74,8 @@ class AuditLogPostgresTest : BasePostgresTest() {
     fun `recordInsert writes correct audit row`() {
         transaction {
             AuditLog.recordInsert(
-                tableName = tableName,
-                recordId = recordId,
-                changedBy = callerId,
+                context = AuditContext(changedBy = callerId),
+                row = AuditedRow(tableName, recordId),
                 fields =
                     mapOf(
                         "id" to recordId.toString(),
@@ -100,11 +97,10 @@ class AuditLogPostgresTest : BasePostgresTest() {
     fun `recordUpdate writes correct audit row`() {
         transaction {
             AuditLog.recordUpdate(
-                tableName = tableName,
-                recordId = recordId,
+                context = AuditContext(changedBy = callerId),
+                row = AuditedRow(tableName, recordId),
                 oldFields = mapOf("name" to "Alice"),
                 newFields = mapOf("name" to "Bob"),
-                changedBy = callerId,
             )
         }
 
@@ -124,11 +120,9 @@ class AuditLogPostgresTest : BasePostgresTest() {
 
         transaction {
             AuditLog.record(
-                tableName = tableName,
-                recordId = recordId,
+                context = AuditContext(changedBy = callerId, branchId = branchId),
+                row = AuditedRow(tableName, recordId),
                 action = AuditAction.INSERT,
-                changedBy = callerId,
-                branchId = branchId,
                 newValue = """{"status":"active"}""",
             )
         }
@@ -142,10 +136,9 @@ class AuditLogPostgresTest : BasePostgresTest() {
     fun `record leaves branchId null when omitted`() {
         transaction {
             AuditLog.record(
-                tableName = tableName,
-                recordId = recordId,
+                context = AuditContext(changedBy = callerId),
+                row = AuditedRow(tableName, recordId),
                 action = AuditAction.INSERT,
-                changedBy = callerId,
             )
         }
 
@@ -158,12 +151,10 @@ class AuditLogPostgresTest : BasePostgresTest() {
     fun `recordDelete writes correct audit row`() {
         transaction {
             AuditLog.recordDelete(
-                tableName = tableName,
-                recordId = recordId,
+                context = AuditContext(changedBy = callerId, reason = "test deletion"),
+                row = AuditedRow(tableName, recordId),
                 oldFields = mapOf("name" to "Alice"),
                 newFields = mapOf("name" to "Alice"),
-                changedBy = callerId,
-                reason = "test deletion",
             )
         }
 

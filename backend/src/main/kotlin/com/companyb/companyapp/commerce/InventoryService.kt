@@ -2,6 +2,7 @@ package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
@@ -317,14 +318,10 @@ internal object BranchInventoryAudit {
         before: BranchInventory,
         after: BranchInventory,
     ) = AuditLog.recordUpdate(
-        tableName = BranchInventoryTable.tableName,
-        recordId = after.id,
+        context = context,
+        row = AuditedRow(BranchInventoryTable.tableName, after.id),
         before = before,
         after = after,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
-        isFlagged = context.isFlagged,
-        reason = context.reason,
         auditFields = BranchInventoryTable::auditFields,
     )
 
@@ -332,13 +329,9 @@ internal object BranchInventoryAudit {
         context: AuditContext,
         movement: InventoryMovement,
     ) = AuditLog.recordInsert(
-        tableName = InventoryMovementTable.tableName,
-        recordId = movement.id,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
+        context = context,
+        row = AuditedRow(InventoryMovementTable.tableName, movement.id),
         fields = InventoryMovementTable.auditFields(movement),
-        isFlagged = context.isFlagged,
-        reason = context.reason,
     )
 
     /** INSERT vocabulary for the inventory card itself (ensure-card audit gap). */
@@ -346,12 +339,8 @@ internal object BranchInventoryAudit {
         context: AuditContext,
         card: BranchInventory,
     ) = AuditLog.recordInsert(
-        tableName = BranchInventoryTable.tableName,
-        recordId = card.id,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
+        context = context,
+        row = AuditedRow(BranchInventoryTable.tableName, card.id),
         fields = BranchInventoryTable.auditFields(card),
-        isFlagged = context.isFlagged,
-        reason = context.reason,
     )
 }

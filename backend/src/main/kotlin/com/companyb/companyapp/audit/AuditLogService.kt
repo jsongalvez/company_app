@@ -93,28 +93,22 @@ object AuditLogService {
      * Browse with filters + keyset pagination (D5). Returns one page; the
      * caller receives [AuditLogBrowseResponse.nextCursor] to fetch the next.
      */
-    @Suppress("LongParameterList") // #600 8-param browse mirrors the store filter set 1:1 per #535
     fun browse(
         callerId: UUID,
-        tableName: String?,
-        action: AuditAction?,
-        callerName: String?,
-        dateFrom: OffsetDateTime?,
-        dateTo: OffsetDateTime?,
+        filter: AuditBrowseFilter,
         cursor: AuditBrowseCursor?,
         limit: Int,
     ): AuditLogBrowseResponse {
         logger.info { "[AUDIT-BROWSE] $callerId browsing audit log" }
         val fetched =
             AuditLogStore.browse(
-                windowBranchIds = window(callerId),
-                branchlessTables = branchlessTables(callerId),
-                canReadNullRows = canReadNullRows(callerId),
-                tableName = tableName,
-                action = action,
-                callerName = callerName,
-                dateFrom = dateFrom,
-                dateTo = dateTo,
+                window =
+                    AuditReadWindow(
+                        windowBranchIds = window(callerId),
+                        branchlessTables = branchlessTables(callerId),
+                        canReadNullRows = canReadNullRows(callerId),
+                    ),
+                filter = filter,
                 cursor = cursor,
                 limit = limit + 1,
             )

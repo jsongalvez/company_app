@@ -165,11 +165,7 @@ object AuditLogRoutes {
 
         return AuditLogService.browse(
             callerId = callerId,
-            tableName = tableName,
-            action = action,
-            callerName = callerName,
-            dateFrom = dateFrom,
-            dateTo = dateTo,
+            filter = AuditBrowseFilter(tableName, action, callerName, dateFrom, dateTo),
             cursor = cursor,
             limit = limit,
         )

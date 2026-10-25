@@ -2,6 +2,7 @@ package com.companyb.companyapp.finance
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
@@ -96,12 +97,8 @@ internal object AllowanceAudit {
         context: AuditContext,
         allowance: Allowance,
     ) = AuditLog.recordInsert(
-        tableName = AllowanceTable.tableName,
-        recordId = allowance.id,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
+        context = context,
+        row = AuditedRow(AllowanceTable.tableName, allowance.id),
         fields = AllowanceTable.auditFields(allowance),
-        isFlagged = context.isFlagged,
-        reason = context.reason,
     )
 }

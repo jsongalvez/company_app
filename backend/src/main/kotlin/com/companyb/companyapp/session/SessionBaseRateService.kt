@@ -2,6 +2,7 @@ package com.companyb.companyapp.session
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.session.SessionType
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -93,10 +94,8 @@ internal object SessionBaseRateAudit {
         context: AuditContext,
         rateRecord: SessionBaseRate,
     ) = AuditLog.recordInsert(
-        tableName = SessionBaseRateTable.tableName,
-        recordId = rateRecord.id,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
+        context = AuditContext(changedBy = context.changedBy, branchId = context.branchId),
+        row = AuditedRow(SessionBaseRateTable.tableName, rateRecord.id),
         fields = SessionBaseRateTable.auditFields(rateRecord),
     )
 
@@ -105,12 +104,10 @@ internal object SessionBaseRateAudit {
         before: SessionBaseRate,
         after: SessionBaseRate,
     ) = AuditLog.recordUpdate(
-        tableName = SessionBaseRateTable.tableName,
-        recordId = before.id,
+        context = AuditContext(changedBy = context.changedBy, branchId = before.branchId),
+        row = AuditedRow(SessionBaseRateTable.tableName, before.id),
         before = before,
         after = after,
-        changedBy = context.changedBy,
-        branchId = before.branchId,
         auditFields = SessionBaseRateTable::auditFields,
     )
 }

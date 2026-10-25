@@ -1,6 +1,8 @@
 package com.companyb.companyapp.identity
 
+import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUser
 import com.companyb.companyapp.identity.AppUserTable
@@ -161,9 +163,8 @@ object AuthService {
                     newLabel = "(set by invitee)",
                 )
                 AuditLog.recordUpdate(
-                    tableName = TOKEN_TABLE_NAME,
-                    recordId = row.id,
-                    changedBy = userId,
+                    context = AuditContext(changedBy = userId),
+                    row = AuditedRow(TOKEN_TABLE_NAME, row.id),
                     oldFields = mapOf("consumed" to "false"),
                     newFields = mapOf("consumed" to "true"),
                 )
@@ -235,9 +236,8 @@ object AuthService {
                 .forEach { tokenId ->
                     CredentialTokenRepository.invalidateInTransaction(tokenId)
                     AuditLog.recordUpdate(
-                        tableName = TOKEN_TABLE_NAME,
-                        recordId = tokenId,
-                        changedBy = existing.id,
+                        context = AuditContext(changedBy = existing.id),
+                        row = AuditedRow(TOKEN_TABLE_NAME, tokenId),
                         oldFields = mapOf("consumed" to "false"),
                         newFields = mapOf("consumed" to "true"),
                     )
@@ -257,9 +257,8 @@ object AuthService {
                     createdBy = null,
                 )
             AuditLog.recordInsert(
-                tableName = TOKEN_TABLE_NAME,
-                recordId = tokenId,
-                changedBy = existing.id,
+                context = AuditContext(changedBy = existing.id),
+                row = AuditedRow(TOKEN_TABLE_NAME, tokenId),
                 fields =
                     mapOf(
                         "purpose" to CredentialTokenPurpose.PASSWORD_RESET.name,
@@ -332,9 +331,8 @@ object AuthService {
                     newLabel = "(set via password reset)",
                 )
                 AuditLog.recordUpdate(
-                    tableName = TOKEN_TABLE_NAME,
-                    recordId = row.id,
-                    changedBy = userId,
+                    context = AuditContext(changedBy = userId),
+                    row = AuditedRow(TOKEN_TABLE_NAME, row.id),
                     oldFields = mapOf("consumed" to "false"),
                     newFields = mapOf("consumed" to "true"),
                 )
@@ -377,9 +375,8 @@ internal object AuthAudit {
         oldLabel: String,
         newLabel: String,
     ) = AuditLog.recordUpdate(
-        tableName = AppUserTable.tableName,
-        recordId = recordId,
-        changedBy = recordId,
+        context = AuditContext(changedBy = recordId),
+        row = AuditedRow(AppUserTable.tableName, recordId),
         oldFields = mapOf("password" to oldLabel),
         newFields = mapOf("password" to newLabel),
     )

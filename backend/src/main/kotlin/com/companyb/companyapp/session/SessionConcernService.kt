@@ -2,6 +2,7 @@ package com.companyb.companyapp.session
 
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.client.ClientReads
@@ -190,13 +191,9 @@ internal object SessionConcernAudit {
         sessionId: UUID,
         concernId: UUID,
     ) = AuditLog.recordInsert(
-        tableName = SessionConcernTable.tableName,
-        recordId = sessionId,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
+        context = context,
+        row = AuditedRow(SessionConcernTable.tableName, sessionId),
         fields = SessionConcernTable.auditFields(SessionConcern(sessionId, concernId)),
-        isFlagged = context.isFlagged,
-        reason = context.reason,
     )
 
     fun linkDeleted(
@@ -204,13 +201,9 @@ internal object SessionConcernAudit {
         sessionId: UUID,
         concernId: UUID,
     ) = AuditLog.recordDelete(
-        tableName = SessionConcernTable.tableName,
-        recordId = sessionId,
+        context = context,
+        row = AuditedRow(SessionConcernTable.tableName, sessionId),
         before = SessionConcern(sessionId, concernId),
-        changedBy = context.changedBy,
-        branchId = context.branchId,
-        isFlagged = context.isFlagged,
-        reason = context.reason,
         auditFields = SessionConcernTable::auditFields,
     )
 
@@ -218,23 +211,24 @@ internal object SessionConcernAudit {
         context: AuditContext,
         concern: Concern,
     ) = AuditLog.recordInsert(
-        tableName = ConcernTable.tableName,
-        recordId = concern.id,
-        changedBy = context.changedBy,
+        context =
+            AuditContext(
+                changedBy = context.changedBy,
+                isFlagged = context.isFlagged,
+                reason = context.reason,
+            ),
+        row = AuditedRow(ConcernTable.tableName, concern.id),
         fields = ConcernTable.auditFields(concern),
-        isFlagged = context.isFlagged,
-        reason = context.reason,
     )
 
     fun concernRemovedFromList(
         changedBy: UUID,
         concern: Concern,
     ) = AuditLog.recordUpdate(
-        tableName = ConcernTable.tableName,
-        recordId = concern.id,
+        context = AuditContext(changedBy = changedBy),
+        row = AuditedRow(ConcernTable.tableName, concern.id),
         oldFields = mapOf("label" to concern.label, "onList" to "yes"),
         newFields = mapOf("label" to concern.label, "onList" to "no"),
-        changedBy = changedBy,
     )
 
     fun otherConcernsCleared(
@@ -242,14 +236,10 @@ internal object SessionConcernAudit {
         before: Session,
         after: Session,
     ) = AuditLog.recordUpdate(
-        tableName = SessionTable.tableName,
-        recordId = after.id,
+        context = context,
+        row = AuditedRow(SessionTable.tableName, after.id),
         before = before,
         after = after,
-        changedBy = context.changedBy,
-        branchId = context.branchId,
-        isFlagged = context.isFlagged,
-        reason = context.reason,
         auditFields = SessionTable::auditFields,
     )
 }

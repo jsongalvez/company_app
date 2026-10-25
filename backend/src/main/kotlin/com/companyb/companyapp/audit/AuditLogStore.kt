@@ -43,6 +43,13 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
+/** What the caller may read: their branch window, the branchless tables and whether null-branch rows show. */
+internal data class AuditReadWindow(
+    val windowBranchIds: List<UUID>?,
+    val branchlessTables: Set<String>,
+    val canReadNullRows: Boolean,
+)
+
 /**
  * Audit persistence: table/query internals behind the [AuditLog] append seam and
  * the [AuditLogService] scoped reads. Same-owner only — other owners cross [AuditLog].
@@ -50,89 +57,63 @@ private val logger = KotlinLogging.logger {}
  *  so bundling would fork the seam without removing a parameter.
  */
 internal object AuditLogStore {
-    @Suppress("LongParameterList") // #600
     fun record(
-        tableName: String,
-        recordId: UUID,
+        context: AuditContext,
+        row: AuditedRow,
         action: AuditAction,
-        changedBy: UUID,
-        branchId: UUID? = null,
         oldValue: String? = null,
         newValue: String? = null,
-        reason: String? = null,
-        isFlagged: Boolean = false,
     ) {
         AuditLogTable.insert {
-            it[AuditLogTable.auditTableName] = tableName
-            it[AuditLogTable.recordId] = recordId
+            it[AuditLogTable.auditTableName] = row.tableName
+            it[AuditLogTable.recordId] = row.recordId
             it[AuditLogTable.action] = action
-            it[AuditLogTable.changedBy] = changedBy
+            it[AuditLogTable.changedBy] = context.changedBy
             ViewedAsBy.get()?.let { real -> it[AuditLogTable.viewedAsBy] = real }
-            it[AuditLogTable.branchId] = branchId
-            it[AuditLogTable.isFlagged] = isFlagged
+            it[AuditLogTable.branchId] = context.branchId
+            it[AuditLogTable.isFlagged] = context.isFlagged
             if (oldValue != null) it[AuditLogTable.oldValue] = oldValue
             if (newValue != null) it[AuditLogTable.newValue] = newValue
-            if (reason != null) it[AuditLogTable.reason] = reason
+            if (context.reason != null) it[AuditLogTable.reason] = context.reason
         }
-        logger.info { "[AUDIT-LOG] Recorded $action on $tableName/$recordId isFlagged=$isFlagged" }
+        logger.info {
+            "[AUDIT-LOG] Recorded $action on ${row.tableName}/${row.recordId} isFlagged=${context.isFlagged}"
+        }
     }
 
-    @Suppress("LongParameterList") // #600
     fun recordInsert(
-        tableName: String,
-        recordId: UUID,
-        changedBy: UUID,
+        context: AuditContext,
+        row: AuditedRow,
         fields: Map<String, String?>,
-        branchId: UUID? = null,
-        isFlagged: Boolean = false,
-        reason: String? = null,
     ) {
         record(
-            tableName = tableName,
-            recordId = recordId,
+            context = context,
+            row = row,
             action = AuditAction.INSERT,
-            changedBy = changedBy,
-            branchId = branchId,
             newValue = AuditLog.jsonFields(fields),
-            reason = reason,
-            isFlagged = isFlagged,
         )
     }
 
-    @Suppress("LongParameterList") // #600
     fun recordUpdate(
-        tableName: String,
-        recordId: UUID,
+        context: AuditContext,
+        row: AuditedRow,
         oldFields: Map<String, String?>,
         newFields: Map<String, String?>,
-        changedBy: UUID,
-        branchId: UUID? = null,
-        isFlagged: Boolean = false,
-        reason: String? = null,
     ) {
         record(
-            tableName = tableName,
-            recordId = recordId,
+            context = context,
+            row = row,
             action = AuditAction.UPDATE,
-            changedBy = changedBy,
-            branchId = branchId,
             oldValue = AuditLog.jsonFields(oldFields),
             newValue = AuditLog.jsonFields(newFields),
-            reason = reason,
-            isFlagged = isFlagged,
         )
     }
 
-    @Suppress("LongParameterList") // #600
     fun <T> recordUpdate(
-        tableName: String,
-        recordId: UUID,
+        context: AuditContext,
+        row: AuditedRow,
         before: T,
         after: T,
-        changedBy: UUID,
-        branchId: UUID? = null,
-        isFlagged: Boolean = false,
-        reason: String? = null,
         auditFields: (T) -> Map<String, String?>,
     ) {
         val oldFields = auditFields(before)
@@ -145,62 +126,40 @@ internal object AuditLogStore {
         val changedOldFields = changedKeys.associateWith { oldFields[it] }
         val changedNewFields = changedKeys.associateWith { newFields[it] }
         recordUpdate(
-            tableName = tableName,
-            recordId = recordId,
+            context = context,
+            row = row,
             oldFields = changedOldFields,
             newFields = changedNewFields,
-            changedBy = changedBy,
-            branchId = branchId,
-            isFlagged = isFlagged,
-            reason = reason,
         )
     }
 
-    @Suppress("LongParameterList") // #600
     fun <T> recordDelete(
-        tableName: String,
-        recordId: UUID,
+        context: AuditContext,
+        row: AuditedRow,
         before: T,
-        changedBy: UUID,
-        branchId: UUID? = null,
-        reason: String? = null,
-        isFlagged: Boolean = false,
         auditFields: (T) -> Map<String, String?>,
     ) {
         val oldFields = auditFields(before)
         recordDelete(
-            tableName = tableName,
-            recordId = recordId,
+            context = context,
+            row = row,
             oldFields = oldFields,
             newFields = emptyMap(),
-            changedBy = changedBy,
-            branchId = branchId,
-            reason = reason,
-            isFlagged = isFlagged,
         )
     }
 
-    @Suppress("LongParameterList") // #600
     fun recordDelete(
-        tableName: String,
-        recordId: UUID,
+        context: AuditContext,
+        row: AuditedRow,
         oldFields: Map<String, String?>,
         newFields: Map<String, String?>,
-        changedBy: UUID,
-        branchId: UUID? = null,
-        reason: String? = null,
-        isFlagged: Boolean = false,
     ) {
         record(
-            tableName = tableName,
-            recordId = recordId,
+            context = context,
+            row = row,
             action = AuditAction.DELETE,
-            changedBy = changedBy,
-            branchId = branchId,
             oldValue = AuditLog.jsonFields(oldFields),
             newValue = AuditLog.jsonFields(newFields),
-            reason = reason,
-            isFlagged = isFlagged,
         )
     }
 
@@ -457,31 +416,24 @@ internal object AuditLogStore {
      * strictly-before position (exclusive). [limit] rows are returned; the
      * caller decides pagination via [AuditLogService.browse] encoding the last row.
      */
-    @Suppress("LongParameterList") // #600 10-param browse mirrors the service filter set 1:1 per #535
     fun browse(
-        windowBranchIds: List<UUID>?,
-        branchlessTables: Set<String>,
-        canReadNullRows: Boolean,
-        tableName: String?,
-        action: AuditAction?,
-        callerName: String?,
-        dateFrom: OffsetDateTime?,
-        dateTo: OffsetDateTime?,
+        window: AuditReadWindow,
+        filter: AuditBrowseFilter,
         cursor: AuditBrowseCursor?,
         limit: Int,
     ): List<AuditLogEntry> =
         transaction {
             var base: Op<Boolean> = Op.TRUE
-            if (tableName != null) base = base and (AuditLogTable.auditTableName eq tableName)
-            if (action != null) base = base and (AuditLogTable.action eq action)
-            if (callerName != null) {
-                base = base and ilike(AppUserTable.displayName, "%$callerName%")
+            if (filter.tableName != null) base = base and (AuditLogTable.auditTableName eq filter.tableName)
+            if (filter.action != null) base = base and (AuditLogTable.action eq filter.action)
+            if (filter.callerName != null) {
+                base = base and ilike(AppUserTable.displayName, "%${filter.callerName}%")
             }
-            if (dateFrom != null) {
-                base = base and (AuditLogTable.changedAt greaterEq dateFrom)
+            if (filter.dateFrom != null) {
+                base = base and (AuditLogTable.changedAt greaterEq filter.dateFrom)
             }
-            if (dateTo != null) {
-                base = base and (AuditLogTable.changedAt less dateTo)
+            if (filter.dateTo != null) {
+                base = base and (AuditLogTable.changedAt less filter.dateTo)
             }
             if (cursor != null) {
                 val keyset =
@@ -493,9 +445,9 @@ internal object AuditLogStore {
                 base = base and keyset
             }
             scopedQuery(
-                windowBranchIds = windowBranchIds,
-                branchlessTables = branchlessTables,
-                canReadNullRows = canReadNullRows,
+                windowBranchIds = window.windowBranchIds,
+                branchlessTables = window.branchlessTables,
+                canReadNullRows = window.canReadNullRows,
                 base = base,
             ).limit(limit).map { it.toAuditLogEntry() }
         }.also { logger.info { "[AUDIT-BROWSE] Returned ${it.size} entries" } }

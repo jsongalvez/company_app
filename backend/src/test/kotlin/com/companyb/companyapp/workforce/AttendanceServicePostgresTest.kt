@@ -1,6 +1,8 @@
 package com.companyb.companyapp.workforce
+import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.commission.CommissionService
@@ -252,10 +254,9 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
                         ),
                     )
                     AuditLog.record(
-                        tableName = AttendanceTable.tableName,
-                        recordId = attendanceId,
+                        context = AuditContext(changedBy = userId),
+                        row = AuditedRow(AttendanceTable.tableName, attendanceId),
                         action = AuditAction.INSERT,
-                        changedBy = userId,
                         oldValue = "{not-valid-json",
                     )
                 }
@@ -279,10 +280,9 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
                     checkNotNull(AttendanceRepository.findByIdInTransaction(attendanceId))
                     AttendanceRepository.clockOutInTransaction(attendanceId)
                     AuditLog.record(
-                        tableName = AttendanceTable.tableName,
-                        recordId = attendanceId,
+                        context = AuditContext(changedBy = userId),
+                        row = AuditedRow(AttendanceTable.tableName, attendanceId),
                         action = AuditAction.UPDATE,
-                        changedBy = userId,
                         oldValue = "{not-valid-json",
                     )
                 }

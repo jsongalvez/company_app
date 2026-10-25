@@ -710,11 +710,10 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/identity/PasswordResetDelivery.kt' #465 frozen #599 ticketed TooGenericExceptionCaught
       - '**/backend/src/main/kotlin/com/companyb/companyapp/http/KotlinxSerializationMapper.kt' #465 frozen #551 retarget #600 ticketed UNCHECKED_CAST
       - '**/backend/src/main/kotlin/com/companyb/companyapp/database/DatabaseConfig.kt' #465 frozen #600 ticketed TooGenericExceptionCaught
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogStore.kt' #465 frozen #600 ticketed LongParameterList+UNCHECKED_CAST
+      - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogStore.kt' #465 frozen #600 ticketed UNCHECKED_CAST
       - '**/backend/src/main/kotlin/com/companyb/companyapp/client/ClientRepository.kt' #465 frozen #599 ticketed UNCHECKED_CAST
       - '**/backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/ReliefInviteRepository.kt' #465 frozen #598 ticketed UNCHECKED_CAST
       - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/AllowanceService.kt' #465 frozen #596 ticketed LongParameterList
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/audit/AuditLogService.kt' #465 frozen #600 ticketed LongParameterList
       - '**/backend/src/main/kotlin/com/companyb/companyapp/client/ClientService.kt' #465 frozen #599 ticketed LongParameterList
       - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/CompensationService.kt' #465 frozen #596 ticketed LongParameterList
       - '**/backend/src/main/kotlin/com/companyb/companyapp/finance/ExpenseService.kt' #465 frozen #596 ticketed LongParameterList
