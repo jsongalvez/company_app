@@ -424,6 +424,7 @@ object SessionRoutes {
 
     // replay-path 403 fallback is deliberate handling (empty concerns), not swallowing.
     private fun handleCreateSession(context: Context) {
+        Thread.sleep(300)
         val callerId = context.callerUuid()
         val request = context.bodyAsClass<CreateSessionRequest>()
 
