@@ -43,7 +43,8 @@ SAMPLER=$!
 RC=$?
 A1=$(app_ms); D1=$(db_ms)
 read -r KU KS < <(tail -1 "$OUT/$LABEL.k6time" 2>/dev/null) || { KU=0; KS=0; }
-export WALL_MS=$(( ($(date +%s%N) - T0) / 1000000 )) APP_MS=$((A1 - A0)) DB_MS=$((D1 - D0)) K6_MS=$(python3 -I -c "print(int(($KU + $KS) * 1000))")
+K6_MS=$(python3 -I -c "print(int(($KU + $KS) * 1000))")
+export WALL_MS=$(( ($(date +%s%N) - T0) / 1000000 )) APP_MS=$((A1 - A0)) DB_MS=$((D1 - D0)) K6_MS
 kill $SAMPLER 2>/dev/null; wait $SAMPLER 2>/dev/null
 echo "k6 rc=$RC loadavg_after=$(cut -d' ' -f1-3 /proc/loadavg) other_builds_max=$(grep -o 'other=[0-9]*' "$SAMPLES" | cut -d= -f2 | sort -n | tail -1)"
 python3 -I - "$OUT/$LABEL.json" "$SAMPLES" <<'PY'
