@@ -9,7 +9,7 @@ plan vs data vs pool.
 
 | Signal | Reading | Next step |
 |---|---|---|
-| `PoolSaturated` firing (active == 3 with waiters) while SQL below is fast | Connection leak / pool too small, not slow queries | #473 dashboard, fix the leak |
+| `PoolSaturated` firing (active == 12 with waiters) while SQL below is fast | Connection leak / pool too small, not slow queries | #473 dashboard, fix the leak |
 | Top-slow below shows the search/inventory query with high mean time | Slow query | §3 EXPLAIN recipe |
 | EXPLAIN shows the right index but high buffers/rows | Data shape (too many rows scanned) | §4 data leg |
 | EXPLAIN shows Seq Scan where an index exists | Plan shape | §4 plan leg |
