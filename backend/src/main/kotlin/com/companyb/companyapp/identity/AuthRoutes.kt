@@ -83,7 +83,7 @@ object AuthRoutes {
                 AuthService.login(
                     loginRequest.username,
                     loginRequest.password,
-                    context.ip(),
+                    ClientIp.of(context),
                 )
 
             when (loginResult) {
@@ -127,7 +127,7 @@ object AuthRoutes {
     fun forgotPassword(config: JavalinConfig) {
         config.routes.post(ApiRoutes.AUTH_FORGOT_PASSWORD) { context ->
             val request = context.bodyAsClass<ForgotPasswordRequest>()
-            val accepted = AuthService.requestPasswordReset(request.identifier, context.ip())
+            val accepted = AuthService.requestPasswordReset(request.identifier, ClientIp.of(context))
             if (accepted) {
                 context.status(HttpStatus.NO_CONTENT)
             } else {
