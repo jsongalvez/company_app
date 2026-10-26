@@ -131,20 +131,6 @@ object OpenApiCanonical {
                 response.set<ObjectNode>("content", content)
             }
         }
-        val metrics = paths.get("/metrics")?.get("get") as? ObjectNode
-        if (metrics != null) {
-            val responses =
-                metrics.get("responses") as? ObjectNode
-                    ?: mapper.createObjectNode().also { metrics.set<ObjectNode>("responses", it) }
-            val response =
-                responses.get("200") as? ObjectNode
-                    ?: mapper.createObjectNode().also { responses.set<ObjectNode>("200", it) }
-            val content = mapper.createObjectNode()
-            val text = mapper.createObjectNode()
-            text.set<ObjectNode>("schema", mapper.createObjectNode().put("type", "string"))
-            content.set<ObjectNode>("text/plain", text)
-            response.set<ObjectNode>("content", content)
-        }
     }
 
     private fun validateCoverage(

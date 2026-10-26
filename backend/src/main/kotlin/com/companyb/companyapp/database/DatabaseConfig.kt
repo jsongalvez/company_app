@@ -27,7 +27,7 @@ object DatabaseConfig {
 
     /**
      * Live HikariCP gauges. Never throws: uninitialized datasource
-     * (unit tests) reports zeros so /metrics stays scrapeable.
+     * (unit tests) reports zeros.
      */
     fun poolStats(): PoolStats =
         runCatching {

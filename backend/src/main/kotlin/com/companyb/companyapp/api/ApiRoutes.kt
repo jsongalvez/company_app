@@ -49,7 +49,6 @@ object ApiRoutes {
     const val BRANCH_DAYS = "$API_ROOT/branch-days"
     const val AUDIT_LOG = "$API_ROOT/audit-log"
     const val HEALTH = "/health"
-    const val METRICS = "/metrics"
     const val FEEDBACK = "$API_ROOT/feedback"
     const val FEEDBACK_NOTES = "$API_ROOT/feedback-notes"
     const val FEEDBACK_NOTE_PATH = "$FEEDBACK_NOTES/{feedbackId}"

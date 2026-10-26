@@ -19,7 +19,6 @@ pairs=(
   "scripts/check-test-cleanliness.sh:tools/database/check-test-cleanliness.sh"
   "scripts/clean-test-db.sh:tools/database/clean-test-db.sh"
   "scripts/check-baselines.sh:tools/performance/check-baselines.sh"
-  "scripts/run-k6-contract-suites.sh:tools/performance/run-k6-contract-suites.sh"
 )
 
 for pair in "${pairs[@]}"; do
