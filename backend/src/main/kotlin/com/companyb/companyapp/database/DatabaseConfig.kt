@@ -89,7 +89,7 @@ object DatabaseConfig {
             logger.info { "[INITIALIZE-DATABASE] Flyway initialization done" }
 
             logger.info { "[INITIALIZE-DATABASE] Starting Exposed connection" }
-            Database.connect(dataSource)
+            Database.connect(JdbcTiming.wrap(dataSource))
             logger.info { "[INITIALIZE-DATABASE] Exposed connection enabled" }
         } catch (failure: Throwable) {
             close()

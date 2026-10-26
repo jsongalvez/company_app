@@ -10,10 +10,12 @@ class RequestElapsedConverter : ClassicConverter() {
 
         fun startRequest() {
             requestStartNanos.set(System.nanoTime())
+            RequestQueryTally.startRequest()
         }
 
         fun endRequest() {
             requestStartNanos.remove()
+            RequestQueryTally.endRequest()
         }
 
         fun currentElapsedMs(): Long {

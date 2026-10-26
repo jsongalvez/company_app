@@ -1,6 +1,7 @@
 package com.companyb.companyapp.logging
 
 import com.companyb.companyapp.api.middleware.TraceIdFilter
+import com.companyb.companyapp.observability.RouteLabels
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.Context
 import kotlinx.serialization.Serializable
@@ -22,8 +23,11 @@ data class RequestCompletedEvent(
     val traceId: String,
     val method: String,
     val route: String,
+    val template: String,
     val status: Int,
     val elapsedMs: Long,
+    val dbMs: Long,
+    val queries: Int,
 )
 
 /**
@@ -34,11 +38,16 @@ data class RequestCompletedEvent(
  * field-filterable (`... | jq 'select(.route == "/api/clients/search")
  * | select(.elapsedMs >= 2000)'`). `route` is the concrete request path
  * (query string excluded, so search terms stay out of the logs); ID-bearing
- * paths vary per row, so filter those with `startswith`/`contains`.
+ * paths vary per row, so filter those with `startswith`/`contains`. `template`
+ * is the matched route pattern (`/api/branches/{branchId}/dashboard/today`, or
+ * `UNMATCHED`), so one route groups by one value. `dbMs` and `queries` are the
+ * request's statement time and count from [RequestQueryTally]; the same split
+ * goes out as `Server-Timing: db;dur=<dbMs>, app;dur=<appMs>`.
  */
 object RequestLog {
     const val COMPLETED_ATTRIBUTE = "requestLogCompleted"
 
+    private const val SERVER_TIMING_HEADER = "Server-Timing"
     private const val EVENT_STARTED = "request_started"
     private const val EVENT_COMPLETED = "request_completed"
     private const val TRACE_UNKNOWN = "unknown"
@@ -51,14 +60,6 @@ object RequestLog {
         method: String,
         route: String,
     ): String = Json.encodeToString(RequestStartedEvent(EVENT_STARTED, traceId, method, route))
-
-    fun formatComplete(
-        traceId: String,
-        method: String,
-        route: String,
-        status: Int,
-        elapsedMs: Long,
-    ): String = Json.encodeToString(RequestCompletedEvent(EVENT_COMPLETED, traceId, method, route, status, elapsedMs))
 
     fun start(context: Context) {
         val traceId =
@@ -81,9 +82,22 @@ object RequestLog {
         // is the wildcard after-filter itself here, so its template ("*") is useless.
         val route = context.path()
         val status = runCatching { context.statusCode() }.getOrDefault(STATUS_UNKNOWN)
-        logger.info {
-            formatComplete(traceId, context.method().name, route, status, RequestElapsedConverter.currentElapsedMs())
-        }
+        val elapsedMs = RequestElapsedConverter.currentElapsedMs()
+        val db = RequestQueryTally.snapshot()
+        context.header(SERVER_TIMING_HEADER, "db;dur=${db.dbMs}, app;dur=${(elapsedMs - db.dbMs).coerceAtLeast(0)}")
+        val event =
+            RequestCompletedEvent(
+                event = EVENT_COMPLETED,
+                traceId = traceId,
+                method = context.method().name,
+                route = route,
+                template = RouteLabels.routeLabel(context),
+                status = status,
+                elapsedMs = elapsedMs,
+                dbMs = db.dbMs,
+                queries = db.queries,
+            )
+        logger.info { Json.encodeToString(event) }
         RequestElapsedConverter.endRequest()
         DeltaTimeConverter.endRequest()
         MDC.clear()
