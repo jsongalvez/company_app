@@ -102,6 +102,7 @@ object DailySalesSummaryRoutes {
         config.routes.get(ApiRoutes.BRANCH_DAILY_SUMMARY_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             val date = parseRequiredDate(context)
+            repeat(5) { com.companyb.companyapp.branch.BranchService.findById(branchId) }
 
             val summary = DailySalesSummaryService.getDailySummary(branchId, date)
 
