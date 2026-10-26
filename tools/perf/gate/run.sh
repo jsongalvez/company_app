@@ -39,15 +39,16 @@ done
 
 for side in base head; do
   stamp "boot $side on ${PORT[$side]}"
-  (cd "${DIR[$side]}" && APP_PORT=${PORT[$side]} WEB_DIR= POSTGRES_DB=${DB[$side]} setsid nohup ./gradlew :backend:run -q >"$OUT/$side.log" 2>&1 & echo $! >"$OUT/$side.pid")
+  (cd "${DIR[$side]}" && APP_PORT=${PORT[$side]} WEB_DIR='' POSTGRES_DB=${DB[$side]} setsid nohup ./gradlew :backend:run -q >"$OUT/$side.log" 2>&1 & echo $! >"$OUT/$side.pid")
 done
 for side in base head; do
   up=0
   for _ in $(seq 1 $((BOOT_WAIT_S / 2))); do
     curl -sf "localhost:${PORT[$side]}/health" >/dev/null && { up=1; break; }
+    kill -0 "$(cat "$OUT/$side.pid")" 2>/dev/null || break
     sleep 2
   done
-  [ "$up" = 1 ] || { echo "$side backend did not boot in ${BOOT_WAIT_S}s. Boot log:"; tail -80 "$OUT/$side.log"; exit 3; }
+  [ "$up" = 1 ] || { echo "$side backend did not boot (waited up to ${BOOT_WAIT_S}s). Errors in its log:"; grep -n -E "Exception|ERROR|FAILED" "$OUT/$side.log" | cut -c1-300 | head -20; echo "Last lines:"; tail -40 "$OUT/$side.log"; exit 3; }
 done
 stamp "both up"
 
