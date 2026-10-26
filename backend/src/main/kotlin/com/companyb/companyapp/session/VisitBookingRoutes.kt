@@ -13,6 +13,7 @@ import com.companyb.companyapp.contracts.session.UpdateBookingRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
+import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
@@ -83,8 +84,11 @@ object VisitBookingRoutes {
     private const val BRANCH_ID = "branchId"
 
     fun register(config: JavalinConfig) {
-        // Any branch member may book: the same capability that lets them add sessions there.
-        config.routes.before(ApiRoutes.BRANCH_BOOKINGS_PATH) { context -> requireMember(context) }
+        // Anyone who may view the branch sees its booked visits; any branch member may book:
+        // the same capability that lets them add sessions there.
+        config.routes.before(ApiRoutes.BRANCH_BOOKINGS_PATH) { context ->
+            if (context.method() == HandlerType.GET) requireViewer(context) else requireMember(context)
+        }
         config.routes.before(ApiRoutes.BRANCH_BOOKING_PATH) { context -> requireMember(context) }
         config.routes.before(ApiRoutes.CLIENT_BOOKINGS_PATH) { context ->
             CapabilityFilter.requireAnyContextCapability(
@@ -125,6 +129,12 @@ object VisitBookingRoutes {
         config.routes.get(ApiRoutes.CLIENT_BOOKINGS_PATH) { context ->
             context.json(VisitBookingService.forClient(context.pathParamAsUuid("clientId")))
         }
+    }
+
+    private fun requireViewer(context: io.javalin.http.Context) {
+        val branchId = context.pathParamAsUuid(BRANCH_ID)
+        BranchService.findById(branchId)
+        CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(context, branchId, CapabilityCodes.VIEW_BRANCH_DATA)
     }
 
     private fun requireMember(context: io.javalin.http.Context) {
