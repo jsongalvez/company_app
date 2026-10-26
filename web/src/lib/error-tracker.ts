@@ -34,6 +34,8 @@ const REPEAT_MS = 60_000;
 
 /** Statuses that are the app working as designed, not a bug to chase. */
 const EXPECTED = new Set([401, 409, 429]);
+/** Refusals the app asks for on purpose: Today reads its 403 as "clock in first". */
+const EXPECTED_REFUSALS = new Set(["GET /api/branches/{id}/dashboard/today 403"]);
 
 export type ApiFailure = { method: string; path: string; status: number; traceId: string | null };
 
@@ -73,9 +75,11 @@ export function createTracker(dsn: string | undefined, send: Send, release: stri
         /** An uncaught error or unhandled rejection. */
         captureError(error: unknown, where: "error" | "unhandledrejection") {
             const isError = error instanceof Error;
+            // A server answer (ApiError has a status) was already reported as its request, if at all;
+            // its text can quote a person, so it never leaves the phone.
+            if (isError && "status" in error) return;
             const type = isError ? error.name || "Error" : typeof error;
-            // Server text in an ApiError (the one with a status) can quote a person; for it, the class alone.
-            const value = isError && !("status" in error) ? error.message.slice(0, MESSAGE_MAX) : undefined;
+            const value = isError ? error.message.slice(0, MESSAGE_MAX) : undefined;
             // V8 starts the stack with the message, so take the message out of it.
             const stack = isError ? (error.message ? error.stack?.split(error.message).join("") : error.stack)?.slice(0, STACK_MAX) : undefined;
             emit(`${where}:${type}:${value ?? ""}`, {
@@ -88,6 +92,7 @@ export function createTracker(dsn: string | undefined, send: Send, release: stri
         captureApiFailure(f: ApiFailure) {
             if (f.status < 400 || EXPECTED.has(f.status)) return;
             const path = plainPath(f.path);
+            if (EXPECTED_REFUSALS.has(`${f.method} ${path} ${f.status}`)) return;
             emit(`api:${f.method}:${path}:${f.status}`, {
                 message: `${f.method} ${path} -> ${f.status}`,
                 tags: { kind: "api", method: f.method, path, status: String(f.status), trace_id: f.traceId ?? "none", page: page() },

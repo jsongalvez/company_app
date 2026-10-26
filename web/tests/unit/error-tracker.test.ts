@@ -44,8 +44,7 @@ test("server words in an ApiError never leave the phone", () => {
     }
     const { tracker, sent } = fake();
     tracker.captureError(new ApiError("Maria Santos already has a session"), "unhandledrejection");
-    assert.equal(sent.length, 1);
-    assert.ok(!sent[0]!.raw.includes("Maria"), sent[0]!.raw);
+    assert.equal(sent.length, 0, "its request is the report; the text stays home");
 });
 
 test("a refused offline save is reported by method, path and status only", () => {
@@ -107,4 +106,19 @@ test("a transport that throws does not break the app", () => {
 test("dsn and path helpers", () => {
     assert.equal(parseDsn("https://k@o.example:8443/7")?.url, "https://o.example:8443/api/7/envelope/?sentry_version=7&sentry_key=k");
     assert.equal(plainPath(`/api/a/${UUID}?x=1`), "/api/a/{id}");
+});
+
+test("Today's 'clock in first' refusal is not an error (COMPANY-APP-4)", () => {
+    const { tracker, sent } = fake();
+    tracker.captureApiFailure({ method: "GET", path: `/api/branches/${UUID}/dashboard/today`, status: 403, traceId: "t" });
+    assert.equal(sent.length, 0);
+    tracker.captureApiFailure({ method: "GET", path: `/api/branches/${UUID}/inventory`, status: 403, traceId: "t" });
+    assert.equal(sent.length, 1, "other refusals still report");
+});
+
+test("a rejected server answer is reported once, as the request (COMPANY-APP-3)", () => {
+    const { tracker, sent } = fake();
+    const e = Object.assign(new Error("Invalid token"), { status: 401 });
+    tracker.captureError(e, "unhandledrejection");
+    assert.equal(sent.length, 0);
 });
