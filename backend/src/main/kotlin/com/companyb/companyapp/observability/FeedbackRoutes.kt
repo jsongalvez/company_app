@@ -5,6 +5,7 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.contracts.incident.FeedbackRequest
 import com.companyb.companyapp.contracts.incident.FeedbackResponse
 import com.companyb.companyapp.dto.ErrorResponse
+import com.companyb.companyapp.identity.ClientIp
 import com.companyb.companyapp.identity.RateLimiter
 import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus
@@ -43,7 +44,7 @@ object FeedbackRoutes {
         config.routes.post(ApiRoutes.FEEDBACK) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<FeedbackRequest>()
-            if (!withinBudget(callerId, context.ip())) {
+            if (!withinBudget(callerId, ClientIp.of(context))) {
                 context.status(HttpStatus.TOO_MANY_REQUESTS)
             } else {
                 val filed = IncidentService.fileUserReport(callerId, request)
