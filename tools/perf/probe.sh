@@ -18,7 +18,11 @@ snapshot() { # queryid, total ms, calls, query, one line each
   local out
   out="$SNAP_DIR/$(date +%s).tsv"
   if [[ -n "${PGSS_CMD:-}" ]]; then $PGSS_CMD >"$out"; else
-    docker exec "$PROBE_DB_CONTAINER" sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atq -F "	" -c "select queryid, total_exec_time, calls, regexp_replace(query, E\"[\\n\\t]+\", \" \", \"g\") from pg_stat_statements where dbid = (select oid from pg_database where datname = current_database()) order by total_exec_time desc limit 80"' >"$out" 2>/dev/null
+    docker exec -i "$PROBE_DB_CONTAINER" sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atq -F "	"' >"$out" 2>/dev/null <<'SQL'
+select queryid, total_exec_time, calls, translate(query, E'\n\t', '  ')
+from pg_stat_statements where dbid = (select oid from pg_database where datname = current_database())
+order by total_exec_time desc limit 80;
+SQL
   fi || true
   [[ -s "$out" ]] || rm -f "$out"
   for old in $(ls -1t "$SNAP_DIR"/*.tsv 2>/dev/null | tail -n +400); do rm -f "$old"; done

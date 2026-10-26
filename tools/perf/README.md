@@ -15,3 +15,5 @@ The alert ends with `perf-slow <traceId>`: the request's log lines, its slow sta
 
 `install-probe.sh` puts the scripts in `~/.local/share/company-app-perf`, enables `company-app-probe.timer` and adds `check_latency` to `~/bin/company-app-alert.sh`. `seed-probe.sql` creates the probe user and branch (it holds only view, edit and void rights on the probe branch). Settings live in `~/.config/company-app-probe.env`: `PROBE_USER`, `PROBE_PASS`, `PROBE_DB_CONTAINER`.
 Test: `tools/perf/test/alert.test.sh`.
+
+The prod database container does not load `pg_stat_statements` (checked 2026-10-27: `shared_preload_libraries` is empty), so on prod `perf-slow` prints the request's `slow_statement` lines (over 200ms) instead of the top-3 table. Loading it needs `shared_preload_libraries=pg_stat_statements` and a database restart, left for the owner.

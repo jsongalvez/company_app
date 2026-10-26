@@ -71,7 +71,7 @@ if db * 2 > total:
     before = [x for x in files if int(os.path.basename(x)[:-4]) <= at]
     after = [x for x in files if int(os.path.basename(x)[:-4]) > at]
     if not before or not after:
-        print("== top statements: no pg_stat_statements snapshots around this request")
+        print("== top statements: no pg_stat_statements snapshots around this request (the prod database does not load pg_stat_statements: needs shared_preload_libraries and a restart). The slow statements above are the fallback")
     else:
         def load(p):
             d = {}
