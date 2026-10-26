@@ -68,6 +68,7 @@ object DashboardService {
         callerId: UUID,
         branchId: UUID,
     ): DashboardData {
+        Thread.sleep(300)
         BranchService.findById(branchId)
         // Find-only day resolution: a 403'd attempt must not leave a day row
         // behind. A missing day means no active clock-in can exist for it.
