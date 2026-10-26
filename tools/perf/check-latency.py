@@ -19,6 +19,7 @@ APP_LOG = Path(os.environ.get("APP_LOG", HOME / "logs/company_app/app.log"))
 LIMITS = Path(os.environ.get("LIMITS", HERE / "limits.json"))
 STATE = Path(os.environ.get("ALERT_STATE", HOME / ".local/state/company-app-alerts"))
 MIN_REAL = 20
+TAIL_BYTES = 64 * 1024 * 1024  # an hour of traffic is far less; the log itself is capped at 500MB
 RUNS_IN_A_ROW = 2
 PROBE_STALE = timedelta(minutes=20)
 COMPLETED = re.compile(r'(\{"event":"request_completed".*\})')
@@ -66,20 +67,25 @@ def real_requests(spec, since):
         return []
     cut = max(NOW - timedelta(hours=1), since)
     out = []
-    with APP_LOG.open(errors="replace") as f:
-        for line in f:
-            if spec["template"] not in line:
-                continue
-            m = COMPLETED.search(line)
-            if not m:
-                continue
-            try:
-                e = json.loads(m.group(1))
-                ts = log_ts(line)
-            except ValueError:
-                continue
-            if ts >= cut and e.get("template") == spec["template"] and e.get("method") == spec["method"] and e.get("status", 500) < 500:
-                out.append(e)
+    with APP_LOG.open("rb") as raw:
+        size = raw.seek(0, os.SEEK_END)
+        raw.seek(max(0, size - TAIL_BYTES))
+        if size > TAIL_BYTES:
+            raw.readline()
+        text = raw.read().decode(errors="replace")
+    for line in text.splitlines():
+        if spec["template"] not in line:
+            continue
+        m = COMPLETED.search(line)
+        if not m:
+            continue
+        try:
+            e = json.loads(m.group(1))
+            ts = log_ts(line)
+        except ValueError:
+            continue
+        if ts >= cut and e.get("template") == spec["template"] and e.get("method") == spec["method"] and e.get("status", 500) < 500:
+            out.append(e)
     return out
 
 
