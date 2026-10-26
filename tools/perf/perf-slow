@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# What made one request slow. Usage: perf-slow <traceId>
+# Prints the request's log lines, its slow_statement lines, and the three statements that added the most
+# database time between the two probe-time snapshots around it. When the request spent little time in the
+# database, says the time is in code and records 60s of JFR on the app if the route is still slow.
+# Overrides, for the proofs: APP_LOG, SNAP_DIR, PGSS_CMD (prints pg_stat_statements as TSV), JFR_CMD.
+set -uo pipefail
+TRACE=${1:?usage: perf-slow <traceId>}
+APP_LOG=${APP_LOG:-$HOME/logs/company_app/app.log}
+SNAP_DIR=${SNAP_DIR:-$HOME/.local/state/company-app-perf/pgss}
+STATE=${ALERT_STATE:-$HOME/.local/state/company-app-alerts}
+LIMITS=${LIMITS:-$(dirname "$(readlink -f "$0")")/limits.json}
+ROUTE_FILE=$(mktemp)
+default_jfr() { # JFR on the app's JVM inside its Coolify container
+  . "$HOME/.config/company-app-deploy.env"
+  local c; c=$(docker ps -q --filter "label=coolify.applicationUuid=$COOLIFY_APP_UUID" | head -1)
+  docker exec "$c" jcmd 1 JFR.start duration=60s "filename=/tmp/slow-$1.jfr" name="slow-$1"
+}
+export TRACE APP_LOG SNAP_DIR LIMITS ROUTE_FILE
+python3 -I - <<'PY'
+import json, os, re, glob, sys
+from datetime import datetime, timezone
+def log_ts(line):
+    """The first timestamp on an app-log line: Docker's (UTC, ends in Z) or the app's own (host time)."""
+    m = re.search(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:[.,](\d{1,9}))?(Z?)", line)
+    if not m:
+        raise ValueError("no timestamp")
+    t = datetime.fromisoformat(m.group(1) + "." + (m.group(2) or "0").ljust(6, "0")[:6])
+    return t.replace(tzinfo=timezone.utc) if m.group(3) else t.astimezone()
+trace, log, snaps = os.environ["TRACE"], os.environ["APP_LOG"], os.environ["SNAP_DIR"]
+ansi = re.compile(r"\x1b\[[0-9;]*m")
+lines, done, slow = [], None, []
+try:
+    f = open(log, errors="replace")
+except OSError as e:
+    sys.exit(f"cannot read {log}: {e}")
+for raw in f:
+    if trace not in raw:
+        continue
+    line = ansi.sub("", raw).rstrip()
+    lines.append(line)
+    m = re.search(r'(\{"event":"(\w+)".*\})', line)
+    if not m:
+        continue
+    try:
+        e = json.loads(m.group(1))
+    except ValueError:
+        continue
+    if e.get("traceId") != trace:
+        continue
+    if e["event"] == "request_completed":
+        done = (line, e)
+    elif e["event"] == "slow_statement":
+        slow.append(e)
+if not lines:
+    sys.exit(f"no log lines for trace {trace} in {log}")
+print(f"== log lines for {trace}")
+for l in lines:
+    print(l[:400])
+print(f"== slow statements (over 200ms): {len(slow)}")
+for e in slow:
+    print(f"{e['ms']}ms  {e['sql'][:300]}")
+if not done:
+    sys.exit("== no request_completed line, so no timing split")
+ts, e = done
+db, total = e.get("dbMs", 0), e["elapsedMs"]
+print(f"== {e['method']} {e.get('template', e['route'])} took {total}ms: {db}ms in database over {e.get('queries', '?')} queries, {max(total - db, 0)}ms in code")
+at = log_ts(ts).timestamp()
+if db * 2 > total:
+    files = sorted(glob.glob(os.path.join(snaps, "*.tsv")))
+    before = [x for x in files if int(os.path.basename(x)[:-4]) <= at]
+    after = [x for x in files if int(os.path.basename(x)[:-4]) > at]
+    if not before or not after:
+        print("== top statements: no pg_stat_statements snapshots around this request (the prod database does not load pg_stat_statements: needs shared_preload_libraries and a restart). The slow statements above are the fallback")
+    else:
+        def load(p):
+            d = {}
+            for row in open(p):
+                parts = row.rstrip("\n").split("\t", 3)
+                if len(parts) == 4:
+                    d[parts[0]] = (float(parts[1]), int(parts[2]), parts[3])
+            return d
+        a, b = load(before[-1]), load(after[0])
+        added = sorted(((v[0] - a.get(k, (0, 0, ""))[0], v[1] - a.get(k, (0, 0, ""))[1], v[2]) for k, v in b.items()), reverse=True)[:3]
+        print(f"== top 3 statements by database time added between snapshots {os.path.basename(before[-1])[:-4]} and {os.path.basename(after[0])[:-4]}")
+        for ms, calls, q in added:
+            print(f"{ms:.0f}ms over {calls} calls  {q[:300]}")
+else:
+    print("== the time is in code, not the database")
+    limits = json.load(open(os.environ["LIMITS"]))
+    route = next((k for k, v in limits.items() if v["template"] == e.get("template") and v["method"] == e["method"]), "")
+    open(os.environ["ROUTE_FILE"], "w").write(route)
+PY
+rc=$?
+[ "$rc" = 0 ] || exit "$rc"
+route=$(cat "$ROUTE_FILE" 2>/dev/null); rm -f "$ROUTE_FILE"
+if [ -n "$route" ]; then
+  if [ -e "$STATE/latency-$route" ]; then
+    echo "== $route is still over its limit: recording 60s of JFR on the app"
+    ${JFR_CMD:-default_jfr} "$TRACE" || echo "JFR failed to start"
+  else
+    echo "== $route is back under its limit, so no JFR recording"
+  fi
+fi
