@@ -1,0 +1,10 @@
+[Unit]
+Description=Record company_app route timings every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnCalendar=*:0/5
+Persistent=true
+
+[Install]
+WantedBy=timers.target

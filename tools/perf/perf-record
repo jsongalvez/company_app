@@ -1,0 +1,187 @@
+#!/usr/bin/python3 -I
+"""Roll company_app's request_completed log lines into per-template, per-5-minute rows.
+
+Reads ~/logs/company_app/app.log from a saved (inode, byte offset), follows rotation
+into app.log.N, and writes ~/.local/state/company-app-perf/perf.sqlite. Only closed
+5-minute buckets are written, so a rerun is a no-op and each row is exact.
+Env for tests: PERF_LOG, PERF_DB, PERF_NOW (ISO UTC).
+"""
+import json
+import math
+import os
+import re
+import sqlite3
+import sys
+from datetime import datetime, timedelta, timezone
+
+HOME = os.path.expanduser("~")
+LOG = os.environ.get("PERF_LOG", f"{HOME}/logs/company_app/app.log")
+DB = os.environ.get("PERF_DB", f"{HOME}/.local/state/company-app-perf/perf.sqlite")
+BUCKET_S = 300
+RAW_DAYS = 30
+DAILY_DAYS = 365
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
+EVENT = re.compile(r'(\{"event":"request_completed".*\})\s*$')
+
+SCHEMA = """
+create table if not exists state(id integer primary key check (id = 1), inode integer, offset integer);
+create table if not exists raw(
+  bucket text, template text, count integer, p50 integer, p95 integer, p99 integer,
+  max_ms integer, mean_db real, slow_trace text, samples text,
+  primary key (bucket, template));
+create table if not exists daily(
+  day text, template text, count integer, p95 integer, p99 integer, max_ms integer,
+  mean_db real, slow_trace text, primary key (day, template));
+"""
+
+
+def now_utc():
+    v = os.environ.get("PERF_NOW")
+    if v:
+        return datetime.fromisoformat(v.replace("Z", "+00:00"))
+    return datetime.now(timezone.utc)
+
+
+def epoch(ts):
+    return datetime.fromisoformat(ts[:19] + "+00:00").timestamp()
+
+
+def iso(sec):
+    return datetime.fromtimestamp(sec, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def pct(sorted_vals, p):
+    return sorted_vals[max(0, math.ceil(p * len(sorted_vals)) - 1)]
+
+
+def log_chain():
+    """Oldest first: app.log.N ... app.log.1, app.log."""
+    base = os.path.basename(LOG)
+    d = os.path.dirname(LOG)
+    rotated = []
+    for name in os.listdir(d):
+        m = re.fullmatch(re.escape(base) + r"\.(\d+)", name)
+        if m:
+            rotated.append((int(m.group(1)), os.path.join(d, name)))
+    files = [p for _, p in sorted(rotated, reverse=True)]
+    if os.path.exists(LOG):
+        files.append(LOG)
+    return files
+
+
+def parse(raw_line):
+    text = ANSI.sub("", raw_line)
+    m = EVENT.search(text)
+    if not m:
+        return None
+    try:
+        e = json.loads(m.group(1))
+        ts = text.split(" ", 1)[0]
+        return (epoch(ts), e["template"], int(e["elapsedMs"]), int(e["dbMs"]), str(e["traceId"]))
+    except (ValueError, KeyError, TypeError, IndexError):
+        return None
+
+
+def read_new(con, limit_bucket):
+    """Yield parsed rows from the saved position; stop at the first line in an open bucket.
+
+    Returns (rows, inode, offset) for the position to save.
+    """
+    files = log_chain()
+    if not files:
+        return [], None, None
+    row = con.execute("select inode, offset from state where id = 1").fetchone()
+    start = 0
+    if row:
+        inodes = [os.stat(p).st_ino for p in files]
+        if row[0] in inodes:
+            start = inodes.index(row[0])
+            first_off = row[1] if os.stat(files[start]).st_size >= row[1] else 0
+        else:
+            start, first_off = 0, 0
+    else:
+        first_off = 0
+    out = []
+    pos_inode, pos_off = None, None
+    for i in range(start, len(files)):
+        path = files[i]
+        st = os.stat(path)
+        off = first_off if i == start else 0
+        with open(path, "rb") as f:
+            f.seek(off)
+            while True:
+                b = f.readline()
+                if not b:
+                    break
+                if not b.endswith(b"\n"):
+                    break
+                p = parse(b.decode("utf-8", "replace"))
+                if p is not None:
+                    if p[0] // BUCKET_S * BUCKET_S >= limit_bucket:
+                        return out, st.st_ino, off
+                    out.append(p)
+                off += len(b)
+        pos_inode, pos_off = st.st_ino, off
+    return out, pos_inode, pos_off
+
+
+def write_rows(con, rows):
+    groups = {}
+    for ts, template, ms, db, trace in rows:
+        groups.setdefault((iso(ts // BUCKET_S * BUCKET_S), template), []).append((ms, db, trace))
+    for (bucket, template), items in groups.items():
+        old = con.execute("select samples, mean_db, count, slow_trace, max_ms from raw where bucket=? and template=?",
+                          (bucket, template)).fetchone()
+        ms_list = [i[0] for i in items]
+        db_sum = sum(i[1] for i in items)
+        slow = max(items, key=lambda i: i[0])
+        slow_trace, max_ms = slow[2], slow[0]
+        if old:
+            ms_list = [int(x) for x in old[0].split(",")] + ms_list
+            db_sum += old[1] * old[2]
+            if old[4] >= max_ms:
+                slow_trace, max_ms = old[3], old[4]
+        ms_list_sorted = sorted(ms_list)
+        con.execute(
+            "insert or replace into raw values (?,?,?,?,?,?,?,?,?,?)",
+            (bucket, template, len(ms_list), pct(ms_list_sorted, 0.5), pct(ms_list_sorted, 0.95),
+             pct(ms_list_sorted, 0.99), max_ms, db_sum / len(ms_list), slow_trace,
+             ",".join(map(str, ms_list))))
+
+
+def rebuild_daily(con, days):
+    """Rebuild the daily rows for days this run touched; older days keep their last row after raw is pruned."""
+    for day in days:
+        con.execute("delete from daily where day = ?", (day,))
+        con.execute("""
+          insert into daily
+          select :d, template, sum(count), max(p95), max(p99), max(max_ms),
+                 sum(mean_db * count) / sum(count),
+                 (select r2.slow_trace from raw r2 where r2.bucket like :d || '%'
+                    and r2.template = r.template order by r2.max_ms desc limit 1)
+          from raw r where bucket like :d || '%' group by template""", {"d": day})
+
+
+def prune(con, now):
+    con.execute("delete from raw where bucket < ?", ((now - timedelta(days=RAW_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ"),))
+    con.execute("delete from daily where day < ?", ((now - timedelta(days=DAILY_DAYS)).strftime("%Y-%m-%d"),))
+
+
+def main():
+    os.makedirs(os.path.dirname(DB), exist_ok=True)
+    con = sqlite3.connect(DB)
+    con.executescript(SCHEMA)
+    now = now_utc()
+    limit = int(now.timestamp()) // BUCKET_S * BUCKET_S
+    rows, inode, offset = read_new(con, limit)
+    with con:
+        write_rows(con, rows)
+        if inode is not None:
+            con.execute("insert or replace into state values (1, ?, ?)", (inode, offset))
+        rebuild_daily(con, sorted({iso(r[0] // BUCKET_S * BUCKET_S)[:10] for r in rows}))
+        prune(con, now)
+    print(f"perf-record: {len(rows)} requests recorded")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

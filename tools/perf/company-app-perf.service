@@ -1,0 +1,7 @@
+[Unit]
+Description=Roll company_app request timings into per-route p95/p99 rows
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/perf-record
+Nice=10
