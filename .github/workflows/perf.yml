@@ -1,0 +1,102 @@
+name: perf
+
+# Fails a pull request that makes a key route slower or makes it run more queries.
+# One job boots the pull request's base and its head against one Postgres, drives sign-in,
+# Today, save session and Finance on each in interleaved rounds, and compares them
+# (tools/perf/gate). The table of both sides is written to the run summary.
+
+on:
+  pull_request:
+    paths:
+      - backend/**
+      - shared/**
+      - build.gradle.kts
+      - settings.gradle.kts
+      - gradle.properties
+      - gradle/**
+      - tools/perf/**
+      - .github/workflows/perf.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: company_user
+          POSTGRES_PASSWORD: company_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U company_user -d postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      POSTGRES_USER: company_user
+      POSTGRES_PASSWORD: company_password
+      TEST_DB_NAME: company_app_test
+      JWT_SECRET: ci-secret-must-be-at-least-64-characters-long-for-tests-0123456789
+      JWT_ISSUER: company-app-ci
+      JWT_AUDIENCE: company-app-ci
+      AUTH_DUMMY_PASSWORD: ci-dummy-password
+      TEST_USERNAME: owner
+      TEST_PASSWORD: owner-dev-pass
+      E2E_OWNER_PASSWORD: owner-dev-pass
+      SCOPED_USERNAME: staff
+      SCOPED_PASSWORD: staff-dev-pass
+      RELIEF_USERNAME: relief
+      RELIEF_PASSWORD: relief-dev-pass
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: ${{ runner.temp }}/base
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - uses: grafana/setup-k6-action@v1
+
+      - name: Test the comparison
+        run: node --test tools/perf/gate/compare.test.mjs
+
+      - name: Compare base and head
+        run: tools/perf/gate/run.sh "${{ runner.temp }}/base" . "${{ runner.temp }}/gate"
+
+      - name: Show both sides
+        if: always()
+        run: |
+          if [ -f "${{ runner.temp }}/gate/summary.md" ]; then
+            cat "${{ runner.temp }}/gate/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Keep the logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-gate
+          path: ${{ runner.temp }}/gate
+          retention-days: 7
