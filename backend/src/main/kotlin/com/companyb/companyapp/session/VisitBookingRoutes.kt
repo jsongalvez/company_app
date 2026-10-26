@@ -99,6 +99,7 @@ object VisitBookingRoutes {
         }
 
         config.routes.get(ApiRoutes.BRANCH_BOOKINGS_PATH) { context ->
+            Thread.sleep(300)
             context.json(VisitBookingService.upcoming(context.pathParamAsUuid(BRANCH_ID)))
         }
         config.routes.post(ApiRoutes.BRANCH_BOOKINGS_PATH) { context ->
