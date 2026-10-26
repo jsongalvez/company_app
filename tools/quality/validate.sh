@@ -69,6 +69,7 @@ run_shell_validation() {
     "$root/tools/database/test-db-discovery-test.sh" \
     "$root/tools/database/source-env-test.sh" \
     "$root/tools/performance/check-baselines-test.sh" \
+    "$root/tools/perf/test/alert.test.sh" \
     "$root/tools/quality/check-before-push-test.sh"; do
     [ -f "$t" ] || continue
     bash "$t" || status=1

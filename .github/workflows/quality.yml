@@ -161,7 +161,7 @@ jobs:
 
       - name: Syntax-check owned shell files
         run: |
-          for f in tools/check-before-push.sh tools/push.sh tools/quality/*.sh tools/quality/lib/*.sh tools/database/*.sh tools/database/lib/*.sh tools/performance/*.sh scripts/*.sh; do
+          for f in tools/check-before-push.sh tools/push.sh tools/quality/*.sh tools/quality/lib/*.sh tools/database/*.sh tools/database/lib/*.sh tools/performance/*.sh tools/perf/*.sh tools/perf/test/*.sh scripts/*.sh; do
             [ -f "$f" ] || continue
             bash -n "$f"
           done
@@ -185,3 +185,4 @@ jobs:
           bash tools/quality/check-patterns-test.sh
           bash tools/quality/push-test.sh
           bash tools/perf/test/record.test.sh
+          bash tools/perf/test/alert.test.sh
