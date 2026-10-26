@@ -363,6 +363,7 @@ fun main() {
 }
 
 fun main(config: AppConfig) {
+    if (config.appPort > 0) error("planted boot failure")
     RequestElapsedConverter.startRequest()
     DeltaTimeConverter.startRequest()
     logger.info { "[INITIALIZATION] Starting initialization" }
