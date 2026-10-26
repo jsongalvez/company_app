@@ -27,6 +27,7 @@ on:
       - 'tools/push.sh'
       - 'docs/patterns.md'
       - 'tools/performance/**'
+      - 'tools/perf/**'
       - 'scripts/**'
       - 'config/deadcode/**'
       - 'docker/**'
@@ -49,6 +50,7 @@ on:
       - 'tools/push.sh'
       - 'docs/patterns.md'
       - 'tools/performance/**'
+      - 'tools/perf/**'
       - 'scripts/**'
       - 'config/deadcode/**'
       - 'docker/**'
@@ -182,3 +184,4 @@ jobs:
           bash tools/quality/check-references-test.sh
           bash tools/quality/check-patterns-test.sh
           bash tools/quality/push-test.sh
+          bash tools/perf/test/record.test.sh

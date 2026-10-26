@@ -1,0 +1,61 @@
+#!/usr/bin/python3 -I
+"""Print count, p50, p95, p99, max, mean db time and slowest trace per route template.
+
+Usage: perf-report [route-substring] [--since 24h|90m|7d]
+Percentiles are exact over the window: they come from the stored samples.
+Windows past 30 days read the daily table (worst 5-minute p95/p99 of each day).
+"""
+import math
+import os
+import sqlite3
+import sys
+from datetime import datetime, timedelta, timezone
+
+HOME = os.path.expanduser("~")
+DB = os.environ.get("PERF_DB", f"{HOME}/.local/state/company-app-perf/perf.sqlite")
+UNITS = {"m": 60, "h": 3600, "d": 86400}
+
+
+def pct(vals, p):
+    return vals[max(0, math.ceil(p * len(vals)) - 1)]
+
+
+def main(argv):
+    since, route = "24h", None
+    args = list(argv)
+    while args:
+        a = args.pop(0)
+        if a == "--since":
+            since = args.pop(0)
+        elif a.startswith("--since="):
+            since = a.split("=", 1)[1]
+        else:
+            route = a
+    secs = int(since[:-1]) * UNITS[since[-1]]
+    v = os.environ.get("PERF_NOW")
+    now = datetime.fromisoformat(v.replace("Z", "+00:00")) if v else datetime.now(timezone.utc)
+    cut = (now - timedelta(seconds=secs)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    con = sqlite3.connect(DB)
+    rows = con.execute(
+        "select template, samples, mean_db, count, max_ms, slow_trace from raw where bucket >= ? and template like ?",
+        (cut, f"%{route or ''}%")).fetchall()
+    agg = {}
+    for t, samples, db, n, mx, trace in rows:
+        a = agg.setdefault(t, {"ms": [], "db": 0.0, "n": 0, "max": -1, "trace": ""})
+        a["ms"] += [int(x) for x in samples.split(",")]
+        a["db"] += db * n
+        a["n"] += n
+        if mx > a["max"]:
+            a["max"], a["trace"] = mx, trace
+    print(f"{'route':<52} {'count':>6} {'p50':>6} {'p95':>6} {'p99':>6} {'max':>6} {'db':>6}  slowest trace")
+    for t in sorted(agg):
+        a = agg[t]
+        ms = sorted(a["ms"])
+        print(f"{t:<52} {a['n']:>6} {pct(ms, .5):>6} {pct(ms, .95):>6} {pct(ms, .99):>6} {a['max']:>6} "
+              f"{a['db'] / a['n']:>6.0f}  {a['trace']}")
+    if not agg:
+        print("(no rows in this window)")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
