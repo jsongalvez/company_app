@@ -24,7 +24,15 @@ internal object IncidentFields {
 
     fun extractRoute(endpoint: String): String = endpoint.substringAfter(" ", endpoint)
 
-    fun normalizedRoute(raw: String): String = RequestMetrics.normalizeRoute(raw.substringBefore("?")).maskUUID()
+    private val uuidSegment = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+    private val numericSegment = Regex("/\\d+(?=/|\$)")
+
+    private fun normalizeRoute(path: String): String {
+        val noUuid = uuidSegment.replace(path, "{id}")
+        return numericSegment.replace(noUuid, "/{id}")
+    }
+
+    fun normalizedRoute(raw: String): String = normalizeRoute(raw.substringBefore("?")).maskUUID()
 
     fun maskReporter(raw: String?): String =
         raw?.let {

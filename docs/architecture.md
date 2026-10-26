@@ -44,7 +44,7 @@ Kotlin backend (contracts included); the web app (Svelte + TypeScript) is served
 | Database | PostgreSQL 18, Flyway |
 | Infrastructure | Docker, Docker Compose, Oracle Cloud Free Tier (singapore west), Coolify |
 | Quality | Detekt, Ktlint |
-| Testing | JavalinTest, k6, JMH (manual diagnostics) |
+| Testing | JavalinTest, JMH (manual diagnostics) |
 
 **Non-goals:** No Node/Express server, no Spring Boot, no paid tooling, no native mobile/desktop apps (the web app covers phone and desktop).
 
@@ -84,7 +84,7 @@ company-app/
 │       ├── notification/     # Mailbox, occurrence idempotency, appointment reminders + session-access reads; internal stores + tables, route adapters; NotificationReads/NotificationAppender seams (#550)
 │       ├── http/             # Transport + serialization + OpenAPI contract; openapi/ subcluster for canonical document/projector/export (#551)
 │       ├── app/              # Startup composition: AppConfig + SchedulerLifecycle executor with composition-supplied jobs (#551)
-│       ├── observability/    # Incident packets/delivery, metrics, feedback/metrics adapters (#551)
+│       ├── observability/    # Incident packets/delivery, feedback adapters (#551)
 │       ├── database/         # HikariCP + Flyway + Exposed setup
 │       ├── logging/          # Logback converters, logging extensions
 │       ├── api/              # Thin remaining adapters: health probe, context extensions, trace filter, route utils
@@ -98,7 +98,7 @@ company-app/
 │   ├── research/             # Accepted research snapshots (not policy)
 │   ├── adr/                  # Architecture decision records
 │   └── specs/                # Feature specs
-├── tools/performance/k6/     # HTTP-level load testing
+├── tools/performance/        # JMH baseline checker
 └── docker/
 ```
 

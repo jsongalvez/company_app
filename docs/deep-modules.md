@@ -137,7 +137,7 @@ intentionally shallow.
 **Public seam:** `submit` / `undoAt` / `createDraft` / `updateHeader` / `addLine` / `removeLine` / `addDayBreakdown` / `getDrift` / list+picker reads.
 **Depends on:** Branch Day (mark/release days), Session + Product Sales (line-source validation, gross sums); finance day-entry rows feed remittance sums via direct table reads inside the remittance internal store (deliberate; #546 owns the finance move, no new seam).
 **Expansion triggers:** V13 trigger carve-out for snapshot deletion; `no_remittance_overlap` exclusion constraint; BigDecimal no-rounding rule (remittance sums); drift read semantics.
-**Tests/authority:** `docs/engines.md` (exact pseudocode); `RemittancePolicy` is DB-free unit-tested; k6 `remittance-race-test.js` covers the serializable race.
+**Tests/authority:** `docs/engines.md` (exact pseudocode); `RemittancePolicy` is DB-free unit-tested.
 **Search:** `assertWithinUndoWindow`, `remittance_financial_snapshot`.
 
 ## Relief
@@ -207,7 +207,7 @@ Not a semantic module — read only when the ticket touches it directly:
 `exception/ServiceExceptions.kt`, `api/routes/RoutesUtil.kt` (parsing/keyset limits),
 `database/DatabaseConfig.kt` + `DatabaseHealth.kt`, `app/AppConfig.kt` + `app/SchedulerLifecycle.kt` (#551 startup composition: composition-supplied jobs),
 `http/KotlinxSerializationMapper.kt` + `http/openapi/*` (canonical contract, projector, export — #551),
-`observability/*` (incident packets/delivery, metrics, feedback/metrics adapters — #551),
+`observability/*` (incident packets/delivery, feedback adapters — #551),
 `logging/*` converters (tracing stays distinguishable from observability — #551),
 feature-colocated `*Table`/`*View` mappings (schema work only —
 `V1__full_schema.sql` (squashed baseline, #370/#461/#548) and `V2` seeds in
