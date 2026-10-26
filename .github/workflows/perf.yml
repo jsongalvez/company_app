@@ -9,7 +9,6 @@ on:
   pull_request:
     paths:
       - backend/**
-      - shared/**
       - build.gradle.kts
       - settings.gradle.kts
       - gradle.properties
@@ -65,7 +64,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.sha }}
-          path: ${{ runner.temp }}/base
+          path: base-checkout
 
       - uses: actions/setup-java@v4
         with:
@@ -84,7 +83,7 @@ jobs:
         run: node --test tools/perf/gate/compare.test.mjs
 
       - name: Compare base and head
-        run: tools/perf/gate/run.sh "${{ runner.temp }}/base" . "${{ runner.temp }}/gate"
+        run: tools/perf/gate/run.sh base-checkout . "${{ runner.temp }}/gate"
 
       - name: Show both sides
         if: always()
