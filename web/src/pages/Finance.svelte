@@ -228,6 +228,7 @@
     }
 
     async function recalc() {
+        if (!confirm("Update shares? This works this day's commission shares out again from its sales and clock-ins, replacing the shares shown now.")) return;
         if (await act(() => ok(api.POST("/api/commission/recalculate/{branchDayId}", { params: { path: { branchDayId: dayId } } })), "Shares updated"))
             refresh();
     }
