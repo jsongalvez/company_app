@@ -1,0 +1,2 @@
+id	hypothesis	change	before	after	delta	tests	verdict	note
+A0	baseline	none (dc0a5d97)	prod sign-in 1577ms/10 calls/3 rounds; reload 8 calls; local sign-in 1475ms	-	-	harness 5 runs, 0 errors	baseline	noise band: prod sign-in 1509-1625, reload 371-896 (cache hits make usable noisy; settled is steadier)
