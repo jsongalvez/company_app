@@ -191,4 +191,14 @@ test("opening Branches asks for the list and the branch's staff at once", { sess
     await expect(screen.getByRole("heading", "Staff", { exact: false }).first()).toBeVisible({ timeout: 15_000 });
     expect(sent.some((p) => p.endsWith("/assignments"))).toBe(true);
     expect(sentAfterRelease).toBe(0);
+
+// Marking a session takes one request: its answer is the saved session, so the lists are not read again.
+test("marking a session Done does not re-read Today's lists", { session: "owner" }, async ({ app, screen, browser }) => {
+    await app.open("/#/today");
+    await clockInHere(screen, browser);
+    const reads = await watchReads(browser, { lists: /^\/api\/branches\/[^/?]+\/today-screen/ });
+    await addDoneSessionForNewClient(screen);
+    await new Promise((r) => setTimeout(r, 1500));
+    // One read follows the save (a new row's details come from the server); none follows the mark.
+    expect(reads.lists).toBe(1);
 });
