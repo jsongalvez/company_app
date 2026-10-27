@@ -3,6 +3,7 @@ package com.companyb.companyapp
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.NulCharFilter
 import com.companyb.companyapp.api.middleware.TraceIdFilter
+import com.companyb.companyapp.api.routes.BatchRoutes
 import com.companyb.companyapp.api.routes.HealthRoutes
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.app.ScheduledJob
@@ -187,13 +188,10 @@ private fun configureAuth(config: io.javalin.config.JavalinConfig) {
  */
 fun registerAllRoutes(config: io.javalin.config.JavalinConfig) {
     HealthRoutes.register(config)
-    AuthRoutes.login(config)
-    AuthRoutes.acceptInvite(config)
-    AuthRoutes.forgotPassword(config)
-    AuthRoutes.resetPassword(config)
-    AuthRoutes.logout(config)
+    registerAuthRoutes(config)
     MeRoutes.getMe(config)
     StartRoutes.register(config)
+    BatchRoutes.register(config)
     MeRoutes.updateMe(config)
     MeRoutes.changePassword(config)
     MeRoutes.getCapabilities(config)
@@ -243,6 +241,14 @@ fun registerAllRoutes(config: io.javalin.config.JavalinConfig) {
     ExportRoutes.register(config)
     MyHistoryRoutes.register(config)
     ClientHistoryRoutes.register(config)
+}
+
+private fun registerAuthRoutes(config: io.javalin.config.JavalinConfig) {
+    AuthRoutes.login(config)
+    AuthRoutes.acceptInvite(config)
+    AuthRoutes.forgotPassword(config)
+    AuthRoutes.resetPassword(config)
+    AuthRoutes.logout(config)
 }
 
 private fun registerExceptionHandlers(config: io.javalin.config.JavalinConfig) {

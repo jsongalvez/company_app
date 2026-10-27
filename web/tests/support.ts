@@ -62,3 +62,22 @@ export async function addDoneSessionForNewClient(screen: Screen): Promise<string
     await expect(row.getByText("Done")).toBeVisible();
     return `${first} Tester`;
 }
+
+/**
+ * Count the reads the app makes, by what each one asks for. Reads asked for together travel in one
+ * `/api/batch` request, so its paths are counted one by one, as if they had gone alone.
+ */
+export async function watchReads(browser: Browser, lists: Record<string, RegExp>): Promise<Record<string, number>> {
+    const reads = Object.fromEntries(Object.keys(lists).map((name) => [name, 0]));
+    const count = (path: string) => {
+        for (const [name, re] of Object.entries(lists)) if (re.test(path)) reads[name]!++;
+    };
+    await browser.route(/\/api\//, async (route) => {
+        const { url, method, postData } = route.request;
+        const u = new URL(url);
+        if (method === "GET") count(u.pathname + u.search);
+        else if (method === "POST" && u.pathname === "/api/batch") for (const p of (JSON.parse(postData ?? "{}") as { paths?: string[] }).paths ?? []) count(p);
+        await route.fallback();
+    });
+    return reads;
+}
