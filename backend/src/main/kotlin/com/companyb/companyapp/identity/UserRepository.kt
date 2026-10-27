@@ -229,6 +229,7 @@ internal object UserRepository {
                 .forUpdate(ForUpdateOption.ForUpdate)
                 .singleOrNull() ?: error("User not found")
         val nextVersion = locked[AppUserTable.credentialVersion] + 1
+        AuthStateCache.invalidateAfterCommit(userId)
         AppUserTable.update({ AppUserTable.id eq userId }) {
             it[AppUserTable.passwordHash] = passwordHash
             it[AppUserTable.credentialVersion] = nextVersion
@@ -291,6 +292,7 @@ internal object UserRepository {
         val existing = locked[AppUserTable.jwtRevokedAt]
         val boundary = if (existing == null || now.isAfter(existing)) now else existing
         if (existing == null || boundary.isAfter(existing)) {
+            AuthStateCache.invalidateAfterCommit(userId)
             AppUserTable.update({ AppUserTable.id eq userId }) {
                 it[jwtRevokedAt] = boundary
             }
@@ -323,6 +325,7 @@ internal object UserRepository {
                 .first()[clockTimestamp]
         val existingBoundary = beforeRow[AppUserTable.jwtRevokedAt]
         val boundary = if (existingBoundary == null || now.isAfter(existingBoundary)) now else existingBoundary
+        AuthStateCache.invalidateAfterCommit(userId)
         AppUserTable.update({ AppUserTable.id eq userId }) {
             it[status] = UserStatus.INACTIVE
             it[deactivatedAt] = boundary
@@ -357,6 +360,7 @@ internal object UserRepository {
             return UserStatusTransition(before, before, changed = false)
         }
 
+        AuthStateCache.invalidateAfterCommit(userId)
         AppUserTable.update({ AppUserTable.id eq userId }) {
             it[status] = UserStatus.ACTIVE
             it[deactivatedAt] = null
@@ -426,8 +430,9 @@ internal object UserRepository {
         }.also { logger.info { "[FIND-ACTIVE-ASSIGNMENTS-WITH-BRANCH] Fetched ${it.size} active assignment(s)" } }
 
     /**
-     * Token-aware authorization read: one query evaluates ACTIVE status,
-     * the credential generation, plus the persisted revocation boundary. A token is
+     * Token-aware authorization: evaluates ACTIVE status, the credential generation, plus the
+     * persisted revocation boundary, read from [AuthStateCache] (a few seconds old at most,
+     * dropped at once by every writer of those columns in this file). A token is
      * accepted iff its owner exists, is ACTIVE, carries the current generation, and
      * was issued strictly after that user's nullable boundary. Same-second issuance
      * stays denied — JWT `iat` is second-precision and cannot distinguish before/after.
@@ -437,21 +442,30 @@ internal object UserRepository {
         tokenIssuedAt: Instant,
         credentialVersion: Long = 0L,
     ): Boolean {
-        val authorized =
-            transaction {
-                val row =
+        val state =
+            AuthStateCache.get(userId) {
+                transaction {
                     AppUserTable
                         .select(
                             AppUserTable.status,
                             AppUserTable.jwtRevokedAt,
                             AppUserTable.credentialVersion,
                         ).where { AppUserTable.id eq userId }
-                        .singleOrNull() ?: return@transaction false
-                if (row[AppUserTable.status] != UserStatus.ACTIVE) return@transaction false
-                if (row[AppUserTable.credentialVersion] != credentialVersion) return@transaction false
-                val boundary = row[AppUserTable.jwtRevokedAt]?.toInstant() ?: return@transaction true
-                tokenIssuedAt.isAfter(boundary)
+                        .singleOrNull()
+                        ?.let {
+                            AuthState(
+                                status = it[AppUserTable.status],
+                                jwtRevokedAt = it[AppUserTable.jwtRevokedAt],
+                                credentialVersion = it[AppUserTable.credentialVersion],
+                            )
+                        }
+                }
             }
+        val authorized =
+            state != null &&
+                state.status == UserStatus.ACTIVE &&
+                state.credentialVersion == credentialVersion &&
+                (state.jwtRevokedAt?.toInstant()?.let { tokenIssuedAt.isAfter(it) } ?: true)
         if (authorized) {
             logger.info { "[AUTHORIZE] User ${userId.toString().maskUUID()} is authorized" }
         } else {
