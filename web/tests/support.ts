@@ -33,10 +33,14 @@ export async function clockOutHere(screen: Screen, browser: Browser): Promise<vo
 
 /** Clock in at the current branch, add a session for a brand-new client, mark it done. Returns the client's name. */
 export async function doneSessionForNewClient(app: App, screen: Screen, browser: Browser): Promise<string> {
-    const first = `Test${Date.now().toString().slice(-6)}`;
     await app.open("/#/today");
     await clockInHere(screen, browser);
+    return addDoneSessionForNewClient(screen);
+}
 
+/** On Today, already clocked in: add a session for a brand-new client and mark it done. Returns the client's name. */
+export async function addDoneSessionForNewClient(screen: Screen): Promise<string> {
+    const first = `Test${Date.now().toString().slice(-6)}`;
     await screen.getByRole("button", "New session").tap();
     const dialog = screen.getByRole("dialog", "New session");
     await dialog.getByPlaceholder("Search by name or phone (2+ letters)").fill(first);

@@ -17,3 +17,15 @@ The alert ends with `perf-slow <traceId>`: the request's log lines, its slow sta
 Test: `tools/perf/test/alert.test.sh`.
 
 The prod database container does not load `pg_stat_statements` (checked 2026-10-27: `shared_preload_libraries` is empty), so on prod `perf-slow` prints the request's `slow_statement` lines (over 200ms) instead of the top-3 table. Loading it needs `shared_preload_libraries=pg_stat_statements` and a database restart, left for the owner.
+
+# Calls per flow
+
+`calls.mjs` drives the phone web app in a real browser (375px, added latency) and counts the `/api` calls each flow makes: sign-in to the first Today, open Finance, Today again after 20s, a Today, Finance, Today round trip, tab hidden then visible, window blur then focus, save a session, mark it Done, reload, idle. It prints calls, rounds and the endpoint list per flow.
+
+```
+node tools/perf/calls.mjs --base http://127.0.0.1:18181 --user owner --pass owner-dev-pass --runs 3
+```
+
+`CALLS_USER` and `CALLS_PASS` in the environment do the same and keep a password off the command line.
+
+`tools/verify/verify.sh up` gives the local app. The save flow writes one session for a client named "Probe" (made on first use) and marks it Done: point it at a test or probe account, or pass `--no-save`.
