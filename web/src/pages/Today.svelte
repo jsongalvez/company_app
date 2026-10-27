@@ -1,7 +1,7 @@
 <script lang="ts">
     import { api, ok, uuid, BASE_STATUS, type S } from "../api/client";
     import { app, can, branchName, refreshBranchDay, clockIn, selectBranch, onDutyAt, shiftChanged } from "../lib/app.svelte";
-    import { Query, invalidate } from "../lib/cache.svelte";
+    import { Query, invalidate, seed } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
     import { go, viewSetting } from "../lib/router.svelte";
@@ -125,18 +125,29 @@
     async function mark(s: S["DashboardSessionResponse"], to: Status) {
         const undo = to === "PENDING";
         if (to !== "COMPLETED" && !undo && !confirm(`Mark ${s.clientName ?? "session"} as ${label(to)}?`)) return;
+        let saved: unknown;
         const okd = await act(
-            () =>
-                ok(
+            async () =>
+                (saved = await ok(
                     api.PATCH("/api/sessions/{sessionId}/status", {
                         params: { path: { sessionId: s.id } },
                         body: { status: to, version: s.version },
                         headers: { [BASE_STATUS]: s.sessionStatus },
                     }),
-                ),
+                )),
             undo ? `${s.clientName ?? "Session"}: back to Waiting` : `${s.clientName ?? "Session"}: ${label(to)}`,
         );
-        if (okd) reloadLists();
+        if (!okd) return;
+        // The answer is the session as saved: show it without reading the lists again (a round trip on a weak signal).
+        const r = saved as Partial<S["SessionResponse"]> | undefined;
+        if (r?.id === s.id && r.sessionStatus && dash.data) {
+            const next = {
+                ...dash.data,
+                sessions: dash.data.sessions.map((x) => (x.id === s.id ? { ...x, sessionStatus: r.sessionStatus!, version: r.version ?? x.version } : x)),
+            };
+            dash.data = next;
+            seed(dash.key, next);
+        } else reloadLists();
     }
 
     async function setPresent(m: S["MemberAttendanceResponse"], present: boolean) {
