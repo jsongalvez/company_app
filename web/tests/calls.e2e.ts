@@ -1,6 +1,6 @@
 import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
-import { addDoneSessionForNewClient, clockInHere } from "./support";
+import { addDoneSessionForNewClient, clockInHere, watchReads } from "./support";
 
 // Saving or marking a session cannot change the day's status, so Today does not ask for it again.
 // Only the Refresh button does.
@@ -8,18 +8,13 @@ test("saving and marking a session do not re-read the branch day", { session: "o
     await app.open("/#/today");
     await clockInHere(screen, browser);
 
-    const dayReads = /\/api\/branches\/[^/]+\/today$/;
-    let reads = 0;
-    await browser.route(dayReads, async (route) => {
-        if (route.request.method === "GET") reads++;
-        await route.fallback();
-    });
+    const reads = await watchReads(browser, { day: /^\/api\/branches\/[^/?]+\/today$/ });
 
     await addDoneSessionForNewClient(screen);
-    expect(reads).toBe(0);
+    expect(reads.day).toBe(0);
 
     await screen.getByRole("button", "Refresh").tap();
-    await expect.poll(() => reads).toBe(1);
+    await expect.poll(() => reads.day).toBe(1);
 });
 
 // A Finance save re-reads only the lists it can change (an expense: the expenses and the day's totals).
@@ -28,19 +23,13 @@ test("saving an expense re-reads only the expenses and the day's totals", { sess
     await app.open("/#/finance");
     await expect(screen.getByRole("heading", "Expenses")).toBeVisible();
 
-    const reads: Record<string, number> = { expenses: 0, pay: 0, allowances: 0, shares: 0, totals: 0 };
-    const lists: [string, RegExp][] = [
-        ["expenses", /\/api\/expenses\?/],
-        ["pay", /\/api\/compensations\?/],
-        ["allowances", /\/api\/allowances\?/],
-        ["shares", /\/api\/commission-splits\//],
-        ["totals", /\/api\/branches\/[^/]+\/daily-summary\?/],
-    ];
-    for (const [name, url] of lists)
-        await browser.route(url, async (route) => {
-            if (route.request.method === "GET") reads[name]++;
-            await route.fallback();
-        });
+    const reads = await watchReads(browser, {
+        expenses: /^\/api\/expenses\?/,
+        pay: /^\/api\/compensations\?/,
+        allowances: /^\/api\/allowances\?/,
+        shares: /^\/api\/commission-splits\//,
+        totals: /^\/api\/branches\/[^/]+\/daily-summary\?/,
+    });
 
     const note = `Calls ${Date.now().toString().slice(-6)}`;
     await screen.getByRole("button", "Add").first().tap();
@@ -62,19 +51,13 @@ test("adding an allowance re-reads only the allowances", { session: "owner" }, a
     await app.open("/#/finance");
     await expect(screen.getByRole("heading", "Allowances")).toBeVisible();
 
-    const reads: Record<string, number> = { expenses: 0, pay: 0, allowances: 0, shares: 0, totals: 0 };
-    const lists: [string, RegExp][] = [
-        ["expenses", /\/api\/expenses\?/],
-        ["pay", /\/api\/compensations\?/],
-        ["allowances", /\/api\/allowances\?/],
-        ["shares", /\/api\/commission-splits\//],
-        ["totals", /\/api\/branches\/[^/]+\/daily-summary\?/],
-    ];
-    for (const [name, url] of lists)
-        await browser.route(url, async (route) => {
-            if (route.request.method === "GET") reads[name]++;
-            await route.fallback();
-        });
+    const reads = await watchReads(browser, {
+        expenses: /^\/api\/expenses\?/,
+        pay: /^\/api\/compensations\?/,
+        allowances: /^\/api\/allowances\?/,
+        shares: /^\/api\/commission-splits\//,
+        totals: /^\/api\/branches\/[^/]+\/daily-summary\?/,
+    });
 
     await screen.getByRole("button", "Add").nth(2).tap();
     const dialog = screen.getByRole("dialog", "Add allowance");
@@ -92,7 +75,7 @@ test("adding an allowance re-reads only the allowances", { session: "owner" }, a
 // A phone on a weak hotspot pays a round trip for every request in a row. Signing in is one request:
 // the login answer carries who you are, your rights, branches, the branch's day, your shift, unread alerts and Today's lists.
 const OPENING_READS: [string, RegExp][] = [
-    ["me", /\/api\/me$/],
+    ["me", /^\/api\/me$/],
     ["rights", /\/api\/me\/capabilities$/],
     ["my branches", /\/api\/me\/branches$/],
     ["branch list", /\/api\/branches\/accessible$/],
@@ -102,24 +85,12 @@ const OPENING_READS: [string, RegExp][] = [
     ["unread", /\/api\/notifications\/unread-count$/],
 ];
 
-async function countOpeningReads(browser: Parameters<typeof clockInHere>[1]) {
-    const reads: Record<string, number> = { start: 0 };
-    for (const [name] of OPENING_READS) reads[name] = 0;
-    for (const [name, url] of OPENING_READS)
-        await browser.route(url, async (route) => {
-            if (route.request.method === "GET") reads[name]++;
-            await route.fallback();
-        });
-    await browser.route(/\/api\/start(\?|$)/, async (route) => {
-        reads.start++;
-        await route.fallback();
-    });
-    return reads;
-}
+const openingReads = (browser: Parameters<typeof watchReads>[0]) =>
+    watchReads(browser, Object.fromEntries([...OPENING_READS, ["start", /^\/api\/start(\?|$)/] as [string, RegExp]]));
 
 test("signing in opens the app with one request", async ({ app, screen, browser }) => {
     await app.open("/");
-    const reads = await countOpeningReads(browser);
+    const reads = await openingReads(browser);
     await screen.getByLabel("Username").fill("owner");
     await screen.getByLabel("Password").fill("owner-dev-pass");
     await screen.getByRole("button", "Sign in").tap();
@@ -141,7 +112,7 @@ test("opening the app again asks once for everything", { session: "owner" }, asy
             .getByRole("button", /Clock (in|out)/)
             .first(),
     ).toBeVisible();
-    const reads = await countOpeningReads(browser);
+    const reads = await openingReads(browser);
     await browser.reload();
     await expect(
         screen
@@ -151,4 +122,24 @@ test("opening the app again asks once for everything", { session: "owner" }, asy
     ).toBeVisible();
     await expect.poll(() => reads.start).toBe(1);
     expect(reads).toEqual({ start: 1, me: 0, rights: 0, "my branches": 0, "branch list": 0, day: 0, "today lists": 0, shift: 0, unread: 0 });
+});
+
+// Reads asked for together are one request: Finance opens with about eight lists.
+test("opening Finance is one request", { session: "owner" }, async ({ app, screen, browser }) => {
+    await app.open("/#/today");
+    await expect(
+        screen
+            .getByRole("banner")
+            .getByRole("button", /Clock (in|out)/)
+            .first(),
+    ).toBeVisible();
+    const sent: string[] = [];
+    await browser.route(/\/api\//, async (route) => {
+        sent.push(`${route.request.method} ${new URL(route.request.url).pathname}`);
+        await route.fallback();
+    });
+    await app.open("/#/finance");
+    await expect(screen.getByRole("heading", "Allowances")).toBeVisible();
+    await expect(screen.getByRole("heading", "Commission share")).toBeVisible();
+    expect(sent).toEqual(["POST /api/batch"]);
 });
