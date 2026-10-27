@@ -21,6 +21,10 @@ export const KEY_ROUTES = {
     "GET /api/expenses": "Finance expenses",
 };
 
+// Signing in also reads what the app needs to open (rights, branches, the day, shift, alerts, Today's lists):
+// one request instead of eight, so its query count may rise up to this budget. Other key routes may not rise.
+export const QUERY_BUDGET = { "POST /auth/login": 40 };
+
 const COMPLETED = /\{"event":"request_completed".*\}/;
 
 export function parseLog(text) {
@@ -83,7 +87,7 @@ export function compare(rounds) {
         if (row.isKey) {
             if (!pairs.length) row.problems.push("no samples on one side");
             if (row.slowRounds >= FAIL_ROUNDS) row.problems.push("slower");
-            if (row.headQueries !== null && row.headQueries > row.baseQueries) row.problems.push("more queries");
+            if (row.headQueries !== null && row.headQueries > Math.max(row.baseQueries, QUERY_BUDGET[key] ?? 0)) row.problems.push("more queries");
         }
         rows.push(row);
     }
@@ -104,7 +108,7 @@ export function render({ rows, failed }, roundCount) {
     if (failed) out.push("");
     out.push("| Route | Base p95 | Head p95 | Slower rounds | Queries base to head | Verdict |", "| --- | --- | --- | --- | --- | --- |");
     for (const r of sorted) out.push(`| ${r.name} | ${ms(r.baseP95)} | ${ms(r.headP95)} | ${r.slowRounds} of ${r.rounds} | ${r.baseQueries ?? "-"} to ${r.headQueries ?? "-"} | ${verdict(r)} |`);
-    out.push("", `Fails when head p95 is over base by ${SLOWER_RATIO * 100}% and ${SLOWER_MS}ms in ${FAIL_ROUNDS} of the rounds, or when the query count rises. p95 columns are medians over rounds of each round's p95.`);
+    out.push("", `Fails when head p95 is over base by ${SLOWER_RATIO * 100}% and ${SLOWER_MS}ms in ${FAIL_ROUNDS} of the rounds, or when the query count rises (sign-in may rise up to ${QUERY_BUDGET["POST /auth/login"]}). p95 columns are medians over rounds of each round's p95.`);
     return out.join("\n") + "\n";
 }
 

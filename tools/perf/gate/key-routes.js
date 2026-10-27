@@ -28,7 +28,7 @@ const opDate = () => new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(
 const json = { "content-type": "application/json" };
 
 function login() {
-    const r = http.post(`${BASE}/auth/login`, JSON.stringify({ username: "staff", password: "staff-dev-pass" }), { headers: json });
+    const r = http.post(`${BASE}/auth/login`, JSON.stringify({ username: "staff", password: "staff-dev-pass", branchId: BRANCH, withToday: true }), { headers: json });
     check(r, { "sign-in ok": ok });
     return r;
 }
