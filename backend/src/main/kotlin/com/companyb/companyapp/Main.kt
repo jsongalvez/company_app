@@ -115,6 +115,13 @@ private fun configureWebApp(
     config: io.javalin.config.JavalinConfig,
     webDir: String,
 ) {
+    // Built files carry their content hash in the name, so a phone may keep them for good without asking again.
+    config.staticFiles.add { files ->
+        files.hostedPath = "/assets"
+        files.directory = "$webDir/assets"
+        files.location = Location.EXTERNAL
+        files.headers = mapOf("Cache-Control" to "public, max-age=31536000, immutable")
+    }
     config.staticFiles.add { files ->
         files.directory = webDir
         files.location = Location.EXTERNAL
