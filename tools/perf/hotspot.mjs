@@ -6,17 +6,22 @@
 // settled (ms until the last /api answer), /api calls, rounds (calls that had to wait for an earlier one),
 // bytes over the wire (api = /api and /auth, all = everything the flow loaded, headers included in neither).
 // Runs are medians; the spread (min-max) is the noise band. The profile and flows are fixed: change them only in a PR that says so.
+// --shaper sends every byte through shaper.mjs (same profile, but connection set-up, TLS and service-worker
+// fetches pay it too); --dist DIR serves the page and /assets from a local build, to A/B a web change against
+// the live API. Both are off by default, so default runs stay comparable with the baseline.
 // Saving a session writes one session for a client named "Probe" (made on first use): use a test or probe account.
 import { createRequire } from "node:module";
 import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readFileSync, existsSync } from "node:fs";
+import { startShaper } from "./shaper.mjs";
 
 const arg = (name, fallback) => {
     const i = process.argv.indexOf(`--${name}`);
     return i > 0 ? process.argv[i + 1] : fallback;
 };
-const BASE = arg("base");
+let BASE = arg("base");
 const USER = arg("user", process.env.HOTSPOT_USER ?? "owner");
 const PASS = arg("pass", process.env.HOTSPOT_PASS ?? "owner-dev-pass");
 const RTT = Number(arg("rtt", "300"));
@@ -25,6 +30,8 @@ const UP = Number(arg("up", "300"));
 const RUNS = Number(arg("runs", "5"));
 const OUT = arg("json");
 const NO_SAVE = process.argv.includes("--no-save");
+const SHAPER = process.argv.includes("--shaper");
+const DIST = arg("dist");
 const ONLY = arg("only"); // comma list of flow-name prefixes, for quick looks
 if (!BASE) {
     console.error("--base is required");
@@ -53,19 +60,42 @@ const SCREENS = [
     ["Products", "#/catalog"],
 ];
 
+let launchArgs = [];
+let shaper;
+if (SHAPER) {
+    const b = new URL(BASE);
+    shaper = await startShaper({ target: `${b.hostname}:${b.port || (b.protocol === "https:" ? 443 : 80)}`, rtt: RTT, down: DOWN, up: UP });
+    if (b.protocol === "https:") launchArgs = [`--host-resolver-rules=MAP ${b.hostname} 127.0.0.1:${shaper.port}`];
+    else BASE = `http://127.0.0.1:${shaper.port}`;
+}
+const TYPES = { ".js": "text/javascript", ".css": "text/css", ".html": "text/html", ".svg": "image/svg+xml", ".png": "image/png", ".webmanifest": "application/manifest+json" };
+async function serveDist(ctx) {
+    await ctx.route(
+        (u) => u.origin === new URL(BASE).origin && !/^\/(api|auth|health)\b/.test(u.pathname),
+        (r) => {
+            const p = new URL(r.request().url()).pathname;
+            const f = join(DIST, p === "/" || !existsSync(join(DIST, p)) ? "index.html" : p);
+            const ext = f.slice(f.lastIndexOf("."));
+            return r.fulfill({ body: readFileSync(f), contentType: TYPES[ext] ?? "application/octet-stream" });
+        },
+    );
+}
+
 async function oneRun() {
-    const browser = await chromium.launch();
-    const ctx = await browser.newContext({ viewport: { width: 375, height: 812 }, timezoneId: "Asia/Manila", serviceWorkers: "allow" });
+    const browser = await chromium.launch({ args: launchArgs });
+    const ctx = await browser.newContext({ viewport: { width: 375, height: 812 }, timezoneId: "Asia/Manila", serviceWorkers: DIST ? "block" : "allow" });
+    if (DIST) await serveDist(ctx);
     const page = await ctx.newPage();
     const cdp = await ctx.newCDPSession(page);
     await cdp.send("Network.enable");
     await cdp.send("Network.setCacheDisabled", { cacheDisabled: false });
-    await cdp.send("Network.emulateNetworkConditions", {
-        offline: false,
-        latency: RTT,
-        downloadThroughput: (DOWN * 1000) / 8,
-        uploadThroughput: (UP * 1000) / 8,
-    });
+    if (!SHAPER)
+        await cdp.send("Network.emulateNetworkConditions", {
+            offline: false,
+            latency: RTT,
+            downloadThroughput: (DOWN * 1000) / 8,
+            uploadThroughput: (UP * 1000) / 8,
+        });
     page.on("dialog", (d) => d.accept());
 
     let reqs = new Map(); // requestId -> {what, api, start, end, bytes}
@@ -259,7 +289,8 @@ for (let i = 1; i <= RUNS; i++) {
         console.error(`run ${i} failed: ${e.message.split("\n")[0]}`);
     }
 }
-console.log(`\nhotspot: ${BASE}  rtt ${RTT}ms  down ${DOWN}kbit/s  up ${UP}kbit/s  runs ${results.length}/${RUNS} (errors ${errors})`);
+await shaper?.close();
+console.log(`\nhotspot: ${BASE}${SHAPER ? " (shaper)" : ""}${DIST ? ` dist ${DIST}` : ""}  rtt ${RTT}ms  down ${DOWN}kbit/s  up ${UP}kbit/s  runs ${results.length}/${RUNS} (errors ${errors})`);
 console.log("flow".padEnd(30), "usable ms (min-max)".padEnd(22), "settled ms".padEnd(8), "calls".padEnd(7), "rounds".padEnd(7), "api KB".padEnd(8), "all KB");
 const names = [...new Set(results.flatMap((r) => Object.keys(r)))];
 let work = 0;
