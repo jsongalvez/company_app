@@ -6,6 +6,7 @@
 //   cold login     nothing saved on the phone (first visit, or after clearing the browser)
 //   cold Today     signed in, but no saved app files (first open after a deploy with no service worker copy)
 //   warm Today     signed in, service worker and HTTP cache warm (the everyday open)
+//   no-SW Today    second open with the browser's HTTP cache warm but no service worker (iOS evicts it, private tabs)
 // Per load: TTFB, FCP, LCP, CLS, TBT (long-task time over 50 ms after FCP until the network goes quiet),
 // usable (Today: clock button and content, no spinner), JS/CSS KB over the wire, and asset requests served
 // from the network vs a cache. INP comes from scripted taps on the warm page (menu, Expenses & pay, back to Sessions):
@@ -49,8 +50,8 @@ const OBSERVE = () => {
     watch("event", (e) => e.interactionId && v.events.push([e.interactionId, e.duration, e.name]), { durationThreshold: 16 });
 };
 
-async function newPhone(browser, storageState) {
-    const ctx = await browser.newContext({ viewport: { width: 375, height: 812 }, timezoneId: "Asia/Manila", serviceWorkers: "allow", storageState });
+async function newPhone(browser, storageState, serviceWorkers = "allow") {
+    const ctx = await browser.newContext({ viewport: { width: 375, height: 812 }, timezoneId: "Asia/Manila", serviceWorkers, storageState });
     await ctx.addInitScript(OBSERVE);
     const page = await ctx.newPage();
     page.on("dialog", (d) => d.accept());
@@ -181,6 +182,10 @@ async function oneRun(browser) {
     const b = await newPhone(browser, state);
     out["cold Today"] = await readLoad(b, todayUsable);
     await b.ctx.close();
+    const c = await newPhone(browser, state, "block");
+    await readLoad(c, todayUsable);
+    out["no-SW Today"] = await readLoad(c, todayUsable);
+    await c.ctx.close();
     return out;
 }
 
@@ -215,7 +220,7 @@ await shaper.close();
 console.log(`vitals: ${BASE}  rtt ${RTT}ms down ${DOWN}kbit/s up ${UP}kbit/s cpu ${CPU}x  runs ${runs.length}/${RUNS}`);
 const cols = ["ttfb", "fcp", "lcp", "usable", "tbt", "cls", "inp", "jsKB", "cssKB", "assetsNet", "assetsCached"];
 console.log("load".padEnd(12), ...cols.map((c) => c.padEnd(c === "cls" ? 7 : 15)));
-for (const name of ["cold login", "cold Today", "warm Today"]) {
+for (const name of ["cold login", "cold Today", "warm Today", "no-SW Today"]) {
     const rs = runs.map((r) => r[name]).filter(Boolean);
     const cell = (c) => {
         const xs = rs.map((r) => r[c]);
