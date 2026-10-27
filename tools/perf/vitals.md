@@ -43,3 +43,36 @@ Reading it (checked unless marked):
 - Warm TTFB is one full round trip. The service worker waits for the network before using its saved page (`sw.js`, up to 3 s).
 - Warm usable trails FCP by about 600 ms on prod. The probe user is not clocked in, and the Clock in button waits for `/api/start` (inferred from `Shell.svelte:239`, `app.shiftKnown`).
 - CLS and INP are good. TBT is small next to network time.
+
+## After #985-#991 (abccf22e, 2026-10-28, prod, probe user, 5 runs)
+
+| Load | metric | before (d32b9afe) | after (abccf22e) |
+| --- | --- | --- | --- |
+| warm Today | TTFB | 323 | 7 |
+| warm Today | FCP = LCP | 664 | 360 |
+| warm Today | usable | 1251 (1030-1322) | 1050 (836-1208) |
+| warm Today | INP | 104 | 64 |
+| no-SW Today | asset requests | two 304s | none (immutable) |
+| cold login | FCP = LCP | 2668 | 2684 (unchanged: same 87 KB script) |
+| all | CLS | 0.000-0.003 | 0.000-0.003 |
+
+TBT and cold Today usable rose on prod between the two runs (cold Today TBT 86 to 121-801). The d32b9afe build, served against the same prod API at the same time, shows the same rise (cold Today TBT 560-686, checked), so it is not these changes. Inferred cause: Today renders every session of the day, and the probe branch holds about 256 by night (the probe saves and voids one every 5 minutes). Real branches have far fewer.
+
+Flows on prod (`hotspot.mjs`, the save flow with a fresh client per run so the first-visit price applies; median of 5):
+
+| Flow | before | after |
+| --- | --- | --- |
+| sign-in to Today | 903 usable, 2 calls | 881, 2 calls |
+| reload | 348 usable, 621 settled | 301, 546 settled |
+| Expenses & pay | 484, 1 batch call | 526 (502-556), 5 parallel GETs, bands overlap |
+| save a session | not measured live | 924 usable, 817 settled, 2 calls |
+| mark the session Done | not measured live (local 702 settled, 2 calls) | 401 settled, 1 call |
+| Branches (local, owner) | 668 usable, 2 rounds | 364, 1 round |
+
+Dropped, with the reason:
+- Clock in from the saved shift: no gain beyond noise in a one-stack A/B (warm usable 438 vs 357, bands 335-561 and 289-652).
+- Offline saves sent together: replay runs in the background and blocks nobody. Order and idempotency are pinned by `tools/tla/outbox`. Not measured.
+- Client list size: 260 bytes per client before compression, 9 clients on prod (563 B brotli). A delta sync pays off only at thousands of clients (inferred).
+- Code splitting: a vendor chunk would save about 20 KB gzip per deploy, and #991 already moves the post-deploy download off the critical path. Lazy pages would cut the first-visit login script (inferred, about 0.3 s), but would also need the service worker to precache chunks.
+- HTTP/2, HTTP/3, brotli, preconnect: already in place or not applicable (checked). h2 with `alt-svc: h3`, brotli on assets and API (`/api/start` 94 KB raw to 6.3 KB), all requests same-origin.
+- 150-user capacity rerun: the paths it loads are unchanged. The batch A/B (`load/batch-ab.js`) measured the one server change: +13% screens/s at saturation.
