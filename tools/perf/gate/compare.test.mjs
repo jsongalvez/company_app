@@ -97,17 +97,3 @@ test("parseLog reads request_completed lines among other output and drops errors
 test("every key route is named once", () => {
     assert.equal(new Set(Object.values(KEY_ROUTES)).size, Object.keys(KEY_ROUTES).length);
 });
-
-test("a base that still serves Today as three requests compares against the one-request head", () => {
-    const old = (q) =>
-        [
-            "GET /api/branches/{branchId}/dashboard/today",
-            "GET /api/branches/{branchId}/bookings",
-            "GET /api/branches/{branchId}/attendance/today",
-        ].map((k) => line(k.split(" ")[0], k.slice(4), 20, q)).join("\n").repeat(1);
-    const lines = (q) => Array.from({ length: 6 }, () => old(q)).join("\n");
-    const folded = parseLog(lines(5));
-    const today = folded.get("GET /api/branches/{branchId}/today-screen");
-    assert.equal(today.length, 6);
-    assert.deepEqual(today[0], { ms: 20, queries: 15 });
-});

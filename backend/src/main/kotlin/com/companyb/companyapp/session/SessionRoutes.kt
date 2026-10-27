@@ -54,14 +54,6 @@ import java.time.LocalDate
 import java.util.UUID
 
 /**
- * Request-scoped attribute: the branch day the create gate resolved. The handler
- * hands it to `SessionService.create` so the gate and the write share one day resolution
- * (no Manila-midnight divergence). Absent when the gate ran the plain branch check
- * (no day row existed — no BRANCH_DAY grant possible).
- */
-private const val GATED_BRANCH_DAY_ATTR = "gatedBranchDayId"
-
-/**
  * persisted-range mirror (the requireClientRanges shape). The service
  * owns the bound ([validateSessionMoney]); this maps the ValidationException to
  * the route's BadRequestResponse so HTTP callers get 400 before the write.
@@ -325,7 +317,6 @@ object SessionRoutes {
     private val logger = KotlinLogging.logger {}
 
     fun register(config: JavalinConfig) {
-        registerCreateGate(config)
         registerStatusPriceVoidGates(config)
         registerPractitionerGates(config)
         registerConcernGates(config)
@@ -422,7 +413,6 @@ object SessionRoutes {
         )
     }
 
-    // replay-path 403 fallback is deliberate handling (empty concerns), not swallowing.
     private fun handleCreateSession(context: Context) {
         val callerId = context.callerUuid()
         val request = context.bodyAsClass<CreateSessionRequest>()
@@ -440,39 +430,25 @@ object SessionRoutes {
                     .getOrElse { throw BadRequestResponse("Invalid nextAppointmentDate format") }
             }
 
-        val result =
-            SessionService.create(
-                callerId = callerId,
-                id = sessionId,
-                clientId = clientId,
-                branchId = branchId,
-                isWalkIn = request.isWalkIn,
-                requestedPractitionerId = practitionerId,
-                finalPrice = finalPrice,
-                remarks = request.remarks,
-                otherConcerns = request.otherConcerns,
-                nextAppointmentDate = nextAppt,
-                gatedBranchDayId = context.attribute(GATED_BRANCH_DAY_ATTR),
-                reason = request.reason,
+        // The branch check, the write and the concern read share one transaction.
+        val saved =
+            SessionSaveService.save(
+                callerId,
+                NewSession(
+                    id = sessionId,
+                    clientId = clientId,
+                    branchId = branchId,
+                    isWalkIn = request.isWalkIn,
+                    requestedPractitionerId = practitionerId,
+                    finalPrice = finalPrice,
+                    remarks = request.remarks,
+                    otherConcerns = request.otherConcerns,
+                    nextAppointmentDate = nextAppt,
+                    reason = request.reason,
+                ),
             )
-
-        val concerns =
-            if (result.created) {
-                SessionConcernService.getForSession(callerId, sessionId).map { it.toResponse() }
-            } else {
-                // idempotent replay that lands after a day transition (e.g. the day
-                // was remitted between the original create and this retry) already committed;
-                // the concern read gates on day readability, so tolerate its 403 and still
-                // acknowledge the write with an empty list instead of failing the retry.
-                try {
-                    SessionConcernService.getForSession(callerId, sessionId).map { it.toResponse() }
-                } catch (e: ForbiddenException) {
-                    logger.info {
-                        "[CREATE-SESSION] replay forbidden for $sessionId, acking empty: ${e.message}"
-                    }
-                    emptyList()
-                }
-            }
+        val result = saved.result
+        val concerns = saved.concerns.map { it.toResponse() }
         context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
         context.json(result.session.toResponse(concerns))
     }
@@ -699,25 +675,6 @@ object SessionRoutes {
             remarks = remarks,
             slotAtTime = slotAtTime.toInt(),
         )
-}
-
-private fun registerCreateGate(config: JavalinConfig) {
-    config.routes.before(ApiRoutes.SESSIONS) { context ->
-        if (context.method() != HandlerType.POST) return@before
-        val request = context.bodyAsClass<CreateSessionRequest>()
-        val branchId = uuidOrThrow(request.branchId, "branch id")
-        // 404 precedence for an unknown branch before the today gate
-        //  (precedent; same shape as registerPreview above).
-        BranchService.findById(branchId)
-        // Day-scoped via the shared today gate: a BRANCH_DAY relief
-        // grant for today satisfies the create gate. The resolved day is handed to
-        // the handler so the gate and the write share one resolution (no
-        // midnight-boundary divergence); a 403'd attempt leaves no day row behind.
-        val gatedDayId = CapabilityFilter.requireBranchOrDayForBranch(context, branchId)
-        if (gatedDayId != null) {
-            context.attribute(GATED_BRANCH_DAY_ATTR, gatedDayId)
-        }
-    }
 }
 
 private fun registerStatusPriceVoidGates(config: JavalinConfig) {

@@ -33,8 +33,7 @@ SAMPLES="$OUT/$LABEL.samples"; : >"$SAMPLES"
     k6c=$(ps -o %cpu= -C k6 2>/dev/null | head -1 | tr -d ' ')
     db=$(docker stats --no-stream --format '{{.CPUPerc}}' company-app-devdb 2>/dev/null)
     prod=$(docker stats --no-stream --format '{{.CPUPerc}}' 8dtmibe0hpkf03t0bw1b0u0c-20261026T073350 2>/dev/null)
-    pool=$(curl -s -m 2 "http://127.0.0.1:$PORT/metrics" | awk '/^hikaricp_connections_active /{a=$2} /^hikaricp_connections_pending /{p=$2} /^hikaricp_connections_total /{t=$2} END{print a "/" p "/" t}')
-    echo "$(date +%T) pool=$pool box=$box% load=$(cut -d' ' -f1 /proc/loadavg) app=$app k6=$k6c db=$db prod=$prod other=$(other_builds)" >>"$SAMPLES"
+    echo "$(date +%T) box=$box% load=$(cut -d' ' -f1 /proc/loadavg) app=$app k6=$k6c db=$db prod=$prod other=$(other_builds)" >>"$SAMPLES"
   done
 ) &
 SAMPLER=$!
@@ -69,7 +68,5 @@ n = d["http_reqs"]["count"]
 print("cpu-ms per request: app=%.2f db=%.2f k6=%.2f (checked: /proc and cgroup counters; app = whole java process incl. JIT and GC)" % (float(os.environ["APP_MS"])/n, float(os.environ["DB_MS"])/n, float(os.environ["K6_MS"])/n))
 print("avg cores used over the run (checked, counters): app=%.2f db=%.2f k6=%.2f" % (float(os.environ["APP_MS"])/w, float(os.environ["DB_MS"])/w, float(os.environ["K6_MS"])/w))
 print("(cpu in %-of-one-core except box, which is %-of-both-cores; foreign = box*2 - app - k6 - db: other processes on the machine)")
-pa = [tuple(float(x) for x in r["pool"].split("/")) for r in s if r.get("pool", "").replace("/", "").isdigit() and r["pool"].count("/") == 2]
-if pa: print("db pool, sampled every ~3s: open connections max=%.0f, active mean=%.1f max=%.0f, waiting-for-a-connection max=%.0f" % (max(t for _, _, t in pa), sum(a for a, _, _ in pa)/len(pa), max(a for a, _, _ in pa), max(p for _, p, _ in pa)))
 print("loadavg max=%.1f" % max(float(r["load"]) for r in s))
 PY

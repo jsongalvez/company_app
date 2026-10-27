@@ -151,14 +151,22 @@ object BranchDayService {
         branchId: UUID,
         capabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
         message: String = "$capabilityCode capability required for this branch or day",
-    ): UUID? {
-        val todayBranchDayId = findToday(branchId)?.id
-        if (todayBranchDayId != null) {
-            CapabilityService.requireCapabilityForBranchDay(userId, capabilityCode, branchId, todayBranchDayId, message)
+    ): UUID? = requireBranchOrDayForTodayRow(userId, branchId, capabilityCode, message)?.id
+
+    /** [requireBranchOrDayForToday] that hands back today's whole day row, so the write need not read it again. */
+    fun requireBranchOrDayForTodayRow(
+        userId: UUID,
+        branchId: UUID,
+        capabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
+        message: String = "$capabilityCode capability required for this branch or day",
+    ): BranchDay? {
+        val today = findToday(branchId)
+        if (today != null) {
+            CapabilityService.requireCapabilityForBranchDay(userId, capabilityCode, branchId, today.id, message)
         } else {
             CapabilityService.requireCapability(userId, capabilityCode, CapabilityContextType.BRANCH, branchId, message)
         }
-        return todayBranchDayId
+        return today
     }
 
     /**
@@ -217,7 +225,9 @@ object BranchDayService {
         val today = currentOperationalDate()
         val effectiveStatus = evaluateStatus(branchDay.status, branchDay.date, today)
         val isRemitted = effectiveStatus == DayStatus.REMITTED
-        val hasEditPastDay = hasEditPastDayCapability(callerId, branchDay.branchId)
+        // Only a non-open day (or a caller that insists) looks at EDIT_PAST_DAY: an open day needs no grant.
+        val needsGrant = effectiveStatus != DayStatus.OPEN || requiresEditPastDay
+        val hasEditPastDay = needsGrant && hasEditPastDayCapability(callerId, branchDay.branchId)
         assertEditableState(effectiveStatus, hasEditPastDay, reason, requiresEditPastDay)
         logger.debug {
             "[CHECK-BRANCH-DAY-EDITABLE] branch_day=${branchDay.id}" +
@@ -242,7 +252,10 @@ object BranchDayService {
         val branchDay = requireBranchDayExists(branchDayId)
         val today = currentOperationalDate()
         val effectiveStatus = evaluateStatus(branchDay.status, branchDay.date, today)
-        assertReadableState(effectiveStatus, hasEditPastDayCapability(callerId, branchDay.branchId))
+        assertReadableState(
+            effectiveStatus,
+            effectiveStatus == DayStatus.OPEN || hasEditPastDayCapability(callerId, branchDay.branchId),
+        )
         logger.debug { "[CHECK-BRANCH-DAY-READABLE] branch_day=$branchDayId effectiveStatus=$effectiveStatus allowed" }
         return branchDay
     }

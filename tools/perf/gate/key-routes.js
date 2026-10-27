@@ -48,15 +48,8 @@ export default function (data) {
     const p = { headers: { ...json, authorization: `Bearer ${data.token}` } };
     for (let i = 0; i < SIGNINS - 1; i++) login();
     for (let i = 0; i < TODAY; i++) {
-        // The base checkout may still serve Today as three requests, the head as one. Each side
-        // answers its own and 404s the other's.
-        const rs = http.batch([
-            ["GET", `${BASE}/api/branches/${BRANCH}/today-screen`, null, p],
-            ["GET", `${BASE}/api/branches/${BRANCH}/dashboard/today`, null, p],
-            ["GET", `${BASE}/api/branches/${BRANCH}/bookings`, null, p],
-            ["GET", `${BASE}/api/branches/${BRANCH}/attendance/today`, null, p],
-        ]);
-        check(rs, { "today ok": (r) => ok(r[0]) || (ok(r[1]) && ok(r[2]) && ok(r[3])) });
+        const rs = http.batch([["GET", `${BASE}/api/branches/${BRANCH}/today-screen`, null, p]]);
+        check(rs, { "today ok": (r) => ok(r[0]) });
     }
     for (let i = 0; i < SAVES; i++) {
         const clientId = uuid();
