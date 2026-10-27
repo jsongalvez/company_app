@@ -138,7 +138,7 @@ internal object ExpenseRepository {
                     ExpenseTable.createdAt to SortOrder.ASC,
                     ExpenseTable.id to SortOrder.ASC,
                 ).map { it.toExpense() }
-        }.also { logger.info { "[FIND-EXPENSES] Found ${it.size} expenses for branch_day $branchDayId" } }
+        }.also { logger.debug { "[FIND-EXPENSES] Found ${it.size} expenses for branch_day $branchDayId" } }
 
     fun updateInTransaction(
         expenseId: UUID,

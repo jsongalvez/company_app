@@ -64,13 +64,16 @@ the packet may already be an issue, so a retry must not blindly file a
 second one. `FeedbackResponse` is unchanged (`packet`, `duplicate`).
 
 ```bash
-# find the packet for a cited trace id, correlate with the request logs
-jq -c 'select(.traceId == "<trace>")' logs/app.log
-jq -c 'select(.traceId == "<trace>" and .event == "request_completed")' logs/app.log
+# find the packet for a cited trace id, correlate with the request logs.
+# The app logs to stdout only; the host keeps it in ~/logs/company_app/app.log (docker prefix and colour codes
+# in front of each JSON object, which the first line strips).
+logjson() { sed 's/\x1b\[[0-9;]*m//g' ~/logs/company_app/app.log* | grep -o '{"[A-Za-z]*":.*}$'; }
+logjson | jq -c 'select(.traceId == "<trace>")'
+logjson | jq -c 'select(.traceId == "<trace>" and .event == "request_completed")'
 
 # file it (packet line becomes the body)
 trace=<trace>
-packet=$(jq -c "select(.traceId == \"$trace\" and .source != null)" logs/app.log | head -n 1)
+packet=$(logjson | jq -c "select(.traceId == \"$trace\" and .source != null)" | head -n 1)
 route=$(echo "$packet" | jq -r '"\(.method) \(.route)"')
 gh issue create --label needs-triage \
   --title "Incident ${trace:0:8} $route" \

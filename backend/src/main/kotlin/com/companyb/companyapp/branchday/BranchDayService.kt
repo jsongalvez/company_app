@@ -219,7 +219,7 @@ object BranchDayService {
         val isRemitted = effectiveStatus == DayStatus.REMITTED
         val hasEditPastDay = hasEditPastDayCapability(callerId, branchDay.branchId)
         assertEditableState(effectiveStatus, hasEditPastDay, reason, requiresEditPastDay)
-        logger.info {
+        logger.debug {
             "[CHECK-BRANCH-DAY-EDITABLE] branch_day=${branchDay.id}" +
                 " effectiveStatus=$effectiveStatus allowed isRemitted=$isRemitted"
         }
@@ -243,7 +243,7 @@ object BranchDayService {
         val today = currentOperationalDate()
         val effectiveStatus = evaluateStatus(branchDay.status, branchDay.date, today)
         assertReadableState(effectiveStatus, hasEditPastDayCapability(callerId, branchDay.branchId))
-        logger.info { "[CHECK-BRANCH-DAY-READABLE] branch_day=$branchDayId effectiveStatus=$effectiveStatus allowed" }
+        logger.debug { "[CHECK-BRANCH-DAY-READABLE] branch_day=$branchDayId effectiveStatus=$effectiveStatus allowed" }
         return branchDay
     }
 

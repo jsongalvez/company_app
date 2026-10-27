@@ -70,7 +70,7 @@ internal object BranchRepository {
     fun findById(id: UUID): Branch? =
         transaction {
             findByIdInTransaction(id)
-        }.also { logger.info { "[FIND-BRANCH] Branch ${id.toString().maskUUID()} found=${it != null}" } }
+        }.also { logger.debug { "[FIND-BRANCH] Branch ${id.toString().maskUUID()} found=${it != null}" } }
 
     fun findAll(): List<Branch> =
         transaction {
