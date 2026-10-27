@@ -108,12 +108,10 @@ test("dsn and path helpers", () => {
     assert.equal(plainPath(`/api/a/${UUID}?x=1`), "/api/a/{id}");
 });
 
-test("Today's 'clock in first' refusal is not an error (COMPANY-APP-4)", () => {
+test("a refused request is reported", () => {
     const { tracker, sent } = fake();
-    tracker.captureApiFailure({ method: "GET", path: `/api/branches/${UUID}/dashboard/today`, status: 403, traceId: "t" });
-    assert.equal(sent.length, 0);
     tracker.captureApiFailure({ method: "GET", path: `/api/branches/${UUID}/inventory`, status: 403, traceId: "t" });
-    assert.equal(sent.length, 1, "other refusals still report");
+    assert.equal(sent.length, 1);
 });
 
 test("a rejected server answer is reported once, as the request (COMPANY-APP-3)", () => {

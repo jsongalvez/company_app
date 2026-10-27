@@ -292,22 +292,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/branches/{branchId}/attendance/today": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["branch_attendance_today_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/branches/{branchId}/bookings": {
         parameters: {
             query?: never;
@@ -315,7 +299,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["bookings_upcoming"];
+        get?: never;
         put?: never;
         post: operations["bookings_create"];
         delete?: never;
@@ -364,22 +348,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["daily_summary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/branches/{branchId}/dashboard/today": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["dashboard_today"];
         put?: never;
         post?: never;
         delete?: never;
@@ -732,6 +700,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["branch_today"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/today-screen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["today_screen"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2973,6 +2957,15 @@ export interface components {
             sessionType: "REGULAR" | "SECOND_SESSION" | "SUBSEQUENT" | "PROVINCIAL_FIRST" | "MEDICAL_MISSION" | "UNKNOWN";
             rate: string;
         };
+        TodayScreenResponse: {
+            dashboard: {
+                sessions: components["schemas"]["DashboardSessionResponse"][];
+                commission: components["schemas"]["DashboardCommissionResponse"];
+            } | null;
+            dashboardRefusal: string | null;
+            bookings: components["schemas"]["BookingResponse"][] | null;
+            roster: components["schemas"]["MemberAttendanceResponse"][] | null;
+        };
         UnvoidSessionRequest: {
             unvoidedReason: string;
         };
@@ -4100,68 +4093,6 @@ export interface operations {
             };
         };
     };
-    branch_attendance_today_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                branchId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MemberAttendanceResponse"][];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    bookings_upcoming: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                branchId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingResponse"][];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     bookings_create: {
         parameters: {
             query?: never;
@@ -4383,46 +4314,6 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    dashboard_today: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                branchId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DashboardResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5739,6 +5630,46 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    today_screen: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodayScreenResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

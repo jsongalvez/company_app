@@ -10,6 +10,7 @@ import com.companyb.companyapp.session.SessionConcernTable
 import com.companyb.companyapp.session.SessionPractitionerTable
 import com.companyb.companyapp.session.SessionTable
 import org.jetbrains.exposed.v1.core.JoinType
+import org.jetbrains.exposed.v1.core.Slice
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -54,7 +55,7 @@ internal object DashboardRepository {
             emptyMap()
         } else {
             transaction {
-                ClientTable
+                Slice(ClientTable, listOf(ClientTable.id, ClientTable.firstName, ClientTable.lastName))
                     .selectAll()
                     .where { ClientTable.id inList clientIds }
                     .associate {
@@ -73,7 +74,7 @@ internal object DashboardRepository {
             emptyMap()
         } else {
             transaction {
-                AppUserTable
+                Slice(AppUserTable, listOf(AppUserTable.id, AppUserTable.displayName))
                     .selectAll()
                     .where { AppUserTable.id inList userIds }
                     .associate { it[AppUserTable.id] to it[AppUserTable.displayName] }
@@ -104,8 +105,16 @@ internal object DashboardRepository {
                         { SessionPractitionerTable.practitionerId },
                         { AppUserTable.id },
                     )
-                join
-                    .selectAll()
+                Slice(
+                    join,
+                    listOf(
+                        SessionPractitionerTable.sessionId,
+                        SessionPractitionerTable.practitionerId,
+                        AppUserTable.displayName,
+                        SessionPractitionerTable.remarks,
+                        SessionPractitionerTable.slotAtTime,
+                    ),
+                ).selectAll()
                     .where { SessionPractitionerTable.sessionId inList sessionIds }
                     .orderBy(SessionPractitionerTable.slotAtTime to SortOrder.ASC)
                     .map { row ->

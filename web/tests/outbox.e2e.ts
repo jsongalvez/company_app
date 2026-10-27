@@ -54,9 +54,10 @@ test("a mark that clashes with someone else's change lands in couldn't send", { 
 
     // Another desk marks it Cancelled meanwhile (straight to the server, not through this phone).
     const auth = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-    const dash = (await (await fetch(`${BASE}/api/branches/${branchId}/dashboard/today`, { headers: auth })).json()) as {
-        sessions: { id: string; clientName: string | null; version: number }[];
+    const today = (await (await fetch(`${BASE}/api/branches/${branchId}/today-screen`, { headers: auth })).json()) as {
+        dashboard: { sessions: { id: string; clientName: string | null; version: number }[] };
     };
+    const dash = today.dashboard;
     const s = dash.sessions.find((x) => x.clientName === name)!;
     const r = await fetch(`${BASE}/api/sessions/${s.id}/status`, {
         method: "PATCH",

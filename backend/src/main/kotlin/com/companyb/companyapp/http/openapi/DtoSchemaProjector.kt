@@ -111,6 +111,7 @@ import com.companyb.companyapp.contracts.session.SessionPreviewResponse
 import com.companyb.companyapp.contracts.session.SessionResponse
 import com.companyb.companyapp.contracts.session.SessionVoidResponse
 import com.companyb.companyapp.contracts.session.SetRateRequest
+import com.companyb.companyapp.contracts.session.TodayScreenResponse
 import com.companyb.companyapp.contracts.session.UnvoidSessionRequest
 import com.companyb.companyapp.contracts.session.UpdateBookingRequest
 import com.companyb.companyapp.contracts.session.UpdatePractitionerRemarksRequest
@@ -211,6 +212,7 @@ internal object DtoSchemaProjector {
             "DashboardCommissionResponse" to DashboardCommissionResponse.serializer(),
             "DashboardPractitionerResponse" to DashboardPractitionerResponse.serializer(),
             "DashboardResponse" to DashboardResponse.serializer(),
+            "TodayScreenResponse" to TodayScreenResponse.serializer(),
             "DashboardSessionResponse" to DashboardSessionResponse.serializer(),
             "DelegateResponse" to DelegateResponse.serializer(),
             "DeleteExpenseRequest" to DeleteExpenseRequest.serializer(),

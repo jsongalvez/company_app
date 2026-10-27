@@ -4,7 +4,7 @@ import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.commerce.ProductSaleTable
 import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.session.SessionVoidTable
-import com.companyb.companyapp.session.dashboard.DashboardService
+import com.companyb.companyapp.session.dashboard.TodayScreenService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
@@ -110,7 +110,7 @@ class CommissionParityPostgresTest : BasePostgresTest() {
         assertEquals(3, live.getValue(userD).eligibleSaleCount)
         assertEquals(1, live.getValue(userC).eligibleSaleCount)
 
-        val dashboard = DashboardService.getToday(userA, branchId)
+        val dashboard = TodayScreenService.get(userA, branchId).dashboard!!
         assertEquals(BigDecimal("25.3333"), dashboard.commission.amount)
         assertEquals(4, dashboard.commission.productSalesCount)
     }

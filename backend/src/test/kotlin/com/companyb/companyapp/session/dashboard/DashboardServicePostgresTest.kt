@@ -6,7 +6,6 @@ import com.companyb.companyapp.commission.CommissionManualInclusionUpsertParams
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.session.SessionStatus
-import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
@@ -35,6 +34,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class DashboardServicePostgresTest : BasePostgresTest() {
@@ -65,7 +65,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `getToday returns enriched sessions with client name`() {
+    fun `the Today screen returns enriched sessions with client name`() {
         AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
         SessionClientFixtures.insertTestSession(
             id = sessionId,
@@ -74,7 +74,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
             sessionStatus = SessionStatus.COMPLETED,
         )
 
-        val data = DashboardService.getToday(callerId, branchId)
+        val data = TodayScreenService.get(callerId, branchId).dashboard!!
 
         assertEquals(1, data.sessions.size)
         assertEquals(sessionId, data.sessions.single().id)
@@ -89,13 +89,13 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `getToday marks voided sessions and includes practitioner names`() {
+    fun `the Today screen marks voided sessions and includes practitioner names`() {
         AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
         SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         seedVoid(sessionId)
         seedPractitioner(sessionId, practitionerId)
 
-        val data = DashboardService.getToday(callerId, branchId)
+        val data = TodayScreenService.get(callerId, branchId).dashboard!!
 
         assertTrue(sessionId in data.voidedSessionIds)
         assertEquals(1, data.practitioners.size)
@@ -105,7 +105,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `getToday computes caller commission from sales sold while clocked in`() {
+    fun `the Today screen computes caller commission from sales sold while clocked in`() {
         AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
         CommerceFinanceFixtures.insertTestProductSale(
             id = saleId,
@@ -116,14 +116,14 @@ class DashboardServicePostgresTest : BasePostgresTest() {
             commissionAmount = BigDecimal("100.00"),
         )
 
-        val data = DashboardService.getToday(callerId, branchId)
+        val data = TodayScreenService.get(callerId, branchId).dashboard!!
 
         assertEquals(BigDecimal("200.0000"), data.commission.amount)
         assertEquals(1, data.commission.productSalesCount)
     }
 
     @Test
-    fun `getToday counts sales by attendance eligibility not by seller`() {
+    fun `the Today screen counts sales by attendance eligibility not by seller`() {
         AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
         CommerceFinanceFixtures.insertTestProductSale(
             id = saleId,
@@ -134,14 +134,14 @@ class DashboardServicePostgresTest : BasePostgresTest() {
             commissionAmount = BigDecimal("50.00"),
         )
 
-        val data = DashboardService.getToday(callerId, branchId)
+        val data = TodayScreenService.get(callerId, branchId).dashboard!!
 
         assertEquals(BigDecimal("50.0000"), data.commission.amount)
         assertEquals(1, data.commission.productSalesCount)
     }
 
     @Test
-    fun `getToday excludes sales the caller was removed from via manual inclusion`() {
+    fun `the Today screen excludes sales the caller was removed from via manual inclusion`() {
         AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
         CommerceFinanceFixtures.insertTestProductSale(
             id = saleId,
@@ -164,17 +164,17 @@ class DashboardServicePostgresTest : BasePostgresTest() {
             )
         }
 
-        val data = DashboardService.getToday(callerId, branchId)
+        val data = TodayScreenService.get(callerId, branchId).dashboard!!
 
         assertEquals(BigDecimal.ZERO, data.commission.amount)
         assertEquals(0, data.commission.productSalesCount)
     }
 
     @Test
-    fun `getToday returns empty day with zero commission`() {
+    fun `the Today screen returns empty day with zero commission`() {
         AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
 
-        val data = DashboardService.getToday(callerId, branchId)
+        val data = TodayScreenService.get(callerId, branchId).dashboard!!
 
         assertTrue(data.sessions.isEmpty())
         assertEquals(BigDecimal.ZERO, data.commission.amount)
@@ -182,33 +182,29 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `getToday throws ForbiddenException when not clocked in at the branch`() {
-        assertFailsWith<ForbiddenException> {
-            DashboardService.getToday(callerId, branchId)
-        }
+    fun `the dashboard is withheld when not clocked in at the branch`() {
+        val screen = TodayScreenService.get(callerId, branchId)
+        assertNull(screen.dashboard)
+        assertEquals(TodayScreenService.NOT_CLOCKED_IN, screen.dashboardRefusal)
     }
 
     @Test
-    fun `getToday leaves no branch-day row behind on clock-in 403`() {
-        assertFailsWith<ForbiddenException> {
-            DashboardService.getToday(callerId, otherBranchId)
-        }
+    fun `a refused Today screen leaves no branch-day row behind`() {
+        assertNull(TodayScreenService.get(callerId, otherBranchId).dashboard)
         assertEquals(null, BranchDayService.findToday(otherBranchId))
     }
 
     @Test
-    fun `getToday throws ForbiddenException when clocked in at another branch`() {
+    fun `the dashboard is withheld when clocked in at another branch`() {
         AttendanceService.clockIn(TestFixtures.uuid(), otherBranchId, callerId)
 
-        assertFailsWith<ForbiddenException> {
-            DashboardService.getToday(callerId, branchId)
-        }
+        assertNull(TodayScreenService.get(callerId, branchId).dashboard)
     }
 
     @Test
-    fun `getToday throws NotFoundException for missing branch`() {
+    fun `the Today screen throws NotFoundException for missing branch`() {
         assertFailsWith<NotFoundException> {
-            DashboardService.getToday(callerId, TestFixtures.uuid())
+            TodayScreenService.get(callerId, TestFixtures.uuid())
         }
     }
 

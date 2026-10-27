@@ -6,11 +6,9 @@ import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
-import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.session.Session
 import com.companyb.companyapp.session.SessionReads
-import com.companyb.companyapp.workforce.AttendanceService
 import java.math.BigDecimal
 import java.util.UUID
 
@@ -50,9 +48,9 @@ data class SessionDetailData(
 
 /**
  * Session dashboard read model for today at a branch. The dashboard is universal post-clock-in
- * (not capability-gated): the gate is the caller's own active clock-in at the branch — a
- * clocked-in practitioner may view the day, a caller clocked in elsewhere cannot read this
- * branch's data (no cross-branch window without a capability).
+ * (not capability-gated): the gate, checked by [TodayScreenService], is the caller's own active
+ * clock-in at the branch — a clocked-in practitioner may view the day, a caller clocked in
+ * elsewhere cannot read this branch's data (no cross-branch window without a capability).
  *
  * Commission is the live view over [CommissionService]'s shared batched aggregation
  * (clocked-in at sale time + manual inclusions) for the caller only — the split rows are
@@ -61,49 +59,34 @@ data class SessionDetailData(
  */
 object DashboardService {
     /**
-     * @throws NotFoundException if the branch does not exist.
-     * @throws ForbiddenException if the caller has no active clock-in at the branch today.
+     * The branch day's sessions with their enrichment, plus the caller's live commission. The
+     * caller's clock-in is the route's gate, not this read's: [TodayScreenService] checks it
+     * once against the day's attendance.
      */
-    fun getToday(
+    fun readToday(
         callerId: UUID,
         branchId: UUID,
+        branchDayId: UUID,
     ): DashboardData {
-        BranchService.findById(branchId)
-        // Find-only day resolution: a 403'd attempt must not leave a day row
-        // behind. A missing day means no active clock-in can exist for it.
-        val branchDay =
-            BranchDayService.findToday(branchId)
-                ?: throw ForbiddenException("You are not clocked in at this branch")
-
-        if (!AttendanceService.hasActiveClockIn(callerId, branchDay.id)) {
-            throw ForbiddenException("You are not clocked in at this branch")
-        }
-
-        val sessions = DashboardRepository.findSessionsByBranchDay(branchDay.id)
+        val sessions = DashboardRepository.findSessionsByBranchDay(branchDayId)
         val sessionIds = sessions.map { it.id }
-        val clientNames = DashboardRepository.findClientNames(sessions.map { it.clientId })
-        val voidedSessionIds = DashboardRepository.findVoidedSessionIds(sessionIds)
-        val practitioners = DashboardRepository.findPractitioners(sessionIds)
-        val concerns = DashboardRepository.findConcernsForSessionIds(sessionIds)
-        val live = CommissionService.liveCommissions(branchDay.id)[callerId]
+        val live = CommissionService.liveCommissions(branchDayId)[callerId]
         val commission =
             if (live == null) {
                 CommissionSummary(BigDecimal.ZERO, 0)
             } else {
                 CommissionSummary(live.amount, live.eligibleSaleCount)
             }
-
+        val practitioners = DashboardRepository.findPractitioners(sessionIds)
         return DashboardData(
             sessions = sessions,
-            clientNames = clientNames,
-            voidedSessionIds = voidedSessionIds,
+            clientNames = DashboardRepository.findClientNames(sessions.map { it.clientId }),
+            voidedSessionIds = DashboardRepository.findVoidedSessionIds(sessionIds),
             practitioners = practitioners,
-            concerns = concerns,
+            concerns = DashboardRepository.findConcernsForSessionIds(sessionIds),
             commission = commission,
             requestedPractitionerNames =
-                DashboardRepository.findUserDisplayNames(
-                    sessions.mapNotNull { it.requestedPractitionerId },
-                ),
+                DashboardRepository.findUserDisplayNames(sessions.mapNotNull { it.requestedPractitionerId }),
             branchIdBySession = sessions.associate { it.id to branchId },
         )
     }

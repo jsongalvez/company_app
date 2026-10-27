@@ -10,6 +10,7 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.session.dashboard.TodayScreenService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
@@ -349,7 +350,7 @@ class AttendanceMarkPostgresTest : BasePostgresTest() {
             )
         }
         assertTrue(
-            AttendanceService.rosterToday(markerId, branchId).none { it.userId == targetId },
+            TodayScreenService.get(markerId, branchId).roster!!.none { it.userId == targetId },
             "INACTIVE members never appear on the attendance roster",
         )
     }
@@ -459,7 +460,7 @@ class AttendanceMarkPostgresTest : BasePostgresTest() {
         )
         AttendanceService.clockIn(TestFixtures.uuid(), branchId, targetId)
 
-        val roster = AttendanceService.rosterToday(markerId, branchId)
+        val roster = TodayScreenService.get(markerId, branchId).roster!!
 
         assertEquals(listOf<Short>(1, 2, 3), roster.map { it.slot })
         assertEquals(listOf("Test marker", "Test target", "Test aaa-third-slot"), roster.map { it.displayName })
@@ -470,7 +471,7 @@ class AttendanceMarkPostgresTest : BasePostgresTest() {
     fun `roster read with no day row reports all absent and creates no day`() {
         val daysBefore = branchDayCount()
 
-        val roster = AttendanceService.rosterToday(markerId, branchId)
+        val roster = TodayScreenService.get(markerId, branchId).roster!!
 
         assertTrue(roster.isNotEmpty())
         assertTrue(roster.none { it.present })
@@ -479,9 +480,7 @@ class AttendanceMarkPostgresTest : BasePostgresTest() {
 
     @Test
     fun `roster read gates non-members`() {
-        assertFailsWith<ForbiddenException> {
-            AttendanceService.rosterToday(outsiderId, branchId)
-        }
+        assertNull(TodayScreenService.get(outsiderId, branchId).roster)
     }
 
     @Test
@@ -489,7 +488,7 @@ class AttendanceMarkPostgresTest : BasePostgresTest() {
         val unknownBranchId = TestFixtures.uuid()
 
         assertFailsWith<NotFoundException> {
-            AttendanceService.rosterToday(markerId, unknownBranchId)
+            TodayScreenService.get(markerId, unknownBranchId)
         }
     }
 

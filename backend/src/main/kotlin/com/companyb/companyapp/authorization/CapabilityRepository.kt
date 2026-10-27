@@ -47,6 +47,37 @@ internal object CapabilityRepository {
             logger.info { "[HAS-CAPABILITY] $capabilityCode ($contextType) granted=$granted" }
         }
 
+    /** One read for "holds [capabilityCode] at [branchId] or everywhere" (the all-branches window). */
+    fun hasCapabilityAtBranchOrGlobal(
+        userId: UUID,
+        capabilityCode: String,
+        branchId: UUID,
+        globalContextId: UUID,
+    ): Boolean =
+        transaction {
+            ActiveUserCapabilitiesView
+                .innerJoin(
+                    CapabilityTable,
+                    { ActiveUserCapabilitiesView.capabilityId },
+                    { CapabilityTable.id },
+                ).selectAll()
+                .where {
+                    (ActiveUserCapabilitiesView.userId eq userId) and
+                        (CapabilityTable.code eq capabilityCode) and
+                        (
+                            (
+                                (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH) and
+                                    (ActiveUserCapabilitiesView.contextId eq branchId)
+                            ) or
+                                (
+                                    (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.GLOBAL) and
+                                        (ActiveUserCapabilitiesView.contextId eq globalContextId)
+                                )
+                        )
+                }.empty()
+                .not()
+        }
+
     fun findCapabilitiesForUser(userId: UUID): List<UserCapabilityResponse> =
         transaction {
             ActiveUserCapabilitiesView

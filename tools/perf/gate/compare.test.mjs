@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { compare, parseLog, render, KEY_ROUTES } from "./compare.mjs";
 
-const TODAY = "GET /api/branches/{branchId}/dashboard/today";
+const TODAY = "GET /api/branches/{branchId}/today-screen";
 const line = (method, template, elapsedMs, queries, status = 200) =>
     `2026-10-27T07:03:55,402 [Jetty] INFO c.c.companyapp.logging.RequestLog - {"event":"request_completed","traceId":"t","method":"${method}","route":"/x","template":"${template}","status":${status},"elapsedMs":${elapsedMs},"dbMs":1,"queries":${queries}}`;
 
@@ -96,4 +96,18 @@ test("parseLog reads request_completed lines among other output and drops errors
 
 test("every key route is named once", () => {
     assert.equal(new Set(Object.values(KEY_ROUTES)).size, Object.keys(KEY_ROUTES).length);
+});
+
+test("a base that still serves Today as three requests compares against the one-request head", () => {
+    const old = (q) =>
+        [
+            "GET /api/branches/{branchId}/dashboard/today",
+            "GET /api/branches/{branchId}/bookings",
+            "GET /api/branches/{branchId}/attendance/today",
+        ].map((k) => line(k.split(" ")[0], k.slice(4), 20, q)).join("\n").repeat(1);
+    const lines = (q) => Array.from({ length: 6 }, () => old(q)).join("\n");
+    const folded = parseLog(lines(5));
+    const today = folded.get("GET /api/branches/{branchId}/today-screen");
+    assert.equal(today.length, 6);
+    assert.deepEqual(today[0], { ms: 20, queries: 15 });
 });

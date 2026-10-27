@@ -18,6 +18,7 @@ import com.companyb.companyapp.session.SessionPractitionerTable
 import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.session.dashboard.DashboardService
+import com.companyb.companyapp.session.dashboard.TodayScreenService
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
@@ -331,7 +332,7 @@ class ClientAnonymizeSessionTextPostgresTest : BasePostgresTest() {
     }
 
     private fun assertDashboardServesScrubbed() {
-        val dashboard = DashboardService.getToday(callerId, branchId)
+        val dashboard = TodayScreenService.get(callerId, branchId).dashboard!!
         val listed = dashboard.sessions.single { it.id == sessionId }
         assertNull(listed.remarks, "dashboard list leaked session remarks")
         assertNull(listed.otherConcerns, "dashboard list leaked session concerns")

@@ -49,3 +49,17 @@ data class DashboardCommissionResponse(
     val amount: String,
     val productSalesCount: Int,
 )
+
+/**
+ * Everything the Today screen shows, from one read. Each part keeps its own right to see it,
+ * so a part the caller may not see is null: [dashboard] needs a clock-in here today (the
+ * reason is in [dashboardRefusal]), [bookings] needs the right to view the branch, [roster]
+ * needs a home-branch membership.
+ */
+@Serializable
+data class TodayScreenResponse(
+    val dashboard: DashboardResponse?,
+    val dashboardRefusal: String?,
+    val bookings: List<com.companyb.companyapp.contracts.session.BookingResponse>?,
+    val roster: List<com.companyb.companyapp.contracts.workforce.MemberAttendanceResponse>?,
+)

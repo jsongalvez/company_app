@@ -67,7 +67,7 @@ import sys
 with open(sys.argv[1], "w") as f:
     for i in range(30):
         ms = 900 if i >= 2 else 100
-        f.write('2026-10-27T09:%02d:00.100Z [x] INFO RequestLog - {"event":"request_completed","traceId":"R%d","method":"GET","route":"/api/branches/b/dashboard/today","template":"/api/branches/{branchId}/dashboard/today","status":200,"elapsedMs":%d,"dbMs":5,"queries":3}\n' % (20 + i // 2, i, ms))
+        f.write('2026-10-27T09:%02d:00.100Z [x] INFO RequestLog - {"event":"request_completed","traceId":"R%d","method":"GET","route":"/api/branches/b/today-screen","template":"/api/branches/{branchId}/today-screen","status":200,"elapsedMs":%d,"dbMs":5,"queries":3}\n' % (20 + i // 2, i, ms))
 PY
 run
 expect "real traffic p95 over the limit with 20+ requests alerts" 1

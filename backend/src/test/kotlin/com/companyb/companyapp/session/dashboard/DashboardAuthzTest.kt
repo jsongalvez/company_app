@@ -74,46 +74,44 @@ class DashboardAuthzTest : BasePostgresTest() {
                         mapOf("error" to (e.message ?: "Not Found")),
                     )
                 }
-                DashboardRoutes.register(cfg)
+                TodayScreenRoutes.register(cfg)
             }
         }
     }
 
     private fun asUser(user: UUID): Consumer<Request.Builder> = Consumer { it.header("X-Test-User", user.toString()) }
 
+    private fun screen(
+        branch: UUID,
+        user: UUID? = null,
+    ) = testServer.client.get("/api/branches/$branch/today-screen", user?.let { asUser(it) })
+
     @Test
-    fun `clocked in user reads dashboard`() {
-        testServer.client.let { client ->
-            assertEquals(200, client.get("/api/branches/$branchId/dashboard/today", asUser(clockedInUser)).code)
-        }
+    fun `clocked in user reads the dashboard`() {
+        val response = screen(branchId, clockedInUser)
+        assertEquals(200, response.code)
+        assertEquals(false, response.body.string().contains("\"dashboard\":null"))
     }
 
     @Test
-    fun `user not clocked in gets 403`() {
-        testServer.client.let { client ->
-            assertEquals(403, client.get("/api/branches/$branchId/dashboard/today", asUser(notClockedInUser)).code)
-        }
+    fun `user not clocked in gets the screen without a dashboard`() {
+        val response = screen(branchId, notClockedInUser)
+        assertEquals(200, response.code)
+        assertEquals(true, response.body.string().contains("\"dashboard\":null"))
     }
 
     @Test
-    fun `user clocked in at another branch gets 403`() {
-        testServer.client.let { client ->
-            assertEquals(403, client.get("/api/branches/$branchId/dashboard/today", asUser(otherBranchUser)).code)
-        }
+    fun `user clocked in at another branch gets no dashboard here`() {
+        assertEquals(true, screen(branchId, otherBranchUser).body.string().contains("\"dashboard\":null"))
     }
 
     @Test
-    fun `missing branch with clocked in user gets 404`() {
-        testServer.client.let { client ->
-            val missingBranch = TestFixtures.uuid()
-            assertEquals(404, client.get("/api/branches/$missingBranch/dashboard/today", asUser(clockedInUser)).code)
-        }
+    fun `missing branch gets 404`() {
+        assertEquals(404, screen(TestFixtures.uuid(), clockedInUser).code)
     }
 
     @Test
     fun `unauthenticated request gets 401`() {
-        testServer.client.let { client ->
-            assertEquals(401, client.get("/api/branches/$branchId/dashboard/today").code)
-        }
+        assertEquals(401, screen(branchId).code)
     }
 }

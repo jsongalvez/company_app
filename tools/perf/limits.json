@@ -1,6 +1,6 @@
 {
   "signin": { "label": "Sign-in", "limitMs": 2500, "method": "POST", "template": "/auth/login" },
-  "today": { "label": "Today", "limitMs": 300, "method": "GET", "template": "/api/branches/{branchId}/dashboard/today" },
+  "today": { "label": "Today", "limitMs": 300, "method": "GET", "template": "/api/branches/{branchId}/today-screen" },
   "save": { "label": "Saving a session", "limitMs": 400, "method": "POST", "template": "/api/sessions" },
   "finance": { "label": "Finance", "limitMs": 800, "method": "GET", "template": "/api/branches/{branchId}/daily-summary" }
 }
