@@ -49,6 +49,7 @@ import com.companyb.companyapp.contracts.identity.LoginResponse
 import com.companyb.companyapp.contracts.identity.MeResponse
 import com.companyb.companyapp.contracts.identity.ResetPasswordRequest
 import com.companyb.companyapp.contracts.identity.RoleResponse
+import com.companyb.companyapp.contracts.identity.StartResponse
 import com.companyb.companyapp.contracts.identity.StopViewAsRequest
 import com.companyb.companyapp.contracts.identity.UpdateProfileRequest
 import com.companyb.companyapp.contracts.identity.UserAssignmentResponse
@@ -213,6 +214,7 @@ internal object DtoSchemaProjector {
             "DashboardPractitionerResponse" to DashboardPractitionerResponse.serializer(),
             "DashboardResponse" to DashboardResponse.serializer(),
             "TodayScreenResponse" to TodayScreenResponse.serializer(),
+            "StartResponse" to StartResponse.serializer(),
             "DashboardSessionResponse" to DashboardSessionResponse.serializer(),
             "DelegateResponse" to DelegateResponse.serializer(),
             "DeleteExpenseRequest" to DeleteExpenseRequest.serializer(),

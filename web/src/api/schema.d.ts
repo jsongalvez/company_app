@@ -1892,6 +1892,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["start"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/users": {
         parameters: {
             query?: never;
@@ -2432,9 +2448,41 @@ export interface components {
         LoginRequest: {
             username: string;
             password: string;
+            branchId?: string | null;
+            withToday?: boolean;
         };
         LoginResponse: {
             token: string;
+            start?: {
+                me: components["schemas"]["MeResponse"];
+                capabilities: components["schemas"]["UserCapabilityResponse"][];
+                branches: components["schemas"]["MeBranchResponse"][];
+                accessible: components["schemas"]["BranchResponse"][];
+                branchId: string | null;
+                today: {
+                    branchDayId: string;
+                    /** @enum {string} */
+                    status?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN";
+                } | null;
+                shift: {
+                    attendanceId: string;
+                    branchId: string;
+                    branchName: string;
+                    branchDayId: string;
+                    date: string;
+                    isRelief: boolean;
+                } | null;
+                unreadCount: number;
+                todayScreen: {
+                    dashboard: {
+                        sessions: components["schemas"]["DashboardSessionResponse"][];
+                        commission: components["schemas"]["DashboardCommissionResponse"];
+                    } | null;
+                    dashboardRefusal: string | null;
+                    bookings: components["schemas"]["BookingResponse"][] | null;
+                    roster: components["schemas"]["MemberAttendanceResponse"][] | null;
+                } | null;
+            } | null;
         };
         MeResponse: {
             id: string;
@@ -2453,6 +2501,36 @@ export interface components {
         RoleResponse: {
             name: string;
             capabilities: string[];
+        };
+        StartResponse: {
+            me: components["schemas"]["MeResponse"];
+            capabilities: components["schemas"]["UserCapabilityResponse"][];
+            branches: components["schemas"]["MeBranchResponse"][];
+            accessible: components["schemas"]["BranchResponse"][];
+            branchId: string | null;
+            today: {
+                branchDayId: string;
+                /** @enum {string} */
+                status?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN";
+            } | null;
+            shift: {
+                attendanceId: string;
+                branchId: string;
+                branchName: string;
+                branchDayId: string;
+                date: string;
+                isRelief: boolean;
+            } | null;
+            unreadCount: number;
+            todayScreen: {
+                dashboard: {
+                    sessions: components["schemas"]["DashboardSessionResponse"][];
+                    commission: components["schemas"]["DashboardCommissionResponse"];
+                } | null;
+                dashboardRefusal: string | null;
+                bookings: components["schemas"]["BookingResponse"][] | null;
+                roster: components["schemas"]["MemberAttendanceResponse"][] | null;
+            } | null;
         };
         StopViewAsRequest: {
             userId: string;
@@ -9586,6 +9664,38 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    start: {
+        parameters: {
+            query?: {
+                branchId?: string;
+                withToday?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

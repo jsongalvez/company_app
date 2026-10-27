@@ -7,7 +7,7 @@ const line = (method, template, elapsedMs, queries, status = 200) =>
     `2026-10-27T07:03:55,402 [Jetty] INFO c.c.companyapp.logging.RequestLog - {"event":"request_completed","traceId":"t","method":"${method}","route":"/x","template":"${template}","status":${status},"elapsedMs":${elapsedMs},"dbMs":1,"queries":${queries}}`;
 
 // 20 samples per key route per round: the p95 is the 19th smallest.
-function round({ today = 20, todayQ = 6, save = 30, saveQ = 4, noise = false } = {}) {
+function round({ today = 20, todayQ = 6, save = 30, saveQ = 4, loginQ = 2, noise = false } = {}) {
     const rows = new Map();
     const add = (key, ms, q, n = 20) => {
         const arr = Array.from({ length: n }, (_, i) => ({ ms: ms + (i % 3), queries: q }));
@@ -16,7 +16,7 @@ function round({ today = 20, todayQ = 6, save = 30, saveQ = 4, noise = false } =
     };
     add(TODAY, today, todayQ);
     add("POST /api/sessions", save, saveQ);
-    add("POST /auth/login", 350, 2);
+    add("POST /auth/login", 350, loginQ);
     add("GET /api/branches/{branchId}/daily-summary", 60, 7);
     add("GET /api/expenses", 15, 2);
     rows.set("GET /api/other", Array.from({ length: 20 }, () => ({ ms: 5, queries: 1 })));
@@ -37,6 +37,11 @@ test("Today going from 20ms to 420ms fails and the summary says so", () => {
 
 test("one extra query on a key route fails with no change in time", () => {
     assert.deepEqual(failures(compare({ base: four(), head: four({ saveQ: 5 }) })), ["Save session"]);
+});
+
+test("sign-in may read what the app opens with, up to its budget, and no more", () => {
+    assert.deepEqual(failures(compare({ base: four(), head: four({ loginQ: 30 }) })), []);
+    assert.deepEqual(failures(compare({ base: four(), head: four({ loginQ: 41 }) })), ["Sign-in"]);
 });
 
 test("one slow round in four passes (a noisy runner)", () => {

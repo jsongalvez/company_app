@@ -13,14 +13,28 @@ const b = (branchId: string) => ({ params: { path: { branchId } } });
  * (after a save, say) asks again.
  */
 const todayInFlight = new Map<string, Promise<S["TodayScreenResponse"]>>();
+const seeded = new WeakSet<Promise<unknown>>();
 function todayScreen(branchId: string) {
     let p = todayInFlight.get(branchId);
+    // A seed from the start bundle is shared by the loaders asking in this tick, then dropped: a later ask is a new read.
+    if (p && seeded.has(p)) setTimeout(() => todayInFlight.get(branchId) === p && todayInFlight.delete(branchId), 0);
     if (!p) {
         p = ok(api.GET("/api/branches/{branchId}/today-screen", b(branchId)));
         todayInFlight.set(branchId, p);
         setTimeout(() => todayInFlight.delete(branchId), 0);
     }
     return p;
+}
+/**
+ * The start bundle already holds Today's lists: hand them to the first three loaders instead of asking
+ * again. If the bundle was for another branch, or failed, they ask as usual.
+ */
+export function seedTodayScreen(branchId: string, bundle: Promise<S["TodayScreenResponse"]>) {
+    const p = bundle.catch(() => ok(api.GET("/api/branches/{branchId}/today-screen", b(branchId))));
+    p.catch(() => {});
+    seeded.add(p);
+    todayInFlight.set(branchId, p);
+    setTimeout(() => todayInFlight.get(branchId) === p && todayInFlight.delete(branchId), 5000);
 }
 const NO_ACCESS = "You don't have access to this";
 const part = <T>(v: T | null | undefined, why?: string | null): T => {

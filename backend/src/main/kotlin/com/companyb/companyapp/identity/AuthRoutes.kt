@@ -18,6 +18,7 @@ import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiRequestBody
 import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
+import java.util.UUID
 
 @OpenApi(
     path = ApiRoutes.AUTH_LOGIN,
@@ -89,7 +90,16 @@ object AuthRoutes {
             when (loginResult) {
                 is LoginResult.Success -> {
                     context.status(HttpStatus.OK)
-                    context.json(LoginResponse(loginResult.token))
+                    // One request to sign in and open the app. If the extra read fails, the phone asks for it itself.
+                    val start =
+                        runCatching {
+                            StartService.get(
+                                loginResult.userId,
+                                loginRequest.branchId?.let { runCatching { UUID.fromString(it) }.getOrNull() },
+                                loginRequest.withToday,
+                            )
+                        }.getOrNull()
+                    context.json(LoginResponse(loginResult.token, start))
                 }
 
                 LoginResult.RateLimited -> {

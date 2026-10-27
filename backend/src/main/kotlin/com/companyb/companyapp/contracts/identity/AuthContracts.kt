@@ -6,11 +6,16 @@ import kotlinx.serialization.Serializable
 data class LoginRequest(
     val username: String,
     val password: String,
+    /** The branch the phone last showed, and whether it opens on Today: [LoginResponse.start] then has its lists. */
+    val branchId: String? = null,
+    val withToday: Boolean = false,
 )
 
 @Serializable
 data class LoginResponse(
     val token: String,
+    /** What the app needs to open, so signing in is one request. Null if it could not be read: ask `GET /api/start`. */
+    val start: StartResponse? = null,
 )
 
 /**
