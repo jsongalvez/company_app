@@ -366,7 +366,7 @@
                         {#each roster.data as m, i (m.assignmentId)}
                             <tr>
                                 <td class="faint num slot">{i + 1}</td>
-                                <td class="ellipsis"
+                                <td class="ellipsis who" title={m.displayName}
                                     >{m.displayName}{#if m.userId === app.me?.id}<span class="faint">&nbsp;(you)</span>{/if}</td
                                 >
                                 <td class="right nowrap">
@@ -410,8 +410,13 @@
         align-items: flex-start;
     }
     .roster {
-        width: 260px;
+        width: 300px;
         flex: none;
+    }
+    /* the name takes what the status and button leave, and is cut with "…" */
+    .roster td.who {
+        max-width: 0;
+        width: 100%;
     }
     .roster table.grid td {
         border-bottom-color: var(--line);
