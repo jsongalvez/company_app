@@ -108,11 +108,17 @@
         void: sessions.length - live.length,
     });
 
-    function refresh() {
+    /** After a save or a mark: the lists changed. The day's own status (open, past, remitted) did not. */
+    function reloadLists() {
         invalidate(`dash:${bid}`, `roster:${bid}`, `bookings:${bid}`);
         dash.refresh();
         roster.refresh();
         booked.refresh();
+    }
+
+    /** The Refresh button and key: everything on screen, including the day's status. */
+    function refresh() {
+        reloadLists();
         void refreshBranchDay();
     }
 
@@ -130,7 +136,7 @@
                 ),
             undo ? `${s.clientName ?? "Session"}: back to Waiting` : `${s.clientName ?? "Session"}: ${label(to)}`,
         );
-        if (okd) refresh();
+        if (okd) reloadLists();
     }
 
     async function setPresent(m: S["MemberAttendanceResponse"], present: boolean) {
@@ -390,9 +396,9 @@
     </aside>
 </div>
 
-<NewSession bind:open={newOpen} {startClient} booking={startBooking} onsaved={() => (refresh(), reloadBookings())} />
+<NewSession bind:open={newOpen} {startClient} booking={startBooking} onsaved={() => (reloadLists(), reloadBookings())} />
 <BookVisit bind:open={bookOpen} onsaved={reloadBookings} />
-<ProductSale bind:open={saleOpen} onsaved={refresh} />
+<ProductSale bind:open={saleOpen} onsaved={reloadLists} />
 
 <style>
     .mb {
