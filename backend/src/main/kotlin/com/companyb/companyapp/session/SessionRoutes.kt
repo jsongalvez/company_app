@@ -447,6 +447,17 @@ object SessionRoutes {
                     reason = request.reason,
                 ),
             )
+        // Each one is its own command with its own audit row, as when asked one by one.
+        request.practitioners.forEach { added ->
+            SessionPractitionerService.addPractitioner(
+                callerId = callerId,
+                id = uuidOrThrow(added.id, "id"),
+                sessionId = sessionId,
+                practitionerId = uuidOrThrow(added.practitionerId, "practitioner id"),
+                remarks = added.remarks,
+                reason = added.reason,
+            )
+        }
         val result = saved.result
         val concerns = saved.concerns.map { it.toResponse() }
         context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)

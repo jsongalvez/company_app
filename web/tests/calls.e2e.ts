@@ -143,3 +143,24 @@ test("opening Finance is one request", { session: "owner" }, async ({ app, scree
     await expect(screen.getByRole("heading", "Commission share")).toBeVisible();
     expect(sent).toEqual(["POST /api/batch"]);
 });
+
+// A session and the practitioners saved with it are one request.
+test("saving a session sends its practitioners with it", { session: "owner" }, async ({ app, screen, browser }) => {
+    await app.open("/#/today");
+    await clockInHere(screen, browser);
+    const writes: string[] = [];
+    let practitioners = 0;
+    await browser.route(/\/api\//, async (route) => {
+        const { method, url, postData } = route.request;
+        const path = new URL(url).pathname;
+        if (method === "POST") {
+            writes.push(path);
+            if (path === "/api/sessions") practitioners = (JSON.parse(postData ?? "{}") as { practitioners?: unknown[] }).practitioners?.length ?? 0;
+        }
+        await route.fallback();
+    });
+    await addDoneSessionForNewClient(screen);
+    expect(writes.filter((p) => p.endsWith("/practitioners"))).toEqual([]);
+    expect(writes.filter((p) => p === "/api/sessions")).toHaveLength(1);
+    expect(practitioners).toBeGreaterThan(0);
+});

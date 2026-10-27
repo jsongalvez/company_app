@@ -148,17 +148,10 @@
                             remarks: remarks.trim() || null,
                             otherConcerns: null,
                             nextAppointmentDate: nextDate || null,
+                            practitioners: practitioners.map((practitionerId) => ({ id: uuid(), practitionerId })),
                         },
                     }),
                 );
-                for (const pid of practitioners) {
-                    await ok(
-                        api.POST("/api/sessions/{sessionId}/practitioners", {
-                            params: { path: { sessionId: s.id } },
-                            body: { id: uuid(), practitionerId: pid },
-                        }),
-                    );
-                }
                 // Concerns: ticked ones, then typed ones (a known name is picked, a new one joins the list).
                 const ids = new Set(picked);
                 const fresh: string[] = [];

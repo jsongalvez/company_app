@@ -2957,6 +2957,7 @@ export interface components {
             otherConcerns?: string | null;
             nextAppointmentDate?: string | null;
             reason?: string | null;
+            practitioners?: components["schemas"]["AddPractitionerRequest"][];
         };
         DashboardCommissionResponse: {
             amount: string;
