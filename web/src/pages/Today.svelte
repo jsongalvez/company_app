@@ -370,10 +370,12 @@
                                     >{m.displayName}{#if m.userId === app.me?.id}<span class="faint">&nbsp;(you)</span>{/if}</td
                                 >
                                 <td class="right nowrap">
-                                    {#if m.present}<span class="mark ok">Clocked in</span>{:else}<span class="faint">Not in</span>{/if}
-                                    {#if edit}
+                                    {#if !edit}
+                                        {#if m.present}<span class="mark ok">Clocked in</span>{:else}<span class="faint">Not in</span>{/if}
+                                    {:else}
                                         <button
-                                            class="sm"
+                                            class="sm clockbtn"
+                                            class:ok={m.present}
                                             onclick={() => setPresent(m, !m.present)}
                                             aria-label="{m.present ? 'Clock out' : 'Clock in'} {m.displayName}">{m.present ? "Clock out" : "Clock in"}</button
                                         >
@@ -414,6 +416,10 @@
         flex: none;
     }
     /* the name takes what the status and button leave, and is cut with "…" */
+    .roster .clockbtn {
+        width: 80px;
+        justify-content: center;
+    }
     .roster td.who {
         max-width: 0;
         width: 100%;

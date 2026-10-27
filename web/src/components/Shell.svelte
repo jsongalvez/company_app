@@ -223,16 +223,15 @@
 
         <span class="day nowrap" title="Business day. It ends at 4 AM.">
             {day(opDate)}
-            {#if app.today?.status}
-                <span class="mark {app.today.status === 'OPEN' ? 'ok' : app.today.status === 'REMITTED' ? 'info' : 'plain'}">{label(app.today.status)}</span>
+            {#if app.today?.status && app.today.status !== "OPEN"}
+                <span class="mark {app.today.status === 'REMITTED' ? 'info' : 'plain'}">{label(app.today.status)}</span>
             {/if}
         </span>
 
         <span class="spacer"></span>
 
         {#if clockedHere}
-            <span class="mark ok hide-sm" title="On duty here{app.shift?.isRelief ? ' (relief)' : ''}">Clocked in</span>
-            <button class="clock" onclick={doClockOut} disabled={clockBusy}>Clock out</button>
+            <button class="clock ok" onclick={doClockOut} disabled={clockBusy} title="On duty here{app.shift?.isRelief ? ' (relief)' : ''}">Clock out</button>
         {:else if clockedElsewhere}
             <button class="clock" onclick={doClockOut} disabled={clockBusy} title="Clock out of {app.shift?.branchName}"
                 >Clock out<span class="hide-sm">&nbsp;of {app.shift?.branchName}</span></button
