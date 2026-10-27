@@ -85,13 +85,13 @@
     }
     const startReason = () => (reason = closed ? lastReason() : "");
 
-    function refresh() {
-        invalidate(`exp:${dayId}`, `comp:${dayId}`, `allow:${dayId}`, `split:${dayId}`, `dsum:${bid}:${date}`);
-        exp.refresh();
-        comp.refresh();
-        allow.refresh();
-        split.refresh();
-        summary.refresh();
+    // Re-read only what the save can change. The totals count expenses, pay and shares, not allowances.
+    // Other people's edits to the other lists show when Finance is opened again or the app reloads.
+    function refresh(...changed: ("exp" | "comp" | "allow" | "split" | "summary")[]) {
+        const lists = { exp, comp, allow, split, summary };
+        const keys = { exp: `exp:${dayId}`, comp: `comp:${dayId}`, allow: `allow:${dayId}`, split: `split:${dayId}`, summary: `dsum:${bid}:${date}` };
+        invalidate(...changed.map((c) => keys[c]));
+        for (const c of changed) lists[c].refresh();
     }
 
     // ---- Expense dialog ----
@@ -126,7 +126,7 @@
         );
         if (done) {
             eOpen = false;
-            refresh();
+            refresh("exp", "summary");
         }
     }
     async function deleteExpense(e: S["ExpenseResponse"]) {
@@ -144,7 +144,7 @@
                 "Expense deleted",
             )
         )
-            refresh();
+            refresh("exp", "summary");
     }
     async function restoreExpense(e: S["ExpenseResponse"]) {
         const why = closed ? await askReason("Restore expense") : "";
@@ -155,7 +155,7 @@
                 "Expense restored",
             )
         )
-            refresh();
+            refresh("exp", "summary");
     }
     const delVs = viewSetting("deleted", "");
     let showDeleted = $state(delVs.read === "1");
@@ -206,7 +206,7 @@
         );
         if (done) {
             cOpen = false;
-            refresh();
+            refresh("comp", "summary");
         }
     }
 
@@ -223,14 +223,14 @@
             )
         ) {
             aOpen = false;
-            refresh();
+            refresh("allow");
         }
     }
 
     async function recalc() {
         if (!confirm("Recount this day's shares from its sales and clock-ins? The shares shown now will be replaced.")) return;
         if (await act(() => ok(api.POST("/api/commission/recalculate/{branchDayId}", { params: { path: { branchDayId: dayId } } })), "Shares updated"))
-            refresh();
+            refresh("split", "summary");
     }
 
     function setDate(d: string) {
