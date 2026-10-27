@@ -231,12 +231,11 @@
         <span class="spacer"></span>
 
         {#if clockedHere}
-            <button class="clock" onclick={doClockOut} disabled={clockBusy} title="On duty here{app.shift?.isRelief ? ' (relief)' : ''}">
-                <span class="dot on"></span><span class="hide-sm">On duty ·&nbsp;</span>Clock out
-            </button>
+            <span class="mark ok hide-sm" title="On duty here{app.shift?.isRelief ? ' (relief)' : ''}">Clocked in</span>
+            <button class="clock" onclick={doClockOut} disabled={clockBusy}>Clock out</button>
         {:else if clockedElsewhere}
             <button class="clock" onclick={doClockOut} disabled={clockBusy} title="Clock out of {app.shift?.branchName}"
-                ><span class="dot on"></span>Clock out<span class="hide-sm">&nbsp;of {app.shift?.branchName}</span></button
+                >Clock out<span class="hide-sm">&nbsp;of {app.shift?.branchName}</span></button
             >
         {:else if bid && here && app.shiftKnown}
             <button class="primary" onclick={doClockIn} disabled={clockBusy}>Clock in</button>
@@ -441,15 +440,6 @@
         padding: 0 4px;
         font-size: 11px;
         line-height: 16px;
-    }
-    .dot {
-        width: 8px;
-        height: 8px;
-        background: var(--text-3);
-        display: inline-block;
-    }
-    .dot.on {
-        background: var(--ok);
     }
     .menu {
         display: none;

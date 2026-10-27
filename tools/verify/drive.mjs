@@ -23,6 +23,7 @@ try {
   for (const [label, viewport] of Object.entries(sizes)) {
     const ctx = await browser.newContext({ viewport, timezoneId: "Asia/Manila", deviceScaleFactor: label === "phone" ? 2 : 1 });
     const page = await ctx.newPage();
+    page.on("dialog", (d) => d.accept()); // the app confirms clock in/out with confirm(), which Playwright dismisses by default
     let armed = false;
     const seen = (msg) => (armed ? problems : notes).push(msg);
     page.on("console", (m) => m.type() === "error" && seen(`[${label}] console: ${m.text()}`));
