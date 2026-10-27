@@ -6,11 +6,18 @@ const MAX_ASSETS = 80;
 // Save the page and the files it loads right away, so the very next open works offline.
 async function saveApp() {
     const res = await fetch("/", { cache: "no-store" });
-    if (!res.ok) return;
+    if (res.ok) await savePage(res);
+}
+
+// Keep a page and the built files it names. After a deploy this runs in the background, so the next
+// open finds the new build already on the phone instead of downloading it before it can paint.
+async function savePage(res) {
     const html = await res.clone().text();
-    await put("/", res);
     const files = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => m[1]);
-    await Promise.all(files.map((f) => fetch(f).then((r) => put(f, r))));
+    const missing = [];
+    for (const f of files) if (!(await caches.match(f))) missing.push(f);
+    await Promise.all(missing.map((f) => fetch(f).then((r) => put(f, r))));
+    await put("/", res);
 }
 
 self.addEventListener("install", (e) =>
@@ -43,7 +50,7 @@ async function put(req, res) {
 // The app asks the server for the current build when it starts and offers the update.
 function page(e) {
     const fresh = fetch(e.request).then(async (res) => {
-        if (res.ok) await put("/", res.clone());
+        if (res.ok) await savePage(res.clone());
         return res;
     });
     e.waitUntil(fresh.catch(() => {}));
