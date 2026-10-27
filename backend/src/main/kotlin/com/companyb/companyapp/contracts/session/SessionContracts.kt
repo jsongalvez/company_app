@@ -81,6 +81,8 @@ data class CreateSessionRequest(
     val otherConcerns: String? = null,
     val nextAppointmentDate: String? = null,
     val reason: String? = null,
+    /** Practitioners to add right after the session is saved, so a save is one request. */
+    val practitioners: List<AddPractitionerRequest> = emptyList(),
 )
 
 @Serializable
