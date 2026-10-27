@@ -5,8 +5,11 @@ import { expect } from "e2e";
 // loads again by itself once the server answers.
 test("a dropped request is retried without fuss", { session: "owner" }, async ({ app, screen, browser }) => {
     let dropped = 0;
-    await browser.route(/\/api\/me\/history/, async (route) => {
-        if (route.request.method === "GET" && dropped < 2) {
+    // The history read may travel alone or inside a batch with the reads asked for with it.
+    await browser.route(/\/api\/(me\/history|batch)/, async (route) => {
+        const { url, postData } = route.request;
+        const reads = url.includes("/api/batch") ? (postData ?? "") : url;
+        if (reads.includes("/api/me/history") && dropped < 2) {
             dropped++;
             await route.abort();
         } else await route.fallback();
