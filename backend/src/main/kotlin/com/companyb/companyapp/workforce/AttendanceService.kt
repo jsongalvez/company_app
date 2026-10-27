@@ -200,39 +200,6 @@ object AttendanceService {
         return AttendanceMarkResult(after, created = false, getIsRelief(today.id, targetUserId))
     }
 
-    /**
-     * the home-branch roster with live presence flags at [branchId] today. Membership-gated
-     * read (the same authority that marks); day resolution stays find-only — a missing day row means
-     * nobody is present and no day is created by the read. Ordered by Branch Slot then display name.
-     */
-    fun rosterToday(
-        callerId: UUID,
-        branchId: UUID,
-    ): List<AttendanceRosterEntry> {
-        // 404 precedence for an unknown branch before the membership gate:
-        // hasActiveMembership would otherwise yield no membership and surface 403
-        //  (403-masking-404; same position as mark / clockIn guard).
-        BranchService.findById(branchId)
-        return transaction {
-            requireActiveMember(callerId, branchId, "Home-branch membership required to view this branch's attendance")
-
-            val presentUserIds =
-                BranchDayService
-                    .findToday(branchId)
-                    ?.let { AttendanceRepository.activeClockInUserIds(it.id) }
-                    ?: emptySet()
-            AttendanceRepository.rosterRows(branchId).map { member ->
-                AttendanceRosterEntry(
-                    assignmentId = member.assignmentId,
-                    userId = member.userId,
-                    displayName = member.displayName,
-                    slot = member.slot,
-                    present = member.userId in presentUserIds,
-                )
-            }
-        }
-    }
-
     fun clockOut(
         attendanceId: UUID,
         callerId: UUID,
@@ -379,23 +346,6 @@ data class AttendanceRosterEntry(
     val slot: Short,
     val present: Boolean,
 )
-
-/**
- * The mark/roster gate: an ACTIVE user holding an active home assignment at the
- * branch — membership + liveness, never a capability check. Runs on the caller's open
- * transaction (the assignment row is read FOR UPDATE, so a concurrent revocation
- * serializes with the command). File-level helper so AttendanceService stays inside its
- * function-count pin.
- */
-private fun requireActiveMember(
-    userId: UUID,
-    branchId: UUID,
-    message: String,
-) {
-    if (!AttendanceRepository.hasActiveMembershipInTransaction(branchId, userId)) {
-        throw ForbiddenException(message)
-    }
-}
 
 /**
  * unknown-target 404 precedence for mark (runs before the command

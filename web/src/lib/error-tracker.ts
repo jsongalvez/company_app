@@ -34,8 +34,6 @@ const REPEAT_MS = 60_000;
 
 /** Statuses that are the app working as designed, not a bug to chase. */
 const EXPECTED = new Set([401, 409, 429]);
-/** Refusals the app asks for on purpose: Today reads its 403 as "clock in first". */
-const EXPECTED_REFUSALS = new Set(["GET /api/branches/{id}/dashboard/today 403"]);
 
 export type ApiFailure = { method: string; path: string; status: number; traceId: string | null };
 
@@ -92,7 +90,6 @@ export function createTracker(dsn: string | undefined, send: Send, release: stri
         captureApiFailure(f: ApiFailure) {
             if (f.status < 400 || EXPECTED.has(f.status)) return;
             const path = plainPath(f.path);
-            if (EXPECTED_REFUSALS.has(`${f.method} ${path} ${f.status}`)) return;
             emit(`api:${f.method}:${path}:${f.status}`, {
                 message: `${f.method} ${path} -> ${f.status}`,
                 tags: { kind: "api", method: f.method, path, status: String(f.status), trace_id: f.traceId ?? "none", page: page() },

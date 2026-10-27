@@ -1,6 +1,5 @@
 package com.companyb.companyapp.session.dashboard
 import com.companyb.companyapp.api.ApiRoutes
-import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -26,18 +25,6 @@ import java.time.LocalDate
 import java.util.UUID
 
 @OpenApi(
-    path = ApiRoutes.BRANCH_DASHBOARD_TODAY_PATH,
-    methods = [HttpMethod.GET],
-    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
-    operationId = "dashboard_today",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    responses = [
-        OpenApiResponse(status = "200", content = [OpenApiContent(from = DashboardResponse::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
     path = ApiRoutes.BRANCH_SESSIONS_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
@@ -56,7 +43,6 @@ object DashboardRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
 
     fun register(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.BRANCH_DASHBOARD_TODAY_PATH, ::handleGetToday)
         config.routes.before(ApiRoutes.BRANCH_SESSIONS_PATH) { context ->
             if (context.method() == HandlerType.GET) {
                 CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
@@ -87,14 +73,7 @@ object DashboardRoutes {
         context.json(data.sessions.map { mapDashboardSession(it, enrichment) })
     }
 
-    private fun handleGetToday(context: Context) {
-        val callerId = context.callerUuid()
-        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-        val data = DashboardService.getToday(callerId, branchId)
-        context.json(data.toResponse())
-    }
-
-    private fun DashboardData.toResponse(): DashboardResponse {
+    internal fun DashboardData.toResponse(): DashboardResponse {
         val enrichment =
             DashboardSessionEnrichment(
                 clientNames = clientNames,

@@ -39,7 +39,7 @@ data class RequestCompletedEvent(
  * | select(.elapsedMs >= 2000)'`). `route` is the concrete request path
  * (query string excluded, so search terms stay out of the logs); ID-bearing
  * paths vary per row, so filter those with `startswith`/`contains`. `template`
- * is the matched route pattern (`/api/branches/{branchId}/dashboard/today`, or
+ * is the matched route pattern (`/api/branches/{branchId}/today-screen`, or
  * `UNMATCHED`), so one route groups by one value. `dbMs` and `queries` are the
  * request's statement time and count from [RequestQueryTally]; the same split
  * goes out as `Server-Timing: db;dur=<dbMs>, app;dur=<appMs>`.

@@ -239,7 +239,7 @@ object UserBranchAssignmentService {
     ): List<BranchMemberRow> {
         // 404 precedence for an unknown branch before the membership gate:
         // findActiveByBranchAndUser alone conflates "unknown branch" with "known but
-        // non-member" and surfaces 403 (the mark / rosterToday order).
+        // non-member" and surfaces 403 (the mark order).
         BranchService.findById(branchId)
         val assignment = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId)
         if (assignment == null) {

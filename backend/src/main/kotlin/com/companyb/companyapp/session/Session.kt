@@ -4,6 +4,7 @@ import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.SessionType
+import com.companyb.companyapp.database.pgEnum
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.Table
@@ -11,7 +12,6 @@ import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.javatime.date
 import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
-import org.postgresql.util.PGobject
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -72,31 +72,13 @@ internal object SessionTable : Table("session") {
     val branchDayId = javaUUID("branch_day_id").references(BranchDayTable.id)
     val requestedPractitionerId = javaUUID("requested_practitioner_id").references(AppUserTable.id).nullable()
     val sessionType =
-        customEnumeration<SessionType>(
-            name = "session_type",
-            sql = "session_type",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> SessionType.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "session_type"
-                obj.value = it.name
-                obj
-            },
-        )
+        pgEnum(name = "session_type", sql = "session_type", values = SessionType.entries)
     val isWalkIn = bool("is_walk_in")
     val sessionStatus =
-        customEnumeration<SessionStatus>(
+        pgEnum(
             name = "session_status",
             sql = "session_status",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> SessionStatus.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "session_status"
-                obj.value = it.name
-                obj
-            },
+            values = SessionStatus.entries,
         ).default(SessionStatus.PENDING)
     val isVoided = bool("is_voided").default(false)
     val basePrice = decimal("base_price", PRECISION, SCALE)

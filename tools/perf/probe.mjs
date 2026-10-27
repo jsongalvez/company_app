@@ -63,7 +63,7 @@ try {
     const clock = await call("POST", "/api/attendance/clock-in", token, { attendanceId: randomUUID(), branchId });
     if (clock.status !== 409 && clock.status >= 300) throw new Error(`clock-in ${clock.status} ${clock.text.slice(0, 120)}`);
 
-    const today = await call("GET", `/api/branches/${branchId}/dashboard/today`, token);
+    const today = await call("GET", `/api/branches/${branchId}/today-screen`, token);
     if (!record("today", today)) throw new Error(`today ${today.status}`);
 
     let clientId = existsSync(CLIENT_FILE) ? readFileSync(CLIENT_FILE, "utf8").trim() : "";

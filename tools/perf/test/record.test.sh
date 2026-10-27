@@ -16,7 +16,7 @@ line() { # ts template elapsed db trace
   printf '%s \033[0;39m \033[31m\033[0;39m%s [Jetty-1] \033[34m INFO\033[0;39m [TraceId-%s] +%s ms. \033[32mc.c.RequestLog\033[0;39m - \033[36m{"event":"request_completed","traceId":"%s","method":"GET","route":"/x","template":"%s","status":200,"elapsedMs":%s,"dbMs":%s,"queries":2}\n' \
     "$1" "$1" "$5" "$3" "$5" "$2" "$3" "$4"
 }
-A=/api/branches/{branchId}/dashboard/today
+A=/api/branches/{branchId}/today-screen
 B=/api/sessions
 
 # bucket 10:00-10:05: A has 1..100 ms, B has 10 requests of 10..100 ms
@@ -47,8 +47,8 @@ check "closed bucket now recorded" "$(q "select count(*) from raw")" 3
 check "second rerun adds nothing" "$(q "select count(*) from raw")" 3
 
 rep="$("$REP" --since 1h)"
-grep -q "dashboard/today" <<<"$rep" && ok "report lists the Today template" || bad "report lists the Today template: $rep"
-grep -E "dashboard/today" <<<"$rep" | grep -q " 101 " && ok "report counts both buckets" || bad "report counts both buckets: $rep"
+grep -q "today-screen" <<<"$rep" && ok "report lists the Today template" || bad "report lists the Today template: $rep"
+grep -E "today-screen" <<<"$rep" | grep -q " 101 " && ok "report counts both buckets" || bad "report counts both buckets: $rep"
 
 # truncated log restarts from offset 0
 : > "$PERF_LOG"

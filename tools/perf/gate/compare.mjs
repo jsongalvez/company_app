@@ -15,11 +15,29 @@ const MIN_SAMPLES = 5;
 
 export const KEY_ROUTES = {
     "POST /auth/login": "Sign-in",
-    "GET /api/branches/{branchId}/dashboard/today": "Today",
+    "GET /api/branches/{branchId}/today-screen": "Today",
     "POST /api/sessions": "Save session",
     "GET /api/branches/{branchId}/daily-summary": "Finance daily summary",
     "GET /api/expenses": "Finance expenses",
 };
+
+const TODAY_SCREEN = "GET /api/branches/{branchId}/today-screen";
+const LEGACY_TODAY = ["GET /api/branches/{branchId}/dashboard/today", "GET /api/branches/{branchId}/bookings", "GET /api/branches/{branchId}/attendance/today"];
+
+// A base from before the Today screen was one request logs it as three. Fold those into one
+// Today screen per request round (slowest of the three, queries added) so the two sides compare.
+function foldLegacyToday(byRoute) {
+    const parts = LEGACY_TODAY.map((k) => byRoute.get(k) ?? []);
+    if (byRoute.has(TODAY_SCREEN) || parts.some((p) => p.length === 0)) return;
+    const n = Math.min(...parts.map((p) => p.length));
+    byRoute.set(
+        TODAY_SCREEN,
+        Array.from({ length: n }, (_, i) => ({
+            ms: Math.max(...parts.map((p) => p[i].ms)),
+            queries: parts.every((p) => p[i].queries !== undefined) ? parts.reduce((sum, p) => sum + p[i].queries, 0) : undefined,
+        })),
+    );
+}
 
 const COMPLETED = /\{"event":"request_completed".*\}/;
 
@@ -39,6 +57,7 @@ export function parseLog(text) {
         if (!byRoute.has(key)) byRoute.set(key, []);
         byRoute.get(key).push({ ms: e.elapsedMs, queries: e.queries });
     }
+    foldLegacyToday(byRoute);
     return byRoute;
 }
 

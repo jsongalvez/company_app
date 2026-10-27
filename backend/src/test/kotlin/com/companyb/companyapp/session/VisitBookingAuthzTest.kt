@@ -24,7 +24,7 @@ import java.util.function.Consumer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/** Sentry COMPANY-APP-5: Today lists a branch's booked visits for anyone who may view the branch. */
+/** Viewing a branch's booked visits (read with the Today screen) is not the right to book. */
 class VisitBookingAuthzTest : BasePostgresTest() {
     private val viewer = TestFixtures.uuid()
     private val outsider = TestFixtures.uuid()
@@ -71,13 +71,6 @@ class VisitBookingAuthzTest : BasePostgresTest() {
 
     private fun asUser(user: UUID): Consumer<Request.Builder> = Consumer { it.header("X-Test-User", user.toString()) }
 
-    private fun list(user: UUID): Int = testServer.client.get("/api/branches/$branchId/bookings", asUser(user)).code
-
-    @Test
-    fun `someone who may view the branch sees its booked visits`() {
-        assertEquals(200, list(viewer))
-    }
-
     @Test
     fun `viewing is not booking`() {
         val body =
@@ -90,7 +83,13 @@ class VisitBookingAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `someone with no right at the branch is refused`() {
-        assertEquals(403, list(outsider))
+    fun `someone with no right at the branch cannot book`() {
+        val body =
+            mapOf(
+                "id" to TestFixtures.uuid().toString(),
+                "clientId" to TestFixtures.uuid().toString(),
+                "visitDate" to "2030-01-01",
+            )
+        assertEquals(403, testServer.client.post("/api/branches/$branchId/bookings", body, asUser(outsider)).code)
     }
 }

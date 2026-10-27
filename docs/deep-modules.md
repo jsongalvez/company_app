@@ -87,7 +87,7 @@ intentionally shallow.
 
 **Owns:** clock-in/out, `branch_day_assignment` upsert, relief determination at clock-in, clocked-in-at reads feeding commission/dashboard eligibility; branch assignments, active membership directory and the lock+check duty-cutoff seam.
 **Anchors:** `workforce/AttendanceService.kt` (+ internal `AttendanceRepository` in same package) · `workforce/UserBranchAssignmentService.kt` (+ internal `UserBranchAssignmentRepository`, `BranchMemberRepository`) · `workforce/ShiftGuard.kt` (duty-cutoff seam).
-**Public seam:** `clockIn` / `clockOut` · `mark` / `rosterToday` · `findUsersClockedInAt` · `hasActiveClockIn` · `findUsersByBranchDayId` · assignment `create` / `remove` / `updateSlot` / `swapSlots` / `listActiveMembers` · `WorkforceReads.hasActiveMember` / `findAssignmentSlotInTransaction` / `findAttendanceWindowsInTransaction` (+ `AttendanceWindow`) · `ShiftGuard.ensureNoActiveClockIn` / `ensureRetractionAllowed` (relief cutoff).
+**Public seam:** `clockIn` / `clockOut` · `mark` · `findUsersClockedInAt` · `hasActiveClockIn` · `findUsersByBranchDayId` · assignment `create` / `remove` / `updateSlot` / `swapSlots` / `listActiveMembers` · `WorkforceReads.hasActiveMember` / `findAssignmentSlotInTransaction` / `findAttendanceWindowsInTransaction` (+ `AttendanceWindow`) · `ShiftGuard.ensureNoActiveClockIn` / `ensureRetractionAllowed` (relief cutoff).
 **Depends on:** Branch Day (today resolution), Commission (recalc joins the clock-in/out transaction).
 **Expansion triggers:** `idx_one_active_clock_in` uniqueness; relief-flag semantics consumed by commission eligibility and dashboards.
 **Search:** `isRelief`, `findUsersClockedInAt`, `clockOutInTransaction`.

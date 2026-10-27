@@ -67,13 +67,9 @@ export function staff() {
     const p = authed(u.token);
     const b = u.branchId;
 
-    const today = http.batch([
-        ["GET", `${BASE}/api/branches/${b}/dashboard/today`, null, p],
-        ["GET", `${BASE}/api/branches/${b}/bookings`, null, p],
-        ["GET", `${BASE}/api/branches/${b}/attendance/today`, null, p],
-    ]);
-    today.forEach(record);
-    todayMs.add(Math.max(...today.map((r) => r.timings.duration)));
+    const today = http.get(`${BASE}/api/branches/${b}/today-screen`, p);
+    record(today);
+    todayMs.add(today.timings.duration);
 
     if (Math.random() < SAVE_P) {
         // A client can hold one PENDING session, so each save starts with a new client.

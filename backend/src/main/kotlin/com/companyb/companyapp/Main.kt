@@ -59,6 +59,7 @@ import com.companyb.companyapp.session.SessionBaseRateRoutes
 import com.companyb.companyapp.session.SessionRoutes
 import com.companyb.companyapp.session.VisitBookingRoutes
 import com.companyb.companyapp.session.dashboard.DashboardRoutes
+import com.companyb.companyapp.session.dashboard.TodayScreenRoutes
 import com.companyb.companyapp.workforce.AttendanceRoutes
 import com.companyb.companyapp.workforce.UserBranchAssignmentRoutes
 import com.companyb.companyapp.workforce.relief.MedicalMissionDelegateRoutes
@@ -199,7 +200,6 @@ fun registerAllRoutes(config: io.javalin.config.JavalinConfig) {
     MeRoutes.getActiveAttendance(config)
     AttendanceRoutes.clockIn(config)
     AttendanceRoutes.clockOut(config)
-    AttendanceRoutes.rosterToday(config)
     AttendanceRoutes.mark(config)
     BranchRoutes.register(config)
     UserBranchAssignmentRoutes.register(config)
@@ -224,6 +224,7 @@ fun registerAllRoutes(config: io.javalin.config.JavalinConfig) {
     BranchInventoryRoutes.register(config)
     BranchDayRoutes.register(config)
     DashboardRoutes.register(config)
+    TodayScreenRoutes.register(config)
     ProductSaleRoutes.register(config)
     CompensationRoutes.register(config)
     CommissionRoutes.register(config)

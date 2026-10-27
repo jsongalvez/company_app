@@ -1,5 +1,5 @@
 /** Every read the UI makes, with its cache key. Pages and hover-prefetch share these. */
-import { api, ok } from "../api/client";
+import { api, ok, ApiError, type S } from "../api/client";
 import { fetchCached } from "./cache.svelte";
 import { operationalDate } from "./format";
 
@@ -7,11 +7,36 @@ export type Loader<T> = { key: string; fn: () => Promise<T> };
 const L = <T>(key: string, fn: () => Promise<T>): Loader<T> => ({ key, fn });
 const b = (branchId: string) => ({ params: { path: { branchId } } });
 
+/**
+ * One request carries all three of the Today screen's lists. The loaders for sessions, on-duty
+ * list and booked visits are called in the same tick, so they share one request; a later call
+ * (after a save, say) asks again.
+ */
+const todayInFlight = new Map<string, Promise<S["TodayScreenResponse"]>>();
+function todayScreen(branchId: string) {
+    let p = todayInFlight.get(branchId);
+    if (!p) {
+        p = ok(api.GET("/api/branches/{branchId}/today-screen", b(branchId)));
+        todayInFlight.set(branchId, p);
+        setTimeout(() => todayInFlight.delete(branchId), 0);
+    }
+    return p;
+}
+const NO_ACCESS = "You don't have access to this";
+const part = <T>(v: T | null | undefined, why?: string | null): T => {
+    if (v == null) throw new ApiError(403, why ?? NO_ACCESS);
+    return v;
+};
+
 export const load = {
-    dashboard: (branchId: string) => L(`dash:${branchId}:${operationalDate()}`, () => ok(api.GET("/api/branches/{branchId}/dashboard/today", b(branchId)))),
+    dashboard: (branchId: string) =>
+        L(`dash:${branchId}:${operationalDate()}`, async () => {
+            const t = await todayScreen(branchId);
+            return part(t.dashboard, t.dashboardRefusal);
+        }),
     daySessions: (branchId: string, date: string) =>
         L(`dsess:${branchId}:${date}`, () => ok(api.GET("/api/branches/{branchId}/sessions", { params: { path: { branchId }, query: { date } } }))),
-    roster: (branchId: string) => L(`roster:${branchId}:${operationalDate()}`, () => ok(api.GET("/api/branches/{branchId}/attendance/today", b(branchId)))),
+    roster: (branchId: string) => L(`roster:${branchId}:${operationalDate()}`, async () => part((await todayScreen(branchId)).roster)),
     members: (branchId: string) => L(`members:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/members", b(branchId)))),
     dayUsers: (branchDayId: string) =>
         L(`dayusers:${branchDayId}`, () => ok(api.GET("/api/branch-days/{branchDayId}/users", { params: { path: { branchDayId } } }))),
@@ -20,7 +45,7 @@ export const load = {
     // Key "clients:" with no term cannot clash with a search (2+ letters) and still clears with invalidate("clients:").
     recentClients: () => L("clients:", () => ok(api.GET("/api/recent-clients"))),
     client: (clientId: string) => L(`client:${clientId}`, () => ok(api.GET("/api/clients/{clientId}", { params: { path: { clientId } } }))),
-    bookings: (branchId: string) => L(`bookings:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/bookings", b(branchId)))),
+    bookings: (branchId: string) => L(`bookings:${branchId}`, async () => part((await todayScreen(branchId)).bookings)),
     clientBookings: (clientId: string) =>
         L(`bookings:client:${clientId}`, () => ok(api.GET("/api/clients/{clientId}/bookings", { params: { path: { clientId } } }))),
     clientHistory: (clientId: string) =>
@@ -30,7 +55,10 @@ export const load = {
     session: (sessionId: string, branchId: string) =>
         L(`session:${sessionId}`, async () => {
             if (branchId) {
-                const d = await ok(api.GET("/api/branches/{branchId}/dashboard/today", b(branchId))).catch(() => null);
+                const d = await load
+                    .dashboard(branchId)
+                    .fn()
+                    .catch(() => null);
                 const row = d?.sessions.find((s) => s.id === sessionId);
                 if (row) return row;
             }

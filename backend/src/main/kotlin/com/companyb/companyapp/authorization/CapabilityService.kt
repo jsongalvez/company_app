@@ -26,6 +26,13 @@ object CapabilityService {
         contextId: UUID,
     ): Boolean = CapabilityRepository.hasCapability(userId, capabilityCode, contextType, contextId)
 
+    /** Holds [capabilityCode] at [branchId] or everywhere, in one read. */
+    fun hasCapabilityAtBranchOrGlobal(
+        userId: UUID,
+        capabilityCode: String,
+        branchId: UUID,
+    ): Boolean = CapabilityRepository.hasCapabilityAtBranchOrGlobal(userId, capabilityCode, branchId, GLOBAL_CONTEXT_ID)
+
     fun requireCapability(
         userId: UUID,
         capabilityCode: String,

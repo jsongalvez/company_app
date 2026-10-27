@@ -9,7 +9,6 @@ import com.companyb.companyapp.contracts.workforce.ClockInResponse
 import com.companyb.companyapp.contracts.workforce.ClockOutRequest
 import com.companyb.companyapp.contracts.workforce.ClockOutResponse
 import com.companyb.companyapp.contracts.workforce.MarkAttendanceRequest
-import com.companyb.companyapp.contracts.workforce.MemberAttendanceResponse
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
@@ -47,17 +46,6 @@ import java.util.UUID
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
-    path = ApiRoutes.BRANCH_ATTENDANCE_TODAY_PATH,
-    methods = [HttpMethod.GET],
-    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
-    operationId = "branch_attendance_today_get",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    responses = [
-        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<MemberAttendanceResponse>::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 @OpenApi(
@@ -120,26 +108,6 @@ object AttendanceRoutes {
                     clockOut = result.clockOut?.toString(),
                     isRelief = result.isRelief,
                 ),
-            )
-        }
-    }
-
-    /** membership-gated roster: home members with live presence flags for today. */
-    fun rosterToday(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.BRANCH_ATTENDANCE_TODAY_PATH) { context ->
-            val callerId = context.callerUuid()
-            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-
-            context.json(
-                AttendanceService.rosterToday(callerId, branchId).map { entry ->
-                    MemberAttendanceResponse(
-                        assignmentId = entry.assignmentId.toString(),
-                        userId = entry.userId.toString(),
-                        displayName = entry.displayName,
-                        slot = entry.slot,
-                        present = entry.present,
-                    )
-                },
             )
         }
     }
