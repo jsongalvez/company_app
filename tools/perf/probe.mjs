@@ -38,12 +38,14 @@ const call = async (method, path, token, body) => {
     });
     const clientMs = Math.round(performance.now() - started);
     const text = await res.text();
-    return { status: res.status, clientMs, trace: res.headers.get("x-trace-id") ?? "", ...serverTiming(res), json: () => JSON.parse(text), text };
+    const isJson = (res.headers.get("content-type") ?? "").includes("json");
+    return { status: res.status, isJson, clientMs, trace: res.headers.get("x-trace-id") ?? "", ...serverTiming(res), json: () => JSON.parse(text), text };
 };
 
 const rows = [];
 const record = (route, r) => {
-    const good = r.status >= 200 && r.status < 300 && Number.isFinite(r.dbMs) && Number.isFinite(r.appMs);
+    // A removed route falls through to the app's HTML page with a 200, so a JSON answer is part of "ok".
+    const good = r.status >= 200 && r.status < 300 && r.isJson && Number.isFinite(r.dbMs) && Number.isFinite(r.appMs);
     rows.push({ ts: new Date().toISOString(), route, ok: good, status: r.status, clientMs: r.clientMs, dbMs: good ? r.dbMs : 0, appMs: good ? r.appMs : 0, trace: r.trace });
     return good;
 };
