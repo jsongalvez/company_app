@@ -336,6 +336,8 @@ class CredentialSerializationPostgresTest : BasePostgresTest() {
         transaction {
             AppUserTable.update({ AppUserTable.id eq userId }) { it[status] = UserStatus.INACTIVE }
         }
+        // A raw SQL edit bypasses UserRepository's writers; the cache learns of it at its TTL.
+        AuthStateCache.invalidate(userId)
         assertIs<LoginResult.InvalidCredentials>(AuthService.login(username, "immediate-222", "10.5.1.3"))
         assertNull(JwtService.verifyToken(afterLogout.token), "deactivation must kill live tokens")
         JwtService.init(AppConfig.parse())
