@@ -148,22 +148,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/batch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["batch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/branch-days/{branchDayId}/users": {
         parameters: {
             query?: never;
@@ -2143,17 +2127,6 @@ export interface components {
             /** @enum {string} */
             sourceType?: "RELIEF_ACCESS" | "MEDICAL_MISSION_DELEGATE" | "MANUAL_OVERRIDE" | "SYSTEM" | "ROLE" | "UNKNOWN";
         };
-        BatchItem: {
-            status: number;
-            body: string;
-            traceId?: string | null;
-        };
-        BatchRequest: {
-            paths: string[];
-        };
-        BatchResponse: {
-            results: components["schemas"]["BatchItem"][];
-        };
         BranchResponse: {
             id: string;
             name: string;
@@ -3638,48 +3611,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    batch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["BatchRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BatchResponse"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
             };
             /** @description Unauthorized */
             401: {

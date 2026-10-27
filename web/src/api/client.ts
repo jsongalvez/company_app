@@ -4,7 +4,6 @@ import type { components, paths } from "./schema";
 import { net, onlineOrTimeout, reportNetFailure, reportNetOk } from "../lib/net.svelte";
 import { canQueue, enqueue, mustQueue } from "../lib/outbox.svelte";
 import { track } from "../lib/track";
-import { batchedFetch, canBatch } from "./batch";
 
 export type S = components["schemas"];
 
@@ -129,7 +128,7 @@ async function resilientFetch(req: Request): Promise<Response> {
         let res: Response;
         try {
             const signal = AbortSignal.timeout(queueable ? SAVE_TIMEOUT_MS : TIMEOUT_MS);
-            res = await (canBatch(req) ? batchedFetch(req.clone(), signal) : fetch(req.clone(), { signal }));
+            res = await fetch(req.clone(), { signal });
         } catch (e) {
             if (req.signal.aborted) throw e;
             reportNetFailure();
