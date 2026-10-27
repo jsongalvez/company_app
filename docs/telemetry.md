@@ -30,3 +30,37 @@ A problem report carries `Telemetry: <session id>` in its details, so the replay
 docker exec <prod postgres> psql -U company_user -d company_app -c \
   "select at, kind, data from telemetry_event where session_id = '<id>' order by seq"
 ```
+
+## Replaying a problem report
+
+```
+tools/replay/replay.sh <feedback id prefix | session id> [--pii] [--keep] [--source prod|local:DBNAME]
+```
+
+1. It finds the report and the page load that sent it (the `Telemetry:` line in its details, else the reporter's last page load in the 30 minutes before) and exports that page load's events.
+2. It copies the database (telemetry rows left out), starts the copy with this checkout's code on port 18192 (`tools/verify/verify.sh` with `VERIFY_DUMP`), and runs `tools/replay/redact.sql`. Names, contacts, health notes, free text and audit values of those fields are replaced; ids, amounts, dates and business names stay. Every password becomes the dev owner's. The script stops if any client name, phone, address or staff name is left.
+3. It plays the events in a browser at the recorded window size, signed in as the reporter, and finds each tap target with the recorder's own `describe()`. Text fields get stand-in text of the recorded length. The recorded sign-in is not played.
+4. It prints a verdict: REPRODUCED when every failed call comes back with the same status and every recorded error appears again, NOT REPRODUCED otherwise, or NO FAILURE RECORDED (then read the screenshots). It also prints a call-by-call comparison and saves screenshots and `report.json` under `/tmp/replay/<id>-<time>/`.
+
+`--pii` skips the redaction. Use it only when the problem depends on the real details, and say so in the reply. `--keep` leaves the copy running to try fixes against it. Reports from before telemetry have no events: the replay opens the reported screen at the reported size.
+
+The copy runs the code of this checkout, not the version in the report (printed on the first line). Its data is the database now, not at the time of the report.
+
+## Disk
+
+The table is capped at 500,000 rows (about 175 MB with indexes, estimated from about 350 bytes a row). The nightly backup leaves out its rows (`--exclude-table-data=telemetry_event`). Replay copies live in the dev Postgres until `verify.sh down`.
+
+### Moving bulk data to the unused Oracle storage
+
+The VPS boot volume is 48 GB. The Oracle free tier allows 200 GB of block storage in total, and about 150 GB is unused. Attaching it is a console step for the owner:
+
+1. Oracle Cloud console: Storage, Block Volumes, Create Block Volume. Same availability domain as the instance, size 150 GB, default performance.
+2. Compute, Instances, the VPS, Attached block volumes, Attach block volume. Pick the new volume, attachment type Paravirtualized, read/write.
+3. On the VPS: `lsblk` shows a new 150 GB disk (for example `sdb`). Then:
+    ```
+    sudo mkfs.ext4 -L data /dev/sdb
+    sudo mkdir -p /mnt/data
+    echo 'LABEL=data /mnt/data ext4 defaults,nofail 0 2' | sudo tee -a /etc/fstab
+    sudo mount -a && df -h /mnt/data
+    ```
+4. Point bulky things at it: `REPLAY_OUT=/mnt/data/replay`, Docker's data root, or a longer telemetry retention. Telemetry itself stays in the app database, which is small.

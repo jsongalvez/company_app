@@ -18,8 +18,8 @@ export const BUFFER_MAX = 1000;
 export const DATA_MAX = 1000;
 const BATCH_CHARS_MAX = 48_000;
 export const FLUSH_MS = 15_000;
-const PATH_DEPTH = 6;
-const TEXT_MAX = 200;
+export const PATH_DEPTH = 6;
+export const TEXT_MAX = 200;
 
 /** FNV-1a, 32 bits, base 36. The replay tool computes the same over its own page. */
 export function hash(text: string): string {
@@ -35,9 +35,9 @@ export function norm(text: string | null | undefined): string {
     return (text ?? "").slice(0, TEXT_MAX).replace(/\s+/g, " ").trim();
 }
 
-const ACTIONABLE = "a,button,input,select,textarea,label,summary,[role],[tabindex]";
+export const ACTIONABLE = "a,button,input,select,textarea,label,summary,[role],[tabindex]";
 
-function pathOf(el: Element): string {
+export function pathOf(el: Element): string {
     const parts: string[] = [];
     for (let e: Element | null = el, depth = 0; e && e.tagName !== "BODY" && depth < PATH_DEPTH; e = e.parentElement, depth++) {
         let n = 1;

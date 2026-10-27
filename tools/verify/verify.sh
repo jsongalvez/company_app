@@ -6,6 +6,7 @@
 #   verify.sh shot <route> [name]   drive a page signed in, save desktop + 375px phone screenshots
 #   verify.sh down     stop what `up` started, drop its DB, keep the evidence
 #   verify.sh all <route>...        up, doctor, shot each route, down (down also runs on failure)
+# VERIFY_DUMP=<pg_dump -Fc file> makes `up` start from that database instead of an empty one (tools/replay).
 set -uo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -52,6 +53,12 @@ up() {
     npx vite build --outDir "$RUN/dist" --emptyOutDir >"$RUN/web-build.log" 2>&1 ) || { tail -20 "$RUN/web-build.log"; return 1; }
   psqlc "DROP DATABASE IF EXISTS $DB" && psqlc "CREATE DATABASE $DB" || return 1
   echo "$DB" >"$RUN/db"
+  if [ -n "${VERIFY_DUMP:-}" ]; then
+    # The dev database's own pg_restore: the host's may be older than the server that made the dump.
+    docker exec -i -e PGPASSWORD="$PGPASSWORD" "${VERIFY_DB_CONTAINER:-company-app-devdb}" \
+      pg_restore -U "$POSTGRES_USER" -d "$DB" --no-owner --no-acl <"$VERIFY_DUMP" >"$RUN/restore.log" 2>&1 \
+      || { tail -5 "$RUN/restore.log"; return 1; }
+  fi
   # Backend: Flyway migrates the empty DB, DevMain seeds owner/staff/relief logins and fixture branch.
   # Env vars win over .env, so the dev instance's settings are not used.
   cd "$ROOT" || return 1
