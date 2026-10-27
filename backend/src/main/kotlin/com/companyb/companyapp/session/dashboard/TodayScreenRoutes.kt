@@ -31,24 +31,24 @@ import java.util.UUID
 object TodayScreenRoutes {
     fun register(config: JavalinConfig) {
         config.routes.get(ApiRoutes.BRANCH_TODAY_SCREEN_PATH) { context ->
-            val screen = TodayScreenService.get(context.callerUuid(), context.pathParamAsUuid("branchId"))
-            context.json(
-                TodayScreenResponse(
-                    dashboard = screen.dashboard?.toResponse(),
-                    dashboardRefusal = screen.dashboardRefusal,
-                    bookings = screen.bookings,
-                    roster =
-                        screen.roster?.map {
-                            MemberAttendanceResponse(
-                                it.assignmentId.toString(),
-                                it.userId.toString(),
-                                it.displayName,
-                                it.slot,
-                                it.present,
-                            )
-                        },
-                ),
-            )
+            context.json(response(TodayScreenService.get(context.callerUuid(), context.pathParamAsUuid("branchId"))))
         }
     }
+
+    internal fun response(screen: TodayScreenData) =
+        TodayScreenResponse(
+            dashboard = screen.dashboard?.toResponse(),
+            dashboardRefusal = screen.dashboardRefusal,
+            bookings = screen.bookings,
+            roster =
+                screen.roster?.map {
+                    MemberAttendanceResponse(
+                        it.assignmentId.toString(),
+                        it.userId.toString(),
+                        it.displayName,
+                        it.slot,
+                        it.present,
+                    )
+                },
+        )
 }

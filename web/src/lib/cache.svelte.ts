@@ -104,6 +104,12 @@ export function fetchCached<T>(key: string, fn: () => Promise<T>, force = false)
     return p;
 }
 
+/** Keep an answer that came with another request (the start bundle) as if this key had been read now. */
+export function seed(key: string, data: unknown) {
+    store.set(key, { data, at: Date.now(), got: Date.now(), seq: ++seq });
+    saveSoon();
+}
+
 export function peek<T>(key: string): T | undefined {
     return store.get(key)?.data as T | undefined;
 }

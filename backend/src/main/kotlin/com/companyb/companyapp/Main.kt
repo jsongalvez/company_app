@@ -32,6 +32,7 @@ import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.MeRoutes
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.PasswordResetDelivery
+import com.companyb.companyapp.identity.StartRoutes
 import com.companyb.companyapp.identity.UserRoutes
 import com.companyb.companyapp.identity.ViewAs
 import com.companyb.companyapp.identity.ViewAsRoutes
@@ -192,6 +193,7 @@ fun registerAllRoutes(config: io.javalin.config.JavalinConfig) {
     AuthRoutes.resetPassword(config)
     AuthRoutes.logout(config)
     MeRoutes.getMe(config)
+    StartRoutes.register(config)
     MeRoutes.updateMe(config)
     MeRoutes.changePassword(config)
     MeRoutes.getCapabilities(config)

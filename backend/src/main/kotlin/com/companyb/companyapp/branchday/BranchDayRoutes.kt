@@ -74,7 +74,11 @@ object BranchDayRoutes {
     }
 
     private fun handleGetToday(context: Context) {
-        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+        context.json(todayResponse(context.pathParamAsUuid(BRANCH_ID_PARAM)))
+    }
+
+    /** Today's day at the branch, made on first ask, with its status as of now. */
+    internal fun todayResponse(branchId: UUID): BranchDayTodayResponse {
         val branchDay = BranchDayService.getToday(branchId)
         val effectiveStatus =
             BranchDayService.evaluateStatus(
@@ -82,11 +86,9 @@ object BranchDayRoutes {
                 branchDay.date,
                 BranchDayService.currentOperationalDate(),
             )
-        context.json(
-            BranchDayTodayResponse(
-                branchDayId = branchDay.id.toString(),
-                status = DayStatus.valueOf(effectiveStatus.name),
-            ),
+        return BranchDayTodayResponse(
+            branchDayId = branchDay.id.toString(),
+            status = DayStatus.valueOf(effectiveStatus.name),
         )
     }
 

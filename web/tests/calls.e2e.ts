@@ -88,3 +88,67 @@ test("adding an allowance re-reads only the allowances", { session: "owner" }, a
     expect(reads.shares).toBe(0);
     expect(reads.totals).toBe(0);
 });
+
+// A phone on a weak hotspot pays a round trip for every request in a row. Signing in is one request:
+// the login answer carries who you are, your rights, branches, the branch's day, your shift, unread alerts and Today's lists.
+const OPENING_READS: [string, RegExp][] = [
+    ["me", /\/api\/me$/],
+    ["rights", /\/api\/me\/capabilities$/],
+    ["my branches", /\/api\/me\/branches$/],
+    ["branch list", /\/api\/branches\/accessible$/],
+    ["day", /\/api\/branches\/[^/]+\/today$/],
+    ["today lists", /\/api\/branches\/[^/]+\/today-screen$/],
+    ["shift", /\/api\/me\/active-attendance$/],
+    ["unread", /\/api\/notifications\/unread-count$/],
+];
+
+async function countOpeningReads(browser: Parameters<typeof clockInHere>[1]) {
+    const reads: Record<string, number> = { start: 0 };
+    for (const [name] of OPENING_READS) reads[name] = 0;
+    for (const [name, url] of OPENING_READS)
+        await browser.route(url, async (route) => {
+            if (route.request.method === "GET") reads[name]++;
+            await route.fallback();
+        });
+    await browser.route(/\/api\/start(\?|$)/, async (route) => {
+        reads.start++;
+        await route.fallback();
+    });
+    return reads;
+}
+
+test("signing in opens the app with one request", async ({ app, screen, browser }) => {
+    await app.open("/");
+    const reads = await countOpeningReads(browser);
+    await screen.getByLabel("Username").fill("owner");
+    await screen.getByLabel("Password").fill("owner-dev-pass");
+    await screen.getByRole("button", "Sign in").tap();
+    await expect(
+        screen
+            .getByRole("banner")
+            .getByRole("button", /Clock (in|out)/)
+            .first(),
+    ).toBeVisible();
+    await expect(screen.getByRole("heading", "Booked visits")).toBeVisible();
+    expect(reads).toEqual({ start: 0, me: 0, rights: 0, "my branches": 0, "branch list": 0, day: 0, "today lists": 0, shift: 0, unread: 0 });
+});
+
+test("opening the app again asks once for everything", { session: "owner" }, async ({ app, screen, browser }) => {
+    await app.open("/#/today");
+    await expect(
+        screen
+            .getByRole("banner")
+            .getByRole("button", /Clock (in|out)/)
+            .first(),
+    ).toBeVisible();
+    const reads = await countOpeningReads(browser);
+    await browser.reload();
+    await expect(
+        screen
+            .getByRole("banner")
+            .getByRole("button", /Clock (in|out)/)
+            .first(),
+    ).toBeVisible();
+    await expect.poll(() => reads.start).toBe(1);
+    expect(reads).toEqual({ start: 1, me: 0, rights: 0, "my branches": 0, "branch list": 0, day: 0, "today lists": 0, shift: 0, unread: 0 });
+});

@@ -1,11 +1,11 @@
 import { ApiError, api, ok, setToken, getToken, setUnauthorizedHandler, uuid, errText, getViewAs, setViewAs, type S, type ViewAs } from "../api/client";
-import { clearCache, fetchCached, forget, invalidate, peek, restoreCache } from "./cache.svelte";
+import { clearCache, fetchCached, forget, invalidate, peek, restoreCache, seed } from "./cache.svelte";
 import { refreshDirectory, resetDirectory } from "./clientdir.svelte";
 import { RECONNECTED } from "./net.svelte";
 import { doneText, heldClock, heldSoFar, SENT } from "./outbox.svelte";
 import { operationalDate } from "./format";
 import { applies } from "./grants";
-import { load, warm } from "./data";
+import { seedTodayScreen } from "./data";
 
 type Cap = S["UserCapabilityResponse"];
 
@@ -72,12 +72,17 @@ async function switchIdentity(v: ViewAs | null) {
 setUnauthorizedHandler(() => signOut(false));
 
 export async function signIn(username: string, password: string) {
-    const r = await ok(api.POST("/auth/login", { body: { username, password } }));
+    const withToday = onToday();
+    // One request signs in and brings everything the app needs to open.
+    const r = await ok(api.POST("/auth/login", { body: { username, password, branchId: app.branchId || undefined, withToday } }));
     setToken(r.token);
     // Wait for the person's access before showing a page; else Shell lands on Relief first.
     app.ready = false;
     app.signedIn = true;
-    await boot();
+    if (!r.start) return boot();
+    restoreCache();
+    takeStart(r.start, withToday);
+    app.ready = true;
 }
 
 export async function signOut(callServer = true) {
@@ -107,13 +112,29 @@ export async function signOut(callServer = true) {
     });
 }
 
-type BootData = [S["MeResponse"], Cap[], S["MeBranchResponse"][], S["BranchResponse"][]];
+const onToday = () => ["", "#", "#/", "#/today"].includes(location.hash);
 
-function applyBoot([me, caps, branches, accessible]: BootData) {
-    app.me = me;
-    app.caps = caps;
-    app.branches = branches;
-    app.accessible = accessible;
+/** Take in the start bundle: who, rights, branches, the branch and its day, the open shift, unread alerts, Today's lists. */
+function takeStart(s: S["StartResponse"], withToday: boolean) {
+    const day = operationalDate();
+    Object.assign(app, { me: s.me, caps: s.capabilities, branches: s.branches, accessible: s.accessible });
+    seed("boot:me", s.me);
+    seed("boot:caps", s.capabilities);
+    seed("boot:branches", s.branches);
+    seed("boot:accessible", s.accessible);
+    if (s.branchId && s.branchId !== app.branchId) {
+        app.branchId = s.branchId;
+        localStorage.setItem("branchId", s.branchId);
+    }
+    app.today = s.today;
+    if (s.branchId && s.today) seed(`boot:today:${s.branchId}:${day}`, s.today);
+    app.shift = (s.shift as S["ActiveShiftResponse"] | null) ?? null;
+    seed("boot:shift", app.shift);
+    applyHeldClock();
+    app.shiftKnown = true;
+    app.unread = s.unreadCount;
+    if (withToday && s.branchId && s.todayScreen) seedTodayScreen(s.branchId, Promise.resolve(s.todayScreen));
+    void refreshDirectory();
 }
 
 /** Load identity, capabilities and branches; pick a branch. What the phone saved shows at once. */
@@ -125,45 +146,30 @@ export async function boot() {
     restoreCache();
     const saved = [peek("boot:me"), peek("boot:caps"), peek("boot:branches"), peek("boot:accessible")];
     if (saved.every((x) => x !== undefined)) {
-        applyBoot(saved as BootData);
+        Object.assign(app, { me: saved[0], caps: saved[1], branches: saved[2], accessible: saved[3] });
         app.today = peek<S["BranchDayTodayResponse"]>(`boot:today:${app.branchId}:${operationalDate()}`) ?? null;
         app.shift = peek<S["ActiveShiftResponse"] | null>("boot:shift") ?? null;
         applyHeldClock();
         app.ready = true;
     }
     try {
-        const fresh = await Promise.all([
-            fetchCached("boot:me", () => ok(api.GET("/api/me")), true),
-            fetchCached("boot:caps", () => ok(api.GET("/api/me/capabilities")), true),
-            fetchCached("boot:branches", () => ok(api.GET("/api/me/branches")), true),
-            fetchCached("boot:accessible", () => ok(api.GET("/api/branches/accessible")).catch(() => [] as S["BranchResponse"][]), true),
-        ]);
-        applyBoot(fresh);
-        const [, , branches, accessible] = fresh;
-        const known = new Set([...branches.map((b) => b.branchId), ...accessible.map((b) => b.id)]);
-        if (!known.has(app.branchId)) {
-            const here = branches.find((b) => b.clockInStatus === "CLOCKED_IN_HERE");
-            selectBranch(here?.branchId ?? branches[0]?.branchId ?? accessible[0]?.id ?? "");
-            warmToday();
-        } else {
-            warmToday();
-            await refreshBranchDay();
-        }
-        void refreshShift();
-        void refreshUnread();
-        void refreshDirectory();
+        // One request for all of it. Opening on Today, the page asks for its lists at once: they come in the same answer.
+        const asked = app.branchId;
+        const withToday = onToday();
+        const start = ok(api.GET("/api/start", { params: { query: { branchId: asked || undefined, withToday } } }));
+        if (withToday && asked)
+            seedTodayScreen(
+                asked,
+                start.then((s) => {
+                    if (s.branchId !== asked || !s.todayScreen) throw new Error("another branch");
+                    return s.todayScreen;
+                }),
+            );
+        const s = await start;
+        takeStart(s, withToday && s.branchId !== asked);
     } finally {
         app.ready = true;
     }
-}
-
-/** Opening on Today: ask for its lists now, alongside the branch's day, instead of after it. */
-function warmToday() {
-    const id = app.branchId;
-    if (!id || !["", "#", "#/", "#/today"].includes(location.hash) || !can("VIEW_BRANCH_DATA", id)) return;
-    warm(load.dashboard(id));
-    warm(load.bookings(id));
-    if (app.branches.some((b) => b.branchId === id && !!b.assignmentId)) warm(load.roster(id));
 }
 
 // Opened with no signal: finish starting up once the connection is back; else catch up.

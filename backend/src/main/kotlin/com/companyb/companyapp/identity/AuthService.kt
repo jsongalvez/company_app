@@ -120,7 +120,7 @@ object AuthService {
             LoginResult.InvalidCredentials
         } else {
             logger.info { "[LOGIN] User has logged in successfully " }
-            LoginResult.Success(token)
+            LoginResult.Success(token, userId)
         }
     }
 

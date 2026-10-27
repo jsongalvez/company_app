@@ -4,6 +4,7 @@ package com.companyb.companyapp.identity
 sealed class LoginResult {
     data class Success(
         val token: String,
+        val userId: java.util.UUID,
     ) : LoginResult()
 
     data object RateLimited : LoginResult()

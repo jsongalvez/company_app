@@ -130,16 +130,7 @@ object BranchRoutes {
         // The 2-segment MANAGE_USERS before-filter above is exact-match and
         // does not fire on this 3-segment path (Javalin 7 segment matching).
         config.routes.get(ApiRoutes.BRANCHES_ACCESSIBLE) { context ->
-            val callerId = context.callerUuid()
-            val window = BranchReadScope.windowBranchIds(callerId)
-            val allBranches = BranchService.findAll()
-            val branches =
-                if (window == null) {
-                    allBranches
-                } else {
-                    allBranches.filter { it.id in window }
-                }
-            context.json(branches.map { it.toResponse() })
+            context.json(accessibleBranches(context.callerUuid()))
         }
 
         config.routes.post(ApiRoutes.BRANCHES) { context ->
@@ -191,7 +182,14 @@ object BranchRoutes {
         context.json(BranchService.rename(context.callerUuid(), branchId, name).toResponse())
     }
 
-    private fun Branch.toResponse(): BranchResponse =
+    /** The branches in the caller's read window (all of them for a global viewer). */
+    internal fun accessibleBranches(callerId: UUID): List<BranchResponse> {
+        val window = BranchReadScope.windowBranchIds(callerId)
+        val allBranches = BranchService.findAll()
+        return (if (window == null) allBranches else allBranches.filter { it.id in window }).map { it.toResponse() }
+    }
+
+    internal fun Branch.toResponse(): BranchResponse =
         BranchResponse(
             id = id.toString(),
             name = name,
