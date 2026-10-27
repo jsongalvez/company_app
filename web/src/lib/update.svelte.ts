@@ -23,9 +23,11 @@ export async function checkForUpdate(): Promise<void> {
     }
 }
 
-/** Look for a newer build when the app is shown again, the signal returns, and every 15 minutes. */
+/** Look for a newer build soon after start (the phone opens its saved copy), when the app is shown again, the signal returns, and every 15 minutes. */
 export function watchForUpdates() {
     if (!import.meta.env.PROD) return;
+    // After start-up settles: sent first, it took the open connection and /api/start waited for a new one.
+    setTimeout(() => void checkForUpdate(), 5_000);
     document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && void checkForUpdate());
     window.addEventListener(RECONNECTED, () => void checkForUpdate());
     setInterval(() => void checkForUpdate(), 15 * 60_000);
