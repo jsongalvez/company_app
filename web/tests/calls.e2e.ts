@@ -172,3 +172,23 @@ test("saving a session sends its practitioners with it", { session: "owner" }, a
     expect(writes.filter((p) => p === "/api/sessions")).toHaveLength(1);
     expect(practitioners).toBeGreaterThan(0);
 });
+
+// Branches opens on the person's own branch: its staff and prices are asked for with the list, not after it.
+test("opening Branches asks for the list and the branch's staff at once", { session: "owner" }, async ({ app, screen, browser }) => {
+    await app.open("/#/today");
+    await expect(screen.getByRole("heading", "Sessions")).toBeVisible();
+    const sent: string[] = [];
+    let released = false;
+    let sentAfterRelease = 0;
+    await browser.route(/\/api\//, async (route) => {
+        sent.push(new URL(route.request.url).pathname);
+        if (released) sentAfterRelease++;
+        await new Promise((r) => setTimeout(r, 1000));
+        released = true;
+        await route.fallback();
+    });
+    await app.open("/#/branches");
+    await expect(screen.getByRole("heading", "Staff", { exact: false }).first()).toBeVisible({ timeout: 15_000 });
+    expect(sent.some((p) => p.endsWith("/assignments"))).toBe(true);
+    expect(sentAfterRelease).toBe(0);
+});

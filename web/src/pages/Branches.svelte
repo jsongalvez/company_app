@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
-    import { can, canAtBranch, canAnywhere, refreshBranchNames } from "../lib/app.svelte";
+    import { app, can, canAtBranch, canAnywhere, refreshBranchNames } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
@@ -16,8 +16,12 @@
     const list = new Query(load.branches().key, load.branches().fn);
     const sel = $derived(route.current.query.get("id") ?? "");
     const branch = $derived(list.data?.find((b) => b.id === sel));
+    // Open on the person's own branch without waiting for the list, so its staff and prices load alongside it.
     $effect(() => {
-        if (!sel && list.data?.length) go("/branches", { id: list.data[0]!.id });
+        const mine = app.branchId;
+        const listed = (id: string) => !list.data || list.data.some((b) => b.id === id);
+        if (!sel && mine && listed(mine)) go("/branches", { id: mine });
+        else if ((!sel || (sel === mine && !listed(sel))) && list.data?.length) go("/branches", { id: list.data[0]!.id });
     });
 
     const manageUsers = $derived(canAnywhere("MANAGE_USERS"));
