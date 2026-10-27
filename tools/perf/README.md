@@ -40,3 +40,7 @@ HOTSPOT_USER=probe HOTSPOT_PASS=... node tools/perf/hotspot.mjs --base https://<
 ```
 
 `hotspot-audit.md` holds the ranked audit and the baseline; `hotspot-decisions.tsv` logs each attempt (kept or reverted). Do not change the profile or the flows without saying so in the PR: the numbers stop being comparable.
+
+# Web vitals
+
+`vitals.mjs` gives LCP, INP, CLS, FCP, TTFB, TBT, script and style bytes and cache hits for a cold and a warm open, through `shaper.mjs` (a TCP relay that slows every byte, handshakes and service-worker fetches included). See [vitals.md](vitals.md) for the profile and the baseline.
