@@ -3,7 +3,9 @@ package com.companyb.companyapp.session
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
+import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.client.Client
 import com.companyb.companyapp.client.ClientReads
 import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.contracts.branch.BranchType
@@ -77,10 +79,11 @@ object SessionService {
         reason: String? = null,
         // No one adds a session without clocking in. Only test fixtures that predate the rule opt out.
         requireClockIn: Boolean = true,
+        // What the caller already read in this transaction, so the create does not read it again.
+        knownBranchType: BranchType? = null,
+        knownGatedBranchDay: BranchDay? = null,
     ): SessionCreateResult {
-        val branchType =
-            SessionRepository.getBranchType(branchId)
-                ?: throw NotFoundException("Branch not found")
+        val branchType = knownBranchType ?: requireBranchType(branchId)
 
         // the requested practitioner must be an ACTIVE member of the session's branch
         // (today any existing UUID is accepted). Optional field: null passes untouched.
@@ -94,14 +97,12 @@ object SessionService {
         }
 
         val today = BranchDayService.currentOperationalDate()
-        val branchDay =
-            gatedBranchDayId?.let { BranchDayService.requireBranchDayForBranch(it, branchId) }
-                ?: BranchDayService.resolveOrCreate(branchId, today)
+        val branchDay = resolveBranchDay(branchId, today, gatedBranchDayId, knownGatedBranchDay)
 
         return transaction {
             // client-first lock order preserved (see requireActiveClientInTransaction):
             // the client row is locked before the day gate's day row.
-            requireActiveClientInTransaction(clientId)
+            val lockedClient = requireActiveClientInTransaction(clientId)
             idempotentReplayOrNull(SessionRepository.findByIdInTransaction(id), clientId, branchDay.id, callerId)?.let {
                 return@transaction it
             }
@@ -109,7 +110,9 @@ object SessionService {
             // lock so concurrent creates for the same client serialize on the client
             // row; reading before the lock let two writers both see priorCount=0 and
             // persist REGULAR twice (type has no DB backstop, unlike PENDING).
-            val priorCount = SessionRepository.countPriorNonMedicalMissionSessionsInTransaction(clientId)
+            val priorCount =
+                lockedClient.earlierVisits +
+                    SessionRepository.countRecordedNonMedicalMissionSessionsInTransaction(clientId)
             val sessionType = computeSessionType(branchType, priorCount)
 
             // BR §Session types: a medical-mission visit is always free (₱0). The rule is
@@ -163,19 +166,34 @@ object SessionService {
         }
     }
 
+    private fun requireBranchType(branchId: UUID): BranchType =
+        SessionRepository.getBranchType(branchId) ?: throw NotFoundException("Branch not found")
+
+    /** The day the session lands on: the one the gate resolved, else today's (created if missing). */
+    private fun resolveBranchDay(
+        branchId: UUID,
+        today: LocalDate,
+        gatedBranchDayId: UUID?,
+        knownGatedBranchDay: BranchDay?,
+    ): BranchDay =
+        knownGatedBranchDay?.takeIf { it.id == gatedBranchDayId && it.branchId == branchId }
+            ?: gatedBranchDayId?.let { BranchDayService.requireBranchDayForBranch(it, branchId) }
+            ?: BranchDayService.resolveOrCreate(branchId, today)
+
     /**
      * client existence + anonymization gate for create (runs on the caller's command
      * transaction): unknown client fails closed with 404, anonymized fails with 409.
      * Extracted so [create] stays under the LongMethod gate; preserves the client-first
      * lock order (matches status/price/void/unvoid).
      */
-    private fun requireActiveClientInTransaction(clientId: UUID) {
+    private fun requireActiveClientInTransaction(clientId: UUID): Client {
         val lockedClient =
             ClientReads.acquireLockInTransaction(clientId)
                 ?: throw NotFoundException("Client not found")
         if (lockedClient.deletedAt != null) {
             throw ConflictException("Cannot create a session for an anonymized client")
         }
+        return lockedClient
     }
 
     /**

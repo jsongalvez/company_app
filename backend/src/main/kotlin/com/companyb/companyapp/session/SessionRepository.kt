@@ -58,7 +58,7 @@ internal object SessionRepository {
 
     /** In-transaction store read — runs on the caller's command transaction. */
     fun countPriorNonMedicalMissionSessionsInTransaction(clientId: UUID): Long =
-        earlierVisitsInTransaction(clientId) + countRecordedNonMedicalMissionSessions(clientId)
+        earlierVisitsInTransaction(clientId) + countRecordedNonMedicalMissionSessionsInTransaction(clientId)
 
     /** Visits the client had before the app existed (entered by staff on the client). */
     private fun earlierVisitsInTransaction(clientId: UUID): Long =
@@ -69,7 +69,8 @@ internal object SessionRepository {
             ?.get(ClientTable.earlierVisits)
             ?.toLong() ?: 0L
 
-    private fun countRecordedNonMedicalMissionSessions(clientId: UUID): Long =
+    /** Sessions recorded in the app for [clientId] that count toward the visit number (not missions, not voided). */
+    fun countRecordedNonMedicalMissionSessionsInTransaction(clientId: UUID): Long =
         SessionTable
             .leftJoin(
                 ActiveSessionVoidsView,
@@ -137,13 +138,8 @@ internal object SessionRepository {
         // Client-first lock order lives with the command: SessionService.create locks
         // the client row via the client seam before opening this store write, so the lock
         // and the anonymized-client guard stay in the command transaction, not in persistence.
-        // max-2: the before/after idempotent probes share one ownership-checked exit
-        // (same transaction, no intervening write — the second collapses to the first).
-        val replayed = findByIdInTransaction(params.id)
-        if (replayed != null) {
-            return idempotentResult(replayed, params)
-        }
-
+        // A same-id row is classified after the insert: the caller (SessionService.create) already
+        // returned a replay it found after the client lock, so here it can only be a foreign one.
         // Keep this atomic with the insert: both the precheck and booked_at use the DB transaction clock.
         if (!params.isWalkIn && params.nextAppointmentDate != null) {
             val bookingDate =
@@ -184,12 +180,11 @@ internal object SessionRepository {
                         it[SessionTable.nextAppointmentDate] = params.nextAppointmentDate
                     }
                 }.insertedCount
-        val created = insertedCount > 0
         val session =
             findByIdInTransaction(params.id)
                 ?: error("session row not found after idempotent insert for ${params.id}")
 
-        return SessionCreateResult(session, created)
+        return if (insertedCount > 0) SessionCreateResult(session, true) else idempotentResult(session, params)
     }
 
     private fun idempotentResult(
