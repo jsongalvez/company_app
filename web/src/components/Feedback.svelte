@@ -1,6 +1,7 @@
 <script lang="ts">
     import Dialog from "./Dialog.svelte";
     import { api, ok, errText, uuid, lastError, recentRequests } from "../api/client";
+    import { recorder } from "../lib/record";
     import { toast } from "../lib/app.svelte";
 
     let { open = $bindable(false) }: { open?: boolean } = $props();
@@ -35,7 +36,7 @@
         busy = true;
         error = "";
         try {
-            const details = [`Screen: ${innerWidth}×${innerHeight}`, `Browser: ${navigator.userAgent}`];
+            const details = [`Telemetry: ${recorder.sessionId}`, `Screen: ${innerWidth}×${innerHeight}`, `Browser: ${navigator.userAgent}`];
             if (kind === "PROBLEM" && attach) details.unshift(...traceLines());
             await ok(
                 api.POST("/api/feedback-notes", {

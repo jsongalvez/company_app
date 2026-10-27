@@ -119,6 +119,8 @@ import com.companyb.companyapp.contracts.session.UpdatePractitionerRemarksReques
 import com.companyb.companyapp.contracts.session.UpdateSessionFinalPriceRequest
 import com.companyb.companyapp.contracts.session.UpdateSessionStatusRequest
 import com.companyb.companyapp.contracts.session.VoidSessionRequest
+import com.companyb.companyapp.contracts.telemetry.TelemetryBatchRequest
+import com.companyb.companyapp.contracts.telemetry.TelemetryEventInput
 import com.companyb.companyapp.contracts.workforce.ActiveAttendanceResponse
 import com.companyb.companyapp.contracts.workforce.ActiveShiftResponse
 import com.companyb.companyapp.contracts.workforce.AssignDelegateRequest
@@ -225,6 +227,8 @@ internal object DtoSchemaProjector {
             "FeedbackResponse" to FeedbackResponse.serializer(),
             "FeedbackNoteResponse" to FeedbackNoteResponse.serializer(),
             "SendFeedbackRequest" to SendFeedbackRequest.serializer(),
+            "TelemetryBatchRequest" to TelemetryBatchRequest.serializer(),
+            "TelemetryEventInput" to TelemetryEventInput.serializer(),
             "ViewAsRequest" to ViewAsRequest.serializer(),
             "StopViewAsRequest" to StopViewAsRequest.serializer(),
             "ViewAsResponse" to ViewAsResponse.serializer(),

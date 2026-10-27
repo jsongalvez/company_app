@@ -17,7 +17,7 @@
     let { v = $bindable() }: { v: ClientDraft } = $props();
 </script>
 
-<div class="form-grid">
+<div class="form-grid" data-pii>
     <label class="field"><span class="req">Last name</span><input bind:value={v.lastName} required /></label>
     <label class="field"><span class="req">First name</span><input bind:value={v.firstName} required /></label>
     <label class="field">Middle name<input bind:value={v.middleName} /></label>

@@ -3,8 +3,10 @@ import { mount } from "svelte";
 import App from "./App.svelte";
 import { startBackgroundSync } from "./lib/sync";
 import { installTracker } from "./lib/track";
+import { installRecorder } from "./lib/record";
 
 installTracker();
+installRecorder();
 startBackgroundSync();
 mount(App, { target: document.getElementById("app")! });
 

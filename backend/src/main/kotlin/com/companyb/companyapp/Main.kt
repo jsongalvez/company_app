@@ -48,6 +48,7 @@ import com.companyb.companyapp.observability.IncidentDelivery
 import com.companyb.companyapp.observability.IncidentService
 import com.companyb.companyapp.observability.RouteLabels
 import com.companyb.companyapp.observability.ServerErrorReport
+import com.companyb.companyapp.observability.TelemetryRoutes
 import com.companyb.companyapp.observability.UserFeedbackRoutes
 import com.companyb.companyapp.remittance.RemittancePickerRoutes
 import com.companyb.companyapp.remittance.RemittanceRoutes
@@ -239,6 +240,7 @@ fun registerAllRoutes(config: io.javalin.config.JavalinConfig) {
     NotificationRoutes.register(config)
     FeedbackRoutes.register(config)
     UserFeedbackRoutes.register(config)
+    TelemetryRoutes.register(config)
     MonthlyRemittanceSummaryRoutes.register(config)
     RemittanceRoutes.register(config)
     RemittancePickerRoutes.register(config)
