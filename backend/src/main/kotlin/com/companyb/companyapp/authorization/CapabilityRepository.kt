@@ -44,7 +44,7 @@ internal object CapabilityRepository {
                 }.empty()
                 .not()
         }.also { granted ->
-            logger.info { "[HAS-CAPABILITY] $capabilityCode ($contextType) granted=$granted" }
+            logger.debug { "[HAS-CAPABILITY] $capabilityCode ($contextType) granted=$granted" }
         }
 
     fun findCapabilitiesForUser(userId: UUID): List<UserCapabilityResponse> =
@@ -121,7 +121,7 @@ internal object CapabilityRepository {
                 }.empty()
                 .not()
         }.also { granted ->
-            logger.info {
+            logger.debug {
                 "[HAS-CAPABILITY-DAY] $capabilityCode (BRANCH $branchId | BRANCH_DAY $branchDayId) granted=$granted"
             }
         }
@@ -147,6 +147,6 @@ internal object CapabilityRepository {
                 }.empty()
                 .not()
         }.also { granted ->
-            logger.info { "[HAS-CAPABILITY-ANY] $capabilityCode granted=$granted" }
+            logger.debug { "[HAS-CAPABILITY-ANY] $capabilityCode granted=$granted" }
         }
 }

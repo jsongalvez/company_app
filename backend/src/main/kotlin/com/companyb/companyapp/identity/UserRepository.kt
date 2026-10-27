@@ -467,7 +467,7 @@ internal object UserRepository {
                 state.credentialVersion == credentialVersion &&
                 (state.jwtRevokedAt?.toInstant()?.let { tokenIssuedAt.isAfter(it) } ?: true)
         if (authorized) {
-            logger.info { "[AUTHORIZE] User ${userId.toString().maskUUID()} is authorized" }
+            logger.debug { "[AUTHORIZE] User ${userId.toString().maskUUID()} is authorized" }
         } else {
             logger.warn { "[AUTHORIZE] User ${userId.toString().maskUUID()} is not authorized" }
         }
