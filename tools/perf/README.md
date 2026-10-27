@@ -29,3 +29,14 @@ node tools/perf/calls.mjs --base http://127.0.0.1:18181 --user owner --pass owne
 `CALLS_USER` and `CALLS_PASS` in the environment do the same and keep a password off the command line.
 
 `tools/verify/verify.sh up` gives the local app. The save flow writes one session for a client named "Probe" (made on first use) and marks it Done: point it at a test or probe account, or pass `--no-save`.
+
+# Hotspot harness
+
+`hotspot.mjs` is the frozen measure for slow phone hotspots: a 375px phone at 300 ms latency, 800 kbit/s down and 300 kbit/s up. For each flow it prints the time until the screen is usable, the time until the last answer, `/api` calls, rounds and bytes. It takes the median of `--runs` runs and shows the min-max as the noise band.
+
+```
+node tools/perf/hotspot.mjs --base http://127.0.0.1:18181 --user owner --pass owner-dev-pass --runs 5
+HOTSPOT_USER=probe HOTSPOT_PASS=... node tools/perf/hotspot.mjs --base https://<public address> --runs 5 --no-save
+```
+
+`hotspot-audit.md` holds the ranked audit and the baseline; `hotspot-decisions.tsv` logs each attempt (kept or reverted). Do not change the profile or the flows without saying so in the PR: the numbers stop being comparable.
