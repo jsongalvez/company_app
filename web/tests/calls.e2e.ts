@@ -124,8 +124,8 @@ test("opening the app again asks once for everything", { session: "owner" }, asy
     expect(reads).toEqual({ start: 1, me: 0, rights: 0, "my branches": 0, "branch list": 0, day: 0, "today lists": 0, shift: 0, unread: 0 });
 });
 
-// Reads asked for together are one request: Finance opens with about eight lists.
-test("opening Finance is one request", { session: "owner" }, async ({ app, screen, browser }) => {
+// Finance opens with about eight lists, asked for at once: none waits for another's answer.
+test("opening Finance asks for its lists at once", { session: "owner" }, async ({ app, screen, browser }) => {
     await app.open("/#/today");
     await expect(
         screen
@@ -134,14 +134,22 @@ test("opening Finance is one request", { session: "owner" }, async ({ app, scree
             .first(),
     ).toBeVisible();
     const sent: string[] = [];
+    // Each read is held 1 s before it goes: one that waited for another's answer arrives after the first release.
+    let released = false;
+    let sentAfterRelease = 0;
     await browser.route(/\/api\//, async (route) => {
         sent.push(`${route.request.method} ${new URL(route.request.url).pathname}`);
+        if (released) sentAfterRelease++;
+        await new Promise((r) => setTimeout(r, 1000));
+        released = true;
         await route.fallback();
     });
     await app.open("/#/finance");
     await expect(screen.getByRole("heading", "Allowances")).toBeVisible();
     await expect(screen.getByRole("heading", "Commission share")).toBeVisible();
-    expect(sent).toEqual(["POST /api/batch"]);
+    expect(sent.length).toBeGreaterThan(3);
+    expect(sent.every((s) => s.startsWith("GET "))).toBe(true);
+    expect(sentAfterRelease).toBe(0);
 });
 
 // A session and the practitioners saved with it are one request.

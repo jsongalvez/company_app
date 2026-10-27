@@ -4,9 +4,6 @@ import com.companyb.companyapp.contracts.audit.AuditLogBrowseResponse
 import com.companyb.companyapp.contracts.audit.AuditLogEntryResponse
 import com.companyb.companyapp.contracts.audit.AuditLogTableResponse
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
-import com.companyb.companyapp.contracts.batch.BatchItem
-import com.companyb.companyapp.contracts.batch.BatchRequest
-import com.companyb.companyapp.contracts.batch.BatchResponse
 import com.companyb.companyapp.contracts.branch.BranchResponse
 import com.companyb.companyapp.contracts.branch.CreateBranchRequest
 import com.companyb.companyapp.contracts.branch.MeBranchResponse
@@ -218,9 +215,6 @@ internal object DtoSchemaProjector {
             "DashboardResponse" to DashboardResponse.serializer(),
             "TodayScreenResponse" to TodayScreenResponse.serializer(),
             "StartResponse" to StartResponse.serializer(),
-            "BatchRequest" to BatchRequest.serializer(),
-            "BatchItem" to BatchItem.serializer(),
-            "BatchResponse" to BatchResponse.serializer(),
             "DashboardSessionResponse" to DashboardSessionResponse.serializer(),
             "DelegateResponse" to DelegateResponse.serializer(),
             "DeleteExpenseRequest" to DeleteExpenseRequest.serializer(),

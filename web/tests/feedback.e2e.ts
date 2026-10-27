@@ -46,16 +46,8 @@ test("send a problem report and mark it done in the inbox", { session: "owner" }
 test("a problem report carries the trace id of the refused request", { session: "owner" }, async ({ app, screen, browser }) => {
     const trace = `trace${Date.now()}`;
     const message = `History would not load ${Date.now()}`;
-    // The history read may travel alone or in a batch with the reads asked for with it: refuse both.
-    const refused = /\/api\/(me\/history|batch)/;
-    await browser.route(refused, (route) => {
-        const { url, postData } = route.request;
-        if (!url.includes("/api/batch")) return route.fulfill({ status: 500, headers: { "X-Trace-Id": trace }, json: { error: "boom" } });
-        const paths = (JSON.parse(postData ?? "{}") as { paths?: string[] }).paths ?? [];
-        if (!paths.some((p) => p.startsWith("/api/me/history"))) return route.fallback();
-        const item = { status: 500, body: JSON.stringify({ error: "boom" }), traceId: trace };
-        return route.fulfill({ json: { results: paths.map(() => item) } });
-    });
+    const refused = /\/api\/me\/history/;
+    await browser.route(refused, (route) => route.fulfill({ status: 500, headers: { "X-Trace-Id": trace }, json: { error: "boom" } }));
     await app.open("/#/my-history");
     await expect(screen.getByRole("button", "Retry")).toBeVisible({ timeout: 15_000 });
     await browser.unroute(refused);

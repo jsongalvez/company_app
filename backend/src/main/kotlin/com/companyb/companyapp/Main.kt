@@ -3,7 +3,6 @@ package com.companyb.companyapp
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.NulCharFilter
 import com.companyb.companyapp.api.middleware.TraceIdFilter
-import com.companyb.companyapp.api.routes.BatchRoutes
 import com.companyb.companyapp.api.routes.HealthRoutes
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.app.ScheduledJob
@@ -191,7 +190,6 @@ fun registerAllRoutes(config: io.javalin.config.JavalinConfig) {
     registerAuthRoutes(config)
     MeRoutes.getMe(config)
     StartRoutes.register(config)
-    BatchRoutes.register(config)
     MeRoutes.updateMe(config)
     MeRoutes.changePassword(config)
     MeRoutes.getCapabilities(config)
