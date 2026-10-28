@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The push path. Runs the Kotlin gates CI runs (tools/check-before-push.sh: ktlint, detekt,
-# -Werror compiles, deadCodeCheck, shell self-tests, dead-reference check) and pushes only
+# -Werror compiles, shell self-tests, dead-reference check; deadCodeCheck is CI-only) and pushes only
 # when they pass. Arguments go to `git push` unchanged.
 #
 #   tools/push.sh                 # git push

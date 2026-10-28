@@ -20,6 +20,7 @@ ci=$(grep -vE '^$' <<< "$(
 for t in $ci; do
   case "$t" in
     :backend:test|:backend:verifyOpenApiContract) continue ;; # need CI Postgres
+    deadCodeCheck) continue ;; # CI-only by choice: too slow on the VPS
   esac
   if ! grep -q -- "$t" <<< "$plan"; then
     echo "check-before-push-test: CI runs $t but tools/check-before-push.sh --all does not" >&2

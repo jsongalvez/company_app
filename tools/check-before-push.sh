@@ -18,7 +18,8 @@
 #   tools/check-before-push.sh --plan     # print what would run, run nothing
 #
 # Skipped locally, still covered by CI: :backend:test and :backend:verifyOpenApiContract
-# (need the CI Postgres service). Their compile step IS run here, with -Werror, via
+# (need the CI Postgres service), and deadCodeCheck (about 3 min of CPU on the 2-core
+# prod VPS against about 1 min on CI; the user chose CI-only, 2026-10-28). Their compile step IS run here, with -Werror, via
 # :backend:compileTestKotlin, which is what turned the last red CI run red.
 set -euo pipefail
 
@@ -72,7 +73,6 @@ if [ -z "$all_tasks" ]; then
 fi
 
 want_modules=""   # space-separated: backend detekt-rules
-want_deadcode=0
 want_shell=0
 want_all=0
 if [ "$mode" = all ]; then
@@ -87,9 +87,8 @@ else
     case "$f" in
       build.gradle.kts|settings.gradle.kts|gradle.properties|gradle/*|gradlew|gradlew.bat|config/detekt/*)
         want_all=1 ;;
-      backend/*) want_modules="$want_modules backend"; want_deadcode=1 ;;
-      detekt-rules/*) want_modules="$want_modules detekt-rules"; want_deadcode=1 ;;
-      config/deadcode/*) want_deadcode=1 ;;
+      backend/*) want_modules="$want_modules backend" ;;
+      detekt-rules/*) want_modules="$want_modules detekt-rules" ;;
       tools/*|scripts/*|.github/workflows/quality.yml) want_shell=1 ;;
     esac
   done <<< "$changed"
@@ -97,7 +96,6 @@ fi
 
 if [ $want_all -eq 1 ]; then
   want_modules="backend detekt-rules"
-  want_deadcode=1
   want_shell=1
 fi
 
@@ -116,9 +114,8 @@ for m in $(printf '%s\n' $want_modules | sort -u); do
     tasks+=(:backend:compileKotlin :backend:compileTestKotlin :backend:compileDevKotlin)
   fi
 done
-[ $want_deadcode -eq 1 ] && tasks+=(deadCodeCheck)
 
-echo "check-before-push: mode=$mode modules=[$(printf '%s\n' $want_modules | sort -u | tr '\n' ' ')] deadcode=$want_deadcode shell=$want_shell"
+echo "check-before-push: mode=$mode modules=[$(printf '%s\n' $want_modules | sort -u | tr '\n' ' ')] shell=$want_shell"
 if [ ${#tasks[@]} -gt 0 ]; then
   echo "check-before-push: ./gradlew ${tasks[*]}"
 fi
@@ -153,7 +150,7 @@ if [ $want_shell -eq 1 ]; then
 fi
 
 if [ $status -eq 0 ]; then
-  echo "check-before-push: OK in $((SECONDS - start))s (CI-only: :backend:test, :backend:verifyOpenApiContract)"
+  echo "check-before-push: OK in $((SECONDS - start))s (CI-only: :backend:test, :backend:verifyOpenApiContract, deadCodeCheck)"
 else
   echo "check-before-push: FAILED after $((SECONDS - start))s. Fix before pushing." >&2
 fi
