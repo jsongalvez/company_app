@@ -41,6 +41,15 @@ HOTSPOT_USER=probe HOTSPOT_PASS=... node tools/perf/hotspot.mjs --base https://<
 
 `hotspot-audit.md` holds the ranked audit and the baseline; `hotspot-decisions.tsv` logs each attempt (kept or reverted). Do not change the profile or the flows without saying so in the PR: the numbers stop being comparable.
 
+# Day volume and fixtures
+
+`fill-day.mjs` fills today's business day at one branch through the API (sessions, Done marks, product sales) to measure Today as the day fills. It refuses an https base unless `FILL_ALLOW_REMOTE=1`. `clean-fixtures.mjs` lists the `Probe… Client` clients perf runs left on a server, proves each is a fixture (every session on the probe branch, not the live probe's client) and erases them with `--apply`. Results are in [vitals.md](vitals.md).
+
+```
+node tools/perf/fill-day.mjs --base http://127.0.0.1:18181 --sessions 50
+PROBE_USER=probe PROBE_PASS=... node tools/perf/clean-fixtures.mjs --base https://<public address> [--apply]
+```
+
 # Web vitals
 
 `vitals.mjs` gives LCP, INP, CLS, FCP, TTFB, TBT, script and style bytes and cache hits for a cold and a warm open, through `shaper.mjs` (a TCP relay that slows every byte, handshakes and service-worker fetches included). See [vitals.md](vitals.md) for the profile and the baseline.
