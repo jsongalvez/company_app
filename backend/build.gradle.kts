@@ -133,6 +133,8 @@ tasks.named<JavaExec>("run") {
 tasks.test {
     useJUnit()
     workingDir = rootProject.projectDir
+    // Each test JVM owns its own test_w_* schema (#493), so forks don't share rows.
+    maxParallelForks = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
 }
 
 jmh {
