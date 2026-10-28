@@ -4,11 +4,29 @@ name: fuzz
 # each seeded role and anonymously. Pass = no 5xx and every response matches
 # its schema. See tools/fuzz/README.md.
 
+# Only backend and fuzz-tool changes can change what the fuzzer sees; it never loads web/.
+# The deploy gate needs a browser run on each master commit, not a fuzz run.
 on:
   push:
     branches:
       - master
+    paths:
+      - 'backend/**'
+      - 'gradle/**'
+      - 'gradlew'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - 'tools/fuzz/**'
+      - '.github/workflows/fuzz.yml'
   pull_request:
+    paths:
+      - 'backend/**'
+      - 'gradle/**'
+      - 'gradlew'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - 'tools/fuzz/**'
+      - '.github/workflows/fuzz.yml'
   workflow_dispatch:
 
 permissions:
