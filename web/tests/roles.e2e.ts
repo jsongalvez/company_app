@@ -172,6 +172,17 @@ for (const r of roles) {
                 expect(await statusOf(browser, "POST", "/api/remittances", body)).toBe(403);
             }
 
+            // Every page in this role's menu opens without a refused request.
+            const pages = await browser.evaluate(() =>
+                [...document.querySelectorAll('nav[aria-label="Main"] a[href^="#/"]')].map((a) => a.getAttribute("href") ?? ""),
+            );
+            expect(pages.length).toBeGreaterThan(5);
+            for (const href of pages) {
+                await app.open(`/${href}`);
+                await expect(screen.getByRole("main")).toBeVisible();
+                await new Promise((done) => setTimeout(done, 700));
+            }
+
             // Clock out.
             await app.open("/#/today");
             await clockOutHere(screen, browser);
