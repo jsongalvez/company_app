@@ -69,17 +69,20 @@ up() {
   echo $! >"$RUN/backend.pid"
   # Ready = health answers AND the seeded login works (health alone can pass before the seeder ran).
   for _ in $(seq 1 120); do
-    login_ok && { seed_past_day || return 1; echo "up: $BASE (db $DB, commit $(git -C "$ROOT" rev-parse --short HEAD))"; return 0; }
+    login_ok && { seed_test_data || return 1; echo "up: $BASE (db $DB, commit $(git -C "$ROOT" rev-parse --short HEAD))"; return 0; }
     sleep 2
   done
   echo "backend not ready after 240s; tail of log:" >&2; tail -30 "$RUN/backend.log" >&2; return 1
 }
 
-# Same past-day data CI seeds (browser.yml), once DevMain has made the fixture branch.
-seed_past_day() {
+# Same data CI seeds (browser.yml), once DevMain has made the fixture branch and its logins.
+seed_test_data() {
   [ -n "${VERIFY_DUMP:-}" ] && return 0
-  psql -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$DB" -v ON_ERROR_STOP=1 -q \
-    -f "$ROOT/tools/seed/past-day.sql" >"$RUN/seed.log" 2>&1 || { echo "past-day seed failed:" >&2; cat "$RUN/seed.log" >&2; return 1; }
+  local f
+  for f in "$ROOT"/tools/seed/*.sql; do
+    psql -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$DB" -v ON_ERROR_STOP=1 -q \
+      -f "$f" >"$RUN/seed.log" 2>&1 || { echo "seed $(basename "$f") failed:" >&2; cat "$RUN/seed.log" >&2; return 1; }
+  done
 }
 
 login_ok() {

@@ -183,11 +183,17 @@
 
     // Changes since sent
     let drift = $state<S["RemittanceDriftResponse"] | null>(null);
+    // Once per sent version: a reload first shows the saved copy, which after an undo still says sent,
+    // and the server has already dropped that version's snapshot.
+    let driftFor = "";
     $effect(() => {
-        if (r?.status === "SUBMITTED" && r.type === "SESSION")
-            ok(api.GET("/api/remittances/{remittanceId}/drift", { params: { path: { remittanceId: id } } }))
-                .then((d) => (drift = d))
-                .catch(() => (drift = null));
+        if (r?.status !== "SUBMITTED" || r.type !== "SESSION") return;
+        const k = `${id}:${r.version}`;
+        if (k === driftFor) return;
+        driftFor = k;
+        ok(api.GET("/api/remittances/{remittanceId}/drift", { params: { path: { remittanceId: id } } }))
+            .then((d) => (drift = d))
+            .catch(() => (drift = null));
     });
     const snap = $derived((r?.snapshot ?? null) as Record<string, string> | null);
 

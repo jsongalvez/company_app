@@ -2,7 +2,7 @@ import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
 
 // Feedback 3578107f: a past day's sessions are listed on Expenses & pay and open for correcting.
-// Needs a session on the previous day; CI seeds one (browser.yml "Seed a past day").
+// Needs a session on the previous day; tools/seed/past-day.sql seeds one, in CI and in the verify copy.
 test("open a past session from Expenses & pay", { session: "owner" }, async ({ app, screen }) => {
     await app.open("/#/finance");
     await screen.getByRole("button", "Previous day").tap();

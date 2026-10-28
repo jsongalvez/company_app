@@ -45,7 +45,8 @@
     // Who can be added: today's staff (incl. relief) + branch members.
     let staff = $state<{ id: string; name: string }[]>([]);
     $effect(() => {
-        const dayId = isToday ? app.today?.branchDayId : undefined;
+        // Who clocked in today is readable only with the pay permission; the branch's members cover the rest.
+        const dayId = isToday && can("ASSIGN_COMPENSATION") ? app.today?.branchDayId : undefined;
         const du = dayId ? load.dayUsers(dayId) : null;
         const mem = load.members(app.branchId);
         Promise.all([du ? fetchCached(du.key, du.fn).catch(() => []) : Promise.resolve([]), fetchCached(mem.key, mem.fn).catch(() => [])]).then(([a, b]) => {

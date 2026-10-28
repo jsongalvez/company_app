@@ -98,15 +98,14 @@ jobs:
           done
           cat backend.log; exit 1
 
-      # A fresh database has no past days; the past-sessions test needs one
-      # session on the previous operational day at the fixture branch. The
-      # app's business day ends at 4 AM Manila, so between midnight and 4 AM
-      # calendar yesterday is still today in the app.
-      - name: Seed a past day
+      # A fresh database has no past days and only the dev seed's logins:
+      # tools/seed/ adds a past day (past-sessions.e2e.ts) and one user per
+      # role with its own branch (roles.e2e.ts). verify.sh loads the same files.
+      - name: Seed test data (a past day, one user per role)
         env:
           PGPASSWORD: company_password
         run: |
-          psql -h localhost -U company_user -d company_app -v ON_ERROR_STOP=1 -f tools/seed/past-day.sql
+          for f in tools/seed/*.sql; do psql -h localhost -U company_user -d company_app -v ON_ERROR_STOP=1 -f "$f"; done
 
       - name: Run browser tests (slice ${{ matrix.shard }} of 2)
         working-directory: web

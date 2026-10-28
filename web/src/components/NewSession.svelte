@@ -2,7 +2,7 @@
     import { ApiError, api, ok, uuid, type S } from "../api/client";
     import { guessPreview, rememberPrice } from "../lib/prices";
     import { rememberClient } from "../lib/clientdir.svelte";
-    import { app } from "../lib/app.svelte";
+    import { app, can } from "../lib/app.svelte";
     import { fetchCached, invalidate } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
@@ -62,7 +62,8 @@
             () => {},
         );
         a.reset();
-        const dayId = app.today?.branchDayId;
+        // Who clocked in today is readable only with the pay permission; the branch's members cover the rest.
+        const dayId = can("ASSIGN_COMPENSATION") ? app.today?.branchDayId : undefined;
         const l = dayId ? load.dayUsers(dayId) : null;
         const m = load.members(app.branchId);
         Promise.all([l ? fetchCached(l.key, l.fn).catch(() => []) : Promise.resolve([]), fetchCached(m.key, m.fn).catch(() => [])]).then(([du, mem]) => {
