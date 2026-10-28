@@ -4,14 +4,16 @@ The web app records what each page load does and uploads it in the background, s
 
 ## What is recorded
 
-| Kind    | Fields                                                                                                                                                                                 |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `boot`  | app version, screen route, window size, pixel ratio, online, service worker in control                                                                                                 |
-| `nav`   | the new screen route                                                                                                                                                                   |
-| `tap`   | screen route and the target: tag, position path, role, `href`, `name`, and a hash (`h`) of its text and (`al`) of its `aria-label` or `title`                                          |
-| `input` | the field (as for `tap`), its type, a hash of its label, and its value only for number, date, time, select and decimal fields outside `[data-pii]`; text fields send only their length |
-| `api`   | method, path, status, time to answer, trace id, and the server's `db` and `app` milliseconds from `Server-Timing`                                                                      |
-| `error` | screen route and the error message (first 200 characters)                                                                                                                              |
+| Kind    | Fields                                                                                                                                                                                                                          |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `boot`  | app version, screen route, window size, pixel ratio, online, service worker in control                                                                                                                                          |
+| `nav`   | the new screen route                                                                                                                                                                                                            |
+| `tap`   | screen route and the target: tag, position path, role, `href`, `name`, and a hash (`h`) of its text and (`al`) of its `aria-label` or `title`                                                                                   |
+| `input` | the field (as for `tap`), its type, a hash of its label, and its value only for number, date, time, select and decimal fields outside `[data-pii]`; text fields send only their length                                          |
+| `api`   | method, path, status, time to answer, trace id, and the server's `db` and `app` milliseconds from `Server-Timing`; a request that never got an answer has status 0 and the error name (`err`)                                   |
+| `error` | screen route and the error message (first 200 characters)                                                                                                                                                                       |
+| `net`   | per `/api` and `/auth` request and the page load itself: path, protocol (`h3`, `h2`, `http/1.1`), ms in DNS, connect (`cn`, null when the connection was reused) and TLS, `wait` before the request was sent, `ttfb`, and total |
+| `vis`   | the tab hidden or shown again (with `away` ms and online), and online/offline; plus the phone's link guess (`et`, `rtt`, `dl`) where the browser shares it                                                                      |
 
 Nothing typed into a text field and no label text leaves the phone. Routes keep only the `date`, `from`, `to`, `tab`, `view` and `branch` query values. The client form is marked `data-pii`, so its age and blood pressure stay out too. Mark any other form that holds personal details the same way.
 

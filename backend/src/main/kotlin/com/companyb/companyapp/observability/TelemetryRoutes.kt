@@ -37,7 +37,7 @@ import kotlin.math.abs
 object TelemetryRoutes {
     const val BATCH_MAX = 200
     const val DATA_MAX = 1000
-    val KINDS = setOf("boot", "nav", "tap", "input", "api", "error")
+    val KINDS = setOf("boot", "nav", "tap", "input", "api", "error", "net", "vis")
     private const val KEY_PREFIX = "telemetry:user:"
     private const val CLOCK_SKEW_MAX_MS = 7L * 24 * 60 * 60 * 1000
 

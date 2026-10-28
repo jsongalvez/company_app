@@ -4,7 +4,7 @@
  * a tap carries a hash of its label, a text field only its length. Number and date fields keep their value
  * unless they sit inside [data-pii] (client details).
  */
-export type Kind = "boot" | "nav" | "tap" | "input" | "api" | "error";
+export type Kind = "boot" | "nav" | "tap" | "input" | "api" | "error" | "net" | "vis";
 export type Event = { seq: number; at: number; kind: Kind; data: string };
 /** What the upload did: sent (or refused for good), or worth trying again later. */
 export type Outcome = "done" | "retry";

@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 /**
  * One upload of what a page load did. [sessionId] is made by the page when it loads; [seq] numbers the
  * events within it, so a resent batch is stored once. [at] is the phone's clock in epoch milliseconds.
- * [kind] is boot, nav, tap, input, api or error; [data] is that event's fields as a JSON object.
+ * [kind] is boot, nav, tap, input, api, error, net or vis; [data] is that event's fields as a JSON object.
  */
 @Serializable
 data class TelemetryBatchRequest(
