@@ -7,6 +7,11 @@ const today = businessDate();
 
 test("send a remittance for today, then undo it", { session: "owner" }, async ({ app, screen, browser }) => {
     const client = await doneSessionForNewClient(app, screen, browser);
+    // A slow list of the range's sessions: "Add everything" must wait for it, not add nothing.
+    await browser.route(/\/remittance-sessions/, async (route) => {
+        await new Promise((done) => setTimeout(done, 1500));
+        await route.fallback();
+    });
     await app.open("/#/remittance");
     await screen.getByRole("button", "New remittance").tap();
     const d = screen.getByRole("dialog", "New remittance");

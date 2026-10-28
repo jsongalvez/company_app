@@ -29,6 +29,8 @@
     let days = $state<Day[]>([]);
     let sessions = $state<Sess[]>([]);
     let sales = $state<Sale[]>([]);
+    // "Add everything" adds from these lists, so it waits until they are in.
+    let picking = $state(true);
     let pickKey = "";
     $effect(() => {
         if (!r) return;
@@ -39,10 +41,12 @@
     });
     async function loadPicker() {
         if (!r) return;
+        picking = true;
         const p = { path: { branchId: r.branchId }, query: { from: r.dateRangeStart, to: r.dateRangeEnd } };
         days = await ok(api.GET("/api/branches/{branchId}/remittance-days", { params: p })).catch(() => []);
         if (r.type === "PRODUCT") sales = await ok(api.GET("/api/branches/{branchId}/remittance-product-sales", { params: p })).catch(() => []);
         else sessions = await ok(api.GET("/api/branches/{branchId}/remittance-sessions", { params: p })).catch(() => []);
+        picking = false;
     }
 
     const covered = $derived(new Map((r?.dayBreakdowns ?? []).map((b) => [b.branchDayId, b.id])));
@@ -279,7 +283,7 @@
     {#if editable}
         <div class="notice mb row">
             <span class="grow">Pick the days this covers, then the {r.type === "PRODUCT" ? "product sales" : "done sessions"} to include.</span>
-            <button onclick={addEverything} disabled={filling}>{filling ? "Adding…" : "Add everything in range"}</button>
+            <button onclick={addEverything} disabled={filling || picking}>{filling ? "Adding…" : "Add everything in range"}</button>
         </div>
         <div class="cols">
             <section class="panel">
