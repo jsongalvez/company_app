@@ -49,16 +49,15 @@ subprojects {
         }
     }
 
-    val warningsAsErrors = providers.gradleProperty("warningsAsErrors").map(String::toBoolean).orElse(false)
+    // Always on, so local builds, tools/push.sh and CI compile the same task and share
+    // incremental output. A flag flipped between them forced a full recompile each time.
     tasks.withType<KotlinCompilationTask<*>>().configureEach {
-        compilerOptions.allWarningsAsErrors.set(warningsAsErrors)
+        compilerOptions.allWarningsAsErrors.set(true)
     }
 
     tasks.withType<JavaCompile>().configureEach {
         options.isWarnings = true
-        if (warningsAsErrors.get()) {
-            options.compilerArgs.add("-Werror")
-        }
+        options.compilerArgs.add("-Werror")
     }
 }
 

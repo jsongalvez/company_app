@@ -31,8 +31,5 @@ for s in $(grep -E '^[[:space:]]+bash tools/.*\.sh$' .github/workflows/quality.y
   grep -q -- "$s" <<< "$plan" || { echo "check-before-push-test: CI shell test $s missing locally" >&2; status=1; }
 done
 
-# -Werror must be on, or the local run proves nothing about CI.
-grep -q -- '-PwarningsAsErrors=true' <<< "$plan" || { echo "check-before-push-test: -PwarningsAsErrors=true missing" >&2; status=1; }
-
 [ $status -eq 0 ] && echo "check-before-push-test: OK"
 exit $status

@@ -120,7 +120,7 @@ done
 
 echo "check-before-push: mode=$mode modules=[$(printf '%s\n' $want_modules | sort -u | tr '\n' ' ')] deadcode=$want_deadcode shell=$want_shell"
 if [ ${#tasks[@]} -gt 0 ]; then
-  echo "check-before-push: ./gradlew ${tasks[*]} -PwarningsAsErrors=true"
+  echo "check-before-push: ./gradlew ${tasks[*]}"
 fi
 refs_flag=""
 [ ${#tasks[@]} -gt 0 ] && refs_flag="--gradle"
@@ -139,7 +139,7 @@ tools/quality/check-patterns.sh || status=1
 
 if [ ${#tasks[@]} -gt 0 ]; then
   # --continue: report every red check in one run instead of one per push.
-  ./gradlew --continue "${tasks[@]}" -PwarningsAsErrors=true || status=1
+  ./gradlew --continue "${tasks[@]}" || status=1
 fi
 
 if [ $want_shell -eq 1 ]; then
