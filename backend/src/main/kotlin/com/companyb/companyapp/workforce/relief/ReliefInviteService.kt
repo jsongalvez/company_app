@@ -90,6 +90,12 @@ object ReliefInviteService {
                     )
                 if (pair.second && pair.first != null) {
                     ReliefInviteAudit.inserted(AuditContext(callerId, branchId, isRemitted), checkNotNull(pair.first))
+                    ReliefNotifications.inviteCreated(
+                        inviterId = callerId,
+                        inviteeId = inviteeUserId,
+                        inviteId = checkNotNull(pair.first).id,
+                        context = ReliefEventContext.of(branchDay),
+                    )
                 }
                 pair
             }

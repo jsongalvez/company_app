@@ -45,6 +45,7 @@ internal object ReliefNotifications {
     const val INVITE_ACCEPTED = "RELIEF_INVITE_ACCEPTED"
     const val INVITE_DECLINED = "RELIEF_INVITE_DECLINED"
     const val INVITE_REVOKED = "RELIEF_INVITE_REVOKED"
+    const val INVITE_CREATED = "RELIEF_INVITE_CREATED"
 
     // accepted-invite reminders: T-3 days, T-1 day, day-of (Manila calendar days).
     // sourceId = the invite; one marker row per (event, invite) makes job re-runs idempotent.
@@ -115,6 +116,26 @@ internal object ReliefNotifications {
                 message = "$inviteeName $verb the relief invite at ${context.branchName} ${dayPhrase(context.date)}",
                 context = context,
                 dedupKey = reliefOccurrenceKey(eventType, inviteId),
+            ),
+        )
+    }
+
+    /** A new invite goes to the invitee only; the branch hears the answer (accept/decline). */
+    fun inviteCreated(
+        inviterId: UUID,
+        inviteeId: UUID,
+        inviteId: UUID,
+        context: ReliefEventContext,
+    ) {
+        val inviterName = AccountReads.findDisplayNamesByIds(listOf(inviterId))[inviterId] ?: "A member"
+        broadcastInTransaction(
+            ReliefBroadcast(
+                eventType = INVITE_CREATED,
+                sourceId = inviteId,
+                recipients = listOf(inviteeId),
+                message = "$inviterName invited you to relief duty at ${context.branchName} ${dayPhrase(context.date)}",
+                context = context,
+                dedupKey = reliefOccurrenceKey(INVITE_CREATED, inviteId),
             ),
         )
     }

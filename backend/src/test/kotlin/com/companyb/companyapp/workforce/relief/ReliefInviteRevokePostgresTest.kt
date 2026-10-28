@@ -121,6 +121,26 @@ class ReliefInviteRevokePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `the invitee gets an alert when invited`() {
+        // Feedback dc75f521: "The user didn't receive an alert from my invite".
+        val duty = TestFixtures.today.plusDays(2)
+        val invite = ReliefInviteService.createInvite(inviterId, branchId, inviteeId, duty)
+
+        val notices =
+            NotificationRepository
+                .findHistoryByUserId(inviteeId)
+                .filter { it.eventType == ReliefNotifications.INVITE_CREATED }
+        assertEquals(1, notices.size, "invitee gets one invite alert")
+        assertEquals(invite.id, notices.single().sourceId)
+        assertTrue(notices.single().message.contains(duty.toString()), "names the date: ${notices.single().message}")
+        val inviterNotices = NotificationRepository.findHistoryByUserId(inviterId)
+        assertTrue(
+            inviterNotices.none { it.eventType == ReliefNotifications.INVITE_CREATED },
+            "the inviter is not alerted about their own invite",
+        )
+    }
+
+    @Test
     fun `revocation locks once the invitee clocks in at that branch day`() {
         val duty = TestFixtures.today
         val inviteId = acceptInviteFor(duty)
