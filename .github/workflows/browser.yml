@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2]
     services:
       postgres:
         image: postgres:18
@@ -121,9 +121,9 @@ jobs:
           SELECT c.id, d.id, 'REGULAR', true, 500, 500 FROM c, d;
           SQL
 
-      - name: Run browser tests (slice ${{ matrix.shard }} of 4)
+      - name: Run browser tests (slice ${{ matrix.shard }} of 2)
         working-directory: web
-        run: npm run e2e -- --shard ${{ matrix.shard }}/4
+        run: npm run e2e -- --shard ${{ matrix.shard }}/2
 
       - name: Keep traces of failures
         if: failure()
