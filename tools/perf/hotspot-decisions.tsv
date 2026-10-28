@@ -12,3 +12,7 @@ A7	service worker serves the saved page at once	stale-while-revalidate navigatio
 A8	immutable hashed assets	Cache-Control immutable on /assets	no-SW repeat FCP 776	604	-22%	curl headers	kept (#988)	
 A9	prefetch the new build after a deploy	SW saves the fresh page files, then the page	second open after deploy fetched the new script	fetched nothing	87 KB off the critical path	deploy2.mjs on a real stack	kept (#991)	
 A10	Clock in from the saved shift	shiftKnown from saved shift	warm usable 438 (335-561)	357 (289-652)	inside noise	one-stack dist-swap A/B	dropped	
+L1	sign-in screen paints without the signed-in app (do it later)	Shell lazy; signed-in opens preload it; SW saves files the page script names	local cold login FCP 2256 (2200-2396)	1768 (1632-2224)	-22%	connection.e2e new test fails without the SW change	kept (#995)	prod pair inconclusive under load avg 4
+L2	Today held marks in one pass, shared date formatter (do it less)	heldMarks() map; module-level Intl formatter	local 200 sessions busy 790 (632-1149)	1024 (623-1214)	none	-	dropped	inside noise
+L3	Today rows a screenful per frame (do it later)	requestAnimationFrame steps of 25	local 200 sessions longest task 230, busy 790	217, 1077	none	-	dropped	longest task is not the list; more frames, more paint
+L4	illnesses ride in the save (do it less)	POST /api/sessions takes concernIds, newConcerns	local save with 3 illnesses 1425 (1361-1584), 4 writes	377 (360-392), 1 write	-74%	SessionCreateWithConcernsTest, calls.e2e fail before, pass after	kept (#996)	

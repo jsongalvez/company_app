@@ -76,3 +76,39 @@ Dropped, with the reason:
 - Code splitting: a vendor chunk would save about 20 KB gzip per deploy, and #991 already moves the post-deploy download off the critical path. Lazy pages would cut the first-visit login script (inferred, about 0.3 s), but would also need the service worker to precache chunks.
 - HTTP/2, HTTP/3, brotli, preconnect: already in place or not applicable (checked). h2 with `alt-svc: h3`, brotli on assets and API (`/api/start` 94 KB raw to 6.3 KB), all requests same-origin.
 - 150-user capacity rerun: the paths it loads are unchanged. The batch A/B (`load/batch-ab.js`) measured the one server change: +13% screens/s at saturation.
+
+## Leftovers (2026-10-28, local verify stack unless marked)
+
+Local runs share the VPS's 2 cores with prod, and a root `yes` process at nice 19 kept one core busy during these runs (seen in `top`, owner unknown). They slow prod and blur prod numbers (a Finance report at 09:39 lined up with them). Run them with `nice -n 19`, and take no prod numbers while one runs.
+
+**First visit to the sign-in page (#995).** The signed-in app is now its own file. Signed-out opens fetch it after the sign-in screen is up; signed-in opens preload it beside the page script. The service worker saves the files the page script names, so offline still works.
+
+| Load | metric | before (894bf697) | after (#995) |
+| --- | --- | --- | --- |
+| cold login | FCP = LCP | 2256 (2200-2396) | 1768 (1632-2224) |
+| cold Today | usable | 2631 (2624-2945) | 2478 (2421-3836) |
+| warm Today | FCP | 264 (196-488) | 272 (256-616) |
+
+Entry script 90.7 KB to 37.8 KB gzip. Prod cold login read 3144 (2800-3676) before and 2952 (2204-3376) after. That run had load average 4 on the 2 cores and 2 of 5 runs failed, so the prod pair is inconclusive.
+
+**Today as the day fills.** `fill-day.mjs` adds sessions (two in three marked Done) and one product sale per three sessions through the API. Server time stays flat. The browser's work grows with the rows.
+
+| sessions | today-screen server | answer (brotli) | main thread busy, 4x CPU | longest task | warm Today TBT (vitals) |
+| --- | --- | --- | --- | --- | --- |
+| 0-3 | 19 ms | 0.8 KB | 247 (186-358) | 71 | 0 |
+| 50 | 16 ms | 3.5 KB | 323 (264-356) | 128 | 82 (0-179) |
+| 100 | 14 ms | 6.4 KB | - | - | 136 (13-314) |
+| 200 | 15 ms | 12.0 KB | 790 (632-1149) | 230 | 549 (18-607) |
+
+About 2.7 ms of main thread per row at 4x CPU, spent in Svelte and the DOM. No row does needless work: the formatters are made once and the outbox is empty. Real branches log far fewer sessions a day than 200 (guessed: prod data reads were not available). The prod rise [Perf] saw is the probe's own branch: the probe saves and voids a session every 5 minutes, about 288 rows by night. Tried and dropped, each with no gain beyond noise at 200 sessions: one pass for the held marks plus a shared date formatter (busy 1024 vs 790); rows added a screenful per frame (busy 1077, longest task 217 vs 230). The list is oldest first, so showing only the first rows would hide the ones staff mark next.
+
+**Saving a session (#996).** Illnesses now go in the save. Timed in the page from the tap to the dialog closing, new client, 300 ms latency, median of 5:
+
+| Save | before | after |
+| --- | --- | --- |
+| three illnesses (2 ticked, 1 typed) | 1425 (1361-1584), 4 writes | 377 (360-392), 1 write |
+| no illnesses | 409 (375-454) | 403 (368-422) |
+
+The live 924 ms above came from `hotspot.mjs`, whose `waitFor(hidden)` polls every 500 ms after the first second. The same local flow read 857 that way and 409 timed in the page (checked locally; that the live number inflated the same way is inferred).
+
+**Fixtures on prod.** The prod save runs above left 6 clients named `ProbeNNNNNN Client`. A probe reset left one more `Probe Client` with 110 voided sessions. `clean-fixtures.mjs` proves each one: the name, and every session on the probe branch. Client history is not filtered by the reader, so the probe sees every branch. It skips the probe's live client and with `--apply` erases them through `POST /api/clients/{id}/anonymize`. The dry run on prod lists those 7 (checked). Not applied: the agent's permission check refused the prod write.
