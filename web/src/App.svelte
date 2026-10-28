@@ -2,7 +2,7 @@
     import { app, boot } from "./lib/app.svelte";
     import { route } from "./lib/router.svelte";
     import Login from "./pages/Login.svelte";
-    import Shell from "./components/Shell.svelte";
+    import { loadShell } from "./lib/shell";
     import Toast from "./components/Toast.svelte";
     import ReasonAsk from "./components/ReasonAsk.svelte";
 
@@ -17,7 +17,9 @@
 {:else if !app.signedIn || publicPage}
     <Login />
 {:else}
-    <Shell />
+    {#await loadShell() then shell}
+        <shell.default />
+    {/await}
 {/if}
 <Toast />
 <ReasonAsk />
