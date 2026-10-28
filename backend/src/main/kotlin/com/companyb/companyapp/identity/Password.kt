@@ -7,9 +7,13 @@ object Password {
     internal const val MAX_PASSWORD_BYTES = 72
 
     private var dummyHash: String = ""
+    private var dummyHashedFrom: String? = null
 
+    // Tests call init before every test; one cost-12 hash each was most of CI's backend test time.
     fun init(authDummyPassword: String) {
+        if (authDummyPassword == dummyHashedFrom) return
         dummyHash = BCrypt.withDefaults().hashToString(BCRYPT_COST, authDummyPassword.toCharArray())
+        dummyHashedFrom = authDummyPassword
     }
 
     fun exceedsMaxBytes(raw: String): Boolean = raw.encodeToByteArray().size > MAX_PASSWORD_BYTES
