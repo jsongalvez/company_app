@@ -83,6 +83,16 @@ data class CreateSessionRequest(
     val reason: String? = null,
     /** Practitioners to add right after the session is saved, so a save is one request. */
     val practitioners: List<AddPractitionerRequest> = emptyList(),
+    /** Listed concerns to tick right after the save, so ticking them costs no extra round trips. */
+    val concernIds: List<String> = emptyList(),
+    /** Concerns typed by name that are not on the list yet: each joins the list and this session. */
+    val newConcerns: List<NewSessionConcernRequest> = emptyList(),
+)
+
+@Serializable
+data class NewSessionConcernRequest(
+    val id: String,
+    val label: String,
 )
 
 @Serializable

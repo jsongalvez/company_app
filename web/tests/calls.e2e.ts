@@ -203,3 +203,36 @@ test("marking a session Done does not re-read Today's lists", { session: "owner"
     // One read follows the save (a new row's details come from the server); none follows the mark.
     expect(reads.lists).toBe(1);
 });
+
+// Ticked and typed illnesses go in the save itself: one write, however many are ticked.
+test("saving a session with illnesses is one write", { session: "owner" }, async ({ app, screen, browser }) => {
+    await app.open("/#/today");
+    await clockInHere(screen, browser);
+    const first = `Ill${Date.now().toString().slice(-6)}`;
+    await screen.getByRole("button", "New session").tap();
+    const dialog = screen.getByRole("dialog", "New session");
+    await dialog.getByPlaceholder("Search by name or phone (2+ letters)").fill(first);
+    await dialog.getByRole("button", "New client").tap();
+    const form = screen.getByRole("dialog", "New client");
+    await form.getByLabel(/^Last name/).fill("Tester");
+    await form.getByLabel(/^First name/).fill(first);
+    await form.getByLabel(/^Gender/).selectOption({ value: "F" });
+    await form.getByLabel(/^Age/).fill("40");
+    await form.getByRole("button", "Create client").tap();
+    await expect(dialog.getByLabel(/^Price/)).not.toHaveValue("");
+    await dialog.getByLabel("TMJ").check();
+    await dialog.getByLabel("Vertigo").check();
+    await dialog.getByLabel(/^Other illness/).fill(`Wrist ${first}`);
+
+    const writes: string[] = [];
+    await browser.route(/\/api\//, async (route) => {
+        const { url, method } = route.request;
+        if (method !== "GET") writes.push(`${method} ${new URL(url).pathname}`);
+        await route.fallback();
+    });
+    await dialog.getByRole("button", "Add session").tap();
+    const row = screen.getByRole("row").filter({ hasText: `${first} Tester` });
+    await expect(row).toBeVisible();
+    await expect(row.getByText(`Wrist ${first}`, { exact: false })).toBeVisible();
+    expect(writes).toEqual(["POST /api/sessions"]);
+});
