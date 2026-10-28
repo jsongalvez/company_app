@@ -3,10 +3,15 @@
 INSERT INTO branch (name, branch_type) VALUES ('probe', 'CLINIC') ON CONFLICT DO NOTHING;
 INSERT INTO app_user (username, password_hash, display_name, email)
   VALUES ('probe', :pass_hash, 'Latency probe', 'probe@example.com') ON CONFLICT DO NOTHING;
+-- Every session type gets a rate, as on a branch made in the app (BranchService.create): with REGULAR
+-- only, opening New session for a returning client got 400 "No base rate" (Sentry COMPANY-APP-7).
 INSERT INTO session_base_rate (set_by, branch_id, session_type, rate, effective_from, effective_until)
-  SELECT u.id, b.id, 'REGULAR', 1.00, now(), now() + interval '10 years'
-  FROM app_user u, branch b WHERE u.username = 'probe' AND b.name = 'probe'
-    AND NOT EXISTS (SELECT 1 FROM session_base_rate x WHERE x.branch_id = b.id);
+  SELECT u.id, b.id, t.session_type::session_type, 1.00, now(), now() + interval '10 years'
+  FROM app_user u, branch b,
+       (VALUES ('REGULAR'), ('SECOND_SESSION'), ('SUBSEQUENT'), ('PROVINCIAL_FIRST'), ('MEDICAL_MISSION')) AS t(session_type)
+  WHERE u.username = 'probe' AND b.name = 'probe'
+    AND NOT EXISTS (SELECT 1 FROM session_base_rate x
+                    WHERE x.branch_id = b.id AND x.session_type = t.session_type::session_type AND x.effective_until > now());
 INSERT INTO user_capability (user_id, capability_id, context_type, context_id, source_type, source_id)
   SELECT u.id, c.id, 'BRANCH', b.id, 'SYSTEM', b.id
   FROM app_user u, branch b, capability c
