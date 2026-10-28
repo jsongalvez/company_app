@@ -2,6 +2,7 @@
     import Dialog from "./Dialog.svelte";
     import { api, ok, errText, uuid, lastError, recentRequests } from "../api/client";
     import { recorder } from "../lib/record";
+    import { APP_VERSION } from "../lib/version";
     import { toast } from "../lib/app.svelte";
 
     let { open = $bindable(false) }: { open?: boolean } = $props();
@@ -40,7 +41,7 @@
             if (kind === "PROBLEM" && attach) details.unshift(...traceLines());
             await ok(
                 api.POST("/api/feedback-notes", {
-                    body: { id, kind, message, page: location.hash || "#/", details: details.join("\n"), appVersion: __APP_VERSION__ },
+                    body: { id, kind, message, page: location.hash || "#/", details: details.join("\n"), appVersion: APP_VERSION },
                 }),
             );
             toast(kind === "PROBLEM" ? "Problem sent. Thank you." : "Idea sent. Thank you.");

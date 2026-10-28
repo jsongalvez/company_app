@@ -4,10 +4,10 @@
  * it's newer, offer a one-tap update. Waiting saves are kept on the phone, so reloading is safe.
  */
 import { RECONNECTED } from "./net.svelte";
+import { BUILD } from "./version";
 
 export const update = $state({ ready: false });
 
-const BUILD = /\/assets\/index-[\w-]+\.js/;
 const mine = () => BUILD.exec([...document.scripts].map((s) => s.src).join(" "))?.[0];
 
 export async function checkForUpdate(): Promise<void> {

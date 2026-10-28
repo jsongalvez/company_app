@@ -1,4 +1,5 @@
 import { createTracker } from "./error-tracker";
+import { APP_VERSION } from "./version";
 
 /** The live tracker: on only when the build was given VITE_SENTRY_DSN, otherwise every call does nothing. */
 export const track = createTracker(
@@ -6,7 +7,7 @@ export const track = createTracker(
     (url, body) => {
         void fetch(url, { method: "POST", body, keepalive: true, headers: { "Content-Type": "text/plain;charset=UTF-8" } }).catch(() => {});
     },
-    __APP_VERSION__,
+    APP_VERSION,
 );
 
 export function installTracker() {

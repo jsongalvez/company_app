@@ -1,5 +1,6 @@
 import { api, getToken, uuid } from "../api/client";
 import { createRecorder, describe, fieldOf, norm, routeOf, type Outcome } from "./telemetry";
+import { APP_VERSION } from "./version";
 
 /** The live recorder for this page load; its id goes into problem reports so the replay tool can find it. */
 export const recorder = createRecorder(uuid(), async (body): Promise<Outcome> => {
@@ -69,7 +70,7 @@ function recordNetwork() {
 
 export function installRecorder() {
     recorder.record("boot", {
-        v: __APP_VERSION__,
+        v: APP_VERSION,
         r: route(),
         w: innerWidth,
         h: innerHeight,
