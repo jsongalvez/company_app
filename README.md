@@ -45,7 +45,7 @@ run against a backend serving the built web app with the dev seed logins:
 ```bash
 cd web && npm run build
 ./gradlew :backend:run          # from the repo root, with WEB_DIR=web/dist in .env
-cd web && npm run e2e -- tests/undo.e2e.ts   # one file; APP_URL defaults to http://localhost:18080
+tools/verify/verify.sh up && (cd web && npm run e2e -- tests/undo.e2e.ts)   # one file, against the verify copy (APP_URL overrides)
 ```
 
 ## Words

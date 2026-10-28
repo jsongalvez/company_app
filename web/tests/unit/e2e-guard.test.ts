@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 // @ts-expect-error plain .mjs without types
-import { refusal } from "../../scripts/e2e-guard.mjs";
+import { localTarget, refusal } from "../../scripts/e2e-guard.mjs";
 
 const local = {};
 
@@ -30,4 +30,14 @@ test("an option value is not mistaken for a file", () => {
 
 test("GitHub (CI set) runs the full suite", () => {
     assert.equal(refusal(["--shard", "1/4"], { CI: "true" }), null);
+});
+
+test("a local run targets the verify copy, not the dev port nothing listens on", () => {
+    assert.equal(localTarget({}), "http://127.0.0.1:18181");
+    assert.equal(localTarget({ VERIFY_PORT: "18282" }), "http://127.0.0.1:18282");
+});
+
+test("APP_URL and GitHub keep their own target", () => {
+    assert.equal(localTarget({ APP_URL: "http://localhost:18080" }), null);
+    assert.equal(localTarget({ CI: "true" }), null);
 });
