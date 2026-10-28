@@ -11,8 +11,10 @@ installTracker();
 installRecorder();
 startBackgroundSync();
 // Signed in: fetch the app alongside the start request. Signed out: after the sign-in screen is up.
-if (getToken()) void loadShell();
-else addEventListener("load", () => void loadShell());
+// A failed load reloads or shows Reload (lib/shell.ts, App.svelte), so it is not an error here.
+const prefetch = () => void loadShell().catch(() => {});
+if (getToken()) prefetch();
+else addEventListener("load", prefetch);
 mount(App, { target: document.getElementById("app")! });
 
 // Keep the app on the phone for weak signal (production builds only).

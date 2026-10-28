@@ -19,6 +19,8 @@
 {:else}
     {#await loadShell() then shell}
         <shell.default />
+    {:catch}
+        <div class="boot">Couldn't open the app. <button onclick={() => location.reload()}>Reload</button></div>
     {/await}
 {/if}
 <Toast />
