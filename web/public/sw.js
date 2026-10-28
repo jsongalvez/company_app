@@ -14,10 +14,26 @@ async function saveApp() {
 async function savePage(res) {
     const html = await res.clone().text();
     const files = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => m[1]);
-    const missing = [];
-    for (const f of files) if (!(await caches.match(f))) missing.push(f);
-    await Promise.all(missing.map((f) => fetch(f).then((r) => put(f, r))));
+    await saveFiles(files);
     await put("/", res);
+}
+
+// The page's script names the files it loads later (the signed-in app), so those get saved too.
+async function saveFiles(files, seen = new Set(files)) {
+    const later = [];
+    await Promise.all(
+        files.map(async (f) => {
+            let r = await caches.match(f);
+            if (!r) {
+                r = await fetch(f);
+                await put(f, r.clone());
+            }
+            if (f.endsWith(".js") && r.ok) for (const m of (await r.text()).matchAll(/"(assets\/[\w.-]+\.(?:js|css))"/g)) later.push("/" + m[1]);
+        }),
+    );
+    const next = [...new Set(later)].filter((f) => !seen.has(f));
+    next.forEach((f) => seen.add(f));
+    if (next.length) await saveFiles(next, seen);
 }
 
 self.addEventListener("install", (e) =>
