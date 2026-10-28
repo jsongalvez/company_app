@@ -253,9 +253,13 @@
 {:else if dayQ.data}
     <div class="row mb wrap">
         <b>{day(date)}</b>
-        <span class="mark {status === 'OPEN' ? 'ok' : status === 'REMITTED' ? 'info' : 'plain'}">{label(status)}</span>
+        {#if status === "REMITTED"}
+            <span class="mark info">Remitted</span>
+        {:else if closed}
+            <span class="mark warn">Not remitted</span>
+        {/if}
         {#if closed}
-            <span class="muted">{edit ? "Coordinator edit." : "Read only."}</span>
+            <span class="muted">{edit ? "Reason needed" : "Read only"}</span>
         {/if}
     </div>
 
