@@ -458,8 +458,16 @@ object SessionRoutes {
                 reason = added.reason,
             )
         }
+        request.concernIds.forEach {
+            SessionConcernService.addToSession(callerId, sessionId, uuidOrThrow(it, "concern id"), request.reason)
+        }
+        request.newConcerns.forEach {
+            SessionConcernService.addNewConcern(callerId, sessionId, uuidOrThrow(it.id, "id"), it.label, request.reason)
+        }
         val result = saved.result
-        val concerns = saved.concerns.map { it.toResponse() }
+        val ticked = request.concernIds.isNotEmpty() || request.newConcerns.isNotEmpty()
+        val savedConcerns = if (ticked) SessionConcernService.getForSession(callerId, sessionId) else saved.concerns
+        val concerns = savedConcerns.map { it.toResponse() }
         context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
         context.json(result.session.toResponse(concerns))
     }

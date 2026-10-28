@@ -136,6 +136,14 @@
                 }
                 if (!c) throw new Error("Choose a client");
                 if (!price.trim()) throw new Error("Enter a price");
+                // Concerns: ticked ones, then typed ones (a known name is picked, a new one joins the list). They ride in the save.
+                const ids = new Set(picked);
+                const fresh: string[] = [];
+                for (const name of typedConcerns(otherConcerns)) {
+                    const known = concerns.find((k) => k.label.toLowerCase() === name.toLowerCase());
+                    if (known) ids.add(known.id);
+                    else fresh.push(name);
+                }
                 const s = await ok(
                     api.POST("/api/sessions", {
                         body: {
@@ -149,37 +157,26 @@
                             otherConcerns: null,
                             nextAppointmentDate: nextDate || null,
                             practitioners: practitioners.map((practitionerId) => ({ id: uuid(), practitionerId })),
+                            concernIds: [...ids],
+                            newConcerns: fresh.map((label) => ({ id: uuid(), label })),
                         },
                     }),
                 );
-                // Concerns: ticked ones, then typed ones (a known name is picked, a new one joins the list).
-                const ids = new Set(picked);
-                const fresh: string[] = [];
-                for (const name of typedConcerns(otherConcerns)) {
-                    const known = concerns.find((k) => k.label.toLowerCase() === name.toLowerCase());
-                    if (known) ids.add(known.id);
-                    else fresh.push(name);
-                }
-                for (const concernId of ids)
-                    await ok(api.POST("/api/sessions/{sessionId}/concerns", { params: { path: { sessionId: s.id } }, body: { concernId } }));
-                for (const label of fresh)
-                    await ok(
-                        api.POST("/api/sessions/{sessionId}/promote-concern", {
-                            params: { path: { sessionId: s.id } },
-                            body: { id: uuid(), label, clearOtherConcerns: false },
-                        }),
-                    );
                 if (fresh.length) invalidate("concerns");
-                // A booked visit that turned into this session is marked as came.
-                if (booking && booking.clientId === c.id) await setBooking(booking, { status: "CAME" }).catch(() => {});
-                // "Next visit" also books it, so it shows under Booked visits.
-                if (nextDate)
-                    await ok(
-                        api.POST("/api/branches/{branchId}/bookings", {
-                            params: { path: { branchId: app.branchId } },
-                            body: { id: uuid(), clientId: c.id, visitDate: nextDate, visitTime: null, note: null },
-                        }),
-                    ).catch(() => {});
+                const chosen = c;
+                await Promise.all([
+                    // A booked visit that turned into this session is marked as came.
+                    booking && booking.clientId === chosen.id ? setBooking(booking, { status: "CAME" }).catch(() => {}) : null,
+                    // "Next visit" also books it, so it shows under Booked visits.
+                    nextDate
+                        ? ok(
+                              api.POST("/api/branches/{branchId}/bookings", {
+                                  params: { path: { branchId: app.branchId } },
+                                  body: { id: uuid(), clientId: chosen.id, visitDate: nextDate, visitTime: null, note: null },
+                              }),
+                          ).catch(() => {})
+                        : null,
+                ]);
                 invalidate("bookings:");
                 invalidate("dash:", "clients:", `client:${c.id}`, `session:${s.id}`);
                 open = false;
