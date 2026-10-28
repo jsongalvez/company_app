@@ -24,6 +24,8 @@ test("add concerns to a session by typing", { session: "owner" }, async ({ app, 
     await dialog.getByLabel("Vertigo").check();
     await dialog.getByLabel(/^Other illness/).fill(concern);
     await dialog.getByRole("button", "Add session").tap();
+    // Until the save lands the dialog stays open, and its copy of the name is the first match.
+    await expect(dialog).toBeHidden();
 
     await screen.getByText(`${first} Tester`).first().tap();
     const box = screen.getByLabel("Add illness");
