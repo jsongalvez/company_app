@@ -13,7 +13,8 @@ test("change my name and email, then put them back", { session: "owner" }, async
     await name.fill(`Dev owner ${tag}`);
     await email.fill(`owner${tag}@example.com`);
     await screen.getByRole("button", "Save").tap();
-    await expect(screen.getByRole("button", "Save")).toBeDisabled();
+    // Save is also disabled while the request is in flight; the banner changes only once it lands.
+    await expect(screen.getByRole("link", `Dev owner ${tag}`)).toBeVisible();
 
     await app.open("/#/today");
     await app.open("/#/profile");
