@@ -2,7 +2,7 @@
 # Static-analysis reproduction commands (#532, map #531 Phase A).
 # Every command below runs the SAME committed config/profile CI uses:
 #   Detekt : config/detekt/detekt.yml + detekt-anti-slop.yml (+ custom)
-#   Kotlin : -PwarningsAsErrors=true (same flag as quality.yml)
+#   Kotlin : warnings are errors in every build (build.gradle.kts)
 #   IDE    : config/inspection/Project_Default.xml
 # Full multi-platform Detekt/test coverage stays asynchronous CI work (#329).
 set -euo pipefail
@@ -18,9 +18,9 @@ cmd_detekt() {
     ./gradlew :backend:detekt
 }
 
-# Authoritative compiler-warning pass (same -PwarningsAsErrors=true as CI).
+# Authoritative compiler-warning pass (warnings are errors in every build).
 cmd_compiler() {
-    ./gradlew :backend:compileKotlin -PwarningsAsErrors=true
+    ./gradlew :backend:compileKotlin
 }
 
 # Detekt effective-config parity guard (IDE single-file load == Gradle merge).

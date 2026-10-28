@@ -129,14 +129,13 @@ jobs:
         run: >-
           ./gradlew :backend:detekt :backend:ktlintCheck :backend:test
           :detekt-rules:detekt :detekt-rules:test
-          -PwarningsAsErrors=true
 
       # Backend workers use owned test_w_* schemas (#493); public-table cleanliness no
       # longer evidences backend tests. Lifecycle proof lives in WorkerSchemaLifecycleTest.
       # tools/database/check-test-cleanliness.sh stays for k6/manual public-DB cleanup only.
 
       - name: Verify OpenAPI contract (#495 Gradle gate)
-        run: ./gradlew :backend:verifyOpenApiContract -PwarningsAsErrors=true
+        run: ./gradlew :backend:verifyOpenApiContract
 
       # Semantic dead-code gate (map #529, ref #530; zero-debt Phase C): fails on any
       # finding outside config/deadcode/entry-points.txt, and on stale entries
