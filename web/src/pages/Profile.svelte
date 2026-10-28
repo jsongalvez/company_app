@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { untrack } from "svelte";
     import { api, ok } from "../api/client";
     import { app, signIn, toast } from "../lib/app.svelte";
     import { Action } from "../lib/act.svelte";
@@ -7,6 +8,20 @@
 
     let name = $state(app.me?.displayName ?? "");
     let email = $state(app.me?.email ?? "");
+    // A save started before leaving Profile can land after coming back. Follow it into any
+    // field still showing the value it was opened with; keep fields the person has edited.
+    let shownName = app.me?.displayName ?? "";
+    let shownEmail = app.me?.email ?? "";
+    $effect(() => {
+        const n = app.me?.displayName ?? "";
+        const m = app.me?.email ?? "";
+        untrack(() => {
+            if (name === shownName) name = n;
+            if (email === shownEmail) email = m;
+            shownName = n;
+            shownEmail = m;
+        });
+    });
     const changed = $derived(name.trim() !== (app.me?.displayName ?? "") || email.trim() !== (app.me?.email ?? ""));
     const pa = new Action();
 

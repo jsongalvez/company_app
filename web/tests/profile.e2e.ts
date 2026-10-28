@@ -35,3 +35,26 @@ test("a wrong current password is refused", { session: "owner" }, async ({ app, 
     await screen.getByRole("button", "Change password").tap();
     await expect(screen.getByText("Current password is wrong")).toBeVisible();
 });
+
+// Leaving Profile while a save is in flight and coming straight back shows the saved name
+// once the save lands, not the name from before it.
+test("coming back to Profile mid-save shows the saved name", { session: "owner" }, async ({ app, screen, browser }) => {
+    const tag = Date.now().toString().slice(-6);
+    await app.open("/#/profile");
+    await expect(screen.getByLabel(/^Name/)).toHaveValue("Dev owner");
+    await browser.route(/\/api\/me$/, async (route) => {
+        if (route.request.method === "PATCH") await new Promise((r) => setTimeout(r, 1500));
+        await route.fallback();
+    });
+    await screen.getByLabel(/^Name/).fill(`Dev owner ${tag}`);
+    await screen.getByRole("button", "Save").tap();
+    await app.open("/#/today");
+    await app.open("/#/profile");
+    await expect(screen.getByRole("link", `Dev owner ${tag}`)).toBeVisible();
+    await expect(screen.getByLabel(/^Name/)).toHaveValue(`Dev owner ${tag}`);
+
+    await screen.getByLabel(/^Name/).fill("Dev owner");
+    await screen.getByRole("button", "Save").tap();
+    await expect(screen.getByRole("button", "Save")).toBeDisabled();
+    await expect(screen.getByLabel(/^Name/)).toHaveValue("Dev owner");
+});
