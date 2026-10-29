@@ -1,9 +1,8 @@
 import { ApiError, api, ok, setToken, getToken, setUnauthorizedHandler, uuid, errText, getViewAs, setViewAs, type S, type ViewAs } from "../api/client";
 import { forgetSnapshot } from "./snapshot";
-import { clearCache, fetchCached, forget, invalidate, reread, peek, restoreCache, savedAt, seed } from "./cache.svelte";
-import { SLOW_MS, step, type FreshEvent, type Freshness } from "./freshness";
+import { clearCache, fetchCached, forget, invalidate, reread, peek, restoreCache, seed } from "./cache.svelte";
 import { refreshDirectory, resetDirectory } from "./clientdir.svelte";
-import { RECONNECTED, net } from "./net.svelte";
+import { RECONNECTED } from "./net.svelte";
 import { doneText, heldClock, heldSoFar, SENT } from "./outbox.svelte";
 import { operationalDate } from "./format";
 import { applies } from "./grants";
@@ -28,11 +27,7 @@ export const app = $state({
     toast: null as { text: string; kind: "ok" | "bad" } | null,
     /** Set while a developer is viewing the app as someone else. */
     viewAs: getViewAs() as ViewAs | null,
-    /** How current the screen is, for the top bar's "Updated 9:41" line. */
-    fresh: null as Freshness | null,
 });
-
-const freshness = (e: FreshEvent) => (app.fresh = step(app.fresh, e));
 
 const VIEW_AS_MINUTES = 30;
 
@@ -117,7 +112,6 @@ export async function signOut(callServer = true) {
         shiftKnown: false,
         unread: 0,
     });
-    freshness({ type: "none" });
 }
 
 const onToday = () => ["", "#", "#/", "#/today"].includes(location.hash);
@@ -142,7 +136,6 @@ function takeStart(s: S["StartResponse"], withToday: boolean) {
     app.shiftKnown = true;
     app.unread = s.unreadCount;
     if (withToday && s.branchId && s.todayScreen) seedTodayScreen(s.branchId, Promise.resolve(s.todayScreen));
-    freshness({ type: "answer", at: Date.now() });
     void refreshDirectory();
 }
 
@@ -161,9 +154,6 @@ export async function boot() {
         applyHeldClock();
         app.ready = true;
     }
-    const at = saved.every((x) => x !== undefined) && savedAt("boot:me");
-    freshness(at ? { type: "saved", at } : { type: "none" });
-    const slow = setTimeout(() => freshness({ type: "slow" }), SLOW_MS);
     try {
         // One request for all of it. Opening on Today, the page asks for its lists at once: they come in the same answer.
         const asked = app.branchId;
@@ -179,11 +169,7 @@ export async function boot() {
             );
         const s = await start;
         takeStart(s, withToday && s.branchId !== asked);
-    } catch (e) {
-        freshness({ type: "lost" });
-        throw e;
     } finally {
-        clearTimeout(slow);
         app.ready = true;
     }
 }
@@ -192,12 +178,7 @@ export async function boot() {
 const catchUp = () => {
     if (!getToken()) return;
     if (!app.me) void boot().catch(() => {});
-    else
-        void Promise.all([refreshBranchDay(), refreshShift(), refreshUnread()]).then(
-            // These keep what they had when the signal drops, so only a clean connection makes the screen current.
-            () => !net.trouble && net.online && freshness({ type: "answer", at: Date.now() }),
-            () => {},
-        );
+    else void Promise.all([refreshBranchDay(), refreshShift(), refreshUnread()]).catch(() => {});
 };
 
 /** End a timed "view as" when it runs out, and catch up when the signal returns or held saves go out. */

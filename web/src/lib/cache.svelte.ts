@@ -110,11 +110,6 @@ export function seed(key: string, data: unknown) {
     saveSoon();
 }
 
-/** When the server gave this key's data, if known. */
-export function savedAt(key: string): number | undefined {
-    return store.get(key)?.got || undefined;
-}
-
 export function peek<T>(key: string): T | undefined {
     return store.get(key)?.data as T | undefined;
 }
