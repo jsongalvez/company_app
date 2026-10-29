@@ -91,6 +91,7 @@ export const load = {
         ),
     products: () => L(`products`, () => ok(api.GET("/api/products"))),
     categories: () => L(`categories`, () => ok(api.GET("/api/product-categories"))),
+    productSales: (branchDayId: string) => L(`sales:${branchDayId}`, () => ok(api.GET("/api/product-sales", { params: { query: { branchDayId } } }))),
     expenses: (branchDayId: string) => L(`exp:${branchDayId}`, () => ok(api.GET("/api/expenses", { params: { query: { branchDayId } } }))),
     compensations: (branchDayId: string) => L(`comp:${branchDayId}`, () => ok(api.GET("/api/compensations", { params: { query: { branchDayId } } }))),
     allowances: (branchDayId: string) => L(`allow:${branchDayId}`, () => ok(api.GET("/api/allowances", { params: { query: { branchDayId } } }))),

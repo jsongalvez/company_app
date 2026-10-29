@@ -1307,9 +1307,41 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["product_sales_get"];
         put?: never;
         post: operations["product_sales"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/product-sales/{saleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["product_sale_delete"];
+        options?: never;
+        head?: never;
+        patch: operations["product_sale_patch"];
+        trace?: never;
+    };
+    "/api/product-sales/{saleId}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_sale_restore"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2268,6 +2300,10 @@ export interface components {
             expectedVersion?: number | null;
             reason?: string | null;
         };
+        DeleteProductSaleRequest: {
+            reason: string;
+            expectedVersion: number;
+        };
         InventoryMovementRequest: {
             movementId: string;
             /** @enum {string} */
@@ -2316,12 +2352,19 @@ export interface components {
             totalAmountAtTime: string;
             commissionAmountAtTime: string;
             soldAt: string;
+            deletedBy: string | null;
+            deletedAt: string | null;
+            deletedReason: string | null;
+            version: number;
         };
         RestockRequest: {
             id: string;
             quantity: number;
             branchDayId: string;
             editReason?: string | null;
+        };
+        RestoreProductSaleRequest: {
+            reason?: string | null;
         };
         SetBranchPriceRequest: {
             unitPrice?: string | null;
@@ -2333,6 +2376,12 @@ export interface components {
             unitPrice?: string | null;
             commissionAmount?: string | null;
             isActive?: boolean | null;
+        };
+        UpdateProductSaleRequest: {
+            productId: string;
+            quantity: number;
+            expectedVersion: number;
+            reason?: string | null;
         };
         CommissionInclusionResponse: {
             id: string;
@@ -2394,7 +2443,9 @@ export interface components {
         };
         CreateExpenseRequest: {
             id: string;
-            branchDayId: string;
+            branchDayId?: string | null;
+            branchId?: string | null;
+            date?: string | null;
             amount: string;
             /** @enum {string} */
             category: "PANTRY" | "COMMUNICATION" | "WATER" | "TRANSPORTATION" | "ELECTRICITY" | "RENTAL" | "OFFICE_SUPPLIES" | "FURNITURE_FIXTURES" | "MISCELLANEOUS" | "UNKNOWN";
@@ -2991,6 +3042,7 @@ export interface components {
             branchId?: string;
             /** @enum {string|null} */
             dayStatus?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN" | null;
+            branchDayId?: string | null;
         };
         PromoteConcernRequest: {
             id: string;
@@ -7666,6 +7718,37 @@ export interface operations {
             };
         };
     };
+    product_sales_get: {
+        parameters: {
+            query: {
+                branchDayId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductSaleResponse"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     product_sales: {
         parameters: {
             query?: never;
@@ -7681,6 +7764,165 @@ export interface operations {
         responses: {
             /** @description Created */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductSaleResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    product_sale_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                saleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DeleteProductSaleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductSaleResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    product_sale_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                saleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateProductSaleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductSaleResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    product_sale_restore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                saleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RestoreProductSaleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

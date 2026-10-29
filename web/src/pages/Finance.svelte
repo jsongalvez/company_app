@@ -14,6 +14,7 @@
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
     import Dialog from "../components/Dialog.svelte";
+    import SaleList from "../components/SaleList.svelte";
 
     const bid = $derived(app.branchId);
     const date = $derived(route.current.query.get("date") ?? operationalDate());
@@ -133,11 +134,17 @@
                               body: { ...body, expectedVersion: eEdit!.version },
                           }),
                       )
-                    : ok(api.POST("/api/expenses", { body: { ...body, id: uuid(), branchDayId: dayId } })),
+                    : // A day with nothing recorded yet has no row; the first expense names it by date.
+                      ok(api.POST("/api/expenses", { body: { ...body, id: uuid(), ...(dayId ? { branchDayId: dayId } : { branchId: bid, date }) } })),
             eEdit ? "Expense updated" : "Expense added",
         );
         if (done) {
             eOpen = false;
+            if (!dayId) {
+                invalidate(`bday:${bid}:${date}`);
+                dayQ.refresh();
+                return;
+            }
             refresh("exp", "summary");
         }
     }
@@ -261,7 +268,10 @@
 
 {#if !todayDay}<State q={dayQ} />{/if}
 {#if theDay === null}
-    <div class="notice">Nothing was recorded on {day(date)}.</div>
+    <div class="notice row wrap">
+        <span class="grow">Nothing was recorded on {day(date)}.</span>
+        {#if can("EDIT_BRANCH_DATA")}<button class="sm primary" onclick={() => openExpense(null)}>Add expense</button>{/if}
+    </div>
 {:else if theDay}
     <div class="row mb wrap">
         <b>{day(date)}</b>
@@ -381,6 +391,8 @@
                 </table>
             {/if}
         </section>
+
+        {#if dayId}<SaleList {dayId} {edit} needReason={closed} {showDeleted} onchanged={() => refresh("summary", "split")} />{/if}
 
         {#if pay}
             <section class="panel">

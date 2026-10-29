@@ -63,3 +63,22 @@ SELECT c.id, d.id, 'REGULAR', true, 500, 500 FROM c, d;
 INSERT INTO branch_day (branch_id, date)
 VALUES ('00000000-0000-4000-8000-000000000105', ((now() AT TIME ZONE 'Asia/Manila') - interval '4 hours')::date - 1)
 ON CONFLICT (branch_id, date) DO NOTHING;
+
+-- Yesterday at the Practitioner Branch, a session with one product sale, for sale-edit.e2e.ts:
+-- a member changes, deletes and reads the history of a sale from its session's page.
+WITH c AS (
+  INSERT INTO client (first_name, last_name, gender, age)
+  VALUES ('Sale', 'Dayclient', 'F', 40) RETURNING id
+), d AS (
+  SELECT id FROM branch_day
+  WHERE branch_id = '00000000-0000-4000-8000-000000000105'
+    AND date = ((now() AT TIME ZONE 'Asia/Manila') - interval '4 hours')::date - 1
+), s AS (
+  INSERT INTO session (client_id, branch_day_id, session_type, is_walk_in, base_price, final_price)
+  SELECT c.id, d.id, 'REGULAR', true, 500, 500 FROM c, d RETURNING id, branch_day_id
+)
+INSERT INTO product_sale (branch_day_id, session_id, is_walk_in, product_id, product_name, handled_by,
+                          quantity, unit_price_at_time, total_amount_at_time, commission_amount_at_time)
+SELECT s.branch_day_id, s.id, false, p.id, p.name, u.id, 1, 100, 100, 10
+FROM s, product p, app_user u
+WHERE p.name = 'Role test oil' AND u.username = 'role-practitioner';

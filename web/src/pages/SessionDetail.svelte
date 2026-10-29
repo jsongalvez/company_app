@@ -14,6 +14,7 @@
     import Dialog from "../components/Dialog.svelte";
     import History from "../components/History.svelte";
     import ProductSale from "../components/ProductSale.svelte";
+    import SaleList from "../components/SaleList.svelte";
 
     let { id }: { id: string } = $props();
 
@@ -296,6 +297,7 @@
     }
 
     let saleOpen = $state(false);
+    let sales = $state<ReturnType<typeof SaleList>>();
     const sessionConcernIds = $derived(new Set(s?.concerns?.map((c) => c.id) ?? []));
 </script>
 
@@ -355,6 +357,8 @@
                     </dl>
                 </div>
             </section>
+
+            {#if s.branchDayId}<SaleList bind:this={sales} dayId={s.branchDayId} sessionId={id} edit={edit && !voided} {needReason} />{/if}
 
             <History table="session" {id} />
         </div>
@@ -485,7 +489,15 @@
         <label class="field"><span class="req">Reason</span><textarea bind:value={voidReason} required></textarea></label>
     </Dialog>
 
-    <ProductSale bind:open={saleOpen} sessionId={id} onsaved={refresh} />
+    <ProductSale
+        bind:open={saleOpen}
+        sessionId={id}
+        dayId={s?.branchDayId ?? null}
+        onsaved={() => {
+            refresh();
+            sales?.reload();
+        }}
+    />
 {/if}
 
 <style>

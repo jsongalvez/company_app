@@ -335,7 +335,8 @@
         </div>
     </div>
     <div>
-        <div class="k">Product sales</div>
+        <!-- Each sale is changed or deleted on Expenses & pay, which lists the day's sales. -->
+        <div class="k"><a href={`#/finance?date=${date}`}>Product sales</a></div>
         {#if isToday}<div class="v" use:changed={dash.data?.commission.productSalesCount}>{dash.data?.commission.productSalesCount ?? 0}</div>
         {:else}<div class="v" use:changed={pastSumShown?.totalProductSales}>{peso(pastSumShown?.totalProductSales ?? 0)}</div>{/if}
     </div>
