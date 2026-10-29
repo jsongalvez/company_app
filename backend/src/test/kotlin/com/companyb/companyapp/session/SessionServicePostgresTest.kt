@@ -861,16 +861,23 @@ class SessionServicePostgresTest : BasePostgresTest() {
         insertSessionOnDay(pastSessionId, pastDayId, SessionStatus.NO_SHOW)
 
         assertFailsWith<ForbiddenException> {
-            SessionService.updateStatus(callerId, pastSessionId, SessionStatus.PENDING, 1)
+            SessionService.updateStatus(callerId, pastSessionId, SessionStatus.CANCELLED, 1)
         }
 
         BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
         assertFailsWith<ValidationException> {
-            SessionService.updateStatus(callerId, pastSessionId, SessionStatus.PENDING, 1)
+            SessionService.updateStatus(callerId, pastSessionId, SessionStatus.CANCELLED, 1)
         }
-        val updated = SessionService.updateStatus(callerId, pastSessionId, SessionStatus.PENDING, 1, "Came after all")
+        val updated =
+            SessionService.updateStatus(
+                callerId,
+                pastSessionId,
+                SessionStatus.CANCELLED,
+                1,
+                "Called to cancel",
+            )
 
-        assertEquals(SessionStatus.PENDING, updated.sessionStatus)
+        assertEquals(SessionStatus.CANCELLED, updated.sessionStatus)
     }
 
     @Test

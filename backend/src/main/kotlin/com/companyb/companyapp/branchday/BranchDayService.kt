@@ -317,14 +317,13 @@ object BranchDayService {
         if (effectiveStatus == DayStatus.OPEN && !requiresEditPastDay) {
             return
         }
-        // Staff enter yesterday's sessions and sales the next day (owed #8); change history records who added them.
-        if (effectiveStatus == DayStatus.PAST && write == DayWrite.ADD && !requiresEditPastDay) {
-            return
-        }
-        if (!hasEditPastDay) {
+        // Staff enter and mark yesterday's sessions the next day; change history records who did it.
+        val openToMembers = effectiveStatus == DayStatus.PAST && write != DayWrite.CHANGE && !requiresEditPastDay
+        if (!openToMembers && !hasEditPastDay) {
             throw ForbiddenException("EDIT_PAST_DAY capability required to write on a $effectiveStatus day")
         }
-        if (effectiveStatus != DayStatus.OPEN && reason.isNullOrBlank()) {
+        val needsReason = effectiveStatus != DayStatus.OPEN && !(openToMembers && write == DayWrite.ADD)
+        if (needsReason && reason.isNullOrBlank()) {
             throw ValidationException("A reason is required to change a $effectiveStatus day")
         }
     }

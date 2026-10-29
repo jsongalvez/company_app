@@ -37,7 +37,8 @@ import kotlin.test.assertEquals
 /**
  * Owed #8: staff enter yesterday's sessions and sales the next day. Any branch member may ADD to
  * a past day that is not remitted, with no reason; changing what is already there stays with
- * EDIT_PAST_DAY, and a remitted day stays locked.
+ * EDIT_PAST_DAY, and a remitted day stays locked. Marking a session there (done, no-show, back to
+ * waiting) is open to any branch member with a reason.
  */
 class PastDayAddAuthzTest : BasePostgresTest() {
     private val staff = TestFixtures.uuid()
@@ -88,21 +89,44 @@ class PastDayAddAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `staff still may not change yesterday's sessions`() {
-        val body = mapOf("finalPrice" to "1.00", "version" to 1)
-        val price = testServer.client.patch("/api/sessions/$existingSession/final-price", body, asStaff)
+    fun `staff still may not change yesterday's price or correct a mark`() {
+        val price = patch("final-price", mapOf("finalPrice" to "1.00", "version" to 1, "reason" to "typo"))
         assertEquals(403, price.code)
-        val status =
-            testServer.client.patch(
-                "/api/sessions/$existingSession/status",
-                mapOf(
-                    "status" to "NO_SHOW",
-                    "version" to 1,
-                ),
-                asStaff,
-            )
-        assertEquals(403, status.code)
+        markYesterday("NO_SHOW", "came late")
+        assertEquals(403, patch("status", mapOf("status" to "CANCELLED", "version" to 2, "reason" to "wrong")).code)
     }
+
+    @Test
+    fun `staff marks yesterday's session, and must give a reason`() {
+        val bare = patch("status", mapOf("status" to "COMPLETED", "version" to 1))
+        assertEquals(400, bare.code, bare.body.string())
+        markYesterday("COMPLETED", "forgot to tap Done")
+        val undo = patch("status", mapOf("status" to "PENDING", "version" to 2, "reason" to "wrong client"))
+        assertEquals(200, undo.code, undo.body.string())
+    }
+
+    @Test
+    fun `a remitted day stays locked for marks`() {
+        val remitted = TestFixtures.uuid()
+        val client = TestFixtures.uuid()
+        SessionClientFixtures.insertTestClient(client)
+        SessionClientFixtures.insertTestSession(remitted, client, remittedId)
+        val body = mapOf("status" to "COMPLETED", "version" to 1, "reason" to "late")
+        assertEquals(403, testServer.client.patch("/api/sessions/$remitted/status", body, asStaff).code)
+    }
+
+    private fun markYesterday(
+        status: String,
+        reason: String,
+    ) {
+        val r = patch("status", mapOf("status" to status, "version" to 1, "reason" to reason))
+        assertEquals(200, r.code, r.body.string())
+    }
+
+    private fun patch(
+        what: String,
+        body: Any,
+    ) = testServer.client.patch("/api/sessions/$existingSession/$what", body, asStaff)
 
     @Test
     fun `a remitted day stays locked for adds`() {

@@ -45,7 +45,8 @@ object BranchDayTable : Table("branch_day") {
 }
 
 /**
- * What a write does to a day. Adding a new entry to a past day that is not remitted needs no
- * EDIT_PAST_DAY and no reason; changing or removing what is already there still does.
+ * What a write does to a day. On a past day that is not remitted, adding a new entry needs no
+ * EDIT_PAST_DAY and no reason, and marking a session (done, no-show, back to waiting) needs a
+ * reason only; changing or removing what is already there still needs both.
  */
-enum class DayWrite { ADD, CHANGE }
+enum class DayWrite { ADD, MARK, CHANGE }
