@@ -318,7 +318,7 @@ object BranchDayService {
             return
         }
         // Any branch member enters and fixes yesterday's entries; change history records who did it.
-        val openToMembers = effectiveStatus == DayStatus.PAST && !requiresEditPastDay
+        val openToMembers = effectiveStatus == DayStatus.PAST && write != DayWrite.CHANGE && !requiresEditPastDay
         if (!openToMembers && !hasEditPastDay) {
             throw ForbiddenException("EDIT_PAST_DAY capability required to write on a $effectiveStatus day")
         }

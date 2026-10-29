@@ -36,7 +36,7 @@ internal object SessionConcernService {
         sessionId: UUID,
         concernId: UUID,
         reason: String? = null,
-        write: DayWrite = DayWrite.CHANGE,
+        write: DayWrite = DayWrite.FIX,
     ) {
         transaction {
             val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason, write)
@@ -91,7 +91,7 @@ internal object SessionConcernService {
         reason: String? = null,
     ): Concern =
         transaction {
-            promoteInTransaction(callerId, NewConcern(sessionId, concernId, label), reason, true, DayWrite.CHANGE)
+            promoteInTransaction(callerId, NewConcern(sessionId, concernId, label), reason, true, DayWrite.FIX)
         }
 
     /** Adds a brand-new concern to the shared list and to this session; leaves "other concerns" alone. */
@@ -103,7 +103,7 @@ internal object SessionConcernService {
         reason: String? = null,
     ): Concern =
         transaction {
-            promoteInTransaction(callerId, NewConcern(sessionId, concernId, label), reason, false, DayWrite.CHANGE)
+            promoteInTransaction(callerId, NewConcern(sessionId, concernId, label), reason, false, DayWrite.FIX)
         }
 
     /** [addNewConcern] as part of saving a new session: an add to its day, not a change. */
@@ -176,7 +176,7 @@ internal object SessionConcernService {
         sessionId: UUID,
         callerId: UUID,
         reason: String?,
-        write: DayWrite = DayWrite.CHANGE,
+        write: DayWrite = DayWrite.FIX,
     ): Triple<Session, BranchDay, Boolean> {
         val session = SessionRepository.findByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
         // client-first lock order (the precedent): serialize with

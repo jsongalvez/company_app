@@ -151,11 +151,18 @@ class BranchDayServiceTest {
     }
 
     @Test
-    fun `past day change without EDIT_PAST_DAY needs only a reason`() {
-        assertFailsWith<ValidationException> {
-            BranchDayService.assertEditableState(DayStatus.PAST, hasEditPastDay = false, reason = null)
+    fun `past day write without EDIT_PAST_DAY is forbidden`() {
+        assertFailsWith<ForbiddenException> {
+            BranchDayService.assertEditableState(DayStatus.PAST, hasEditPastDay = false, reason = "typo")
         }
-        BranchDayService.assertEditableState(DayStatus.PAST, hasEditPastDay = false, reason = "typo")
+    }
+
+    @Test
+    fun `past day session fix without EDIT_PAST_DAY needs only a reason`() {
+        assertFailsWith<ValidationException> {
+            BranchDayService.assertEditableState(DayStatus.PAST, false, null, write = DayWrite.FIX)
+        }
+        BranchDayService.assertEditableState(DayStatus.PAST, false, "typo", write = DayWrite.FIX)
     }
 
     @Test

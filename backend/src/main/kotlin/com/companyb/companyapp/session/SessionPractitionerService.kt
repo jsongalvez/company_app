@@ -49,7 +49,7 @@ internal object SessionPractitionerService {
         practitionerId: UUID,
         remarks: String?,
         reason: String? = null,
-        write: DayWrite = DayWrite.CHANGE,
+        write: DayWrite = DayWrite.FIX,
     ): AddPractitionerResult {
         if (!AccountReads.userExists(practitionerId)) {
             throw NotFoundException("User not found")
@@ -175,7 +175,7 @@ internal object SessionPractitionerService {
         sessionId: UUID,
         callerId: UUID,
         reason: String?,
-        write: DayWrite = DayWrite.CHANGE,
+        write: DayWrite = DayWrite.FIX,
     ): Triple<Session, BranchDay, Boolean> {
         val session = SessionRepository.findByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
         // client-first lock order (the precedent): serialize with

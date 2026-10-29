@@ -5,6 +5,7 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.branchday.DayWrite
 import com.companyb.companyapp.client.Client
 import com.companyb.companyapp.client.ClientReads
 import com.companyb.companyapp.commission.CommissionService
@@ -379,6 +380,7 @@ object SessionService {
                     session.branchDayId,
                     reason,
                     requiresEditPastDay,
+                    DayWrite.FIX,
                 )
 
             if (newStatus == SessionStatus.PENDING &&
@@ -434,7 +436,12 @@ object SessionService {
             }
 
             val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(callerId, session.branchDayId, reason)
+                BranchDayService.checkBranchDayEditableInTransaction(
+                    callerId,
+                    session.branchDayId,
+                    reason,
+                    write = DayWrite.FIX,
+                )
 
             // same invariant as create (BR §Session types): a medical-mission session
             // carries MEDICAL_MISSION for life, so its price normalizes to ₱0 no matter what
