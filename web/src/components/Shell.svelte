@@ -8,7 +8,8 @@
     import FeedbackList from "../pages/FeedbackList.svelte";
     import { load, warm } from "../lib/data";
     import NetBar from "./NetBar.svelte";
-    import { day, label, operationalDate, clientName } from "../lib/format";
+    import { day, label, operationalDate, clientName, time } from "../lib/format";
+    import { freshLine } from "../lib/freshness";
     import { searchLocal } from "../lib/clientdir.svelte";
     import Today from "../pages/Today.svelte";
     import Clients from "../pages/Clients.svelte";
@@ -79,6 +80,7 @@
     });
     const homeSpace = $derived(section === "/notifications" && before !== "/today");
     let menuOpen = $state(false);
+    const fresh = $derived(freshLine(app.fresh, (ms) => time(new Date(ms).toISOString())));
     // The phone menu hangs from the bottom of the top bar, wherever that is (the "Viewing as" bar pushes it down).
     let topEl: HTMLElement | undefined = $state();
     let topH = $state(76);
@@ -230,6 +232,8 @@
 
         <span class="spacer"></span>
 
+        <span class="fresh" role="status" aria-label="Last update" aria-live="polite"><span>{fresh[0]}</span> <span>{fresh[1]}</span></span>
+
         {#if clockedHere}
             <button class="clock ok" onclick={doClockOut} disabled={clockBusy} title="On duty here{app.shift?.isRelief ? ' (relief)' : ''}">Clock out</button>
         {:else if clockedElsewhere}
@@ -369,6 +373,20 @@
         background: var(--panel);
         border-bottom: 1px solid var(--line-strong);
         min-width: 0;
+    }
+    .fresh {
+        flex: none;
+        display: inline-flex;
+        flex-direction: column;
+        justify-content: center;
+        width: 100px;
+        height: 26px;
+        font-size: 11px;
+        line-height: 13px;
+        text-align: right;
+        color: var(--text-3);
+        white-space: nowrap;
+        overflow: hidden;
     }
     .brand {
         font-weight: 700;
@@ -534,6 +552,16 @@
         }
         .brand {
             display: none;
+        }
+        /* Phones: the branch picker keeps the top row; "Updated" ends the search row. */
+        .fresh {
+            order: 11;
+            width: 84px;
+            font-size: 10px;
+            line-height: 12px;
+        }
+        .search {
+            flex-basis: 120px;
         }
         /* Phones: Home sits at the start of the search row, not in the full top row. */
         .home {
