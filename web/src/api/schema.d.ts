@@ -3146,6 +3146,66 @@ export interface components {
                 clockIn: string;
                 clockOut?: string | null;
                 isRelief: boolean;
+                start?: {
+                    me: components["schemas"]["MeResponse"];
+                    capabilities: components["schemas"]["UserCapabilityResponse"][];
+                    branches: components["schemas"]["MeBranchResponse"][];
+                    accessible: components["schemas"]["BranchResponse"][];
+                    branchId: string | null;
+                    today: {
+                        branchDayId: string;
+                        /** @enum {string} */
+                        status?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN";
+                    } | null;
+                    shift: {
+                        attendanceId: string;
+                        branchId: string;
+                        branchName: string;
+                        branchDayId: string;
+                        date: string;
+                        isRelief: boolean;
+                    } | null;
+                    unreadCount: number;
+                    todayScreen: {
+                        dashboard: {
+                            sessions: components["schemas"]["DashboardSessionResponse"][];
+                            commission: components["schemas"]["DashboardCommissionResponse"];
+                        } | null;
+                        dashboardRefusal: string | null;
+                        bookings: components["schemas"]["BookingResponse"][] | null;
+                        roster: components["schemas"]["MemberAttendanceResponse"][] | null;
+                    } | null;
+                } | null;
+            } | null;
+            start?: {
+                me: components["schemas"]["MeResponse"];
+                capabilities: components["schemas"]["UserCapabilityResponse"][];
+                branches: components["schemas"]["MeBranchResponse"][];
+                accessible: components["schemas"]["BranchResponse"][];
+                branchId: string | null;
+                today: {
+                    branchDayId: string;
+                    /** @enum {string} */
+                    status?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN";
+                } | null;
+                shift: {
+                    attendanceId: string;
+                    branchId: string;
+                    branchName: string;
+                    branchDayId: string;
+                    date: string;
+                    isRelief: boolean;
+                } | null;
+                unreadCount: number;
+                todayScreen: {
+                    dashboard: {
+                        sessions: components["schemas"]["DashboardSessionResponse"][];
+                        commission: components["schemas"]["DashboardCommissionResponse"];
+                    } | null;
+                    dashboardRefusal: string | null;
+                    bookings: components["schemas"]["BookingResponse"][] | null;
+                    roster: components["schemas"]["MemberAttendanceResponse"][] | null;
+                } | null;
             } | null;
         };
         BranchMemberResponse: {
@@ -3164,6 +3224,36 @@ export interface components {
             clockIn: string;
             clockOut?: string | null;
             isRelief: boolean;
+            start?: {
+                me: components["schemas"]["MeResponse"];
+                capabilities: components["schemas"]["UserCapabilityResponse"][];
+                branches: components["schemas"]["MeBranchResponse"][];
+                accessible: components["schemas"]["BranchResponse"][];
+                branchId: string | null;
+                today: {
+                    branchDayId: string;
+                    /** @enum {string} */
+                    status?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN";
+                } | null;
+                shift: {
+                    attendanceId: string;
+                    branchId: string;
+                    branchName: string;
+                    branchDayId: string;
+                    date: string;
+                    isRelief: boolean;
+                } | null;
+                unreadCount: number;
+                todayScreen: {
+                    dashboard: {
+                        sessions: components["schemas"]["DashboardSessionResponse"][];
+                        commission: components["schemas"]["DashboardCommissionResponse"];
+                    } | null;
+                    dashboardRefusal: string | null;
+                    bookings: components["schemas"]["BookingResponse"][] | null;
+                    roster: components["schemas"]["MemberAttendanceResponse"][] | null;
+                } | null;
+            } | null;
         };
         ClockOutRequest: {
             attendanceId: string;
@@ -3176,6 +3266,36 @@ export interface components {
             clockIn: string;
             clockOut: string | null;
             isRelief: boolean;
+            start?: {
+                me: components["schemas"]["MeResponse"];
+                capabilities: components["schemas"]["UserCapabilityResponse"][];
+                branches: components["schemas"]["MeBranchResponse"][];
+                accessible: components["schemas"]["BranchResponse"][];
+                branchId: string | null;
+                today: {
+                    branchDayId: string;
+                    /** @enum {string} */
+                    status?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN";
+                } | null;
+                shift: {
+                    attendanceId: string;
+                    branchId: string;
+                    branchName: string;
+                    branchDayId: string;
+                    date: string;
+                    isRelief: boolean;
+                } | null;
+                unreadCount: number;
+                todayScreen: {
+                    dashboard: {
+                        sessions: components["schemas"]["DashboardSessionResponse"][];
+                        commission: components["schemas"]["DashboardCommissionResponse"];
+                    } | null;
+                    dashboardRefusal: string | null;
+                    bookings: components["schemas"]["BookingResponse"][] | null;
+                    roster: components["schemas"]["MemberAttendanceResponse"][] | null;
+                } | null;
+            } | null;
         };
         CreateAssignmentRequest: {
             id: string;
@@ -3342,7 +3462,9 @@ export interface operations {
     };
     attendance_clock_in: {
         parameters: {
-            query?: never;
+            query?: {
+                withToday?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3384,7 +3506,10 @@ export interface operations {
     };
     attendance_clock_out: {
         parameters: {
-            query?: never;
+            query?: {
+                branchId?: string;
+                withToday?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4170,7 +4295,9 @@ export interface operations {
     };
     branch_attendance_marks_post: {
         parameters: {
-            query?: never;
+            query?: {
+                withToday?: boolean;
+            };
             header?: never;
             path: {
                 branchId: string;

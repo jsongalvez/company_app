@@ -1,6 +1,7 @@
 package com.companyb.companyapp.contracts.workforce
 
 import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.identity.StartResponse
 import kotlinx.serialization.Serializable
 
 /**
@@ -31,6 +32,8 @@ data class ClockInResponse(
     val clockIn: String,
     val clockOut: String? = null,
     val isRelief: Boolean,
+    /** The app's state after this change (what GET /api/start gives), so the phone needs no second read. */
+    val start: StartResponse? = null,
 )
 
 @Serializable
@@ -42,6 +45,8 @@ data class ClockOutResponse(
     val clockIn: String,
     val clockOut: String?,
     val isRelief: Boolean,
+    /** The app's state after this change (what GET /api/start gives), so the phone needs no second read. */
+    val start: StartResponse? = null,
 )
 
 /**
@@ -81,6 +86,8 @@ data class MarkAttendanceRequest(
 data class AttendanceMarkResponse(
     /** The affected attendance row; null when an absent-mark found no open window (idempotent no-op). */
     val attendance: ClockInResponse?,
+    /** The app's state after this change (what GET /api/start gives), so the phone needs no second read. */
+    val start: StartResponse? = null,
 )
 
 /** one home-branch member's live attendance state at the branch today. */

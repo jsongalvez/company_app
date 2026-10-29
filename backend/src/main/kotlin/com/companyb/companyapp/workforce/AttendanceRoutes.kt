@@ -10,8 +10,10 @@ import com.companyb.companyapp.contracts.workforce.ClockOutRequest
 import com.companyb.companyapp.contracts.workforce.ClockOutResponse
 import com.companyb.companyapp.contracts.workforce.MarkAttendanceRequest
 import com.companyb.companyapp.dto.ErrorResponse
+import com.companyb.companyapp.identity.StartService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
+import io.javalin.http.Context
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
@@ -27,6 +29,7 @@ import java.util.UUID
     path = ApiRoutes.ATTENDANCE_CLOCK_IN,
     methods = [HttpMethod.POST],
     operationId = "attendance_clock_in",
+    queryParams = [OpenApiParam(name = "withToday", type = Boolean::class, required = false)],
     security = [OpenApiSecurity(name = "BearerAuth")],
     requestBody = OpenApiRequestBody(content = [OpenApiContent(from = ClockInRequest::class)]),
     responses = [
@@ -39,6 +42,11 @@ import java.util.UUID
     path = ApiRoutes.ATTENDANCE_CLOCK_OUT,
     methods = [HttpMethod.POST],
     operationId = "attendance_clock_out",
+    queryParams =
+        [
+            OpenApiParam(name = "branchId", type = UUID::class, required = false),
+            OpenApiParam(name = "withToday", type = Boolean::class, required = false),
+        ],
     security = [OpenApiSecurity(name = "BearerAuth")],
     requestBody = OpenApiRequestBody(content = [OpenApiContent(from = ClockOutRequest::class)]),
     responses = [
@@ -53,6 +61,7 @@ import java.util.UUID
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_attendance_marks_post",
+    queryParams = [OpenApiParam(name = "withToday", type = Boolean::class, required = false)],
     security = [OpenApiSecurity(name = "BearerAuth")],
     requestBody = OpenApiRequestBody(content = [OpenApiContent(from = MarkAttendanceRequest::class)]),
     responses = [
@@ -63,6 +72,15 @@ import java.util.UUID
 object AttendanceRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
 
+    /**
+     * A clock change moves the shift, rights, the day and Today's lists: answer with all of it,
+     * read after the write.
+     */
+    private fun Context.startAfter(
+        callerId: UUID,
+        branchId: UUID?,
+    ) = StartService.get(callerId, branchId, queryParam("withToday") == "true")
+
     fun clockOut(config: JavalinConfig) {
         config.routes.post(ApiRoutes.ATTENDANCE_CLOCK_OUT) { context ->
             val callerId = context.callerUuid()
@@ -71,6 +89,7 @@ object AttendanceRoutes {
             val attendanceId = uuidOrThrow(request.attendanceId, "attendance id")
 
             val result = AttendanceService.clockOut(attendanceId, callerId)
+            val screenBranch = context.queryParam(BRANCH_ID_PARAM)?.runCatching(UUID::fromString)?.getOrNull()
 
             context.status(HttpStatus.OK)
             context.json(
@@ -82,6 +101,7 @@ object AttendanceRoutes {
                     clockIn = result.clockIn.toString(),
                     clockOut = result.clockOut?.toString(),
                     isRelief = result.isRelief,
+                    start = context.startAfter(callerId, screenBranch),
                 ),
             )
         }
@@ -107,6 +127,7 @@ object AttendanceRoutes {
                     clockIn = result.clockIn.toString(),
                     clockOut = result.clockOut?.toString(),
                     isRelief = result.isRelief,
+                    start = context.startAfter(callerId, branchId),
                 ),
             )
         }
@@ -132,7 +153,10 @@ object AttendanceRoutes {
                 )
 
             context.json(
-                AttendanceMarkResponse(attendance = result.toClockInResponse()),
+                AttendanceMarkResponse(
+                    attendance = result.toClockInResponse(),
+                    start = context.startAfter(callerId, branchId),
+                ),
             )
         }
     }
