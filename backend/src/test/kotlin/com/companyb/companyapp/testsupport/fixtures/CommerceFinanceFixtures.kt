@@ -172,10 +172,11 @@ object CommerceFinanceFixtures {
         userId: UUID,
         amount: BigDecimal,
         deleted: Boolean = false,
-    ) {
+    ): UUID {
+        val id = TestFixtures.uuid()
         transaction {
             ExpenseTable.insert {
-                it[ExpenseTable.id] = TestFixtures.uuid()
+                it[ExpenseTable.id] = id
                 it[ExpenseTable.branchDayId] = branchDayId
                 it[ExpenseTable.amount] = amount
                 it[ExpenseTable.category] = ExpenseCategory.MISCELLANEOUS
@@ -187,5 +188,6 @@ object CommerceFinanceFixtures {
                 }
             }
         }
+        return id
     }
 }
