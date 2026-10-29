@@ -602,3 +602,18 @@ table.grid tfoot td {
         transform: rotate(360deg);
     }
 }
+
+/* A value that changed while on screen fades from a tint. Beats the global animation: none. */
+@media (prefers-reduced-motion: no-preference) {
+    .changed {
+        animation: changed 1s ease-out !important;
+    }
+}
+@keyframes changed {
+    from {
+        background-color: var(--accent-soft);
+    }
+    to {
+        background-color: transparent;
+    }
+}

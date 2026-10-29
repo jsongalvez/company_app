@@ -8,6 +8,7 @@
     import { route, go, viewSetting } from "../lib/router.svelte";
     import { peso, label, day, time, dateTime, operationalDate, addDays, sum } from "../lib/format";
     import { statusClass } from "../lib/rules";
+    import { changed } from "../lib/changed";
     import { EXPENSE_CATEGORIES } from "../lib/rules";
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
@@ -267,27 +268,27 @@
         <div class="stats mb">
             <div>
                 <div class="k">Session income</div>
-                <div class="v">{peso(summary.data.grossIncome)}</div>
+                <div class="v" use:changed={summary.data.grossIncome}>{peso(summary.data.grossIncome)}</div>
             </div>
             <div>
                 <div class="k">Pay</div>
-                <div class="v">{peso(summary.data.totalCompensation)}</div>
+                <div class="v" use:changed={summary.data.totalCompensation}>{peso(summary.data.totalCompensation)}</div>
             </div>
             <div>
                 <div class="k">Expenses</div>
-                <div class="v">{peso(summary.data.totalExpenses)}</div>
+                <div class="v" use:changed={summary.data.totalExpenses}>{peso(summary.data.totalExpenses)}</div>
             </div>
             <div>
                 <div class="k">Net</div>
-                <div class="v">{peso(summary.data.netIncome)}</div>
+                <div class="v" use:changed={summary.data.netIncome}>{peso(summary.data.netIncome)}</div>
             </div>
             <div>
                 <div class="k">Product sales</div>
-                <div class="v">{peso(summary.data.totalProductSales)}</div>
+                <div class="v" use:changed={summary.data.totalProductSales}>{peso(summary.data.totalProductSales)}</div>
             </div>
             <div>
                 <div class="k">Commission</div>
-                <div class="v">{peso(summary.data.totalCommission)}</div>
+                <div class="v" use:changed={summary.data.totalCommission}>{peso(summary.data.totalCommission)}</div>
             </div>
         </div>
     {/if}

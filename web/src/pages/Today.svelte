@@ -15,6 +15,7 @@
     import BookVisit from "../components/BookVisit.svelte";
     import Bookings from "../components/Bookings.svelte";
     import { fetchCached } from "../lib/cache.svelte";
+    import { changed } from "../lib/changed";
     import type { Booking } from "../lib/bookings";
     import ProductSale from "../components/ProductSale.svelte";
 
@@ -243,15 +244,15 @@
     </div>
     <div>
         <div class="k">Session income</div>
-        <div class="v">{peso(sum(completed.map((s) => s.finalPrice)))}</div>
+        <div class="v" use:changed={dash.data && sum(completed.map((s) => s.finalPrice))}>{peso(sum(completed.map((s) => s.finalPrice)))}</div>
     </div>
     <div>
         <div class="k">Product commission</div>
-        <div class="v">{peso(dash.data?.commission.amount ?? 0)}</div>
+        <div class="v" use:changed={dash.data?.commission.amount}>{peso(dash.data?.commission.amount ?? 0)}</div>
     </div>
     <div>
         <div class="k">Product sales</div>
-        <div class="v">{dash.data?.commission.productSalesCount ?? 0}</div>
+        <div class="v" use:changed={dash.data?.commission.productSalesCount}>{dash.data?.commission.productSalesCount ?? 0}</div>
     </div>
 </div>
 
@@ -368,7 +369,9 @@
         {#if member}
             <header>
                 <h2>Who's clocked in</h2>
-                <span class="spacer"></span><span class="faint">{roster.data?.filter((m) => m.present).length ?? 0} of {roster.data?.length ?? 0} in</span>
+                <span class="spacer"></span><span class="faint" use:changed={roster.data?.filter((m) => m.present).length}
+                    >{roster.data?.filter((m) => m.present).length ?? 0} of {roster.data?.length ?? 0} in</span
+                >
             </header>
             <State q={roster} empty={!!roster.data && roster.data.length === 0} emptyText="No members assigned." />
             {#if roster.data?.length}
