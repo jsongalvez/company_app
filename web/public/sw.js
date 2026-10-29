@@ -16,6 +16,8 @@ async function savePage(res) {
     const files = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => m[1]);
     await saveFiles(files);
     await put("/", res);
+    const saved = html.match(/\/assets\/index-[\w-]+\.js/)?.[0];
+    if (saved) for (const c of await self.clients.matchAll()) c.postMessage({ saved });
 }
 
 // The page's script names the files it loads later (the signed-in app), so those get saved too.
