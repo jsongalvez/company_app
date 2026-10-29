@@ -54,9 +54,9 @@ object SessionAuthz {
     }
 
     /**
-     * Enforces Coordinator authority on status corrections at the HTTP boundary. The command
-     * repeats this check after locking the branch day so direct service callers and concurrent day
-     * transitions remain safe.
+     * Status corrections (no-show to cancelled and the like) are for branch members, as voiding is:
+     * VOID_SESSION at the session's branch, which relief day grants never carry. The command
+     * repeats this check after locking the branch day.
      */
     fun requireStatusCorrectionCapability(
         context: Context,
@@ -67,7 +67,7 @@ object SessionAuthz {
             SessionReads.findById(sessionId)
                 ?: throw NotFoundResponse("Session not found")
         if (isStatusCorrection(session.sessionStatus, newStatus)) {
-            requireBranchCapabilityForSession(context, sessionId, CapabilityCodes.EDIT_PAST_DAY)
+            requireBranchCapabilityForSession(context, sessionId, CapabilityCodes.VOID_SESSION)
         }
     }
 }

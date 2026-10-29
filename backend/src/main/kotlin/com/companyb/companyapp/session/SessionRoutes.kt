@@ -9,6 +9,7 @@ import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.branch.BranchService
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.DayWrite
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.session.AddPractitionerRequest
@@ -410,7 +411,7 @@ object SessionRoutes {
                         requestedPractitionerNames = data.requestedPractitionerNames,
                         branchIdBySession = data.branchIdBySession,
                     ),
-            ),
+            ).copy(dayStatus = BranchDayService.getEffectiveStatus(data.session.branchDayId)),
         )
     }
 

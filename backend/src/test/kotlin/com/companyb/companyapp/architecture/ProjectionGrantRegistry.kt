@@ -11,6 +11,9 @@ object ProjectionGrantRegistry {
         setOf(
             ProjectionGrant("audit/AuditLogStore.kt", "AppUserTable"),
             ProjectionGrant("audit/AuditLogStore.kt", "BranchTable"),
+            // A session's change history takes in its people and voids (owed #20).
+            ProjectionGrant("audit/AuditLogStore.kt", "SessionPractitionerTable"),
+            ProjectionGrant("audit/AuditLogStore.kt", "SessionVoidTable"),
             ProjectionGrant("audit/AuditSubjectRepository.kt", "AppUserTable"),
             ProjectionGrant("audit/AuditSubjectRepository.kt", "BranchTable"),
             ProjectionGrant("audit/AuditSubjectRepository.kt", "BranchDayTable"),

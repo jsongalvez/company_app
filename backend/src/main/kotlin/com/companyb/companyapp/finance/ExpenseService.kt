@@ -4,6 +4,7 @@ import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.branchday.DayWrite
 import com.companyb.companyapp.contracts.finance.ExpenseCategory
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
@@ -52,7 +53,7 @@ object ExpenseService {
             }
             // Locked day read: serializes this create with remittance's REMITTED transition.
             val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason)
+                BranchDayService.checkBranchDayAddableInTransaction(callerId, branchDayId, reason)
 
             val result =
                 ExpenseRepository.createInTransaction(
@@ -110,7 +111,7 @@ object ExpenseService {
             }
 
             val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(callerId, before.branchDayId, reason)
+                BranchDayService.checkBranchDayEditableInTransaction(callerId, before.branchDayId, reason, DayWrite.FIX)
 
             val after =
                 ExpenseRepository.updateInTransaction(expenseId, amount, category, notes, expectedVersion)
@@ -140,7 +141,7 @@ object ExpenseService {
             }
 
             val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(callerId, before.branchDayId, reason)
+                BranchDayService.checkBranchDayEditableInTransaction(callerId, before.branchDayId, reason, DayWrite.FIX)
 
             val after =
                 ExpenseRepository.softDeleteInTransaction(expenseId, callerId, reason, expectedVersion)
@@ -176,7 +177,7 @@ object ExpenseService {
             }
 
             val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(callerId, before.branchDayId, reason)
+                BranchDayService.checkBranchDayEditableInTransaction(callerId, before.branchDayId, reason, DayWrite.FIX)
 
             val after =
                 ExpenseRepository.restoreInTransaction(expenseId)

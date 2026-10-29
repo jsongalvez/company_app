@@ -193,15 +193,8 @@ object BranchDayService {
         callerId: UUID,
         branchDayId: UUID,
         reason: String? = null,
-        requiresEditPastDay: Boolean = false,
     ): Pair<BranchDay, Boolean> =
-        assertEditableBranchDay(
-            callerId,
-            requireBranchDayExists(branchDayId),
-            reason,
-            requiresEditPastDay,
-            DayWrite.CHANGE,
-        )
+        assertEditableBranchDay(callerId, requireBranchDayExists(branchDayId), reason, DayWrite.CHANGE)
 
     /**
      * Transaction-owned variant for mutations whose day status must not change between the
@@ -212,7 +205,6 @@ object BranchDayService {
         callerId: UUID,
         branchDayId: UUID,
         reason: String? = null,
-        requiresEditPastDay: Boolean = false,
         write: DayWrite = DayWrite.CHANGE,
     ): Pair<BranchDay, Boolean> =
         assertEditableBranchDay(
@@ -220,7 +212,6 @@ object BranchDayService {
             BranchDayRepository.acquireLockInTransaction(branchDayId)
                 ?: throw NotFoundException("Branch day not found"),
             reason,
-            requiresEditPastDay,
             write,
         )
 
@@ -236,16 +227,15 @@ object BranchDayService {
         callerId: UUID,
         branchDay: BranchDay,
         reason: String?,
-        requiresEditPastDay: Boolean,
         write: DayWrite,
     ): Pair<BranchDay, Boolean> {
         val today = currentOperationalDate()
         val effectiveStatus = evaluateStatus(branchDay.status, branchDay.date, today)
         val isRemitted = effectiveStatus == DayStatus.REMITTED
-        // Only a non-open day (or a caller that insists) looks at EDIT_PAST_DAY: an open day needs no grant.
-        val needsGrant = effectiveStatus != DayStatus.OPEN || requiresEditPastDay
-        val hasEditPastDay = needsGrant && hasEditPastDayCapability(callerId, branchDay.branchId)
-        assertEditableState(effectiveStatus, hasEditPastDay, reason, requiresEditPastDay, write)
+        // Only a non-open day looks at EDIT_PAST_DAY: an open day needs no grant.
+        val hasEditPastDay =
+            effectiveStatus != DayStatus.OPEN && hasEditPastDayCapability(callerId, branchDay.branchId)
+        assertEditableState(effectiveStatus, hasEditPastDay, reason, write)
         logger.debug {
             "[CHECK-BRANCH-DAY-EDITABLE] branch_day=${branchDay.id}" +
                 " effectiveStatus=$effectiveStatus allowed isRemitted=$isRemitted"
@@ -311,14 +301,13 @@ object BranchDayService {
         effectiveStatus: DayStatus,
         hasEditPastDay: Boolean,
         reason: String?,
-        requiresEditPastDay: Boolean = false,
         write: DayWrite = DayWrite.CHANGE,
     ) {
-        if (effectiveStatus == DayStatus.OPEN && !requiresEditPastDay) {
+        if (effectiveStatus == DayStatus.OPEN) {
             return
         }
         // Any branch member enters and fixes yesterday's entries; change history records who did it.
-        val openToMembers = effectiveStatus == DayStatus.PAST && write != DayWrite.CHANGE && !requiresEditPastDay
+        val openToMembers = effectiveStatus == DayStatus.PAST && write != DayWrite.CHANGE
         if (!openToMembers && !hasEditPastDay) {
             throw ForbiddenException("EDIT_PAST_DAY capability required to write on a $effectiveStatus day")
         }

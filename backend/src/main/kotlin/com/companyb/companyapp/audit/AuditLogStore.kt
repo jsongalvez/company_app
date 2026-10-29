@@ -20,9 +20,11 @@ import org.jetbrains.exposed.v1.core.ComparisonOp
 import org.jetbrains.exposed.v1.core.Expression
 import org.jetbrains.exposed.v1.core.IColumnType
 import org.jetbrains.exposed.v1.core.Op
+import org.jetbrains.exposed.v1.core.QueryBuilder
 import org.jetbrains.exposed.v1.core.QueryParameter
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.TextColumnType
 import org.jetbrains.exposed.v1.core.alias
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -35,6 +37,7 @@ import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.Query
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -385,9 +388,7 @@ internal object AuditLogStore {
                 windowBranchIds = windowBranchIds,
                 branchlessTables = branchlessTables,
                 canReadNullRows = canReadNullRows,
-                base =
-                    (AuditLogTable.auditTableName eq tableName) and
-                        (AuditLogTable.recordId eq recordId),
+                base = recordAndParts(tableName, recordId),
             ).map { it.toAuditLogEntry() }
         }.also {
             logger.info {
@@ -395,6 +396,51 @@ internal object AuditLogStore {
                     "for $tableName/${recordId.toString().maskUUID()}"
             }
         }
+
+    /**
+     * A record's own rows plus the rows of the parts that hang off it, so its history reads as one
+     * blame: a session's people, illnesses and voids sit in their own tables. Illness rows already
+     * carry the session id; people and voids name it in their values (or, for an update that only
+     * lists changed fields, by their own still-present id).
+     */
+    private fun recordAndParts(
+        tableName: String,
+        recordId: UUID,
+    ): Op<Boolean> {
+        val own = (AuditLogTable.auditTableName eq tableName) and (AuditLogTable.recordId eq recordId)
+        if (tableName != "session") return own
+        val partIds =
+            SessionPractitionerTable
+                .select(SessionPractitionerTable.id)
+                .where { SessionPractitionerTable.sessionId eq recordId }
+                .map { it[SessionPractitionerTable.id] } +
+                SessionVoidTable
+                    .select(SessionVoidTable.id)
+                    .where { SessionVoidTable.sessionId eq recordId }
+                    .map { it[SessionVoidTable.id] }
+        val parts =
+            (AuditLogTable.auditTableName inList SESSION_PARTS) and
+                ((AuditLogTable.recordId inList partIds) or NamesSessionOp(recordId.toString()))
+        val concerns = (AuditLogTable.auditTableName eq "session_concern") and (AuditLogTable.recordId eq recordId)
+        return own or parts or concerns
+    }
+
+    private val SESSION_PARTS = listOf("session_practitioner", "session_void")
+
+    /** `COALESCE(new_value, old_value) ->> 'sessionId' = ?` */
+    private class NamesSessionOp(
+        private val sessionId: String,
+    ) : Op<Boolean>() {
+        override fun toQueryBuilder(queryBuilder: QueryBuilder) =
+            queryBuilder {
+                append("COALESCE(")
+                append(AuditLogTable.newValue)
+                append(", ")
+                append(AuditLogTable.oldValue)
+                append(") ->> 'sessionId' = ")
+                append(QueryParameter(sessionId, TextColumnType()))
+            }
+    }
 
     fun findFlagged(
         windowBranchIds: List<UUID>?,

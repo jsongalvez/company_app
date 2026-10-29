@@ -202,9 +202,9 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `PRACTITIONER assignment derives read and edit at the branch only`() {
+    fun `PRACTITIONER assignment derives the member codes at the branch only`() {
         assertEquals(
-            setOf(CapabilityCodes.VIEW_BRANCH_DATA, CapabilityCodes.EDIT_BRANCH_DATA),
+            setOf(CapabilityCodes.VIEW_BRANCH_DATA, CapabilityCodes.EDIT_BRANCH_DATA, CapabilityCodes.VOID_SESSION),
             derivedCodesAtBranch(practitionerUser),
         )
     }
@@ -243,7 +243,7 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `ACCOUNTANT keeps GLOBAL read and gains no write codes`() {
+    fun `ACCOUNTANT keeps GLOBAL read and edits its own branch as a member`() {
         assertTrue(
             CapabilityService.hasCapability(
                 accountantUser,
@@ -253,7 +253,8 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
             ),
         )
         assertTrue(hasBranch(accountantUser, CapabilityCodes.VIEW_BRANCH_DATA))
-        assertFalse(hasBranch(accountantUser, CapabilityCodes.EDIT_BRANCH_DATA))
+        assertTrue(hasBranch(accountantUser, CapabilityCodes.EDIT_BRANCH_DATA), "owed #20: every member edits")
+        assertFalse(hasBranch(accountantUser, CapabilityCodes.EDIT_PAST_DAY))
     }
 
     @Test

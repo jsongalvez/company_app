@@ -1,5 +1,6 @@
 package com.companyb.companyapp.contracts.session
 
+import com.companyb.companyapp.contracts.branchday.DayStatus
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -34,6 +35,11 @@ data class DashboardSessionResponse(
      * Defaults to blank (fail-closed → read-only detail) so older fixtures decode unchanged.
      */
     val branchId: String = "",
+    /**
+     * The session's day: open, past or remitted. Set by the single-session read so its page
+     * hides the changes the day refuses; day lists leave it null, their page holds the day.
+     */
+    val dayStatus: DayStatus? = null,
 )
 
 @Serializable

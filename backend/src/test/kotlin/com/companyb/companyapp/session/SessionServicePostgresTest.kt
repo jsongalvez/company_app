@@ -5,6 +5,8 @@ import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.client.ClientService
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.contracts.audit.AuditAction
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.contracts.identity.UserStatus
@@ -649,7 +651,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `booked status corrections require Coordinator authority`() {
+    fun `booked status corrections need branch membership`() {
         val correctionSessionId = insertSessionWithStatus(SessionStatus.NO_SHOW)
 
         assertFailsWith<ForbiddenException> {
@@ -667,7 +669,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `booked corrections require Coordinator authority across every day state`() {
+    fun `booked corrections need branch membership on every day state`() {
         correctionDays().forEach { (_, dayId) ->
             listOf(
                 SessionStatus.NO_SHOW to SessionStatus.CANCELLED,
@@ -684,8 +686,15 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `Coordinator can apply every booked correction edge and audit status before and after`() {
+    fun `a branch member applies every booked correction edge and audit status before and after`() {
         BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        IdentityFixtures.grantCapability(
+            callerId,
+            CapabilityCodes.VOID_SESSION,
+            CapabilityContextType.BRANCH,
+            branchId,
+            sourceId,
+        )
 
         val edges =
             listOf(
@@ -851,7 +860,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `past-day correction remains Coordinator-only`() {
+    fun `a branch member corrects a past day's mark with a reason`() {
         val pastDayId =
             BranchWorkforceFixtures.createBranchDayForDate(
                 branchId,
@@ -864,7 +873,13 @@ class SessionServicePostgresTest : BasePostgresTest() {
             SessionService.updateStatus(callerId, pastSessionId, SessionStatus.CANCELLED, 1)
         }
 
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        IdentityFixtures.grantCapability(
+            callerId,
+            CapabilityCodes.VOID_SESSION,
+            CapabilityContextType.BRANCH,
+            branchId,
+            sourceId,
+        )
         assertFailsWith<ValidationException> {
             SessionService.updateStatus(callerId, pastSessionId, SessionStatus.CANCELLED, 1)
         }

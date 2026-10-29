@@ -41,7 +41,7 @@ import kotlin.test.assertEquals
  * Owed #8: staff enter yesterday's sessions and sales the next day. Any branch member may ADD to
  * a past day that is not remitted, with no reason. Marking, changing or voiding what is already
  * there is open to any branch member with a reason; the change history records who did it. A
- * remitted day stays locked.
+ * remitted day stays locked. Voids and mark corrections by every role: [BranchMemberEditAuthzTest].
  */
 class PastDayAddAuthzTest : BasePostgresTest() {
     private val staff = TestFixtures.uuid()
@@ -108,19 +108,6 @@ class PastDayAddAuthzTest : BasePostgresTest() {
             val r = testServer.client.get("/api/sessions/$existingSession/$what", asStaff)
             assertEquals(200, r.code, "$what: ${r.body.string()}")
         }
-    }
-
-    @Test
-    fun `voiding stays with VOID_SESSION holders on any day`() {
-        val body = mapOf("id" to TestFixtures.uuid().toString(), "voidReason" to "double entry")
-        val response = testServer.client.post("/api/sessions/$existingSession/void", body, asStaff)
-        assertEquals(403, response.code, response.body.string())
-    }
-
-    @Test
-    fun `correcting a mark stays with Coordinators on any day`() {
-        markYesterday("NO_SHOW", "came late")
-        assertEquals(403, patch("status", mapOf("status" to "CANCELLED", "version" to 2, "reason" to "wrong")).code)
     }
 
     @Test

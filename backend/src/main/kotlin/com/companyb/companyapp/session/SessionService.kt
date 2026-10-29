@@ -3,12 +3,15 @@ package com.companyb.companyapp.session
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
+import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.DayWrite
 import com.companyb.companyapp.client.Client
 import com.companyb.companyapp.client.ClientReads
 import com.companyb.companyapp.commission.CommissionService
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.SessionType
@@ -373,13 +376,12 @@ object SessionService {
                 throw ConflictException("This session is in a remittance. Remove it from the remittance first.")
             }
 
-            val requiresEditPastDay = isStatusCorrection(session.sessionStatus, newStatus)
+            requireMemberToCorrect(callerId, session, newStatus)
             val (branchDay, isRemitted) =
                 BranchDayService.checkBranchDayEditableInTransaction(
                     callerId,
                     session.branchDayId,
                     reason,
-                    requiresEditPastDay,
                     DayWrite.FIX,
                 )
 
@@ -469,6 +471,22 @@ object SessionService {
             updated
         }
 
+    /** Correcting a mark is for branch members, as voiding is; relief day grants never carry VOID_SESSION. */
+    private fun requireMemberToCorrect(
+        callerId: UUID,
+        session: Session,
+        newStatus: SessionStatus,
+    ) {
+        if (!isStatusCorrection(session.sessionStatus, newStatus)) return
+        CapabilityService.requireCapability(
+            callerId,
+            CapabilityCodes.VOID_SESSION,
+            CapabilityContextType.BRANCH,
+            BranchDayService.requireBranchDayExists(session.branchDayId).branchId,
+            "Only branch members correct a mark",
+        )
+    }
+
     fun voidSession(
         callerId: UUID,
         sessionId: UUID,
@@ -504,6 +522,7 @@ object SessionService {
                     callerId,
                     session.branchDayId,
                     voidReason,
+                    DayWrite.FIX,
                 )
 
             val result =
@@ -574,6 +593,7 @@ object SessionService {
                     callerId,
                     session.branchDayId,
                     unvoidedReason,
+                    DayWrite.FIX,
                 )
 
             if (session.sessionStatus == SessionStatus.PENDING &&
