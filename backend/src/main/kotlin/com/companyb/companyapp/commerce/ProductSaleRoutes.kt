@@ -188,9 +188,12 @@ object ProductSaleRoutes {
             ProductSaleCorrection.change(
                 callerId = context.callerUuid(),
                 saleId = context.pathParamAsUuid("saleId"),
-                productId = uuidOrThrow(request.productId, "product id"),
-                quantity = request.quantity,
-                expectedVersion = request.expectedVersion,
+                to =
+                    SaleChange(
+                        uuidOrThrow(request.productId, "product id"),
+                        request.quantity,
+                        request.expectedVersion,
+                    ),
                 reason = request.reason,
             )
         context.json(sale.toResponse())

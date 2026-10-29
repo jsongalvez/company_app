@@ -21,16 +21,14 @@ object ProductSaleCorrection {
     fun change(
         callerId: UUID,
         saleId: UUID,
-        productId: UUID,
-        quantity: Int,
-        expectedVersion: Int,
+        to: SaleChange,
         reason: String?,
     ): ProductSale =
         correct(callerId, saleId, reason) { before, branchId ->
             if (before.deletedAt != null) throw ValidationException("Cannot change a deleted product sale")
-            val price = if (productId == before.productId) before.price() else priceOf(productId, branchId)
-            validateMoneyAmount(price.unitPrice.multiply(BigDecimal.valueOf(quantity.toLong())), "totalAmount")
-            ProductSaleRepository.changeInTransaction(before, price, quantity, expectedVersion)
+            val price = if (to.productId == before.productId) before.price() else priceOf(to.productId, branchId)
+            validateMoneyAmount(price.unitPrice.multiply(BigDecimal.valueOf(to.quantity.toLong())), "totalAmount")
+            ProductSaleRepository.changeInTransaction(before, price, to.quantity, to.expectedVersion)
         }
 
     fun delete(
@@ -95,6 +93,13 @@ object ProductSaleCorrection {
 
     private fun ProductSale.price() = SalePrice(productId, productName, unitPriceAtTime, commissionAmountAtTime)
 }
+
+/** What a sale becomes: its product and quantity, against the version the person saw. */
+data class SaleChange(
+    val productId: UUID,
+    val quantity: Int,
+    val expectedVersion: Int,
+)
 
 /** Units a sale keeps out of stock, per product: its quantity while live, none once deleted. */
 internal fun held(sale: ProductSale): Map<UUID, Int> =

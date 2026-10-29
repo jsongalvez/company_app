@@ -116,7 +116,7 @@ class ProductSaleEditAuthzTest : BasePostgresTest() {
             val before = stock(soap)
             val (id, v) = sell(todayId, who, quantity = 2)
             assertEquals(before - 2, stock(soap), "sold 2")
-            val r = edit(id, v, quantity = 3, reason = null, who = who)
+            val r = edit(id to v, quantity = 3, reason = null, who = who)
             assertCode(200, r, who)
             assertEquals("300.00", json(r)["totalAmountAtTime"]?.jsonPrimitive?.content)
             assertEquals(before - 3, stock(soap), "edited to 3")
@@ -128,7 +128,7 @@ class ProductSaleEditAuthzTest : BasePostgresTest() {
         val soapBefore = stock(soap)
         val oilBefore = stock(oil)
         val (id, v) = sell(todayId, who, quantity = 2)
-        val r = edit(id, v, quantity = 1, productId = oil, reason = null, who = who)
+        val r = edit(id to v, quantity = 1, productId = oil, reason = null, who = who)
         assertCode(200, r, who)
         assertEquals("Oil", json(r)["productName"]?.jsonPrimitive?.content)
         assertEquals("250.00", json(r)["totalAmountAtTime"]?.jsonPrimitive?.content)
@@ -154,8 +154,8 @@ class ProductSaleEditAuthzTest : BasePostgresTest() {
     fun `a past unremitted day takes a member's fix with a reason only`() =
         forEachMember { who ->
             val (id, v) = sell(yesterdayId, who, quantity = 1)
-            assertCode(400, edit(id, v, quantity = 2, reason = null, who = who), who)
-            assertCode(200, edit(id, v, quantity = 2, reason = "typo", who = who), who)
+            assertCode(400, edit(id to v, quantity = 2, reason = null, who = who), who)
+            assertCode(200, edit(id to v, quantity = 2, reason = "typo", who = who), who)
             assertCode(400, delete(id, v + 1, "", who), who)
             assertCode(200, delete(id, v + 1, "double entry", who), who)
         }
@@ -165,17 +165,17 @@ class ProductSaleEditAuthzTest : BasePostgresTest() {
         val sale = TestFixtures.uuid()
         CommerceFinanceFixtures.insertTestProductSale(sale, remittedId, soap, coordinator)
         forEachMember { who ->
-            assertCode(403, edit(sale.toString(), 1, quantity = 2, reason = "typo", who = who), who)
+            assertCode(403, edit(sale.toString() to 1, quantity = 2, reason = "typo", who = who), who)
             assertCode(403, delete(sale.toString(), 1, "double", who), who)
         }
-        assertCode(200, edit(sale.toString(), 1, quantity = 2, reason = "typo", who = coordinator), "COORDINATOR")
+        assertCode(200, edit(sale.toString() to 1, quantity = 2, reason = "typo", who = coordinator), "COORDINATOR")
     }
 
     @Test
     fun `relief edits sales on its own day, onboarding gets nothing`() {
         val (id, v) = sell(todayId, members.getValue("OWNER"), quantity = 1)
-        assertCode(200, edit(id, v, quantity = 2, reason = null, who = relief), "relief")
-        assertCode(403, edit(id, v + 1, quantity = 3, reason = null, who = onboarding), "onboarding")
+        assertCode(200, edit(id to v, quantity = 2, reason = null, who = relief), "relief")
+        assertCode(403, edit(id to v + 1, quantity = 3, reason = null, who = onboarding), "onboarding")
         assertCode(403, get("${ApiRoutes.PRODUCT_SALES}?branchDayId=$todayId", onboarding), "onboarding")
     }
 
@@ -197,7 +197,7 @@ class ProductSaleEditAuthzTest : BasePostgresTest() {
     fun `a sale's change history shows each edit with who and why`() {
         val owner = members.getValue("OWNER")
         val (id, v) = sell(yesterdayId, owner, quantity = 1)
-        assertCode(200, edit(id, v, quantity = 2, reason = "counted again", who = owner), "OWNER")
+        assertCode(200, edit(id to v, quantity = 2, reason = "counted again", who = owner), "OWNER")
         val r = get("${ApiRoutes.AUDIT_LOG}?tableName=product_sale&recordId=$id", owner)
         assertCode(200, r, "OWNER")
         val rows = Json.parseToJsonElement(r.body.string()).jsonArray.map { it.jsonObject }
@@ -284,20 +284,18 @@ class ProductSaleEditAuthzTest : BasePostgresTest() {
         return j.getValue("id").jsonPrimitive.content to j.getValue("version").jsonPrimitive.int
     }
 
-    @Suppress("LongParameterList")
     private fun edit(
-        id: String,
-        version: Int,
+        sale: Pair<String, Int>,
         quantity: Int,
         productId: UUID = soap,
         reason: String?,
         who: Any,
     ) = testServer.client.patch(
-        "${ApiRoutes.PRODUCT_SALES}/$id",
+        "${ApiRoutes.PRODUCT_SALES}/${sale.first}",
         mapOf(
             "quantity" to quantity,
             "productId" to productId.toString(),
-            "expectedVersion" to version,
+            "expectedVersion" to sale.second,
             "reason" to reason,
         ),
         asUser(who),
