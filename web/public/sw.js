@@ -28,6 +28,8 @@ async function saveFiles(files, seen = new Set(files)) {
             let r = await caches.match(f);
             if (!r) {
                 r = await fetch(f);
+                // A page is kept only with all its files, so a saved page always opens.
+                if (!r.ok) throw new Error(`${f}: ${r.status}`);
                 await put(f, r.clone());
             }
             if (f.endsWith(".js") && r.ok) for (const m of (await r.text()).matchAll(/"(assets\/[\w.-]+\.(?:js|css))"/g)) later.push("/" + m[1]);
@@ -68,7 +70,7 @@ async function put(req, res) {
 // The app asks the server for the current build when it starts and offers the update.
 function page(e) {
     const fresh = fetch(e.request).then(async (res) => {
-        if (res.ok) await savePage(res.clone());
+        if (res.ok) await savePage(res.clone()).catch(() => {});
         return res;
     });
     e.waitUntil(fresh.catch(() => {}));

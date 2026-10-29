@@ -62,3 +62,11 @@ test("the app opens when its signed-in file is gone after a deploy", { session: 
     await expect(screen.getByRole("heading", "Sessions")).toBeVisible({ timeout: 15_000 });
     expect(refused).toBeGreaterThan(0);
 });
+
+// A build file the server no longer has (an old build's, after a deploy) must fail, not come back as the
+// page: the service worker keeps built files by name for good, so a page saved as a script breaks it.
+test("a build file the server doesn't have answers 404", { session: "owner" }, async ({ app, browser }) => {
+    await app.open("/#/today");
+    const status = await browser.evaluate(async () => (await fetch("/assets/index-GONEBUILD.js", { cache: "no-store" })).status);
+    expect(status).toBe(404);
+});

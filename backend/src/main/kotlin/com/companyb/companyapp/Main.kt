@@ -129,7 +129,8 @@ private fun configureWebApp(
         // Phones read this file to offer "Install app".
         files.mimeTypes.add("application/manifest+json", "webmanifest")
     }
-    config.spaRoot.addFile("/", "$webDir/index.html", Location.EXTERNAL)
+    // No catch-all page: the app routes after "#", and a missing build file must be a 404, not the page,
+    // because phones keep built files by name and a page saved as a script stays broken. "/" is the static index.html.
 }
 
 private fun configurePlugins(config: io.javalin.config.JavalinConfig) {
