@@ -6,6 +6,8 @@
 #   verify.sh shot <route> [name]   drive a page signed in, save desktop + 375px phone screenshots
 #   verify.sh down     stop what `up` started, drop its DB, keep the evidence
 #   verify.sh all <route>...        up, doctor, shot each route, down (down also runs on failure)
+#   verify.sh film <route> [button...]  film every painted frame of a reload (or of tapping each button), count blank frames
+#   verify.sh at <commit> <command...>  run a command above against a copy of <commit>, with these tools (port 18282 unless VERIFY_PORT)
 # VERIFY_DUMP=<pg_dump -Fc file> makes `up` start from that database instead of an empty one (tools/replay).
 set -uo pipefail
 
@@ -110,6 +112,27 @@ shot() {
   "$NODE_BIN" "$HERE/drive.mjs" "$BASE" "${1:?route like #/today}" "$OUT" "${2:-}" "$USER_NAME" "$USER_PASS"
 }
 
+film() {
+  pick_node || return 1
+  mkdir -p "$OUT"
+  VERIFY_USER=$USER_NAME VERIFY_PASS=$USER_PASS "$NODE_BIN" "$HERE/film.mjs" "$BASE" "${1:?route like #/today}" "$OUT" "${@:2}"
+}
+
+# A copy of an older commit, so a symptom can be checked against the build that had it (before bisecting, say).
+at() {
+  local c; c=$(git -C "$ROOT" rev-parse --short "${1:?commit}") || return 1; shift
+  local wt=/tmp/verify-at-$c rc=0
+  [ -d "$wt" ] || git -C "$ROOT" worktree add -q --detach "$wt" "$c" || return 1
+  mkdir -p "$wt/tools/verify" && cp -r "$HERE"/. "$wt/tools/verify/"
+  [ -e "$wt/web/node_modules" ] || ln -s "$ROOT/web/node_modules" "$wt/web/node_modules"
+  export VERIFY_PORT=${VERIFY_PORT:-18282}
+  "$wt/tools/verify/verify.sh" up || rc=1
+  [ $rc = 0 ] && { "$wt/tools/verify/verify.sh" "$@" || rc=1; }
+  "$wt/tools/verify/verify.sh" down >/dev/null
+  git -C "$ROOT" worktree remove --force "$wt"
+  return $rc
+}
+
 down() {
   load_db_env 2>/dev/null
   if [ -f "$RUN/backend.pid" ]; then
@@ -128,8 +151,10 @@ case "${1:-}" in
   doctor) doctor ;;
   shot) shift; shot "$@" ;;
   down) down ;;
+  film) shift; film "$@" ;;
+  at) shift; at "$@" ;;
   all) shift; rc=0; up && doctor || rc=1
        if [ $rc = 0 ]; then for r in "$@"; do shot "$r" || rc=1; done; fi
        down; exit $rc ;;
-  *) sed -n 2,8p "$0"; exit 2 ;;
+  *) sed -n 2,10p "$0"; exit 2 ;;
 esac

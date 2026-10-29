@@ -58,6 +58,28 @@ using the same sign-in block, with stable handles: roles and labels (`getByRole(
 (run only the test file you touched locally: `cd web && APP_URL=http://127.0.0.1:18181 npx e2e run tests/<file>.e2e.ts`; the full suite runs on GitHub only).
 The phone menu is collapsed: `nav[aria-label="Main"]` exists but is hidden, so use a CSS locator, not `getByRole`, to wait for it.
 
+## Film (what the screen does between two states)
+
+```bash
+tools/verify/verify.sh film '#/today'                          # film 4 reloads (VERIFY_FILM_RUNS=n for more)
+tools/verify/verify.sh film '#/today' 'Clock out' 'Clock in'   # film each tap, in order
+tools/verify/verify.sh at 32e078f4 film '#/today'              # same, on a copy of an older commit (port 18282)
+```
+
+Use it when a report is about how the screen moves, not what it ends up showing: "the page redraws", "it flashes",
+"the whole page refreshes on clock out", "slow loading" on a page whose data is cached. A screenshot of the end state
+and network timings both look fine for these bugs. The refresh-redraw bug (Oct 2026) took days because nobody filmed it.
+`tools/verify/film.mjs` signs in on a 375px phone screen, clocks in (`VERIFY_CLOCKIN=0` skips), opens the route, reloads once so the
+service worker and saved screen are warm, slows the CPU 4x, then records every frame Chromium paints (CDP screencast) for 2.5s
+after each reload or tap. Chromium sends a frame only when the screen changes, so few frames means a still screen.
+A frame is BLANK when one colour covers 99.5% of it or more (an empty page measures 100%, Today with content about 47%).
+Each frame is printed with its ms after the reload or tap and its one-colour share; frames before 0 ms are the old screen and never count.
+It saves `<VERIFY_OUT>/<time>-film-<route>/<run>/NN_<ms>.png` and `strip-<run>.png` (frames side by side, blank ones outlined red),
+and exits 1 when any reload or tap showed a blank frame. Open the strip: a "Loading…" frame or a jump is not blank but is still a finding.
+
+`at <commit>` checks whether a symptom is older than you think before you bisect: it makes a worktree of the commit, copies these
+tools into it, runs `up`, the command, and `down`, then removes the worktree. Commits before Oct 21 (no `tools/verify`) did not start.
+
 Feature map: `features/README.md` lists what to drive per page and what proves it.
 
 ## Evidence
@@ -82,4 +104,5 @@ Gradle's own daemon may stay alive after `down`; that is shared and harmless.
 
 - Proven against `#/today` and `#/audit` only; the other pages in the map are described but not yet driven.
 - The dev Postgres is shared: `up` creates and `down` drops only `verify_<port>`.
+- Film runs in headless Chromium, not Brave or Safari on a phone; a clean film is evidence, the phone is the proof.
 - Offline mode (service worker, outbox) is not covered by this harness.
