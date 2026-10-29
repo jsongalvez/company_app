@@ -12,7 +12,7 @@ import java.util.UUID
  * Finance-owned HTTP authorization composition.
  *
  * Resolves the expense record, then delegates to the common branch/day scope
- * check on [CapabilityFilter]. Authorization keeps capability-context
+ * check on [Access]. Authorization keeps capability-context
  * evaluation; how an expense resolves that scope lives here, next to the
  * routes that need it.
  */

@@ -15,7 +15,7 @@ import java.util.UUID
  *
  * Resolves the session record and any session-specific rule (status-correction
  * policy), then delegates to the common branch/day scope checks on
- * [CapabilityFilter]. Authorization keeps capability-context evaluation and
+ * [Access]. Authorization keeps capability-context evaluation and
  * small HTTP adaptations for already-resolved scope; how a session resolves
  * that scope lives here, next to the routes that need it.
  */

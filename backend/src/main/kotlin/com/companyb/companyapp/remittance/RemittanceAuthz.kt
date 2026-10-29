@@ -12,7 +12,7 @@ import java.util.UUID
  * Remittance-owned HTTP authorization composition.
  *
  * Resolves the remittance record, then delegates to the common
- * branch-scope check on [CapabilityFilter]. Authorization keeps
+ * branch-scope check on [Access]. Authorization keeps
  * capability-context evaluation; how a remittance resolves that scope lives
  * here, next to the routes that need it.
  */

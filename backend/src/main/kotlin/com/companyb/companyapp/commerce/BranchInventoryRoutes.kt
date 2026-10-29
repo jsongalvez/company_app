@@ -158,7 +158,7 @@ object BranchInventoryRoutes {
     private fun registerGuards(config: JavalinConfig) {
         // 404 precedence for an unknown branch before the capability gate
         //  (SessionBaseRateRoutes precedent/ class):
-        // requireBranchCapabilityForBranchId alone conflates "unknown branch" with
+        // the access check alone conflates "unknown branch" with
         // "known but non-member". BranchService.findById throws NotFoundException.
         config.routes.before(ApiRoutes.BRANCH_INVENTORY_PATH) { context ->
             val branchId = requireKnownBranchId(context)

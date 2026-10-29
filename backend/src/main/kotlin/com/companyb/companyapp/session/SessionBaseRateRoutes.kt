@@ -65,7 +65,7 @@ object SessionBaseRateRoutes {
         config.routes.before(ApiRoutes.BRANCH_RATES_PATH) { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             // 404 precedence for an unknown branch before the capability gate:
-            // requireBranchCapabilityForBranchId alone conflates "unknown branch" with
+            // the access check alone conflates "unknown branch" with
             // "known but non-member" (the createInvite / #715 listSent order, resolving
             // the #724-deferred session-rate filter policy with the same precedence).
             BranchService.findById(branchId)

@@ -84,6 +84,18 @@ Feature map: `features/README.md` lists what to drive per page and what proves i
 
 ## Evidence
 
+Before and after, for any change people can see (`tools/push.sh` refuses a visible web change without it):
+
+```bash
+git commit ...                                         # the after shot must show HEAD
+tools/verify/verify.sh up
+tools/verify/verify.sh before-after '#/today' '#/finance'   # each route the change shows
+```
+
+It shoots each route on the merge-base with `origin/master` (a copy on port 18282, via `at`) and on HEAD, into
+`/tmp/verify-evidence/before-after/<head>/`, and writes the `stamp` that `tools/quality/shot-gate.sh` checks. Look at
+both before you push. Nothing visible changed (a `.svelte` file whose markup did not move)? `SHOT_SKIP='why' tools/push.sh`.
+
 Screenshots go to `/tmp/verify-evidence/<UTC time>-<name>-{desktop,phone}.png` (override `VERIFY_OUT`). `down` never deletes them.
 A proof is: the route you opened, the interaction (if any), the resulting state on screen, and the side effect when there is one
 (query the scratch DB: `PGPASSWORD=... psql -h localhost -p 55432 -U company_user -d verify_18181`).

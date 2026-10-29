@@ -10,7 +10,7 @@
 # NOT a git hook: the repo has no git hooks. CI and this script are the checks.
 # tools/push.sh runs this script and then `git push`; use it instead of bare `git push`.
 # Also runs tools/quality/check-references.sh: dead paths and Gradle tasks fail here
-# before they fail CI.
+# before they fail CI. And tools/quality/shot-gate.sh: a visible web change needs before/after shots.
 #
 # Usage:
 #   tools/check-before-push.sh            # changed since merge-base with origin/master (+ uncommitted)
@@ -124,6 +124,7 @@ refs_flag=""
 if [ $plan_only -eq 1 ]; then
   echo "check-before-push: tools/quality/check-references.sh $refs_flag"
   echo "check-before-push: tools/quality/check-patterns.sh"
+  echo "check-before-push: tools/quality/shot-gate.sh"
   [ $want_shell -eq 1 ] && ci_shell_tests | sed 's/^/check-before-push: shell test: /'
   exit 0
 fi
@@ -133,6 +134,7 @@ status=0
 
 tools/quality/check-references.sh $refs_flag || status=1
 tools/quality/check-patterns.sh || status=1
+tools/quality/shot-gate.sh || status=1
 
 if [ ${#tasks[@]} -gt 0 ]; then
   # --continue: report every red check in one run instead of one per push.

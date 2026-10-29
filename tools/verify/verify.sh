@@ -8,6 +8,7 @@
 #   verify.sh all <route>...        up, doctor, shot each route, down (down also runs on failure)
 #   verify.sh film <route> [button...]  film every painted frame of a reload (or of tapping each button), count blank frames
 #   verify.sh at <commit> <command...>  run a command above against a copy of <commit>, with these tools (port 18282 unless VERIFY_PORT)
+#   verify.sh before-after <route>...   shot each route on the merge-base with origin/master and on HEAD (needs `up`); tools/push.sh wants this for visible web changes
 # VERIFY_DUMP=<pg_dump -Fc file> makes `up` start from that database instead of an empty one (tools/replay).
 set -uo pipefail
 
@@ -133,6 +134,26 @@ at() {
   return $rc
 }
 
+# Before and after shots of each route, plus the stamp tools/quality/shot-gate.sh reads.
+before_after() {
+  [ $# -gt 0 ] || { echo "before-after: name at least one route, like '#/today'" >&2; return 2; }
+  git -C "$ROOT" diff --quiet HEAD -- web || { echo "before-after: commit the web change first; the after shot must show HEAD" >&2; return 1; }
+  doctor >/dev/null || { echo "before-after: the verify copy on $PORT is not up; run verify.sh up" >&2; return 1; }
+  local base head dir r slug
+  base=$(git -C "$ROOT" merge-base HEAD origin/master) || return 1
+  head=$(git -C "$ROOT" rev-parse HEAD)
+  dir="$OUT/before-after/${head:0:8}"
+  rm -rf "$dir" && mkdir -p "$dir"
+  local OUT="$dir"
+  for r in "$@"; do
+    slug=$(printf '%s' "$r" | tr -c 'A-Za-z0-9' '-' | sed 's/^-*//; s/-*$//')
+    VERIFY_OUT="$dir" at "$base" shot "$r" "before-$slug" || return 1
+    shot "$r" "after-$slug" || return 1
+  done
+  { echo "base=$base"; echo "head=$head"; printf 'route=%s\n' "$@"; find "$dir" -name '*.png' | sort | sed 's/^/png=/'; } > "$dir/stamp"
+  echo "before-after: $(grep -c '^png=' "$dir/stamp") shots in $dir"
+}
+
 down() {
   load_db_env 2>/dev/null
   if [ -f "$RUN/backend.pid" ]; then
@@ -153,6 +174,7 @@ case "${1:-}" in
   down) down ;;
   film) shift; film "$@" ;;
   at) shift; at "$@" ;;
+  before-after) shift; before_after "$@" ;;
   all) shift; rc=0; up && doctor || rc=1
        if [ $rc = 0 ]; then for r in "$@"; do shot "$r" || rc=1; done; fi
        down; exit $rc ;;

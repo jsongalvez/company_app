@@ -191,7 +191,7 @@ object ExpenseService {
             after
         }
 
-    // record-scoped read rides the route's before-filter gate (requireBranchOrBranchDayCapability);
+    // record-scoped read rides the route's before-filter gate (Access.require with Act.WORK_DAY);
     // the service takes the resolved day only, so no caller param stays unused.
     fun findByBranchDayId(branchDayId: UUID): List<Expense> {
         BranchDayService.requireBranchDayExists(branchDayId)
