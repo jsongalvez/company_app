@@ -56,7 +56,7 @@ up() {
   if [ -n "${VERIFY_DUMP:-}" ]; then
     # The dev database's own pg_restore: the host's may be older than the server that made the dump.
     docker exec -i -e PGPASSWORD="$PGPASSWORD" "${VERIFY_DB_CONTAINER:-company-app-devdb}" \
-      pg_restore -U "$POSTGRES_USER" -d "$DB" --no-owner --no-acl <"$VERIFY_DUMP" >"$RUN/restore.log" 2>&1 \
+      pg_restore -U "$POSTGRES_USER" -d "$DB" --no-owner --no-acl --no-tablespaces <"$VERIFY_DUMP" >"$RUN/restore.log" 2>&1 \
       || { tail -5 "$RUN/restore.log"; return 1; }
   fi
   # Backend: Flyway migrates the empty DB, DevMain seeds owner/staff/relief logins and fixture branch.
