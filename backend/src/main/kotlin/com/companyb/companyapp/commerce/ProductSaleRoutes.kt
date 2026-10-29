@@ -135,7 +135,11 @@ object ProductSaleRoutes {
                 val sale =
                     ProductSaleRepository.findById(context.pathParamAsUuid("saleId"))
                         ?: throw NotFoundResponse("Product sale not found")
-                CapabilityFilter.requireBranchOrBranchDayCapability(context, sale.branchDayId, CapabilityCodes.EDIT_BRANCH_DATA)
+                CapabilityFilter.requireBranchOrBranchDayCapability(
+                    context,
+                    sale.branchDayId,
+                    CapabilityCodes.EDIT_BRANCH_DATA,
+                )
             }
         }
     }
@@ -207,7 +211,12 @@ object ProductSaleRoutes {
 
     private fun handleRestore(context: Context) {
         val request = context.bodyAsClass<RestoreProductSaleRequest>()
-        val sale = ProductSaleCorrection.restore(context.callerUuid(), context.pathParamAsUuid("saleId"), request.reason)
+        val sale =
+            ProductSaleCorrection.restore(
+                context.callerUuid(),
+                context.pathParamAsUuid("saleId"),
+                request.reason,
+            )
         context.json(sale.toResponse())
     }
 

@@ -50,7 +50,8 @@ object ProductSaleCorrection {
         reason: String?,
     ): ProductSale =
         correct(callerId, saleId, reason) { _, _ ->
-            ProductSaleRepository.restoreInTransaction(saleId) ?: throw ValidationException("Product sale is not deleted")
+            ProductSaleRepository.restoreInTransaction(saleId)
+                ?: throw ValidationException("Product sale is not deleted")
         }
 
     private fun correct(
@@ -60,7 +61,8 @@ object ProductSaleCorrection {
         write: (before: ProductSale, branchId: UUID) -> ProductSale,
     ): ProductSale =
         transaction {
-            val before = ProductSaleRepository.findByIdInTransaction(saleId) ?: throw NotFoundException("Product sale not found")
+            val before =
+                ProductSaleRepository.findByIdInTransaction(saleId) ?: throw NotFoundException("Product sale not found")
             // Day row first, then product, then card: the lock order every stock write shares (#518).
             val (day, isRemitted) =
                 BranchDayService.checkBranchDayEditableInTransaction(callerId, before.branchDayId, reason, DayWrite.FIX)
@@ -83,7 +85,8 @@ object ProductSaleCorrection {
         productId: UUID,
         branchId: UUID,
     ): SalePrice {
-        val product = ProductRepository.findByIdForUpdateInTransaction(productId) ?: throw NotFoundException("Product not found")
+        val product =
+            ProductRepository.findByIdForUpdateInTransaction(productId) ?: throw NotFoundException("Product not found")
         if (!product.isActive) throw ValidationException("Product is not active")
         val priced = BranchPriceService.priceAtBranch(product, branchId)
         validateMoneyAmount(priced.unitPrice, "unitPrice")

@@ -24,11 +24,11 @@ import com.companyb.companyapp.contracts.commerce.InventoryMovementResponse
 import com.companyb.companyapp.contracts.commerce.ProductCategoryResponse
 import com.companyb.companyapp.contracts.commerce.ProductResponse
 import com.companyb.companyapp.contracts.commerce.ProductSaleResponse
-import com.companyb.companyapp.contracts.commerce.RestoreProductSaleRequest
-import com.companyb.companyapp.contracts.commerce.UpdateProductSaleRequest
 import com.companyb.companyapp.contracts.commerce.RestockRequest
+import com.companyb.companyapp.contracts.commerce.RestoreProductSaleRequest
 import com.companyb.companyapp.contracts.commerce.SetBranchPriceRequest
 import com.companyb.companyapp.contracts.commerce.UpdateProductRequest
+import com.companyb.companyapp.contracts.commerce.UpdateProductSaleRequest
 import com.companyb.companyapp.contracts.commission.CommissionInclusionResponse
 import com.companyb.companyapp.contracts.commission.CommissionSplitResponse
 import com.companyb.companyapp.contracts.commission.CreateCommissionInclusionRequest

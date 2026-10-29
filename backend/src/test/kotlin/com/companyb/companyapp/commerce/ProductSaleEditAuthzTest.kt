@@ -77,7 +77,12 @@ class ProductSaleEditAuthzTest : BasePostgresTest() {
         }
         IdentityFixtures.insertTestUser(onboarding, "onboarding")
         assignRole(onboarding, "ONBOARDING")
-        BranchWorkforceFixtures.insertTestAssignment(userId = onboarding, branchId = branchId, slot = 2, assignedBy = onboarding)
+        BranchWorkforceFixtures.insertTestAssignment(
+            userId = onboarding,
+            branchId = branchId,
+            slot = 2,
+            assignedBy = onboarding,
+        )
         IdentityFixtures.insertTestUser(relief, "relief")
         assignRole(relief, "PRACTITIONER")
         IdentityFixtures.grantCapability(
@@ -89,8 +94,18 @@ class ProductSaleEditAuthzTest : BasePostgresTest() {
         )
         val category = TestFixtures.uuid()
         CommerceFinanceFixtures.insertTestCategory(category)
-        CommerceFinanceFixtures.insertTestProduct(soap, name = "Soap", categoryId = category, unitPrice = BigDecimal("100.00"))
-        CommerceFinanceFixtures.insertTestProduct(oil, name = "Oil", categoryId = category, unitPrice = BigDecimal("250.00"))
+        CommerceFinanceFixtures.insertTestProduct(
+            soap,
+            name = "Soap",
+            categoryId = category,
+            unitPrice = BigDecimal("100.00"),
+        )
+        CommerceFinanceFixtures.insertTestProduct(
+            oil,
+            name = "Oil",
+            categoryId = category,
+            unitPrice = BigDecimal("250.00"),
+        )
         CommerceFinanceFixtures.insertTestCard(branchId, soap, STOCK)
         CommerceFinanceFixtures.insertTestCard(branchId, oil, STOCK)
     }
@@ -279,7 +294,12 @@ class ProductSaleEditAuthzTest : BasePostgresTest() {
         who: Any,
     ) = testServer.client.patch(
         "${ApiRoutes.PRODUCT_SALES}/$id",
-        mapOf("quantity" to quantity, "productId" to productId.toString(), "expectedVersion" to version, "reason" to reason),
+        mapOf(
+            "quantity" to quantity,
+            "productId" to productId.toString(),
+            "expectedVersion" to version,
+            "reason" to reason,
+        ),
         asUser(who),
     )
 

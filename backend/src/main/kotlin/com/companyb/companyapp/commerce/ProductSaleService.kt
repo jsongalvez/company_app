@@ -239,9 +239,20 @@ internal object ProductSaleAudit {
     ) {
         val row = AuditedRow(ProductSaleTable.tableName, after.id)
         if (after.deletedAt != null) {
-            AuditLog.recordDelete(context = context, row = row, before = before, auditFields = ProductSaleTable::auditFields)
+            AuditLog.recordDelete(
+                context = context,
+                row = row,
+                before = before,
+                auditFields = ProductSaleTable::auditFields,
+            )
         } else {
-            AuditLog.recordUpdate(context = context, row = row, before = before, after = after, auditFields = ProductSaleTable::auditFields)
+            AuditLog.recordUpdate(
+                context = context,
+                row = row,
+                before = before,
+                after = after,
+                auditFields = ProductSaleTable::auditFields,
+            )
         }
     }
 
