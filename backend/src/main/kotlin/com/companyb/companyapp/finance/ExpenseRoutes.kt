@@ -7,6 +7,7 @@ import com.companyb.companyapp.api.routes.requireMoneyAmount
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.finance.CreateExpenseRequest
@@ -205,6 +206,7 @@ object ExpenseRoutes {
         if (date.isAfter(BranchDayService.currentOperationalDate())) {
             throw BadRequestResponse("An expense can't be added to a later day")
         }
+        BranchService.findById(branchId)
         return BranchDayService.resolveOrCreate(branchId, date).id
     }
 
