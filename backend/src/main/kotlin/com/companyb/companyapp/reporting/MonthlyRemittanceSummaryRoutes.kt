@@ -1,7 +1,9 @@
 package com.companyb.companyapp.reporting
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.pathParamAsUuid
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.reporting.MonthlyRemittanceSummaryResponse
@@ -47,11 +49,7 @@ object MonthlyRemittanceSummaryRoutes {
         config.routes.before(ApiRoutes.BRANCH_MONTHLY_SUMMARY_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             BranchService.findById(branchId)
-            CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
-                context,
-                branchId,
-                CapabilityCodes.VIEW_BRANCH_DATA,
-            )
+            Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
         }
 
         config.routes.get(ApiRoutes.BRANCH_MONTHLY_SUMMARY_PATH) { context ->

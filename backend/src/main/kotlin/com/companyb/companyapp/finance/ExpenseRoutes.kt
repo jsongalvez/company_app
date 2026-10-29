@@ -6,7 +6,9 @@ import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.requireMoneyAmount
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -113,10 +115,12 @@ object ExpenseRoutes {
                     HandlerType.POST -> {
                         val request = context.bodyAsClass<CreateExpenseRequest>()
                         if (request.branchDayId == null) {
-                            CapabilityFilter.requireBranchCapabilityForBranchId(
+                            Access.require(
                                 context,
-                                uuidOrThrow(request.branchId ?: "", "branch id"),
-                                CapabilityCodes.EDIT_BRANCH_DATA,
+                                Act.WORK_HOME_BRANCH,
+                                Place.Branch(
+                                    uuidOrThrow(request.branchId ?: "", "branch id"),
+                                ),
                             )
                             return@before
                         }
@@ -131,12 +135,12 @@ object ExpenseRoutes {
                         return@before
                     }
                 }
-            CapabilityFilter.requireBranchOrBranchDayCapability(context, branchDayId)
+            Access.require(context, Act.WORK_DAY, Place.day(branchDayId))
         }
 
         config.routes.before(ApiRoutes.EXPENSE_PATH) { context ->
             val expenseId = context.pathParamAsUuid("expenseId")
-            ExpenseAuthz.requireBranchOrBranchDayCapabilityForExpense(context, expenseId)
+            ExpenseAuthz.requireForExpense(context, expenseId, Act.WORK_DAY)
         }
 
         // exact-segment lesson: before(ApiRoutes.EXPENSE_PATH) does NOT fire on the
@@ -145,7 +149,7 @@ object ExpenseRoutes {
         // handler against a phantom).
         config.routes.before(ApiRoutes.EXPENSE_RESTORE_PATH) { context ->
             val expenseId = context.pathParamAsUuid("expenseId")
-            ExpenseAuthz.requireBranchOrBranchDayCapabilityForExpense(context, expenseId)
+            ExpenseAuthz.requireForExpense(context, expenseId, Act.WORK_DAY)
         }
     }
 

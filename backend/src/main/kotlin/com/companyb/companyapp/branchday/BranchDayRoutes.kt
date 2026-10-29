@@ -1,7 +1,9 @@
 package com.companyb.companyapp.branchday
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.pathParamAsUuid
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.branchday.BranchDayTodayResponse
@@ -56,16 +58,12 @@ object BranchDayRoutes {
             BranchService.findById(branchId)
             // via the shared today gate: a BRANCH_DAY relief grant for today
             // reads today's status for its granted day.
-            CapabilityFilter.requireBranchOrDayForBranch(context, branchId)
+            Access.require(context, Act.WORK_DAY, Place.today(branchId))
         }
 
         config.routes.before(ApiRoutes.BRANCH_DAY_USERS_PATH) { context ->
             val branchDayId = context.pathParamAsUuid(BRANCH_DAY_ID_PARAM)
-            CapabilityFilter.requireBranchCapability(
-                context,
-                branchDayId,
-                CapabilityCodes.ASSIGN_COMPENSATION,
-            )
+            Access.require(context, Act.PAY, Place.day(branchDayId))
         }
 
         config.routes.get(ApiRoutes.BRANCH_TODAY_PATH, ::handleGetToday)

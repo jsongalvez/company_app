@@ -6,7 +6,9 @@ import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.requireMoneyAmount
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.remittance.AddDayBreakdownRequest
@@ -240,66 +242,69 @@ object RemittanceRoutes {
             //  (precedent): requireBranchCapabilityForBranchId alone conflates
             // "unknown branch" with "known but non-member".
             BranchService.findById(branchId)
-            CapabilityFilter.requireBranchCapabilityForBranchId(
-                context,
-                branchId,
-                CapabilityCodes.SUBMIT_REMITTANCE,
-            )
+            Access.require(context, Act.SUBMIT_REMITTANCE, Place.Branch(branchId))
         }
     }
 
     private fun registerItemGuards(config: JavalinConfig) {
         config.routes.before(ApiRoutes.REMITTANCE_PATH) { context ->
             val remittanceId = context.pathParamAsUuid("remittanceId")
-            RemittanceAuthz.requireBranchCapabilityForRemittance(context, remittanceId)
+            RemittanceAuthz.requireForRemittance(context, remittanceId, Act.SUBMIT_REMITTANCE)
         }
 
         config.routes.before(ApiRoutes.REMITTANCE_LINES_PATH) { context ->
-            RemittanceAuthz.requireBranchCapabilityForRemittance(
+            RemittanceAuthz.requireForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
+                Act.SUBMIT_REMITTANCE,
             )
         }
 
         config.routes.before(ApiRoutes.REMITTANCE_LINE_PATH) { context ->
-            RemittanceAuthz.requireBranchCapabilityForRemittance(
+            RemittanceAuthz.requireForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
+                Act.SUBMIT_REMITTANCE,
             )
         }
 
         config.routes.before(ApiRoutes.REMITTANCE_DAY_BREAKDOWNS_PATH) { context ->
-            RemittanceAuthz.requireBranchCapabilityForRemittance(
+            RemittanceAuthz.requireForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
+                Act.SUBMIT_REMITTANCE,
             )
         }
 
         config.routes.before(ApiRoutes.REMITTANCE_DAY_BREAKDOWN_PATH) { context ->
-            RemittanceAuthz.requireBranchCapabilityForRemittance(
+            RemittanceAuthz.requireForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
+                Act.SUBMIT_REMITTANCE,
             )
         }
 
         config.routes.before(ApiRoutes.REMITTANCE_SUBMIT_PATH) { context ->
-            RemittanceAuthz.requireBranchCapabilityForRemittance(
+            RemittanceAuthz.requireForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
+                Act.SUBMIT_REMITTANCE,
             )
         }
 
         config.routes.before(ApiRoutes.REMITTANCE_UNDO_PATH) { context ->
-            RemittanceAuthz.requireBranchCapabilityForRemittance(
+            RemittanceAuthz.requireForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
+                Act.SUBMIT_REMITTANCE,
             )
         }
 
         config.routes.before(ApiRoutes.REMITTANCE_DRIFT_PATH) { context ->
-            RemittanceAuthz.requireBranchCapabilityForRemittance(
+            RemittanceAuthz.requireForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
+                Act.SUBMIT_REMITTANCE,
             )
         }
     }

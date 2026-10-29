@@ -3,7 +3,9 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.commerce.CommerceReads
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.commission.CommissionInclusionResponse
@@ -68,30 +70,17 @@ object CommissionRoutes {
             val sale =
                 CommerceReads.findSaleById(productSaleId)
                     ?: throw NotFoundResponse("Product sale not found")
-            CapabilityFilter.requireBranchCapability(
-                context,
-                sale.branchDayId,
-                CapabilityCodes.ASSIGN_COMPENSATION,
-            )
+            Access.require(context, Act.PAY, Place.day(sale.branchDayId))
         }
 
         config.routes.before(ApiRoutes.COMMISSION_SPLITS_PATH) { context ->
             val branchDayId = context.pathParamAsUuid("branchDayId")
-            val branchId = CapabilityFilter.resolveBranchIdFromBranchDay(branchDayId)
-            CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
-                context,
-                branchId,
-                CapabilityCodes.VIEW_BRANCH_DATA,
-            )
+            Access.require(context, Act.SEE_BRANCH, Place.day(branchDayId))
         }
 
         config.routes.before(ApiRoutes.COMMISSION_RECALCULATE_PATH) { context ->
             val branchDayId = context.pathParamAsUuid("branchDayId")
-            CapabilityFilter.requireBranchCapability(
-                context,
-                branchDayId,
-                CapabilityCodes.EDIT_PAST_DAY,
-            )
+            Access.require(context, Act.CHANGE_CLOSED_DAY, Place.day(branchDayId))
         }
 
         config.routes.post(ApiRoutes.COMMISSION_INCLUSIONS, ::handleCreateInclusion)

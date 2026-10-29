@@ -17,7 +17,7 @@ routes (thin: parse → call one service command; capability before-filters)
   └─ service commands (one command = one transaction + its audit row, ADR-0024)
        ├─ Session · Attendance · Inventory · Product Sales · Finance · Relief
        │  · Dashboard · Users · Clients · Export …
-       │      ├─► CapabilityService   (narrowest seam — one boolean)
+       │      ├─► Access              (one call: allows or require an Act)
        │      └─► BranchDayService    (deepest module — every operational/
        │                               financial write gates through it)
        └─ repositories (`*InTransaction` store ops; mutators open no transaction)
@@ -47,8 +47,8 @@ intentionally shallow.
 ## Capability (Authorization)
 
 **Owns:** the grant model (GLOBAL/BRANCH/BRANCH_DAY contexts, validity windows, sources/priorities), the central check over `active_user_capabilities`, resolved-scope route checks, branch read-window scoping. Resource-specific resolution lives in feature-owned helpers (`SessionAuthz`, `ExpenseAuthz`, `RemittanceAuthz`), not the central filter (#605).
-**Anchors:** `authorization/CapabilityService.kt`, `authorization/CapabilityFilter.kt`, `authorization/CapabilityRepository.kt` (internal).
-**Public seam:** `hasCapability` / `requireCapability` (+ `ForBranchDay` / `AnyContext` variants) · `GLOBAL_CONTEXT_ID` (nil UUID) · `CapabilityFilter.require*` family · `BranchReadScope.windowBranchIds` · grant seams on `AuthorizationGrants` (`grantReliefCapabilityInTransaction` / `deleteReliefGrantBySourceIdInTransaction` / `grantDelegateCapabilityInTransaction` / `closeDelegateCapabilityInTransaction` — workforce commands write grants only through these, supplying target user/branch/day and source identity while the fixed capability/source/context/priority stay authorization-owned (#606); the table and `GrantStore` stay internal to the owner). GLOBAL grants never satisfy day-scoped gates (#131 strictness); inventory is not relief-eligible (#157).
+**Anchors:** `authorization/Access.kt`, `authorization/CapabilityService.kt`, `authorization/CapabilityRepository.kt` (internal).
+**Public seam:** `Access.allows` / `Access.require(caller, Act, Place)`: every check names an `Act` (its capability and which grants count) · grant reads on `CapabilityService` (`getCapabilitiesForUser`, `findBranchWindow`, `GLOBAL_CONTEXT_ID`), which `AccessOwnershipTest` keeps out of checks outside `authorization/` · `BranchReadScope.windowBranchIds` · grant seams on `AuthorizationGrants` (`grantReliefCapabilityInTransaction` / `deleteReliefGrantBySourceIdInTransaction` / `grantDelegateCapabilityInTransaction` / `closeDelegateCapabilityInTransaction` — workforce commands write grants only through these, supplying target user/branch/day and source identity while the fixed capability/source/context/priority stay authorization-owned (#606); the table and `GrantStore` stay internal to the owner). GLOBAL grants never satisfy day-scoped gates (#131 strictness); inventory is not relief-eligible (#157).
 **Depends on:** nothing upstream semantically; consumed by nearly everything.
 **Expansion triggers:** new context type or source type (schema + view + filter changes); window/priority semantics (`GrantPriorities`; `active_user_capabilities` view — baseline in V1, branch-derived leg widened by V21, OWNER GLOBAL read added by V25); changing which gate a route uses.
 **Tests/authority:** ADR-0007 (route-level gates), ADR-0023.
@@ -115,7 +115,7 @@ intentionally shallow.
 **Owns:** day-entry mutation policy — expenses (soft-delete/restore + reason), compensations (paying/work branch authority + uniqueness), allowances (excluded from P&L) — each with idempotent commands, day locks and audit atomicity.
 **Anchors:** `finance/ExpenseService.kt` · `finance/CompensationService.kt` · `finance/AllowanceService.kt` · `finance/FinanceReads.kt` · `finance/ExpenseAuthz.kt` (feature-owned route gate, #605).
 **Public seam:** `FinanceReads.findExpenseById(InTransaction)` / `findCompensationById(InTransaction)` (authz + compensation-gate reads; service-to-service, no allowlist).
-**Depends on:** Branch Day (locks), Capability (route gates via `ExpenseAuthz` over `CapabilityFilter`).
+**Depends on:** Branch Day (locks), Capability (route gates via `ExpenseAuthz` over `Access`).
 **Expansion triggers:** expense soft-delete/restore + reason vocabulary; compensation paying/work-branch authority + uniqueness; allowance P&L exclusion.
 **Tests/authority:** `docs/business-requirements.md` (Finance and Compensation).
 **Search:** `FinanceReads`, `ExpenseAuthz`.

@@ -2,7 +2,9 @@ package com.companyb.companyapp.reporting
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.parseBrowseLimit
 import com.companyb.companyapp.api.routes.pathParamAsUuid
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -80,23 +82,16 @@ object DailySalesSummaryRoutes {
             // missing day row means no day grant can exist for it, and the branch/global
             // leg alone governs. The browse (`/daily-summaries`) stays VIEW_BRANCH_DATA-only:
             // a multi-day list cannot be authorized by a single-day grant.
-            val branchDayId =
-                BranchDayService.findByBranchAndDate(branchId, date)?.id
-            CapabilityFilter.requireBranchOrGlobalOrBranchDayCapabilityForBranchId(
-                context,
-                branchId,
-                branchDayId,
-            )
+            val place =
+                BranchDayService.findByBranchAndDate(branchId, date)?.let { Place.Day(it.id, branchId) }
+                    ?: Place.Branch(branchId)
+            Access.require(context, Act.SEE_DAY_SUMMARY, place)
         }
 
         config.routes.before(ApiRoutes.BRANCH_DAILY_SUMMARIES_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             BranchService.findById(branchId)
-            CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
-                context,
-                branchId,
-                CapabilityCodes.VIEW_BRANCH_DATA,
-            )
+            Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
         }
 
         config.routes.get(ApiRoutes.BRANCH_DAILY_SUMMARY_PATH) { context ->

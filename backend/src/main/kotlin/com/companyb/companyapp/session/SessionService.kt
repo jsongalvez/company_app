@@ -3,7 +3,10 @@ package com.companyb.companyapp.session
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.DayWrite
@@ -478,13 +481,7 @@ object SessionService {
         newStatus: SessionStatus,
     ) {
         if (!isStatusCorrection(session.sessionStatus, newStatus)) return
-        CapabilityService.requireCapability(
-            callerId,
-            CapabilityCodes.VOID_SESSION,
-            CapabilityContextType.BRANCH,
-            BranchDayService.requireBranchDayExists(session.branchDayId).branchId,
-            "Only branch members correct a mark",
-        )
+        Access.require(callerId, Act.VOID, Place.day(session.branchDayId), "Only branch members correct a mark")
     }
 
     fun voidSession(

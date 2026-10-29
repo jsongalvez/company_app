@@ -1,6 +1,9 @@
 package com.companyb.companyapp.reporting
 
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.Branch
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
@@ -38,25 +41,13 @@ object ExportService {
         to: LocalDate,
         format: ExportFormat,
     ): ExportResult {
-        val global =
-            CapabilityService.hasCapability(
-                callerId,
-                CapabilityCodes.VIEW_BRANCH_DATA,
-                CapabilityContextType.GLOBAL,
-                CapabilityService.GLOBAL_CONTEXT_ID,
-            )
+        val global = Access.allows(callerId, Act.SEE_EVERY_BRANCH)
         val branches =
             BranchService
                 .findAll()
                 .filter { type == null || it.branchType == type }
                 .filter {
-                    global ||
-                        CapabilityService.hasCapability(
-                            callerId,
-                            CapabilityCodes.VIEW_BRANCH_DATA,
-                            CapabilityContextType.BRANCH,
-                            it.id,
-                        )
+                    global || Access.allows(callerId, Act.SEE_HOME_BRANCH, Place.Branch(it.id))
                 }.sortedBy { it.name }
         val label =
             when (type) {

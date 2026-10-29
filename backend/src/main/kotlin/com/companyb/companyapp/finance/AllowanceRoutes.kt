@@ -5,7 +5,9 @@ import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.requireMoneyAmount
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.finance.AllowanceResponse
 import com.companyb.companyapp.contracts.finance.CreateAllowanceRequest
@@ -63,11 +65,7 @@ object AllowanceRoutes {
                         return@before
                     }
                 }
-            CapabilityFilter.requireBranchCapability(
-                context,
-                branchDayId,
-                CapabilityCodes.ASSIGN_COMPENSATION,
-            )
+            Access.require(context, Act.PAY, Place.day(branchDayId))
         }
 
         config.routes.post(ApiRoutes.ALLOWANCES) { context ->

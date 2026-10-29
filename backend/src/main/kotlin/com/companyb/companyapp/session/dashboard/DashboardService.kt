@@ -1,6 +1,9 @@
 package com.companyb.companyapp.session.dashboard
 
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.commission.CommissionService
@@ -185,21 +188,5 @@ object DashboardService {
     private fun hasBranchView(
         callerId: UUID,
         branchId: UUID,
-    ): Boolean {
-        if (CapabilityService.hasCapability(
-                callerId,
-                CapabilityCodes.VIEW_BRANCH_DATA,
-                CapabilityContextType.BRANCH,
-                branchId,
-            )
-        ) {
-            return true
-        }
-        return CapabilityService.hasCapability(
-            callerId,
-            CapabilityCodes.VIEW_BRANCH_DATA,
-            CapabilityContextType.GLOBAL,
-            CapabilityService.GLOBAL_CONTEXT_ID,
-        )
-    }
+    ): Boolean = Access.allows(callerId, Act.SEE_BRANCH, Place.Branch(branchId))
 }

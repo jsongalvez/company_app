@@ -167,3 +167,12 @@ the lambda form of `before(String) { }` avoids the SAM ambiguity.
 **Keeping capability checks in the service layer:** Rejected — the boilerplate is
 already at 54 call sites and growing, and the pattern does not compose well for
 service-to-service calls (there are none; every call originates from an HTTP route).
+
+## Update (Oct 30, owed #22)
+
+The `CapabilityFilter` helpers and `CapabilityService.require*` are gone. Every gate, route or
+service, calls `Access.require(context or caller, Act.X, place)`. `Act` in
+`authorization/Access.kt` lists each action with its capability code and its `Reach`, the grants
+that count (home branch, every branch, the day). `AccessTableTest` pins who may do what for every
+role on today, an earlier day and a remitted day, and `AccessOwnershipTest` fails when code
+outside `authorization/` reads grants to decide access.

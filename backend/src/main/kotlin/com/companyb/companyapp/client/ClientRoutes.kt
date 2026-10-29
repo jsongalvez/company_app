@@ -3,7 +3,8 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.client.ClientPatchField
 import com.companyb.companyapp.contracts.client.ClientResponse
@@ -123,42 +124,42 @@ object ClientRoutes {
         // A GLOBAL-only gate 403'd every role-derived branch holder (EDIT_BRANCH_DATA never
         // derives GLOBAL). Relief day-grants satisfy for their windowed day (any day).
         config.routes.before(ApiRoutes.CLIENTS) { context ->
-            CapabilityFilter.requireAnyContextCapability(
+            Access.require(
                 context,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                "EDIT_BRANCH_DATA capability required to manage clients",
+                Act.WORK_ANYWHERE,
+                message = "EDIT_BRANCH_DATA capability required to manage clients",
             )
         }
 
         config.routes.before(ApiRoutes.CLIENT_DIRECTORY) { context ->
-            CapabilityFilter.requireAnyContextCapability(
+            Access.require(
                 context,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                "EDIT_BRANCH_DATA capability required to manage clients",
+                Act.WORK_ANYWHERE,
+                message = "EDIT_BRANCH_DATA capability required to manage clients",
             )
         }
 
         config.routes.before(ApiRoutes.CLIENTS_RECENT) { context ->
-            CapabilityFilter.requireAnyContextCapability(
+            Access.require(
                 context,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                "EDIT_BRANCH_DATA capability required to manage clients",
+                Act.WORK_ANYWHERE,
+                message = "EDIT_BRANCH_DATA capability required to manage clients",
             )
         }
 
         config.routes.before(ApiRoutes.CLIENT_PATH) { context ->
-            CapabilityFilter.requireAnyContextCapability(
+            Access.require(
                 context,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                "EDIT_BRANCH_DATA capability required to manage clients",
+                Act.WORK_ANYWHERE,
+                message = "EDIT_BRANCH_DATA capability required to manage clients",
             )
         }
 
         config.routes.before(ApiRoutes.CLIENT_ANONYMIZE_PATH) { context ->
-            CapabilityFilter.requireAnyContextCapability(
+            Access.require(
                 context,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                "EDIT_BRANCH_DATA capability required to manage clients",
+                Act.WORK_ANYWHERE,
+                message = "EDIT_BRANCH_DATA capability required to manage clients",
             )
         }
 

@@ -2,7 +2,8 @@ package com.companyb.companyapp.identity
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.identity.InviteMintRequest
 import com.companyb.companyapp.contracts.identity.InviteMintResponse
@@ -110,11 +111,7 @@ object UserRoutes {
 
     fun deactivate(config: JavalinConfig) {
         config.routes.before(ApiRoutes.USER_DEACTIVATE_PATH) { context ->
-            CapabilityFilter.requireGlobalCapability(
-                context,
-                CapabilityCodes.MANAGE_USERS,
-                MANAGE_USERS_MESSAGE,
-            )
+            Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
         }
 
         config.routes.patch(ApiRoutes.USER_DEACTIVATE_PATH) { context ->
@@ -128,11 +125,7 @@ object UserRoutes {
 
     private fun list(config: JavalinConfig) {
         config.routes.before(ApiRoutes.USERS) { context ->
-            CapabilityFilter.requireGlobalCapability(
-                context,
-                CapabilityCodes.MANAGE_USERS,
-                MANAGE_USERS_MESSAGE,
-            )
+            Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
         }
 
         config.routes.get(ApiRoutes.USERS) { context ->
@@ -143,11 +136,7 @@ object UserRoutes {
 
     private fun reactivate(config: JavalinConfig) {
         config.routes.before(ApiRoutes.USER_REACTIVATE_PATH) { context ->
-            CapabilityFilter.requireGlobalCapability(
-                context,
-                CapabilityCodes.MANAGE_USERS,
-                MANAGE_USERS_MESSAGE,
-            )
+            Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
         }
 
         config.routes.patch(ApiRoutes.USER_REACTIVATE_PATH) { context ->
@@ -166,11 +155,7 @@ object UserRoutes {
      */
     private fun mintInvite(config: JavalinConfig) {
         config.routes.before(ApiRoutes.INVITES) { context ->
-            CapabilityFilter.requireGlobalCapability(
-                context,
-                CapabilityCodes.MANAGE_USERS,
-                MANAGE_USERS_MESSAGE,
-            )
+            Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
         }
 
         config.routes.post(ApiRoutes.INVITES) { context ->
@@ -184,11 +169,7 @@ object UserRoutes {
 
     private fun roles(config: JavalinConfig) {
         config.routes.before(ApiRoutes.ROLES) { context ->
-            CapabilityFilter.requireGlobalCapability(
-                context,
-                CapabilityCodes.MANAGE_USERS,
-                MANAGE_USERS_MESSAGE,
-            )
+            Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
         }
 
         config.routes.get(ApiRoutes.ROLES) { context ->
@@ -199,11 +180,7 @@ object UserRoutes {
 
     private fun replaceRoles(config: JavalinConfig) {
         config.routes.before(ApiRoutes.USER_ROLES_PATH) { context ->
-            CapabilityFilter.requireGlobalCapability(
-                context,
-                CapabilityCodes.MANAGE_USERS,
-                MANAGE_USERS_MESSAGE,
-            )
+            Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
         }
 
         config.routes.put(ApiRoutes.USER_ROLES_PATH) { context ->

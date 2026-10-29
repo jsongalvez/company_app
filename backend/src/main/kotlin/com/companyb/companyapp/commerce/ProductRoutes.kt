@@ -5,7 +5,8 @@ import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.requireMoneyAmount
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.contracts.commerce.CreateProductRequest
 import com.companyb.companyapp.contracts.commerce.ProductResponse
 import com.companyb.companyapp.contracts.commerce.UpdateProductRequest
@@ -88,16 +89,18 @@ object ProductRoutes {
 
     private fun registerGuards(config: JavalinConfig) {
         config.routes.before(ApiRoutes.PRODUCTS) { context ->
-            CapabilityFilter.requireManageCatalog(
+            Access.require(
                 context,
-                "MANAGE_CATALOG capability required to manage products",
+                Act.MANAGE_CATALOG,
+                message = "MANAGE_CATALOG capability required to manage products",
             )
         }
 
         config.routes.before(ApiRoutes.PRODUCT_PATH) { context ->
-            CapabilityFilter.requireManageCatalog(
+            Access.require(
                 context,
-                "MANAGE_CATALOG capability required to manage products",
+                Act.MANAGE_CATALOG,
+                message = "MANAGE_CATALOG capability required to manage products",
             )
         }
     }

@@ -1,6 +1,9 @@
 package com.companyb.companyapp.branchday
 
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -139,37 +142,6 @@ object BranchDayService {
             ?: throw NotFoundException("Branch day not found")
 
     /**
-     * Throwing twin of the today-scoped branch-or-day gate. Returns today's branch-day id (null when
-     * no day row exists yet) so gates whose write must share the resolution — the session
-     * create's midnight-boundary handoff — can reuse it instead of re-resolving.
-     *
-     * @throws ForbiddenException if the caller holds neither the BRANCH nor the
-     * day-scoped grant.
-     */
-    fun requireBranchOrDayForToday(
-        userId: UUID,
-        branchId: UUID,
-        capabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
-        message: String = "$capabilityCode capability required for this branch or day",
-    ): UUID? = requireBranchOrDayForTodayRow(userId, branchId, capabilityCode, message)?.id
-
-    /** [requireBranchOrDayForToday] that hands back today's whole day row, so the write need not read it again. */
-    fun requireBranchOrDayForTodayRow(
-        userId: UUID,
-        branchId: UUID,
-        capabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
-        message: String = "$capabilityCode capability required for this branch or day",
-    ): BranchDay? {
-        val today = findToday(branchId)
-        if (today != null) {
-            CapabilityService.requireCapabilityForBranchDay(userId, capabilityCode, branchId, today.id, message)
-        } else {
-            CapabilityService.requireCapability(userId, capabilityCode, CapabilityContextType.BRANCH, branchId, message)
-        }
-        return today
-    }
-
-    /**
      * Returns the effective status of a branch day, applying lazy evaluation:
      * an OPEN day whose date precedes the current operational date is treated as PAST.
      * Returns null if the branch day does not exist.
@@ -270,13 +242,7 @@ object BranchDayService {
     private fun hasEditPastDayCapability(
         callerId: UUID,
         branchId: UUID,
-    ): Boolean =
-        CapabilityService.hasCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-        )
+    ): Boolean = Access.allows(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
 
     /**
      * Pure day-state resolution: an OPEN day whose date precedes [today] (the current

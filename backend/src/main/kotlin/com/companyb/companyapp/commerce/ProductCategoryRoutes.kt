@@ -3,7 +3,8 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.contracts.commerce.CreateProductCategoryRequest
 import com.companyb.companyapp.contracts.commerce.ProductCategoryResponse
 import com.companyb.companyapp.dto.ErrorResponse
@@ -60,16 +61,18 @@ object ProductCategoryRoutes {
 
     fun register(config: JavalinConfig) {
         config.routes.before(ApiRoutes.PRODUCT_CATEGORIES) { context ->
-            CapabilityFilter.requireManageCatalog(
+            Access.require(
                 context,
-                "MANAGE_CATALOG capability required to manage product categories",
+                Act.MANAGE_CATALOG,
+                message = "MANAGE_CATALOG capability required to manage product categories",
             )
         }
 
         config.routes.before(ApiRoutes.PRODUCT_CATEGORY_PATH) { context ->
-            CapabilityFilter.requireManageCatalog(
+            Access.require(
                 context,
-                "MANAGE_CATALOG capability required to manage product categories",
+                Act.MANAGE_CATALOG,
+                message = "MANAGE_CATALOG capability required to manage product categories",
             )
         }
 

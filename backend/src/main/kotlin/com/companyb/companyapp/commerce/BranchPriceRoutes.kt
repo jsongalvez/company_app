@@ -4,7 +4,9 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.commerce.SetBranchPriceRequest
@@ -48,7 +50,7 @@ object BranchPriceRoutes {
         config.routes.before(ApiRoutes.BRANCH_INVENTORY_PRICE_PATH) { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             BranchService.findById(branchId)
-            CapabilityFilter.requireBranchCapabilityForBranchId(context, branchId, CapabilityCodes.EDIT_BRANCH_DATA)
+            Access.require(context, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
         }
 
         config.routes.put(ApiRoutes.BRANCH_INVENTORY_PRICE_PATH) { context ->

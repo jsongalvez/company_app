@@ -1,4 +1,6 @@
 package com.companyb.companyapp.audit
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.BranchReadScope
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -17,28 +19,23 @@ import java.util.UUID
  * across all branches", role-derived for SUPERUSER, OWNER, and ACCOUNTANT).
  */
 object AuditLogReadScope {
-    /** Branchless-table policy: DB table name -> required capability + context flavor. */
-    private data class TablePolicy(
-        val capabilityCode: String,
-        val global: Boolean,
-    )
-
-    private val BRANCHLESS_POLICY: Map<String, TablePolicy> =
+    /** Branchless tables: DB table name -> the [Act] a caller needs to read its rows. */
+    private val BRANCHLESS_POLICY: Map<String, Act> =
         mapOf(
             // Per #104 D6: "client -> any EDIT_BRANCH_DATA holder" (clients are
             // global records; #99 F5 gates on GLOBAL EDIT_BRANCH_DATA).
-            "client" to TablePolicy(CapabilityCodes.EDIT_BRANCH_DATA, global = false),
+            "client" to Act.WORK_ANYWHERE,
             // Concern catalog rows (promoteConcern writes with no branch; the
             // /api/concerns route gates GLOBAL EDIT_BRANCH_DATA, promote-concern
             // gates branch-scoped — any holder passes).
-            "concern" to TablePolicy(CapabilityCodes.EDIT_BRANCH_DATA, global = false),
+            "concern" to Act.WORK_ANYWHERE,
             // Global catalog management (ProductRoutes / ProductCategoryRoutes
             // gate GLOBAL MANAGE_CATALOG).
-            "product" to TablePolicy(CapabilityCodes.MANAGE_CATALOG, global = true),
-            "product_category" to TablePolicy(CapabilityCodes.MANAGE_CATALOG, global = true),
+            "product" to Act.MANAGE_CATALOG,
+            "product_category" to Act.MANAGE_CATALOG,
             // User/branch management (UserRoutes / BranchRoutes gate GLOBAL MANAGE_USERS).
-            "app_user" to TablePolicy(CapabilityCodes.MANAGE_USERS, global = true),
-            "branch" to TablePolicy(CapabilityCodes.MANAGE_USERS, global = true),
+            "app_user" to Act.MANAGE_USERS,
+            "branch" to Act.MANAGE_USERS,
         )
 
     /**
@@ -56,22 +53,8 @@ object AuditLogReadScope {
      */
     fun branchlessTablesReadableBy(callerId: UUID): Set<String> =
         BRANCHLESS_POLICY
-            .filter { (_, policy) ->
-                when {
-                    policy.global -> {
-                        CapabilityService.hasCapability(
-                            callerId,
-                            policy.capabilityCode,
-                            CapabilityContextType.GLOBAL,
-                            CapabilityService.GLOBAL_CONTEXT_ID,
-                        )
-                    }
-
-                    else -> {
-                        CapabilityService.hasCapabilityAnyContext(callerId, policy.capabilityCode)
-                    }
-                }
-            }.keys
+            .filter { (_, act) -> Access.allows(callerId, act) }
+            .keys
 
     /**
      * NULL-branch rows on unlisted tables (legacy backfill) — global-view

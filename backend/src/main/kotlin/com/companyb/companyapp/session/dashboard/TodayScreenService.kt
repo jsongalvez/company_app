@@ -1,6 +1,9 @@
 package com.companyb.companyapp.session.dashboard
 
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -36,11 +39,7 @@ object TodayScreenService {
         transaction {
             BranchService.findById(branchId)
             val canView =
-                CapabilityService.hasCapabilityAtBranchOrGlobal(
-                    callerId,
-                    CapabilityCodes.VIEW_BRANCH_DATA,
-                    branchId,
-                )
+                Access.allows(callerId, Act.SEE_BRANCH, Place.Branch(branchId))
             val day = BranchDayService.findToday(branchId)
             val presence = AttendancePresence.read(branchId, day?.id)
             val clockedIn = day != null && presence.isClockedIn(callerId)

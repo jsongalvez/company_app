@@ -2,7 +2,8 @@ package com.companyb.companyapp.reporting
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.pathParamAsUuid
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.reporting.ClientHistoryResponse
 import com.companyb.companyapp.dto.ErrorResponse
@@ -31,10 +32,10 @@ object ClientHistoryRoutes {
     fun register(config: JavalinConfig) {
         // Same gate as the client record itself (ClientRoutes): clients are global records.
         config.routes.before(ApiRoutes.CLIENT_HISTORY_PATH) { context ->
-            CapabilityFilter.requireAnyContextCapability(
+            Access.require(
                 context,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                "EDIT_BRANCH_DATA capability required to manage clients",
+                Act.WORK_ANYWHERE,
+                message = "EDIT_BRANCH_DATA capability required to manage clients",
             )
         }
         config.routes.get(ApiRoutes.CLIENT_HISTORY_PATH) { context ->

@@ -6,7 +6,9 @@ import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.requireMoneyAmount
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.finance.CompensationResponse
 import com.companyb.companyapp.contracts.finance.CreateCompensationRequest
@@ -81,11 +83,7 @@ object CompensationRoutes {
                         return@before
                     }
                 }
-            CapabilityFilter.requireBranchCapability(
-                context,
-                branchDayId,
-                CapabilityCodes.ASSIGN_COMPENSATION,
-            )
+            Access.require(context, Act.PAY, Place.day(branchDayId))
         }
 
         config.routes.before(ApiRoutes.COMPENSATIONS) { context ->
@@ -93,11 +91,7 @@ object CompensationRoutes {
                 return@before
             }
             val branchDayId = context.uuidFromQuery("branchDayId")
-            CapabilityFilter.requireBranchCapability(
-                context,
-                branchDayId,
-                CapabilityCodes.ASSIGN_COMPENSATION,
-            )
+            Access.require(context, Act.PAY, Place.day(branchDayId))
         }
 
         config.routes.before(ApiRoutes.COMPENSATION_PATH) { context ->
@@ -105,11 +99,7 @@ object CompensationRoutes {
             val compensation =
                 FinanceReads.findCompensationById(compensationId)
                     ?: throw io.javalin.http.NotFoundResponse("Compensation not found")
-            CapabilityFilter.requireBranchCapability(
-                context,
-                compensation.workBranchDayId,
-                CapabilityCodes.ASSIGN_COMPENSATION,
-            )
+            Access.require(context, Act.PAY, Place.day(compensation.workBranchDayId))
         }
     }
 

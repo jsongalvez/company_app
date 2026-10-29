@@ -1,6 +1,8 @@
 package com.companyb.companyapp.remittance
 
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import io.javalin.http.Context
 import io.javalin.http.NotFoundResponse
@@ -16,19 +18,17 @@ import java.util.UUID
  */
 object RemittanceAuthz {
     /**
-     * Enforces [capabilityCode] on BRANCH by resolving the branch from a remittance record.
-     *
-     * Throws ForbiddenResponse (403) if the caller lacks the capability.
-     * Throws NotFoundResponse (404) if the remittance does not exist.
+     * [Access.require] for [act] at the remittance's branch.
+     * Throws NotFoundResponse (404) when the remittance does not exist.
      */
-    fun requireBranchCapabilityForRemittance(
+    fun requireForRemittance(
         context: Context,
         remittanceId: UUID,
-        capabilityCode: String = CapabilityCodes.SUBMIT_REMITTANCE,
+        act: Act,
     ) {
         val remittance =
             RemittanceReads.findById(remittanceId)
                 ?: throw NotFoundResponse("Remittance not found")
-        CapabilityFilter.requireBranchCapabilityForBranchId(context, remittance.branchId, capabilityCode)
+        Access.require(context, act, Place.Branch(remittance.branchId))
     }
 }

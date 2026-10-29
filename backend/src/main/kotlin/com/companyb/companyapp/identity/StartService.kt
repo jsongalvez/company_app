@@ -1,5 +1,8 @@
 package com.companyb.companyapp.identity
 
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchRoutes
 import com.companyb.companyapp.branchday.BranchDayRoutes
 import com.companyb.companyapp.branchday.BranchDayService
@@ -63,7 +66,7 @@ object StartService {
         callerId: UUID,
         branchId: UUID,
     ) = try {
-        BranchDayService.requireBranchOrDayForToday(callerId, branchId)
+        Access.require(callerId, Act.WORK_DAY, Place.today(branchId))
         BranchDayRoutes.todayResponse(branchId)
     } catch (e: ForbiddenException) {
         logger.debug { "[START] no day shown at $branchId for $callerId: ${e.message}" }

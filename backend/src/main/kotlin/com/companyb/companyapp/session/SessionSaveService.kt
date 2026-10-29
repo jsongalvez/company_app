@@ -1,6 +1,9 @@
 package com.companyb.companyapp.session
 
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
@@ -79,14 +82,17 @@ internal object SessionSaveService {
         val today = BranchDayService.currentOperationalDate()
         val date = new.date ?: today
         if (date.isAfter(today)) throw ValidationException("A session can't be added to a later day")
-        if (date == today) return BranchDayService.requireBranchOrDayForTodayRow(callerId, new.branchId)
+        if (date == today) {
+            val row = BranchDayService.findToday(new.branchId)
+            Access.require(
+                callerId,
+                Act.WORK_DAY,
+                row?.let { Place.Day(it.id, new.branchId) } ?: Place.Branch(new.branchId),
+            )
+            return row
+        }
         val day = BranchDayService.resolveOrCreate(new.branchId, date)
-        CapabilityService.requireCapabilityForBranchDay(
-            callerId,
-            CapabilityCodes.EDIT_BRANCH_DATA,
-            new.branchId,
-            day.id,
-        )
+        Access.require(callerId, Act.WORK_DAY, Place.Day(day.id, new.branchId))
         return day
     }
 

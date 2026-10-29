@@ -4,7 +4,9 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.commerce.CreateProductSaleRequest
@@ -111,19 +113,11 @@ object ProductSaleRoutes {
                 HandlerType.POST -> {
                     val request = context.bodyAsClass<CreateProductSaleRequest>()
                     val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
-                    CapabilityFilter.requireBranchOrBranchDayCapability(
-                        context,
-                        branchDayId,
-                        CapabilityCodes.EDIT_BRANCH_DATA,
-                    )
+                    Access.require(context, Act.WORK_DAY, Place.day(branchDayId))
                 }
 
                 HandlerType.GET -> {
-                    CapabilityFilter.requireBranchOrBranchDayCapability(
-                        context,
-                        context.uuidFromQuery("branchDayId"),
-                        CapabilityCodes.VIEW_BRANCH_DATA,
-                    )
+                    Access.require(context, Act.SEE_DAY, Place.day(context.uuidFromQuery("branchDayId")))
                 }
 
                 else -> {}
@@ -135,11 +129,7 @@ object ProductSaleRoutes {
                 val sale =
                     ProductSaleRepository.findById(context.pathParamAsUuid("saleId"))
                         ?: throw NotFoundResponse("Product sale not found")
-                CapabilityFilter.requireBranchOrBranchDayCapability(
-                    context,
-                    sale.branchDayId,
-                    CapabilityCodes.EDIT_BRANCH_DATA,
-                )
+                Access.require(context, Act.WORK_DAY, Place.day(sale.branchDayId))
             }
         }
     }

@@ -3,7 +3,9 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.commerce.AddInventoryCardRequest
@@ -160,65 +162,35 @@ object BranchInventoryRoutes {
         // "known but non-member". BranchService.findById throws NotFoundException.
         config.routes.before(ApiRoutes.BRANCH_INVENTORY_PATH) { context ->
             val branchId = requireKnownBranchId(context)
-            val required =
-                if (context.method() == HandlerType.POST) {
-                    CapabilityCodes.MANAGE_PRODUCTS
-                } else {
-                    CapabilityCodes.EDIT_BRANCH_DATA
-                }
-            CapabilityFilter.requireBranchCapabilityForBranchId(
-                context,
-                branchId,
-                required,
-            )
+            val act = if (context.method() == HandlerType.POST) Act.MANAGE_STOCK else Act.WORK_HOME_BRANCH
+            Access.require(context, act, Place.Branch(branchId))
         }
 
         config.routes.before(ApiRoutes.BRANCH_INVENTORY_LOW_STOCK_PATH) { context ->
             val branchId = requireKnownBranchId(context)
-            CapabilityFilter.requireBranchCapabilityForBranchId(
-                context,
-                branchId,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-            )
+            Access.require(context, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
         }
 
         config.routes.before(ApiRoutes.BRANCH_INVENTORY_MOVEMENTS_PATH) { context ->
             val branchId = requireKnownBranchId(context)
-            CapabilityFilter.requireBranchCapabilityForBranchId(
-                context,
-                branchId,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-            )
+            Access.require(context, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
         }
 
         config.routes.before(ApiRoutes.BRANCH_INVENTORY_RESTOCK_PATH) { context ->
             val branchId = requireKnownBranchId(context)
-            CapabilityFilter.requireBranchCapabilityForBranchId(
-                context,
-                branchId,
-                CapabilityCodes.MANAGE_PRODUCTS,
-            )
+            Access.require(context, Act.MANAGE_STOCK, Place.Branch(branchId))
         }
 
         config.routes.before(ApiRoutes.BRANCH_INVENTORY_MOVEMENT_PATH) { context ->
             val branchId = requireKnownBranchId(context)
             val request = context.bodyAsClass<InventoryMovementRequest>()
             val reason = validateMovementReason(request.reason)
-            val required =
-                if (reason == InventoryMovementReason.ADJUSTMENT) {
-                    CapabilityCodes.MANAGE_PRODUCTS
-                } else {
-                    CapabilityCodes.EDIT_BRANCH_DATA
-                }
+            val act = if (reason == InventoryMovementReason.ADJUSTMENT) Act.MANAGE_STOCK else Act.WORK_HOME_BRANCH
             // Branch-scoped only (decision): the movement's day comes from the body while
             // the route is branch-scoped via the path — a day-grant check on the body's day
             // would authorize a write against a DIFFERENT branch (the parent-child scoping
             // trap). Inventory is not relief-eligible; see the resolution.
-            CapabilityFilter.requireBranchCapabilityForBranchId(
-                context,
-                branchId,
-                required,
-            )
+            Access.require(context, act, Place.Branch(branchId))
         }
     }
 

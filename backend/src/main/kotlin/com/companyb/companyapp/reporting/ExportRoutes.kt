@@ -2,7 +2,9 @@ package com.companyb.companyapp.reporting
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.branch.BranchType
@@ -71,11 +73,7 @@ object ExportRoutes {
             val branchId = context.pathParamAsUuid("branchId")
             // 404 precedence for an unknown branch before the capability gate (precedent).
             BranchService.findById(branchId)
-            CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
-                context,
-                branchId,
-                CapabilityCodes.VIEW_BRANCH_DATA,
-            )
+            Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
         }
 
         config.routes.get(ApiRoutes.BRANCH_EXPORT_REPORT_PATH) { context ->

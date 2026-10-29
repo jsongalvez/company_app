@@ -33,11 +33,5 @@ object BranchReadScope {
         branchId: UUID,
     ): Boolean = windowBranchIds(callerId)?.let { branchId in it } ?: true
 
-    internal fun hasGlobalView(callerId: UUID): Boolean =
-        CapabilityService.hasCapability(
-            callerId,
-            CapabilityCodes.VIEW_BRANCH_DATA,
-            CapabilityContextType.GLOBAL,
-            CapabilityService.GLOBAL_CONTEXT_ID,
-        )
+    internal fun hasGlobalView(callerId: UUID): Boolean = Access.allows(callerId, Act.SEE_EVERY_BRANCH)
 }

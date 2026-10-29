@@ -3,7 +3,10 @@ package com.companyb.companyapp.workforce
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -29,22 +32,10 @@ object UserBranchAssignmentService {
         callerId: UUID,
         message: String,
     ) {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.MANAGE_USERS,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = message,
-        )
+        Access.require(callerId, Act.MANAGE_USERS, message = message)
     }
 
-    private fun canManageUsers(callerId: UUID): Boolean =
-        CapabilityService.hasCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.MANAGE_USERS,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-        )
+    private fun canManageUsers(callerId: UUID): Boolean = Access.allows(callerId, Act.MANAGE_USERS)
 
     data class CreateResult(
         val assignment: UserBranchAssignment,
@@ -243,10 +234,11 @@ object UserBranchAssignmentService {
         BranchService.findById(branchId)
         val assignment = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId)
         if (assignment == null) {
-            BranchDayService.requireBranchOrDayForToday(
-                userId = callerId,
-                branchId = branchId,
-                message = "Active membership or a today-scoped edit grant required to view this branch's members",
+            Access.require(
+                callerId,
+                Act.WORK_DAY,
+                Place.today(branchId),
+                "Active membership or a today-scoped edit grant required to view this branch's members",
             )
         }
         return BranchMemberRepository.findActiveMemberNames(branchId)

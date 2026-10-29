@@ -4,7 +4,10 @@
 package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityRepository
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -490,12 +493,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
             assertTrue(body.contains("\"status\":\"ACCEPTED\""))
         }
         val granted =
-            CapabilityRepository.hasCapabilityForBranchDay(
-                userId = invitee,
-                capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-                branchId = branchA,
-                branchDayId = tomorrowDayId,
-            )
+            Access.allows(invitee, Act.WORK_DAY, Place.Day(tomorrowDayId, branchA))
         assertTrue(granted, "accept must write the day-scoped grant (the #157 enforcement surface)")
     }
 

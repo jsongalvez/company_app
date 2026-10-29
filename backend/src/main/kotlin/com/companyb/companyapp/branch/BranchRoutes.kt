@@ -3,8 +3,10 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.BranchReadScope
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.branch.BranchResponse
 import com.companyb.companyapp.contracts.branch.BranchType
@@ -94,11 +96,7 @@ object BranchRoutes {
 
     fun register(config: JavalinConfig) {
         config.routes.before(ApiRoutes.BRANCHES) { context ->
-            CapabilityFilter.requireGlobalCapability(
-                context,
-                CapabilityCodes.MANAGE_USERS,
-                "MANAGE_USERS capability required to manage branches",
-            )
+            Access.require(context, Act.MANAGE_USERS, message = "MANAGE_USERS capability required to manage branches")
         }
 
         // (same class as): before(BRANCHES) is exact-segment
@@ -116,11 +114,7 @@ object BranchRoutes {
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             // 404 precedence for an unknown branch before the capability gate (precedent).
             BranchService.findById(branchId)
-            CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
-                context,
-                branchId,
-                CapabilityCodes.VIEW_BRANCH_DATA,
-            )
+            Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
         }
 
         // the Reports picker data source — the caller's read window
@@ -169,11 +163,7 @@ object BranchRoutes {
     }
 
     private fun rename(context: io.javalin.http.Context) {
-        CapabilityFilter.requireGlobalCapability(
-            context,
-            CapabilityCodes.MANAGE_USERS,
-            "MANAGE_USERS capability required to manage branches",
-        )
+        Access.require(context, Act.MANAGE_USERS, message = "MANAGE_USERS capability required to manage branches")
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val name = context.bodyAsClass<RenameBranchRequest>().name.trim()
         if (name.isBlank() || name.length > MAX_NAME_LENGTH) {

@@ -2,7 +2,9 @@ package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.pathParamAsUuid
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.remittance.RemittanceDayPickerEntryResponse
@@ -92,21 +94,13 @@ object RemittancePickerRoutes {
         config.routes.before(ApiRoutes.BRANCH_REMITTANCE_SESSIONS_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             BranchService.findById(branchId)
-            CapabilityFilter.requireBranchCapabilityForBranchId(
-                context,
-                branchId,
-                CapabilityCodes.SUBMIT_REMITTANCE,
-            )
+            Access.require(context, Act.SUBMIT_REMITTANCE, Place.Branch(branchId))
         }
 
         config.routes.before(ApiRoutes.BRANCH_REMITTANCE_PRODUCT_SALES_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             BranchService.findById(branchId)
-            CapabilityFilter.requireBranchCapabilityForBranchId(
-                context,
-                branchId,
-                CapabilityCodes.SUBMIT_REMITTANCE,
-            )
+            Access.require(context, Act.SUBMIT_REMITTANCE, Place.Branch(branchId))
         }
 
         // The day list is read-only (dates and status), and Finance uses it to find past days,
@@ -114,11 +108,7 @@ object RemittancePickerRoutes {
         config.routes.before(ApiRoutes.BRANCH_REMITTANCE_DAYS_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             BranchService.findById(branchId)
-            CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
-                context,
-                branchId,
-                CapabilityCodes.VIEW_BRANCH_DATA,
-            )
+            Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
         }
 
         config.routes.get(ApiRoutes.BRANCH_REMITTANCE_SESSIONS_PATH, ::handleListSessionsInRange)

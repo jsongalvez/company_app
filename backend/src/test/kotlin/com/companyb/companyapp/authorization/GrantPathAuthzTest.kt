@@ -35,7 +35,7 @@ import kotlin.test.assertTrue
 
 /**
  * #132 route-level proof: a role-derived GLOBAL grant now passes
- * CapabilityFilter.requireGlobalCapability (pre-#132 these routes 403'd for
+ * Access.require (pre-#132 these routes 403'd for
  * every user — the dead-grant class). GET /api/branches gates GLOBAL
  * MANAGE_USERS; GET /api/me/capabilities reports the derived rows.
  */
@@ -149,7 +149,7 @@ class GrantPathAuthzTest : BasePostgresTest() {
         assertEquals(
             200,
             getStatus("/api/branches", ownerUser),
-            "role-derived MANAGE_USERS must pass requireGlobalCapability",
+            "role-derived MANAGE_USERS must pass Access.require",
         )
     }
 

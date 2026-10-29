@@ -7,7 +7,9 @@ import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.DayWrite
@@ -364,7 +366,7 @@ object SessionRoutes {
             BranchService.findById(branchId)
             // Same gate as the create it previews: the preview passes exactly
             // when the create would.
-            CapabilityFilter.requireBranchOrDayForBranch(context, branchId)
+            Access.require(context, Act.WORK_DAY, Place.today(branchId))
         }
         config.routes.get(ApiRoutes.BRANCH_SESSION_PREVIEW_PATH, ::handleGetSessionPreview)
     }
@@ -735,81 +737,49 @@ private fun registerStatusPriceVoidGates(config: JavalinConfig) {
     config.routes.before(ApiRoutes.SESSION_STATUS_PATH) { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<UpdateSessionStatusRequest>()
-        SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
-            context,
-            sessionId,
-            CapabilityCodes.EDIT_BRANCH_DATA,
-        )
+        SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
         SessionAuthz.requireStatusCorrectionCapability(context, sessionId, request.status)
     }
 
     config.routes.before(ApiRoutes.SESSION_FINAL_PRICE_PATH) { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
-        SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
-            context,
-            sessionId,
-            CapabilityCodes.EDIT_BRANCH_DATA,
-        )
+        SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
     }
 
     config.routes.before(ApiRoutes.SESSION_VOID_PATH) { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
-        SessionAuthz.requireBranchCapabilityForSession(
-            context,
-            sessionId,
-            CapabilityCodes.VOID_SESSION,
-        )
+        SessionAuthz.requireForSession(context, sessionId, Act.VOID)
     }
 
     config.routes.before(ApiRoutes.SESSION_UNVOID_PATH) { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
-        SessionAuthz.requireBranchCapabilityForSession(
-            context,
-            sessionId,
-            CapabilityCodes.VOID_SESSION,
-        )
+        SessionAuthz.requireForSession(context, sessionId, Act.VOID)
     }
 }
 
 private fun registerPractitionerGates(config: JavalinConfig) {
     config.routes.before(ApiRoutes.SESSION_PRACTITIONERS_PATH) { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
-        SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
-            context,
-            sessionId,
-            CapabilityCodes.EDIT_BRANCH_DATA,
-        )
+        SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
     }
 
     config.routes.before(ApiRoutes.SESSION_PRACTITIONER_PATH) { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
-        SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
-            context,
-            sessionId,
-            CapabilityCodes.EDIT_BRANCH_DATA,
-        )
+        SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
     }
 }
 
 private fun registerConcernGates(config: JavalinConfig) {
     config.routes.before(ApiRoutes.SESSION_CONCERNS_PATH) { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
-        SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
-            context,
-            sessionId,
-            CapabilityCodes.EDIT_BRANCH_DATA,
-        )
+        SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
     }
 
     // the DELETE child path needs its own gate: Javalin path filters match
     // exact literals, so the parent /concerns filter never fires for /concerns/{concernId}.
     config.routes.before(ApiRoutes.SESSION_CONCERN_PATH) { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
-        SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
-            context,
-            sessionId,
-            CapabilityCodes.EDIT_BRANCH_DATA,
-        )
+        SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
     }
 
     config.routes.before(ApiRoutes.CONCERNS) { context ->
@@ -817,11 +787,7 @@ private fun registerConcernGates(config: JavalinConfig) {
         // EDIT_BRANCH_DATA in any context (BRANCH/BRANCH_DAY/GLOBAL) — the same capability
         // the session-anchored promote write requires at its session branch. A GLOBAL-only
         // gate 403'd every role-derived branch holder (EDIT_BRANCH_DATA never derives GLOBAL).
-        CapabilityFilter.requireAnyContextCapability(
-            context,
-            CapabilityCodes.EDIT_BRANCH_DATA,
-            "EDIT_BRANCH_DATA capability required to manage concerns",
-        )
+        Access.require(context, Act.WORK_ANYWHERE, message = "EDIT_BRANCH_DATA capability required to manage concerns")
     }
 
     config.routes.before(ApiRoutes.CONCERN_PATH) { context ->
@@ -829,19 +795,11 @@ private fun registerConcernGates(config: JavalinConfig) {
         // EDIT_BRANCH_DATA in any context (BRANCH/BRANCH_DAY/GLOBAL) — the same capability
         // the session-anchored promote write requires at its session branch. A GLOBAL-only
         // gate 403'd every role-derived branch holder (EDIT_BRANCH_DATA never derives GLOBAL).
-        CapabilityFilter.requireAnyContextCapability(
-            context,
-            CapabilityCodes.EDIT_BRANCH_DATA,
-            "EDIT_BRANCH_DATA capability required to manage concerns",
-        )
+        Access.require(context, Act.WORK_ANYWHERE, message = "EDIT_BRANCH_DATA capability required to manage concerns")
     }
 
     config.routes.before(ApiRoutes.SESSION_PROMOTE_CONCERN_PATH) { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
-        SessionAuthz.requireBranchOrBranchDayCapabilityForSession(
-            context,
-            sessionId,
-            CapabilityCodes.EDIT_BRANCH_DATA,
-        )
+        SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
     }
 }

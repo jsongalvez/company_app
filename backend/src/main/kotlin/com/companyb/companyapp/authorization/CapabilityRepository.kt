@@ -28,55 +28,7 @@ internal object CapabilityRepository {
         capabilityCode: String,
         contextType: CapabilityContextType,
         contextId: UUID,
-    ): Boolean =
-        transaction {
-            ActiveUserCapabilitiesView
-                .innerJoin(
-                    CapabilityTable,
-                    { ActiveUserCapabilitiesView.capabilityId },
-                    { CapabilityTable.id },
-                ).selectAll()
-                .where {
-                    (ActiveUserCapabilitiesView.userId eq userId) and
-                        (CapabilityTable.code eq capabilityCode) and
-                        (ActiveUserCapabilitiesView.contextType eq contextType) and
-                        (ActiveUserCapabilitiesView.contextId eq contextId)
-                }.empty()
-                .not()
-        }.also { granted ->
-            logger.debug { "[HAS-CAPABILITY] $capabilityCode ($contextType) granted=$granted" }
-        }
-
-    /** One read for "holds [capabilityCode] at [branchId] or everywhere" (the all-branches window). */
-    fun hasCapabilityAtBranchOrGlobal(
-        userId: UUID,
-        capabilityCode: String,
-        branchId: UUID,
-        globalContextId: UUID,
-    ): Boolean =
-        transaction {
-            ActiveUserCapabilitiesView
-                .innerJoin(
-                    CapabilityTable,
-                    { ActiveUserCapabilitiesView.capabilityId },
-                    { CapabilityTable.id },
-                ).selectAll()
-                .where {
-                    (ActiveUserCapabilitiesView.userId eq userId) and
-                        (CapabilityTable.code eq capabilityCode) and
-                        (
-                            (
-                                (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH) and
-                                    (ActiveUserCapabilitiesView.contextId eq branchId)
-                            ) or
-                                (
-                                    (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.GLOBAL) and
-                                        (ActiveUserCapabilitiesView.contextId eq globalContextId)
-                                )
-                        )
-                }.empty()
-                .not()
-        }
+    ): Boolean = holdsIn(userId, capabilityCode, listOf(contextType to contextId))
 
     fun findCapabilitiesForUser(userId: UUID): List<UserCapabilityResponse> =
         transaction {
@@ -114,22 +66,14 @@ internal object CapabilityRepository {
                 .map { it[ActiveUserCapabilitiesView.contextId] }
         }.also { logger.info { "[BRANCH-WINDOW] $userId window=${it.size} branches" } }
 
-    /**
-     * True when [userId] holds [capabilityCode] at [branchId] (BRANCH context) OR at
-     * [branchDayId] (BRANCH_DAY context) — the day-scoped gate. A BRANCH_DAY
-     * relief grant satisfies the branch gate for its granted day only; the BRANCH leg
-     * keeps ordinary branch grants working unchanged. GLOBAL grants deliberately do
-     * NOT satisfy this check (the strictness: the OR adds only the narrower
-     * day-scoped form, never a relaxation). The view enforces the grant window
-     * (`now() BETWEEN valid_from AND COALESCE(valid_to, 'infinity')`).
-     */
-    fun hasCapabilityForBranchDay(
+    /** One read for "holds [capabilityCode] in any of [contexts]". The view applies the grant window. */
+    fun holdsIn(
         userId: UUID,
         capabilityCode: String,
-        branchId: UUID,
-        branchDayId: UUID,
-    ): Boolean =
-        transaction {
+        contexts: List<Pair<CapabilityContextType, UUID>>,
+    ): Boolean {
+        if (contexts.isEmpty()) return false
+        return transaction {
             ActiveUserCapabilitiesView
                 .innerJoin(
                     CapabilityTable,
@@ -137,25 +81,18 @@ internal object CapabilityRepository {
                     { CapabilityTable.id },
                 ).selectAll()
                 .where {
-                    (ActiveUserCapabilitiesView.userId eq userId) and
-                        (CapabilityTable.code eq capabilityCode) and
-                        (
-                            (
-                                (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH) and
-                                    (ActiveUserCapabilitiesView.contextId eq branchId)
-                            ) or
-                                (
-                                    (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH_DAY) and
-                                        (ActiveUserCapabilitiesView.contextId eq branchDayId)
-                                )
-                        )
+                    val inAnyContext =
+                        contexts
+                            .map { (type, id) ->
+                                (ActiveUserCapabilitiesView.contextType eq type) and
+                                    (ActiveUserCapabilitiesView.contextId eq id)
+                            }.reduce { left, right -> left or right }
+                    (ActiveUserCapabilitiesView.userId eq userId) and (CapabilityTable.code eq capabilityCode) and
+                        inAnyContext
                 }.empty()
                 .not()
-        }.also { granted ->
-            logger.debug {
-                "[HAS-CAPABILITY-DAY] $capabilityCode (BRANCH $branchId | BRANCH_DAY $branchDayId) granted=$granted"
-            }
-        }
+        }.also { granted -> logger.debug { "[HOLDS-IN] $capabilityCode $contexts granted=$granted" } }
+    }
 
     /**
      * True when [userId] holds [capabilityCode] at any context (any

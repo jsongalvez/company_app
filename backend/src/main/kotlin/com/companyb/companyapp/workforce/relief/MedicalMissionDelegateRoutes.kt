@@ -3,7 +3,8 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.workforce.AssignDelegateRequest
 import com.companyb.companyapp.contracts.workforce.DelegateResponse
@@ -62,10 +63,7 @@ import java.util.UUID
 object MedicalMissionDelegateRoutes {
     fun listDelegates(config: JavalinConfig) {
         config.routes.before(ApiRoutes.BRANCH_DELEGATES_PATH) { context ->
-            CapabilityFilter.requireGlobalCapability(
-                context,
-                CapabilityCodes.ASSIGN_DELEGATE,
-            )
+            Access.require(context, Act.ASSIGN_DELEGATE)
         }
 
         config.routes.get(ApiRoutes.BRANCH_DELEGATES_PATH) { context ->
@@ -76,10 +74,7 @@ object MedicalMissionDelegateRoutes {
 
     fun assignDelegate(config: JavalinConfig) {
         config.routes.before(ApiRoutes.DELEGATES) { context ->
-            CapabilityFilter.requireGlobalCapability(
-                context,
-                CapabilityCodes.ASSIGN_DELEGATE,
-            )
+            Access.require(context, Act.ASSIGN_DELEGATE)
         }
 
         config.routes.post(ApiRoutes.DELEGATES) { context ->
@@ -99,10 +94,7 @@ object MedicalMissionDelegateRoutes {
 
     fun revokeDelegate(config: JavalinConfig) {
         config.routes.before(ApiRoutes.DELEGATE_PATH) { context ->
-            CapabilityFilter.requireGlobalCapability(
-                context,
-                CapabilityCodes.ASSIGN_DELEGATE,
-            )
+            Access.require(context, Act.ASSIGN_DELEGATE)
         }
 
         config.routes.delete(ApiRoutes.DELEGATE_PATH) { context ->

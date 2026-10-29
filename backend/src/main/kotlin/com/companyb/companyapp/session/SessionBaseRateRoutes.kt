@@ -5,7 +5,9 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.session.RateResponse
@@ -69,17 +71,8 @@ object SessionBaseRateRoutes {
             BranchService.findById(branchId)
             // 503bf228 — any branch member sees its prices and anyone who can edit the branch
             // changes them; every change is audited (Base Rate in Change history).
-            CapabilityFilter.requireBranchCapabilityForBranchId(
-                context,
-                branchId,
-                if (context.method() ==
-                    HandlerType.POST
-                ) {
-                    CapabilityCodes.EDIT_BRANCH_DATA
-                } else {
-                    CapabilityCodes.VIEW_BRANCH_DATA
-                },
-            )
+            val act = if (context.method() == HandlerType.POST) Act.WORK_HOME_BRANCH else Act.SEE_HOME_BRANCH
+            Access.require(context, act, Place.Branch(branchId))
         }
 
         config.routes.post(ApiRoutes.BRANCH_RATES_PATH) { context ->

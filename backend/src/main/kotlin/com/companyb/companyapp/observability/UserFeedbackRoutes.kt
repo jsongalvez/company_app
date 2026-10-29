@@ -4,7 +4,8 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.incident.FeedbackNoteResponse
 import com.companyb.companyapp.contracts.incident.FeedbackStatus
@@ -126,11 +127,7 @@ object UserFeedbackRoutes {
     private fun String?.clean(max: Int): String? = this?.trim()?.take(max)?.ifEmpty { null }
 
     private fun requireTriage(context: Context) =
-        CapabilityFilter.requireGlobalCapability(
-            context,
-            CapabilityCodes.MANAGE_USERS,
-            "Only owners can read feedback",
-        )
+        Access.require(context, Act.MANAGE_USERS, message = "Only owners can read feedback")
 
     private fun UserFeedback.toResponse() =
         FeedbackNoteResponse(

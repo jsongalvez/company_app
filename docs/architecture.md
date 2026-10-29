@@ -201,7 +201,7 @@ fun hasCapability(
 Capability gates live at the route layer as Javalin before-filters ([ADR-0007](adr/0007-route-level-capability-gates.md)):
 each route declares its required capability, with resource-specific resolution in
 feature-local policy helpers (`SessionAuthz`, `ExpenseAuthz`, `RemittanceAuthz` —
-#605) over the shared resolved-scope checks on `CapabilityFilter`. The service
+#605) over `Access.require` with an `Act` (`authorization/Access.kt`). The service
 layer retains day-state assertions (`BranchDayService.checkBranchDayEditable`),
 not capability checks. Documented exceptions keep service/bearer-level enforcement:
 user assignment/slot self-service rules (#134), the bearer-only session-detail read

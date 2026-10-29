@@ -1,7 +1,9 @@
 package com.companyb.companyapp.session.dashboard
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.routes.pathParamAsUuid
-import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.session.ConcernResponse
 import com.companyb.companyapp.contracts.session.DashboardCommissionResponse
@@ -45,11 +47,7 @@ object DashboardRoutes {
     fun register(config: JavalinConfig) {
         config.routes.before(ApiRoutes.BRANCH_SESSIONS_PATH) { context ->
             if (context.method() == HandlerType.GET) {
-                CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
-                    context,
-                    context.pathParamAsUuid(BRANCH_ID_PARAM),
-                    CapabilityCodes.VIEW_BRANCH_DATA,
-                )
+                Access.require(context, Act.SEE_BRANCH, Place.Branch(context.pathParamAsUuid(BRANCH_ID_PARAM)))
             }
         }
         config.routes.get(ApiRoutes.BRANCH_SESSIONS_PATH, ::handleGetSessionsForDay)
