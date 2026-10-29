@@ -81,6 +81,8 @@ data class CreateSessionRequest(
     val otherConcerns: String? = null,
     val nextAppointmentDate: String? = null,
     val reason: String? = null,
+    /** The day the session belongs to (yyyy-MM-dd); today when absent. A past day takes adds from any branch member. */
+    val date: String? = null,
     /** Practitioners to add right after the session is saved, so a save is one request. */
     val practitioners: List<AddPractitionerRequest> = emptyList(),
     /** Listed concerns to tick right after the save, so ticking them costs no extra round trips. */

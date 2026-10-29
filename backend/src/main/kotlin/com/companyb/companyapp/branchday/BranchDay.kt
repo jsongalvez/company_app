@@ -43,3 +43,9 @@ object BranchDayTable : Table("branch_day") {
             "status" to entity.status.name,
         )
 }
+
+/**
+ * What a write does to a day. Adding a new entry to a past day that is not remitted needs no
+ * EDIT_PAST_DAY and no reason; changing or removing what is already there still does.
+ */
+enum class DayWrite { ADD, CHANGE }

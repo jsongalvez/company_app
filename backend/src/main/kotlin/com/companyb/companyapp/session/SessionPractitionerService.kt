@@ -5,6 +5,7 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.branchday.DayWrite
 import com.companyb.companyapp.client.ClientReads
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
@@ -48,12 +49,13 @@ internal object SessionPractitionerService {
         practitionerId: UUID,
         remarks: String?,
         reason: String? = null,
+        write: DayWrite = DayWrite.CHANGE,
     ): AddPractitionerResult {
         if (!AccountReads.userExists(practitionerId)) {
             throw NotFoundException("User not found")
         }
         return transaction {
-            val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason)
+            val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason, write)
 
             // status-only INACTIVE guard (parity): unknown users 404 above,
             // deactivated users 400 here before the slot snapshot. Never a membership
@@ -173,6 +175,7 @@ internal object SessionPractitionerService {
         sessionId: UUID,
         callerId: UUID,
         reason: String?,
+        write: DayWrite = DayWrite.CHANGE,
     ): Triple<Session, BranchDay, Boolean> {
         val session = SessionRepository.findByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
         // client-first lock order (the precedent): serialize with
@@ -187,7 +190,7 @@ internal object SessionPractitionerService {
             throw ConflictException("Cannot modify session practitioners for an anonymized client")
         }
         val (branchDay, isRemitted) =
-            BranchDayService.checkBranchDayEditableInTransaction(callerId, session.branchDayId, reason)
+            BranchDayService.checkBranchDayEditableInTransaction(callerId, session.branchDayId, reason, write = write)
         return Triple(session, branchDay, isRemitted)
     }
 }

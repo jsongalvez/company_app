@@ -5,6 +5,7 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.branchday.DayWrite
 import com.companyb.companyapp.client.ClientReads
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
@@ -35,9 +36,10 @@ internal object SessionConcernService {
         sessionId: UUID,
         concernId: UUID,
         reason: String? = null,
+        write: DayWrite = DayWrite.CHANGE,
     ) {
         transaction {
-            val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason)
+            val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason, write)
 
             val concern =
                 ConcernRepository.findByIdInTransaction(concernId) ?: throw NotFoundException("Concern not found")
@@ -89,7 +91,7 @@ internal object SessionConcernService {
         reason: String? = null,
     ): Concern =
         transaction {
-            promoteInTransaction(callerId, sessionId, NewConcern(concernId, label), reason, clearOtherConcerns = true)
+            promoteInTransaction(callerId, NewConcern(sessionId, concernId, label), reason, true, DayWrite.CHANGE)
         }
 
     /** Adds a brand-new concern to the shared list and to this session; leaves "other concerns" alone. */
@@ -101,24 +103,37 @@ internal object SessionConcernService {
         reason: String? = null,
     ): Concern =
         transaction {
-            promoteInTransaction(callerId, sessionId, NewConcern(concernId, label), reason, clearOtherConcerns = false)
+            promoteInTransaction(callerId, NewConcern(sessionId, concernId, label), reason, false, DayWrite.CHANGE)
+        }
+
+    /** [addNewConcern] as part of saving a new session: an add to its day, not a change. */
+    fun addNewConcernToNewSession(
+        callerId: UUID,
+        sessionId: UUID,
+        concernId: UUID,
+        label: String,
+        reason: String?,
+    ): Concern =
+        transaction {
+            promoteInTransaction(callerId, NewConcern(sessionId, concernId, label), reason, false, DayWrite.ADD)
         }
 
     private data class NewConcern(
+        val sessionId: UUID,
         val id: UUID,
         val label: String,
     )
 
     private fun promoteInTransaction(
         callerId: UUID,
-        sessionId: UUID,
         newConcern: NewConcern,
         reason: String?,
         clearOtherConcerns: Boolean,
+        write: DayWrite,
     ): Concern =
         run {
-            val (concernId, label) = newConcern
-            val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason)
+            val (sessionId, concernId, label) = newConcern
+            val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason, write)
 
             val result =
                 ConcernRepository.promoteConcernInTransaction(
@@ -161,6 +176,7 @@ internal object SessionConcernService {
         sessionId: UUID,
         callerId: UUID,
         reason: String?,
+        write: DayWrite = DayWrite.CHANGE,
     ): Triple<Session, BranchDay, Boolean> {
         val session = SessionRepository.findByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
         // client-first lock order (the precedent): serialize with
@@ -175,7 +191,7 @@ internal object SessionConcernService {
             throw ConflictException("Cannot modify session concerns for an anonymized client")
         }
         val (branchDay, isRemitted) =
-            BranchDayService.checkBranchDayEditableInTransaction(callerId, session.branchDayId, reason)
+            BranchDayService.checkBranchDayEditableInTransaction(callerId, session.branchDayId, reason, write = write)
         return Triple(session, branchDay, isRemitted)
     }
 }

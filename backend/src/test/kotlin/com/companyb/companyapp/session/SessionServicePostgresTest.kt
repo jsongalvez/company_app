@@ -338,29 +338,19 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create on PAST day requires coordinator and a reason`() {
+    fun `create on PAST day needs no coordinator and no reason`() {
         val pastDayId =
             BranchWorkforceFixtures.createBranchDayForDate(
                 branchId,
                 TestFixtures.today.minusDays(1),
             )
-        val blockedId = TestFixtures.uuid()
+        val addedId = TestFixtures.uuid()
 
-        assertFailsWith<ForbiddenException> {
-            createSession(callerId, blockedId, gatedBranchDayId = pastDayId)
-        }
-        assertNull(SessionRepository.findById(blockedId))
-
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
-        assertFailsWith<ValidationException> {
-            createSession(callerId, blockedId, gatedBranchDayId = pastDayId)
-        }
-        val result = createSession(callerId, blockedId, gatedBranchDayId = pastDayId, reason = "Forgot to log it")
+        val result = createSession(callerId, addedId, gatedBranchDayId = pastDayId)
 
         assertTrue(result.created)
-        val audit = auditEntry(SessionTable.tableName, blockedId)
-        assertEquals(false, audit[AuditLogTable.isFlagged])
-        assertEquals("Forgot to log it", audit[AuditLogTable.reason])
+        assertEquals(pastDayId, result.session.branchDayId)
+        assertEquals(1L, auditEntryCount(SessionTable.tableName, addedId))
     }
 
     @Test

@@ -72,7 +72,7 @@ object ProductSaleService {
                 // is locked before the product row (#518 day → product → card order,
                 // shared with InventoryService.recordMovement).
                 val (branchDay, isRemitted) =
-                    BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason)
+                    BranchDayService.checkBranchDayAddableInTransaction(callerId, branchDayId, reason)
 
                 // precedence preserved via findById (throws the same 404):
                 // an unknown branch fails closed before the product/session gates.
@@ -142,9 +142,7 @@ object ProductSaleService {
                 ProductSaleAudit.inserted(context, sale)
                 ProductSaleAudit.updated(context, beforeCard, newCard)
 
-                // PAST/REMITTED sales force the recalc: the day gate above already
-                // required EDIT_PAST_DAY (+reason on REMITTED), so the caller holds the same
-                // authority the manual-recalculate route requires; joining the splits in this
+                // PAST/REMITTED sales force the recalc: joining the splits in this
                 // transaction keeps persisted commission_split equal to liveCommissions
                 // instead of stale-until-manual (daily_sales_summary.total_commission).
                 // OPEN-day behavior is unchanged (force is a no-op there).

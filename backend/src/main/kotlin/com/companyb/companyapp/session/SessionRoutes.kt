@@ -9,6 +9,7 @@ import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
 import com.companyb.companyapp.branch.BranchService
+import com.companyb.companyapp.branchday.DayWrite
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.session.AddPractitionerRequest
 import com.companyb.companyapp.contracts.session.AddSessionConcernRequest
@@ -424,11 +425,7 @@ object SessionRoutes {
             request.requestedPractitionerId?.let { uuidOrThrow(it, "practitioner id") }
         val finalPrice = parseNonNegativeBigDecimal(request.finalPrice, "finalPrice")
         requireSessionMoney(finalPrice, "finalPrice")
-        val nextAppt =
-            request.nextAppointmentDate?.let {
-                runCatching { LocalDate.parse(it) }
-                    .getOrElse { throw BadRequestResponse("Invalid nextAppointmentDate format") }
-            }
+        val nextAppt = parseDay(request.nextAppointmentDate, "nextAppointmentDate")
 
         // The branch check, the write and the concern read share one transaction.
         val saved =
@@ -445,9 +442,36 @@ object SessionRoutes {
                     otherConcerns = request.otherConcerns,
                     nextAppointmentDate = nextAppt,
                     reason = request.reason,
+                    date = parseDay(request.date, "date"),
                 ),
             )
-        // Each one is its own command with its own audit row, as when asked one by one.
+        addWithNewSession(callerId, sessionId, request)
+        val result = saved.result
+        val ticked = request.concernIds.isNotEmpty() || request.newConcerns.isNotEmpty()
+        val savedConcerns = if (ticked) SessionConcernService.getForSession(callerId, sessionId) else saved.concerns
+        val concerns = savedConcerns.map { it.toResponse() }
+        context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
+        context.json(result.session.toResponse(concerns))
+    }
+
+    private fun parseDay(
+        raw: String?,
+        field: String,
+    ): LocalDate? =
+        raw?.let {
+            runCatching { LocalDate.parse(it) }.getOrElse { throw BadRequestResponse("Invalid $field format") }
+        }
+
+    /**
+     * What comes with a new session is part of adding it, so it is an add to the day: the save
+     * before this only answers for the caller's own session. Each one is its own command with its
+     * own audit row, as when asked one by one.
+     */
+    private fun addWithNewSession(
+        callerId: UUID,
+        sessionId: UUID,
+        request: CreateSessionRequest,
+    ) {
         request.practitioners.forEach { added ->
             SessionPractitionerService.addPractitioner(
                 callerId = callerId,
@@ -456,20 +480,27 @@ object SessionRoutes {
                 practitionerId = uuidOrThrow(added.practitionerId, "practitioner id"),
                 remarks = added.remarks,
                 reason = added.reason,
+                write = DayWrite.ADD,
             )
         }
         request.concernIds.forEach {
-            SessionConcernService.addToSession(callerId, sessionId, uuidOrThrow(it, "concern id"), request.reason)
+            SessionConcernService.addToSession(
+                callerId,
+                sessionId,
+                uuidOrThrow(it, "concern id"),
+                request.reason,
+                DayWrite.ADD,
+            )
         }
         request.newConcerns.forEach {
-            SessionConcernService.addNewConcern(callerId, sessionId, uuidOrThrow(it.id, "id"), it.label, request.reason)
+            SessionConcernService.addNewConcernToNewSession(
+                callerId,
+                sessionId,
+                uuidOrThrow(it.id, "id"),
+                it.label,
+                request.reason,
+            )
         }
-        val result = saved.result
-        val ticked = request.concernIds.isNotEmpty() || request.newConcerns.isNotEmpty()
-        val savedConcerns = if (ticked) SessionConcernService.getForSession(callerId, sessionId) else saved.concerns
-        val concerns = savedConcerns.map { it.toResponse() }
-        context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
-        context.json(result.session.toResponse(concerns))
     }
 
     private fun handleUpdateStatus(context: Context) {

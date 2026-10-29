@@ -1,8 +1,12 @@
 package com.companyb.companyapp.session
 
+import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branch.BranchService
+import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.exception.ValidationException
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -21,6 +25,8 @@ data class NewSession(
     val otherConcerns: String?,
     val nextAppointmentDate: LocalDate?,
     val reason: String?,
+    /** The day to add to; null means today. */
+    val date: LocalDate? = null,
 )
 
 /** What saving a session answers: the session and its concerns. */
@@ -42,7 +48,7 @@ internal object SessionSaveService {
     ): SavedSession =
         transaction {
             val branch = BranchService.findById(new.branchId)
-            val today = BranchDayService.requireBranchOrDayForTodayRow(callerId, new.branchId)
+            val day = dayToAddTo(callerId, new)
             val result =
                 SessionService.create(
                     callerId = callerId,
@@ -55,15 +61,34 @@ internal object SessionSaveService {
                     remarks = new.remarks,
                     otherConcerns = new.otherConcerns,
                     nextAppointmentDate = new.nextAppointmentDate,
-                    gatedBranchDayId = today?.id,
+                    gatedBranchDayId = day?.id,
                     reason = new.reason,
                     knownBranchType = branch.branchType,
-                    knownGatedBranchDay = today,
+                    knownGatedBranchDay = day,
                 )
             // A session just written has no concerns yet; only a repeat of an earlier save reads them.
             val concerns = if (result.created) emptyList() else concernsOfEarlierSave(callerId, new.id)
             SavedSession(result, concerns)
         }
+
+    /** Today's row (null when nothing happened yet today), or the earlier day the session goes to, made if missing. */
+    private fun dayToAddTo(
+        callerId: UUID,
+        new: NewSession,
+    ): BranchDay? {
+        val today = BranchDayService.currentOperationalDate()
+        val date = new.date ?: today
+        if (date.isAfter(today)) throw ValidationException("A session can't be added to a later day")
+        if (date == today) return BranchDayService.requireBranchOrDayForTodayRow(callerId, new.branchId)
+        val day = BranchDayService.resolveOrCreate(new.branchId, date)
+        CapabilityService.requireCapabilityForBranchDay(
+            callerId,
+            CapabilityCodes.EDIT_BRANCH_DATA,
+            new.branchId,
+            day.id,
+        )
+        return day
+    }
 
     /** A repeat that lands after the day moved on may no longer be readable: acknowledge it with none. */
     private fun concernsOfEarlierSave(

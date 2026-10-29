@@ -129,7 +129,7 @@ object SessionService {
 
             val basePrice = resolveDefaultBasePriceInTransaction(branchId, clientId, sessionType)
             val (lockedDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDay.id, reason)
+                BranchDayService.checkBranchDayAddableInTransaction(callerId, branchDay.id, reason)
             if (requireClockIn) {
                 WorkforceReads.requireClockedInInTransaction(
                     callerId,
