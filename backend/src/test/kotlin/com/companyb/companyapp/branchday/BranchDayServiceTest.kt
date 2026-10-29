@@ -151,10 +151,11 @@ class BranchDayServiceTest {
     }
 
     @Test
-    fun `past day write without EDIT_PAST_DAY is forbidden`() {
-        assertFailsWith<ForbiddenException> {
+    fun `past day change without EDIT_PAST_DAY needs only a reason`() {
+        assertFailsWith<ValidationException> {
             BranchDayService.assertEditableState(DayStatus.PAST, hasEditPastDay = false, reason = null)
         }
+        BranchDayService.assertEditableState(DayStatus.PAST, hasEditPastDay = false, reason = "typo")
     }
 
     @Test
@@ -201,9 +202,10 @@ class BranchDayServiceTest {
     }
 
     @Test
-    fun `past day read without EDIT_PAST_DAY is forbidden`() {
+    fun `past day read is open to members, remitted day read is not`() {
+        BranchDayService.assertReadableState(DayStatus.PAST, hasEditPastDay = false)
         assertFailsWith<ForbiddenException> {
-            BranchDayService.assertReadableState(DayStatus.PAST, hasEditPastDay = false)
+            BranchDayService.assertReadableState(DayStatus.REMITTED, hasEditPastDay = false)
         }
     }
 

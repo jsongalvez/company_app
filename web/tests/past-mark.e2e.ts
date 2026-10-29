@@ -45,6 +45,39 @@ test("a practitioner marks yesterday's session done after giving a reason", { se
     await expect(row.getByRole("button", "Undo")).toBeVisible();
 });
 
+// Owed #19: anyone in the branch fixes an earlier day's session, with a reason the change history keeps.
+test("a practitioner changes yesterday's session price after giving a reason", { session: "role-practitioner" }, async ({ app, screen, browser }) => {
+    const first = `Fix${Date.now().toString().slice(-6)}`;
+    await app.open("/#/today");
+    await screen.getByRole("button", "Previous day").tap();
+    await expect(screen.getByRole("button", "Today")).toBeVisible();
+    await addSessionForNewClient(screen, first);
+    await screen
+        .getByRole("row")
+        .filter({ hasText: `${first} Tester` })
+        .tap();
+    await screen.getByRole("button", "Change").first().tap();
+    const dialog = screen.getByRole("dialog", "Change price");
+    await dialog.getByLabel("Final price").fill("1999");
+    await dialog.getByRole("button", "Save").tap();
+    await giveReason(screen, "Gave a discount");
+    await expect(screen.getByText("1,999.00")).toBeVisible();
+    const id = (await browser.evaluate(() => location.hash)).split("/").pop()!;
+    expect(JSON.stringify(await ownerAudit(id))).toContain("Gave a discount");
+});
+
+async function ownerAudit(sessionId: string) {
+    const login = await fetch(`${BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "owner", password: process.env.E2E_OWNER_PASSWORD ?? "owner-dev-pass" }),
+    });
+    const { token } = (await login.json()) as { token: string };
+    const audit = await fetch(`${BASE}/api/audit-log?tableName=session&recordId=${sessionId}`, { headers: { Authorization: `Bearer ${token}` } });
+    expect(audit.status).toBe(200);
+    return audit.json();
+}
+
 // No signal on an earlier day: the session and its mark stay on the day picked, with the reason typed.
 test("an offline session and mark on yesterday land on yesterday", { session: "role-practitioner" }, async ({ app, screen, browser }) => {
     const first = `Off${Date.now().toString().slice(-6)}`;
@@ -83,13 +116,5 @@ test("an offline session and mark on yesterday land on yesterday", { session: "r
         .tap();
     const id = (await browser.evaluate(() => location.hash)).split("/").pop()!;
     // The history is for coordinators: read it as the owner.
-    const login = await fetch(`${BASE}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: "owner", password: process.env.E2E_OWNER_PASSWORD ?? "owner-dev-pass" }),
-    });
-    const { token } = (await login.json()) as { token: string };
-    const audit = await fetch(`${BASE}/api/audit-log?tableName=session&recordId=${id}`, { headers: { Authorization: `Bearer ${token}` } });
-    expect(audit.status).toBe(200);
-    expect(JSON.stringify(await audit.json())).toContain("Phone had no signal");
+    expect(JSON.stringify(await ownerAudit(id))).toContain("Phone had no signal");
 });

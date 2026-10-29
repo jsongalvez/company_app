@@ -2,6 +2,7 @@ package com.companyb.companyapp.branchday
 import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
@@ -77,10 +78,8 @@ class BranchDayServicePostgresTest : BasePostgresTest() {
         }
 
         assertEquals(DayStatus.PAST, BranchDayService.getEffectiveStatus(yesterdayId))
-        assertFailsWith<ForbiddenException> {
-            BranchDayService.checkBranchDayReadable(TestFixtures.uuid(), yesterdayId)
-        }
-        assertFailsWith<ForbiddenException> {
+        BranchDayService.checkBranchDayReadable(TestFixtures.uuid(), yesterdayId)
+        assertFailsWith<ValidationException> {
             BranchDayService.checkBranchDayEditable(TestFixtures.uuid(), yesterdayId)
         }
     }

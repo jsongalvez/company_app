@@ -2,6 +2,7 @@ package com.companyb.companyapp.session
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.commerce.ProductSaleRoutes
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -23,6 +24,8 @@ import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -36,9 +39,9 @@ import kotlin.test.assertEquals
 
 /**
  * Owed #8: staff enter yesterday's sessions and sales the next day. Any branch member may ADD to
- * a past day that is not remitted, with no reason; changing what is already there stays with
- * EDIT_PAST_DAY, and a remitted day stays locked. Marking a session there (done, no-show, back to
- * waiting) is open to any branch member with a reason.
+ * a past day that is not remitted, with no reason. Marking, changing or voiding what is already
+ * there is open to any branch member with a reason; the change history records who did it. A
+ * remitted day stays locked.
  */
 class PastDayAddAuthzTest : BasePostgresTest() {
     private val staff = TestFixtures.uuid()
@@ -89,12 +92,56 @@ class PastDayAddAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `staff still may not change yesterday's price or correct a mark`() {
+    fun `staff changes yesterday's price with a reason, and the change history names them`() {
+        val bare = patch("final-price", mapOf("finalPrice" to "1.00", "version" to 1))
+        assertEquals(400, bare.code, bare.body.string())
         val price = patch("final-price", mapOf("finalPrice" to "1.00", "version" to 1, "reason" to "typo"))
-        assertEquals(403, price.code)
+        assertEquals(200, price.code, price.body.string())
+        val (by, reason) = lastSessionAudit()
+        assertEquals(staff, by)
+        assertEquals("typo", reason)
+    }
+
+    @Test
+    fun `staff reads yesterday's session people and illnesses`() {
+        for (what in listOf("practitioners", "concerns")) {
+            val r = testServer.client.get("/api/sessions/$existingSession/$what", asStaff)
+            assertEquals(200, r.code, "$what: ${r.body.string()}")
+        }
+    }
+
+    @Test
+    fun `voiding stays with VOID_SESSION holders on any day`() {
+        val body = mapOf("id" to TestFixtures.uuid().toString(), "voidReason" to "double entry")
+        val response = testServer.client.post("/api/sessions/$existingSession/void", body, asStaff)
+        assertEquals(403, response.code, response.body.string())
+    }
+
+    @Test
+    fun `correcting a mark stays with Coordinators on any day`() {
         markYesterday("NO_SHOW", "came late")
         assertEquals(403, patch("status", mapOf("status" to "CANCELLED", "version" to 2, "reason" to "wrong")).code)
     }
+
+    @Test
+    fun `a remitted day stays locked for changes`() {
+        val remitted = TestFixtures.uuid()
+        val client = TestFixtures.uuid()
+        SessionClientFixtures.insertTestClient(client)
+        SessionClientFixtures.insertTestSession(remitted, client, remittedId)
+        val body = mapOf("finalPrice" to "1.00", "version" to 1, "reason" to "typo")
+        assertEquals(403, testServer.client.patch("/api/sessions/$remitted/final-price", body, asStaff).code)
+    }
+
+    private fun lastSessionAudit(): Pair<UUID, String?> =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where { (AuditLogTable.auditTableName eq "session") and (AuditLogTable.recordId eq existingSession) }
+                .orderBy(AuditLogTable.changedAt, SortOrder.DESC)
+                .first()
+                .let { it[AuditLogTable.changedBy] to it[AuditLogTable.reason] }
+        }
 
     @Test
     fun `staff marks yesterday's session, and must give a reason`() {

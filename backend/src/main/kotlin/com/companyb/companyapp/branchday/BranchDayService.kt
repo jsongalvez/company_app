@@ -255,7 +255,7 @@ object BranchDayService {
 
     /**
      * Read-path variant of [checkBranchDayEditable]: asserts the caller may view data on a
-     * non-OPEN day. Reads on PAST/REMITTED days require [CapabilityCodes.EDIT_PAST_DAY]
+     * remitted day. Reads on REMITTED days require [CapabilityCodes.EDIT_PAST_DAY]
      * (mirroring the write gate) but never a reason — a read mutates nothing.
      *
      * @return the resolved [BranchDay].
@@ -271,7 +271,7 @@ object BranchDayService {
         val effectiveStatus = evaluateStatus(branchDay.status, branchDay.date, today)
         assertReadableState(
             effectiveStatus,
-            effectiveStatus == DayStatus.OPEN || hasEditPastDayCapability(callerId, branchDay.branchId),
+            effectiveStatus != DayStatus.REMITTED || hasEditPastDayCapability(callerId, branchDay.branchId),
         )
         logger.debug { "[CHECK-BRANCH-DAY-READABLE] branch_day=$branchDayId effectiveStatus=$effectiveStatus allowed" }
         return branchDay
@@ -317,8 +317,8 @@ object BranchDayService {
         if (effectiveStatus == DayStatus.OPEN && !requiresEditPastDay) {
             return
         }
-        // Staff enter and mark yesterday's sessions the next day; change history records who did it.
-        val openToMembers = effectiveStatus == DayStatus.PAST && write != DayWrite.CHANGE && !requiresEditPastDay
+        // Any branch member enters and fixes yesterday's entries; change history records who did it.
+        val openToMembers = effectiveStatus == DayStatus.PAST && !requiresEditPastDay
         if (!openToMembers && !hasEditPastDay) {
             throw ForbiddenException("EDIT_PAST_DAY capability required to write on a $effectiveStatus day")
         }
@@ -330,14 +330,14 @@ object BranchDayService {
 
     /**
      * Pure authorization for a read against an already-resolved [effectiveStatus].
-     * Reads on PAST/REMITTED days require [CapabilityCodes.EDIT_PAST_DAY]; no reason is ever
+     * Reads on REMITTED days require [CapabilityCodes.EDIT_PAST_DAY]; no reason is ever
      * required — a read mutates nothing.
      */
     fun assertReadableState(
         effectiveStatus: DayStatus,
         hasEditPastDay: Boolean,
     ) {
-        if (effectiveStatus == DayStatus.OPEN || hasEditPastDay) {
+        if (effectiveStatus != DayStatus.REMITTED || hasEditPastDay) {
             return
         }
         throw ForbiddenException("EDIT_PAST_DAY capability required to read on a $effectiveStatus day")
