@@ -4,6 +4,7 @@
     import { Query, invalidate, seed } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
+    import { askReason } from "../lib/ask.svelte";
     import { go, route, viewSetting } from "../lib/router.svelte";
     import { peso, time, label, sum, day, clientName, operationalDate, addDays } from "../lib/format";
     import { allowedTargets, statusClass, type Status } from "../lib/rules";
@@ -95,18 +96,18 @@
         if (dash.data) sessionsSeen(new Set(dash.data.sessions.map((s) => s.id)));
     });
     const sessions = $derived.by(() => {
-        if (!isToday) return (pastList.data ?? (switching ? heldRows : undefined) ?? []).map((s) => ({ ...s, held: false, unsent: false }));
         void outbox.items.length;
-        const fromServer = (dash.data?.sessions ?? []).map((s) => {
+        const rows = isToday ? dash.data?.sessions : (pastList.data ?? (switching ? heldRows : undefined));
+        const fromServer = (rows ?? []).map((s) => {
             const h = heldMark(s.id);
             return h && h !== s.sessionStatus
                 ? { ...s, sessionStatus: h as S["DashboardSessionResponse"]["sessionStatus"], held: true, unsent: false }
                 : { ...s, held: false, unsent: false };
         });
-        // New sessions made on this phone show straight away, flagged until they're sent, and stay until the server's list has them.
+        // New sessions made on this phone show straight away on their day (none given is today), flagged until they're sent, and stay until the server's list has them.
         const have = new Set(fromServer.map((s) => s.id));
         const pending = pendingSessions()
-            .filter((p) => p.body.branchId === bid && !have.has(String(p.body.id)))
+            .filter((p) => p.body.branchId === bid && (p.body.date ?? operationalDate()) === date && !have.has(String(p.body.id)))
             .map((p) => ({ ...heldRow(p.at, p.body), held: p.unsent, unsent: p.unsent }));
         return [...fromServer, ...pending];
     });
@@ -180,14 +181,18 @@
 
     async function mark(s: S["DashboardSessionResponse"], to: Status) {
         const undo = to === "PENDING";
-        if (to !== "COMPLETED" && !undo && !confirm(`Mark ${s.clientName ?? "session"} as ${label(to)}?`)) return;
+        // An earlier or closed day asks for the reason, which is also the confirmation.
+        const closed = !isToday || (!!app.today && app.today.status !== "OPEN");
+        const reason = closed ? await askReason(undo ? "Undo" : `Mark ${label(to)}`) : "";
+        if (reason === null) return;
+        if (!reason && to !== "COMPLETED" && !undo && !confirm(`Mark ${s.clientName ?? "session"} as ${label(to)}?`)) return;
         let saved: unknown;
         const okd = await act(
             async () =>
                 (saved = await ok(
                     api.PATCH("/api/sessions/{sessionId}/status", {
                         params: { path: { sessionId: s.id } },
-                        body: { status: to, version: s.version },
+                        body: { status: to, version: s.version, reason: reason || null },
                         headers: { [BASE_STATUS]: s.sessionStatus },
                     }),
                 )),
@@ -252,8 +257,8 @@
     let saleOpen = $state(false);
     /** Adding needs a clock-in only today; an earlier day takes adds until it is remitted. */
     const canAdd = $derived(edit && (isToday ? onDutyAt(bid) : !remitted || correct));
-    /** Changing what is on an earlier day is for coordinators. */
-    const canChange = $derived(edit && (isToday || correct));
+    /** Anyone in the branch marks an earlier day's sessions, with a reason, until it is remitted. */
+    const canMark = $derived(edit && (isToday || !remitted || correct));
 
     // Keyboard: N = new session, R = refresh (when not typing).
     function onKey(e: KeyboardEvent) {
@@ -383,7 +388,7 @@
                             <th>Illnesses</th>
                             <th class="num">Price</th>
                             <th>Next visit</th>
-                            {#if canChange}<th></th>{/if}
+                            {#if canMark}<th></th>{/if}
                         </tr>
                     </thead>
                     <tbody>
@@ -413,7 +418,7 @@
                                     {#if s.finalPrice !== s.basePrice}<span class="faint" title="List price {peso(s.basePrice)}">*</span>{/if}
                                 </td>
                                 <td class="muted hide-sm">{s.nextAppointmentDate ? day(s.nextAppointmentDate) : ""}</td>
-                                {#if canChange}
+                                {#if canMark}
                                     <td class="acts full" onclick={(e) => e.stopPropagation()}>
                                         {#if s.unsent}<span class="faint">Sends when back online</span>
                                         {:else if !s.isVoided}
@@ -433,7 +438,7 @@
                             <tr>
                                 <td colspan="6">{live.length} sessions, {completed.length} done</td>
                                 <td class="num">{peso(sum(completed.map((s) => s.finalPrice)))}</td>
-                                <td colspan={canChange ? 2 : 1}></td>
+                                <td colspan={canMark ? 2 : 1}></td>
                             </tr>
                         </tfoot>
                     {/if}

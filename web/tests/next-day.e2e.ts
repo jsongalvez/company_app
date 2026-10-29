@@ -34,8 +34,8 @@ test("a practitioner adds a session and a sale to yesterday from Today", { sessi
 
     const row = screen.getByRole("row").filter({ hasText: `${first} Tester` });
     await expect(row).toBeVisible();
-    // Changing what is already on an earlier day stays with coordinators.
-    await expect(row.getByRole("button", "Done")).toHaveCount(0);
+    // Anyone in the branch marks it, with a reason (past-mark.e2e.ts).
+    await expect(row.getByRole("button", "Done")).toBeVisible();
 
     const salesTile = () =>
         browser.evaluate(() => {
