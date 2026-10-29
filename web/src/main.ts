@@ -6,6 +6,7 @@ import { installTracker } from "./lib/track";
 import { installRecorder } from "./lib/record";
 import { getToken } from "./api/client";
 import { loadShell } from "./lib/shell";
+import { reveal, saveSnapshotOnLeave } from "./lib/snapshot";
 
 installTracker();
 installRecorder();
@@ -16,6 +17,8 @@ const prefetch = () => void loadShell().catch(() => {});
 if (getToken()) prefetch();
 else addEventListener("load", prefetch);
 mount(App, { target: document.getElementById("app")! });
+reveal();
+saveSnapshotOnLeave();
 
 // Keep the app on the phone for weak signal (production builds only).
 if (import.meta.env.PROD && "serviceWorker" in navigator) {

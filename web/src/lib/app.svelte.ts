@@ -1,4 +1,5 @@
 import { ApiError, api, ok, setToken, getToken, setUnauthorizedHandler, uuid, errText, getViewAs, setViewAs, type S, type ViewAs } from "../api/client";
+import { forgetSnapshot } from "./snapshot";
 import { clearCache, fetchCached, forget, invalidate, reread, peek, restoreCache, seed } from "./cache.svelte";
 import { refreshDirectory, resetDirectory } from "./clientdir.svelte";
 import { RECONNECTED } from "./net.svelte";
@@ -96,6 +97,7 @@ export async function signOut(callServer = true) {
         }
     }
     clearCache();
+    forgetSnapshot();
     resetDirectory();
     setToken(null);
     Object.assign(app, {

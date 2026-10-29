@@ -1,33 +1,54 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#1f5fbf" />
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="CompanyApp" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="color-scheme" content="light dark" />
-    <title>CompanyApp</title>
-    <script>
-      // iPhone zooms in when a text box under 16px is tapped. maximum-scale stops that;
-      // iOS still lets people pinch-zoom. Android would lose pinch zoom, so iOS only.
-      if (/iPhone|iPad|iPod/.test(navigator.userAgent))
-        document.querySelector('meta[name="viewport"]').content += ", maximum-scale=1";
-      // Apply the saved theme before first paint (no flash).
-      (function () {
-        var t = localStorage.getItem("theme");
-        if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-        document.documentElement.dataset.theme = t;
-      })();
-    </script>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="theme-color" content="#1f5fbf" />
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="CompanyApp" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="color-scheme" content="light dark" />
+        <title>CompanyApp</title>
+        <script>
+            // iPhone zooms in when a text box under 16px is tapped. maximum-scale stops that;
+            // iOS still lets people pinch-zoom. Android would lose pinch zoom, so iOS only.
+            if (/iPhone|iPad|iPod/.test(navigator.userAgent)) document.querySelector('meta[name="viewport"]').content += ", maximum-scale=1";
+            // Apply the saved theme before first paint (no flash).
+            (function () {
+                var t = localStorage.getItem("theme");
+                if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+                document.documentElement.dataset.theme = t;
+            })();
+        </script>
+        <script data-snap>
+            // A refresh shows the last screen in the very first frame, styled, instead of a blank page; lib/snapshot.ts
+            // saved it on leaving and swaps the live app in once drawn. The build moves this to the end of <head>
+            // (vite.config.ts): it must run before <body> opens, or the browser paints an empty body first.
+            (function () {
+                try {
+                    var s = JSON.parse(localStorage.getItem("snap") || "null");
+                    var js = document.querySelector("script[type=module][src]");
+                    if (!s || !localStorage.getItem("token") || !js || s.v !== js.src || s.hash !== location.hash) return;
+                    document.write(
+                        s.css
+                            .map(function (h) {
+                                return '<link rel="stylesheet" href="' + h + '">';
+                            })
+                            .join("") +
+                            '<style id="snap-hide">#app{display:none}</style><div id="snap" aria-hidden="true" inert>' +
+                            s.html +
+                            "</div>",
+                    );
+                } catch (e) {}
+            })();
+        </script>
+    </head>
+    <body>
+        <div id="app"></div>
+        <script type="module" src="/src/main.ts"></script>
+    </body>
 </html>

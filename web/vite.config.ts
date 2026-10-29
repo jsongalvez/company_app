@@ -23,8 +23,25 @@ function preloadShellWhenSignedIn(): Plugin {
     };
 }
 
+// index.html's saved-screen script (lib/snapshot.ts) reads the page script's name, so it must follow the tags Vite
+// adds to <head>; and it must stay in <head>, because once <body> opens the browser may paint it empty.
+function snapshotScriptLast(): Plugin {
+    return {
+        name: "snapshot-script-last",
+        apply: "build",
+        transformIndexHtml: {
+            order: "post",
+            handler(html) {
+                const m = html.match(/\s*<script data-snap>[\s\S]*?<\/script>/);
+                if (!m) throw new Error("index.html lost its <script data-snap>");
+                return html.replace(m[0], "").replace("</head>", `${m[0].trim()}\n</head>`);
+            },
+        },
+    };
+}
+
 export default defineConfig({
-    plugins: [svelte(), preloadShellWhenSignedIn()],
+    plugins: [svelte(), preloadShellWhenSignedIn(), snapshotScriptLast()],
     server: {
         port: 5173,
         proxy: {
