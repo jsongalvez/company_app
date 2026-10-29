@@ -124,6 +124,8 @@ export const load = {
     rates: (branchId: string) => L(`rates:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/rates", b(branchId)))),
     delegates: (branchId: string) => L(`deleg:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/delegates", b(branchId)))),
     myHistory: (from: string, to: string) => L(`me:history:${from}:${to}`, () => ok(api.GET("/api/me/history", { params: { query: { from, to } } }))),
+    audit: (tableName: string, recordId: string) =>
+        L(`audit:${tableName}:${recordId}`, () => ok(api.GET("/api/audit-log", { params: { query: { tableName, recordId } } }))),
     auditTables: () => L(`audit:tables`, () => ok(api.GET("/api/audit-log/tables"))),
     auditFlagged: () => L(`audit:flagged`, () => ok(api.GET("/api/audit-log/flagged"))),
 };

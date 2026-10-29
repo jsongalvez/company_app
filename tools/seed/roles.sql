@@ -43,3 +43,23 @@ INSERT INTO branch_inventory (branch_id, product_id, current_stock, unit_price, 
 SELECT b.id, p.id, 50, 100, 10
 FROM branch b, p
 WHERE b.id::text LIKE '00000000-0000-4000-8000-0000000001%';
+
+-- A remitted day three business days back at the Practitioner Branch, with one session, for
+-- branch-edit.e2e.ts: a member sees no change controls on a remitted day.
+WITH c AS (
+  INSERT INTO client (first_name, last_name, gender, age)
+  VALUES ('Remit', 'Dayclient', 'F', 40) RETURNING id
+), d AS (
+  INSERT INTO branch_day (branch_id, date, status)
+  VALUES ('00000000-0000-4000-8000-000000000105',
+          ((now() AT TIME ZONE 'Asia/Manila') - interval '4 hours')::date - 3, 'REMITTED')
+  ON CONFLICT (branch_id, date) DO UPDATE SET status = 'REMITTED'
+  RETURNING id
+)
+INSERT INTO session (client_id, branch_day_id, session_type, is_walk_in, base_price, final_price)
+SELECT c.id, d.id, 'REGULAR', true, 500, 500 FROM c, d;
+
+-- Yesterday at the Practitioner Branch, so branch-edit.e2e.ts can add and fix an earlier day's expense.
+INSERT INTO branch_day (branch_id, date)
+VALUES ('00000000-0000-4000-8000-000000000105', ((now() AT TIME ZONE 'Asia/Manila') - interval '4 hours')::date - 1)
+ON CONFLICT (branch_id, date) DO NOTHING;

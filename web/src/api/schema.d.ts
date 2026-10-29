@@ -2989,6 +2989,8 @@ export interface components {
             concerns?: components["schemas"]["ConcernResponse"][];
             requestedPractitionerName?: string | null;
             branchId?: string;
+            /** @enum {string|null} */
+            dayStatus?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN" | null;
         };
         PromoteConcernRequest: {
             id: string;

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import History from "../components/History.svelte";
     import { askReason, keepReason, lastReason } from "../lib/ask.svelte";
     import { api, ok, uuid, type S } from "../api/client";
     import { app, can } from "../lib/app.svelte";
@@ -74,8 +75,20 @@
     });
 
     const closed = $derived(status !== undefined && status !== "OPEN");
-    const edit = $derived(closed ? can("EDIT_PAST_DAY") : can("EDIT_BRANCH_DATA"));
+    /** Branch members change expenses until the day is remitted; pay and shares on a closed day stay with past-day rights. */
+    const pastRights = $derived(can("EDIT_PAST_DAY"));
+    const edit = $derived(status === "REMITTED" ? pastRights : can("EDIT_BRANCH_DATA"));
     const pay = $derived(can("ASSIGN_COMPENSATION"));
+    const payEdit = $derived(pay && (!closed || pastRights));
+    /** The expense whose change history is open, one at a time. */
+    let historyOf = $state<string | null>(null);
+    // Fetch before opening, so the row opens on its history instead of a Loading line.
+    async function openHistory(id: string) {
+        if (historyOf === id) return void (historyOf = null);
+        const l = load.audit("expense", id);
+        await fetchCached(l.key, l.fn).catch(() => undefined);
+        historyOf = id;
+    }
     // Closed days need a reason for every change. Forms show a reason field; one-tap actions ask for it.
     let reason = $state("");
     function r() {
@@ -89,7 +102,7 @@
     function refresh(...changed: ("exp" | "comp" | "allow" | "split" | "summary")[]) {
         const lists = { exp, comp, allow, split, summary };
         const keys = { exp: `exp:${dayId}`, comp: `comp:${dayId}`, allow: `allow:${dayId}`, split: `split:${dayId}`, summary: `dsum:${bid}:${date}` };
-        invalidate(...changed.map((c) => keys[c]));
+        invalidate(...changed.map((c) => keys[c]), ...(changed.includes("exp") ? ["audit:expense:"] : []));
         for (const c of changed) lists[c].refresh();
     }
 
@@ -341,28 +354,28 @@
             <State q={exp} empty={!!exp.data && expenses.length === 0} emptyText="No expenses." />
             {#if expenses.length}
                 <table class="grid">
-                    <thead
-                        ><tr
-                            ><th>Category</th><th>Notes</th><th class="num">Amount</th>{#if edit}<th></th>{/if}</tr
-                        ></thead
-                    >
+                    <thead><tr><th>Category</th><th>Notes</th><th class="num">Amount</th><th></th></tr></thead>
                     <tbody>
                         {#each expenses as e (e.id)}
                             <tr class:struck={!!e.deletedAt} title={e.deletedAt ? `Deleted ${dateTime(e.deletedAt)}: ${e.deletedReason ?? ""}` : ""}>
                                 <td>{label(e.category)}</td>
                                 <td class="wrap muted">{e.notes ?? ""}</td>
                                 <td class="num">{peso(e.amount)}</td>
-                                {#if edit}
-                                    <td class="right nowrap">
+                                <td class="right nowrap">
+                                    <button class="sm" class:primary={historyOf === e.id} onclick={() => openHistory(e.id)}>History</button>
+                                    {#if edit}
                                         {#if e.deletedAt}
                                             <button class="sm" onclick={() => restoreExpense(e)}>Restore</button>
                                         {:else}
                                             <button class="sm" onclick={() => openExpense(e)}>Edit</button>
                                             <button class="sm" onclick={() => deleteExpense(e)} aria-label="Delete">×</button>
                                         {/if}
-                                    </td>
-                                {/if}
+                                    {/if}
+                                </td>
                             </tr>
+                            {#if historyOf === e.id}
+                                <tr><td colspan="4"><History table="expense" id={e.id} start /></td></tr>
+                            {/if}
                         {/each}
                     </tbody>
                 </table>
@@ -375,14 +388,14 @@
                     <h2>Pay</h2>
                     <span class="faint">{peso(sum((comp.data ?? []).map((c) => c.amount)))}</span>
                     <span class="spacer"></span>
-                    {#if pay}<button class="sm primary" onclick={() => openComp(null)}>Add</button>{/if}
+                    {#if payEdit}<button class="sm primary" onclick={() => openComp(null)}>Add</button>{/if}
                 </header>
                 <State q={comp} empty={!!comp.data && comp.data.length === 0} emptyText="No pay added for this day." />
                 {#if comp.data?.length}
                     <table class="grid">
                         <thead
                             ><tr
-                                ><th>Person</th><th>Note</th><th class="num">Amount</th>{#if pay}<th></th>{/if}</tr
+                                ><th>Person</th><th>Note</th><th class="num">Amount</th>{#if payEdit}<th></th>{/if}</tr
                             ></thead
                         >
                         <tbody>
@@ -395,7 +408,7 @@
                                     >
                                     <td class="wrap muted">{c.note ?? ""}</td>
                                     <td class="num">{peso(c.amount)}</td>
-                                    {#if pay}<td class="right"><button class="sm" onclick={() => openComp(c)}>Edit</button></td>{/if}
+                                    {#if payEdit}<td class="right"><button class="sm" onclick={() => openComp(c)}>Edit</button></td>{/if}
                                 </tr>
                             {/each}
                         </tbody>
@@ -408,7 +421,8 @@
                     <h2>Allowances</h2>
                     <span class="faint">{peso(sum((allow.data ?? []).map((a) => a.amount)))}</span>
                     <span class="spacer"></span>
-                    {#if pay}<button class="sm primary" onclick={() => ((aUser = ""), (aAmount = ""), startReason(), aa.reset(), (aOpen = true))}>Add</button
+                    {#if payEdit}<button class="sm primary" onclick={() => ((aUser = ""), (aAmount = ""), startReason(), aa.reset(), (aOpen = true))}
+                            >Add</button
                         >{/if}
                 </header>
                 <State q={allow} empty={!!allow.data && allow.data.length === 0} emptyText="No allowances." />
@@ -428,7 +442,7 @@
             <header>
                 <h2>Commission share</h2>
                 <span class="spacer"></span>
-                {#if closed && edit}<button class="sm" onclick={recalc} title="Work the shares out again from this day's sales and clock-ins"
+                {#if closed && pastRights}<button class="sm" onclick={recalc} title="Work the shares out again from this day's sales and clock-ins"
                         >Update shares</button
                     >{/if}
             </header>
@@ -456,7 +470,9 @@
         </label>
         <label class="field"><span class="req">Amount</span><input class="num" inputmode="decimal" bind:value={eAmount} required /></label>
         <label class="field wide">Notes<input bind:value={eNotes} /></label>
-        {#if closed}<label class="field wide"><span class="req">Reason for change</span><input bind:value={reason} required /></label>{/if}
+        {#if closed && (eEdit || status === "REMITTED")}<label class="field wide"
+                ><span class="req">Reason for change</span><input bind:value={reason} required /></label
+            >{/if}
     </div>
 </Dialog>
 

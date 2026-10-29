@@ -1,27 +1,36 @@
 <script lang="ts">
     import { untrack } from "svelte";
-    import { api, ok } from "../api/client";
-    import { Query } from "../lib/cache.svelte";
+    import { type S } from "../api/client";
+    import { Query, fetchCached } from "../lib/cache.svelte";
+    import { load } from "../lib/data";
     import { dateTime, label, changeText } from "../lib/format";
     import State from "./State.svelte";
 
     let { table, id, start = false }: { table: string; id: string; start?: boolean } = $props();
     let shown = $state(untrack(() => start));
-    const key = $derived(`audit:${table}:${id}`);
-    const q = new Query<Awaited<ReturnType<typeof get>>>("audit:none", async () => []);
-    function get(tableName: string, recordId: string) {
-        return ok(api.GET("/api/audit-log", { params: { query: { tableName, recordId } } }));
-    }
+    let opening = $state(false);
+    const q = new Query<S["AuditLogEntryResponse"][]>();
     $effect(() => {
-        if (shown) q.load(key, () => get(table, id));
+        if (!shown) return;
+        const l = load.audit(table, id);
+        q.load(l.key, l.fn);
     });
+    // Fetch before opening, so the panel opens on its rows instead of a Loading line.
+    async function toggle() {
+        if (shown) return void (shown = false);
+        const l = load.audit(table, id);
+        opening = true;
+        await fetchCached(l.key, l.fn).catch(() => undefined);
+        opening = false;
+        shown = true;
+    }
 </script>
 
 <section class="panel">
     <header>
         <h2>Change history</h2>
         <span class="spacer"></span>
-        <button class="sm" onclick={() => (shown = !shown)}>{shown ? "Hide" : "Show"}</button>
+        <button class="sm" disabled={opening} onclick={toggle}>{shown ? "Hide" : "Show"}</button>
     </header>
     {#if shown}
         <State {q} empty={!!q.data && q.data.length === 0} emptyText="No changes recorded." />

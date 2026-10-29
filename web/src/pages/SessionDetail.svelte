@@ -57,9 +57,12 @@
         });
     });
     const voided = $derived(s?.isVoided ?? false);
-    const dayStatus = $derived(isToday ? app.today?.status : "PAST");
-    const edit = $derived(can("EDIT_BRANCH_DATA") || can("EDIT_PAST_DAY"));
-    const correct = $derived(can("EDIT_PAST_DAY"));
+    const dayStatus = $derived(s?.dayStatus ?? (isToday ? app.today?.status : "PAST"));
+    /** A remitted day takes changes only from those who may change remitted days. */
+    const locked = $derived(dayStatus === "REMITTED" && !can("EDIT_PAST_DAY"));
+    const edit = $derived(!locked && (can("EDIT_BRANCH_DATA") || can("EDIT_PAST_DAY")));
+    /** Branch members void and correct marks; relief does not. */
+    const correct = $derived(!locked && can("VOID_SESSION"));
     const needReason = $derived(dayStatus !== "OPEN");
     // Past days need a reason for every change: ask for it when the change is made.
     // Gives "" when none is needed, null when the person cancels.
@@ -299,7 +302,7 @@
 <PageHead title={client.data ? clientName(client.data) : "Session"} sub={s ? `${label(s.sessionType)} · ${dateTime(s.bookedAt)}` : ""}>
     <button onclick={() => goBack()} title="Back to the previous page">‹ Back</button>
     {#if s && edit && !voided}<button onclick={() => (saleOpen = true)}>Product sale</button>{/if}
-    {#if s && can("VOID_SESSION")}
+    {#if s && correct}
         <button class="danger" onclick={() => ((voidReason = ""), va.reset(), (voidOpen = true))}>{voided ? "Restore session" : "Void session"}</button>
     {/if}
 </PageHead>
