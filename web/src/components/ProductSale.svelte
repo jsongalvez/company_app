@@ -4,10 +4,21 @@
     import { fetchCached, invalidate, peek } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
-    import { peso } from "../lib/format";
+    import { peso, shortDay } from "../lib/format";
     import Dialog from "./Dialog.svelte";
 
-    let { open = $bindable(false), onsaved, sessionId = null }: { open?: boolean; onsaved: () => void; sessionId?: string | null } = $props();
+    let {
+        open = $bindable(false),
+        onsaved,
+        sessionId = null,
+        day = null,
+    }: {
+        open?: boolean;
+        onsaved: () => void;
+        sessionId?: string | null;
+        /** An earlier day to add the sale to; null is today. */
+        day?: { id: string; date: string } | null;
+    } = $props();
 
     const a = new Action();
     let inv = $state<S["BranchInventoryResponse"][]>([]);
@@ -28,11 +39,21 @@
         const seen = peek<S["BranchInventoryResponse"][]>(l.key);
         if (seen) inStock(seen);
         fetchCached(l.key, l.fn, true).then(inStock, () => {});
-        const d = load.dashboard(app.branchId);
-        const live = (r: S["DashboardResponse"]) => (sessions = r.sessions.filter((s) => !s.isVoided));
-        const day = peek<S["DashboardResponse"]>(d.key);
-        if (day) live(day);
-        fetchCached(d.key, d.fn).then(live, () => {});
+        const live = (r: S["DashboardSessionResponse"][]) => (sessions = r.filter((s) => !s.isVoided));
+        if (day) {
+            const d = load.daySessions(app.branchId, day.date);
+            const seen = peek<S["DashboardSessionResponse"][]>(d.key);
+            if (seen) live(seen);
+            fetchCached(d.key, d.fn).then(live, () => {});
+        } else {
+            const d = load.dashboard(app.branchId);
+            const seen = peek<S["DashboardResponse"]>(d.key);
+            if (seen) live(seen.sessions);
+            fetchCached(d.key, d.fn).then(
+                (r) => live(r.sessions),
+                () => {},
+            );
+        }
     });
 
     const item = $derived(inv.find((i) => i.productId === productId));
@@ -41,13 +62,14 @@
     async function save() {
         await a.run(async () => {
             if (!item) throw new Error("Choose a product");
-            if (!app.today) throw new Error("Today isn't open at this branch yet. Try again in a moment.");
+            const dayId = day ? day.id : app.today?.branchDayId;
+            if (!dayId) throw new Error("Today isn't open at this branch yet. Try again in a moment.");
             const s = sessions.find((x) => x.id === linkSession);
             await ok(
                 api.POST("/api/product-sales", {
                     body: {
                         id: uuid(),
-                        branchDayId: app.today.branchDayId,
+                        branchDayId: dayId,
                         sessionId: s?.id ?? null,
                         clientId: null,
                         isWalkIn: !s,
@@ -56,14 +78,14 @@
                     },
                 }),
             );
-            invalidate(`inv:${app.branchId}`, `dash:${app.branchId}`, "moves:");
+            invalidate(`inv:${app.branchId}`, `dash:${app.branchId}`, "dsess:", "dsum:", "moves:");
             open = false;
             onsaved();
         }, "Sale recorded");
     }
 </script>
 
-<Dialog bind:open title="Product sale" onsubmit={save} submitText="Record sale" busy={a.busy} error={a.error}>
+<Dialog bind:open title={day ? `Product sale on ${shortDay(day.date)}` : "Product sale"} onsubmit={save} submitText="Record sale" busy={a.busy} error={a.error}>
     <div class="form-grid">
         <label class="field wide"
             ><span class="req">Product</span>

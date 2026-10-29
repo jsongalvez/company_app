@@ -2946,6 +2946,7 @@ export interface components {
             otherConcerns?: string | null;
             nextAppointmentDate?: string | null;
             reason?: string | null;
+            date?: string | null;
             practitioners?: components["schemas"]["AddPractitionerRequest"][];
             concernIds?: string[];
             newConcerns?: {

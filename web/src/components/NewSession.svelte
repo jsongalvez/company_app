@@ -19,7 +19,18 @@
         onsaved,
         startClient = null,
         booking = null,
-    }: { open?: boolean; onsaved: () => void; startClient?: S["ClientResponse"] | null; booking?: Booking | null } = $props();
+        date = null,
+        dayId = null,
+    }: {
+        open?: boolean;
+        onsaved: () => void;
+        startClient?: S["ClientResponse"] | null;
+        booking?: Booking | null;
+        /** An earlier day to add the session to; null is today. */
+        date?: string | null;
+        /** That earlier day's row, when it has one. */
+        dayId?: string | null;
+    } = $props();
 
     const a = new Action();
     let client = $state<S["ClientResponse"] | null>(null);
@@ -63,8 +74,8 @@
         );
         a.reset();
         // Who clocked in today is readable only with the pay permission; the branch's members cover the rest.
-        const dayId = can("ASSIGN_COMPENSATION") ? app.today?.branchDayId : undefined;
-        const l = dayId ? load.dayUsers(dayId) : null;
+        const usersOf = can("ASSIGN_COMPENSATION") ? (date ? dayId : app.today?.branchDayId) : undefined;
+        const l = usersOf ? load.dayUsers(usersOf) : null;
         const m = load.members(app.branchId);
         Promise.all([l ? fetchCached(l.key, l.fn).catch(() => []) : Promise.resolve([]), fetchCached(m.key, m.fn).catch(() => [])]).then(([du, mem]) => {
             const map = new Map<string, string>();
@@ -157,6 +168,7 @@
                             remarks: remarks.trim() || null,
                             otherConcerns: null,
                             nextAppointmentDate: nextDate || null,
+                            date: date ?? undefined,
                             practitioners: practitioners.map((practitionerId) => ({ id: uuid(), practitionerId })),
                             concernIds: [...ids],
                             newConcerns: fresh.map((label) => ({ id: uuid(), label })),
@@ -179,7 +191,7 @@
                         : null,
                 ]);
                 invalidate("bookings:");
-                invalidate("dash:", "clients:", `client:${c.id}`, `session:${s.id}`);
+                invalidate("dash:", "dsess:", "dsum:", "clients:", `client:${c.id}`, `session:${s.id}`);
                 open = false;
                 onsaved();
             },
@@ -198,7 +210,7 @@
 
 <Dialog
     bind:open
-    title={creating ? "New client" : "New session"}
+    title={creating ? "New client" : date ? `New session on ${shortDay(date)}` : "New session"}
     width={620}
     onsubmit={save}
     submitText={creating ? "Create client" : "Add session"}

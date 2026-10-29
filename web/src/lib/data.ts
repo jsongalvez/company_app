@@ -48,6 +48,12 @@ export const load = {
             const t = await todayScreen(branchId);
             return part(t.dashboard, t.dashboardRefusal);
         }),
+    /** A day's row at a branch (its id and status), or null when nothing was recorded that day. */
+    branchDay: (branchId: string, date: string) =>
+        L(`bday:${branchId}:${date}`, async () => {
+            const r = await ok(api.GET("/api/branches/{branchId}/remittance-days", { params: { path: { branchId }, query: { from: date, to: date } } }));
+            return r[0] ?? null;
+        }),
     daySessions: (branchId: string, date: string) =>
         L(`dsess:${branchId}:${date}`, () => ok(api.GET("/api/branches/{branchId}/sessions", { params: { path: { branchId }, query: { date } } }))),
     roster: (branchId: string) => L(`roster:${branchId}:${operationalDate()}`, async () => part((await todayScreen(branchId)).roster)),

@@ -4,8 +4,8 @@
     import { Query, invalidate, seed } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
-    import { go, viewSetting } from "../lib/router.svelte";
-    import { peso, time, label, sum, day, clientName } from "../lib/format";
+    import { go, route, viewSetting } from "../lib/router.svelte";
+    import { peso, time, label, sum, day, clientName, operationalDate, addDays } from "../lib/format";
     import { allowedTargets, statusClass, type Status } from "../lib/rules";
     import { heldMark, outbox, pendingSessions, sessionsSeen } from "../lib/outbox.svelte";
     import { findLocal } from "../lib/clientdir.svelte";
@@ -20,6 +20,50 @@
     import ProductSale from "../components/ProductSale.svelte";
 
     const bid = $derived(app.branchId);
+    // Staff enter yesterday's sessions and sales the next day: ◀ opens an earlier day to add to.
+    const date = $derived(route.current.query.get("date") ?? operationalDate());
+    const isToday = $derived(date === operationalDate());
+    function setDate(d: string) {
+        go("/today", { ...Object.fromEntries(route.current.query), date: d === operationalDate() ? null : d });
+    }
+    /** An earlier day's row: its id (none if nothing was recorded) and whether it is remitted. */
+    const pastDay = new Query<S["RemittanceDayPickerEntryResponse"] | null>();
+    const pastList = new Query<S["DashboardSessionResponse"][]>();
+    const pastSum = new Query<S["DailySalesSummaryResponse"]>();
+    const pastReads = (b: string, d: string) => [load.branchDay(b, d), load.daySessions(b, d), load.dailySummary(b, d)] as const;
+    $effect(() => {
+        if (isToday) return;
+        const [dl, sl, ml] = pastReads(bid, date);
+        pastDay.load(dl.key, dl.fn);
+        pastList.load(sl.key, sl.fn);
+        pastSum.load(ml.key, ml.fn);
+    });
+    /** Start reading a day as the finger goes down on ◀ or ▶, ahead of the tap. */
+    function prefetch(d: string) {
+        if (d === operationalDate()) return;
+        for (const l of pastReads(bid, d)) fetchCached(l.key, l.fn as () => Promise<unknown>).catch(() => {});
+    }
+    // Switching days keeps the last list up, dimmed, until the new day's answers: no "Loading…" flash.
+    let heldRows = $state<S["DashboardSessionResponse"][]>();
+    let heldSum = $state<S["DailySalesSummaryResponse"]>();
+    $effect(() => {
+        const rows = isToday ? dash.data?.sessions : pastList.data;
+        if (rows) heldRows = rows;
+        if (!isToday && pastSum.data) heldSum = pastSum.data;
+    });
+    // With nothing to hold, a quick answer still shows no "Loading…": it waits 300ms first.
+    let late = $state(false);
+    $effect(() => {
+        void date;
+        late = false;
+        const t = setTimeout(() => (late = true), 300);
+        return () => clearTimeout(t);
+    });
+    const switching = $derived(!isToday && pastList.loading && !!heldRows);
+    const pastSumShown = $derived(pastSum.data ?? (pastSum.loading ? heldSum : undefined));
+    const remitted = $derived(!isToday && pastDay.data?.status === "REMITTED");
+    /** The day a sale is added to: today's, or the earlier day's when it has a row. */
+    const saleDay = $derived(isToday ? app.today?.branchDayId : pastDay.data?.id);
     const dash = new Query(load.dashboard(app.branchId).key, load.dashboard(app.branchId).fn);
     type Roster = Awaited<ReturnType<ReturnType<typeof load.roster>["fn"]>>;
     const roster = new Query<Roster>();
@@ -51,6 +95,7 @@
         if (dash.data) sessionsSeen(new Set(dash.data.sessions.map((s) => s.id)));
     });
     const sessions = $derived.by(() => {
+        if (!isToday) return (pastList.data ?? (switching ? heldRows : undefined) ?? []).map((s) => ({ ...s, held: false, unsent: false }));
         void outbox.items.length;
         const fromServer = (dash.data?.sessions ?? []).map((s) => {
             const h = heldMark(s.id);
@@ -113,6 +158,14 @@
 
     /** After a save or a mark: the lists changed. The day's own status (open, past, remitted) did not. */
     function reloadLists() {
+        if (!isToday) {
+            // The first add to a day with nothing recorded makes its row, which a sale needs.
+            invalidate(`bday:${bid}:${date}`, `dsess:${bid}:${date}`, `dsum:${bid}:${date}`);
+            pastDay.refresh();
+            pastList.refresh();
+            pastSum.refresh();
+            return;
+        }
         invalidate(`dash:${bid}`, `roster:${bid}`, `bookings:${bid}`);
         dash.refresh();
         roster.refresh();
@@ -143,7 +196,7 @@
         if (!okd) return;
         // The answer is the session as saved: show it without reading the lists again (a round trip on a weak signal).
         const r = saved as Partial<S["SessionResponse"]> | undefined;
-        if (r?.id === s.id && r.sessionStatus && dash.data) {
+        if (isToday && r?.id === s.id && r.sessionStatus && dash.data) {
             const next = {
                 ...dash.data,
                 sessions: dash.data.sessions.map((x) => (x.id === s.id ? { ...x, sessionStatus: r.sessionStatus!, version: r.version ?? x.version } : x)),
@@ -197,12 +250,16 @@
         booked.load(bk.key, bk.fn, true);
     }
     let saleOpen = $state(false);
+    /** Adding needs a clock-in only today; an earlier day takes adds until it is remitted. */
+    const canAdd = $derived(edit && (isToday ? onDutyAt(bid) : !remitted || correct));
+    /** Changing what is on an earlier day is for coordinators. */
+    const canChange = $derived(edit && (isToday || correct));
 
     // Keyboard: N = new session, R = refresh (when not typing).
     function onKey(e: KeyboardEvent) {
         const t = e.target as HTMLElement;
         if (e.ctrlKey || e.metaKey || e.altKey || /INPUT|SELECT|TEXTAREA/.test(t.tagName) || document.querySelector("dialog[open]")) return;
-        if (e.key === "n" && edit && onDutyAt(bid)) {
+        if (e.key === "n" && canAdd) {
             e.preventDefault();
             openNew();
         } else if (e.key === "r") refresh();
@@ -212,16 +269,23 @@
 <svelte:window onkeydown={onKey} />
 
 <PageHead title="Sessions">
+    <span class="daynav">
+        <button onpointerdown={() => prefetch(addDays(date, -1))} onclick={() => setDate(addDays(date, -1))} aria-label="Previous day">◀</button>
+        <input type="date" value={date} max={operationalDate()} onchange={(e) => setDate(e.currentTarget.value || operationalDate())} />
+        <button onpointerdown={() => prefetch(addDays(date, 1))} onclick={() => setDate(addDays(date, 1))} disabled={isToday} aria-label="Next day">▶</button>
+        {#if !isToday}<button onclick={() => setDate(operationalDate())}>Today</button>{/if}
+    </span>
     <button onclick={refresh} title="Refresh (R)">Refresh</button>
-    {#if correct}<a class="btn" href="#/finance" title="Earlier days' sessions are on Expenses & pay; use ‹ to go back a day">Past days</a>{/if}
-    {#if edit}<button onclick={() => (bookOpen = true)} title="Book a client for a later day">Book a visit</button>{/if}
-    {#if edit}<button onclick={() => (saleOpen = true)}>Product sale</button>{/if}
-    {#if edit && onDutyAt(bid)}
+    {#if edit && isToday}<button onclick={() => (bookOpen = true)} title="Book a client for a later day">Book a visit</button>{/if}
+    {#if edit && saleDay && (isToday || canAdd)}<button onclick={() => (saleOpen = true)}>Product sale</button>{/if}
+    {#if canAdd}
         <button class="primary" onclick={openNew} title="New session (N)">New session</button>
     {/if}
 </PageHead>
 
-{#if app.today && app.today.status !== "OPEN"}
+{#if remitted}
+    <div class="notice warn mb">{day(date)} is remitted. Changes need coordinator rights and a reason.</div>
+{:else if isToday && app.today && app.today.status !== "OPEN"}
     <div class="notice warn mb">
         This day is {label(app.today.status)}. Edits need coordinator rights{app.today.status === "REMITTED" ? " and a reason" : ""}.
     </div>
@@ -245,15 +309,20 @@
     </div>
     <div>
         <div class="k">Session income</div>
-        <div class="v" use:changed={dash.data && sum(completed.map((s) => s.finalPrice))}>{peso(sum(completed.map((s) => s.finalPrice)))}</div>
+        <div class="v" use:changed={(isToday ? dash.data : pastList.data) && sum(completed.map((s) => s.finalPrice))}>
+            {peso(sum(completed.map((s) => s.finalPrice)))}
+        </div>
     </div>
     <div>
         <div class="k">Product commission</div>
-        <div class="v" use:changed={dash.data?.commission.amount}>{peso(dash.data?.commission.amount ?? 0)}</div>
+        <div class="v" use:changed={isToday ? dash.data?.commission.amount : pastSumShown?.totalCommission}>
+            {peso((isToday ? dash.data?.commission.amount : pastSumShown?.totalCommission) ?? 0)}
+        </div>
     </div>
     <div>
         <div class="k">Product sales</div>
-        <div class="v" use:changed={dash.data?.commission.productSalesCount}>{dash.data?.commission.productSalesCount ?? 0}</div>
+        {#if isToday}<div class="v" use:changed={dash.data?.commission.productSalesCount}>{dash.data?.commission.productSalesCount ?? 0}</div>
+        {:else}<div class="v" use:changed={pastSumShown?.totalProductSales}>{peso(pastSumShown?.totalProductSales ?? 0)}</div>{/if}
     </div>
 </div>
 
@@ -269,13 +338,13 @@
             </div>
         </div>
 
-        {#if edit && !needClockIn && !onDutyAt(bid)}
+        {#if isToday && edit && !needClockIn && !onDutyAt(bid)}
             <div class="notice row mb">
                 <span class="grow">Clock in at {branchName(bid)} to add new sessions.</span>
                 {#if !app.shift && app.branches.some((b) => b.branchId === bid)}<button class="primary" onclick={() => clockIn(bid)}>Clock in</button>{/if}
             </div>
         {/if}
-        {#if needClockIn}
+        {#if isToday && needClockIn}
             <div class="notice row">
                 {#if app.shift && app.shift.branchId !== bid}
                     <span class="grow">You're clocked in at {app.shift.branchName}. Clock out there before clocking in here.</span>
@@ -288,14 +357,21 @@
             </div>
         {:else}
             <State
-                q={dash}
-                empty={!!dash.data && shown.length === 0}
-                emptyText={sessions.length ? "No sessions match this filter." : "No sessions yet today."}
+                q={isToday
+                    ? dash
+                    : {
+                          loading: pastList.loading && !switching && late,
+                          waiting: pastList.waiting && !heldRows,
+                          error: pastList.error,
+                          refresh: () => pastList.refresh(),
+                      }}
+                empty={!!(isToday ? dash.data : pastList.data) && shown.length === 0}
+                emptyText={sessions.length ? "No sessions match this filter." : isToday ? "No sessions yet today." : `No sessions on ${day(date)}.`}
             />
         {/if}
 
         {#if shown.length}
-            <div class="table-wrap">
+            <div class="table-wrap" class:dim={switching}>
                 <table class="grid stack">
                     <thead>
                         <tr>
@@ -307,7 +383,7 @@
                             <th>Illnesses</th>
                             <th class="num">Price</th>
                             <th>Next visit</th>
-                            {#if edit}<th></th>{/if}
+                            {#if canChange}<th></th>{/if}
                         </tr>
                     </thead>
                     <tbody>
@@ -337,7 +413,7 @@
                                     {#if s.finalPrice !== s.basePrice}<span class="faint" title="List price {peso(s.basePrice)}">*</span>{/if}
                                 </td>
                                 <td class="muted hide-sm">{s.nextAppointmentDate ? day(s.nextAppointmentDate) : ""}</td>
-                                {#if edit}
+                                {#if canChange}
                                     <td class="acts full" onclick={(e) => e.stopPropagation()}>
                                         {#if s.unsent}<span class="faint">Sends when back online</span>
                                         {:else if !s.isVoided}
@@ -357,7 +433,7 @@
                             <tr>
                                 <td colspan="6">{live.length} sessions, {completed.length} done</td>
                                 <td class="num">{peso(sum(completed.map((s) => s.finalPrice)))}</td>
-                                <td colspan={edit ? 2 : 1}></td>
+                                <td colspan={canChange ? 2 : 1}></td>
                             </tr>
                         </tfoot>
                     {/if}
@@ -366,60 +442,71 @@
         {/if}
     </section>
 
-    <aside class="panel roster">
-        {#if member}
-            <header>
-                <h2>Who's clocked in</h2>
-                <span class="spacer"></span><span class="faint" use:changed={rosterShown?.filter((m) => m.present).length}
-                    >{rosterShown?.filter((m) => m.present).length ?? 0} of {rosterShown?.length ?? 0} in</span
-                >
-            </header>
-            <State q={roster} empty={!!roster.data && roster.data.length === 0} emptyText="No members assigned." />
-            {#if roster.data?.length}
-                <table class="grid">
-                    <tbody>
-                        {#each rosterShown ?? [] as m, i (m.assignmentId)}
-                            <tr>
-                                <td class="faint num slot">{i + 1}</td>
-                                <td class="ellipsis who" title={m.displayName}
-                                    >{m.displayName}{#if m.userId === app.me?.id}<span class="faint">&nbsp;(you)</span>{/if}</td
-                                >
-                                <td class="right nowrap">
-                                    {#if !edit}
-                                        {#if m.present}<span class="mark ok">Clocked in</span>{:else}<span class="faint">Not in</span>{/if}
-                                    {:else}
-                                        <button
-                                            class="sm clockbtn"
-                                            class:ok={m.present}
-                                            onclick={() => setPresent(m, !m.present)}
-                                            aria-label="{m.present ? 'Clock out' : 'Clock in'} {m.displayName}">{m.present ? "Clock out" : "Clock in"}</button
-                                        >
-                                    {/if}
-                                </td>
-                            </tr>
-                        {/each}
-                    </tbody>
-                </table>
+    {#if isToday}<aside class="panel roster">
+            {#if member}
+                <header>
+                    <h2>Who's clocked in</h2>
+                    <span class="spacer"></span><span class="faint" use:changed={rosterShown?.filter((m) => m.present).length}
+                        >{rosterShown?.filter((m) => m.present).length ?? 0} of {rosterShown?.length ?? 0} in</span
+                    >
+                </header>
+                <State q={roster} empty={!!roster.data && roster.data.length === 0} emptyText="No members assigned." />
+                {#if roster.data?.length}
+                    <table class="grid">
+                        <tbody>
+                            {#each rosterShown ?? [] as m, i (m.assignmentId)}
+                                <tr>
+                                    <td class="faint num slot">{i + 1}</td>
+                                    <td class="ellipsis who" title={m.displayName}
+                                        >{m.displayName}{#if m.userId === app.me?.id}<span class="faint">&nbsp;(you)</span>{/if}</td
+                                    >
+                                    <td class="right nowrap">
+                                        {#if !edit}
+                                            {#if m.present}<span class="mark ok">Clocked in</span>{:else}<span class="faint">Not in</span>{/if}
+                                        {:else}
+                                            <button
+                                                class="sm clockbtn"
+                                                class:ok={m.present}
+                                                onclick={() => setPresent(m, !m.present)}
+                                                aria-label="{m.present ? 'Clock out' : 'Clock in'} {m.displayName}"
+                                                >{m.present ? "Clock out" : "Clock in"}</button
+                                            >
+                                        {/if}
+                                    </td>
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </table>
+                {/if}
             {/if}
-        {/if}
-        <header class:bk-head={member}>
-            <h2>Booked visits</h2>
-            <span class="spacer"></span><span class="faint">{booked.data?.length ?? 0}</span>
-        </header>
-        <State q={booked} empty={!!booked.data && booked.data.length === 0} emptyText="No visits booked." />
-        {#if booked.data?.length}
-            <Bookings list={booked.data} {edit} onstart={onDutyAt(bid) ? startFromBooking : undefined} onchanged={reloadBookings} />
-        {/if}
-    </aside>
+            <header class:bk-head={member}>
+                <h2>Booked visits</h2>
+                <span class="spacer"></span><span class="faint">{booked.data?.length ?? 0}</span>
+            </header>
+            <State q={booked} empty={!!booked.data && booked.data.length === 0} emptyText="No visits booked." />
+            {#if booked.data?.length}
+                <Bookings list={booked.data} {edit} onstart={onDutyAt(bid) ? startFromBooking : undefined} onchanged={reloadBookings} />
+            {/if}
+        </aside>{/if}
 </div>
 
-<NewSession bind:open={newOpen} {startClient} booking={startBooking} onsaved={() => (reloadLists(), reloadBookings())} />
+<NewSession
+    bind:open={newOpen}
+    {startClient}
+    booking={startBooking}
+    date={isToday ? null : date}
+    dayId={isToday ? null : (pastDay.data?.id ?? null)}
+    onsaved={() => (reloadLists(), reloadBookings())}
+/>
 <BookVisit bind:open={bookOpen} onsaved={reloadBookings} />
-<ProductSale bind:open={saleOpen} onsaved={reloadLists} />
+<ProductSale bind:open={saleOpen} onsaved={reloadLists} day={isToday ? null : { id: saleDay ?? "", date }} />
 
 <style>
     .mb {
         margin-bottom: 10px;
+    }
+    .dim {
+        opacity: 0.6;
     }
     .layout {
         display: flex;
