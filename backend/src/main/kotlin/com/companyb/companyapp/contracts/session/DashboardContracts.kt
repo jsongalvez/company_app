@@ -40,6 +40,8 @@ data class DashboardSessionResponse(
      * hides the changes the day refuses; day lists leave it null, their page holds the day.
      */
     val dayStatus: DayStatus? = null,
+    /** The single-session read's day row, so its page lists and adds the session's product sales there. */
+    val branchDayId: String? = null,
 )
 
 @Serializable

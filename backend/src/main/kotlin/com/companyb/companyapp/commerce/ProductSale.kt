@@ -25,6 +25,10 @@ data class ProductSale(
     val totalAmountAtTime: BigDecimal,
     val commissionAmountAtTime: BigDecimal,
     val soldAt: OffsetDateTime,
+    val deletedBy: UUID? = null,
+    val deletedAt: OffsetDateTime? = null,
+    val deletedReason: String? = null,
+    val version: Int = 1,
 )
 
 private const val PRICE_PRECISION = 10
@@ -46,6 +50,10 @@ internal object ProductSaleTable : Table("product_sale") {
     val totalAmountAtTime = decimal("total_amount_at_time", PRICE_PRECISION, PRICE_SCALE)
     val commissionAmountAtTime = decimal("commission_amount_at_time", COMMISSION_PRECISION, COMMISSION_SCALE)
     val soldAt = timestampWithTimeZone("sold_at").defaultExpression(CurrentTimestampWithTimeZone)
+    val deletedBy = javaUUID("deleted_by").references(AppUserTable.id).nullable()
+    val deletedAt = timestampWithTimeZone("deleted_at").nullable()
+    val deletedReason = text("deleted_reason").nullable()
+    val version = integer("version").default(1)
 
     override val primaryKey = PrimaryKey(id)
 
@@ -64,5 +72,9 @@ internal object ProductSaleTable : Table("product_sale") {
             "totalAmountAtTime" to entity.totalAmountAtTime.toPlainString(),
             "commissionAmountAtTime" to entity.commissionAmountAtTime.toPlainString(),
             "soldAt" to entity.soldAt.toString(),
+            "deletedBy" to entity.deletedBy?.toString(),
+            "deletedAt" to entity.deletedAt?.toString(),
+            "deletedReason" to entity.deletedReason,
+            "version" to entity.version.toString(),
         )
 }

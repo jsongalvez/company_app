@@ -39,6 +39,30 @@ data class ProductSaleResponse(
     val totalAmountAtTime: String,
     val commissionAmountAtTime: String,
     val soldAt: String,
+    val deletedBy: String?,
+    val deletedAt: String?,
+    val deletedReason: String?,
+    val version: Int,
+)
+
+/** Owed #21: a sale's product or quantity changes; a past day needs [reason]. */
+@Serializable
+data class UpdateProductSaleRequest(
+    val productId: String,
+    val quantity: Int,
+    val expectedVersion: Int,
+    val reason: String? = null,
+)
+
+@Serializable
+data class DeleteProductSaleRequest(
+    val reason: String,
+    val expectedVersion: Int,
+)
+
+@Serializable
+data class RestoreProductSaleRequest(
+    val reason: String? = null,
 )
 
 @Serializable

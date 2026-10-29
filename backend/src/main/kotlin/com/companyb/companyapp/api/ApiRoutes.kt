@@ -139,6 +139,8 @@ object ApiRoutes {
     const val NOTIFICATION_READ_PATH = "$NOTIFICATIONS/{notificationId}/read"
     const val EXPENSE_PATH = "$EXPENSES/{expenseId}"
     const val EXPENSE_RESTORE_PATH = "$EXPENSE_PATH/restore"
+    const val PRODUCT_SALE_PATH = "$PRODUCT_SALES/{saleId}"
+    const val PRODUCT_SALE_RESTORE_PATH = "$PRODUCT_SALE_PATH/restore"
     const val COMPENSATION_PATH = "$COMPENSATION/{compensationId}"
     const val RELIEF_ACCESS_GRANT_PATH = "$RELIEF_ACCESS/{requestId}/grant"
     const val RELIEF_ACCESS_DENY_PATH = "$RELIEF_ACCESS/{requestId}/deny"

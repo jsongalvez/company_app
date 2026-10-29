@@ -3,18 +3,22 @@ package com.companyb.companyapp.commerce
 import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.session.ActiveSessionVoidsView
 import com.companyb.companyapp.session.SessionTable
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.util.UUID
 
@@ -41,6 +45,14 @@ data class RetryProductSaleParams(
     val productId: UUID,
     val quantity: Int,
     val handledBy: UUID,
+)
+
+/** What a sale charges per unit for a product, taken from the branch's price list or kept from the sale. */
+data class SalePrice(
+    val id: UUID,
+    val name: String,
+    val unitPrice: BigDecimal,
+    val commissionAmount: BigDecimal,
 )
 
 data class SellProductResult(
@@ -126,6 +138,98 @@ internal object ProductSaleRepository {
         params: RetryProductSaleParams,
     ): Boolean = existing.productId == params.productId && existing.quantity == params.quantity
 
+    /** A sale's new product and quantity, priced from [product]; the version guards a concurrent edit. */
+    fun changeInTransaction(
+        before: ProductSale,
+        product: SalePrice,
+        quantity: Int,
+        expectedVersion: Int,
+    ): ProductSale {
+        val updated =
+            ProductSaleTable.update({
+                (ProductSaleTable.id eq before.id) and
+                    (ProductSaleTable.version eq expectedVersion) and
+                    ProductSaleTable.deletedAt.isNull()
+            }) {
+                it[ProductSaleTable.productId] = product.id
+                it[ProductSaleTable.productName] = product.name
+                it[ProductSaleTable.quantity] = quantity
+                it[ProductSaleTable.unitPriceAtTime] = product.unitPrice
+                it[ProductSaleTable.totalAmountAtTime] = product.unitPrice * BigDecimal.valueOf(quantity.toLong())
+                it[ProductSaleTable.commissionAmountAtTime] = product.commissionAmount
+                it[ProductSaleTable.version] = expectedVersion + 1
+            }
+        if (updated == 0) throw VersionMismatchException(ProductSaleTable.tableName, before.id)
+        return findByIdInTransaction(before.id) ?: error("product sale missing after change for ${before.id}")
+    }
+
+    fun softDeleteInTransaction(
+        id: UUID,
+        callerId: UUID,
+        reason: String,
+        expectedVersion: Int,
+    ): ProductSale {
+        val updated =
+            ProductSaleTable.update({
+                (ProductSaleTable.id eq id) and
+                    (ProductSaleTable.version eq expectedVersion) and
+                    ProductSaleTable.deletedAt.isNull()
+            }) {
+                it[ProductSaleTable.deletedBy] = callerId
+                it[ProductSaleTable.deletedAt] = CurrentTimestampWithTimeZone
+                it[ProductSaleTable.deletedReason] = reason
+                it[ProductSaleTable.version] = expectedVersion + 1
+            }
+        if (updated == 0) throw VersionMismatchException(ProductSaleTable.tableName, id)
+        return findByIdInTransaction(id) ?: error("product sale missing after delete for $id")
+    }
+
+    /** Null when the sale was not deleted, so a lost double-restore race reads as "not deleted". */
+    fun restoreInTransaction(id: UUID): ProductSale? {
+        val updated =
+            ProductSaleTable.update({ (ProductSaleTable.id eq id) and ProductSaleTable.deletedAt.isNotNull() }) {
+                it[ProductSaleTable.deletedBy] = null
+                it[ProductSaleTable.deletedAt] = null
+                it[ProductSaleTable.deletedReason] = null
+            }
+        return if (updated == 0) null else findByIdInTransaction(id)
+    }
+
+    /**
+     * Stock the sale takes ([delta] < 0, a SALE) or gives back ([delta] > 0, an ADJUSTMENT); both
+     * name the sale so the stock sheet traces each change to it.
+     */
+    fun insertStockMoveInTransaction(
+        sale: ProductSale,
+        branchId: UUID,
+        productId: UUID,
+        delta: Int,
+        movedBy: UUID,
+    ) {
+        InventoryMovementTable.insert {
+            it[InventoryMovementTable.productId] = productId
+            it[InventoryMovementTable.productSaleId] = sale.id
+            it[InventoryMovementTable.branchId] = branchId
+            it[InventoryMovementTable.branchDayId] = sale.branchDayId
+            it[InventoryMovementTable.reason] =
+                if (delta < 0) InventoryMovementReason.SALE else InventoryMovementReason.ADJUSTMENT
+            it[InventoryMovementTable.quantityChange] = delta
+            it[InventoryMovementTable.movedBy] = movedBy
+            it[InventoryMovementTable.movedAt] = CurrentTimestampWithTimeZone
+            if (delta > 0) it[InventoryMovementTable.notes] = "Product sale changed or deleted"
+        }
+    }
+
+    /** The day's sales, deleted ones included so a list can show them dimmed with their reason. */
+    fun findByBranchDayId(branchDayId: UUID): List<ProductSale> =
+        transaction {
+            ProductSaleTable
+                .selectAll()
+                .where { ProductSaleTable.branchDayId eq branchDayId }
+                .orderBy(ProductSaleTable.soldAt to SortOrder.ASC, ProductSaleTable.id to SortOrder.ASC)
+                .map { it.toProductSale() }
+        }
+
     fun findById(id: UUID): ProductSale? =
         transaction {
             findByIdInTransaction(id)
@@ -151,6 +255,7 @@ internal object ProductSaleRepository {
             ).selectAll()
             .where {
                 (ProductSaleTable.branchDayId eq branchDayId) and
+                    ProductSaleTable.deletedAt.isNull() and
                     (ActiveSessionVoidsView.sessionId.isNull())
             }.map { it.toProductSale() }
 
@@ -177,5 +282,9 @@ internal object ProductSaleRepository {
             totalAmountAtTime = this[ProductSaleTable.totalAmountAtTime],
             commissionAmountAtTime = this[ProductSaleTable.commissionAmountAtTime],
             soldAt = this[ProductSaleTable.soldAt],
+            deletedBy = this[ProductSaleTable.deletedBy],
+            deletedAt = this[ProductSaleTable.deletedAt],
+            deletedReason = this[ProductSaleTable.deletedReason],
+            version = this[ProductSaleTable.version],
         )
 }

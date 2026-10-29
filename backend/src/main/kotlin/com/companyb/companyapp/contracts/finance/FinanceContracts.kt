@@ -25,7 +25,10 @@ enum class ExpenseCategory {
 @Serializable
 data class CreateExpenseRequest(
     val id: String,
-    val branchDayId: String,
+    /** The day's row; when the day has none yet, [branchId] and [date] (yyyy-MM-dd) name it instead. */
+    val branchDayId: String? = null,
+    val branchId: String? = null,
+    val date: String? = null,
     val amount: String,
     val category: ExpenseCategory,
     val notes: String? = null,

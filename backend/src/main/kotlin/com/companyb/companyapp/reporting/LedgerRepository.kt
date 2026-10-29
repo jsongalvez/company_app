@@ -277,7 +277,7 @@ internal object LedgerRepository {
             ProductSaleTable
                 .leftJoin(ActiveSessionVoidsView, { ProductSaleTable.sessionId }, { ActiveSessionVoidsView.sessionId })
                 .selectAll()
-                .where { ProductSaleTable.branchDayId inList dayIds }
+                .where { (ProductSaleTable.branchDayId inList dayIds) and ProductSaleTable.deletedAt.isNull() }
                 .orderBy(ProductSaleTable.soldAt to SortOrder.ASC)
                 .toList()
         val names = userNames(rows.map { it[ProductSaleTable.handledBy] })

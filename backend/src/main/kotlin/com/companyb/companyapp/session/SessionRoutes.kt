@@ -411,7 +411,10 @@ object SessionRoutes {
                         requestedPractitionerNames = data.requestedPractitionerNames,
                         branchIdBySession = data.branchIdBySession,
                     ),
-            ).copy(dayStatus = BranchDayService.getEffectiveStatus(data.session.branchDayId)),
+            ).copy(
+                dayStatus = BranchDayService.getEffectiveStatus(data.session.branchDayId),
+                branchDayId = data.session.branchDayId.toString(),
+            ),
         )
     }
 

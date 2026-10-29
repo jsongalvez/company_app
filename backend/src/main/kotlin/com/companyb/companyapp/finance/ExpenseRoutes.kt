@@ -7,6 +7,8 @@ import com.companyb.companyapp.api.routes.requireMoneyAmount
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.CapabilityFilter
+import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.finance.CreateExpenseRequest
 import com.companyb.companyapp.contracts.finance.DeleteExpenseRequest
 import com.companyb.companyapp.contracts.finance.ExpenseCategory
@@ -27,6 +29,7 @@ import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiRequestBody
 import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
+import java.time.LocalDate
 import java.util.UUID
 
 @OpenApi(
@@ -108,6 +111,14 @@ object ExpenseRoutes {
                 when (context.method()) {
                     HandlerType.POST -> {
                         val request = context.bodyAsClass<CreateExpenseRequest>()
+                        if (request.branchDayId == null) {
+                            CapabilityFilter.requireBranchCapabilityForBranchId(
+                                context,
+                                uuidOrThrow(request.branchId ?: "", "branch id"),
+                                CapabilityCodes.EDIT_BRANCH_DATA,
+                            )
+                            return@before
+                        }
                         uuidOrThrow(request.branchDayId, "branch day id")
                     }
 
@@ -160,7 +171,7 @@ object ExpenseRoutes {
         val request = context.bodyAsClass<CreateExpenseRequest>()
 
         val id = uuidOrThrow(request.id, "expense id")
-        val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
+        val branchDayId = request.branchDayId?.let { uuidOrThrow(it, "branch day id") } ?: dayByDate(request)
         val amount = parsePositiveBigDecimal(request.amount, "amount")
         requireMoneyAmount(amount, "amount")
         val category =
@@ -183,6 +194,18 @@ object ExpenseRoutes {
 
         context.status(HttpStatus.CREATED)
         context.json(expense.toResponse())
+    }
+
+    /** "4 yes" (owed #21): an earlier day with nothing recorded yet gets its row from the first expense. */
+    private fun dayByDate(request: CreateExpenseRequest): UUID {
+        val branchId = uuidOrThrow(request.branchId ?: "", "branch id")
+        val date =
+            runCatching { LocalDate.parse(request.date ?: "") }.getOrNull()
+                ?: throw BadRequestResponse("A day (yyyy-MM-dd) or its branch day id is required")
+        if (date.isAfter(BranchDayService.currentOperationalDate())) {
+            throw BadRequestResponse("An expense can't be added to a later day")
+        }
+        return BranchDayService.resolveOrCreate(branchId, date).id
     }
 
     private fun handleUpdate(context: Context) {

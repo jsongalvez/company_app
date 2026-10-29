@@ -493,6 +493,7 @@ internal object RemittanceRepository {
                     (BranchDayTable.branchId eq branchId) and
                         (BranchDayTable.date greaterEq from) and
                         (BranchDayTable.date lessEq to) and
+                        ProductSaleTable.deletedAt.isNull() and
                         (ActiveSessionVoidsView.sessionId.isNull())
                 }.orderBy(
                     BranchDayTable.date to SortOrder.ASC,

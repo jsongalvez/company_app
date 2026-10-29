@@ -18,11 +18,14 @@ import com.companyb.companyapp.contracts.commerce.BranchInventoryResponse
 import com.companyb.companyapp.contracts.commerce.CreateProductCategoryRequest
 import com.companyb.companyapp.contracts.commerce.CreateProductRequest
 import com.companyb.companyapp.contracts.commerce.CreateProductSaleRequest
+import com.companyb.companyapp.contracts.commerce.DeleteProductSaleRequest
 import com.companyb.companyapp.contracts.commerce.InventoryMovementRequest
 import com.companyb.companyapp.contracts.commerce.InventoryMovementResponse
 import com.companyb.companyapp.contracts.commerce.ProductCategoryResponse
 import com.companyb.companyapp.contracts.commerce.ProductResponse
 import com.companyb.companyapp.contracts.commerce.ProductSaleResponse
+import com.companyb.companyapp.contracts.commerce.RestoreProductSaleRequest
+import com.companyb.companyapp.contracts.commerce.UpdateProductSaleRequest
 import com.companyb.companyapp.contracts.commerce.RestockRequest
 import com.companyb.companyapp.contracts.commerce.SetBranchPriceRequest
 import com.companyb.companyapp.contracts.commerce.UpdateProductRequest
@@ -206,6 +209,9 @@ internal object DtoSchemaProjector {
             "CreateProductCategoryRequest" to CreateProductCategoryRequest.serializer(),
             "CreateProductRequest" to CreateProductRequest.serializer(),
             "CreateProductSaleRequest" to CreateProductSaleRequest.serializer(),
+            "UpdateProductSaleRequest" to UpdateProductSaleRequest.serializer(),
+            "DeleteProductSaleRequest" to DeleteProductSaleRequest.serializer(),
+            "RestoreProductSaleRequest" to RestoreProductSaleRequest.serializer(),
             "CreateReliefInviteRequest" to CreateReliefInviteRequest.serializer(),
             "CreateRemittanceDraftRequest" to CreateRemittanceDraftRequest.serializer(),
             "CreateRemittanceLineRequest" to CreateRemittanceLineRequest.serializer(),

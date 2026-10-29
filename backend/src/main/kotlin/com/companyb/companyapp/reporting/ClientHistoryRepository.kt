@@ -12,9 +12,11 @@ import com.companyb.companyapp.session.SessionConcernTable
 import com.companyb.companyapp.session.SessionPractitionerTable
 import com.companyb.companyapp.session.SessionTable
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -101,7 +103,8 @@ internal object ClientHistoryRepository {
             .selectAll()
             .where {
                 val own = ProductSaleTable.clientId eq clientId
-                if (sessionIds.isEmpty()) own else own or (ProductSaleTable.sessionId inList sessionIds)
+                val mine = if (sessionIds.isEmpty()) own else own or (ProductSaleTable.sessionId inList sessionIds)
+                mine and ProductSaleTable.deletedAt.isNull()
             }.orderBy(ProductSaleTable.soldAt to SortOrder.DESC)
             .limit(HISTORY_LIMIT)
             .map {
