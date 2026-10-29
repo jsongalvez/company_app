@@ -1,7 +1,7 @@
 // node film.mjs <baseUrl> <route> <outDir> [button...]
 // Records every frame the browser paints (CDP screencast, phone size, CPU slowed 4x like a mid-range phone).
 // No buttons: reloads the route VERIFY_FILM_RUNS times (default 4) and films each reload.
-// Buttons: taps each one in turn (by accessible name, first match) and films what follows.
+// Buttons: taps each one in turn (button or link, by exact accessible name, first match) and films what follows.
 // A frame is blank when one colour covers nearly all of it: the page painted before the app drew anything.
 // Saves each frame as <run>/NN_<ms after the reload or tap>.png and one strip image per run, prints a line
 // per frame, and exits 1 when any frame after the start was blank.
@@ -90,7 +90,12 @@ async function film(act) {
 const takes = buttons.length
     ? buttons.map((b) => ({
           label: `tap ${b}`,
-          act: () => page.getByRole("button", { name: b }).first().click(),
+          act: () =>
+              page
+                  .getByRole("button", { name: b, exact: true })
+                  .or(page.getByRole("link", { name: b, exact: true }))
+                  .first()
+                  .click(),
       }))
     : Array.from({ length: runs }, (_, i) => ({
           label: `reload ${i + 1}`,

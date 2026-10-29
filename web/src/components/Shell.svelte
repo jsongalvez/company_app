@@ -9,12 +9,13 @@
     import { peek } from "../lib/cache.svelte";
     import NetBar from "./NetBar.svelte";
     import Lazy from "./Lazy.svelte";
+    import { page, type PageName } from "../lib/pages.svelte";
     import { day, label, operationalDate, monthStart, clientName } from "../lib/format";
     import { searchLocal } from "../lib/clientdir.svelte";
     import Today from "../pages/Today.svelte";
 
-    /** `reads`: what the page shows first, fetched as the menu opens (if never saved) and again on touch. */
-    type Item = { path: string; text: string; show: boolean; reads?: () => Loader<unknown>[] };
+    /** `page`: the screen's code, and `reads`: what it shows first. The menu opening fetches both (reads only if never saved); a touch refetches the reads. */
+    type Item = { path: string; text: string; show: boolean; page?: PageName; reads?: () => Loader<unknown>[] };
 
     const bid = $derived(app.branchId);
     const view = $derived(can("VIEW_BRANCH_DATA"));
@@ -43,21 +44,22 @@
             title: "Branch",
             items: [
                 { path: "/today", text: "Sessions", show: view, reads: () => [load.dashboard(bid), load.roster(bid)] },
-                { path: "/clients", text: "Clients", show: view || canAnywhere("EDIT_BRANCH_DATA") },
-                { path: "/inventory", text: "Stock", show: view, reads: () => [load.inventory(bid)] },
-                { path: "/finance", text: "Expenses & pay", show: view, reads: financeReads },
-                { path: "/reports", text: "Sales reports", show: view, reads: reportReads },
-                { path: "/remittance", text: "Remittance", show: can("SUBMIT_REMITTANCE"), reads: () => [load.remittances(bid)] },
+                { path: "/clients", page: "Clients", text: "Clients", show: view || canAnywhere("EDIT_BRANCH_DATA") },
+                { path: "/inventory", page: "Inventory", text: "Stock", show: view, reads: () => [load.inventory(bid), load.movements(bid, "")] },
+                { path: "/finance", page: "Finance", text: "Expenses & pay", show: view, reads: financeReads },
+                { path: "/reports", page: "Reports", text: "Sales reports", show: view, reads: reportReads },
+                { path: "/remittance", page: "Remittances", text: "Remittance", show: can("SUBMIT_REMITTANCE"), reads: () => [load.remittances(bid)] },
             ],
         },
         {
             title: "Me",
             items: [
-                { path: "/profile", text: "My profile", show: true },
-                { path: "/my-history", text: "My shifts & pay", show: true },
-                { path: "/relief", text: "Relief duty", show: true, reads: () => [load.reliefMine(), load.reliefInvitesMine()] },
+                { path: "/profile", page: "Profile", text: "My profile", show: true },
+                { path: "/my-history", page: "MyHistory", text: "My shifts & pay", show: true },
+                { path: "/relief", page: "Relief", text: "Relief duty", show: true, reads: () => [load.reliefMine(), load.reliefInvitesMine()] },
                 {
                     path: "/notifications",
+                    page: "Notifications",
                     text: app.unread ? `Alerts (${app.unread})` : "Alerts",
                     show: true,
                     reads: () => [load.notifications()],
@@ -67,11 +69,17 @@
         {
             title: "Admin",
             items: [
-                { path: "/users", text: "Users", show: canAnywhere("MANAGE_USERS"), reads: () => [load.users()] },
-                { path: "/branches", text: "Branches", show: canAnywhere("MANAGE_USERS") || canAnywhere("ASSIGN_DELEGATE"), reads: () => [load.branches()] },
-                { path: "/catalog", text: "Products", show: canAnywhere("MANAGE_CATALOG"), reads: () => [load.products()] },
-                { path: "/feedback", text: "Feedback inbox", show: canAnywhere("MANAGE_USERS") },
-                { path: "/audit", text: "Change history", show: true, reads: () => [load.auditTables()] },
+                { path: "/users", page: "Users", text: "Users", show: canAnywhere("MANAGE_USERS"), reads: () => [load.users()] },
+                {
+                    path: "/branches",
+                    page: "Branches",
+                    text: "Branches",
+                    show: canAnywhere("MANAGE_USERS") || canAnywhere("ASSIGN_DELEGATE"),
+                    reads: () => [load.branches()],
+                },
+                { path: "/catalog", page: "Catalog", text: "Products", show: canAnywhere("MANAGE_CATALOG"), reads: () => [load.products()] },
+                { path: "/feedback", page: "FeedbackList", text: "Feedback inbox", show: canAnywhere("MANAGE_USERS") },
+                { path: "/audit", page: "Audit", text: "Change history", show: true, reads: () => [load.auditTables()] },
             ],
         },
     ]);
@@ -91,10 +99,12 @@
         if (!menuOpen) return;
         for (const group of nav)
             for (const item of group.items)
-                if (item.show)
+                if (item.show) {
+                    if (item.page) page(item.page);
                     item.reads?.()
                         .filter((l) => peek(l.key) === undefined)
                         .forEach(warm);
+                }
     });
     // The phone menu hangs from the bottom of the top bar, wherever that is (the "Viewing as" bar pushes it down).
     let topEl: HTMLElement | undefined = $state();
