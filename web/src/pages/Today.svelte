@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, uuid, BASE_STATUS, type S } from "../api/client";
-    import { app, can, branchName, refreshBranchDay, clockIn, selectBranch, onDutyAt, shiftChanged } from "../lib/app.svelte";
+    import { app, can, branchName, refreshBranchDay, clockIn, selectBranch, onDutyAt, showMark, applyStart } from "../lib/app.svelte";
     import { Query, invalidate, seed } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
@@ -23,6 +23,8 @@
     const dash = new Query(load.dashboard(app.branchId).key, load.dashboard(app.branchId).fn);
     type Roster = Awaited<ReturnType<ReturnType<typeof load.roster>["fn"]>>;
     const roster = new Query<Roster>();
+    /** The roster with a just-confirmed mark shown before the server has answered. */
+    const rosterShown = $derived(roster.data?.map((m) => (app.marking?.userId === m.userId ? { ...m, present: app.marking.present } : m)));
     const booked = new Query<Booking[]>();
     /** The on-duty list is for the branch's own staff; others get a note instead. */
     const member = $derived(app.branches.some((b) => b.branchId === bid && !!b.assignmentId));
@@ -154,21 +156,20 @@
     async function setPresent(m: S["MemberAttendanceResponse"], present: boolean) {
         const mine = m.userId === app.me?.id;
         if (!confirm(`${present ? "Clock in" : "Clock out"} ${mine ? "yourself" : m.displayName}?`)) return;
-        const done = await act(() =>
-            ok(
+        const attendanceId = present ? uuid() : null;
+        const undo = showMark(m.userId, present, bid, attendanceId);
+        let answer: S["AttendanceMarkResponse"] | undefined;
+        const done = await act(async () => {
+            answer = await ok(
                 api.POST("/api/branches/{branchId}/attendance/marks", {
-                    params: { path: { branchId: bid } },
-                    body: { userId: m.userId, present, attendanceId: present ? uuid() : null },
+                    params: { path: { branchId: bid }, query: { withToday: true } },
+                    body: { userId: m.userId, present, attendanceId },
                 }),
-            ),
-        );
-        if (!done) return;
-        // Your own mark is your shift: the top bar and what Today allows change with it.
-        if (mine) await shiftChanged();
-        else {
-            invalidate(`roster:${bid}`);
-            roster.refresh();
-        }
+            );
+        });
+        if (!done) return undo();
+        // The answer carries the shift, the day and the roster: the top bar and Today change with it.
+        await applyStart(answer?.start);
     }
 
     const needClockIn = $derived(!!dash.error && /clocked in/i.test(dash.error));
@@ -369,15 +370,15 @@
         {#if member}
             <header>
                 <h2>Who's clocked in</h2>
-                <span class="spacer"></span><span class="faint" use:changed={roster.data?.filter((m) => m.present).length}
-                    >{roster.data?.filter((m) => m.present).length ?? 0} of {roster.data?.length ?? 0} in</span
+                <span class="spacer"></span><span class="faint" use:changed={rosterShown?.filter((m) => m.present).length}
+                    >{rosterShown?.filter((m) => m.present).length ?? 0} of {rosterShown?.length ?? 0} in</span
                 >
             </header>
             <State q={roster} empty={!!roster.data && roster.data.length === 0} emptyText="No members assigned." />
             {#if roster.data?.length}
                 <table class="grid">
                     <tbody>
-                        {#each roster.data as m, i (m.assignmentId)}
+                        {#each rosterShown ?? [] as m, i (m.assignmentId)}
                             <tr>
                                 <td class="faint num slot">{i + 1}</td>
                                 <td class="ellipsis who" title={m.displayName}

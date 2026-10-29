@@ -27,6 +27,8 @@ export const app = $state({
     toast: null as { text: string; kind: "ok" | "bad" } | null,
     /** Set while a developer is viewing the app as someone else. */
     viewAs: getViewAs() as ViewAs | null,
+    /** A clock-in or -out shown before the server has answered; Today's roster shows it over what it loaded. */
+    marking: null as { userId: string; present: boolean } | null,
 });
 
 const VIEW_AS_MINUTES = 30;
@@ -177,6 +179,7 @@ export async function boot() {
 // Opened with no signal: finish starting up once the connection is back; else catch up.
 const catchUp = () => {
     if (!getToken()) return;
+    app.marking = null;
     if (!app.me) void boot().catch(() => {});
     else void Promise.all([refreshBranchDay(), refreshShift(), refreshUnread()]).catch(() => {});
 };
@@ -299,23 +302,46 @@ export function toast(text: string, kind: "ok" | "bad" = "ok") {
 
 /** After your own clock-in or -out: re-read the shift, rights and day, and Today's list and roster, which the
  *  old state allowed or refused. They change in place; after clocking out the server's refusal clears the list. */
-export async function shiftChanged() {
-    await Promise.all([refreshShift(), refreshCaps()]);
-    await refreshBranchDay();
-    reread("dash:", "roster:");
+/** Show a clock-in or -out the moment it's confirmed. Returns how to take it back if the server refuses. */
+export function showMark(userId: string, present: boolean, branchId: string, attendanceId: string | null): () => void {
+    const was = { shift: app.shift, marking: app.marking };
+    app.marking = { userId, present };
+    if (userId === app.me?.id)
+        app.shift = present
+            ? {
+                  attendanceId: attendanceId ?? uuid(),
+                  branchId,
+                  branchName: branchName(branchId),
+                  branchDayId: app.branchId === branchId && app.today ? app.today.branchDayId : "",
+                  date: operationalDate(),
+                  isRelief: false,
+              }
+            : null;
+    return () => Object.assign(app, was);
 }
 
+/** A clock change answers with the app's new state: take it in, then the pending mark gives way to it.
+ *  No state means the change is waiting on the phone; the mark stays shown until it goes out. */
+export async function applyStart(s: S["StartResponse"] | null | undefined) {
+    if (!s) return;
+    takeStart(s, onToday());
+    await reread("dash:", "roster:");
+    app.marking = null;
+}
 export async function clockIn(branchId: string = app.branchId): Promise<boolean> {
     if (!confirm(`Clock in at ${branchName(branchId)}?`)) return false;
     const before = heldSoFar();
+    const attendanceId = uuid();
+    const undo = app.me ? showMark(app.me.id, true, branchId, attendanceId) : () => {};
     try {
-        await ok(api.POST("/api/attendance/clock-in", { body: { attendanceId: uuid(), branchId } }));
+        const r = await ok(api.POST("/api/attendance/clock-in", { params: { query: { withToday: onToday() } }, body: { attendanceId, branchId } }));
         // No signal: it's waiting on the phone; show the shift as started meanwhile.
         if (heldSoFar() > before) return (applyHeldClock(), (app.shiftKnown = true), toast(doneText(before)!), true);
-        await shiftChanged();
         toast(doneText(before, "Clocked in")!);
+        void applyStart(r.start);
         return true;
     } catch (e) {
+        undo();
         toast(errText(e), "bad");
         return false;
     }
@@ -324,14 +350,19 @@ export async function clockIn(branchId: string = app.branchId): Promise<boolean>
 export async function clockOut(): Promise<boolean> {
     if (!app.shift || !confirm(`Clock out of ${app.shift.branchName}?`)) return false;
     const before = heldSoFar();
+    const { attendanceId, branchId } = app.shift;
+    const undo = app.me ? showMark(app.me.id, false, branchId, null) : () => {};
     try {
-        await ok(api.POST("/api/attendance/clock-out", { body: { attendanceId: app.shift.attendanceId } }));
+        const r = await ok(
+            api.POST("/api/attendance/clock-out", { params: { query: { branchId: app.branchId || undefined, withToday: onToday() } }, body: { attendanceId } }),
+        );
         if (heldSoFar() > before) return (applyHeldClock(), forget("dash:", "roster:"), toast(doneText(before)!), true);
-        // Today's list needs a clock-in: this takes it off screen (and off the phone) at once.
-        await shiftChanged();
         toast(doneText(before, "Clocked out")!);
+        // Today's list needs a clock-in: the new state takes it off screen (and off the phone).
+        void applyStart(r.start);
         return true;
     } catch (e) {
+        undo();
         toast(errText(e), "bad");
         return false;
     }
