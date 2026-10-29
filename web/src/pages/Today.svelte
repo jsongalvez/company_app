@@ -1,4 +1,10 @@
+<script module lang="ts">
+    // Opened folds stay open while the app is open; a fresh start folds them again.
+    const unfolded = $state({ roster: false, booked: false });
+</script>
+
 <script lang="ts">
+    import { MediaQuery } from "svelte/reactivity";
     import { api, ok, uuid, BASE_STATUS, type S } from "../api/client";
     import { app, can, branchName, refreshBranchDay, clockIn, selectBranch, onDutyAt, showMark, applyStart } from "../lib/app.svelte";
     import { Query, invalidate, seed } from "../lib/cache.svelte";
@@ -88,6 +94,10 @@
     const correct = $derived(can("EDIT_PAST_DAY"));
 
     type F = "all" | "PENDING" | "COMPLETED" | "other" | "void";
+    // Feedback 77b8ea5f: on a phone the side lists sit above today's sessions, so they start folded to their counts.
+    const phone = new MediaQuery("max-width: 1000px");
+    const rosterOpen = $derived(!phone.current || unfolded.roster);
+    const bookedOpen = $derived(!phone.current || unfolded.booked);
     const showVs = viewSetting("show", "all", ["all", "PENDING", "COMPLETED", "other", "void"]);
     let filter = $state<F>(showVs.read as F);
     $effect(() => showVs.keep(filter));
@@ -450,13 +460,17 @@
     {#if isToday}<aside class="panel roster">
             {#if member}
                 <header>
-                    <h2>Who's clocked in</h2>
+                    <h2>
+                        {#if phone.current}<button class="fold" aria-expanded={rosterOpen} onclick={() => (unfolded.roster = !unfolded.roster)}
+                                >Who's clocked in</button
+                            >{:else}Who's clocked in{/if}
+                    </h2>
                     <span class="spacer"></span><span class="faint" use:changed={rosterShown?.filter((m) => m.present).length}
                         >{rosterShown?.filter((m) => m.present).length ?? 0} of {rosterShown?.length ?? 0} in</span
                     >
                 </header>
-                <State q={roster} empty={!!roster.data && roster.data.length === 0} emptyText="No members assigned." />
-                {#if roster.data?.length}
+                {#if rosterOpen}<State q={roster} empty={!!roster.data && roster.data.length === 0} emptyText="No members assigned." />{/if}
+                {#if rosterOpen && roster.data?.length}
                     <table class="grid">
                         <tbody>
                             {#each rosterShown ?? [] as m, i (m.assignmentId)}
@@ -485,11 +499,15 @@
                 {/if}
             {/if}
             <header class:bk-head={member}>
-                <h2>Booked visits</h2>
+                <h2>
+                    {#if phone.current}<button class="fold" aria-expanded={bookedOpen} onclick={() => (unfolded.booked = !unfolded.booked)}
+                            >Booked visits</button
+                        >{:else}Booked visits{/if}
+                </h2>
                 <span class="spacer"></span><span class="faint">{booked.data?.length ?? 0}</span>
             </header>
-            <State q={booked} empty={!!booked.data && booked.data.length === 0} emptyText="No visits booked." />
-            {#if booked.data?.length}
+            {#if bookedOpen}<State q={booked} empty={!!booked.data && booked.data.length === 0} emptyText="No visits booked." />{/if}
+            {#if bookedOpen && booked.data?.length}
                 <Bookings list={booked.data} {edit} onstart={onDutyAt(bid) ? startFromBooking : undefined} onchanged={reloadBookings} />
             {/if}
         </aside>{/if}
@@ -560,6 +578,25 @@
         .roster {
             width: auto;
         }
+    }
+    /* The whole title is the tap target; the arrow says whether it is open. */
+    .fold {
+        all: unset;
+        cursor: pointer;
+        display: block;
+        min-height: 32px;
+        line-height: 32px;
+    }
+    .fold::before {
+        content: "▸" / "";
+        display: inline-block;
+        width: 1.2em;
+    }
+    .fold[aria-expanded="true"]::before {
+        content: "▾" / "";
+    }
+    .fold:focus-visible {
+        outline: 2px solid var(--accent);
     }
     .bk-head {
         border-top: 1px solid var(--line);
