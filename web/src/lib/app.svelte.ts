@@ -1,5 +1,5 @@
 import { ApiError, api, ok, setToken, getToken, setUnauthorizedHandler, uuid, errText, getViewAs, setViewAs, type S, type ViewAs } from "../api/client";
-import { clearCache, fetchCached, forget, invalidate, peek, restoreCache, seed } from "./cache.svelte";
+import { clearCache, fetchCached, forget, invalidate, reread, peek, restoreCache, seed } from "./cache.svelte";
 import { refreshDirectory, resetDirectory } from "./clientdir.svelte";
 import { RECONNECTED } from "./net.svelte";
 import { doneText, heldClock, heldSoFar, SENT } from "./outbox.svelte";
@@ -295,12 +295,12 @@ export function toast(text: string, kind: "ok" | "bad" = "ok") {
     toastTimer = setTimeout(() => (app.toast = null), kind === "bad" ? 6000 : 2500);
 }
 
-/** After your own clock-in or -out: re-read the shift, rights and day, and reload Today's list and roster,
- *  which the old state allowed or refused. */
+/** After your own clock-in or -out: re-read the shift, rights and day, and Today's list and roster, which the
+ *  old state allowed or refused. They change in place; after clocking out the server's refusal clears the list. */
 export async function shiftChanged() {
     await Promise.all([refreshShift(), refreshCaps()]);
     await refreshBranchDay();
-    forget("dash:", "roster:");
+    reread("dash:", "roster:");
 }
 
 export async function clockIn(branchId: string = app.branchId): Promise<boolean> {

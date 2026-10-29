@@ -136,6 +136,15 @@ export function forget(...prefixes: string[]) {
     }
 }
 
+/** Re-read screens showing keys starting with any prefix, in place: what they show stays until the answer
+ *  comes, so the page doesn't blank and refill. A refusal still clears the screen and the phone's copy. */
+export function reread(...prefixes: string[]) {
+    for (const r of live) {
+        const q = r.deref();
+        if (q && prefixes.some((p) => q.key.startsWith(p))) q.refresh();
+    }
+}
+
 /** Sign-out: forget everything, on the phone too. */
 export function clearCache() {
     if (tokenUser()) localStorage.removeItem(saveKey());
@@ -181,18 +190,22 @@ export class Query<T> {
         else this.loading = true;
     }
 
-    load(key: string, fn: () => Promise<T> = this.#fn, force = false) {
+    /** inPlace (a refresh): keep showing what's on screen, data or refusal, until the answer comes. */
+    load(key: string, fn: () => Promise<T> = this.#fn, force = false, inPlace = false) {
         this.#key = key;
         this.#fn = fn;
-        const cached = peek<T>(key);
-        this.data = cached;
-        this.error = null;
-        this.waiting = false;
-        this.loading = cached === undefined;
+        if (!inPlace) {
+            const cached = peek<T>(key);
+            this.data = cached;
+            this.error = null;
+            this.waiting = false;
+            this.loading = cached === undefined;
+        }
         fetchCached(key, fn, force).then(
             (d) => {
                 if (this.#key !== key) return;
                 this.data = d;
+                this.error = null;
                 this.loading = false;
                 this.waiting = false;
             },
@@ -221,6 +234,6 @@ export class Query<T> {
 
     refresh() {
         if (!this.#key) return;
-        this.load(this.#key, this.#fn, true);
+        this.load(this.#key, this.#fn, true, true);
     }
 }
