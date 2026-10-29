@@ -17,7 +17,10 @@ export async function checkForUpdate(): Promise<void> {
         const res = await fetch("/", { cache: "no-store", signal: AbortSignal.timeout(10_000) });
         if (!res.ok) return;
         const now = BUILD.exec(await res.text())?.[0];
-        if (now && now !== have && ((await reloadOpens()) ?? now) === now) update.ready = true;
+        if (!now || now === have) return;
+        if (((await reloadOpens()) ?? now) === now) update.ready = true;
+        // Not saved yet: the service worker saves it and says so (see watchForUpdates), and the offer follows.
+        else navigator.serviceWorker.controller?.postMessage("save");
     } catch {
         /* no signal: try next time */
     }

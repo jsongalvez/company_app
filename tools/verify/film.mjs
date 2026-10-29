@@ -5,10 +5,13 @@
 // A frame is blank when one colour covers nearly all of it: the page painted before the app drew anything.
 // Saves each frame as <run>/NN_<ms after the reload or tap>.png and one strip image per run, prints a line
 // per frame, and exits 1 when any frame after the start was blank.
+// VERIFY_FILM_BEFORE=<shell command> runs once the phone has used the app (e.g. swap in a new web build, as a
+// deploy does), then the route opens again, so `film '#/today' Update` films the update.
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { mkdirSync, writeFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const { chromium } = createRequire(join(here, "../../web/package.json"))(
@@ -57,6 +60,11 @@ await page.waitForLoadState("networkidle");
 await page.reload();
 await page.waitForLoadState("networkidle");
 await page.waitForTimeout(1500);
+if (process.env.VERIFY_FILM_BEFORE) {
+    execSync(process.env.VERIFY_FILM_BEFORE, { stdio: "inherit" });
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+}
 
 const cdp = await ctx.newCDPSession(page);
 await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });

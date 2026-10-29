@@ -32,13 +32,17 @@
                 try {
                     var s = JSON.parse(localStorage.getItem("snap") || "null");
                     var js = document.querySelector("script[type=module][src]");
-                    if (!s || !localStorage.getItem("token") || !js || s.v !== js.src || s.hash !== location.hash) return;
+                    if (!s || !localStorage.getItem("token") || !js || s.hash !== location.hash) return;
+                    var same = s.v === js.src;
+                    if (!same && !s.cssText) return;
                     document.write(
-                        s.css
-                            .map(function (h) {
-                                return '<link rel="stylesheet" href="' + h + '">';
-                            })
-                            .join("") +
+                        (same
+                            ? s.css
+                                  .map(function (h) {
+                                      return '<link rel="stylesheet" href="' + h + '">';
+                                  })
+                                  .join("")
+                            : "<style data-snap-old>" + s.cssText.replace(/<\/style/gi, "<\\/style") + "</style>") +
                             '<style id="snap-hide">#app{display:none}</style><div id="snap" aria-hidden="true" inert>' +
                             s.html +
                             "</div>",

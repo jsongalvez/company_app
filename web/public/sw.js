@@ -48,6 +48,10 @@ self.addEventListener("install", (e) =>
             .then(() => self.skipWaiting()),
     ),
 );
+// The page asks when the server has a newer build than the one saved here (the app stayed open, so no page load saved it).
+self.addEventListener("message", (e) => {
+    if (e.data === "save") e.waitUntil(saveApp().catch(() => {}));
+});
 self.addEventListener("activate", (e) =>
     e.waitUntil(
         caches
