@@ -18,19 +18,17 @@
     const date = $derived(route.current.query.get("date") ?? operationalDate());
     const isToday = $derived(date === operationalDate());
 
-    // Resolve the branch day for the chosen date.
+    // Resolve the branch day for the chosen date. Today's is already known, so it draws with no loading line.
+    const todayDay = $derived(isToday && app.today ? { id: app.today.branchDayId, date, status: app.today.status } : undefined);
     const dayQ = new Query<S["RemittanceDayPickerEntryResponse"] | null>();
     $effect(() => {
-        const b = bid,
-            d = date;
-        dayQ.load(`bday:${b}:${d}`, async () => {
-            if (d === operationalDate() && app.today) return { id: app.today.branchDayId, date: d, status: app.today.status };
-            const r = await ok(api.GET("/api/branches/{branchId}/remittance-days", { params: { path: { branchId: b }, query: { from: d, to: d } } }));
-            return r[0] ?? null;
-        });
+        if (todayDay) return;
+        const l = load.branchDay(bid, date);
+        dayQ.load(l.key, l.fn);
     });
-    const dayId = $derived(dayQ.data?.id ?? "");
-    const status = $derived(dayQ.data?.status);
+    const theDay = $derived(todayDay ?? dayQ.data);
+    const dayId = $derived(theDay?.id ?? "");
+    const status = $derived(theDay?.status);
 
     const exp = new Query<S["ExpenseResponse"][]>();
     const comp = new Query<S["CompensationResponse"][]>();
@@ -248,10 +246,10 @@
     </span>
 </PageHead>
 
-<State q={dayQ} />
-{#if dayQ.data === null}
+{#if !todayDay}<State q={dayQ} />{/if}
+{#if theDay === null}
     <div class="notice">Nothing was recorded on {day(date)}.</div>
-{:else if dayQ.data}
+{:else if theDay}
     <div class="row mb wrap">
         <b>{day(date)}</b>
         {#if status === "REMITTED"}

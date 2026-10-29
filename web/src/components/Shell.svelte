@@ -5,27 +5,49 @@
     import FullIcon from "./FullIcon.svelte";
     import InstallApp from "./InstallApp.svelte";
     import Feedback from "./Feedback.svelte";
-    import { load, warm } from "../lib/data";
+    import { load, warm, type Loader } from "../lib/data";
+    import { peek } from "../lib/cache.svelte";
     import NetBar from "./NetBar.svelte";
     import Lazy from "./Lazy.svelte";
-    import { day, label, operationalDate, clientName } from "../lib/format";
+    import { day, label, operationalDate, monthStart, clientName } from "../lib/format";
     import { searchLocal } from "../lib/clientdir.svelte";
     import Today from "../pages/Today.svelte";
 
-    type Item = { path: string; text: string; show: boolean; warm?: () => void };
+    /** `reads`: what the page shows first, fetched as the menu opens (if never saved) and again on touch. */
+    type Item = { path: string; text: string; show: boolean; reads?: () => Loader<unknown>[] };
 
     const bid = $derived(app.branchId);
     const view = $derived(can("VIEW_BRANCH_DATA"));
+    // Today's Expenses & pay and Sales reports, as those pages read them when opened with no date.
+    function financeReads(): Loader<unknown>[] {
+        const d = operationalDate();
+        const dayId = app.today?.branchDayId;
+        if (!dayId) return [load.branchDay(bid, d)];
+        const pay = can("ASSIGN_COMPENSATION");
+        return [
+            load.daySessions(bid, d),
+            load.expenses(dayId),
+            load.commissionSplits(dayId),
+            ...(pay ? [load.compensations(dayId), load.allowances(dayId), load.dayUsers(dayId)] : []),
+            load.dailySummary(bid, d),
+            load.members(bid),
+        ];
+    }
+    function reportReads(): Loader<unknown>[] {
+        const d = operationalDate();
+        const from = monthStart(d);
+        return [load.dailySummaries(bid, from, d), load.monthly(bid, Number(from.slice(0, 4)), Number(from.slice(5, 7)))];
+    }
     const nav = $derived<{ title: string; items: Item[] }[]>([
         {
             title: "Branch",
             items: [
-                { path: "/today", text: "Sessions", show: view, warm: () => (warm(load.dashboard(bid)), warm(load.roster(bid))) },
+                { path: "/today", text: "Sessions", show: view, reads: () => [load.dashboard(bid), load.roster(bid)] },
                 { path: "/clients", text: "Clients", show: view || canAnywhere("EDIT_BRANCH_DATA") },
-                { path: "/inventory", text: "Stock", show: view, warm: () => warm(load.inventory(bid)) },
-                { path: "/finance", text: "Expenses & pay", show: view },
-                { path: "/reports", text: "Sales reports", show: view },
-                { path: "/remittance", text: "Remittance", show: can("SUBMIT_REMITTANCE"), warm: () => warm(load.remittances(bid)) },
+                { path: "/inventory", text: "Stock", show: view, reads: () => [load.inventory(bid)] },
+                { path: "/finance", text: "Expenses & pay", show: view, reads: financeReads },
+                { path: "/reports", text: "Sales reports", show: view, reads: reportReads },
+                { path: "/remittance", text: "Remittance", show: can("SUBMIT_REMITTANCE"), reads: () => [load.remittances(bid)] },
             ],
         },
         {
@@ -33,23 +55,23 @@
             items: [
                 { path: "/profile", text: "My profile", show: true },
                 { path: "/my-history", text: "My shifts & pay", show: true },
-                { path: "/relief", text: "Relief duty", show: true, warm: () => (warm(load.reliefMine()), warm(load.reliefInvitesMine())) },
+                { path: "/relief", text: "Relief duty", show: true, reads: () => [load.reliefMine(), load.reliefInvitesMine()] },
                 {
                     path: "/notifications",
                     text: app.unread ? `Alerts (${app.unread})` : "Alerts",
                     show: true,
-                    warm: () => warm(load.notifications()),
+                    reads: () => [load.notifications()],
                 },
             ],
         },
         {
             title: "Admin",
             items: [
-                { path: "/users", text: "Users", show: canAnywhere("MANAGE_USERS"), warm: () => warm(load.users()) },
-                { path: "/branches", text: "Branches", show: canAnywhere("MANAGE_USERS") || canAnywhere("ASSIGN_DELEGATE"), warm: () => warm(load.branches()) },
-                { path: "/catalog", text: "Products", show: canAnywhere("MANAGE_CATALOG"), warm: () => warm(load.products()) },
+                { path: "/users", text: "Users", show: canAnywhere("MANAGE_USERS"), reads: () => [load.users()] },
+                { path: "/branches", text: "Branches", show: canAnywhere("MANAGE_USERS") || canAnywhere("ASSIGN_DELEGATE"), reads: () => [load.branches()] },
+                { path: "/catalog", text: "Products", show: canAnywhere("MANAGE_CATALOG"), reads: () => [load.products()] },
                 { path: "/feedback", text: "Feedback inbox", show: canAnywhere("MANAGE_USERS") },
-                { path: "/audit", text: "Change history", show: true, warm: () => warm(load.auditTables()) },
+                { path: "/audit", text: "Change history", show: true, reads: () => [load.auditTables()] },
             ],
         },
     ]);
@@ -63,6 +85,17 @@
     });
     const homeSpace = $derived(section === "/notifications" && before !== "/today");
     let menuOpen = $state(false);
+    // People take ~0.9s from opening the menu to tapping a page; a page with nothing saved for today
+    // (first Sales reports or Expenses & pay of the day) gets its data in that time instead of "Loading…".
+    $effect(() => {
+        if (!menuOpen) return;
+        for (const group of nav)
+            for (const item of group.items)
+                if (item.show)
+                    item.reads?.()
+                        .filter((l) => peek(l.key) === undefined)
+                        .forEach(warm);
+    });
     // The phone menu hangs from the bottom of the top bar, wherever that is (the "Viewing as" bar pushes it down).
     let topEl: HTMLElement | undefined = $state();
     let topH = $state(76);
@@ -251,9 +284,9 @@
                         href="#{item.path}"
                         class:active={section === item.path}
                         onclick={() => (menuOpen = false)}
-                        onmouseenter={item.warm}
-                        onpointerdown={item.warm}
-                        onfocus={item.warm}>{item.text}</a
+                        onmouseenter={() => item.reads?.().forEach(warm)}
+                        onpointerdown={() => item.reads?.().forEach(warm)}
+                        onfocus={() => item.reads?.().forEach(warm)}>{item.text}</a
                     >
                 {/each}
             {/if}
