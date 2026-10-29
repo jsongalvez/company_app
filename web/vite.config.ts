@@ -15,7 +15,11 @@ function preloadShellWhenSignedIn(): Plugin {
             handler(_html, ctx) {
                 const shell = Object.values(ctx.bundle ?? {}).find((c) => c.type === "chunk" && c.facadeModuleId?.endsWith("/components/Shell.svelte"));
                 if (!shell || shell.type !== "chunk") throw new Error("no Shell chunk: is it still loaded lazily?");
-                const files = [shell.fileName, ...(shell.viteMetadata?.importedCss ?? [])].map((f) => `/${f}`);
+                // Shell's own imports too (files it shares with other screens), or they'd wait for Shell to arrive.
+                const chunks = [shell, ...shell.imports.map((f) => ctx.bundle?.[f]).filter((c) => c?.type === "chunk" && !c.isEntry)];
+                const files = [...new Set(chunks.flatMap((c) => (c?.type === "chunk" ? [c.fileName, ...(c.viteMetadata?.importedCss ?? [])] : [])))].map(
+                    (f) => `/${f}`,
+                );
                 const code = `if(localStorage.getItem("token"))for(const f of ${JSON.stringify(files)}){const l=document.createElement("link");if(f.endsWith(".css")){l.rel="preload";l.as="style"}else l.rel="modulepreload";l.href=f;document.head.appendChild(l)}`;
                 return [{ tag: "script", children: code, injectTo: "head" }];
             },

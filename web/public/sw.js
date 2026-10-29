@@ -1,7 +1,8 @@
 // Keeps the app itself on the phone, so it opens fast on weak signal and still opens with none.
 // Data (/api, /auth) is never cached here: it always comes from the server.
 const CACHE = "app-shell-v1";
-const MAX_ASSETS = 80;
+// Two builds of files (about 40 each), so the running build keeps its screens while the next one saves.
+const MAX_ASSETS = 160;
 
 // Save the page and the files it loads right away, so the very next open works offline.
 async function saveApp() {

@@ -5,28 +5,12 @@
     import FullIcon from "./FullIcon.svelte";
     import InstallApp from "./InstallApp.svelte";
     import Feedback from "./Feedback.svelte";
-    import FeedbackList from "../pages/FeedbackList.svelte";
     import { load, warm } from "../lib/data";
     import NetBar from "./NetBar.svelte";
+    import Lazy from "./Lazy.svelte";
     import { day, label, operationalDate, clientName } from "../lib/format";
     import { searchLocal } from "../lib/clientdir.svelte";
     import Today from "../pages/Today.svelte";
-    import Clients from "../pages/Clients.svelte";
-    import ClientDetail from "../pages/ClientDetail.svelte";
-    import SessionDetail from "../pages/SessionDetail.svelte";
-    import Inventory from "../pages/Inventory.svelte";
-    import Finance from "../pages/Finance.svelte";
-    import Reports from "../pages/Reports.svelte";
-    import Remittances from "../pages/Remittances.svelte";
-    import RemittanceDetail from "../pages/RemittanceDetail.svelte";
-    import Relief from "../pages/Relief.svelte";
-    import Notifications from "../pages/Notifications.svelte";
-    import Users from "../pages/Users.svelte";
-    import Branches from "../pages/Branches.svelte";
-    import Catalog from "../pages/Catalog.svelte";
-    import Audit from "../pages/Audit.svelte";
-    import Profile from "../pages/Profile.svelte";
-    import MyHistory from "../pages/MyHistory.svelte";
 
     type Item = { path: string; text: string; show: boolean; warm?: () => void };
 
@@ -289,39 +273,39 @@
         {:else if section === "/today"}
             <Today />
         {:else if section === "/clients" && route.current.parts[1]}
-            <ClientDetail id={route.current.parts[1]} />
+            <Lazy name="ClientDetail" id={route.current.parts[1]} />
         {:else if section === "/clients"}
-            <Clients />
+            <Lazy name="Clients" />
         {:else if section === "/sessions" && route.current.parts[1]}
-            <SessionDetail id={route.current.parts[1]} />
+            <Lazy name="SessionDetail" id={route.current.parts[1]} />
         {:else if section === "/inventory"}
-            <Inventory />
+            <Lazy name="Inventory" />
         {:else if section === "/finance"}
-            <Finance />
+            <Lazy name="Finance" />
         {:else if section === "/reports"}
-            <Reports />
+            <Lazy name="Reports" />
         {:else if section === "/remittance" && route.current.parts[1]}
-            <RemittanceDetail id={route.current.parts[1]} />
+            <Lazy name="RemittanceDetail" id={route.current.parts[1]} />
         {:else if section === "/remittance"}
-            <Remittances />
+            <Lazy name="Remittances" />
         {:else if section === "/relief"}
-            <Relief />
+            <Lazy name="Relief" />
         {:else if section === "/notifications"}
-            <Notifications />
+            <Lazy name="Notifications" />
         {:else if section === "/users"}
-            <Users />
+            <Lazy name="Users" />
         {:else if section === "/branches"}
-            <Branches />
+            <Lazy name="Branches" />
         {:else if section === "/catalog"}
-            <Catalog />
+            <Lazy name="Catalog" />
         {:else if section === "/feedback"}
-            <FeedbackList />
+            <Lazy name="FeedbackList" />
         {:else if section === "/profile"}
-            <Profile />
+            <Lazy name="Profile" />
         {:else if section === "/my-history"}
-            <MyHistory />
+            <Lazy name="MyHistory" />
         {:else if section === "/audit"}
-            <Audit />
+            <Lazy name="Audit" />
         {:else}
             <div class="notice">Page not found. <a href="#/today">Go to Sessions</a></div>
         {/if}
