@@ -8,6 +8,7 @@ const files = {
     SessionDetail: () => import("../pages/SessionDetail.svelte"),
     Inventory: () => import("../pages/Inventory.svelte"),
     Finance: () => import("../pages/Finance.svelte"),
+    Payouts: () => import("../pages/Payouts.svelte"),
     Reports: () => import("../pages/Reports.svelte"),
     Remittances: () => import("../pages/Remittances.svelte"),
     RemittanceDetail: () => import("../pages/RemittanceDetail.svelte"),

@@ -97,6 +97,8 @@
                     show: canAnywhere("MANAGE_USERS") || canAnywhere("ASSIGN_DELEGATE"),
                     reads: () => [load.branches()],
                 },
+                // Owed #25(a): who pays at every branch pays from one page.
+                { path: "/pay", page: "Payouts", text: "Pay, all branches", show: canEverywhere("ASSIGN_COMPENSATION") },
                 { path: "/catalog", page: "Catalog", text: "Products", show: canAnywhere("MANAGE_CATALOG"), reads: () => [load.products()] },
                 { path: "/feedback", page: "FeedbackList", text: "Feedback inbox", show: canAnywhere("MANAGE_USERS") },
                 { path: "/audit", page: "Audit", text: "Change history", show: true, reads: () => [load.auditTables()] },
@@ -345,6 +347,8 @@
             <Lazy name="Inventory" />
         {:else if section === "/finance"}
             <Lazy name="Finance" />
+        {:else if section === "/pay"}
+            <Lazy name="Payouts" />
         {:else if section === "/reports"}
             <Lazy name="Reports" />
         {:else if section === "/remittance" && route.current.parts[1]}

@@ -15,6 +15,7 @@
     import State from "../components/State.svelte";
     import Dialog from "../components/Dialog.svelte";
     import SaleList from "../components/SaleList.svelte";
+    import DayPay from "../components/DayPay.svelte";
 
     const bid = $derived(app.branchId);
     const date = $derived(route.current.query.get("date") ?? operationalDate());
@@ -33,8 +34,6 @@
     const status = $derived(theDay?.status);
 
     const exp = new Query<S["ExpenseResponse"][]>();
-    const comp = new Query<S["CompensationResponse"][]>();
-    const allow = new Query<S["AllowanceResponse"][]>();
     const split = new Query<S["CommissionSplitResponse"][]>();
     const summary = new Query<S["DailySalesSummaryResponse"]>();
     // The day's sessions, so past ones can be opened and corrected (feedback 3578107f).
@@ -51,10 +50,8 @@
     const doneTotal = $derived(sum(daySessions.filter((x) => !x.isVoided && x.sessionStatus === "COMPLETED").map((x) => x.finalPrice)));
     $effect(() => {
         if (!dayId) return;
-        // Pay and allowances are only readable with the pay permission.
         const reads = [[exp, load.expenses(dayId)]] as [Query<unknown>, Loader<unknown>][];
         if (seeCommission) reads.push([split, load.commissionSplits(dayId)]);
-        if (pay) reads.push([comp, load.compensations(dayId)], [allow, load.allowances(dayId)]);
         for (const [q, l] of reads) (q as Query<unknown>).load(l.key, l.fn as () => Promise<unknown>);
         const s = load.dailySummary(bid, date);
         summary.load(s.key, s.fn);
@@ -80,7 +77,6 @@
     const pastRights = $derived(can("EDIT_PAST_DAY"));
     const edit = $derived(status === "REMITTED" ? pastRights : can("EDIT_BRANCH_DATA"));
     const pay = $derived(can("ASSIGN_COMPENSATION"));
-    const payEdit = $derived(pay && (!closed || pastRights));
     /** The expense whose change history is open, one at a time. */
     let historyOf = $state<string | null>(null);
     // Fetch before opening, so the row opens on its history instead of a Loading line.
@@ -100,9 +96,9 @@
 
     // Re-read only what the save can change. The totals count expenses, pay and shares, not allowances.
     // Other people's edits to the other lists show when Finance is opened again or the app reloads.
-    function refresh(...changed: ("exp" | "comp" | "allow" | "split" | "summary")[]) {
-        const lists = { exp, comp, allow, split, summary };
-        const keys = { exp: `exp:${dayId}`, comp: `comp:${dayId}`, allow: `allow:${dayId}`, split: `split:${dayId}`, summary: `dsum:${bid}:${date}` };
+    function refresh(...changed: ("exp" | "split" | "summary")[]) {
+        const lists = { exp, split, summary };
+        const keys = { exp: `exp:${dayId}`, split: `split:${dayId}`, summary: `dsum:${bid}:${date}` };
         invalidate(...changed.map((c) => keys[c]), ...(changed.includes("exp") ? ["audit:expense:"] : []));
         for (const c of changed) lists[c].refresh();
     }
@@ -181,70 +177,6 @@
     $effect(() => delVs.keep(showDeleted ? "1" : ""));
     const expenses = $derived((exp.data ?? []).filter((e) => showDeleted || !e.deletedAt));
     const liveExpenses = $derived((exp.data ?? []).filter((e) => !e.deletedAt));
-
-    // ---- Compensation dialog ----
-    const ca = new Action();
-    let cOpen = $state(false);
-    let cEdit = $state<S["CompensationResponse"] | null>(null);
-    let cUser = $state("");
-    let cAmount = $state("");
-    let cNote = $state("");
-    function openComp(c: S["CompensationResponse"] | null) {
-        cEdit = c;
-        cUser = c?.userId ?? "";
-        cAmount = c?.amount ?? "";
-        cNote = c?.note ?? "";
-        startReason();
-        ca.reset();
-        cOpen = true;
-    }
-    async function saveComp() {
-        const done = await ca.run(
-            () =>
-                cEdit
-                    ? ok(
-                          api.PATCH("/api/compensation/{compensationId}", {
-                              params: { path: { compensationId: cEdit!.id } },
-                              body: { amount: cAmount.trim(), expectedVersion: cEdit!.version, note: cNote.trim() || null, reason: r() },
-                          }),
-                      )
-                    : ok(
-                          api.POST("/api/compensation", {
-                              body: {
-                                  id: uuid(),
-                                  workBranchDayId: dayId,
-                                  payingBranchDayId: dayId,
-                                  userId: cUser,
-                                  amount: cAmount.trim(),
-                                  note: cNote.trim() || null,
-                                  reason: r(),
-                              },
-                          }),
-                      ),
-            "Pay saved",
-        );
-        if (done) {
-            cOpen = false;
-            refresh("comp", "summary");
-        }
-    }
-
-    // ---- Allowance dialog ----
-    const aa = new Action();
-    let aOpen = $state(false);
-    let aUser = $state("");
-    let aAmount = $state("");
-    async function saveAllowance() {
-        if (
-            await aa.run(
-                () => ok(api.POST("/api/allowances", { body: { id: uuid(), branchDayId: dayId, userId: aUser, amount: aAmount.trim(), reason: r() } })),
-                "Allowance added",
-            )
-        ) {
-            aOpen = false;
-            refresh("allow");
-        }
-    }
 
     async function recalc() {
         if (!confirm("Recount this day's shares from its sales and clock-ins? The shares shown now will be replaced.")) return;
@@ -390,61 +322,7 @@
 
         {#if dayId}<SaleList {dayId} {edit} needReason={closed} {showDeleted} onchanged={() => refresh("summary", "split")} />{/if}
 
-        {#if pay}
-            <section class="panel">
-                <header>
-                    <h2>Pay</h2>
-                    <span class="faint">{peso(sum((comp.data ?? []).map((c) => c.amount)))}</span>
-                    <span class="spacer"></span>
-                    {#if payEdit}<button class="sm primary" onclick={() => openComp(null)}>Add</button>{/if}
-                </header>
-                <State q={comp} empty={!!comp.data && comp.data.length === 0} emptyText="No pay added for this day." />
-                {#if comp.data?.length}
-                    <table class="grid">
-                        <thead
-                            ><tr
-                                ><th>Person</th><th>Note</th><th class="num">Amount</th>{#if payEdit}<th></th>{/if}</tr
-                            ></thead
-                        >
-                        <tbody>
-                            {#each comp.data as c (c.id)}
-                                <tr>
-                                    <td
-                                        >{c.userName ?? nameOf[c.userId] ?? ""}{#if c.workBranchDayId !== c.payingBranchDayId}<span class="mark plain"
-                                                >Relief</span
-                                            >{/if}</td
-                                    >
-                                    <td class="wrap muted">{c.note ?? ""}</td>
-                                    <td class="num">{peso(c.amount)}</td>
-                                    {#if payEdit}<td class="right"><button class="sm" onclick={() => openComp(c)}>Edit</button></td>{/if}
-                                </tr>
-                            {/each}
-                        </tbody>
-                    </table>
-                {/if}
-            </section>
-
-            <section class="panel">
-                <header>
-                    <h2>Allowances</h2>
-                    <span class="faint">{peso(sum((allow.data ?? []).map((a) => a.amount)))}</span>
-                    <span class="spacer"></span>
-                    {#if payEdit}<button class="sm primary" onclick={() => ((aUser = ""), (aAmount = ""), startReason(), aa.reset(), (aOpen = true))}
-                            >Add</button
-                        >{/if}
-                </header>
-                <State q={allow} empty={!!allow.data && allow.data.length === 0} emptyText="No allowances." />
-                {#if allow.data?.length}
-                    <table class="grid">
-                        <tbody>
-                            {#each allow.data as a (a.id)}
-                                <tr><td>{nameOf[a.userId] ?? ""}</td><td class="num">{peso(a.amount)}</td></tr>
-                            {/each}
-                        </tbody>
-                    </table>
-                {/if}
-            </section>
-        {/if}
+        {#if pay && dayId}<DayPay branchId={bid} {dayId} {status} onpay={() => refresh("summary")} />{/if}
 
         {#if seeCommission}<section class="panel">
                 <header>
@@ -481,35 +359,6 @@
         {#if closed && (eEdit || status === "REMITTED")}<label class="field wide"
                 ><span class="req">Reason for change</span><input bind:value={reason} required /></label
             >{/if}
-    </div>
-</Dialog>
-
-<Dialog bind:open={cOpen} title={cEdit ? "Edit pay" : "Add pay"} width={400} onsubmit={saveComp} busy={ca.busy} error={ca.error}>
-    <div class="form-grid">
-        <label class="field wide"
-            ><span class="req">Person</span>
-            <select bind:value={cUser} required disabled={!!cEdit}>
-                <option value="" disabled>Select</option>
-                {#each people as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
-            </select>
-        </label>
-        <label class="field"><span class="req">Amount</span><input class="num" inputmode="decimal" bind:value={cAmount} required /></label>
-        <label class="field wide">Note<input bind:value={cNote} /></label>
-        {#if closed}<label class="field wide"><span class="req">Reason for change</span><input bind:value={reason} required /></label>{/if}
-    </div>
-</Dialog>
-
-<Dialog bind:open={aOpen} title="Add allowance" width={400} onsubmit={saveAllowance} busy={aa.busy} error={aa.error}>
-    <div class="form-grid">
-        <label class="field wide"
-            ><span class="req">Person</span>
-            <select bind:value={aUser} required>
-                <option value="" disabled>Select</option>
-                {#each people as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
-            </select>
-        </label>
-        <label class="field"><span class="req">Amount</span><input class="num" inputmode="decimal" bind:value={aAmount} required /></label>
-        {#if closed}<label class="field wide"><span class="req">Reason for change</span><input bind:value={reason} required /></label>{/if}
     </div>
 </Dialog>
 
