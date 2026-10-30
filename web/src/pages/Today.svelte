@@ -470,11 +470,11 @@
 
     {#if isToday}<aside class="panel roster">
             {#if member}
-                <header>
+                <!-- ef1cfb99: on a phone the whole header row folds the block; the button inside keeps it reachable by keyboard. -->
+                <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+                <header class:foldbar={phone.current} onclick={() => phone.current && (unfolded.roster = !unfolded.roster)}>
                     <h2>
-                        {#if phone.current}<button class="fold" aria-expanded={rosterOpen} onclick={() => (unfolded.roster = !unfolded.roster)}
-                                >Who's clocked in</button
-                            >{:else}Who's clocked in{/if}
+                        {#if phone.current}<button class="fold" aria-expanded={rosterOpen}>Who's clocked in</button>{:else}Who's clocked in{/if}
                     </h2>
                     <span class="spacer"></span><span class="faint" use:changed={rosterShown?.filter((m) => m.present).length}
                         >{rosterShown?.filter((m) => m.present).length ?? 0} of {rosterShown?.length ?? 0} in</span
@@ -509,11 +509,10 @@
                     </table>
                 {/if}
             {/if}
-            <header class:bk-head={member}>
+            <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+            <header class:bk-head={member} class:foldbar={phone.current} onclick={() => phone.current && (unfolded.booked = !unfolded.booked)}>
                 <h2>
-                    {#if phone.current}<button class="fold" aria-expanded={bookedOpen} onclick={() => (unfolded.booked = !unfolded.booked)}
-                            >Booked visits</button
-                        >{:else}Booked visits{/if}
+                    {#if phone.current}<button class="fold" aria-expanded={bookedOpen}>Booked visits</button>{:else}Booked visits{/if}
                 </h2>
                 <span class="spacer"></span><span class="faint">{booked.data?.length ?? 0}</span>
             </header>
@@ -591,6 +590,9 @@
         }
     }
     /* The whole title is the tap target; the arrow says whether it is open. */
+    .foldbar {
+        cursor: pointer;
+    }
     .fold {
         all: unset;
         cursor: pointer;
