@@ -4,6 +4,7 @@ import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.database.JdbcTiming
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.RequestQueryTally
@@ -17,6 +18,7 @@ import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import com.companyb.companyapp.workforce.AttendanceService
 import org.jetbrains.exposed.v1.jdbc.Database
+import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -133,6 +135,30 @@ class TodayScreenServicePostgresTest : BasePostgresTest() {
         assertNull(screen.roster)
     }
 
+    // Feedback d6cc83cf: a session left Waiting on an earlier day no longer blocks today, so Today
+    // names the open days that still hold one, for the branch to mark. No clock-in needed to see it.
+    @Test
+    fun `Today names earlier open days that still hold a Waiting session`() {
+        val today = BranchDayService.currentOperationalDate()
+
+        fun sessionOn(
+            dayId: UUID,
+            status: SessionStatus = SessionStatus.PENDING,
+        ) = SessionClientFixtures.insertTestSession(
+            TestFixtures.uuid(),
+            SessionClientFixtures.insertTestClient(),
+            dayId,
+            sessionStatus = status,
+        )
+        sessionOn(BranchWorkforceFixtures.createBranchDayForDate(branchId, today.minusDays(2)))
+        sessionOn(BranchWorkforceFixtures.createBranchDayForDate(branchId, today.minusDays(1)), SessionStatus.COMPLETED)
+        sessionOn(BranchWorkforceFixtures.createRemittedBranchDay(branchId, today.minusDays(3)))
+        sessionOn(BranchWorkforceFixtures.createBranchDayForDate(otherBranchId, today.minusDays(4)))
+
+        assertEquals(listOf(today.minusDays(2)), TodayScreenService.get(globalViewer, branchId).earlierWaitingDays)
+        assertNull(TodayScreenService.get(outsider, branchId).earlierWaitingDays)
+    }
+
     @Test
     fun `someone with no part in the branch sees nothing`() {
         val screen = TodayScreenService.get(outsider, branchId)
@@ -161,6 +187,7 @@ class TodayScreenServicePostgresTest : BasePostgresTest() {
     }
 
     private companion object {
-        const val QUERY_BUDGET = 12
+        // 13: one read names the earlier days still holding a Waiting session (feedback d6cc83cf).
+        const val QUERY_BUDGET = 13
     }
 }

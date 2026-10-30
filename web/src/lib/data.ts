@@ -48,6 +48,9 @@ export const load = {
             const t = await todayScreen(branchId);
             return part(t.dashboard, t.dashboardRefusal);
         }),
+    /** Earlier open days still holding a Waiting session (feedback d6cc83cf); "dash:" so marks refresh it. */
+    earlierWaiting: (branchId: string) =>
+        L(`dash:waiting:${branchId}:${operationalDate()}`, async () => (await todayScreen(branchId)).earlierWaitingDays ?? []),
     /** A day's row at a branch (its id and status), or null when nothing was recorded that day. */
     branchDay: (branchId: string, date: string) =>
         L(`bday:${branchId}:${date}`, async () => {

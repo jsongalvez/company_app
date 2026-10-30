@@ -50,5 +50,6 @@ object TodayScreenRoutes {
                         it.present,
                     )
                 },
+            earlierWaitingDays = screen.earlierWaitingDays?.map { it.toString() },
         )
 }

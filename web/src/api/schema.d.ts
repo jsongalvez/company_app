@@ -2548,6 +2548,7 @@ export interface components {
                     dashboardRefusal: string | null;
                     bookings: components["schemas"]["BookingResponse"][] | null;
                     roster: components["schemas"]["MemberAttendanceResponse"][] | null;
+                    earlierWaitingDays?: string[] | null;
                 } | null;
             } | null;
         };
@@ -2597,6 +2598,7 @@ export interface components {
                 dashboardRefusal: string | null;
                 bookings: components["schemas"]["BookingResponse"][] | null;
                 roster: components["schemas"]["MemberAttendanceResponse"][] | null;
+                earlierWaitingDays?: string[] | null;
             } | null;
         };
         StopViewAsRequest: {
@@ -3119,6 +3121,7 @@ export interface components {
             dashboardRefusal: string | null;
             bookings: components["schemas"]["BookingResponse"][] | null;
             roster: components["schemas"]["MemberAttendanceResponse"][] | null;
+            earlierWaitingDays?: string[] | null;
         };
         UnvoidSessionRequest: {
             unvoidedReason: string;
@@ -3228,6 +3231,7 @@ export interface components {
                         dashboardRefusal: string | null;
                         bookings: components["schemas"]["BookingResponse"][] | null;
                         roster: components["schemas"]["MemberAttendanceResponse"][] | null;
+                        earlierWaitingDays?: string[] | null;
                     } | null;
                 } | null;
             } | null;
@@ -3259,6 +3263,7 @@ export interface components {
                     dashboardRefusal: string | null;
                     bookings: components["schemas"]["BookingResponse"][] | null;
                     roster: components["schemas"]["MemberAttendanceResponse"][] | null;
+                    earlierWaitingDays?: string[] | null;
                 } | null;
             } | null;
         };
@@ -3306,6 +3311,7 @@ export interface components {
                     dashboardRefusal: string | null;
                     bookings: components["schemas"]["BookingResponse"][] | null;
                     roster: components["schemas"]["MemberAttendanceResponse"][] | null;
+                    earlierWaitingDays?: string[] | null;
                 } | null;
             } | null;
         };
@@ -3348,6 +3354,7 @@ export interface components {
                     dashboardRefusal: string | null;
                     bookings: components["schemas"]["BookingResponse"][] | null;
                     roster: components["schemas"]["MemberAttendanceResponse"][] | null;
+                    earlierWaitingDays?: string[] | null;
                 } | null;
             } | null;
         };

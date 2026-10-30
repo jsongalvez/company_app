@@ -247,19 +247,43 @@ class SessionServicePostgresTest : BasePostgresTest() {
             assertFailsWith<ConflictException> {
                 createSession(callerId, secondSessionId)
             }
-        // Feedback e8aefedf: "Why can't i add juan dela ceiz?" The answer has to say where he is still waiting.
-        val day =
-            java.time.format.DateTimeFormatter
-                .ofPattern(
-                    "MMM d",
-                    java.util.Locale.ENGLISH,
-                ).format(TestFixtures.today)
+        // Feedback e8aefedf: "Why can't i add juan dela ceiz?" The answer has to say where he is waiting.
         assertEquals(
-            "This client is still waiting from $day at Test Branch ${branchId.toString().take(
+            "This client is already waiting at Test Branch ${branchId.toString().take(
                 8,
-            )}. Mark that session first.",
+            )} on this day. Mark that session first.",
             error.message,
         )
+    }
+
+    // Feedback d6cc83cf: a session left Waiting on an earlier day (entered late, or never marked)
+    // is a stale record. It must not keep the client out of today's queue at any branch.
+    @Test
+    fun `a session left waiting on an earlier day does not block adding the client today`() {
+        val yesterday = BranchDayService.resolveOrCreate(branchId, TestFixtures.today.minusDays(1))
+        SessionClientFixtures.insertTestSession(TestFixtures.uuid(), clientId, yesterday.id)
+
+        val result = createSession(callerId, sessionId)
+
+        assertEquals(SessionStatus.PENDING, result.session.sessionStatus)
+    }
+
+    @Test
+    fun `an earlier day's session can go back to waiting while the client waits today`() {
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        val yesterday = BranchDayService.resolveOrCreate(branchId, TestFixtures.today.minusDays(1))
+        val earlierId = TestFixtures.uuid()
+        SessionClientFixtures.insertTestSession(
+            earlierId,
+            clientId,
+            yesterday.id,
+            sessionStatus = SessionStatus.NO_SHOW,
+        )
+        createSession(callerId, sessionId)
+
+        val updated = SessionService.updateStatus(callerId, earlierId, SessionStatus.PENDING, 1, "entered late")
+
+        assertEquals(SessionStatus.PENDING, updated.sessionStatus)
     }
 
     // #751 — history reads join the command transaction after the client-row lock,

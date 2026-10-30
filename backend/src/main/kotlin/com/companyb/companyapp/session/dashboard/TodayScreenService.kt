@@ -21,6 +21,7 @@ data class TodayScreenData(
     val dashboardRefusal: String?,
     val bookings: List<BookingResponse>?,
     val roster: List<AttendanceRosterEntry>?,
+    val earlierWaitingDays: List<java.time.LocalDate>?,
 )
 
 /**
@@ -48,6 +49,12 @@ object TodayScreenService {
                 dashboardRefusal = if (clockedIn) null else NOT_CLOCKED_IN,
                 bookings = if (canView) VisitBookingService.upcoming(branchId) else null,
                 roster = if (presence.isMember(callerId)) presence.entries() else null,
+                earlierWaitingDays =
+                    if (canView) {
+                        DashboardRepository.findEarlierWaitingDays(branchId, BranchDayService.currentOperationalDate())
+                    } else {
+                        null
+                    },
             )
         }
 }

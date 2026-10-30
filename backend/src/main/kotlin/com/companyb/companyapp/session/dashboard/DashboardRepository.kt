@@ -1,6 +1,9 @@
 package com.companyb.companyapp.session.dashboard
 
+import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.client.ClientTable
+import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.session.ActiveSessionVoidsView
 import com.companyb.companyapp.session.Concern
@@ -16,8 +19,12 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.core.less
+import org.jetbrains.exposed.v1.core.neq
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.time.LocalDate
 import java.util.UUID
 
 data class ClientNames(
@@ -39,6 +46,29 @@ data class ConcernWithSessionId(
 )
 
 internal object DashboardRepository {
+    /**
+     * Earlier unremitted days at [branchId] that still hold a Waiting session (feedback d6cc83cf):
+     * one entered late or never marked. Today lists them so the branch marks them.
+     */
+    fun findEarlierWaitingDays(
+        branchId: UUID,
+        before: LocalDate,
+    ): List<LocalDate> =
+        transaction {
+            SessionTable
+                .innerJoin(BranchDayTable, { SessionTable.branchDayId }, { BranchDayTable.id })
+                .select(BranchDayTable.date)
+                .where {
+                    (BranchDayTable.branchId eq branchId) and
+                        (BranchDayTable.date less before) and
+                        (BranchDayTable.status neq DayStatus.REMITTED) and
+                        (SessionTable.sessionStatus eq SessionStatus.PENDING) and
+                        (SessionTable.isVoided eq false)
+                }.withDistinct()
+                .orderBy(BranchDayTable.date to SortOrder.ASC)
+                .map { it[BranchDayTable.date] }
+        }
+
     fun findSessionsByBranchDay(branchDayId: UUID): List<Session> =
         transaction {
             SessionTable

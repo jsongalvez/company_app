@@ -70,4 +70,9 @@ data class TodayScreenResponse(
     val dashboardRefusal: String?,
     val bookings: List<com.companyb.companyapp.contracts.session.BookingResponse>?,
     val roster: List<com.companyb.companyapp.contracts.workforce.MemberAttendanceResponse>?,
+    /**
+     * Earlier open days (ISO dates, oldest first) that still hold a Waiting session, for anyone
+     * who may see the branch: they no longer block today, so Today names them to be marked.
+     */
+    val earlierWaitingDays: List<String>? = null,
 )

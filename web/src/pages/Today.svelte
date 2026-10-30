@@ -89,6 +89,7 @@
     /** The roster with a just-confirmed mark shown before the server has answered. */
     const rosterShown = $derived(roster.data?.map((m) => (app.marking?.userId === m.userId ? { ...m, present: app.marking.present } : m)));
     const booked = new Query<Booking[]>();
+    const earlierWaiting = new Query<string[]>();
     /** The on-duty list is for the branch's own staff; others get a note instead. */
     const member = $derived(app.branches.some((b) => b.branchId === bid && !!b.assignmentId));
     $effect(() => {
@@ -96,6 +97,8 @@
         dash.load(l.key, l.fn);
         const bk = load.bookings(bid);
         booked.load(bk.key, bk.fn);
+        const ew = load.earlierWaiting(bid);
+        earlierWaiting.load(ew.key, ew.fn);
         if (member) {
             const r = load.roster(bid);
             roster.load(r.key, r.fn);
@@ -183,7 +186,7 @@
     function reloadLists() {
         if (!isToday) {
             // The first add to a day with nothing recorded makes its row, which a sale needs.
-            invalidate(`bday:${bid}:${date}`, `dsess:${bid}:${date}`, `dsum:${bid}:${date}`);
+            invalidate(`bday:${bid}:${date}`, `dsess:${bid}:${date}`, `dsum:${bid}:${date}`, `dash:waiting:${bid}`);
             pastDay.refresh();
             pastList.refresh();
             pastSum.refresh();
@@ -315,6 +318,14 @@
 {:else if isToday && app.today && app.today.status !== "OPEN"}
     <div class="notice warn mb">
         This day is {label(app.today.status)}. Edits need coordinator rights{app.today.status === "REMITTED" ? " and a reason" : ""}.
+    </div>
+{/if}
+{#if isToday && earlierWaiting.data?.length}
+    <div class="notice warn mb" role="status">
+        Still waiting on
+        {#each earlierWaiting.data as d (d)}
+            <button class="ghost" onpointerdown={() => prefetch(d)} onclick={() => setDate(d)}>{day(d)}</button>
+        {/each}
     </div>
 {/if}
 {#if !edit && can("VIEW_BRANCH_DATA")}

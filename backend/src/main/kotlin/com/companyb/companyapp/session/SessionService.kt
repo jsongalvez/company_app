@@ -389,7 +389,11 @@ object SessionService {
                 )
 
             if (newStatus == SessionStatus.PENDING) {
-                SessionRepository.assertNotWaitingElsewhereInTransaction(session.clientId, sessionId)
+                SessionRepository.assertNotWaitingElsewhereInTransaction(
+                    session.clientId,
+                    session.branchDayId,
+                    sessionId,
+                )
             }
 
             val updated = SessionRepository.updateStatusInTransaction(sessionId, newStatus, expectedVersion)
@@ -594,6 +598,7 @@ object SessionService {
             if (session.sessionStatus == SessionStatus.PENDING) {
                 SessionRepository.assertNotWaitingElsewhereInTransaction(
                     session.clientId,
+                    session.branchDayId,
                     excludedSessionId = sessionId,
                 )
             }

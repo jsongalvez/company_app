@@ -28,13 +28,9 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
-
-private val WAITING_DAY: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH)
 
 data class SessionCreateParams(
     val id: UUID,
@@ -158,7 +154,7 @@ internal object SessionRepository {
             }
         }
 
-        assertNotWaitingElsewhereInTransaction(params.clientId)
+        assertNotWaitingElsewhereInTransaction(params.clientId, params.branchDayId)
 
         val insertedCount =
             SessionTable
@@ -303,40 +299,50 @@ internal object SessionRepository {
             it[SessionTable.otherConcerns] = null
         }
 
+    /** Any Waiting session at all, any day: the anonymize guard keeps a queued client named. */
     fun hasActivePendingSessionInTransaction(
         clientId: UUID,
         excludedSessionId: UUID? = null,
-    ): Boolean = findWaitingInTransaction(clientId, excludedSessionId) != null
+    ): Boolean = findWaitingInTransaction(clientId, excludedSessionId, onDate = null) != null
 
     /**
-     * A client can only have one waiting session. When another one is waiting, say where, so the
-     * person adding knows which session to mark (feedback e8aefedf: "Why can't i add juan dela ceiz?").
+     * A client waits in one queue per day (ADR-0026). A session left Waiting on an earlier day was
+     * entered late or never marked; it stays on that day for its branch to mark and never blocks
+     * another day (feedback d6cc83cf). When the same day already has one, say where, so the person
+     * adding knows which session to mark (feedback e8aefedf).
      */
     fun assertNotWaitingElsewhereInTransaction(
         clientId: UUID,
+        branchDayId: UUID,
         excludedSessionId: UUID? = null,
     ) {
-        val waiting = findWaitingInTransaction(clientId, excludedSessionId) ?: return
-        val day = WAITING_DAY.format(waiting[BranchDayTable.date])
+        val date =
+            BranchDayTable
+                .select(BranchDayTable.date)
+                .where { BranchDayTable.id eq branchDayId }
+                .single()[BranchDayTable.date]
+        val waiting = findWaitingInTransaction(clientId, excludedSessionId, onDate = date) ?: return
         throw ConflictException(
-            "This client is still waiting from $day at ${waiting[BranchTable.name]}. Mark that session first.",
+            "This client is already waiting at ${waiting[BranchTable.name]} on this day. Mark that session first.",
         )
     }
 
     private fun findWaitingInTransaction(
         clientId: UUID,
         excludedSessionId: UUID?,
+        onDate: LocalDate?,
     ): ResultRow? {
-        val condition =
+        var condition =
             (SessionTable.clientId eq clientId) and
                 (SessionTable.sessionStatus eq SessionStatus.PENDING) and
                 (SessionTable.isVoided eq false)
-        val scopedCondition = excludedSessionId?.let { condition and (SessionTable.id neq it) } ?: condition
+        excludedSessionId?.let { condition = condition and (SessionTable.id neq it) }
+        onDate?.let { condition = condition and (BranchDayTable.date eq it) }
         return SessionTable
             .innerJoin(BranchDayTable, { SessionTable.branchDayId }, { BranchDayTable.id })
             .innerJoin(BranchTable, { BranchDayTable.branchId }, { BranchTable.id })
             .select(BranchDayTable.date, BranchTable.name)
-            .where { scopedCondition }
+            .where { condition }
             .limit(1)
             .firstOrNull()
     }
