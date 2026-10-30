@@ -132,7 +132,7 @@ for (const r of roles) {
                 await d.getByLabel(/^From/).fill(today);
                 await d.getByLabel(/^To/).fill(today);
                 await d.getByRole("button", "Create draft").tap();
-                await screen.getByRole("button", "Add everything in range").tap();
+                await screen.getByRole("button", "Add all").tap();
                 await expect(screen.getByRole("row").filter({ hasText: client })).toBeVisible();
                 await screen.getByRole("button", "Send to office").tap();
                 await screen.getByRole("dialog", "Send remittance").getByRole("button", "Send to office").tap();
