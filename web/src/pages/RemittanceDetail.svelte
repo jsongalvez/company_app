@@ -52,6 +52,38 @@
     const covered = $derived(new Map((r?.dayBreakdowns ?? []).map((b) => [b.branchDayId, b.id])));
     const inLines = $derived(new Set(lines.map((l) => l.sessionId ?? l.productSaleId)));
     const eligibleSessions = $derived(sessions.filter((s) => s.sessionStatus === "COMPLETED"));
+    const isProduct = $derived(r?.type === "PRODUCT");
+    const itemWord = $derived(isProduct ? "Product sales" : "Sessions");
+
+    /** Step 2 as one checklist: everything that can go in, plus anything already in that no longer shows there. */
+    type Item = { id: string; when: string | null; what: string; amount: string; lineId: string | undefined };
+    const lineBySource = $derived(new Map(lines.map((l) => [l.sessionId ?? l.productSaleId ?? "", l.id])));
+    const items = $derived.by<Item[]>(() => {
+        const pick: Item[] = isProduct
+            ? sales.map((s) => ({
+                  id: s.id,
+                  when: s.soldAt,
+                  what: `${s.productName} × ${s.quantity}`,
+                  amount: s.totalAmountAtTime,
+                  lineId: lineBySource.get(s.id),
+              }))
+            : eligibleSessions.map((s) => ({
+                  id: s.id,
+                  when: s.bookedAt,
+                  what: s.clientName ?? "(details erased)",
+                  amount: s.finalPrice,
+                  lineId: lineBySource.get(s.id),
+              }));
+        const shown = new Set(pick.map((i) => i.id));
+        const rest = lines
+            .filter((l) => !shown.has(l.sessionId ?? l.productSaleId ?? ""))
+            .map((l) => ({ id: l.sessionId ?? l.productSaleId ?? l.id, when: null, what: lineName(l), amount: l.amount, lineId: l.id }));
+        return [...pick, ...rest];
+    });
+    function toggleItem(i: Item) {
+        if (i.lineId) void removeLine(i.lineId);
+        else void addLine({ id: i.id, amount: i.amount });
+    }
 
     function reload() {
         invalidate(`remd:${id}`, `rem:`);
@@ -213,12 +245,9 @@
 
 <State {q} />
 {#if r}
-    <PageHead title="Remittance" sub="{branchName(r.branchId)} · {day(r.dateRangeStart)} – {day(r.dateRangeEnd)}">
+    <PageHead title="{label(r.type)} remittance" sub="{branchName(r.branchId)} · {day(r.dateRangeStart)} – {day(r.dateRangeEnd)}">
         <a class="btn" href="#/remittance">All remittances</a>
-        {#if editable}
-            <button onclick={openHeader}>Edit</button>
-            <button class="primary" onclick={() => (sa.reset(), (sOpen = true))} disabled={lines.length === 0}>Send to office</button>
-        {/if}
+        {#if editable}<button onclick={openHeader}>Edit</button>{/if}
         {#if canUndo}<button class="danger" onclick={() => (ua.reset(), (uReason = ""), (uOpen = true))}>Undo</button>{/if}
     </PageHead>
 
@@ -226,10 +255,6 @@
         <div>
             <div class="k">Status</div>
             <div class="v"><span class="mark {draft ? 'warn' : 'ok'}">{label(r.status)}</span></div>
-        </div>
-        <div>
-            <div class="k">Kind</div>
-            <div class="v">{label(r.type)}</div>
         </div>
         <div>
             <div class="k">How</div>
@@ -281,88 +306,76 @@
     {/if}
 
     {#if editable}
-        <div class="notice mb row">
-            <span class="grow">Pick the days this covers, then the {r.type === "PRODUCT" ? "product sales" : "done sessions"} to include.</span>
-            <button onclick={addEverything} disabled={filling || picking}>{filling ? "Adding…" : "Add everything in range"}</button>
+        <section class="panel mb step">
+            <header>
+                <h2>1 · Days</h2>
+                <span class="spacer"></span><span class="faint">{covered.size} of {days.length}</span>
+                <button class="sm" onclick={addEverything} disabled={filling || picking}>{filling ? "Adding…" : "Add all"}</button>
+            </header>
+            <table class="grid">
+                <tbody>
+                    {#each days as d (d.id)}
+                        <tr class="click" onclick={() => toggleDay(d)}>
+                            <td class="chk"><input type="checkbox" checked={covered.has(d.id)} tabindex="-1" aria-label={day(d.date)} /></td>
+                            <td>{day(d.date)}</td>
+                            <td class="right"
+                                >{#if d.status === "REMITTED"}<span class="mark info">Already remitted</span>{/if}</td
+                            >
+                        </tr>
+                    {:else}<tr><td class="faint">No days in this range.</td></tr>{/each}
+                </tbody>
+            </table>
+        </section>
+        <section class="panel mb step">
+            <header>
+                <h2>2 · {itemWord}</h2>
+                <span class="spacer"></span><span class="faint">{lines.length} of {items.length}</span>
+            </header>
+            <table class="grid">
+                <tbody>
+                    {#each items as i (i.id)}
+                        <tr class="click" onclick={() => toggleItem(i)}>
+                            <td class="chk"><input type="checkbox" checked={!!i.lineId} tabindex="-1" aria-label={i.what} /></td>
+                            <td class="lead">{i.what}</td>
+                            <td class="muted hide-sm">{i.when ? dateTime(i.when) : ""}</td>
+                            <td class="num">{peso(i.amount)}</td>
+                        </tr>
+                    {:else}<tr><td class="faint">{isProduct ? "No product sales in range." : "No done sessions in range."}</td></tr>{/each}
+                </tbody>
+            </table>
+        </section>
+        <div class="send row">
+            <span class="grow"><b>{peso(sum(lines.map((l) => l.amount)))}</b> <span class="faint">{lines.length} items · {covered.size} days</span></span>
+            <button class="primary" onclick={() => (sa.reset(), (sOpen = true))} disabled={lines.length === 0}>Send to office</button>
         </div>
-        <div class="cols">
-            <section class="panel">
-                <header>
-                    <h2>Days</h2>
-                    <span class="spacer"></span><span class="faint">{covered.size} of {days.length}</span>
-                </header>
-                <table class="grid">
-                    <tbody>
-                        {#each days as d (d.id)}
-                            <tr class="click" onclick={() => toggleDay(d)}>
-                                <td class="chk"><input type="checkbox" checked={covered.has(d.id)} tabindex="-1" /></td>
-                                <td>{day(d.date)}</td>
-                                <td class="right"
-                                    >{#if d.status === "REMITTED"}<span class="mark info">Already remitted</span>{/if}</td
-                                >
-                            </tr>
-                        {:else}<tr><td class="faint">No days with records in this range.</td></tr>{/each}
-                    </tbody>
-                </table>
-            </section>
-            <section class="panel">
-                <header><h2>Can be added</h2></header>
+    {:else}
+        <section class="panel">
+            <header>
+                <h2>Included</h2>
+                <span class="spacer"></span><span class="faint">{lines.length} items</span>
+            </header>
+            {#if lines.length}
                 <table class="grid stack">
                     <tbody>
-                        {#if r.type === "PRODUCT"}
-                            {#each sales.filter((s) => !inLines.has(s.id)) as s (s.id)}
-                                <tr>
-                                    <td class="muted">{dateTime(s.soldAt)}</td><td class="lead">{s.productName} × {s.quantity}</td><td class="num"
-                                        >{peso(s.totalAmountAtTime)}</td
-                                    >
-                                    <td class="right"><button class="sm" onclick={() => addLine({ id: s.id, amount: s.totalAmountAtTime })}>Add</button></td>
-                                </tr>
-                            {:else}<tr><td class="faint">Nothing left to add.</td></tr>{/each}
-                        {:else}
-                            {#each eligibleSessions.filter((s) => !inLines.has(s.id)) as s (s.id)}
-                                <tr>
-                                    <td class="muted">{dateTime(s.bookedAt)}</td><td class="lead">{s.clientName ?? "(details erased)"}</td><td class="num"
-                                        >{peso(s.finalPrice)}</td
-                                    >
-                                    <td class="right"><button class="sm" onclick={() => addLine({ id: s.id, amount: s.finalPrice })}>Add</button></td>
-                                </tr>
-                            {:else}<tr><td class="faint">Nothing left to add. Only done sessions can be included.</td></tr>{/each}
-                        {/if}
+                        {#each lines as l (l.id)}
+                            <tr>
+                                <td class="lead">{lineName(l)}</td>
+                                <td class="num">{peso(l.amount)}</td>
+                            </tr>
+                        {/each}
                     </tbody>
+                    <tfoot><tr><td>Total</td><td class="num">{peso(sum(lines.map((l) => l.amount)))}</td></tr></tfoot>
                 </table>
-            </section>
-        </div>
+            {:else}<div class="faint pad">Nothing included.</div>{/if}
+        </section>
     {/if}
-
-    <section class="panel">
-        <header>
-            <h2>Included</h2>
-            <span class="spacer"></span><span class="faint">{lines.length} items</span>
-        </header>
-        {#if lines.length}
-            <table class="grid stack">
-                <tbody>
-                    {#each lines as l (l.id)}
-                        <tr>
-                            <td class="lead">{lineName(l)}</td>
-                            <td class="num">{peso(l.amount)}</td>
-                            {#if editable}<td class="right"><button class="sm" onclick={() => removeLine(l.id)}>Remove</button></td>{/if}
-                        </tr>
-                    {/each}
-                </tbody>
-                <tfoot
-                    ><tr
-                        ><td>Total</td><td class="num">{peso(sum(lines.map((l) => l.amount)))}</td>{#if editable}<td></td>{/if}</tr
-                    ></tfoot
-                >
-            </table>
-        {:else}<div class="faint pad">Nothing included yet.</div>{/if}
-    </section>
 
     <Dialog bind:open={hOpen} title="Edit remittance" width={420} onsubmit={saveHeader} busy={ha.busy} error={ha.error}>
         <div class="form-grid">
             <label class="field"
-                >Kind<select bind:value={hType}><option value="SESSION">Sessions</option><option value="PRODUCT">Product sales</option></select></label
+                >Kind<select bind:value={hType} disabled={lines.length > 0}
+                    ><option value="SESSION">Sessions</option><option value="PRODUCT">Product sales</option></select
+                ></label
             >
             <label class="field"
                 >How<select bind:value={hMethod}
@@ -397,12 +410,13 @@
     .mb {
         margin-bottom: 12px;
     }
-    .cols {
-        display: grid;
-        grid-template-columns: 280px 1fr;
-        gap: 12px;
-        margin-bottom: 12px;
-        align-items: start;
+    .send {
+        position: sticky;
+        bottom: 0;
+        gap: 10px;
+        padding: 10px 12px;
+        background: var(--panel, #fff);
+        border-top: 1px solid var(--line, #ddd);
     }
     .chk {
         width: 24px;
@@ -412,10 +426,5 @@
     }
     .v.sm {
         font-size: 13px;
-    }
-    @media (max-width: 900px) {
-        .cols {
-            grid-template-columns: 1fr;
-        }
     }
 </style>

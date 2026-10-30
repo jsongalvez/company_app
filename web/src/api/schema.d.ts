@@ -2903,7 +2903,7 @@ export interface components {
             nextCursor?: string | null;
         };
         DailySalesSummaryResponse: {
-            branchDayId: string;
+            branchDayId: string | null;
             branchId: string;
             date: string;
             grossIncome: string;
