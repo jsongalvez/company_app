@@ -130,7 +130,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
         RemittanceService.createDraft(
             callerId = submitUser,
             id = draftRemittanceId,
-            type = RemittanceType.PRODUCT,
+            type = RemittanceType.SESSION,
             branchId = branchId,
             method = RemittanceMethod.BANK_TRANSFER,
             dateRangeStart = rangeStart,
@@ -859,7 +859,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "type" to "PRODUCT",
+                    "type" to "SESSION",
                     "method" to "HANDED_TO_ACCOUNTANT",
                     "dateRangeStart" to rangeStart.toString(),
                     "dateRangeEnd" to rangeEnd.toString(),

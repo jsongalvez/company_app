@@ -128,9 +128,62 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         assertEquals(remittance.version + 1, updatedRemittance.version)
     }
 
+    // Feedback 364b18b3: "Weird i was able to add both sessions and products in remittance."
+    @Test
+    fun `a Sessions remittance refuses a product sale`() {
+        val remittance = createDraftRemittance(RemittanceType.SESSION)
+        createSession()
+        createProductSale()
+
+        val error =
+            assertFailsWith<ValidationException> {
+                RemittanceService.addLine(
+                    callerId = callerId,
+                    remittanceId = remittance.id,
+                    id = TestFixtures.uuid(),
+                    type = RemittanceLineType.PRODUCT_SALE,
+                    sessionId = null,
+                    productSaleId = productSaleId,
+                    amount = BigDecimal("500.00"),
+                )
+            }
+        assertEquals("This remittance is for sessions. Product sales go in a Product sales remittance.", error.message)
+    }
+
+    @Test
+    fun `a draft that holds items keeps its kind`() {
+        val remittance = createDraftRemittance(RemittanceType.SESSION)
+        createSession()
+        RemittanceService.addLine(
+            callerId = callerId,
+            remittanceId = remittance.id,
+            id = TestFixtures.uuid(),
+            type = RemittanceLineType.SESSION,
+            sessionId = sessionId,
+            productSaleId = null,
+            amount = BigDecimal("1500.00"),
+        )
+        val version = RemittanceService.getRemittance(remittance.id).remittance.version
+
+        val error =
+            assertFailsWith<ValidationException> {
+                RemittanceService.updateHeader(
+                    callerId = callerId,
+                    remittanceId = remittance.id,
+                    type = RemittanceType.PRODUCT,
+                    method = RemittanceMethod.BANK_TRANSFER,
+                    dateRangeStart = remittance.dateRangeStart,
+                    dateRangeEnd = remittance.dateRangeEnd,
+                    expectedVersion = version,
+                )
+            }
+        assertEquals("Remove the included items before changing the kind.", error.message)
+        assertEquals(RemittanceType.SESSION, RemittanceService.getRemittance(remittance.id).remittance.type)
+    }
+
     @Test
     fun `add PRODUCT_SALE line succeeds`() {
-        val remittance = createDraftRemittance()
+        val remittance = createDraftRemittance(RemittanceType.PRODUCT)
         createSession()
         createProductSale()
 
@@ -170,10 +223,11 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 BigDecimal("1500.00"),
             )
         }
+        val productRemittance = createDraftRemittance(RemittanceType.PRODUCT)
         assertFailsWith<NotFoundException> {
             RemittanceService.addLine(
                 callerId,
-                remittance.id,
+                productRemittance.id,
                 TestFixtures.uuid(),
                 RemittanceLineType.PRODUCT_SALE,
                 null,
@@ -263,7 +317,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `add PRODUCT_SALE line rejects source outside remittance range`() {
-        val remittance = createDraftRemittance()
+        val remittance = createDraftRemittance(RemittanceType.PRODUCT)
         val outOfRangeDay = BranchDayService.resolveOrCreate(branchId, LocalDate.of(2026, 6, 1))
         insertProductCategory()
         insertProduct()
@@ -594,7 +648,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add line rejects client ID already used by another remittance`() {
         val firstRemittance = createDraftRemittance()
-        val secondRemittance = createDraftRemittance(RemittanceType.PRODUCT)
+        val secondRemittance = createDraftRemittance()
         createSession()
         completeSession(sessionId)
         val secondSessionId = TestFixtures.uuid()
@@ -657,7 +711,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add SESSION line already in another draft returns conflict`() {
         val firstDraft = createDraftRemittance()
-        val secondDraft = createDraftRemittance(RemittanceType.PRODUCT)
+        val secondDraft = createDraftRemittance()
         createSession()
 
         RemittanceService.addLine(
@@ -747,7 +801,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `add PRODUCT_SALE line duplicate returns conflict`() {
-        val remittance = createDraftRemittance()
+        val remittance = createDraftRemittance(RemittanceType.PRODUCT)
         createSession()
         createProductSale()
 

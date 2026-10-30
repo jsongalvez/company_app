@@ -1,5 +1,6 @@
 package com.companyb.companyapp.remittance
 
+import com.companyb.companyapp.contracts.remittance.RemittanceLineType
 import com.companyb.companyapp.contracts.remittance.RemittanceStatus
 import com.companyb.companyapp.contracts.remittance.RemittanceType
 import com.companyb.companyapp.exception.ValidationException
@@ -73,6 +74,28 @@ object RemittancePolicy {
     ) {
         if (status != RemittanceStatus.DRAFT) {
             throw ValidationException("Can only $mutation DRAFT remittances")
+        }
+    }
+
+    /** A remittance holds one kind of item: sessions, or product sales (feedback 364b18b3). */
+    fun assertLineFitsKind(
+        kind: RemittanceType,
+        line: RemittanceLineType,
+    ) {
+        val fits =
+            when (kind) {
+                RemittanceType.SESSION -> line == RemittanceLineType.SESSION
+                RemittanceType.PRODUCT -> line == RemittanceLineType.PRODUCT_SALE
+                RemittanceType.UNKNOWN -> false
+            }
+        if (!fits) {
+            throw ValidationException(
+                if (kind == RemittanceType.PRODUCT) {
+                    "This remittance is for product sales. Sessions go in a Sessions remittance."
+                } else {
+                    "This remittance is for sessions. Product sales go in a Product sales remittance."
+                },
+            )
         }
     }
 

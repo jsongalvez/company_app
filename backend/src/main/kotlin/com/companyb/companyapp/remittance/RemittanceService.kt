@@ -286,6 +286,9 @@ object RemittanceService {
                         ?: throw NotFoundException("Remittance not found")
 
                 RemittancePolicy.assertDraft(locked.status, "update header of")
+                if (type != locked.type && RemittanceLineRepository.findByRemittanceIdInTransaction(remittanceId).isNotEmpty()) {
+                    throw ValidationException("Remove the included items before changing the kind.")
+                }
 
                 assertExistingContentInRange(
                     remittanceId = remittanceId,
@@ -351,6 +354,7 @@ object RemittanceService {
                         expectedVersion = locked.version,
                     )
                 RemittanceLineRepository.findExistingRequestInTransaction(params)?.let { return@transaction it }
+                RemittancePolicy.assertLineFitsKind(locked.type, type)
 
                 requireSourceInRange(type, sessionId, productSaleId, locked)
 
