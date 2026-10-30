@@ -1,13 +1,14 @@
 <script lang="ts">
     import { viewSetting } from "../lib/router.svelte";
     import { api, ok, uuid, type S } from "../api/client";
-    import { Query, invalidate } from "../lib/cache.svelte";
+    import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
     import { peso } from "../lib/format";
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
     import Dialog from "../components/Dialog.svelte";
+    import History from "../components/History.svelte";
 
     type P = S["ProductResponse"];
     const products = new Query(load.products().key, load.products().fn);
@@ -36,6 +37,15 @@
         invalidate("products", "categories", "inv:");
         products.refresh();
         cats.refresh();
+    }
+
+    // One tap opens a product's change history under its row; fetched first, so it opens on its rows.
+    let historyOf = $state<string | null>(null);
+    async function openHistory(id: string) {
+        if (historyOf === id) return void (historyOf = null);
+        const l = load.audit("product", id);
+        await fetchCached(l.key, l.fn).catch(() => undefined);
+        historyOf = id;
     }
 
     // Add / edit product
@@ -103,6 +113,7 @@
         {#each cats.data ?? [] as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
     </select>
     {#if offCount}<label class="check"><input type="checkbox" bind:checked={showOff} />Show stopped ({offCount})</label>{/if}
+    <a href="#/audit?table=product_category">Category changes</a>
     <button onclick={() => (ca.reset(), (cName = ""), (cOpen = true))}>Add category</button>
     <button class="primary" onclick={() => openProduct(null)}>Add product</button>
 </PageHead>
@@ -126,6 +137,7 @@
                         <td class="num" data-label="Price">{peso(p.unitPrice)}</td>
                         <td class="num muted" data-label="Commission">{peso(p.commissionAmount)}</td>
                         <td class="right nowrap full">
+                            <button class="sm" class:primary={historyOf === p.id} onclick={() => openHistory(p.id)}>History</button>
                             <button class="sm" onclick={() => openProduct(p)}>Edit</button>
                             {#if p.isActive}<button class="sm" onclick={() => setActive(p, false)}>Stop selling</button>{:else}<button
                                     class="sm"
@@ -133,6 +145,9 @@
                                 >{/if}
                         </td>
                     </tr>
+                    {#if historyOf === p.id}
+                        <tr><td colspan="5"><History table="product" id={p.id} start /></td></tr>
+                    {/if}
                 {/each}
             </tbody>
         </table>
