@@ -190,6 +190,7 @@
 </script>
 
 <PageHead title="Expenses & pay">
+    <a class="btn" href={isToday ? "#/today" : `#/today?date=${date}`}>‹ Sessions</a>
     <span class="daynav">
         <button onclick={() => setDate(addDays(date, -1))} aria-label="Previous day">◀</button>
         <input type="date" value={date} max={operationalDate()} onchange={(e) => setDate(e.currentTarget.value || operationalDate())} />
