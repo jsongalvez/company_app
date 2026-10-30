@@ -3,10 +3,12 @@ package com.companyb.companyapp.reporting
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.reporting.DailySalesSummaryBrowseResponse
 import com.companyb.companyapp.contracts.reporting.DailySalesSummaryResponse
-import com.companyb.companyapp.exception.NotFoundException
 import io.github.oshai.kotlinlogging.KotlinLogging
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
+
+private val ZERO_MONEY: BigDecimal = BigDecimal.ZERO.setScale(2)
 
 object DailySalesSummaryService {
     private val logger = KotlinLogging.logger {}
@@ -17,11 +19,17 @@ object DailySalesSummaryService {
     ): DailySalesSummary {
         BranchService.findById(branchId)
 
-        val summary =
-            DailySalesSummaryRepository.findByBranchAndDate(branchId, date)
-                ?: throw NotFoundException("No data for this branch and date")
-
-        return summary
+        return DailySalesSummaryRepository.findByBranchAndDate(branchId, date)
+            ?: DailySalesSummary(
+                branchDayId = null,
+                branchId = branchId,
+                date = date,
+                grossIncome = ZERO_MONEY,
+                totalCompensation = ZERO_MONEY,
+                totalExpenses = ZERO_MONEY,
+                netIncome = ZERO_MONEY,
+                totalProductSales = ZERO_MONEY,
+            )
     }
 
     /**
@@ -45,7 +53,7 @@ object DailySalesSummaryService {
         val nextCursor =
             if (hasMore) {
                 entries.lastOrNull()?.let {
-                    encodeDailySummaryCursor(DailySummaryBrowseCursor(it.date, it.branchDayId))
+                    encodeDailySummaryCursor(DailySummaryBrowseCursor(it.date, checkNotNull(it.branchDayId)))
                 }
             } else {
                 null
@@ -63,7 +71,7 @@ object DailySalesSummaryService {
 
 fun DailySalesSummary.toResponse(): DailySalesSummaryResponse =
     DailySalesSummaryResponse(
-        branchDayId = branchDayId.toString(),
+        branchDayId = branchDayId?.toString(),
         branchId = branchId.toString(),
         date = date.toString(),
         grossIncome = grossIncome.toPlainString(),

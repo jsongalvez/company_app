@@ -8,7 +8,8 @@ import java.time.LocalDate
 import java.util.UUID
 
 data class DailySalesSummary(
-    val branchDayId: UUID,
+    /** Null for a day nobody has started yet: no clock-in, nothing recorded, every total zero. */
+    val branchDayId: UUID?,
     val branchId: UUID,
     val date: LocalDate,
     val grossIncome: BigDecimal,

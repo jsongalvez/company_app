@@ -419,6 +419,19 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         assertEquals(404, getStatus(noneUser, "/api/branches/$unknown/daily-summary?date=2026-08-10"))
     }
 
+    // Feedback ef1cfb99 and four more: "daily-summary → 404" before anyone clocked in that day.
+    @Test
+    fun `a day nobody has started reads as zeros`() {
+        testServer.client.let { client ->
+            val response = client.get("/api/branches/$branchA/daily-summary?date=2026-01-05", asUser(viewA))
+            assertEquals(200, response.code)
+            val body = response.body.string()
+            assertTrue(body.contains("\"branchDayId\":null"), body)
+            assertTrue(body.contains("\"grossIncome\":\"0.00\""), body)
+            assertTrue(body.contains("\"netIncome\":\"0.00\""), body)
+        }
+    }
+
     @Test
     fun `unknown branch daily-summaries is 404-gate not 403`() {
         val unknown = TestFixtures.uuid()

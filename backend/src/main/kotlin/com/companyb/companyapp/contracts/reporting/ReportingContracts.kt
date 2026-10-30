@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class DailySalesSummaryResponse(
-    val branchDayId: String,
+    val branchDayId: String?,
     val branchId: String,
     val date: String,
     val grossIncome: String,
