@@ -33,7 +33,7 @@ object MedicalMissionDelegateService {
             throw ValidationException("Medical mission delegate requires a medical mission Branch")
         }
         // unknown targets 404 before the eligibility 400 (precedent):
-        // isActiveManagerInTransaction alone conflates "unknown user" with "known but ineligible".
+        // isActiveStaffInTransaction alone conflates "unknown user" with "known but ineligible".
         if (!AccountReads.userExists(targetUserId)) {
             throw NotFoundException("User not found")
         }
@@ -65,14 +65,14 @@ object MedicalMissionDelegateService {
             return existingBeforeLock
         }
 
-        val activeManager = AccountReads.isActiveManagerInTransaction(targetUserId)
+        val activeStaff = AccountReads.isActiveStaffInTransaction(targetUserId)
         val existingAfterTargetLock = MedicalMissionDelegateRepository.findByIdInTransaction(delegateId)
         return if (existingAfterTargetLock != null) {
             requireRequestOwnership(existingAfterTargetLock, targetUserId, branchId, callerId)
             existingAfterTargetLock
         } else {
-            if (!activeManager) {
-                throw ValidationException("Delegate target must be an active MANAGER")
+            if (!activeStaff) {
+                throw ValidationException("A helper must be active staff.")
             }
             val alreadyDelegated =
                 MedicalMissionDelegateRepository.findActiveByTargetAndBranchInTransaction(

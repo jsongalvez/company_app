@@ -225,6 +225,23 @@ class AccessTableTest : BasePostgresTest() {
         who: Who,
     ) = testServer.client.patch(path, body, as_(who))
 
+    /** A helper is any assigned staff member, not only a Manager (user, message 13233). */
+    private fun assignHelper(
+        who: Who,
+        targetRole: String,
+    ): Response {
+        val target = TestFixtures.uuid()
+        IdentityFixtures.insertTestUser(target, "helper-target")
+        assignRole(target, targetRole)
+        val body =
+            mapOf(
+                "delegateId" to TestFixtures.uuid().toString(),
+                "targetUserId" to target.toString(),
+                "branchId" to missionId.toString(),
+            )
+        return post(ApiRoutes.DELEGATES, body, who)
+    }
+
     private fun newSession(d: Day): UUID {
         val client = TestFixtures.uuid()
         val id = TestFixtures.uuid()
@@ -496,6 +513,8 @@ class AccessTableTest : BasePostgresTest() {
                     ) { t, who, _ -> t.get(ApiRoutes.USERS, who) },
                 ) +
                 once("delegates.list") { who -> get("${ApiRoutes.BRANCHES}/$missionId/delegates", who) } +
+                once("delegates.assign staff") { who -> assignHelper(who, "PRACTITIONER") } +
+                once("delegates.assign onboarding") { who -> assignHelper(who, "ONBOARDING") } +
                 once("staff.list") { who -> get("${ApiRoutes.BRANCHES}/$branchId/assignments", who) } +
                 listOf(
                     Row(
@@ -574,6 +593,8 @@ class AccessTableTest : BasePostgresTest() {
             users.list                     Y    N    N    N    Y    Y    Y    Y    N    N    N    N    N
             users.list names Superuser     N    N    N    N    N    Y    N    Y    N    N    N    N    N
             delegates.list                 Y    N    N    N    Y    Y    Y    Y    N    N    N    N    N
+            delegates.assign staff         Y    N    N    N    Y    Y    Y    Y    N    N    N    N    N
+            delegates.assign onboarding  400    N    N    N  400  400  400  400    N    N    N    N    N
             staff.list                     Y    Y    Y    Y    Y    Y    Y    Y    N    N    N    Y    N
             branches.list every branch     Y    Y    N    N    N    Y    Y    Y    N    N    N    N    N
             view-as                        N    N    N    N    N    Y    N    Y    N    N    N    N    N

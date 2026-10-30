@@ -96,7 +96,7 @@ WHERE branch_day_id = :branch_day_id
 
 ## Engine 2: Medical Mission Delegate Hook (Issue #3)
 
-**Goal:** Ensure `MANAGER` users assigned as medical mission delegates automatically receive the `EDIT_BRANCH_DATA` capability scoped to the mission branch.
+**Goal:** Ensure staff assigned as medical mission helpers (delegates; any active staff member since 2026-10-30) automatically receive the `EDIT_BRANCH_DATA` capability scoped to the mission branch.
 
 **Context type decision (locked):** Always use `context_type = 'BRANCH'` with `context_id = branch.id`. The `MEDICAL_MISSION` enum value in `capability_context_type` is reserved for future differentiated logic. All current auth checks use the `BRANCH` path.
 

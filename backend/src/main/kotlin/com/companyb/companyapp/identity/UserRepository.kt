@@ -34,7 +34,7 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger { }
 
-private const val MANAGER_ROLE = "MANAGER"
+private const val ONBOARDING_ROLE = "ONBOARDING"
 
 /** Active assignment projected with its branch name — the user-list shape. */
 data class UserBranchAssignmentSummary(
@@ -393,9 +393,14 @@ internal object UserRepository {
             .forUpdate(ForUpdateOption.ForUpdate)
             .singleOrNull() != null
 
-    /** In-transaction eligibility check for medical-mission delegates. Locks target for pair uniqueness. */
-    fun isActiveManagerInTransaction(userId: UUID): Boolean {
+    /**
+     * Who may be a helper (medical-mission delegate): an active account holding a working role.
+     * Onboarding-only people have no access yet, and an Accountant never works a branch (user,
+     * message 13065). Locks the target for pair uniqueness.
+     */
+    fun isActiveStaffInTransaction(userId: UUID): Boolean {
         if (!acquireLockInTransaction(userId)) return false
+        if (holdsRoleInTransaction(userId, ACCOUNTANT_ROLE)) return false
         return AppUserTable
             .innerJoin(UserRoleTable, { AppUserTable.id }, { UserRoleTable.userId })
             .innerJoin(RoleTable, { UserRoleTable.roleId }, { RoleTable.id })
@@ -403,7 +408,7 @@ internal object UserRepository {
             .where {
                 (AppUserTable.id eq userId) and
                     (AppUserTable.status eq UserStatus.ACTIVE) and
-                    (RoleTable.name eq MANAGER_ROLE)
+                    (RoleTable.name neq ONBOARDING_ROLE)
             }.empty()
             .not()
     }

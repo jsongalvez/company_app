@@ -24,7 +24,7 @@ object AccountReads {
         UserRepository.holdsRoleInTransaction(userId, ACCOUNTANT_ROLE)
 
     /** Delegate-eligibility read — runs on the caller's command transaction. */
-    fun isActiveManagerInTransaction(userId: UUID): Boolean = UserRepository.isActiveManagerInTransaction(userId)
+    fun isActiveStaffInTransaction(userId: UUID): Boolean = UserRepository.isActiveStaffInTransaction(userId)
 
     /** Display names for notification copy — batched account read, same semantics. */
     fun findDisplayNamesByIds(ids: Collection<UUID>): Map<UUID, String> = UserRepository.findDisplayNamesByIds(ids)

@@ -13,7 +13,7 @@ async function signIn(app: App, screen: Screen, username: string, password: stri
     await expect(screen.getByRole("navigation", "Main")).toBeAttached();
 }
 
-// A mission helper (a Branches-page helper, an active Manager who is not a member) has relief's rights there until
+// A mission helper (a Branches-page helper: any active staff member, not a member there) has relief's rights there until
 // removed. The user: "A helper shares commissions, just think of it as a relief but indefinite until removed." So the
 // mission shows in their branch picker.
 test("a mission helper finds the mission in their branch picker", { session: "owner" }, async ({ app, screen }) => {
@@ -29,7 +29,7 @@ test("a mission helper finds the mission in their branch picker", { session: "ow
     await invite.getByLabel(/^Full name/).fill(name);
     await invite.getByLabel(/^Username/).fill(username);
     await invite.getByLabel(/^Email/).fill(`${username}@example.invalid`);
-    await invite.getByLabel("Manager").check();
+    await invite.getByLabel("Practitioner").check();
     await invite.getByRole("button", "Create invite").tap();
     const code = await invite.getByLabel("Invite code").inputValue();
     await invite.getByRole("button", "Done").tap();

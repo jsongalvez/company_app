@@ -127,7 +127,7 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `POST delegate rejects target without MANAGER role`() {
+    fun `POST delegate rejects a target who is not active staff`() {
         val body =
             mapOf(
                 "delegateId" to TestFixtures.uuid().toString(),
@@ -137,7 +137,7 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val response = client.post("/api/delegates", body, asUser(managerUser))
             assertEquals(400, response.code)
-            assertTrue(response.body.string().contains("active MANAGER"))
+            assertTrue(response.body.string().contains("A helper must be active staff."))
         }
     }
 

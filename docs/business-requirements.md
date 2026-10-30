@@ -393,7 +393,7 @@ Each branch day has a status that governs edit permissions. Transition from OPEN
 ### Medical Mission
 
 - A free event — all sessions are `MEDICAL_MISSION` type and are always ₱0
-- Owner assigns delegates (Manager role) to manage medical mission attendance. Delegates can also receive transport allowances as practitioners.
+- Owner, Manager (or Superuser) assigns helpers (delegates) at a medical mission: any active staff member, not Onboarding-only and not an Accountant (user, message 13233: "A helper just means they're assigned"). A helper works there like a member until removed and can also receive transport allowances as practitioners.
 
 ---
 
