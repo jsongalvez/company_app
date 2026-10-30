@@ -53,7 +53,7 @@
         {#if d === undefined}
             <p class="muted">Loading…</p>
         {:else if d === null}
-            <p class="muted">Nothing recorded.</p>
+            <p class="muted">No one clocked in.</p>
         {:else}
             <div class="cols"><DayPay branchId={b.id} dayId={d.id} status={d.status} /></div>
         {/if}

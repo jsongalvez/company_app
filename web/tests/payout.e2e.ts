@@ -34,3 +34,12 @@ test("an owner pays a member of another branch for yesterday, from one page for 
     expect(new URL(await browser.url()).hash).toContain(`date=${businessDate(-1)}`);
     await expect(screen.getByText(/commission/i)).toBeHidden();
 });
+
+// The user: "with nothing recorded that day, mean no one clocked in that day? If so no need to allow paying."
+// Yes: a clock-in makes the day (AttendanceService.clockIn), so a branch with no day is one nobody clocked in at.
+test("a branch nobody clocked in at says so, with nothing to pay", { session: "role-owner" }, async ({ app, screen }) => {
+    await app.open("/#/pay?date=2025-01-06");
+    const branch = screen.getByRole("region", "Practitioner Branch");
+    await expect(branch.getByText("No one clocked in.")).toBeVisible();
+    await expect(branch.getByRole("button", "Add")).toHaveCount(0);
+});
