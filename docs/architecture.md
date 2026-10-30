@@ -239,6 +239,7 @@ keeps its database-owned string literals.
 | `ASSIGN_DELEGATE` | GLOBAL | Owner, Manager |
 | `EDIT_PAST_DAY` | BRANCH | Coordinator only (PAST/REMITTED days) |
 | `RECEIVE_NEXT_APPOINTMENT_ALERTS` | BRANCH | Coordinator with an active assignment to the branch |
+| `VIEW_COMMISSION` | BRANCH / BRANCH_DAY | Branch members, relief on its day, helpers until removed, Superuser. Never GLOBAL: the Owner and Accountant see no commission ([ADR-0025](adr/0025-commission-is-private-to-the-branch.md)) |
 
 **Rule:** Owner does NOT hold `EDIT_PAST_DAY`. The branch state machine enforces Coordinator-only editing on PAST/REMITTED days.
 
@@ -254,6 +255,7 @@ it is not a GLOBAL role-derived capability because role membership alone cannot 
 ### 9.5 Medical Mission Delegate Hook
 
 Implemented as a service-layer hook, not a trigger. Both the delegate record and the capability row are written in a single transaction.
+The grant is `EDIT_BRANCH_DATA` at the branch. View leg (a2) adds `VIEW_BRANCH_DATA`, `VOID_SESSION` and `VIEW_COMMISSION` to it, so a helper has relief's rights with no end day until removed (V23, owed #28, [ADR-0025](adr/0025-commission-is-private-to-the-branch.md)).
 
 ```
 assignDelegate(targetUserId, branchId, assignedById):

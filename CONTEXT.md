@@ -42,7 +42,7 @@ Rules for app wording:
 | Order | Where a person appears in staff lists at a branch (1 is first). | slot |
 | Invite code | A one-time code a manager gives a new user so they can set their password. | invite |
 | Deactivate / Reactivate | Block someone from signing in, or let them back in. Nothing they did is deleted. | `INACTIVE` / `ACTIVE` |
-| Mission helper | Someone the owner lets run attendance at a medical mission. | delegate, `ASSIGN_DELEGATE` |
+| Mission helper | Someone added under Helpers on the Branches page. Works the branch like relief, with no end day, and shares its commission until removed. | delegate, `ASSIGN_DELEGATE` |
 
 ## Duty
 
@@ -89,7 +89,7 @@ Rules for app wording:
 | Count fix | Correct the stock count after a recount. | `ADJUSTMENT` |
 | Product sale | Selling products to a client or a walk-in. | `product_sale` |
 | Commission | The fixed amount staff earn for each product sold. | commission |
-| Commission share | A day's commission, split equally among everyone on duty when the sale happened. Only the branch's members (and its relief that day) see it; sales reports never show it. | commission split, `VIEW_COMMISSION` |
+| Commission share | A day's commission, split equally among everyone on duty when the sale happened. Only the branch's members, its relief that day and its helpers see it; sales reports never show it. | commission split, `VIEW_COMMISSION` |
 
 ## Money
 
