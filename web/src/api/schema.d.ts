@@ -2350,7 +2350,7 @@ export interface components {
             quantity: number;
             unitPriceAtTime: string;
             totalAmountAtTime: string;
-            commissionAmountAtTime: string;
+            commissionAmountAtTime: string | null;
             soldAt: string;
             deletedBy: string | null;
             deletedAt: string | null;
@@ -2911,7 +2911,6 @@ export interface components {
             totalExpenses: string;
             netIncome: string;
             totalProductSales: string;
-            totalCommission: string;
         };
         MonthlyRemittanceSummaryResponse: {
             branchId: string;

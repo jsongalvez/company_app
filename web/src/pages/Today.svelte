@@ -37,6 +37,14 @@
     const pastDay = new Query<S["RemittanceDayPickerEntryResponse"] | null>();
     const pastList = new Query<S["DashboardSessionResponse"][]>();
     const pastSum = new Query<S["DailySalesSummaryResponse"]>();
+    /** An earlier day's commission shares; only the branch's members (and its relief) may read them. */
+    const pastSplit = new Query<S["CommissionSplitResponse"][]>();
+    $effect(() => {
+        const id = pastDay.data?.id;
+        if (isToday || !id || !can("VIEW_COMMISSION", bid, id)) return;
+        const l = load.commissionSplits(id);
+        pastSplit.load(l.key, l.fn);
+    });
     const pastReads = (b: string, d: string) => [load.branchDay(b, d), load.daySessions(b, d), load.dailySummary(b, d)] as const;
     $effect(() => {
         if (isToday) return;
@@ -72,6 +80,10 @@
     /** The day a sale is added to: today's, or the earlier day's when it has a row. */
     const saleDay = $derived(isToday ? app.today?.branchDayId : pastDay.data?.id);
     const dash = new Query(load.dashboard(app.branchId).key, load.dashboard(app.branchId).fn);
+    /** The caller's own commission: today's from the dashboard, an earlier day's from its shares. */
+    const ownCommission = $derived(
+        isToday ? dash.data?.commission.amount : sum((pastSplit.data ?? []).filter((s) => s.userId === app.me?.id).map((s) => s.amount)),
+    );
     type Roster = Awaited<ReturnType<ReturnType<typeof load.roster>["fn"]>>;
     const roster = new Query<Roster>();
     /** The roster with a just-confirmed mark shown before the server has answered. */
@@ -330,9 +342,7 @@
     </div>
     <div>
         <div class="k">Product commission</div>
-        <div class="v" use:changed={isToday ? dash.data?.commission.amount : pastSumShown?.totalCommission}>
-            {peso((isToday ? dash.data?.commission.amount : pastSumShown?.totalCommission) ?? 0)}
-        </div>
+        <div class="v" use:changed={ownCommission}>{peso(ownCommission ?? 0)}</div>
     </div>
     <div>
         <!-- Each sale is changed or deleted on Expenses & pay, which lists the day's sales. -->

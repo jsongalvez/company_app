@@ -132,7 +132,6 @@
                     <th class="num">Expenses</th>
                     <th class="num">Net</th>
                     <th class="num hide-sm">Product sales</th>
-                    <th class="num hide-sm">Commission</th>
                 </tr>
             </thead>
             <tbody>
@@ -144,7 +143,6 @@
                         <td class="num">{peso(r.totalExpenses)}</td>
                         <td class="num"><b>{peso(r.netIncome)}</b></td>
                         <td class="num hide-sm">{peso(r.totalProductSales)}</td>
-                        <td class="num hide-sm">{peso(r.totalCommission)}</td>
                     </tr>
                 {/each}
             </tbody>
@@ -156,7 +154,6 @@
                     <td class="num">{total("totalExpenses")}</td>
                     <td class="num">{total("netIncome")}</td>
                     <td class="num hide-sm">{total("totalProductSales")}</td>
-                    <td class="num hide-sm">{total("totalCommission")}</td>
                 </tr>
             </tfoot>
         </table>

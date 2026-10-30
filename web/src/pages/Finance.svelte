@@ -40,6 +40,8 @@
     // The day's sessions, so past ones can be opened and corrected (feedback 3578107f).
     const sessQ = new Query<S["DashboardSessionResponse"][]>();
     const seeSessions = $derived(can("VIEW_BRANCH_DATA"));
+    // Members' commission is private to the branch: its members, and relief on its day (owed #26).
+    const seeCommission = $derived(!!dayId && can("VIEW_COMMISSION", bid, dayId));
     $effect(() => {
         if (!seeSessions) return;
         const l = load.daySessions(bid, date);
@@ -50,10 +52,8 @@
     $effect(() => {
         if (!dayId) return;
         // Pay and allowances are only readable with the pay permission.
-        const reads = [
-            [exp, load.expenses(dayId)],
-            [split, load.commissionSplits(dayId)],
-        ] as [Query<unknown>, Loader<unknown>][];
+        const reads = [[exp, load.expenses(dayId)]] as [Query<unknown>, Loader<unknown>][];
+        if (seeCommission) reads.push([split, load.commissionSplits(dayId)]);
         if (pay) reads.push([comp, load.compensations(dayId)], [allow, load.allowances(dayId)]);
         for (const [q, l] of reads) (q as Query<unknown>).load(l.key, l.fn as () => Promise<unknown>);
         const s = load.dailySummary(bid, date);
@@ -307,10 +307,6 @@
                 <div class="k">Product sales</div>
                 <div class="v" use:changed={summary.data.totalProductSales}>{peso(summary.data.totalProductSales)}</div>
             </div>
-            <div>
-                <div class="k">Commission</div>
-                <div class="v" use:changed={summary.data.totalCommission}>{peso(summary.data.totalCommission)}</div>
-            </div>
         </div>
     {/if}
 
@@ -450,25 +446,25 @@
             </section>
         {/if}
 
-        <section class="panel">
-            <header>
-                <h2>Commission share</h2>
-                <span class="spacer"></span>
-                {#if closed && pastRights}<button class="sm" onclick={recalc} title="Work the shares out again from this day's sales and clock-ins"
-                        >Update shares</button
-                    >{/if}
-            </header>
-            <State q={split} empty={!!split.data && split.data.length === 0} emptyText="No commission to split." />
-            {#if split.data?.length}
-                <table class="grid">
-                    <tbody>
-                        {#each split.data as s (s.id)}
-                            <tr><td>{nameOf[s.userId] ?? ""}</td><td class="num">{peso(s.amount)}</td></tr>
-                        {/each}
-                    </tbody>
-                </table>
-            {/if}
-        </section>
+        {#if seeCommission}<section class="panel">
+                <header>
+                    <h2>Commission share</h2>
+                    <span class="spacer"></span>
+                    {#if closed && pastRights}<button class="sm" onclick={recalc} title="Work the shares out again from this day's sales and clock-ins"
+                            >Update shares</button
+                        >{/if}
+                </header>
+                <State q={split} empty={!!split.data && split.data.length === 0} emptyText="No commission to split." />
+                {#if split.data?.length}
+                    <table class="grid">
+                        <tbody>
+                            {#each split.data as s (s.id)}
+                                <tr><td>{nameOf[s.userId] ?? ""}</td><td class="num">{peso(s.amount)}</td></tr>
+                            {/each}
+                        </tbody>
+                    </table>
+                {/if}
+            </section>{/if}
     </div>
 {/if}
 

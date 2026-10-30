@@ -1,6 +1,7 @@
-// What the server's grant rows switch on in the web. Rows mirror active_user_capabilities (V1__full_schema.sql):
-// owners and managers get ASSIGN_COMPENSATION at GLOBAL, and again at BRANCH only where they are assigned.
-// The server refuses a GLOBAL-only holder (FinanceReadBackAuthzTest), so the web must not show them the button.
+// What the server's grant rows switch on in the web. Rows mirror active_user_capabilities (V22): owners
+// (and superusers) get ASSIGN_COMPENSATION at GLOBAL and pay at every branch (owed #25: "Switching branches to
+// pay them sounds cumbersome"); managers pay only where they are assigned. Commission is never an all-branch
+// right: only a branch's members see it (owed #26).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { applies, type Grant } from "../../src/lib/grants";
@@ -16,17 +17,24 @@ const unassignedOwner = [
     g("VIEW_BRANCH_DATA", "GLOBAL"),
     g("MANAGE_CATALOG", "GLOBAL"),
 ];
-const assignedOwner = [...unassignedOwner, g("ASSIGN_COMPENSATION", "BRANCH", "b1"), g("EDIT_BRANCH_DATA", "BRANCH", "b1"), g("EDIT_PAST_DAY", "BRANCH", "b1")];
 const accountant = [g("VIEW_BRANCH_DATA", "GLOBAL"), g("SUBMIT_REMITTANCE", "BRANCH", "b1")];
 const reliefHelper = [g("EDIT_BRANCH_DATA", "BRANCH_DAY", "d1")];
 
-test("an all-branch pay grant does not switch on pay controls", () => {
-    assert.equal(can(unassignedOwner, "ASSIGN_COMPENSATION"), false);
+test("an all-branch pay grant switches on pay controls at every branch", () => {
+    assert.equal(can(unassignedOwner, "ASSIGN_COMPENSATION"), true);
+    assert.equal(can(unassignedOwner, "ASSIGN_COMPENSATION", "b2"), true);
 });
 
-test("a branch pay grant does, and only at that branch", () => {
-    assert.equal(can(assignedOwner, "ASSIGN_COMPENSATION"), true);
-    assert.equal(can(assignedOwner, "ASSIGN_COMPENSATION", "b2"), false);
+test("an all-branch commission grant shows no commission", () => {
+    assert.equal(can([g("VIEW_COMMISSION", "GLOBAL")], "VIEW_COMMISSION"), false);
+    assert.equal(can([g("VIEW_COMMISSION", "BRANCH", "b1")], "VIEW_COMMISSION"), true);
+    assert.equal(can([g("VIEW_COMMISSION", "BRANCH", "b1")], "VIEW_COMMISSION", "b2"), false);
+});
+
+test("a branch pay grant pays only at that branch", () => {
+    const manager = [g("ASSIGN_COMPENSATION", "BRANCH", "b1")];
+    assert.equal(can(manager, "ASSIGN_COMPENSATION"), true);
+    assert.equal(can(manager, "ASSIGN_COMPENSATION", "b2"), false);
 });
 
 test("an all-branch owner still sees every branch and the management pages", () => {
