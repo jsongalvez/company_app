@@ -212,11 +212,11 @@ object UserBranchAssignmentService {
         callerId: UUID,
         branchId: UUID,
     ): List<UserBranchAssignment> {
-        requireManageUsers(callerId, "MANAGE_USERS capability required to view assignments")
-        // 404 precedence for an unknown branch before the repository read:
-        // findActiveByBranch alone conflates "unknown branch" with "known branch
-        // with no assignments" (the listSent / listForDay order). The
-        // GLOBAL gate stays first so non-managers still 403 without an existence leak.
+        // Whoever manages users sees every branch's staff; anyone else only a branch they can see,
+        // as its price list (feedback a11802ff). Unknown branches 404 only past that gate, so no existence leak.
+        if (!canManageUsers(callerId)) {
+            Access.require(callerId, Act.SEE_BRANCH, Place.Branch(branchId), "Only this branch's members can see its staff")
+        }
         BranchService.findById(branchId)
         return UserBranchAssignmentRepository.findActiveByBranch(branchId)
     }

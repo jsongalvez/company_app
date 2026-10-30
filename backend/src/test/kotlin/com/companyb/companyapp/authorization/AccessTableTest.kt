@@ -496,6 +496,14 @@ class AccessTableTest : BasePostgresTest() {
                     ) { t, who, _ -> t.get(ApiRoutes.USERS, who) },
                 ) +
                 once("delegates.list") { who -> get("${ApiRoutes.BRANCHES}/$missionId/delegates", who) } +
+                once("staff.list") { who -> get("${ApiRoutes.BRANCHES}/$branchId/assignments", who) } +
+                listOf(
+                    Row(
+                        "branches.list every branch",
+                        null,
+                        { body -> Regex("\"branchType\"").findAll(body).count() >= 3 },
+                    ) { t, who, _ -> t.get(ApiRoutes.BRANCHES_ACCESSIBLE, who) },
+                ) +
                 once("view-as") { who ->
                     testServer.client.get(ApiRoutes.ME) {
                         as_(who).accept(it)
@@ -566,6 +574,8 @@ class AccessTableTest : BasePostgresTest() {
             users.list                     Y    N    N    N    Y    Y    Y    Y    N    N    N    N    N
             users.list names Superuser     N    N    N    N    N    Y    N    Y    N    N    N    N    N
             delegates.list                 Y    N    N    N    Y    Y    Y    Y    N    N    N    N    N
+            staff.list                     Y    Y    Y    Y    Y    Y    Y    Y    N    N    N    Y    N
+            branches.list every branch     Y    Y    N    N    N    Y    Y    Y    N    N    N    N    N
             view-as                        N    N    N    N    N    Y    N    Y    N    N    N    N    N
             """.trimIndent()
 
