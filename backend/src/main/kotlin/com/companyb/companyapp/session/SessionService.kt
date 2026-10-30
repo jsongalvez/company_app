@@ -388,10 +388,8 @@ object SessionService {
                     DayWrite.FIX,
                 )
 
-            if (newStatus == SessionStatus.PENDING &&
-                SessionRepository.hasActivePendingSessionInTransaction(session.clientId, sessionId)
-            ) {
-                throw ConflictException("Client already has an active PENDING session")
+            if (newStatus == SessionStatus.PENDING) {
+                SessionRepository.assertNotWaitingElsewhereInTransaction(session.clientId, sessionId)
             }
 
             val updated = SessionRepository.updateStatusInTransaction(sessionId, newStatus, expectedVersion)
@@ -593,10 +591,8 @@ object SessionService {
                     DayWrite.FIX,
                 )
 
-            if (session.sessionStatus == SessionStatus.PENDING &&
-                SessionRepository.hasActivePendingSessionInTransaction(session.clientId, excludedSessionId = sessionId)
-            ) {
-                throw ConflictException("Client already has an active PENDING session")
+            if (session.sessionStatus == SessionStatus.PENDING) {
+                SessionRepository.assertNotWaitingElsewhereInTransaction(session.clientId, excludedSessionId = sessionId)
             }
 
             val updated =

@@ -10,10 +10,12 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.leftJoin
 import org.jetbrains.exposed.v1.core.neq
@@ -26,9 +28,13 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
+
+private val WAITING_DAY: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH)
 
 data class SessionCreateParams(
     val id: UUID,
@@ -152,10 +158,7 @@ internal object SessionRepository {
             }
         }
 
-        val hasActive = hasActivePendingSessionInTransaction(params.clientId)
-        if (hasActive) {
-            throw ConflictException("Client already has an active PENDING session")
-        }
+        assertNotWaitingElsewhereInTransaction(params.clientId)
 
         val insertedCount =
             SessionTable
@@ -303,17 +306,39 @@ internal object SessionRepository {
     fun hasActivePendingSessionInTransaction(
         clientId: UUID,
         excludedSessionId: UUID? = null,
-    ): Boolean {
+    ): Boolean = findWaitingInTransaction(clientId, excludedSessionId) != null
+
+    /**
+     * A client can only have one waiting session. When another one is waiting, say where, so the
+     * person adding knows which session to mark (feedback e8aefedf: "Why can't i add juan dela ceiz?").
+     */
+    fun assertNotWaitingElsewhereInTransaction(
+        clientId: UUID,
+        excludedSessionId: UUID? = null,
+    ) {
+        val waiting = findWaitingInTransaction(clientId, excludedSessionId) ?: return
+        val day = WAITING_DAY.format(waiting[BranchDayTable.date])
+        throw ConflictException(
+            "This client is still waiting from $day at ${waiting[BranchTable.name]}. Mark that session first.",
+        )
+    }
+
+    private fun findWaitingInTransaction(
+        clientId: UUID,
+        excludedSessionId: UUID?,
+    ): ResultRow? {
         val condition =
             (SessionTable.clientId eq clientId) and
                 (SessionTable.sessionStatus eq SessionStatus.PENDING) and
                 (SessionTable.isVoided eq false)
         val scopedCondition = excludedSessionId?.let { condition and (SessionTable.id neq it) } ?: condition
         return SessionTable
-            .selectAll()
+            .innerJoin(BranchDayTable, { SessionTable.branchDayId }, { BranchDayTable.id })
+            .innerJoin(BranchTable, { BranchDayTable.branchId }, { BranchTable.id })
+            .select(BranchDayTable.date, BranchTable.name)
             .where { scopedCondition }
-            .empty()
-            .not()
+            .limit(1)
+            .firstOrNull()
     }
 
     /** Locks and reads session row on caller's open transaction. */
