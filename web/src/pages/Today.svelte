@@ -324,7 +324,7 @@
     <div class="notice warn mb" role="status">
         Still waiting on
         {#each earlierWaiting.data as d (d)}
-            <button class="ghost" onpointerdown={() => prefetch(d)} onclick={() => setDate(d)}>{day(d)}</button>
+            <button class="ghost" onpointerdown={() => prefetch(d)} onclick={() => setDate(d)}>{day(d)} ›</button>
         {/each}
     </div>
 {/if}
