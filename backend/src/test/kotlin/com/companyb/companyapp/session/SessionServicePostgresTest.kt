@@ -248,9 +248,16 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 createSession(callerId, secondSessionId)
             }
         // Feedback e8aefedf: "Why can't i add juan dela ceiz?" The answer has to say where he is still waiting.
-        val day = java.time.format.DateTimeFormatter.ofPattern("MMM d", java.util.Locale.ENGLISH).format(TestFixtures.today)
+        val day =
+            java.time.format.DateTimeFormatter
+                .ofPattern(
+                    "MMM d",
+                    java.util.Locale.ENGLISH,
+                ).format(TestFixtures.today)
         assertEquals(
-            "This client is still waiting from $day at Test Branch ${branchId.toString().take(8)}. Mark that session first.",
+            "This client is still waiting from $day at Test Branch ${branchId.toString().take(
+                8,
+            )}. Mark that session first.",
             error.message,
         )
     }

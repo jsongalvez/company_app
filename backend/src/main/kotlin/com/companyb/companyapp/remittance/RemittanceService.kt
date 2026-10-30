@@ -286,7 +286,9 @@ object RemittanceService {
                         ?: throw NotFoundException("Remittance not found")
 
                 RemittancePolicy.assertDraft(locked.status, "update header of")
-                if (type != locked.type && RemittanceLineRepository.findByRemittanceIdInTransaction(remittanceId).isNotEmpty()) {
+                if (type != locked.type &&
+                    RemittanceLineRepository.findByRemittanceIdInTransaction(remittanceId).isNotEmpty()
+                ) {
                     throw ValidationException("Remove the included items before changing the kind.")
                 }
 

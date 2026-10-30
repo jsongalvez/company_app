@@ -215,7 +215,12 @@ object UserBranchAssignmentService {
         // Whoever manages users sees every branch's staff; anyone else only a branch they can see,
         // as its price list (feedback a11802ff). Unknown branches 404 only past that gate, so no existence leak.
         if (!canManageUsers(callerId)) {
-            Access.require(callerId, Act.SEE_BRANCH, Place.Branch(branchId), "Only this branch's members can see its staff")
+            Access.require(
+                callerId,
+                Act.SEE_BRANCH,
+                Place.Branch(branchId),
+                "Only this branch's members can see its staff",
+            )
         }
         BranchService.findById(branchId)
         return UserBranchAssignmentRepository.findActiveByBranch(branchId)
