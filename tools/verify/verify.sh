@@ -156,7 +156,9 @@ before_after() {
   local OUT="$dir" who="${VERIFY_SHOT_USER:+$VERIFY_SHOT_USER-}"
   for r in "$@"; do
     slug=$who$(printf '%s' "$r" | tr -c 'A-Za-z0-9' '-' | sed 's/^-*//; s/-*$//')
-    VERIFY_OUT="$dir" at "$base" shot "$r" "before-$slug" || return 1
+    # The before shot may show the very problems the change fixes: only a missing shot stops us.
+    VERIFY_OUT="$dir" at "$base" shot "$r" "before-$slug" || echo "before-after: the before shot of $r saw problems (above)"
+    ls "$dir"/*"-before-$slug-"*.png >/dev/null 2>&1 || { echo "before-after: no before shot of $r" >&2; return 1; }
     shot "$r" "after-$slug" || return 1
   done
   { echo "base=$base"; echo "head=$head"; [ -n "$kept" ] && echo "$kept"; printf "route=${who:+$who }%s\n" "$@"
