@@ -110,7 +110,6 @@ object AccountingReportBuilder {
         val productSales: BigDecimal,
         val pay: BigDecimal,
         val expenses: BigDecimal,
-        val commission: BigDecimal,
         val allowances: BigDecimal,
     ) {
         val net: BigDecimal get() = sessionIncome - pay - expenses
@@ -128,7 +127,6 @@ object AccountingReportBuilder {
             productSales = sum(ledger.sales.filter { it.branchDayId in dayIds && !it.isVoided }.map { it.total }),
             pay = sum(payouts.filter { it.kind == PayoutKind.PAY }.map { it.amount }),
             expenses = sum(ledger.expenses.filter { it.branchDayId in dayIds && !it.isDeleted }.map { it.amount }),
-            commission = sum(payouts.filter { it.kind == PayoutKind.COMMISSION }.map { it.amount }),
             allowances = sum(payouts.filter { it.kind == PayoutKind.ALLOWANCE }.map { it.amount }),
         )
     }
@@ -194,11 +192,6 @@ object AccountingReportBuilder {
         fun notCounted() {
             heading("Not counted in net")
             line("Product sales (sent as their own remittance)", ledger.sales.count { !it.isVoided }, all.productSales)
-            line(
-                "Product commission shared with staff",
-                ledger.payouts.count { it.kind == PayoutKind.COMMISSION },
-                all.commission,
-            )
             line(
                 "Allowances (paid by the owner)",
                 ledger.payouts.count { it.kind == PayoutKind.ALLOWANCE },
@@ -303,7 +296,6 @@ object AccountingReportBuilder {
                 Col("Pay", W.MONEY, money(all.pay)) { money(it.second.pay) },
                 Col("Expenses", W.MONEY, money(all.expenses)) { money(it.second.expenses) },
                 Col("Net", W.MONEY, money(all.net)) { money(it.second.net) },
-                Col("Commission", W.MONEY, money(all.commission)) { money(it.second.commission) },
                 Col("Allowances", W.MONEY, money(all.allowances)) { money(it.second.allowances) },
             ),
         )
@@ -361,7 +353,6 @@ object AccountingReportBuilder {
                 Col("Qty", W.QTY, count(live.sumOf { it.quantity })) { count(it.quantity) },
                 Col("Unit price", W.MONEY) { money(it.unitPrice) },
                 Col("Total", W.MONEY) { money(it.total) },
-                Col("Commission", W.MONEY, money(sum(live.map { it.commission }))) { money(it.commission) },
                 Col("Sold by", W.NAME) { text(it.handledBy) },
                 Col("Sale", W.LABEL) { ReportCell.Text(if (it.withSession) "During a session" else "Walk-in") },
                 Col("Counted as sales", W.MONEY, money(sum(live.map { it.total }))) {
@@ -421,7 +412,7 @@ object AccountingReportBuilder {
             )
         return table(
             "Pay",
-            "Pay, commission and allowances",
+            "Pay and allowances",
             sorted,
             "${sorted.size} lines",
             listOf(
@@ -432,7 +423,6 @@ object AccountingReportBuilder {
                 Col("For work on", W.DATE) { p -> work(p)?.let { ReportCell.Day(it.date) } ?: ReportCell.Blank },
                 Col("Work branch", W.NAME) { text(work(it)?.branchName) },
                 Col("Pay", W.MONEY, total(PayoutKind.PAY)) { amount(it, PayoutKind.PAY) },
-                Col("Commission", W.MONEY, total(PayoutKind.COMMISSION)) { amount(it, PayoutKind.COMMISSION) },
                 Col("Allowance", W.MONEY, total(PayoutKind.ALLOWANCE)) { amount(it, PayoutKind.ALLOWANCE) },
                 Col("Note", W.TEXT) { text(it.note) },
             ),
@@ -529,7 +519,6 @@ internal object ReportWords {
     fun payout(k: PayoutKind) =
         when (k) {
             PayoutKind.PAY -> "Pay"
-            PayoutKind.COMMISSION -> "Commission"
             PayoutKind.ALLOWANCE -> "Allowance"
         }
 

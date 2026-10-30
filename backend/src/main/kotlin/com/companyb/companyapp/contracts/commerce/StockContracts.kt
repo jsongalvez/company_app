@@ -37,7 +37,8 @@ data class ProductSaleResponse(
     val quantity: Int,
     val unitPriceAtTime: String,
     val totalAmountAtTime: String,
-    val commissionAmountAtTime: String,
+    /** Null for a caller who is not a member of the sale's branch: commission is private (owed #26). */
+    val commissionAmountAtTime: String?,
     val soldAt: String,
     val deletedBy: String?,
     val deletedAt: String?,

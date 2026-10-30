@@ -71,5 +71,4 @@ fun DailySalesSummary.toResponse(): DailySalesSummaryResponse =
         totalExpenses = totalExpenses.toPlainString(),
         netIncome = netIncome.toPlainString(),
         totalProductSales = totalProductSales.toPlainString(),
-        totalCommission = totalCommission.toPlainString(),
     )

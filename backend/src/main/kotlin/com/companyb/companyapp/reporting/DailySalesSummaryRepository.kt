@@ -112,7 +112,6 @@ internal object DailySalesSummaryRepository {
             totalExpenses = exp,
             netIncome = gross - comp - exp,
             totalProductSales = this[DailySalesSummaryView.totalProductSales],
-            totalCommission = this[DailySalesSummaryView.totalCommission],
         )
     }
 }

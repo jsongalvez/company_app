@@ -1,6 +1,7 @@
 package com.companyb.companyapp.identity
 
 import com.companyb.companyapp.authorization.CapabilityTable
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.RoleCapabilityTable
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
@@ -90,6 +91,7 @@ internal object RoleRepository {
         userId: UUID,
         roleIds: List<UUID>,
     ) {
+        requireNoHomeBranchForAccountant(userId, roleIds)
         UserRoleTable.deleteWhere { UserRoleTable.userId eq userId }
         roleIds.forEach { roleId ->
             UserRoleTable.insert {
@@ -104,9 +106,22 @@ internal object RoleRepository {
         userId: UUID,
         roleId: UUID,
     ) {
+        requireNoHomeBranchForAccountant(userId, listOf(roleId))
         UserRoleTable.insert {
             it[UserRoleTable.userId] = userId
             it[UserRoleTable.roleId] = roleId
+        }
+    }
+
+    /** "An accountant ... can't be a member of any branch" (user, message 13065). */
+    private fun requireNoHomeBranchForAccountant(
+        userId: UUID,
+        roleIds: List<UUID>,
+    ) {
+        if (findIdByNameInTransaction(ACCOUNTANT_ROLE) in roleIds &&
+            UserRepository.hasActiveAssignmentInTransaction(userId)
+        ) {
+            throw ValidationException("An accountant can't have a home branch. Remove their home branches first.")
         }
     }
 }

@@ -47,7 +47,7 @@ object ExportService {
                 .findAll()
                 .filter { type == null || it.branchType == type }
                 .filter {
-                    global || Access.allows(callerId, Act.SEE_HOME_BRANCH, Place.Branch(it.id))
+                    global || Access.allows(callerId, Act.SEE_BRANCH, Place.Branch(it.id))
                 }.sortedBy { it.name }
         val label =
             when (type) {

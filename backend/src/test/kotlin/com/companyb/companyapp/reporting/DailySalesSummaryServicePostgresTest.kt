@@ -4,7 +4,6 @@ import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.commerce.ProductCategoryTable
 import com.companyb.companyapp.commerce.ProductSaleTable
 import com.companyb.companyapp.commerce.ProductTable
-import com.companyb.companyapp.commission.CommissionSplitTable
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.session.SessionStatus
@@ -54,7 +53,6 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.totalExpenses))
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.netIncome))
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.totalProductSales))
-        assertEquals(0, BigDecimal.ZERO.compareTo(summary.totalCommission))
     }
 
     @Test
@@ -213,18 +211,6 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `returns correct commission total`() {
-        grantViewBranchData(callerId)
-        val userId = TestFixtures.uuid()
-        IdentityFixtures.insertTestUser(userId, "summary-user")
-        insertCommissionSplit(branchDayId, userId, BigDecimal("150.0000"))
-
-        val summary = DailySalesSummaryService.getDailySummary(branchId, today)
-
-        assertEquals(0, BigDecimal("150.0000").compareTo(summary.totalCommission))
-    }
-
-    @Test
     fun `calculates net income correctly`() {
         grantViewBranchData(callerId)
         val userId = TestFixtures.uuid()
@@ -264,7 +250,6 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.totalExpenses))
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.netIncome))
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.totalProductSales))
-        assertEquals(0, BigDecimal.ZERO.compareTo(summary.totalCommission))
     }
 
     @Test
@@ -342,21 +327,6 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
                 it[ProductSaleTable.totalAmountAtTime] = totalAmount
                 it[ProductSaleTable.commissionAmountAtTime] = BigDecimal.ZERO
                 it[ProductSaleTable.isWalkIn] = true
-            }
-        }
-    }
-
-    private fun insertCommissionSplit(
-        branchDayId: UUID,
-        userId: UUID,
-        amount: BigDecimal,
-    ) {
-        transaction {
-            CommissionSplitTable.insert {
-                it[CommissionSplitTable.id] = TestFixtures.uuid()
-                it[CommissionSplitTable.branchDayId] = branchDayId
-                it[CommissionSplitTable.userId] = userId
-                it[CommissionSplitTable.amount] = amount
             }
         }
     }

@@ -137,7 +137,8 @@ object ProductSaleRoutes {
     private fun handleList(context: Context) {
         val branchDayId = context.uuidFromQuery("branchDayId")
         BranchDayService.requireBranchDayExists(branchDayId)
-        context.json(ProductSaleRepository.findByBranchDayId(branchDayId).map { it.toResponse() })
+        val commission = context.seesCommission(branchDayId)
+        context.json(ProductSaleRepository.findByBranchDayId(branchDayId).map { it.toResponse(commission) })
     }
 
     private fun handleCreate(context: Context) {
@@ -168,7 +169,7 @@ object ProductSaleRoutes {
             )
 
         context.status(HttpStatus.CREATED)
-        context.json(sale.toResponse())
+        context.json(sale.toResponse(context.seesCommission(sale.branchDayId)))
     }
 
     private fun handleChange(context: Context) {
@@ -186,7 +187,7 @@ object ProductSaleRoutes {
                     ),
                 reason = request.reason,
             )
-        context.json(sale.toResponse())
+        context.json(sale.toResponse(context.seesCommission(sale.branchDayId)))
     }
 
     private fun handleDelete(context: Context) {
@@ -199,7 +200,7 @@ object ProductSaleRoutes {
                 reason = request.reason,
                 expectedVersion = request.expectedVersion,
             )
-        context.json(sale.toResponse())
+        context.json(sale.toResponse(context.seesCommission(sale.branchDayId)))
     }
 
     private fun handleRestore(context: Context) {
@@ -210,7 +211,7 @@ object ProductSaleRoutes {
                 context.pathParamAsUuid("saleId"),
                 request.reason,
             )
-        context.json(sale.toResponse())
+        context.json(sale.toResponse(context.seesCommission(sale.branchDayId)))
     }
 
     private fun requireQuantity(quantity: Int) {
@@ -238,7 +239,11 @@ object ProductSaleRoutes {
         }
     }
 
-    private fun ProductSale.toResponse(): ProductSaleResponse =
+    /** Members' commission is private to the branch's members (owed #26). */
+    private fun Context.seesCommission(branchDayId: UUID): Boolean =
+        Access.allows(callerUuid(), Act.SEE_COMMISSION, Place.day(branchDayId))
+
+    private fun ProductSale.toResponse(commission: Boolean): ProductSaleResponse =
         ProductSaleResponse(
             id = id.toString(),
             branchDayId = branchDayId.toString(),
@@ -251,7 +256,7 @@ object ProductSaleRoutes {
             quantity = quantity,
             unitPriceAtTime = unitPriceAtTime.toPlainString(),
             totalAmountAtTime = totalAmountAtTime.toPlainString(),
-            commissionAmountAtTime = commissionAmountAtTime.toPlainString(),
+            commissionAmountAtTime = if (commission) commissionAmountAtTime.toPlainString() else null,
             soldAt = soldAt.toString(),
             deletedBy = deletedBy?.toString(),
             deletedAt = deletedAt?.toString(),

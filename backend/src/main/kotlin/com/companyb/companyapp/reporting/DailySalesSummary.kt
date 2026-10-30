@@ -16,13 +16,10 @@ data class DailySalesSummary(
     val totalExpenses: BigDecimal,
     val netIncome: BigDecimal,
     val totalProductSales: BigDecimal,
-    val totalCommission: BigDecimal,
 )
 
 private const val STANDARD_PRECISION = 10
 private const val STANDARD_SCALE = 2
-private const val COMMISSION_PRECISION = 15
-private const val COMMISSION_SCALE = 4
 
 internal object DailySalesSummaryView : Table("daily_sales_summary") {
     val branchDayId = javaUUID("branch_day_id")
@@ -32,5 +29,4 @@ internal object DailySalesSummaryView : Table("daily_sales_summary") {
     val totalCompensation = decimal("total_compensation", STANDARD_PRECISION, STANDARD_SCALE)
     val totalExpenses = decimal("total_expenses", STANDARD_PRECISION, STANDARD_SCALE)
     val totalProductSales = decimal("total_product_sales", STANDARD_PRECISION, STANDARD_SCALE)
-    val totalCommission = decimal("total_commission", COMMISSION_PRECISION, COMMISSION_SCALE)
 }

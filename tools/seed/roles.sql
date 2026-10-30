@@ -23,6 +23,17 @@ INSERT INTO user_branch_assignment (user_id, branch_id, slot, assigned_by)
 SELECT u.id, b.id, 1, u.id
 FROM u JOIN r ON u.username = 'role-' || lower(r.role) JOIN b ON b.name = initcap(r.role) || ' Branch';
 
+-- An accountant, who belongs to no branch (owed #23: "They can't be a member of any branch"), for
+-- commission-privacy.e2e.ts. Signs in with staff's password like the others.
+WITH u AS (
+  INSERT INTO app_user (username, password_hash, email, display_name)
+  SELECT 'role-accountant', password_hash, 'role-accountant@example.com', 'Role Accountant'
+  FROM app_user WHERE username = 'staff'
+  RETURNING id
+)
+INSERT INTO user_role (user_id, role_id)
+SELECT u.id, role.id FROM u, role WHERE role.name = 'ACCOUNTANT';
+
 -- The five default rates the app gives every branch it makes (BranchService.create).
 INSERT INTO session_base_rate (set_by, branch_id, session_type, rate, effective_until)
 SELECT u.id, b.id, t.session_type::session_type, t.rate, TIMESTAMPTZ '9999-12-31 23:59:59+00'

@@ -216,12 +216,13 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
         }
     }
 
-    // The web's pay controls must follow this: only a BRANCH grant counts (web/tests/unit/grants.test.ts).
+    // Owed #25: the Owner pays members at every branch, so a GLOBAL pay grant counts everywhere.
+    // The web's pay controls follow this (web/tests/unit/grants.test.ts).
     @Test
-    fun `GET compensations and branch-day users forbidden for a GLOBAL-only ASSIGN_COMPENSATION holder`() {
+    fun `GET compensations and branch-day users allowed for a GLOBAL-only ASSIGN_COMPENSATION holder`() {
         testServer.client.let { client ->
-            assertEquals(403, client.get("/api/compensations?branchDayId=$branchDayId", asUser(globalOnlyUser)).code)
-            assertEquals(403, client.get("/api/branch-days/$branchDayId/users", asUser(globalOnlyUser)).code)
+            assertEquals(200, client.get("/api/compensations?branchDayId=$branchDayId", asUser(globalOnlyUser)).code)
+            assertEquals(200, client.get("/api/branch-days/$branchDayId/users", asUser(globalOnlyUser)).code)
         }
     }
 

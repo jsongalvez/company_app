@@ -27,11 +27,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * #891 Commission splits read scope: GET /commission-splits/{branchDayId} honors the
- * #131 all-branches window — BRANCH VIEW at the day's branch OR GLOBAL VIEW.
- * Gate-pass on an existing day is 200 (empty list when no splits); gate-block is 403.
+ * Commission splits read scope (owed #26): "Only members of the same branch can see their
+ * commisions." GET /commission-splits/{branchDayId} needs VIEW_COMMISSION at the day's branch,
+ * which membership gives (active_user_capabilities leg (d)). Seeing the branch is not enough,
+ * at that branch or everywhere. Gate-pass on an existing day is 200; gate-block is 403.
  */
 class CommissionSplitsReadScopeAuthzTest : BasePostgresTest() {
+    private val memberUser = TestFixtures.uuid()
     private val branchViewUser = TestFixtures.uuid()
     private val globalViewUser = TestFixtures.uuid()
     private val noneUser = TestFixtures.uuid()
@@ -41,12 +43,20 @@ class CommissionSplitsReadScopeAuthzTest : BasePostgresTest() {
     private lateinit var branchDayId: UUID
 
     override fun initTestData() {
+        IdentityFixtures.insertTestUser(memberUser, "commission-member")
         IdentityFixtures.insertTestUser(branchViewUser, "commission-branch-view")
         IdentityFixtures.insertTestUser(globalViewUser, "commission-global-view")
         IdentityFixtures.insertTestUser(noneUser, "commission-no-caps")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Commission Read Scope Branch")
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
+        IdentityFixtures.grantCapability(
+            userId = memberUser,
+            capabilityCode = CapabilityCodes.VIEW_COMMISSION,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
         IdentityFixtures.grantCapability(
             userId = branchViewUser,
             capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
@@ -111,17 +121,18 @@ class CommissionSplitsReadScopeAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `branch-scoped holder reads splits`() {
-        assertEquals(200, getStatus(branchViewUser, "/api/commission-splits/$branchDayId"))
+    fun `a member of the branch reads splits`() {
+        assertEquals(200, getStatus(memberUser, "/api/commission-splits/$branchDayId"))
     }
 
     @Test
-    fun `global holder reads splits on a branch with no grants`() {
-        assertEquals(
-            200,
-            getStatus(globalViewUser, "/api/commission-splits/$branchDayId"),
-            "GLOBAL VIEW_BRANCH_DATA must be an all-branches window for commission splits",
-        )
+    fun `seeing the branch is not enough`() {
+        assertEquals(403, getStatus(branchViewUser, "/api/commission-splits/$branchDayId"))
+    }
+
+    @Test
+    fun `seeing every branch is not enough`() {
+        assertEquals(403, getStatus(globalViewUser, "/api/commission-splits/$branchDayId"))
     }
 
     @Test
@@ -131,6 +142,6 @@ class CommissionSplitsReadScopeAuthzTest : BasePostgresTest() {
 
     @Test
     fun `missing branch day is 404`() {
-        assertEquals(404, getStatus(branchViewUser, "/api/commission-splits/${TestFixtures.uuid()}"))
+        assertEquals(404, getStatus(memberUser, "/api/commission-splits/${TestFixtures.uuid()}"))
     }
 }

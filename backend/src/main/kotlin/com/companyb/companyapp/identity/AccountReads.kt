@@ -19,6 +19,10 @@ object AccountReads {
      */
     fun isActiveUserInTransaction(userId: UUID): Boolean = UserRepository.isActiveUserInTransaction(userId)
 
+    /** An Accountant never gets a home branch (user, message 13065) — the assignment command asks this. */
+    fun isAccountantInTransaction(userId: UUID): Boolean =
+        UserRepository.holdsRoleInTransaction(userId, ACCOUNTANT_ROLE)
+
     /** Delegate-eligibility read — runs on the caller's command transaction. */
     fun isActiveManagerInTransaction(userId: UUID): Boolean = UserRepository.isActiveManagerInTransaction(userId)
 

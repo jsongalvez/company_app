@@ -38,9 +38,9 @@ object TodayScreenService {
     ): TodayScreenData =
         transaction {
             BranchService.findById(branchId)
-            val canView =
-                Access.allows(callerId, Act.SEE_BRANCH, Place.Branch(branchId))
             val day = BranchDayService.findToday(branchId)
+            val canView =
+                Access.allows(callerId, Act.SEE_DAY, day?.let { Place.Day(it.id, branchId) } ?: Place.Branch(branchId))
             val presence = AttendancePresence.read(branchId, day?.id)
             val clockedIn = day != null && presence.isClockedIn(callerId)
             TodayScreenData(

@@ -55,7 +55,6 @@ object ProjectionGrantRegistry {
             ProjectionGrant("reporting/LedgerRepository.kt", "BranchDayTable"),
             ProjectionGrant("reporting/LedgerRepository.kt", "BranchTable"),
             ProjectionGrant("reporting/LedgerRepository.kt", "ClientTable"),
-            ProjectionGrant("reporting/LedgerRepository.kt", "CommissionSplitTable"),
             ProjectionGrant("reporting/LedgerRepository.kt", "CompensationTable"),
             ProjectionGrant("reporting/LedgerRepository.kt", "ExpenseTable"),
             ProjectionGrant("reporting/LedgerRepository.kt", "ProductSaleTable"),

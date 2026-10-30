@@ -65,6 +65,7 @@ object UserBranchAssignmentService {
 
         val result =
             transaction {
+                requireNotAccountant(userId)
                 val r =
                     UserBranchAssignmentRepository.createInTransaction(
                         UserBranchAssignmentCreateParams(
@@ -86,6 +87,13 @@ object UserBranchAssignmentService {
         }
 
         return CreateResult(result.assignment, result.created)
+    }
+
+    /** "An accountant ... can't be a member of any branch" (user, message 13065). */
+    private fun requireNotAccountant(userId: UUID) {
+        if (AccountReads.isAccountantInTransaction(userId)) {
+            throw ValidationException("An accountant can't have a home branch.")
+        }
     }
 
     fun remove(
@@ -236,9 +244,9 @@ object UserBranchAssignmentService {
         if (assignment == null) {
             Access.require(
                 callerId,
-                Act.WORK_DAY,
+                Act.SEE_DAY,
                 Place.today(branchId),
-                "Active membership or a today-scoped edit grant required to view this branch's members",
+                "Active membership or a view of this branch's day required to view its members",
             )
         }
         return BranchMemberRepository.findActiveMemberNames(branchId)

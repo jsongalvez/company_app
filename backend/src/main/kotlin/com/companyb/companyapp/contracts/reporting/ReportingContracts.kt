@@ -14,7 +14,6 @@ data class DailySalesSummaryResponse(
     val totalExpenses: String,
     val netIncome: String,
     val totalProductSales: String,
-    val totalCommission: String,
 )
 
 @Serializable

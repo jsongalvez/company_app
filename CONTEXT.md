@@ -31,9 +31,9 @@ Rules for app wording:
 | Practitioner | Treats clients and logs sessions. | `PRACTITIONER` |
 | Coordinator | Handles expenses, pay and remittances for their branches. The only one who can change closed days. | `COORDINATOR` |
 | Manager | A coordinator who can also manage users and mission helpers. | `MANAGER` |
-| Owner | Runs the business: users, branches and products. | `OWNER` |
-| Accountant | Can see every branch's numbers but can't change anything. | `ACCOUNTANT` |
-| Superuser | Full access, for setup and support. The developer's role; only a superuser can "View as" someone. | `SUPERUSER` |
+| Owner | Runs the business: users, branches and products. Sees every branch, look-only; works like a member only where they are one. Pays staff at every branch, but never sees anyone's commission outside their own branch. | `OWNER` |
+| Accountant | Can see every branch's numbers but can't change anything, and is never a branch member. Sees no commission. | `ACCOUNTANT` |
+| Superuser | Full access, for setup and support. The developer's role; only a superuser can "View as" someone. Works at every branch without being a member. Shown as Practitioner to anyone else who manages users. | `SUPERUSER` |
 | View as | A superuser seeing the app as another person, with that person's permissions. Look-only unless "Allow changes" is on. | `X-View-As` header |
 | New (no access yet) | Someone who joined with an invite code but hasn't been given a role. They can sign in but see nothing. | `ONBOARDING` |
 | Role | A job title that decides what someone can do. A user can have several. | `role` |
@@ -89,7 +89,7 @@ Rules for app wording:
 | Count fix | Correct the stock count after a recount. | `ADJUSTMENT` |
 | Product sale | Selling products to a client or a walk-in. | `product_sale` |
 | Commission | The fixed amount staff earn for each product sold. | commission |
-| Commission share | A day's commission, split equally among everyone on duty when the sale happened. | commission split |
+| Commission share | A day's commission, split equally among everyone on duty when the sale happened. Only the branch's members (and its relief that day) see it; sales reports never show it. | commission split, `VIEW_COMMISSION` |
 
 ## Money
 

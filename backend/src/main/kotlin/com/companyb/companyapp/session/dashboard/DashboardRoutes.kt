@@ -47,7 +47,9 @@ object DashboardRoutes {
     fun register(config: JavalinConfig) {
         config.routes.before(ApiRoutes.BRANCH_SESSIONS_PATH) { context ->
             if (context.method() == HandlerType.GET) {
-                Access.require(context, Act.SEE_BRANCH, Place.Branch(context.pathParamAsUuid(BRANCH_ID_PARAM)))
+                val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+                val date = context.queryParam("date")?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                Access.require(context, Act.SEE_DAY, date?.let { Place.onDate(branchId, it) } ?: Place.Branch(branchId))
             }
         }
         config.routes.get(ApiRoutes.BRANCH_SESSIONS_PATH, ::handleGetSessionsForDay)

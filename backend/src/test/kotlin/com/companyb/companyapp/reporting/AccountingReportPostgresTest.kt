@@ -49,7 +49,6 @@ class AccountingReportPostgresTest : ExportServicePostgresBase() {
         assertEquals(BigDecimal("500.00"), summary.amount("Pay"))
         assertEquals(BigDecimal("300.00"), summary.amount("Expenses"))
         assertEquals(BigDecimal("1700.00"), summary.amount("Net from sessions (sessions done - pay - expenses)"))
-        assertEquals(BigDecimal("40.00"), summary.amount("Product commission shared with staff"))
         assertEquals(BigDecimal("999.00"), summary.amount("Deleted expenses"))
     }
 
@@ -65,7 +64,18 @@ class AccountingReportPostgresTest : ExportServicePostgresBase() {
         val days = r.table("Days")
         assertEquals(1, days.rows.size)
         assertEquals(ReportCell.Money(BigDecimal("1700.00")), days.rows.single()[8])
-        assertEquals(2, r.table("Pay").rows.size)
+        assertEquals(1, r.table("Pay").rows.size)
+    }
+
+    @Test
+    fun `the report never shows commission, though the day has some`() {
+        seed()
+        val words =
+            report().tables.flatMap { t ->
+                listOf(t.title) + t.headers +
+                    (t.rows + listOfNotNull(t.totals)).flatten().mapNotNull { (it as? ReportCell.Text)?.value }
+            }
+        assertEquals(emptyList(), words.filter { it.contains("commission", ignoreCase = true) })
     }
 
     @Test

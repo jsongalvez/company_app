@@ -6,6 +6,8 @@ import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
 import io.javalin.http.Context
+import io.javalin.http.HandlerType
+import java.time.LocalDate
 import java.util.UUID
 
 /**
@@ -28,36 +30,44 @@ enum class Reach {
     /** A BRANCH grant at the place's branch, or a BRANCH_DAY grant for the place's day. GLOBAL does not count. */
     HOME_OR_DAY,
 
-    /** [HOME_OR_EVERYWHERE], or relief at the place's day (a BRANCH_DAY EDIT_BRANCH_DATA grant). */
-    HOME_OR_EVERYWHERE_OR_RELIEF_DAY,
+    /** A BRANCH grant at the place's branch, a GLOBAL grant, or a BRANCH_DAY grant for the place's day. */
+    HOME_OR_EVERYWHERE_OR_DAY,
 }
 
 /**
  * Every action the server gates, with the capability it needs and the grants that count. This is
  * the one place to read who may do what; `AccessTableTest` pins the outcome per role and day.
  * Day state (closed and remitted days) is checked on top by `BranchDayService`, using
- * [CHANGE_CLOSED_DAY].
+ * [CHANGE_CLOSED_DAY]. A read (GET) of an edit route also passes on [whenReading]: whoever may see
+ * the place may read what its members read there (owed #23).
  */
 enum class Act(
     val code: String,
     val reach: Reach,
+    whenReading: Act? = null,
 ) {
     SEE_BRANCH(CapabilityCodes.VIEW_BRANCH_DATA, Reach.HOME_OR_EVERYWHERE),
-    SEE_HOME_BRANCH(CapabilityCodes.VIEW_BRANCH_DATA, Reach.HOME),
     SEE_EVERY_BRANCH(CapabilityCodes.VIEW_BRANCH_DATA, Reach.EVERYWHERE),
-    SEE_DAY(CapabilityCodes.VIEW_BRANCH_DATA, Reach.HOME_OR_DAY),
-    SEE_DAY_SUMMARY(CapabilityCodes.VIEW_BRANCH_DATA, Reach.HOME_OR_EVERYWHERE_OR_RELIEF_DAY),
-    WORK_DAY(CapabilityCodes.EDIT_BRANCH_DATA, Reach.HOME_OR_DAY),
-    WORK_HOME_BRANCH(CapabilityCodes.EDIT_BRANCH_DATA, Reach.HOME),
-    WORK_ANYWHERE(CapabilityCodes.EDIT_BRANCH_DATA, Reach.ANYWHERE),
-    VOID(CapabilityCodes.VOID_SESSION, Reach.HOME),
+    SEE_DAY(CapabilityCodes.VIEW_BRANCH_DATA, Reach.HOME_OR_EVERYWHERE_OR_DAY),
+    SEE_ANYWHERE(CapabilityCodes.VIEW_BRANCH_DATA, Reach.ANYWHERE),
+    WORK_DAY(CapabilityCodes.EDIT_BRANCH_DATA, Reach.HOME_OR_DAY, SEE_DAY),
+    WORK_HOME_BRANCH(CapabilityCodes.EDIT_BRANCH_DATA, Reach.HOME, SEE_BRANCH),
+    WORK_ANYWHERE(CapabilityCodes.EDIT_BRANCH_DATA, Reach.ANYWHERE, SEE_ANYWHERE),
+    VOID(CapabilityCodes.VOID_SESSION, Reach.HOME_OR_DAY),
+
+    /** What members earned in commission: only the branch's members and its relief for the day (owed #26). */
+    SEE_COMMISSION(CapabilityCodes.VIEW_COMMISSION, Reach.HOME_OR_DAY),
     CHANGE_CLOSED_DAY(CapabilityCodes.EDIT_PAST_DAY, Reach.HOME),
-    PAY(CapabilityCodes.ASSIGN_COMPENSATION, Reach.HOME),
+    PAY(CapabilityCodes.ASSIGN_COMPENSATION, Reach.HOME_OR_EVERYWHERE),
     SUBMIT_REMITTANCE(CapabilityCodes.SUBMIT_REMITTANCE, Reach.HOME),
     MANAGE_STOCK(CapabilityCodes.MANAGE_PRODUCTS, Reach.HOME),
     MANAGE_CATALOG(CapabilityCodes.MANAGE_CATALOG, Reach.EVERYWHERE),
     MANAGE_USERS(CapabilityCodes.MANAGE_USERS, Reach.EVERYWHERE),
     ASSIGN_DELEGATE(CapabilityCodes.ASSIGN_DELEGATE, Reach.EVERYWHERE),
+    ;
+
+    /** The act a GET of this act's routes asks for. */
+    val whenReading: Act = whenReading ?: this
 }
 
 /** Where an action happens. */
@@ -84,6 +94,13 @@ sealed interface Place {
         /** Today at [branchId] once the day exists, else the branch itself (a grant always names an existing day). */
         fun today(branchId: UUID): Place =
             BranchDayService.findToday(branchId)?.let { Day(it.id, branchId) } ?: Branch(branchId)
+
+        /** The day at [branchId] on [date] once it exists, else the branch itself. */
+        fun onDate(
+            branchId: UUID,
+            date: LocalDate,
+        ): Place =
+            BranchDayService.findByBranchAndDate(branchId, date)?.let { Day(it.id, branchId) } ?: Branch(branchId)
     }
 }
 
@@ -102,14 +119,12 @@ object Access {
             when (act.reach) {
                 Reach.EVERYWHERE -> listOf(everywhere)
                 Reach.HOME -> listOfNotNull(home)
-                Reach.HOME_OR_EVERYWHERE, Reach.HOME_OR_EVERYWHERE_OR_RELIEF_DAY -> listOfNotNull(home, everywhere)
+                Reach.HOME_OR_EVERYWHERE -> listOfNotNull(home, everywhere)
                 Reach.HOME_OR_DAY -> listOfNotNull(home, day)
+                Reach.HOME_OR_EVERYWHERE_OR_DAY -> listOfNotNull(home, everywhere, day)
                 Reach.ANYWHERE -> error("handled above")
             }
-        if (CapabilityRepository.holdsIn(userId, act.code, contexts)) return true
-        return act.reach == Reach.HOME_OR_EVERYWHERE_OR_RELIEF_DAY &&
-            day != null &&
-            CapabilityRepository.holdsIn(userId, CapabilityCodes.EDIT_BRANCH_DATA, listOf(day))
+        return CapabilityRepository.holdsIn(userId, act.code, contexts)
     }
 
     fun require(
@@ -121,12 +136,24 @@ object Access {
         if (!allows(userId, act, place)) throw ForbiddenException(message)
     }
 
+    /** A read (GET) of an act's routes passes for whoever may see the place ([Act.whenReading]) or do the act. */
     fun require(
         context: Context,
         act: Act,
         place: Place = Place.Everywhere,
         message: String = defaultMessage(act),
-    ) = require(context.callerUuid(), act, place, message)
+    ) {
+        val userId = context.callerUuid()
+        val seeing = act.whenReading
+        if (context.method() !in READS || seeing == act) return require(userId, act, place, message)
+        if (!allows(userId, seeing, place) &&
+            !allows(userId, act, place)
+        ) {
+            throw ForbiddenException(defaultMessage(seeing))
+        }
+    }
+
+    private val READS = setOf(HandlerType.GET, HandlerType.HEAD)
 
     private fun defaultMessage(act: Act): String =
         when (act.reach) {
@@ -138,7 +165,7 @@ object Access {
                 "${act.code} capability required for this branch"
             }
 
-            Reach.HOME_OR_DAY, Reach.HOME_OR_EVERYWHERE_OR_RELIEF_DAY -> {
+            Reach.HOME_OR_DAY, Reach.HOME_OR_EVERYWHERE_OR_DAY -> {
                 "${act.code} capability required for this branch or day"
             }
         }

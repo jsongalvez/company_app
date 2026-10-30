@@ -212,7 +212,7 @@ class UserServicePostgresTest : BasePostgresTest() {
             ended = true,
         )
 
-        val users = UserService.listUsers()
+        val users = UserService.listUsers(TestFixtures.uuid())
 
         assertEquals(2, users.size)
         assertEquals("Test caller", users[0].displayName)
@@ -231,7 +231,7 @@ class UserServicePostgresTest : BasePostgresTest() {
     fun `list reports deactivatedAt for inactive users`() {
         UserService.deactivate(callerId, targetUserId)
 
-        val users = UserService.listUsers()
+        val users = UserService.listUsers(TestFixtures.uuid())
 
         val target = users.single { it.id == targetUserId.toString() }
         assertEquals(com.companyb.companyapp.contracts.identity.UserStatus.INACTIVE, target.status)
@@ -269,7 +269,7 @@ class UserServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `replaceRoles rejects SUPERUSER grant and removal`() {
+    fun `replaceRoles rejects a SUPERUSER grant and keeps a SUPERUSER the caller cannot see`() {
         assertFailsWith<ValidationException> {
             UserService.replaceRoles(callerId, targetUserId, listOf("SUPERUSER"))
         }
@@ -280,11 +280,10 @@ class UserServicePostgresTest : BasePostgresTest() {
                 RoleRepository.findIdByNameInTransaction("SUPERUSER")!!,
             )
         }
-        assertFailsWith<ValidationException> {
-            UserService.replaceRoles(callerId, targetUserId, listOf("OWNER"))
-        }
+        // Owed #24: a non-superuser sees a Superuser as a Practitioner; saving keeps SUPERUSER.
+        UserService.replaceRoles(callerId, targetUserId, listOf("OWNER"))
         assertEquals(
-            listOf("SUPERUSER"),
+            listOf("OWNER", "SUPERUSER"),
             transaction { RoleRepository.findRoleNamesForUserInTransaction(targetUserId) },
         )
     }
@@ -320,7 +319,7 @@ class UserServicePostgresTest : BasePostgresTest() {
             RoleRepository.assignRoleInTransaction(targetUserId, RoleRepository.findIdByNameInTransaction("OWNER")!!)
         }
 
-        val summary = UserService.listUsers().single { it.id == targetUserId.toString() }
+        val summary = UserService.listUsers(TestFixtures.uuid()).single { it.id == targetUserId.toString() }
         assertEquals(listOf("OWNER"), summary.roles)
 
         val roleNames = UserService.getRoles().map { it.name }

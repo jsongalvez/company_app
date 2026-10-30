@@ -75,7 +75,7 @@ object CommissionRoutes {
 
         config.routes.before(ApiRoutes.COMMISSION_SPLITS_PATH) { context ->
             val branchDayId = context.pathParamAsUuid("branchDayId")
-            Access.require(context, Act.SEE_BRANCH, Place.day(branchDayId))
+            Access.require(context, Act.SEE_COMMISSION, Place.day(branchDayId))
         }
 
         config.routes.before(ApiRoutes.COMMISSION_RECALCULATE_PATH) { context ->

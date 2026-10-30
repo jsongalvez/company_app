@@ -187,7 +187,8 @@ object UserService {
             } else {
                 RoleRepository.findRoleNamesForUserInTransaction(targetId)
             }
-        replaceMembershipsInTransaction(callerId, targetId, request.roles, beforeRoles)
+        val wanted = rolesToWrite(beforeRoles, request.roles, ViewAs.isSuperuser(callerId))
+        replaceMembershipsInTransaction(callerId, targetId, wanted, beforeRoles)
         if (createdNew) {
             UserAudit.userInserted(
                 recordId = targetId,
@@ -260,29 +261,57 @@ object UserService {
             .map { RoleResponse(name = it.name, capabilities = it.capabilities) }
 
     /**
-     * Full replace of the target's role memberships. SUPERUSER is guarded in both
-     * directions (grant and removal) pending the onboarding policy decisions.
+     * Full replace of the target's role memberships. SUPERUSER is never granted or removed here.
+     * Someone who is not a superuser was shown a superuser as a Practitioner ([rolesAsSeenBy]), so
+     * their request is read through that mask: the Superuser role stays, and a Practitioner role the
+     * target never had is the mask, not a new role.
      */
     fun replaceRoles(
         callerId: UUID,
         targetUserId: UUID,
         roleNames: List<String>,
     ) {
-        if (roleNames.contains(SUPERUSER_ROLE)) {
-            throw ValidationException(SUPERUSER_GUARD_MESSAGE)
-        }
+        val callerIsSuperuser = ViewAs.isSuperuser(callerId)
         transaction {
             if (!UserRepository.acquireLockInTransaction(targetUserId)) {
                 throw NotFoundException("User not found")
             }
             val before = RoleRepository.findRoleNamesForUserInTransaction(targetUserId)
-            if (before.contains(SUPERUSER_ROLE)) {
-                throw ValidationException(SUPERUSER_GUARD_MESSAGE)
-            }
-            replaceMembershipsInTransaction(callerId, targetUserId, roleNames, before)
+            val wanted = rolesToWrite(before, roleNames, callerIsSuperuser)
+            replaceMembershipsInTransaction(callerId, targetUserId, wanted, before)
         }
         logger.info { "[USER-ROLES-REPLACE] Role replace processed for ${targetUserId.toString().maskUUID()}" }
     }
+
+    private fun rolesToWrite(
+        before: List<String>,
+        requested: List<String>,
+        callerIsSuperuser: Boolean,
+    ): List<String> {
+        val isSuperuser = SUPERUSER_ROLE in before
+        val wanted =
+            if (isSuperuser && !callerIsSuperuser) {
+                requested.filterNot { it == PRACTITIONER_ROLE && it !in before } + SUPERUSER_ROLE
+            } else {
+                requested
+            }
+        if ((SUPERUSER_ROLE in wanted) != isSuperuser) throw ValidationException(SUPERUSER_GUARD_MESSAGE)
+        return wanted
+    }
+
+    /**
+     * The roles [viewer] is shown for someone holding [roles]: "superusers should appear as
+     * practitioners to someone managing users" (user, message 13101) unless the viewer is one.
+     */
+    private fun rolesAsSeenBy(
+        roles: List<String>,
+        viewerIsSuperuser: Boolean,
+    ): List<String> =
+        if (viewerIsSuperuser || SUPERUSER_ROLE !in roles) {
+            roles
+        } else {
+            (roles - SUPERUSER_ROLE + PRACTITIONER_ROLE).distinct().sorted()
+        }
 
     /** Transaction-local write half of [replaceRoles]: resolve, rewrite, audit on change. */
     private fun replaceMembershipsInTransaction(
@@ -343,7 +372,8 @@ object UserService {
         logger.info { "[REACTIVATE] Reactivation request processed" }
     }
 
-    fun listUsers(): List<UserSummaryResponse> {
+    fun listUsers(viewerId: UUID): List<UserSummaryResponse> {
+        val viewerIsSuperuser = ViewAs.isSuperuser(viewerId)
         val users = UserRepository.findAll()
         val assignments =
             UserRepository
@@ -372,7 +402,7 @@ object UserService {
                                 slot = assignment.slot,
                             )
                         },
-                roles = rolesByUser[UUID.fromString(user.id)].orEmpty(),
+                roles = rolesAsSeenBy(rolesByUser[UUID.fromString(user.id)].orEmpty(), viewerIsSuperuser),
             )
         }
     }

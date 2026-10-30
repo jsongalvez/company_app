@@ -130,7 +130,7 @@ object UserRoutes {
 
         config.routes.get(ApiRoutes.USERS) { context ->
             context.status(HttpStatus.OK)
-            context.json(UserService.listUsers())
+            context.json(UserService.listUsers(context.callerUuid()))
         }
     }
 

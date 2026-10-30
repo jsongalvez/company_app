@@ -71,7 +71,7 @@ object SessionBaseRateRoutes {
             BranchService.findById(branchId)
             // 503bf228 — any branch member sees its prices and anyone who can edit the branch
             // changes them; every change is audited (Base Rate in Change history).
-            val act = if (context.method() == HandlerType.POST) Act.WORK_HOME_BRANCH else Act.SEE_HOME_BRANCH
+            val act = if (context.method() == HandlerType.POST) Act.WORK_HOME_BRANCH else Act.SEE_BRANCH
             Access.require(context, act, Place.Branch(branchId))
         }
 

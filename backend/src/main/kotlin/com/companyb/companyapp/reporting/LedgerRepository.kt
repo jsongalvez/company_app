@@ -4,7 +4,6 @@ import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.commerce.ProductSaleTable
-import com.companyb.companyapp.commission.CommissionSplitTable
 import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.contracts.finance.ExpenseCategory
 import com.companyb.companyapp.contracts.remittance.RemittanceMethod
@@ -69,7 +68,6 @@ data class LedgerSale(
     val quantity: Int,
     val unitPrice: BigDecimal,
     val total: BigDecimal,
-    val commission: BigDecimal,
     val handledBy: String,
     val withSession: Boolean,
     val isVoided: Boolean,
@@ -88,7 +86,10 @@ data class LedgerExpense(
     val isDeleted: Boolean,
 )
 
-/** Pay, allowance or commission share paid out on [branchDayId]. */
+/**
+ * Pay or allowance paid out on [branchDayId]. Commission shares are left out: members'
+ * commission is private to their branch and never in a sales report (owed #26).
+ */
 data class LedgerPayout(
     val branchDayId: UUID,
     val kind: PayoutKind,
@@ -98,7 +99,7 @@ data class LedgerPayout(
     val note: String?,
 )
 
-enum class PayoutKind { PAY, ALLOWANCE, COMMISSION }
+enum class PayoutKind { PAY, ALLOWANCE }
 
 data class LedgerRemittance(
     val id: UUID,
@@ -292,7 +293,6 @@ internal object LedgerRepository {
                 quantity = row[ProductSaleTable.quantity],
                 unitPrice = row[ProductSaleTable.unitPriceAtTime],
                 total = row[ProductSaleTable.totalAmountAtTime],
-                commission = row[ProductSaleTable.commissionAmountAtTime],
                 handledBy = names[row[ProductSaleTable.handledBy]].orEmpty(),
                 withSession = row[ProductSaleTable.sessionId] != null,
                 isVoided = row.getOrNull(ActiveSessionVoidsView.sessionId) != null,
@@ -337,16 +337,10 @@ internal object LedgerRepository {
                 .selectAll()
                 .where { AllowanceTable.branchDayId inList dayIds }
                 .toList()
-        val commissions =
-            CommissionSplitTable
-                .selectAll()
-                .where { CommissionSplitTable.branchDayId inList dayIds }
-                .toList()
         val names =
             userNames(
                 pay.map { it[CompensationTable.userId] } +
-                    allowances.map { it[AllowanceTable.userId] } +
-                    commissions.map { it[CommissionSplitTable.userId] },
+                    allowances.map { it[AllowanceTable.userId] },
             )
         return pay.map { row ->
             LedgerPayout(
@@ -364,16 +358,6 @@ internal object LedgerRepository {
                     kind = PayoutKind.ALLOWANCE,
                     person = names[row[AllowanceTable.userId]].orEmpty(),
                     amount = row[AllowanceTable.amount],
-                    workDayId = null,
-                    note = null,
-                )
-            } +
-            commissions.map { row ->
-                LedgerPayout(
-                    branchDayId = row[CommissionSplitTable.branchDayId],
-                    kind = PayoutKind.COMMISSION,
-                    person = names[row[CommissionSplitTable.userId]].orEmpty(),
-                    amount = row[CommissionSplitTable.amount],
                     workDayId = null,
                     note = null,
                 )

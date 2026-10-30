@@ -92,7 +92,6 @@ class DailySalesSummaryBrowsePostgresTest : BasePostgresTest() {
             assertEquals("0.00", entry.totalExpenses)
             assertEquals("0.00", entry.netIncome)
             assertEquals("0.00", entry.totalProductSales)
-            assertEquals("0.0000", entry.totalCommission)
         }
     }
 

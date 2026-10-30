@@ -82,10 +82,7 @@ object DailySalesSummaryRoutes {
             // missing day row means no day grant can exist for it, and the branch/global
             // leg alone governs. The browse (`/daily-summaries`) stays VIEW_BRANCH_DATA-only:
             // a multi-day list cannot be authorized by a single-day grant.
-            val place =
-                BranchDayService.findByBranchAndDate(branchId, date)?.let { Place.Day(it.id, branchId) }
-                    ?: Place.Branch(branchId)
-            Access.require(context, Act.SEE_DAY_SUMMARY, place)
+            Access.require(context, Act.SEE_DAY, Place.onDate(branchId, date))
         }
 
         config.routes.before(ApiRoutes.BRANCH_DAILY_SUMMARIES_PATH) { context ->

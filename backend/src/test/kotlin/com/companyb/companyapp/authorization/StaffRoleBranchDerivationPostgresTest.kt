@@ -188,6 +188,7 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
         assertEquals(
             setOf(
                 CapabilityCodes.VIEW_BRANCH_DATA,
+                CapabilityCodes.VIEW_COMMISSION,
                 CapabilityCodes.EDIT_BRANCH_DATA,
                 CapabilityCodes.EDIT_PAST_DAY,
                 CapabilityCodes.VOID_SESSION,
@@ -204,7 +205,12 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
     @Test
     fun `PRACTITIONER assignment derives the member codes at the branch only`() {
         assertEquals(
-            setOf(CapabilityCodes.VIEW_BRANCH_DATA, CapabilityCodes.EDIT_BRANCH_DATA, CapabilityCodes.VOID_SESSION),
+            setOf(
+                CapabilityCodes.VIEW_BRANCH_DATA,
+                CapabilityCodes.VIEW_COMMISSION,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                CapabilityCodes.VOID_SESSION,
+            ),
             derivedCodesAtBranch(practitionerUser),
         )
     }
@@ -262,6 +268,7 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
         assertEquals(
             setOf(
                 CapabilityCodes.VIEW_BRANCH_DATA,
+                CapabilityCodes.VIEW_COMMISSION,
                 CapabilityCodes.EDIT_BRANCH_DATA,
                 CapabilityCodes.EDIT_PAST_DAY,
                 CapabilityCodes.VOID_SESSION,
@@ -289,6 +296,7 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
         assertEquals(
             setOf(
                 CapabilityCodes.VIEW_BRANCH_DATA,
+                CapabilityCodes.VIEW_COMMISSION,
                 CapabilityCodes.EDIT_BRANCH_DATA,
                 CapabilityCodes.EDIT_PAST_DAY,
                 CapabilityCodes.VOID_SESSION,
@@ -308,6 +316,7 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
         assertEquals(
             setOf(
                 CapabilityCodes.VIEW_BRANCH_DATA,
+                CapabilityCodes.VIEW_COMMISSION,
                 CapabilityCodes.EDIT_BRANCH_DATA,
                 // Coordinator-only additions over the PRACTITIONER pair:
                 CapabilityCodes.EDIT_PAST_DAY,

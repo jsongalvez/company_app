@@ -141,11 +141,12 @@ class BranchMemberEditAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `relief keeps its day grant only, with no void or mark correction`() {
+    fun `relief has a member's rights for its day, void and mark correction included`() {
+        // Owed #23: "relief has same access as branch members only for that granted day."
+        assertCode(201, post("/api/sessions/${session(todayId)}/void", voidBody(), relief), "relief")
         val s = session(todayId)
-        assertCode(403, post("/api/sessions/$s/void", voidBody(), relief), "relief")
         assertCode(200, mark(s, "NO_SHOW", 1, null, relief), "relief")
-        assertCode(403, mark(s, "CANCELLED", 2, "wrong tap", relief), "relief")
+        assertCode(200, mark(s, "CANCELLED", 2, "wrong tap", relief), "relief")
     }
 
     @Test

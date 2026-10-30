@@ -408,6 +408,24 @@ internal object UserRepository {
             .not()
     }
 
+    fun holdsRoleInTransaction(
+        userId: UUID,
+        roleName: String,
+    ): Boolean =
+        UserRoleTable
+            .innerJoin(RoleTable, { UserRoleTable.roleId }, { RoleTable.id })
+            .selectAll()
+            .where { (UserRoleTable.userId eq userId) and (RoleTable.name eq roleName) }
+            .empty()
+            .not()
+
+    fun hasActiveAssignmentInTransaction(userId: UUID): Boolean =
+        UserBranchAssignmentTable
+            .selectAll()
+            .where { (UserBranchAssignmentTable.userId eq userId) and UserBranchAssignmentTable.endedAt.isNull() }
+            .empty()
+            .not()
+
     /** Active assignments (ended_at IS NULL) with branch names, slot ASC — the user-list join. */
     fun findActiveAssignmentsWithBranch(): List<UserBranchAssignmentSummary> =
         transaction {
