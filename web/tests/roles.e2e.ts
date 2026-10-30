@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
 import { businessDate } from "./clock";
-import { clockOutHere, doneSessionForNewClient } from "./support";
+import { clockOutHere, doneSessionForNewClient, noteRefusals, refused } from "./support";
 
 type Browser = Parameters<Parameters<typeof test>[1]>[0]["browser"];
 
@@ -15,31 +15,6 @@ const roles = [
     { role: "coordinator", pay: true, remit: true, inviteIn: 14 },
     { role: "practitioner", pay: false, remit: false, inviteIn: 15 },
 ] as const;
-
-/**
- * Notes every API request the app makes that the server refuses (4xx other than 401, or 5xx), in
- * sessionStorage so it survives reloads. A refused call the screen quietly ignores still reaches the
- * error tracker in production, so a role's normal day must have none.
- */
-async function noteRefusals(browser: Browser) {
-    await browser.addInitScript(() => {
-        const w = window as unknown as { __plainFetch?: typeof fetch };
-        const plain = window.fetch.bind(window);
-        w.__plainFetch = plain;
-        window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-            const res = await plain(input, init);
-            const req = input instanceof Request ? input : null;
-            const url = new URL(req ? req.url : String(input), location.href);
-            if (url.pathname.startsWith("/api/") && res.status >= 400 && res.status !== 401) {
-                const seen = JSON.parse(sessionStorage.getItem("refused") ?? "[]") as string[];
-                seen.push(`${init?.method ?? req?.method ?? "GET"} ${url.pathname} ${res.status}`);
-                sessionStorage.setItem("refused", JSON.stringify(seen));
-            }
-            return res;
-        };
-    });
-}
-const refused = (browser: Browser) => browser.evaluate(() => JSON.parse(sessionStorage.getItem("refused") ?? "[]") as string[]);
 
 /** Status of a request made with the signed-in person's own token, as the app would send it. */
 async function statusOf(browser: Browser, method: string, path: string, body?: Record<string, unknown>): Promise<number> {

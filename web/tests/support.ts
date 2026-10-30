@@ -79,3 +79,28 @@ export async function watchReads(browser: Browser, lists: Record<string, RegExp>
     });
     return reads;
 }
+
+/**
+ * Notes every API request the app makes that the server refuses (4xx other than 401, or 5xx), in
+ * sessionStorage so it survives reloads. A refused call the screen quietly ignores still reaches the
+ * error tracker in production, so a role's normal day must have none.
+ */
+export async function noteRefusals(browser: Browser) {
+    await browser.addInitScript(() => {
+        const w = window as unknown as { __plainFetch?: typeof fetch };
+        const plain = window.fetch.bind(window);
+        w.__plainFetch = plain;
+        window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+            const res = await plain(input, init);
+            const req = input instanceof Request ? input : null;
+            const url = new URL(req ? req.url : String(input), location.href);
+            if (url.pathname.startsWith("/api/") && res.status >= 400 && res.status !== 401) {
+                const seen = JSON.parse(sessionStorage.getItem("refused") ?? "[]") as string[];
+                seen.push(`${init?.method ?? req?.method ?? "GET"} ${url.pathname} ${res.status}`);
+                sessionStorage.setItem("refused", JSON.stringify(seen));
+            }
+            return res;
+        };
+    });
+}
+export const refused = (browser: Browser) => browser.evaluate(() => JSON.parse(sessionStorage.getItem("refused") ?? "[]") as string[]);

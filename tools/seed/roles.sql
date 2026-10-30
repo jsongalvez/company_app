@@ -93,3 +93,30 @@ INSERT INTO product_sale (branch_day_id, session_id, is_walk_in, product_id, pro
 SELECT s.branch_day_id, s.id, false, p.id, p.name, u.id, 1, 100, 100, 10
 FROM s, product p, app_user u
 WHERE p.name = 'Role test oil' AND u.username = 'role-practitioner';
+
+-- A relief worker with no home branch, granted today at the Practitioner Branch (owed #23: "relief has
+-- same access as branch members only for that granted day"), and a walk-in sale there today, for
+-- view-only.e2e.ts: relief sees the day's sales list.
+WITH u AS (
+  INSERT INTO app_user (username, password_hash, email, display_name)
+  SELECT 'role-relief', password_hash, 'role-relief@example.com', 'Role Relief'
+  FROM app_user WHERE username = 'staff'
+  RETURNING id
+), r AS (
+  INSERT INTO user_role (user_id, role_id) SELECT u.id, role.id FROM u, role WHERE role.name = 'PRACTITIONER'
+), d AS (
+  INSERT INTO branch_day (branch_id, date)
+  VALUES ('00000000-0000-4000-8000-000000000105', ((now() AT TIME ZONE 'Asia/Manila') - interval '4 hours')::date)
+  ON CONFLICT (branch_id, date) DO UPDATE SET date = EXCLUDED.date
+  RETURNING id
+), s AS (
+  INSERT INTO product_sale (branch_day_id, is_walk_in, product_id, product_name, handled_by,
+                            quantity, unit_price_at_time, total_amount_at_time, commission_amount_at_time)
+  SELECT d.id, true, p.id, p.name, h.id, 3, 100, 300, 10
+  FROM d, product p, app_user h
+  WHERE p.name = 'Role test oil' AND h.username = 'role-practitioner'
+)
+INSERT INTO user_capability (user_id, capability_id, context_type, context_id, source_type, source_id)
+SELECT u.id, c.id, 'BRANCH_DAY', d.id, 'RELIEF_ACCESS', u.id
+FROM u, d, capability c
+WHERE c.code = 'EDIT_BRANCH_DATA';

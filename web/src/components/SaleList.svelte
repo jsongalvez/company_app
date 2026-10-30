@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, type S } from "../api/client";
-    import { app } from "../lib/app.svelte";
+    import { app, canBranchWide } from "../lib/app.svelte";
     import { askReason } from "../lib/ask.svelte";
     import { Query, fetchCached, invalidate } from "../lib/cache.svelte";
     import { load } from "../lib/data";
@@ -36,8 +36,9 @@
     const sales = $derived((q.data ?? []).filter((x) => (!sessionId || x.sessionId === sessionId) && (showDeleted || !x.deletedAt)));
 
     // The change dialog lists the branch's stock: fetch it now, so the dialog opens with its product filled.
+    // Stock is a branch-wide read, which relief's one-day grant doesn't give.
     $effect(() => {
-        if (!edit || !sales.length) return;
+        if (!edit || !sales.length || !canBranchWide("VIEW_BRANCH_DATA")) return;
         const l = load.inventory(app.branchId);
         fetchCached(l.key, l.fn).catch(() => undefined);
     });

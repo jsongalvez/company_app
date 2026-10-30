@@ -1,5 +1,7 @@
 package com.companyb.companyapp.identity
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.branch.BranchClockInStatus
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.identity.UserStatus
@@ -87,6 +89,28 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
         assertTrue(branches.single().isRelief)
         // #381 — relief rows have no assignment, hence no slot.
         assertEquals(null, branches.single().slot)
+    }
+
+    @Test
+    fun `getBranches lists the branch relief is granted today, before any clock-in, and not another day's`() {
+        // Owed #23: "relief has same access as branch members only for that granted day."
+        val today = BranchDayService.resolveOrCreate(reliefBranch, TestFixtures.today)
+        val tomorrow = BranchDayService.resolveOrCreate(branchB, TestFixtures.today.plusDays(1))
+        for (day in listOf(today, tomorrow)) {
+            IdentityFixtures.grantCapability(
+                userId,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                CapabilityContextType.BRANCH_DAY,
+                day.id,
+                TestFixtures.uuid(),
+            )
+        }
+
+        val branches = MeService.getBranches(userId)
+
+        assertEquals(listOf(reliefBranch.toString()), branches.map { it.branchId })
+        assertEquals(BranchClockInStatus.NOT_CLOCKED_IN, branches.single().clockInStatus)
+        assertTrue(branches.single().isRelief)
     }
 
     @Test

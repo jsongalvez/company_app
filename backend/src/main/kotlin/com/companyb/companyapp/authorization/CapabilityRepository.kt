@@ -7,6 +7,7 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.or
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -65,6 +66,18 @@ internal object CapabilityRepository {
                 }.withDistinct()
                 .map { it[ActiveUserCapabilitiesView.contextId] }
         }.also { logger.info { "[BRANCH-WINDOW] $userId window=${it.size} branches" } }
+
+    /** The branch days [userId] holds any grant for (relief), past, present or future. */
+    fun findDayWindow(userId: UUID): List<UUID> =
+        transaction {
+            ActiveUserCapabilitiesView
+                .select(ActiveUserCapabilitiesView.contextId)
+                .where {
+                    (ActiveUserCapabilitiesView.userId eq userId) and
+                        (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH_DAY)
+                }.withDistinct()
+                .map { it[ActiveUserCapabilitiesView.contextId] }
+        }
 
     /** One read for "holds [capabilityCode] in any of [contexts]". The view applies the grant window. */
     fun holdsIn(
