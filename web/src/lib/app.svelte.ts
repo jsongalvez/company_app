@@ -276,7 +276,11 @@ export async function refreshUnread() {
 export function can(code: string, branchId: string = app.branchId, branchDayId?: string): boolean {
     return app.caps.some((c) => applies(c, code, branchId, branchDayId, app.today?.branchDayId));
 }
-/** The branch as a whole, not one day of it: relief's day grant doesn't count (stock, reports). */
+/** Every branch at once: an all-branch (GLOBAL) grant, as the server's SEE_EVERY_BRANCH asks. */
+export function canEverywhere(code: string): boolean {
+    return app.caps.some((c) => c.capabilityCode === code && c.contextType === "GLOBAL");
+}
+/** The branch as a whole, not one day of it: relief's day grant doesn't count (reports, stock changes). */
 export function canBranchWide(code: string, branchId: string = app.branchId): boolean {
     return app.caps.some((c) => applies(c, code, branchId, undefined, undefined));
 }

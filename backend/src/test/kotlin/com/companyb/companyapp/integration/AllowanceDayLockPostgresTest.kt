@@ -9,6 +9,7 @@ import com.companyb.companyapp.contracts.remittance.RemittanceType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.finance.AllowanceRepository
 import com.companyb.companyapp.finance.AllowanceService
 import com.companyb.companyapp.finance.AllowanceTable
@@ -132,10 +133,12 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create on lazily-PAST day without EDIT_PAST_DAY is rejected`() {
+    fun `create on lazily-PAST day without EDIT_PAST_DAY needs only a reason`() {
+        // The user: "A non-member Owner can pay members for earlier days too." Whoever passed the
+        // route's pay gate pays on a past day that is not remitted, with a reason.
         val pastDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, TestFixtures.today.minusDays(1))
 
-        assertFailsWith<ForbiddenException> {
+        assertFailsWith<ValidationException> {
             AllowanceService.create(
                 callerId = callerId,
                 id = TestFixtures.uuid(),
@@ -144,6 +147,14 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
                 amount = BigDecimal("500.00"),
             )
         }
+        AllowanceService.create(
+            callerId = callerId,
+            id = TestFixtures.uuid(),
+            branchDayId = pastDayId,
+            userId = targetUserId,
+            amount = BigDecimal("500.00"),
+            reason = "paid late",
+        )
     }
 
     @Test

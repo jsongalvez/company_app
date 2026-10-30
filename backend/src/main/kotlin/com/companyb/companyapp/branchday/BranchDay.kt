@@ -47,7 +47,8 @@ object BranchDayTable : Table("branch_day") {
 /**
  * What a write does to a day. On a past day that is not remitted, any branch member may ADD a new
  * entry with no reason, and FIX the day's branch data (sessions and their marks, price, people,
- * illnesses and voids; expenses) with a reason; any other CHANGE there (pay, commission, relief)
- * still needs EDIT_PAST_DAY and a reason.
+ * illnesses and voids; expenses) with a reason. Whoever may PAY there (the route's gate) adds pay and
+ * allowances with a reason: the user, "A non-member Owner can pay members for earlier days too".
+ * Any other CHANGE there (commission, relief) still needs EDIT_PAST_DAY and a reason.
  */
-enum class DayWrite { ADD, FIX, CHANGE }
+enum class DayWrite { ADD, FIX, PAY, CHANGE }

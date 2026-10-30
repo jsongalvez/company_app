@@ -162,18 +162,19 @@ object BranchInventoryRoutes {
         // "known but non-member". BranchService.findById throws NotFoundException.
         config.routes.before(ApiRoutes.BRANCH_INVENTORY_PATH) { context ->
             val branchId = requireKnownBranchId(context)
-            val act = if (context.method() == HandlerType.POST) Act.MANAGE_STOCK else Act.WORK_HOME_BRANCH
-            Access.require(context, act, Place.Branch(branchId))
+            if (context.method() == HandlerType.POST) {
+                Access.require(context, Act.MANAGE_STOCK, Place.Branch(branchId))
+            } else {
+                requireStockRead(context, branchId)
+            }
         }
 
         config.routes.before(ApiRoutes.BRANCH_INVENTORY_LOW_STOCK_PATH) { context ->
-            val branchId = requireKnownBranchId(context)
-            Access.require(context, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
+            requireStockRead(context, requireKnownBranchId(context))
         }
 
         config.routes.before(ApiRoutes.BRANCH_INVENTORY_MOVEMENTS_PATH) { context ->
-            val branchId = requireKnownBranchId(context)
-            Access.require(context, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
+            requireStockRead(context, requireKnownBranchId(context))
         }
 
         config.routes.before(ApiRoutes.BRANCH_INVENTORY_RESTOCK_PATH) { context ->
@@ -193,6 +194,12 @@ object BranchInventoryRoutes {
             Access.require(context, act, Place.Branch(branchId))
         }
     }
+
+    /** The user: relief "can see it physically", so relief on its day reads the stock, view only. */
+    private fun requireStockRead(
+        context: Context,
+        branchId: UUID,
+    ) = Access.require(context, Act.SEE_DAY, Place.today(branchId))
 
     private fun registerHandlers(config: JavalinConfig) {
         config.routes.post(ApiRoutes.BRANCH_INVENTORY_PATH, ::handleEnsureCard)

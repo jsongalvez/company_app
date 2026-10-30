@@ -30,7 +30,10 @@ test("a practitioner changes a product and opens its history in one tap", { sess
     await expect(edit).toBeHidden();
 
     await row.getByRole("button", "History").tap();
-    const change = screen.getByRole("row").filter({ hasText: /250(\.00)? → 300/ }).last();
+    const change = screen
+        .getByRole("row")
+        .filter({ hasText: /250(\.00)? → 300/ })
+        .last();
     await expect(change).toBeVisible();
     await expect(change).toContainText("Role Practitioner");
 

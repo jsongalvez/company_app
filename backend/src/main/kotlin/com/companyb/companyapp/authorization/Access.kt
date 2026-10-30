@@ -59,7 +59,9 @@ enum class Act(
     SEE_COMMISSION(CapabilityCodes.VIEW_COMMISSION, Reach.HOME_OR_DAY),
     CHANGE_CLOSED_DAY(CapabilityCodes.EDIT_PAST_DAY, Reach.HOME),
     PAY(CapabilityCodes.ASSIGN_COMPENSATION, Reach.HOME_OR_EVERYWHERE),
-    SUBMIT_REMITTANCE(CapabilityCodes.SUBMIT_REMITTANCE, Reach.HOME),
+
+    // The user: "Accountants see remittance lists (view only, any branch)"; so does anyone who sees every branch.
+    SUBMIT_REMITTANCE(CapabilityCodes.SUBMIT_REMITTANCE, Reach.HOME, SEE_EVERY_BRANCH),
     MANAGE_STOCK(CapabilityCodes.MANAGE_PRODUCTS, Reach.HOME),
     MANAGE_CATALOG(CapabilityCodes.MANAGE_CATALOG, Reach.EVERYWHERE),
     MANAGE_USERS(CapabilityCodes.MANAGE_USERS, Reach.EVERYWHERE),

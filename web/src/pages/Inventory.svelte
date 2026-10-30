@@ -1,7 +1,7 @@
 <script lang="ts">
     import { viewSetting } from "../lib/router.svelte";
     import { api, ok, uuid, type S } from "../api/client";
-    import { app, can, canAtBranch } from "../lib/app.svelte";
+    import { app, can, canAtBranch, canBranchWide } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
@@ -59,6 +59,8 @@
     }
 
     const edit = $derived(can("EDIT_BRANCH_DATA"));
+    // Restock, counts and prices are the branch's own: relief's day grant sells but doesn't change stock.
+    const editStock = $derived(canBranchWide("EDIT_BRANCH_DATA"));
     const manage = $derived(canAtBranch("MANAGE_PRODUCTS"));
     const LOW = 5;
     const nameVs = viewSetting("q", "");
@@ -210,7 +212,7 @@
                     <th class="num" title="Today">Tester/sample</th>
                     <th class="num" title="Today">Missing</th>
                     <th class="num" title="Today">Count fixes</th>
-                    {#if edit}<th></th>{/if}
+                    {#if editStock}<th></th>{/if}
                 </tr>
             </thead>
             <tbody>
@@ -227,7 +229,7 @@
                         <td class="num">{num(i.testerSample)}</td>
                         <td class="num">{num(i.missing)}</td>
                         <td class="num">{num(i.adjustment)}</td>
-                        {#if edit}
+                        {#if editStock}
                             <td class="right nowrap">
                                 <button class="sm" onclick={() => openFor(i, "restock")}>Restock</button>
                                 <button class="sm" onclick={() => openFor(i, "adjust")}>Fix count</button>
@@ -240,7 +242,7 @@
             <tfoot>
                 <tr
                     ><td colspan="3">{rows.length} products</td><td class="num">{num(rows.reduce((s, i) => s + i.currentStock, 0))}</td><td
-                        colspan={edit ? 5 : 4}
+                        colspan={editStock ? 5 : 4}
                         class="muted">Stock value {peso(totalValue)}</td
                     ></tr
                 >

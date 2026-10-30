@@ -55,7 +55,8 @@ import kotlin.test.assertEquals
  * Columns. OWN PRA COO MAN SUP are people with that one role and a home branch here. ACC is an
  * Accountant, who never has a home branch. OWN* and SUP* are an Owner and a Superuser with no home
  * branch. REL is relief, granted today only. ONB is
- * someone still onboarding, assigned here. OUT is a practitioner from another branch.
+ * someone still onboarding, assigned here. OUT is a practitioner from another branch. HLP is a
+ * helper here (a Branches-page delegate), HLX a helper since removed.
  *
  * Everyone is clocked in here today, because adding a session today first needs a clock-in
  * ("Clock in at this branch first"), whoever you are; that rule is not about access.
@@ -90,8 +91,12 @@ class AccessTableTest : BasePostgresTest() {
             assignRole(id, who.role)
             val home =
                 when (who) {
-                    Who.ACCOUNTANT, Who.OWNER_AWAY, Who.SUPERUSER_AWAY, Who.RELIEF -> null
+                    Who.ACCOUNTANT, Who.OWNER_AWAY, Who.SUPERUSER_AWAY, Who.RELIEF,
+                    Who.HELPER, Who.HELPER_REMOVED,
+                    -> null
+
                     Who.OUTSIDER -> otherBranchId
+
                     else -> branchId
                 }
             home?.let {
@@ -113,6 +118,13 @@ class AccessTableTest : BasePostgresTest() {
             day(Day.TODAY),
             TestFixtures.uuid(),
         )
+        // Owed #28: "A helper shares commissions, just think of it as a relief but indefinite until removed."
+        transaction {
+            AuthorizationGrants.grantDelegateCapabilityInTransaction(person(Who.HELPER), branchId, TestFixtures.uuid())
+            val removed = TestFixtures.uuid()
+            AuthorizationGrants.grantDelegateCapabilityInTransaction(person(Who.HELPER_REMOVED), branchId, removed)
+            AuthorizationGrants.closeDelegateCapabilityInTransaction(removed)
+        }
         val category = TestFixtures.uuid()
         CommerceFinanceFixtures.insertTestCategory(category)
         CommerceFinanceFixtures.insertTestProduct(
@@ -285,6 +297,8 @@ class AccessTableTest : BasePostgresTest() {
         RELIEF("PRACTITIONER", "REL"),
         ONBOARDING("ONBOARDING", "ONB"),
         OUTSIDER("PRACTITIONER", "OUT"),
+        HELPER("PRACTITIONER", "HLP"),
+        HELPER_REMOVED("PRACTITIONER", "HLX"),
     }
 
     enum class Day(
@@ -447,6 +461,7 @@ class AccessTableTest : BasePostgresTest() {
                         who,
                     )
                 } +
+                once("remittance.list") { who -> get("${ApiRoutes.REMITTANCES}?branchId=$branchId", who) } +
                 once("client.search") { who -> get("${ApiRoutes.CLIENTS}?q=a", who) } +
                 once("stock.list") { who -> get("${ApiRoutes.BRANCHES}/$branchId/inventory", who) } +
                 once("rates.list") { who -> get("${ApiRoutes.BRANCHES}/$branchId/rates", who) } +
@@ -490,67 +505,68 @@ class AccessTableTest : BasePostgresTest() {
 
         private val EXPECTED =
             """
-                                         OWN  ACC  PRA  COO  MAN  SUP OWN* SUP*  REL  ONB  OUT
-            session.add today              Y    N    Y    Y    Y    Y    N    Y    Y    N    N
-            session.add earlier            Y    N    Y    Y    Y    Y    N    Y    N    N    N
-            session.add remitted           N    N    N    Y    Y    Y    N    Y    N    N    N
-            session.price today            Y    N    Y    Y    Y    Y    N    Y    Y    N    N
-            session.price earlier          Y    N    Y    Y    Y    Y    N    Y    N    N    N
-            session.price remitted         N    N    N    Y    Y    Y    N    Y    N    N    N
-            session.mark today             Y    N    Y    Y    Y    Y    N    Y    Y    N    N
-            session.mark earlier           Y    N    Y    Y    Y    Y    N    Y    N    N    N
-            session.mark remitted          N    N    N    Y    Y    Y    N    Y    N    N    N
-            session.void today             Y    N    Y    Y    Y    Y    N    Y    Y    N    N
-            session.void earlier           Y    N    Y    Y    Y    Y    N    Y    N    N    N
-            session.void remitted          N    N    N    Y    Y    Y    N    Y    N    N    N
-            sale.add today                 Y    N    Y    Y    Y    Y    N    Y    Y    N    N
-            sale.add earlier               Y    N    Y    Y    Y    Y    N    Y    N    N    N
-            sale.add remitted              N    N    N    Y    Y    Y    N    Y    N    N    N
-            sale.edit today                Y    N    Y    Y    Y    Y    N    Y    Y    N    N
-            sale.edit earlier              Y    N    Y    Y    Y    Y    N    Y    N    N    N
-            sale.edit remitted             N    N    N    Y    Y    Y    N    Y    N    N    N
-            sale.list today                Y    Y    Y    Y    Y    Y    Y    Y    Y    N    N
-            sale.list earlier              Y    Y    Y    Y    Y    Y    Y    Y    N    N    N
-            sale.list remitted             Y    Y    Y    Y    Y    Y    Y    Y    N    N    N
-            expense.add today              Y    N    Y    Y    Y    Y    N    Y    Y    N    N
-            expense.add earlier            Y    N    Y    Y    Y    Y    N    Y    N    N    N
-            expense.add remitted           N    N    N    Y    Y    Y    N    Y    N    N    N
-            expense.edit today             Y    N    Y    Y    Y    Y    N    Y    Y    N    N
-            expense.edit earlier           Y    N    Y    Y    Y    Y    N    Y    N    N    N
-            expense.edit remitted          N    N    N    Y    Y    Y    N    Y    N    N    N
-            expense.list today             Y    Y    Y    Y    Y    Y    Y    Y    Y    N    N
-            expense.list earlier           Y    Y    Y    Y    Y    Y    Y    Y    N    N    N
-            expense.list remitted          Y    Y    Y    Y    Y    Y    Y    Y    N    N    N
-            pay.add today                  Y    N    N    Y    Y    Y    Y    Y    N    N    N
-            pay.add earlier                N    N    N    Y    Y    Y    N    Y    N    N    N
-            pay.add remitted               N    N    N    Y    Y    Y    N    Y    N    N    N
-            pay.list today                 Y    N    N    Y    Y    Y    Y    Y    N    N    N
-            pay.list earlier               Y    N    N    Y    Y    Y    Y    Y    N    N    N
-            pay.list remitted              Y    N    N    Y    Y    Y    Y    Y    N    N    N
-            commission.recalc today        N    N    N    Y    Y    Y    N    Y    N    N    N
-            commission.recalc earlier      N    N    N    Y    Y    Y    N    Y    N    N    N
-            commission.recalc remitted     N    N    N    Y    Y    Y    N    Y    N    N    N
-            commission.list today          Y    N    Y    Y    Y    Y    N    Y    Y    N    N
-            commission.list earlier        Y    N    Y    Y    Y    Y    N    Y    N    N    N
-            commission.list remitted       Y    N    Y    Y    Y    Y    N    Y    N    N    N
-            stock.restock today            Y    N    N    Y    Y    Y    N    Y    N    N    N
-            stock.restock earlier          N    N    N    Y    Y    Y    N    Y    N    N    N
-            stock.restock remitted         N    N    N    Y    Y    Y    N    Y    N    N    N
-            day.sessions                   Y    Y    Y    Y    Y    Y    Y    Y    Y    N    N
-            day.today                      Y    Y    Y    Y    Y    Y    Y    Y    Y    Y    Y
-            report.month                   Y    Y    Y    Y    Y    Y    Y    Y    N    N    N
-            remittance.draft               N    N    N    Y    Y    Y    N    Y    N    N    N
-            client.search                  Y    Y    Y    Y    Y    Y    Y    Y    Y    N    Y
-            stock.list                     Y    Y    Y    Y    Y    Y    Y    Y    N    N    N
-            rates.list                     Y    Y    Y    Y    Y    Y    Y    Y    N    N    N
-            catalog.add                    Y    N    Y    Y    Y    Y    Y    Y    Y    N    Y
-            sale.list commission           Y    N    Y    Y    Y    Y    N    Y    Y    N    N
-            summary commission             N    N    N    N    N    N    N    N    N    N    N
-            report.export commission       N    N    N    N    N    N    N    N    N    N    N
-            users.list                     Y    N    N    N    Y    Y    Y    Y    N    N    N
-            users.list names Superuser     N    N    N    N    N    Y    N    Y    N    N    N
-            delegates.list                 Y    N    N    N    Y    Y    Y    Y    N    N    N
-            view-as                        N    N    N    N    N    Y    N    Y    N    N    N
+                                         OWN  ACC  PRA  COO  MAN  SUP OWN* SUP*  REL  ONB  OUT  HLP  HLX
+            session.add today              Y    N    Y    Y    Y    Y    N    Y    Y    N    N    Y    N
+            session.add earlier            Y    N    Y    Y    Y    Y    N    Y    N    N    N    Y    N
+            session.add remitted           N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            session.price today            Y    N    Y    Y    Y    Y    N    Y    Y    N    N    Y    N
+            session.price earlier          Y    N    Y    Y    Y    Y    N    Y    N    N    N    Y    N
+            session.price remitted         N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            session.mark today             Y    N    Y    Y    Y    Y    N    Y    Y    N    N    Y    N
+            session.mark earlier           Y    N    Y    Y    Y    Y    N    Y    N    N    N    Y    N
+            session.mark remitted          N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            session.void today             Y    N    Y    Y    Y    Y    N    Y    Y    N    N    Y    N
+            session.void earlier           Y    N    Y    Y    Y    Y    N    Y    N    N    N    Y    N
+            session.void remitted          N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            sale.add today                 Y    N    Y    Y    Y    Y    N    Y    Y    N    N    Y    N
+            sale.add earlier               Y    N    Y    Y    Y    Y    N    Y    N    N    N    Y    N
+            sale.add remitted              N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            sale.edit today                Y    N    Y    Y    Y    Y    N    Y    Y    N    N    Y    N
+            sale.edit earlier              Y    N    Y    Y    Y    Y    N    Y    N    N    N    Y    N
+            sale.edit remitted             N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            sale.list today                Y    Y    Y    Y    Y    Y    Y    Y    Y    N    N    Y    N
+            sale.list earlier              Y    Y    Y    Y    Y    Y    Y    Y    N    N    N    Y    N
+            sale.list remitted             Y    Y    Y    Y    Y    Y    Y    Y    N    N    N    Y    N
+            expense.add today              Y    N    Y    Y    Y    Y    N    Y    Y    N    N    Y    N
+            expense.add earlier            Y    N    Y    Y    Y    Y    N    Y    N    N    N    Y    N
+            expense.add remitted           N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            expense.edit today             Y    N    Y    Y    Y    Y    N    Y    Y    N    N    Y    N
+            expense.edit earlier           Y    N    Y    Y    Y    Y    N    Y    N    N    N    Y    N
+            expense.edit remitted          N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            expense.list today             Y    Y    Y    Y    Y    Y    Y    Y    Y    N    N    Y    N
+            expense.list earlier           Y    Y    Y    Y    Y    Y    Y    Y    N    N    N    Y    N
+            expense.list remitted          Y    Y    Y    Y    Y    Y    Y    Y    N    N    N    Y    N
+            pay.add today                  Y    N    N    Y    Y    Y    Y    Y    N    N    N    N    N
+            pay.add earlier                Y    N    N    Y    Y    Y    Y    Y    N    N    N    N    N
+            pay.add remitted               N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            pay.list today                 Y    N    N    Y    Y    Y    Y    Y    N    N    N    N    N
+            pay.list earlier               Y    N    N    Y    Y    Y    Y    Y    N    N    N    N    N
+            pay.list remitted              Y    N    N    Y    Y    Y    Y    Y    N    N    N    N    N
+            commission.recalc today        N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            commission.recalc earlier      N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            commission.recalc remitted     N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            commission.list today          Y    N    Y    Y    Y    Y    N    Y    Y    N    N    Y    N
+            commission.list earlier        Y    N    Y    Y    Y    Y    N    Y    N    N    N    Y    N
+            commission.list remitted       Y    N    Y    Y    Y    Y    N    Y    N    N    N    Y    N
+            stock.restock today            Y    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            stock.restock earlier          N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            stock.restock remitted         N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            day.sessions                   Y    Y    Y    Y    Y    Y    Y    Y    Y    N    N    Y    N
+            day.today                      Y    Y    Y    Y    Y    Y    Y    Y    Y    Y    Y    Y    Y
+            report.month                   Y    Y    Y    Y    Y    Y    Y    Y    N    N    N    Y    N
+            remittance.draft               N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            remittance.list                Y    Y    N    Y    Y    Y    Y    Y    N    N    N    N    N
+            client.search                  Y    Y    Y    Y    Y    Y    Y    Y    Y    N    Y    Y    N
+            stock.list                     Y    Y    Y    Y    Y    Y    Y    Y    Y    N    N    Y    N
+            rates.list                     Y    Y    Y    Y    Y    Y    Y    Y    N    N    N    Y    N
+            catalog.add                    Y    N    Y    Y    Y    Y    Y    Y    Y    N    Y    Y    Y
+            sale.list commission           Y    N    Y    Y    Y    Y    N    Y    Y    N    N    Y    N
+            summary commission             N    N    N    N    N    N    N    N    N    N    N    N    N
+            report.export commission       N    N    N    N    N    N    N    N    N    N    N    N    N
+            users.list                     Y    N    N    N    Y    Y    Y    Y    N    N    N    N    N
+            users.list names Superuser     N    N    N    N    N    Y    N    Y    N    N    N    N    N
+            delegates.list                 Y    N    N    N    Y    Y    Y    Y    N    N    N    N    N
+            view-as                        N    N    N    N    N    Y    N    Y    N    N    N    N    N
             """.trimIndent()
 
         private fun parse(table: String): Map<String, Map<Who, String>> =

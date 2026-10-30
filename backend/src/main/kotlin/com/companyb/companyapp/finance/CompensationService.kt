@@ -5,6 +5,7 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.branchday.DayWrite
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
@@ -120,7 +121,7 @@ object CompensationService {
     ): WorkPayingGate {
         val gated =
             listOf(workBranchDayId, payingBranchDayId).sorted().distinct().associateWith { dayId ->
-                BranchDayService.checkBranchDayEditableInTransaction(callerId, dayId, reason)
+                BranchDayService.checkBranchDayEditableInTransaction(callerId, dayId, reason, DayWrite.PAY)
             }
         val (workDay, workIsRemitted) = gated.getValue(workBranchDayId)
         val (payingDay, payingIsRemitted) = gated.getValue(payingBranchDayId)

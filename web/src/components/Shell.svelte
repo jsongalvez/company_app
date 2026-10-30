@@ -1,5 +1,17 @@
 <script lang="ts">
-    import { app, can, canAnywhere, canBranchWide, selectBranch, signOut, clockIn, clockOut, stopViewAs, setViewAsChanges } from "../lib/app.svelte";
+    import {
+        app,
+        can,
+        canAnywhere,
+        canBranchWide,
+        canEverywhere,
+        selectBranch,
+        signOut,
+        clockIn,
+        clockOut,
+        stopViewAs,
+        setViewAsChanges,
+    } from "../lib/app.svelte";
     import { route, go } from "../lib/router.svelte";
     import ThemeIcon from "./ThemeIcon.svelte";
     import FullIcon from "./FullIcon.svelte";
@@ -19,7 +31,7 @@
 
     const bid = $derived(app.branchId);
     const view = $derived(can("VIEW_BRANCH_DATA"));
-    // Stock and reports cover the whole branch, so relief's one-day grant doesn't open them.
+    // Reports cover the whole branch, so relief's one-day grant doesn't open them. Relief does see the stock.
     const viewBranch = $derived(canBranchWide("VIEW_BRANCH_DATA"));
     // Today's Expenses & pay and Sales reports, as those pages read them when opened with no date.
     function financeReads(): Loader<unknown>[] {
@@ -47,10 +59,16 @@
             items: [
                 { path: "/today", text: "Sessions", show: view, reads: () => [load.dashboard(bid), load.roster(bid)] },
                 { path: "/clients", page: "Clients", text: "Clients", show: view || canAnywhere("EDIT_BRANCH_DATA") },
-                { path: "/inventory", page: "Inventory", text: "Stock", show: viewBranch, reads: () => [load.inventory(bid), load.movements(bid, "")] },
+                { path: "/inventory", page: "Inventory", text: "Stock", show: view, reads: () => [load.inventory(bid), load.movements(bid, "")] },
                 { path: "/finance", page: "Finance", text: "Expenses & pay", show: view, reads: financeReads },
                 { path: "/reports", page: "Reports", text: "Sales reports", show: viewBranch, reads: reportReads },
-                { path: "/remittance", page: "Remittances", text: "Remittance", show: can("SUBMIT_REMITTANCE"), reads: () => [load.remittances(bid)] },
+                {
+                    path: "/remittance",
+                    page: "Remittances",
+                    text: "Remittance",
+                    show: can("SUBMIT_REMITTANCE") || canEverywhere("VIEW_BRANCH_DATA"),
+                    reads: () => [load.remittances(bid)],
+                },
             ],
         },
         {

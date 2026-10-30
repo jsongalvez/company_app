@@ -10,7 +10,8 @@ type Browser = Parameters<Parameters<typeof test>[1]>[0]["browser"];
 // role may do by design: a role without one must find the action missing and the server refusing it.
 const roles = [
     { role: "superuser", pay: true, remit: true, inviteIn: 11 },
-    { role: "owner", pay: true, remit: false, inviteIn: 12 },
+    // The owner sees every branch, remittances included, but doesn't send them.
+    { role: "owner", pay: true, remit: false, readRemit: true, inviteIn: 12 },
     { role: "manager", pay: true, remit: true, inviteIn: 13 },
     { role: "coordinator", pay: true, remit: true, inviteIn: 14 },
     { role: "practitioner", pay: false, remit: false, inviteIn: 15 },
@@ -142,7 +143,11 @@ for (const r of roles) {
                 await u.getByRole("button", "Return to draft").tap();
                 await expect(screen.getByText("Draft", { exact: true }).first()).toBeVisible();
             } else {
-                await expect(nav.getByRole("link", "Remittance")).toBeHidden();
+                if ("readRemit" in r) {
+                    await nav.getByRole("link", "Remittance").tap();
+                    await expect(screen.getByRole("main")).toBeVisible();
+                    await expect(screen.getByRole("button", "New remittance")).toBeHidden();
+                } else await expect(nav.getByRole("link", "Remittance")).toBeHidden();
                 const body = { id: crypto.randomUUID(), type: "SESSION", method: "BANK_TRANSFER", branchId, dateRangeStart: today, dateRangeEnd: today };
                 expect(await statusOf(browser, "POST", "/api/remittances", body)).toBe(403);
             }

@@ -4,6 +4,7 @@ import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.branchday.DayWrite
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.AccountReads
@@ -56,7 +57,7 @@ object AllowanceService {
             }
             // Locked day read: serializes this create with remittance's REMITTED transition.
             val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason)
+                BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason, DayWrite.PAY)
 
             val result =
                 AllowanceRepository.createInTransaction(
