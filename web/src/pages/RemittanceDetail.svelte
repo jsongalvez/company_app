@@ -346,7 +346,7 @@
         </section>
         <div class="send row">
             <span class="grow"><b>{peso(sum(lines.map((l) => l.amount)))}</b> <span class="faint">{lines.length} items · {covered.size} days</span></span>
-            <button class="primary" onclick={() => (sa.reset(), (sOpen = true))} disabled={lines.length === 0}>Send to office</button>
+            <button class="primary" onclick={() => (sa.reset(), (sOpen = true))} disabled={lines.length === 0 || covered.size === 0}>Send to office</button>
         </div>
     {:else}
         <section class="panel">

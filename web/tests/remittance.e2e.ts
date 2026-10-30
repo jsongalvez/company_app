@@ -53,6 +53,9 @@ test("a draft remittance is two checklists, and its kind stays once something is
     await expect(screen.getByRole("checkbox", client)).not.toBeChecked();
     await screen.getByRole("row").filter({ hasText: client }).tap();
     await expect(screen.getByRole("checkbox", client)).toBeChecked();
+    await expect(screen.getByRole("button", "Send to office")).toBeDisabled();
+    await screen.getByRole("button", "Add all").tap();
+    await expect(screen.getByRole("button", "Send to office")).toBeEnabled();
 
     await screen.getByRole("button", "Edit").tap();
     await expect(screen.getByRole("dialog", "Edit remittance").getByLabel("Kind")).toBeDisabled();
