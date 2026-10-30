@@ -36,6 +36,8 @@ try {
     await page.locator('nav[aria-label="Main"]').waitFor({ state: "attached" }); // collapsed on the phone, so a CSS locator: role queries skip hidden elements
     // boot() sets #/today after sign-in; wait for it so it cannot overwrite the route we open next.
     await page.waitForFunction(() => location.hash !== "");
+    // VERIFY_BRANCH picks a branch by name first, for someone with no home branch or to look at another one.
+    if (process.env.VERIFY_BRANCH) await page.getByLabel("Branch").selectOption({ label: process.env.VERIFY_BRANCH });
     // Like a real shift: clock in at the current branch (the scratch DB's owner starts off duty, and
     // the day's sessions answer 403 until then). VERIFY_CLOCKIN=0 skips it.
     if (process.env.VERIFY_CLOCKIN !== "0") {

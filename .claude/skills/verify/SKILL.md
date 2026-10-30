@@ -96,6 +96,15 @@ It shoots each route on the merge-base with `origin/master` (a copy on port 1828
 `/tmp/verify-evidence/before-after/<head>/`, and writes the `stamp` that `tools/quality/shot-gate.sh` checks. Look at
 both before you push. Nothing visible changed (a `.svelte` file whose markup did not move)? `SHOT_SKIP='why' tools/push.sh`.
 
+As someone else, at another branch, added to the same stamp:
+
+```bash
+VERIFY_ADD=1 VERIFY_SEED_FROM_HEAD=1 VERIFY_CLOCKIN=0 VERIFY_SHOT_USER=role-accountant VERIFY_SHOT_PASS=staff-dev-pass \
+  VERIFY_BRANCH='Practitioner Branch' tools/verify/verify.sh before-after '#/reports'
+```
+
+`VERIFY_SEED_FROM_HEAD=1` seeds the old copy with HEAD's `tools/seed`, so a role user added there can sign in to the before shot.
+
 Screenshots go to `/tmp/verify-evidence/<UTC time>-<name>-{desktop,phone}.png` (override `VERIFY_OUT`). `down` never deletes them.
 A proof is: the route you opened, the interaction (if any), the resulting state on screen, and the side effect when there is one
 (query the scratch DB: `PGPASSWORD=... psql -h localhost -p 55432 -U company_user -d verify_18181`).

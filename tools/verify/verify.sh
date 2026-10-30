@@ -9,6 +9,7 @@
 #   verify.sh film <route> [button...]  film every painted frame of a reload (or of tapping each button), count blank frames
 #   verify.sh at <commit> <command...>  run a command above against a copy of <commit>, with these tools (port 18282 unless VERIFY_PORT)
 #   verify.sh before-after <route>...   shot each route on the merge-base with origin/master and on HEAD (needs `up`); tools/push.sh wants this for visible web changes
+#   env for shots: VERIFY_SHOT_USER/VERIFY_SHOT_PASS (who), VERIFY_BRANCH (branch name to pick), VERIFY_CLOCKIN=0, VERIFY_SEED_FROM_HEAD=1 (for at/before-after)
 # VERIFY_DUMP=<pg_dump -Fc file> makes `up` start from that database instead of an empty one (tools/replay).
 set -uo pipefail
 
@@ -110,7 +111,9 @@ doctor() {
 shot() {
   pick_node || return 1
   mkdir -p "$OUT"
-  "$NODE_BIN" "$HERE/drive.mjs" "$BASE" "${1:?route like #/today}" "$OUT" "${2:-}" "$USER_NAME" "$USER_PASS"
+  # VERIFY_SHOT_USER/VERIFY_SHOT_PASS shoot as someone else (a seeded role user, say) than the login `up` checks.
+  "$NODE_BIN" "$HERE/drive.mjs" "$BASE" "${1:?route like #/today}" "$OUT" "${2:-}" \
+    "${VERIFY_SHOT_USER:-$USER_NAME}" "${VERIFY_SHOT_PASS:-$USER_PASS}"
 }
 
 film() {
@@ -125,6 +128,9 @@ at() {
   local wt=/tmp/verify-at-$c rc=0
   [ -d "$wt" ] || git -C "$ROOT" worktree add -q --detach "$wt" "$c" || return 1
   mkdir -p "$wt/tools/verify" && cp -r "$HERE"/. "$wt/tools/verify/"
+  # VERIFY_SEED_FROM_HEAD=1: seed the old copy with today's test data (a role user it lacks, say), so a
+  # before shot can sign in as the same person as the after shot.
+  [ "${VERIFY_SEED_FROM_HEAD:-}" = 1 ] && cp "$ROOT"/tools/seed/*.sql "$wt/tools/seed/"
   [ -e "$wt/web/node_modules" ] || ln -s "$ROOT/web/node_modules" "$wt/web/node_modules"
   export VERIFY_PORT=${VERIFY_PORT:-18282}
   "$wt/tools/verify/verify.sh" up || rc=1
@@ -143,14 +149,18 @@ before_after() {
   base=$(git -C "$ROOT" merge-base HEAD origin/master) || return 1
   head=$(git -C "$ROOT" rev-parse HEAD)
   dir="$OUT/before-after/${head:0:8}"
-  rm -rf "$dir" && mkdir -p "$dir"
-  local OUT="$dir"
+  # VERIFY_ADD=1 adds to HEAD's shots (another person's view, say) instead of starting over.
+  local kept=""
+  if [ "${VERIFY_ADD:-}" = 1 ] && [ -f "$dir/stamp" ]; then kept=$(grep '^route=' "$dir/stamp"); else rm -rf "$dir"; fi
+  mkdir -p "$dir"
+  local OUT="$dir" who="${VERIFY_SHOT_USER:+$VERIFY_SHOT_USER-}"
   for r in "$@"; do
-    slug=$(printf '%s' "$r" | tr -c 'A-Za-z0-9' '-' | sed 's/^-*//; s/-*$//')
+    slug=$who$(printf '%s' "$r" | tr -c 'A-Za-z0-9' '-' | sed 's/^-*//; s/-*$//')
     VERIFY_OUT="$dir" at "$base" shot "$r" "before-$slug" || return 1
     shot "$r" "after-$slug" || return 1
   done
-  { echo "base=$base"; echo "head=$head"; printf 'route=%s\n' "$@"; find "$dir" -name '*.png' | sort | sed 's/^/png=/'; } > "$dir/stamp"
+  { echo "base=$base"; echo "head=$head"; [ -n "$kept" ] && echo "$kept"; printf "route=${who:+$who }%s\n" "$@"
+    find "$dir" -name '*.png' | sort | sed 's/^/png=/'; } > "$dir/stamp"
   echo "before-after: $(grep -c '^png=' "$dir/stamp") shots in $dir"
 }
 
