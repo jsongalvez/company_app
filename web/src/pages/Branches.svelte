@@ -13,18 +13,23 @@
     import PersonPicker from "../components/PersonPicker.svelte";
     import PeopleChecklist from "../components/PeopleChecklist.svelte";
 
-    const list = new Query(load.branches().key, load.branches().fn);
+    const manageUsers = $derived(canAnywhere("MANAGE_USERS"));
+    // a11802ff: whoever manages users sees every branch; anyone else sees the branches they belong to (the server's read window).
+    const list = new Query<S["BranchResponse"][]>();
+    $effect(() => {
+        if (manageUsers) list.load(load.branches().key, load.branches().fn);
+    });
+    const branches = $derived(manageUsers ? list.data : app.accessible);
     const sel = $derived(route.current.query.get("id") ?? "");
-    const branch = $derived(list.data?.find((b) => b.id === sel));
+    const branch = $derived(branches?.find((b) => b.id === sel));
     // Open on the person's own branch without waiting for the list, so its staff and prices load alongside it.
     $effect(() => {
         const mine = app.branchId;
-        const listed = (id: string) => !list.data || list.data.some((b) => b.id === id);
+        const listed = (id: string) => !branches || branches.some((b) => b.id === id);
         if (!sel && mine && listed(mine)) go("/branches", { id: mine });
-        else if ((!sel || (sel === mine && !listed(sel))) && list.data?.length) go("/branches", { id: list.data[0]!.id });
+        else if ((!sel || (sel === mine && !listed(sel))) && branches?.length) go("/branches", { id: branches[0]!.id });
     });
 
-    const manageUsers = $derived(canAnywhere("MANAGE_USERS"));
     const manageHelpers = $derived(canAnywhere("ASSIGN_DELEGATE"));
     // 503bf228: any branch member sees its session prices; anyone who can edit the branch changes them. Product prices and commission live on Stock.
     const seeRates = $derived(!!sel && canAtBranch("VIEW_BRANCH_DATA", sel));
@@ -38,7 +43,16 @@
             .then((u) => (users = u))
             .catch(() => {});
     });
-    const nameOf = $derived(Object.fromEntries(users.map((u) => [u.id, u.displayName])));
+    // Members read the names from their own branch's member list.
+    let memberNames = $state<S["BranchMemberResponse"][]>([]);
+    $effect(() => {
+        if (manageUsers || manageHelpers || !sel) return;
+        const l = load.members(sel);
+        fetchCached(l.key, l.fn)
+            .then((m) => (memberNames = m))
+            .catch(() => (memberNames = []));
+    });
+    const nameOf = $derived(Object.fromEntries([...memberNames, ...users].map((u) => [u.id, u.displayName])));
 
     const staff = new Query<S["AssignmentResponse"][]>();
     const rates = new Query<S["RateResponse"][]>();
@@ -218,10 +232,10 @@
 
 <div class="layout">
     <aside class="panel list">
-        <State q={list} empty={!!list.data && list.data.length === 0} emptyText="No branches yet." />
+        {#if manageUsers}<State q={list} empty={!!list.data && list.data.length === 0} emptyText="No branches yet." />{/if}
         <table class="grid">
             <tbody>
-                {#each list.data ?? [] as b (b.id)}
+                {#each branches ?? [] as b (b.id)}
                     <tr class="click" class:sel={b.id === sel} onclick={() => go("/branches", { id: b.id })}>
                         <td>{b.name}</td>
                         <td class="muted right">{label(b.branchType)}</td>

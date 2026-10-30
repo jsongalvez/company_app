@@ -94,8 +94,8 @@
                     path: "/branches",
                     page: "Branches",
                     text: "Branches",
-                    show: canAnywhere("MANAGE_USERS") || canAnywhere("ASSIGN_DELEGATE"),
-                    reads: () => [load.branches()],
+                    show: canAnywhere("MANAGE_USERS") || canAnywhere("ASSIGN_DELEGATE") || app.accessible.length > 0,
+                    reads: () => (canAnywhere("MANAGE_USERS") ? [load.branches()] : []),
                 },
                 // Owed #25(a): who pays at every branch pays from one page.
                 { path: "/pay", page: "Payouts", text: "Pay, all branches", show: canEverywhere("ASSIGN_COMPENSATION") },
