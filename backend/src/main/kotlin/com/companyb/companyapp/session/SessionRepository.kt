@@ -4,6 +4,7 @@ import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.exception.ConflictException
@@ -18,8 +19,10 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.leftJoin
+import org.jetbrains.exposed.v1.core.less
 import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
+import org.jetbrains.exposed.v1.core.wrapAsExpression
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.select
@@ -299,11 +302,34 @@ internal object SessionRepository {
             it[SessionTable.otherConcerns] = null
         }
 
+    /**
+     * Earlier unremitted days at [branchId] that still hold a Waiting session (feedback d6cc83cf):
+     * one entered late or never marked. Today lists them so the branch marks them.
+     */
+    fun findEarlierWaitingDays(
+        branchId: UUID,
+        before: LocalDate,
+    ): List<LocalDate> =
+        transaction {
+            SessionTable
+                .innerJoin(BranchDayTable, { SessionTable.branchDayId }, { BranchDayTable.id })
+                .select(BranchDayTable.date)
+                .where {
+                    (BranchDayTable.branchId eq branchId) and
+                        (BranchDayTable.date less before) and
+                        (BranchDayTable.status neq DayStatus.REMITTED) and
+                        (SessionTable.sessionStatus eq SessionStatus.PENDING) and
+                        (SessionTable.isVoided eq false)
+                }.withDistinct()
+                .orderBy(BranchDayTable.date to SortOrder.ASC)
+                .map { it[BranchDayTable.date] }
+        }
+
     /** Any Waiting session at all, any day: the anonymize guard keeps a queued client named. */
     fun hasActivePendingSessionInTransaction(
         clientId: UUID,
         excludedSessionId: UUID? = null,
-    ): Boolean = findWaitingInTransaction(clientId, excludedSessionId, onDate = null) != null
+    ): Boolean = findWaitingInTransaction(clientId, excludedSessionId, sameDayAs = null) != null
 
     /**
      * A client waits in one queue per day (ADR-0026). A session left Waiting on an earlier day was
@@ -316,12 +342,7 @@ internal object SessionRepository {
         branchDayId: UUID,
         excludedSessionId: UUID? = null,
     ) {
-        val date =
-            BranchDayTable
-                .select(BranchDayTable.date)
-                .where { BranchDayTable.id eq branchDayId }
-                .single()[BranchDayTable.date]
-        val waiting = findWaitingInTransaction(clientId, excludedSessionId, onDate = date) ?: return
+        val waiting = findWaitingInTransaction(clientId, excludedSessionId, sameDayAs = branchDayId) ?: return
         throw ConflictException(
             "This client is already waiting at ${waiting[BranchTable.name]} on this day. Mark that session first.",
         )
@@ -330,14 +351,17 @@ internal object SessionRepository {
     private fun findWaitingInTransaction(
         clientId: UUID,
         excludedSessionId: UUID?,
-        onDate: LocalDate?,
+        sameDayAs: UUID?,
     ): ResultRow? {
         var condition =
             (SessionTable.clientId eq clientId) and
                 (SessionTable.sessionStatus eq SessionStatus.PENDING) and
                 (SessionTable.isVoided eq false)
         excludedSessionId?.let { condition = condition and (SessionTable.id neq it) }
-        onDate?.let { condition = condition and (BranchDayTable.date eq it) }
+        sameDayAs?.let { dayId ->
+            val dayDate = BranchDayTable.select(BranchDayTable.date).where { BranchDayTable.id eq dayId }
+            condition = condition and (BranchDayTable.date eq wrapAsExpression(dayDate))
+        }
         return SessionTable
             .innerJoin(BranchDayTable, { SessionTable.branchDayId }, { BranchDayTable.id })
             .innerJoin(BranchTable, { BranchDayTable.branchId }, { BranchTable.id })

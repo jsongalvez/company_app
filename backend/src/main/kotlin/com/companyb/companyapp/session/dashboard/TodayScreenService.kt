@@ -9,6 +9,7 @@ import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.session.BookingResponse
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.session.SessionRepository
 import com.companyb.companyapp.session.VisitBookingService
 import com.companyb.companyapp.workforce.AttendancePresence
 import com.companyb.companyapp.workforce.AttendanceRosterEntry
@@ -51,7 +52,7 @@ object TodayScreenService {
                 roster = if (presence.isMember(callerId)) presence.entries() else null,
                 earlierWaitingDays =
                     if (canView) {
-                        DashboardRepository.findEarlierWaitingDays(branchId, BranchDayService.currentOperationalDate())
+                        SessionRepository.findEarlierWaitingDays(branchId, BranchDayService.currentOperationalDate())
                     } else {
                         null
                     },
