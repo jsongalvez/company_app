@@ -83,8 +83,9 @@ try {
     if (saved) {
         const voided = await call("POST", `/api/sessions/${sessionId}/void`, token, { id: randomUUID(), voidReason: "latency probe" });
         if (voided.status >= 300) throw new Error(`void ${voided.status} ${voided.text.slice(0, 120)}`);
-    } else if (save.status === 409 || save.status === 400) {
-        // A pending session from a run that died before its void would block the probe client for good.
+    } else if (save.status === 409 || save.status === 400 || save.status === 404) {
+        // A pending session from a run that died before its void would block the probe client for good,
+        // and a database reset leaves the kept client id pointing at nothing (404).
         writeFileSync(CLIENT_FILE, "");
         throw new Error(`save ${save.status} ${save.text.slice(0, 160)}`);
     } else throw new Error(`save ${save.status}`);

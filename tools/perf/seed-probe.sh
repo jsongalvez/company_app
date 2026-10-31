@@ -8,7 +8,7 @@ HERE=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)
 ENV_FILE=${PROBE_ENV:-$HOME/.config/company-app-probe.env}
 if [[ -z "${PSQL:-}" ]]; then
   . "$ENV_FILE"
-  PSQL="docker exec -i $PROBE_DB_CONTAINER sh -c 'psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\"'"
+  PSQL="docker exec -i $PROBE_DB_CONTAINER sh -c 'psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" \"\$@\"' psql"
 fi
 : "${PROBE_PASS:?PROBE_PASS is required}"
 CLIENT_FILE=${PROBE_CLIENT_FILE:-$HOME/.local/state/company-app-perf/probe-client}
