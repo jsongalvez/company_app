@@ -40,4 +40,4 @@ Two related rules shipped with this decision:
 - The table in `AccessTableTest` pins each rule cell by cell. It has a column per kind of person, including REL (relief), HLP (helper) and HLX (removed helper), so a change to any leg shows up as named wrong cells.
 - Removing a helper (`closeDelegateCapabilityInTransaction`) ends every right the grant gave, commission included, because the view filters on `valid_to`.
 - The web checks the same codes: `can("VIEW_COMMISSION", branchId, dayId)` decides whether Finance loads commission shares, and `canEverywhere` decides the all-branch Remittance and Pay pages.
-- Shipped in `V22__view_and_relief_rights.sql` (VIEW_COMMISSION, relief) and `V23__helper_is_indefinite_relief.sql` (helpers).
+- Shipped in V22 (VIEW_COMMISSION, relief) and V23 (helpers); the launch set folds both into `V2__access.sql`.

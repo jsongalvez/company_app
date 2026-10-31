@@ -13,3 +13,17 @@ CREATE TABLE telemetry_event (
 );
 CREATE INDEX telemetry_event_user_at ON telemetry_event (user_id, at);
 CREATE INDEX telemetry_event_received_at ON telemetry_event (received_at);
+
+-- Telemetry grows fastest and matters least, so it lives on the big data disk where the
+-- server has one: prod mounts it as the "telemetry" tablespace. Without one (dev, CI,
+-- test schemas) it stays in the default tablespace.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tablespace WHERE spcname = 'telemetry')
+       AND has_tablespace_privilege('telemetry', 'CREATE') THEN
+        ALTER TABLE telemetry_event SET TABLESPACE telemetry;
+        ALTER INDEX telemetry_event_pkey SET TABLESPACE telemetry;
+        ALTER INDEX telemetry_event_user_at SET TABLESPACE telemetry;
+        ALTER INDEX telemetry_event_received_at SET TABLESPACE telemetry;
+    END IF;
+END $$;

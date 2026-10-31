@@ -1,15 +1,86 @@
 -- =============================================================================
--- V23__helper_is_indefinite_relief.sql
+-- V2__access.sql: who can do what (launch set, Nov 1 2026)
 --
--- User (owed #28): "A helper shares commissions, just think of it as a relief but
--- indefinite until removed." A Branches-page helper (a delegate grant: direct
--- EDIT_BRANCH_DATA at the branch, source MEDICAL_MISSION_DELEGATE) now carries what
--- relief's day grant carries, VOID_SESSION and VIEW_COMMISSION, at that branch and
--- with no end date. Removing the helper closes the grant (valid_to), and with it all
--- of these. Only leg (a2) changes; the rest is V22's view as it was.
+-- Roles and capability codes are constants: the app names them by string
+-- (shared/domain). Never add one at runtime. The matrix below is the single
+-- source of what each role holds; active_user_capabilities turns it, branch
+-- membership, relief and helper grants into the rights the app checks.
+-- Business logic reads only that view, never user_role or role_capability.
+-- Word list for each role and right: CONTEXT.md, "People and access".
 -- =============================================================================
 
-CREATE OR REPLACE VIEW active_user_capabilities AS
+INSERT INTO role (name)
+VALUES ('SUPERUSER'),
+       ('OWNER'),
+       ('MANAGER'),
+       ('COORDINATOR'),
+       ('PRACTITIONER'),
+       ('ACCOUNTANT'),
+       ('ONBOARDING');
+
+INSERT INTO capability (code)
+VALUES ('VIEW_BRANCH_DATA'),                -- see a branch's days
+       ('EDIT_BRANCH_DATA'),                -- add and change on open days
+       ('EDIT_PAST_DAY'),                   -- change closed and remitted days
+       ('VOID_SESSION'),                    -- void and restore sessions
+       ('SUBMIT_REMITTANCE'),               -- send and undo remittances
+       ('ASSIGN_COMPENSATION'),             -- pay staff
+       ('MANAGE_PRODUCTS'),                 -- restock and fix stock
+       ('MANAGE_CATALOG'),                  -- products and categories (global)
+       ('MANAGE_USERS'),                    -- users and roles (global)
+       ('ASSIGN_DELEGATE'),                 -- mission helpers (global)
+       ('VIEW_COMMISSION'),                 -- see members' commission
+       ('ERASE_CLIENT'),                    -- erase a client's personal details (global)
+       ('RECEIVE_NEXT_APPOINTMENT_ALERTS'); -- upcoming-session alerts
+
+-- What each role holds. ONBOARDING holds nothing until given a real role.
+-- Owners don't change closed days, void or remit; Coordinators do (business rules).
+-- Commission is private to a branch: only the Superuser sees it everywhere;
+-- members, relief and helpers get it at their branch through the view.
+CREATE TEMP TABLE role_grant (role text, code text) ON COMMIT DROP;
+INSERT INTO role_grant (role, code)
+SELECT g.role, unnest(g.codes)
+FROM (VALUES
+    ('SUPERUSER',    ARRAY['VIEW_BRANCH_DATA', 'EDIT_BRANCH_DATA', 'EDIT_PAST_DAY', 'VOID_SESSION',
+                           'SUBMIT_REMITTANCE', 'ASSIGN_COMPENSATION', 'MANAGE_PRODUCTS', 'MANAGE_CATALOG',
+                           'MANAGE_USERS', 'ASSIGN_DELEGATE', 'VIEW_COMMISSION', 'ERASE_CLIENT']),
+    ('OWNER',        ARRAY['VIEW_BRANCH_DATA', 'EDIT_BRANCH_DATA', 'ASSIGN_COMPENSATION', 'MANAGE_PRODUCTS',
+                           'MANAGE_CATALOG', 'MANAGE_USERS', 'ASSIGN_DELEGATE', 'ERASE_CLIENT']),
+    ('MANAGER',      ARRAY['VIEW_BRANCH_DATA', 'EDIT_BRANCH_DATA', 'EDIT_PAST_DAY', 'VOID_SESSION',
+                           'SUBMIT_REMITTANCE', 'ASSIGN_COMPENSATION', 'MANAGE_PRODUCTS', 'MANAGE_CATALOG',
+                           'MANAGE_USERS', 'ASSIGN_DELEGATE', 'ERASE_CLIENT']),
+    ('COORDINATOR',  ARRAY['VIEW_BRANCH_DATA', 'EDIT_BRANCH_DATA', 'EDIT_PAST_DAY', 'VOID_SESSION',
+                           'SUBMIT_REMITTANCE', 'ASSIGN_COMPENSATION', 'MANAGE_PRODUCTS', 'MANAGE_CATALOG',
+                           'ERASE_CLIENT', 'RECEIVE_NEXT_APPOINTMENT_ALERTS']),
+    ('PRACTITIONER', ARRAY['VIEW_BRANCH_DATA', 'EDIT_BRANCH_DATA', 'MANAGE_CATALOG']),
+    ('ACCOUNTANT',   ARRAY['VIEW_BRANCH_DATA'])
+) AS g(role, codes);
+
+DO $$
+DECLARE bad text;
+BEGIN
+    SELECT string_agg(g.role || ':' || g.code, ', ') INTO bad
+    FROM role_grant g
+    WHERE NOT EXISTS (SELECT 1 FROM role r WHERE r.name = g.role)
+       OR NOT EXISTS (SELECT 1 FROM capability c WHERE c.code = g.code);
+    IF bad IS NOT NULL THEN
+        RAISE EXCEPTION 'role grant names an unknown role or code: %', bad;
+    END IF;
+END $$;
+
+INSERT INTO role_capability (role_id, capability_id)
+SELECT r.id, c.id
+FROM role_grant g
+JOIN role r ON r.name = g.role
+JOIN capability c ON c.code = g.code;
+
+-- active_user_capabilities: the single place capability checks resolve (ADR-0023).
+-- DISTINCT ON includes context_type to prevent cross-context collapse; INACTIVE
+-- users are excluded everywhere; the time window handles expiry. Role-derived rows
+-- carry priority 5 (GrantPriorities.ROLE_DERIVED: above the column default 0, below
+-- every explicit grant, relief 10 / delegate 20 / direct 100; keep in sync with
+-- GrantPriorities.kt) and GLOBAL rows use the all-zero UUID as context_id.
+CREATE VIEW active_user_capabilities AS
 SELECT DISTINCT ON (granted.user_id, granted.capability_id, granted.context_type, granted.context_id)
     granted.user_id,
     granted.capability_id,
@@ -59,10 +130,10 @@ FROM (
 
     UNION ALL
 
-    -- (b) role-derived GLOBAL grants: management codes for
-    --     SUPERUSER/OWNER/MANAGER, all-branches VIEW_BRANCH_DATA for
-    --     SUPERUSER/OWNER/ACCOUNTANT, and catalog authority for
-    --     SUPERUSER/OWNER/MANAGER/COORDINATOR (#436).
+    -- (b) role-derived GLOBAL grants: users and helpers for SUPERUSER/OWNER/MANAGER,
+    --     pay everywhere for SUPERUSER/OWNER, all-branches VIEW_BRANCH_DATA for
+    --     SUPERUSER/OWNER/ACCOUNTANT, erasing a client's personal details for
+    --     Coordinator and up, and the catalog for everyone but Accountant/Onboarding.
     SELECT
         ur.user_id,
         rc.capability_id,
@@ -93,6 +164,11 @@ FROM (
           )
           OR
           (
+              c.code = 'ERASE_CLIENT'
+              AND r.name IN ('SUPERUSER', 'OWNER', 'MANAGER', 'COORDINATOR')
+          )
+          OR
+          (
               c.code = 'MANAGE_CATALOG'
               AND r.name IN ('SUPERUSER', 'OWNER', 'MANAGER', 'COORDINATOR', 'PRACTITIONER')
           )
@@ -117,7 +193,7 @@ FROM (
     JOIN capability c ON c.id = rc.capability_id
     WHERE au.status = 'ACTIVE'
       AND uba.ended_at IS NULL
-      AND c.code NOT IN ('MANAGE_USERS', 'ASSIGN_DELEGATE', 'MANAGE_CATALOG')
+      AND c.code NOT IN ('MANAGE_USERS', 'ASSIGN_DELEGATE', 'MANAGE_CATALOG', 'ERASE_CLIENT')
 
     UNION ALL
 
@@ -164,6 +240,6 @@ FROM (
     CROSS JOIN branch b
     WHERE au.status = 'ACTIVE'
       AND r.name = 'SUPERUSER'
-      AND c.code NOT IN ('MANAGE_USERS', 'ASSIGN_DELEGATE', 'MANAGE_CATALOG')
+      AND c.code NOT IN ('MANAGE_USERS', 'ASSIGN_DELEGATE', 'MANAGE_CATALOG', 'ERASE_CLIENT')
 ) granted
 ORDER BY granted.user_id, granted.capability_id, granted.context_type, granted.context_id, granted.priority DESC;

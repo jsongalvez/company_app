@@ -164,7 +164,7 @@ jobs:
   # manual. Keep the test list in sync with run_shell_validation.
   shell-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
         with:
@@ -183,6 +183,9 @@ jobs:
 
       - name: Patterns log rows say whether they still happen
         run: bash tools/quality/check-patterns.sh
+
+      - name: Launch migrations (V1-V4) build what the old chain built
+        run: bash tools/database/migration-equivalence.sh
 
       - name: Run DB-free shell self-tests
         run: |

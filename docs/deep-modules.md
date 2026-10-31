@@ -210,8 +210,9 @@ Not a semantic module — read only when the ticket touches it directly:
 `observability/*` (incident packets/delivery, feedback adapters — #551),
 `logging/*` converters (tracing stays distinguishable from observability — #551),
 feature-colocated `*Table`/`*View` mappings (schema work only —
-`V1__full_schema.sql` (squashed baseline, #370/#461/#548) and `V2` seeds in
-`backend/src/main/resources/db/migration/` are the current-schema authority).
+the launch set `V1__schema.sql`, `V2__access.sql`, `V3__common_concerns.sql` and
+`V4__telemetry.sql` plus any later files in `backend/src/main/resources/db/migration/`
+are the current-schema authority).
 
 ## Adding a module
 

@@ -38,7 +38,7 @@ private const val PHONE_COLUMN_WIDTH = 20
 
 /**
  * Persisted-field bounds: mirrors the `client` table CHECKs
- * (`V1__full_schema.sql`: age 0–120, systolic 40–300, diastolic 20–200) and
+ * (`V1__schema.sql`: age 0–120, systolic 40–300, diastolic 20–200) and
  * the `phone_number` varchar width. Route + service pre-gates reference these
  * so out-of-range input fails closed with 400 before Postgres surfaces a 500.
  */

@@ -298,34 +298,30 @@ The `active_user_capabilities` view's time-window filter (`now() <= valid_to`) h
 Flyway SQL files live at `backend/src/main/resources/db/migration/`. Flyway runs automatically on startup via `DatabaseConfig.runMigrations()`.
 
 **Migration rules:**
-- The chain is squashed: `V1__full_schema.sql` is the canonical structural
-  baseline (squashed #370, refolded #461, refolded #548 to absorb the retired
-  V3 pg_stat_statements, V4 credential_version, and V5 notification dedup/index
-  structure; the V6 data-only backfill has no surviving structure — fresh
-  databases hold no legacy rows and the live rule stays in
-  `AuditLog.redactClientNamesInTransaction`); `V2` is the seed
-  migration. Inspect V1+V2 when reasoning about schema.
-- Evolve the schema by adding new versioned migrations on top of the baseline. Never
-  edit committed migration files — the sanctioned exceptions were the #370 squash
-  itself, executed under a verified-empty-database recreate (ticket #370 records the
-  safety gate), and its #461/#548 refolds under the same zero-migration-cost
-  authorization; treat them as precedent for a future squash, not license for casual edits.
+- The launch set (Nov 1 2026) is four files, one per concern: `V1__schema.sql`
+  (tables, types, indexes, triggers, money views), `V2__access.sql` (roles,
+  capability codes, the role matrix and the `active_user_capabilities` view),
+  `V3__common_concerns.sql` (starter concern list) and `V4__telemetry.sql`
+  (usage events, placed on the `telemetry` tablespace where one exists). It
+  replaced the 24-file chain at commit `acd24bac`;
+  `tools/database/migration-equivalence.sh` proves both build the same schema
+  and reference data.
+- Evolve the schema by adding V5 and up. Never edit a migration a database has run.
 - Destructive changes (DROP, RENAME) get their own migration with a comment explaining why
 - Application startup runs `migrate()` only. Operators must stop the application and run
   `flyway -url=<jdbc-url> -user=<user> -password=<password> repair` explicitly after reviewing
   migration history; repair is never an automatic startup action. Never repair a
   database whose actual schema differs from its history — reset it instead.
 
-The migration directory is authoritative. Reason about current schema from
-`V1__full_schema.sql` and `V2__seed_roles_capabilities.sql` in
-`backend/src/main/resources/db/migration/`.
+The migration directory is authoritative. Reason about current schema from the
+files in `backend/src/main/resources/db/migration/`.
 
-**Development reset (deterministic recreate from the V1+V2 baseline):**
+**Development reset (deterministic recreate from the launch set):**
 - Stop the backend. Drop and recreate only the identified database — the
   development database (`$POSTGRES_DB` from the root `.env`) or, for the k6/test
   path, the test database (`$TEST_DB_NAME`, default `company_app_test`); never an
   external database — then start the backend, whose `DatabaseConfig.initialize`
-  runs `flyway.migrate()` from V1+V2:
+  runs `flyway.migrate()` from the launch set:
   ```bash
   set -a; . ./.env; set +a
   : "${POSTGRES_DB:?root .env must define POSTGRES_DB}"

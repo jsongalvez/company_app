@@ -1,32 +1,21 @@
 -- =============================================================================
--- V1__full_schema.sql — canonical structural baseline (squashed #370, refolded #461, refolded #548)
+-- V1__schema.sql: the business records (launch set, Nov 1 2026)
 --
--- Single source of truth for the effective current schema. The former incremental
--- chain (V4, V6–V13, V15–V27) is folded into this file at its final shape; all
--- seeds live in V2:
---   V2__seed_roles_capabilities.sql — roles/capabilities/role_capability (V2+V5+V22 data+V26 seeds)
+-- The launch set is four files, one per concern:
+--   V1 schema          tables, types, indexes, triggers and the money views
+--   V2 access          roles, capability codes, what each role holds, and the
+--                      active_user_capabilities view that turns them into rights
+--   V3 common concerns the starter list of concerns
+--   V4 telemetry       app usage events, on their own tablespace where it exists
 --
--- Structural folds present below: V20 REVOKED enum value, V21/V25/V26
--- active_user_capabilities view (V26 final shape), V22 session_base_rate
--- effective_from DEFAULT now(), V23 session.is_voided + pending-index predicate,
--- V24 idx_session_client_id, V27 session.created_by.
--- #548 refold: V3 pg_stat_statements extension, V4 app_user.credential_version,
--- V5 notification.dedup_key + mailbox indexes. V6 was a data-only backfill with
--- no surviving structure (fresh databases hold no legacy rows); its live rule
--- stays in AuditLogRepository.redactClientNamesInTransaction, not in schema.
---
--- This squash deliberately supersedes the "never edit a committed migration"
--- rule (docs/architecture.md §10): no production database exists and every
--- dev/test database is rebuilt from this baseline (#370 safety gate, #461
--- two-file squash, #548 refold). Do not resurrect the folded files; evolve the schema by
--- adding new migrations on top again. Databases migrated with the retired
--- V3–V6 chain are incompatible with this baseline — reset them through the
--- documented workflow; never Flyway-repair the history to match.
+-- It replaces the 24-file chain (V1-V6, V8-V25) at commit acd24bac.
+-- tools/database/migration-equivalence.sh proves both build the same database.
+-- Evolve the schema by adding V5 and up; never edit these once a database runs them.
 -- =============================================================================
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
--- V3 fold (#474/#548): extension presence only. Accumulation starts solely via
+-- Extension presence only. Accumulation starts solely via
 -- server preload (shared_preload_libraries, postmaster restart) — see
 -- docker/docker-compose.yml, .github/workflows/quality.yml, docs/slow-query-runbook.md.
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
@@ -40,7 +29,7 @@ CREATE TYPE capability_context_type   AS ENUM ('GLOBAL', 'BRANCH', 'BRANCH_DAY',
 CREATE TYPE capability_source_type    AS ENUM ('RELIEF_ACCESS', 'MEDICAL_MISSION_DELEGATE', 'MANUAL_OVERRIDE', 'SYSTEM', 'ROLE');
 CREATE TYPE branch_type               AS ENUM ('CLINIC', 'PROVINCIAL_TOUR', 'MEDICAL_MISSION');
 CREATE TYPE relief_status             AS ENUM ('PENDING', 'GRANTED', 'DENIED', 'CANCELLED');
-CREATE TYPE relief_invite_status      AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED', 'RETRACTED', 'REVOKED'); -- V20 fold: REVOKED terminal
+CREATE TYPE relief_invite_status      AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED', 'RETRACTED', 'REVOKED');
 CREATE TYPE credential_purpose        AS ENUM ('INVITE', 'PASSWORD_RESET');
 CREATE TYPE day_status                AS ENUM ('OPEN', 'PAST', 'REMITTED');
 CREATE TYPE session_type              AS ENUM ('REGULAR', 'SECOND_SESSION', 'SUBSEQUENT', 'PROVINCIAL_FIRST', 'MEDICAL_MISSION');
@@ -73,10 +62,13 @@ CREATE TABLE app_user (
     -- JWT revocation independent from reversible deactivation (#132/#350 era):
     -- persisted boundary so server-restart cache repopulation survives Reactivate.
     jwt_revoked_at TIMESTAMPTZ,
-    -- V4 fold (#505/#548): credential generation binding token issuance to password
+    -- Credential generation binding token issuance to password
     -- verification; incremented on every password-hash replacement, embedded as the
     -- `cred_ver` JWT claim and checked in UserRepository.authorize.
-    credential_version BIGINT NOT NULL DEFAULT 0
+    credential_version BIGINT NOT NULL DEFAULT 0,
+    -- An invite minted without name, username and email: the account holds placeholders
+    -- until the invitee fills in their own when they accept.
+    profile_pending BOOLEAN NOT NULL DEFAULT false
 );
 
 CREATE TABLE role (
@@ -265,6 +257,12 @@ CREATE TABLE client (
     diastolic_bp       SMALLINT    CHECK (diastolic_bp BETWEEN 20 AND 200),
     medical_conditions TEXT,
     deleted_at         TIMESTAMPTZ,
+    -- Visits before the app existed. They count toward visit history, so a
+    -- returning client gets the right visit type (second visit, return visit).
+    earlier_visits     INTEGER     NOT NULL DEFAULT 0
+        CONSTRAINT client_earlier_visits_range CHECK (earlier_visits BETWEEN 0 AND 1000),
+    -- The age is typed once; the day it was typed lets the shown age go up each year.
+    age_entered_on     DATE        NOT NULL DEFAULT CURRENT_DATE,
     CONSTRAINT bp_both_or_none CHECK (
            (systolic_bp IS NULL     AND diastolic_bp IS NULL)
         OR (systolic_bp IS NOT NULL AND diastolic_bp IS NOT NULL)
@@ -294,9 +292,9 @@ CREATE TABLE session (
     next_appointment_date     DATE,
     created_at                TIMESTAMPTZ    NOT NULL DEFAULT now(),
     version                   INT            NOT NULL DEFAULT 1,
-    -- V23 fold: voided PENDING sessions are not active pending visits (partial-index predicate).
+    -- Voided PENDING sessions are not active pending visits (partial-index predicate).
     is_voided                 BOOLEAN        NOT NULL DEFAULT FALSE,
-    -- V27 fold (#453): transaction-local idempotency owner; nullable, pre-migration rows backfilled from audit.
+    -- Transaction-local idempotency owner (#453).
     created_by                UUID           REFERENCES app_user(id),
     -- Walk-ins cannot be NO_SHOW or CANCELLED
     CONSTRAINT walk_in_status CHECK (
@@ -310,9 +308,13 @@ CREATE TABLE session (
         OR next_appointment_date >= booked_at::date
     )
 );
--- Only one active PENDING session per client globally (V23 fold: voided rows excluded)
-CREATE UNIQUE INDEX idx_client_one_pending_session ON session (client_id) WHERE session_status = 'PENDING' AND is_voided = FALSE;
--- V24 fold (#430): client directory session counts group history by client.
+-- A client waits in one queue per day, not one forever (ADR-0026, feedback d6cc83cf).
+-- The same-day check across branches runs in SessionRepository under the client row lock;
+-- this index keeps one Waiting session per client per branch day. Voided rows don't count.
+CREATE UNIQUE INDEX idx_client_one_pending_session_per_day
+    ON session (client_id, branch_day_id)
+    WHERE session_status = 'PENDING' AND is_voided = FALSE;
+-- Client directory session counts group history by client (#430).
 CREATE INDEX idx_session_client_id ON session (client_id);
 
 CREATE TABLE session_void (
@@ -336,7 +338,7 @@ CREATE TABLE session_base_rate (
     branch_id      UUID          NOT NULL REFERENCES branch(id),
     session_type   session_type  NOT NULL,
     rate           NUMERIC(10,2) NOT NULL,
-    effective_from TIMESTAMPTZ   NOT NULL DEFAULT now(), -- V22 fold: DB-clock default (writers never read JVM clock)
+    effective_from TIMESTAMPTZ   NOT NULL DEFAULT now(), -- DB-clock default (writers never read JVM clock)
     effective_until TIMESTAMPTZ  NOT NULL,
     -- Prevent overlapping rates for same branch + session type. Half-open range [)
     -- (CR-019): deactivating at T and inserting a new rate at T does not overlap.
@@ -358,12 +360,14 @@ CREATE TABLE session_practitioner (
     UNIQUE (session_id, practitioner_id)
 );
 
--- Concern promotion — created_by/at added for provenance
+-- Concern promotion — created_by/at added for provenance. A bad entry can be taken
+-- off the shared list (removed_at); past sessions keep showing it.
 CREATE TABLE concern (
     id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     label      TEXT        NOT NULL,
     created_by UUID        REFERENCES app_user(id),
-    created_at TIMESTAMPTZ DEFAULT now()
+    created_at TIMESTAMPTZ DEFAULT now(),
+    removed_at TIMESTAMPTZ
 );
 
 CREATE TABLE session_concern (
@@ -371,6 +375,26 @@ CREATE TABLE session_concern (
     concern_id UUID NOT NULL REFERENCES concern(id),
     PRIMARY KEY (session_id, concern_id)
 );
+
+-- Future visits booked ahead (feedback e4ec363c): a client is expected at a branch on a day,
+-- without making a session for today. Any branch member books, moves or cancels; every change
+-- is audited.
+CREATE TABLE visit_booking (
+    id          uuid PRIMARY KEY,
+    branch_id   uuid NOT NULL REFERENCES branch (id),
+    client_id   uuid NOT NULL REFERENCES client (id),
+    visit_date  date NOT NULL,
+    visit_time  time,
+    note        text CONSTRAINT visit_booking_note_length CHECK (char_length(note) <= 500),
+    status      varchar(20) NOT NULL DEFAULT 'BOOKED'
+        CONSTRAINT visit_booking_status CHECK (status IN ('BOOKED', 'CAME', 'CANCELLED')),
+    created_by  uuid NOT NULL REFERENCES app_user (id),
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    updated_by  uuid REFERENCES app_user (id),
+    updated_at  timestamptz
+);
+CREATE INDEX visit_booking_branch_date ON visit_booking (branch_id, visit_date) WHERE status = 'BOOKED';
+CREATE INDEX visit_booking_client ON visit_booking (client_id);
 
 -- ----------------------------
 -- PRODUCTS & INVENTORY
@@ -397,6 +421,10 @@ CREATE TABLE branch_inventory (
     product_id    UUID    NOT NULL REFERENCES product(id),
     current_stock INT     NOT NULL DEFAULT 0 CHECK (current_stock >= 0),
     version       INT     NOT NULL DEFAULT 1,
+    -- Every product has its own list price and commission at each branch (feedback
+    -- a6946922), with no shared fallback. Changes are audited on branch_inventory.
+    unit_price        NUMERIC(10,2) NOT NULL CHECK (unit_price >= 0),
+    commission_amount NUMERIC(10,2) NOT NULL CHECK (commission_amount >= 0),
     UNIQUE (branch_id, product_id)
 );
 
@@ -414,6 +442,12 @@ CREATE TABLE product_sale (
     total_amount_at_time      NUMERIC(10,2) NOT NULL,
     commission_amount_at_time NUMERIC(15,4) NOT NULL,
     sold_at                   TIMESTAMPTZ   NOT NULL DEFAULT now(),
+    -- A sale is edited, deleted and restored like an expense: soft delete and an
+    -- optimistic version. A deleted sale leaves every total.
+    deleted_by                UUID          REFERENCES app_user(id),
+    deleted_at                TIMESTAMPTZ,
+    deleted_reason            TEXT,
+    version                   INT           NOT NULL DEFAULT 1,
     CONSTRAINT sale_type_logic CHECK (
         (session_id IS NOT NULL AND client_id IS NULL     AND is_walk_in = FALSE) OR
         (session_id IS NULL     AND client_id IS NOT NULL AND is_walk_in = TRUE)  OR
@@ -442,9 +476,11 @@ CREATE TABLE inventory_movement (
     CONSTRAINT missing_notes CHECK (
         reason != 'MISSING' OR (notes IS NOT NULL AND length(notes) > 0)
     ),
+    -- Stock given back by a sale edit or delete is an ADJUSTMENT that names its sale.
     CONSTRAINT sale_id_logic CHECK (
-        (reason = 'SALE'  AND product_sale_id IS NOT NULL AND quantity_change < 0) OR
-        (reason != 'SALE' AND product_sale_id IS NULL)
+        (reason = 'SALE'       AND product_sale_id IS NOT NULL AND quantity_change < 0) OR
+        (reason = 'ADJUSTMENT') OR
+        (reason NOT IN ('SALE', 'ADJUSTMENT') AND product_sale_id IS NULL)
     )
 );
 
@@ -632,7 +668,9 @@ CREATE TABLE audit_log (
     reason          TEXT,
     acknowledged_by UUID         REFERENCES app_user(id),
     acknowledged_at TIMESTAMPTZ,
-    branch_id       UUID         REFERENCES branch(id)
+    branch_id       UUID         REFERENCES branch(id),
+    -- "View as": changed_by is the person whose permissions were used, viewed_as_by the superuser.
+    viewed_as_by    UUID         REFERENCES app_user(id)
 );
 CREATE INDEX idx_audit_lookup  ON audit_log (table_name, record_id);
 CREATE INDEX idx_audit_time    ON audit_log (changed_at);
@@ -648,9 +686,8 @@ CREATE INDEX idx_audit_branch  ON audit_log (branch_id) WHERE branch_id IS NOT N
 -- the branch day a non-session notification points at (client deep-links to the
 -- dashboard scoped to branch_id+target_date). Session appointment reminders keep
 -- session_id routing and leave all three columns NULL.
--- V5 fold (#508/#548): every row carries the stable occurrence key (dedup_key);
--- UNIQUE (dedup_key, user_id) is the durable idempotency guarantee. The V5
--- legacy-row backfill is retired — fresh databases hold no legacy rows.
+-- Every row carries the stable occurrence key (dedup_key);
+-- UNIQUE (dedup_key, user_id) is the durable idempotency guarantee.
 -- ----------------------------
 
 CREATE TABLE notification (
@@ -673,7 +710,7 @@ CREATE TABLE notification (
 CREATE INDEX idx_notification_unread
     ON notification (user_id) WHERE is_read = false;
 
--- V5 fold: durable idempotency + mailbox lookup paths.
+-- Durable idempotency + mailbox lookup paths.
 CREATE UNIQUE INDEX uq_notification_dedup_user
     ON notification (dedup_key, user_id);
 
@@ -691,6 +728,43 @@ CREATE INDEX idx_notification_session_user
     ON notification (session_id, user_id) WHERE session_id IS NOT NULL;
 
 -- ----------------------------
+-- FEEDBACK
+-- Problems and ideas people send from the app ("Send feedback"), kept for triage.
+-- ----------------------------
+
+CREATE TABLE user_feedback (
+    id          uuid PRIMARY KEY,
+    user_id     uuid NOT NULL REFERENCES app_user (id),
+    kind        varchar(20) NOT NULL CONSTRAINT user_feedback_kind CHECK (kind IN ('PROBLEM', 'IDEA')),
+    message     text NOT NULL CONSTRAINT user_feedback_message_length CHECK (char_length(message) BETWEEN 1 AND 4000),
+    page        varchar(300),
+    details     text CONSTRAINT user_feedback_details_length CHECK (char_length(details) <= 2000),
+    app_version varchar(64),
+    status      varchar(20) NOT NULL DEFAULT 'NEW' CONSTRAINT user_feedback_status CHECK (status IN ('NEW', 'DONE')),
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX user_feedback_status_created ON user_feedback (status, created_at DESC);
+
+-- ----------------------------
+-- DAY LOOKUPS
+-- The day, Finance and Today queries filter these foreign keys. Postgres does not
+-- index the referencing side of a foreign key on its own; without these,
+-- daily_sales_summary seq-scanned each table once per branch day (measured on
+-- 14,600 days / 292,000 sessions: one day 38.8 ms, a 31-day list 1,212 ms).
+-- The "who did it" columns (assigned_by, created_by, ...) are never queried by
+-- value and stay bare.
+-- ----------------------------
+
+CREATE INDEX idx_session_branch_day          ON session (branch_day_id);
+CREATE INDEX idx_product_sale_branch_day     ON product_sale (branch_day_id);
+CREATE INDEX idx_product_sale_session        ON product_sale (session_id) WHERE session_id IS NOT NULL;
+CREATE INDEX idx_expense_branch_day          ON expense (branch_day_id);
+CREATE INDEX idx_allowance_branch_day        ON allowance (branch_day_id);
+CREATE INDEX idx_compensation_paying_day     ON compensation (paying_branch_day_id);
+CREATE INDEX idx_attendance_branch_day       ON attendance (branch_day_id);
+CREATE INDEX idx_remittance_line_remittance  ON remittance_line (remittance_id);
+
+-- ----------------------------
 -- VIEWS
 -- ----------------------------
 
@@ -701,109 +775,6 @@ CREATE VIEW active_session_voids AS
 SELECT *
 FROM session_void
 WHERE unvoided_at IS NULL;
-
--- active_user_capabilities — the single place capability checks resolve (ADR-0023).
--- DISTINCT ON includes context_type to prevent cross-context collapse; INACTIVE
--- users excluded everywhere; time-window filter handles expiry. Final shape folds
--- V21 (branch-scoped derivation for every non-management code), V25 (OWNER
--- all-branch VIEW_BRANCH_DATA), V26 (MANAGE_CATALOG GLOBAL authority).
---
--- Three-way UNION:
---   (a) direct grants — user_capability rows, unchanged semantics.
---   (b) role-derived GLOBAL grants — context_id is the nil all-zero UUID, priority 5
---       (GrantPriorities.ROLE_DERIVED: above the raw column default 0, below every
---       explicit grant — relief 10 / delegate 20 / direct 100 — so an explicit grant
---       always beats a role-derived row; keep in sync with GrantPriorities.kt).
---       Management codes for SUPERUSER/OWNER/MANAGER, all-branches VIEW_BRANCH_DATA
---       for SUPERUSER/OWNER/ACCOUNTANT (V25), catalog authority MANAGE_CATALOG for
---       SUPERUSER/OWNER/MANAGER/COORDINATOR (V26).
---   (c) role-derived BRANCH grants (V21): every non-management code of each
---       assigned role, at every branch holding an ACTIVE assignment. Excludes
---       MANAGE_USERS, ASSIGN_DELEGATE (always GLOBAL) and MANAGE_CATALOG (V26:
---       catalog writes stay global). RECEIVE_NEXT_APPOINTMENT_ALERTS reaches only
---       Coordinators because only their role holds it (V5 seed in V2).
--- Business logic must NEVER read user_role/role_capability directly — the V2
--- rule stands; this view computes the union.
-CREATE VIEW active_user_capabilities AS
-SELECT DISTINCT ON (granted.user_id, granted.capability_id, granted.context_type, granted.context_id)
-    granted.user_id,
-    granted.capability_id,
-    granted.context_type,
-    granted.context_id,
-    granted.priority,
-    granted.source_type
-FROM (
-    -- (a) direct grants — user_capability rows, unchanged semantics.
-    SELECT
-        uc.user_id,
-        uc.capability_id,
-        uc.context_type,
-        uc.context_id,
-        uc.priority,
-        uc.source_type
-    FROM user_capability uc
-    JOIN app_user au ON uc.user_id = au.id
-    WHERE au.status = 'ACTIVE'
-      AND now() BETWEEN uc.valid_from AND COALESCE(uc.valid_to, 'infinity'::timestamptz)
-
-    UNION ALL
-
-    -- (b) role-derived GLOBAL grants: management codes for
-    --     SUPERUSER/OWNER/MANAGER, all-branches VIEW_BRANCH_DATA for
-    --     SUPERUSER/OWNER/ACCOUNTANT, and catalog authority for
-    --     SUPERUSER/OWNER/MANAGER/COORDINATOR (#436).
-    SELECT
-        ur.user_id,
-        rc.capability_id,
-        'GLOBAL'::capability_context_type AS context_type,
-        '00000000-0000-0000-0000-000000000000'::uuid AS context_id,
-        5::smallint AS priority,
-        'ROLE'::capability_source_type AS source_type
-    FROM user_role ur
-    JOIN app_user au ON au.id = ur.user_id
-    JOIN role r ON r.id = ur.role_id
-    JOIN role_capability rc ON rc.role_id = r.id
-    JOIN capability c ON c.id = rc.capability_id
-    WHERE au.status = 'ACTIVE'
-      AND (
-          (
-              c.code IN ('MANAGE_USERS', 'ASSIGN_DELEGATE', 'ASSIGN_COMPENSATION')
-              AND r.name IN ('SUPERUSER', 'OWNER', 'MANAGER')
-          )
-          OR
-          (
-              c.code = 'VIEW_BRANCH_DATA'
-              AND r.name IN ('SUPERUSER', 'OWNER', 'ACCOUNTANT')
-          )
-          OR
-          (
-              c.code = 'MANAGE_CATALOG'
-              AND r.name IN ('SUPERUSER', 'OWNER', 'MANAGER', 'COORDINATOR')
-          )
-      )
-
-    UNION ALL
-
-    -- (c) role-derived BRANCH grants (#417): every non-management code of each
-    --     assigned role, at every branch holding an ACTIVE assignment.
-    SELECT
-        uba.user_id,
-        rc.capability_id,
-        'BRANCH'::capability_context_type AS context_type,
-        uba.branch_id AS context_id,
-        5::smallint AS priority,
-        'ROLE'::capability_source_type AS source_type
-    FROM user_branch_assignment uba
-    JOIN app_user au ON au.id = uba.user_id
-    JOIN user_role ur ON ur.user_id = uba.user_id
-    JOIN role r ON r.id = ur.role_id
-    JOIN role_capability rc ON rc.role_id = r.id
-    JOIN capability c ON c.id = rc.capability_id
-    WHERE au.status = 'ACTIVE'
-      AND uba.ended_at IS NULL
-      AND c.code NOT IN ('MANAGE_USERS', 'ASSIGN_DELEGATE', 'MANAGE_CATALOG')
-) granted
-ORDER BY granted.user_id, granted.capability_id, granted.context_type, granted.context_id, granted.priority DESC;
 
 -- daily_sales_summary
 -- Aggregates daily financial data per branch day using correlated subqueries.
@@ -830,10 +801,15 @@ SELECT
         FROM expense e
         WHERE e.branch_day_id = bd.id AND e.deleted_at IS NULL
     ), 0)::NUMERIC(10,2) AS total_expenses,
+    -- A voided session is out of every money total, its product sales too (#858);
+    -- walk-in sales with no session stay in. Deleted sales leave the total.
     COALESCE((
         SELECT SUM(ps.total_amount_at_time)
         FROM product_sale ps
+        LEFT JOIN active_session_voids sv ON sv.session_id = ps.session_id
         WHERE ps.branch_day_id = bd.id
+          AND ps.deleted_at IS NULL
+          AND sv.id IS NULL
     ), 0)::NUMERIC(10,2) AS total_product_sales,
     COALESCE((
         SELECT SUM(cs.amount)
@@ -843,8 +819,11 @@ SELECT
 FROM branch_day bd;
 
 -- monthly_remittance_summary
--- Aggregates submitted remittance data per branch per month.
--- Financial snapshot columns apply only to SESSION remittances.
+-- Aggregates submitted remittance data per branch per month (#688).
+-- Financial snapshots exist only for SESSION remittances. PRODUCT revenue comes
+-- from lines: PRODUCT_SALE lines of any submitted remittance, plus SESSION lines
+-- of a submitted PRODUCT remittance. SESSION lines of SESSION remittances stay
+-- snapshot-only so nothing counts twice. Pay and expenses stay snapshot-only.
 CREATE VIEW monthly_remittance_summary AS
 SELECT
     r.branch_id,
@@ -853,11 +832,26 @@ SELECT
     COUNT(*)::INT AS total_remittances,
     COUNT(*) FILTER (WHERE r.type = 'SESSION')::INT AS session_count,
     COUNT(*) FILTER (WHERE r.type = 'PRODUCT')::INT AS product_count,
-    COALESCE(SUM(rfs.gross_income), 0)::NUMERIC(10,2) AS gross_income,
+    (
+        COALESCE(SUM(rfs.gross_income), 0) +
+        COALESCE(SUM(product_lines.extra_revenue), 0)
+    )::NUMERIC(10,2) AS gross_income,
     COALESCE(SUM(rfs.total_compensation), 0)::NUMERIC(10,2) AS total_compensation,
     COALESCE(SUM(rfs.total_expenses), 0)::NUMERIC(10,2) AS total_expenses,
-    COALESCE(SUM(rfs.net_income), 0)::NUMERIC(10,2) AS net_income
+    (
+        COALESCE(SUM(rfs.net_income), 0) +
+        COALESCE(SUM(product_lines.extra_revenue), 0)
+    )::NUMERIC(10,2) AS net_income
 FROM remittance r
 LEFT JOIN remittance_financial_snapshot rfs ON rfs.remittance_id = r.id
+LEFT JOIN (
+    SELECT rl.remittance_id, SUM(rl.amount) AS extra_revenue
+    FROM remittance_line rl
+    JOIN remittance parent ON parent.id = rl.remittance_id
+    WHERE rl.deleted_at IS NULL
+      AND parent.status = 'SUBMITTED'
+      AND (rl.type = 'PRODUCT_SALE' OR parent.type = 'PRODUCT')
+    GROUP BY rl.remittance_id
+) product_lines ON product_lines.remittance_id = r.id
 WHERE r.status = 'SUBMITTED'
 GROUP BY r.branch_id, EXTRACT(YEAR FROM r.submitted_date), EXTRACT(MONTH FROM r.submitted_date);

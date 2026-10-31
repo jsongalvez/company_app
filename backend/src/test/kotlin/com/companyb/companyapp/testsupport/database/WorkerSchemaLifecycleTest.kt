@@ -140,44 +140,19 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
     private fun assertMigrationCount(conn: java.sql.Connection) {
         conn.createStatement().use { stmt ->
             val rs = stmt.executeQuery("SELECT version, script FROM flyway_schema_history WHERE version IS NOT NULL")
-            val versions = mutableSetOf<String>()
             val scripts = mutableMapOf<String, String>()
             while (rs.next()) {
-                versions.add(rs.getString(1))
                 scripts[rs.getString(1)] = rs.getString(2)
             }
-            assertTrue(versions.contains("1"), "worker schema must hold baseline V1, found $versions")
-            assertTrue(versions.contains("2"), "worker schema must hold seed V2, found $versions")
-            // Retired V6 stays reserved (folded into V1, #370/#461/#548); V3/V4 are the first legitimate
-            // post-squash migrations (#688 monthly PRODUCT revenue, #858 voided-sale exclusion). V5 was
-            // reused for client earlier visits once every database holding the retired V5 had been wiped.
-            assertTrue(
-                versions.none { it == "7" },
-                "retired V7 must stay folded into V1, found $versions",
-            )
-            scripts["6"]?.let { script ->
-                assertTrue(
-                    script.contains("user_feedback"),
-                    "unexpected V6 migration (retired V6 stays folded): $script",
+            val launchSet =
+                mapOf(
+                    "1" to "V1__schema.sql",
+                    "2" to "V2__access.sql",
+                    "3" to "V3__common_concerns.sql",
+                    "4" to "V4__telemetry.sql",
                 )
-            }
-            scripts["5"]?.let { script ->
-                assertTrue(
-                    script.contains("client_earlier_visits"),
-                    "unexpected V5 migration (retired V5 stays folded): $script",
-                )
-            }
-            scripts["3"]?.let { script ->
-                assertTrue(
-                    script.contains("monthly_remittance_summary_product_revenue"),
-                    "unexpected V3 migration (retired V3 stays folded): $script",
-                )
-            }
-            scripts["4"]?.let { script ->
-                assertTrue(
-                    script.contains("daily_product_sales_exclude_voided"),
-                    "unexpected V4 migration (retired V4 stays folded): $script",
-                )
+            for ((version, script) in launchSet) {
+                assertEquals(script, scripts[version], "worker schema must hold launch V$version, found $scripts")
             }
         }
     }
