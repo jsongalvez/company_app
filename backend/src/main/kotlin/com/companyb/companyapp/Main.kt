@@ -47,6 +47,7 @@ import com.companyb.companyapp.observability.ErrorTracker
 import com.companyb.companyapp.observability.FeedbackRoutes
 import com.companyb.companyapp.observability.IncidentDelivery
 import com.companyb.companyapp.observability.IncidentService
+import com.companyb.companyapp.observability.LabelSeal
 import com.companyb.companyapp.observability.RouteLabels
 import com.companyb.companyapp.observability.ServerErrorReport
 import com.companyb.companyapp.observability.TelemetryRoutes
@@ -394,6 +395,7 @@ fun main(config: AppConfig) {
     logger.info { "[INITIALIZATION] Starting initialization" }
 
     JwtService.init(config)
+    LabelSeal.configure(System.getenv("TELEMETRY_SALT")?.takeIf { it.isNotBlank() } ?: config.jwtSecret)
     Password.init(config.authDummyPassword)
     PasswordResetDelivery.configure(config.smtp, config.passwordResetDevRelay)
     IncidentDelivery.configure(config.githubIssue, config.ntfy)

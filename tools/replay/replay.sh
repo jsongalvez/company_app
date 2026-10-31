@@ -7,6 +7,7 @@
 #    code (tools/verify/verify.sh), and replaces names, contacts, health notes and free text (redact.sql);
 # 3. plays the events back in a browser signed in as the reporter (replay.mjs) and prints a verdict,
 #    the call-by-call comparison and screenshots.
+# Prod events: set LABEL_SECRET to prod's TELEMETRY_SALT (else its JWT_SECRET) so taps also match by label.
 # --pii skips step 2's redaction. Use it only when the problem needs the real details, and say so.
 # Without recorded events (reports from before telemetry) it opens the reported screen at the reported size.
 set -uo pipefail

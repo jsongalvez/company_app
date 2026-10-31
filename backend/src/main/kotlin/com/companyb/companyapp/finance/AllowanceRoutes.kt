@@ -77,6 +77,7 @@ object AllowanceRoutes {
             val userId = uuidOrThrow(request.userId, "user id")
             val amount = parseNonNegativeBigDecimal(request.amount, "amount")
             requireMoneyAmount(amount, "amount")
+            Access.requirePayable(userId, Place.day(branchDayId))
 
             val allowance =
                 AllowanceService.create(

@@ -20,7 +20,7 @@ class CapabilityCodesConsistencyTest {
             .toSet()
 
     @Test
-    fun `canonical set holds the twelve contract codes`() {
+    fun `canonical set holds the thirteen contract codes`() {
         assertEquals(
             setOf(
                 "VIEW_BRANCH_DATA",
@@ -35,6 +35,7 @@ class CapabilityCodesConsistencyTest {
                 "ASSIGN_DELEGATE",
                 "RECEIVE_NEXT_APPOINTMENT_ALERTS",
                 "VIEW_COMMISSION",
+                "ERASE_CLIENT",
             ),
             canonical,
         )

@@ -72,7 +72,8 @@ object TelemetryRoutes {
                 throw BadRequestResponse("Bad event ${e.seq}")
             }
             val atMs = if (abs(e.at - nowMs) > CLOCK_SKEW_MAX_MS) nowMs else e.at
-            TelemetryEvent(e.seq, OffsetDateTime.ofInstant(Instant.ofEpochMilli(atMs), ZoneOffset.UTC), e.kind, e.data)
+            val at = OffsetDateTime.ofInstant(Instant.ofEpochMilli(atMs), ZoneOffset.UTC)
+            TelemetryEvent(e.seq, at, e.kind, LabelSeal.seal(e.data))
         }
     }
 }

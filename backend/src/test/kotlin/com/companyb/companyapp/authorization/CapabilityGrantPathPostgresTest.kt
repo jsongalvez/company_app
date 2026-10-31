@@ -249,9 +249,9 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
         val caps = CapabilityService.getCapabilitiesForUser(ownerUser)
         val derived = caps.filter { it.sourceType == CapabilitySourceType.ROLE }
         assertEquals(
-            5,
+            6,
             derived.size,
-            "OWNER derives management GLOBAL capabilities plus catalog plus all-branches VIEW_BRANCH_DATA",
+            "OWNER derives management GLOBAL capabilities plus catalog, erase and all-branches VIEW_BRANCH_DATA",
         )
         derived.forEach {
             assertEquals(CapabilityContextType.GLOBAL, it.contextType)
@@ -264,6 +264,7 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
                 CapabilityCodes.ASSIGN_COMPENSATION,
                 CapabilityCodes.MANAGE_CATALOG,
                 CapabilityCodes.VIEW_BRANCH_DATA,
+                CapabilityCodes.ERASE_CLIENT,
             ),
             derived.map { it.capabilityCode }.toSet(),
         )

@@ -94,6 +94,7 @@ class RouteValidationTest : BasePostgresTest() {
                 CapabilityCodes.MANAGE_CATALOG,
                 CapabilityCodes.MANAGE_USERS,
                 CapabilityCodes.ASSIGN_DELEGATE,
+                CapabilityCodes.ERASE_CLIENT,
             )
         for (code in allCodes) {
             IdentityFixtures.grantCapability(

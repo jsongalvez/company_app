@@ -158,8 +158,8 @@ object ClientRoutes {
         config.routes.before(ApiRoutes.CLIENT_ANONYMIZE_PATH) { context ->
             Access.require(
                 context,
-                Act.WORK_ANYWHERE,
-                message = "EDIT_BRANCH_DATA capability required to manage clients",
+                Act.ERASE_CLIENT,
+                message = "Only a Coordinator or above can erase personal details",
             )
         }
 

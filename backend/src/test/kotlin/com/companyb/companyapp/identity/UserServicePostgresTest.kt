@@ -6,6 +6,7 @@ import com.companyb.companyapp.authorization.CapabilityService.GLOBAL_CONTEXT_ID
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.identity.UserStatus
+import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUserTable
@@ -40,6 +41,7 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     override fun initTestData() {
         IdentityFixtures.insertTestUser(callerId, "caller")
+        IdentityFixtures.assignRole(callerId, "OWNER")
         IdentityFixtures.insertTestUser(targetUserId, "target")
     }
 
@@ -280,10 +282,12 @@ class UserServicePostgresTest : BasePostgresTest() {
                 RoleRepository.findIdByNameInTransaction("SUPERUSER")!!,
             )
         }
-        // Owed #24: a non-superuser sees a Superuser as a Practitioner; saving keeps SUPERUSER.
-        UserService.replaceRoles(callerId, targetUserId, listOf("OWNER"))
+        // Owed #24: a non-superuser sees a Superuser as a Practitioner, so saving what they see keeps
+        // SUPERUSER; audit H1 (user, message 13675): changing anything else of a Superuser is refused.
+        UserService.replaceRoles(callerId, targetUserId, listOf("PRACTITIONER"))
+        assertFailsWith<ForbiddenException> { UserService.replaceRoles(callerId, targetUserId, listOf("OWNER")) }
         assertEquals(
-            listOf("OWNER", "SUPERUSER"),
+            listOf("SUPERUSER"),
             transaction { RoleRepository.findRoleNamesForUserInTransaction(targetUserId) },
         )
     }

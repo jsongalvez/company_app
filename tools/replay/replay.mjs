@@ -4,6 +4,7 @@
 // events.json: [{seq, kind, data}] in order, as tools/replay/replay.sh exports them. Taps and field changes
 // are found with the recorder's own describe(), so a target matches when its hashes, href, name and
 // position match what was recorded. Text fields get stand-in text of the recorded length.
+import { createHmac } from "node:crypto";
 import { createRequire } from "node:module";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -41,6 +42,20 @@ const ID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const shape = (m, p) => `${m} ${p.replace(ID, "{id}")}`;
 const IGNORED = /^\/api\/telemetry/;
 
+// The server stores each label hash keyed by the deployment's secret (LabelSeal.kt). LABEL_SECRET is that
+// secret (prod's TELEMETRY_SALT, else its JWT_SECRET); without it, sealed labels can't match and the
+// other keys decide.
+const LABEL_KEY = process.env.LABEL_SECRET
+    ? createHmac("sha256", process.env.LABEL_SECRET)
+          .update("telemetry-labels")
+          .digest("hex")
+    : "";
+const SEALED = /^[0-9a-f]{12}$/;
+if (!LABEL_KEY && recordedAll.some((e) => SEALED.test(e.d?.el?.h ?? "")))
+    console.warn(
+        "sealed label hashes and no LABEL_SECRET: matching on position, href and name only",
+    );
+
 // The recorder's matching code, run inside the page.
 const inPage = `
 const TEXT_MAX = ${tel.TEXT_MAX}, PATH_DEPTH = ${tel.PATH_DEPTH}, ACTIONABLE = ${JSON.stringify(tel.ACTIONABLE)};
@@ -48,12 +63,20 @@ ${tel.norm}
 ${tel.hash}
 ${tel.pathOf}
 ${tel.describe}
-window.__replayFind = (want, n) => {
+const LABEL_KEY = "${LABEL_KEY}", SEALED = ${SEALED};
+const sealKey = LABEL_KEY && crypto.subtle.importKey("raw", Uint8Array.from(LABEL_KEY.match(/../g), (x) => parseInt(x, 16)), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+const seal = async (v) => {
+    if (!sealKey || v === undefined) return v;
+    const sig = new Uint8Array(await crypto.subtle.sign("HMAC", await sealKey, new TextEncoder().encode(v)));
+    return [...sig].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 12);
+};
+window.__replayFind = async (want, n) => {
     const keys = ["h", "al", "href", "name", "role"];
     let best = null, bestScore = -1;
     for (const el of document.querySelectorAll(want.tag)) {
         if (!el.getClientRects().length) continue;
         const got = describe(el);
+        for (const k of ["h", "al"]) if (SEALED.test(want[k] ?? "")) got[k] = await seal(got[k]);
         let score = got.tag === want.tag ? 1 : 0;
         for (const k of keys) if (want[k] !== undefined) score += got[k] === want[k] ? 3 : -2;
         if (got.path === want.path) score += 2;

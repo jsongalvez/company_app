@@ -9,9 +9,12 @@ import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.identity.RoleTable
+import com.companyb.companyapp.identity.UserRoleTable
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -176,6 +179,20 @@ object IdentityFixtures {
             email = "${id.toString().take(8)}@t.st",
             displayName = "Test $prefix",
         )
+    }
+
+    /** Gives [userId] the seeded role [roleName]; at a branch they are assigned to, that makes them a member. */
+    fun assignRole(
+        userId: UUID,
+        roleName: String,
+    ) {
+        transaction {
+            val roleId = RoleTable.selectAll().where { RoleTable.name eq roleName }.single()[RoleTable.id]
+            UserRoleTable.insert {
+                it[UserRoleTable.userId] = userId
+                it[UserRoleTable.roleId] = roleId
+            }
+        }
     }
 
     fun revokeAllCapabilities(userId: UUID) {

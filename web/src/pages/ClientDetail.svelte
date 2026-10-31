@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, type S } from "../api/client";
-    import { can, canAnywhere } from "../lib/app.svelte";
+    import { can, canAnywhere, canEverywhere } from "../lib/app.svelte";
     import { Query, invalidate } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
@@ -42,6 +42,7 @@
     const statusMark = (s: S["ClientSessionItem"]) => (s.voided ? "bad" : s.status === "COMPLETED" ? "ok" : s.status === "PENDING" ? "info" : "warn");
     const anonymized = $derived(!!c && !c.firstName && !c.lastName);
     const edit = $derived(can("EDIT_BRANCH_DATA") || canAnywhere("EDIT_BRANCH_DATA"));
+    const erase = $derived(canEverywhere("ERASE_CLIENT"));
 
     const a = new Action();
     let open = $state(false);
@@ -74,8 +75,10 @@
 
 <PageHead title={c ? clientName(c) : "Client"}>
     <a class="btn" href="#/clients">All clients</a>
-    {#if c && edit && !anonymized}
+    {#if c && erase && !anonymized}
         <button class="danger" onclick={() => ((confirmText = ""), an.reset(), (anonOpen = true))}>Erase personal details</button>
+    {/if}
+    {#if c && edit && !anonymized}
         {#if can("EDIT_BRANCH_DATA")}<button onclick={() => (bookOpen = true)}>Book a visit</button>{/if}
         <button class="primary" onclick={() => ((draft = draftFrom(c)), a.reset(), (open = true))}>Edit</button>
     {/if}

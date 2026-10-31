@@ -78,6 +78,7 @@ class OutboxReplayContractTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(branchId)
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         listOf(staff, mate, clerk).forEachIndexed { i, u ->
+            IdentityFixtures.assignRole(u, "PRACTITIONER")
             BranchWorkforceFixtures.insertTestAssignment(
                 userId = u,
                 branchId = branchId,

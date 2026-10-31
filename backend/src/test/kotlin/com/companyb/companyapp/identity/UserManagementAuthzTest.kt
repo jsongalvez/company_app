@@ -224,7 +224,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
             UserRoleTable.insert {
                 it[UserRoleTable.userId] = targetUser
                 it[UserRoleTable.roleId] =
-                    RoleTable.selectAll().where { RoleTable.name eq "MANAGER" }.single()[RoleTable.id]
+                    RoleTable.selectAll().where { RoleTable.name eq "PRACTITIONER" }.single()[RoleTable.id]
             }
         }
         val body = mapOf("roles" to listOf("COORDINATOR"))

@@ -9,6 +9,7 @@ import com.companyb.companyapp.contracts.identity.RoleResponse
 import com.companyb.companyapp.contracts.identity.UserAssignmentResponse
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.identity.UserSummaryResponse
+import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUser
@@ -187,7 +188,7 @@ object UserService {
             } else {
                 RoleRepository.findRoleNamesForUserInTransaction(targetId)
             }
-        val wanted = rolesToWrite(beforeRoles, request.roles, ViewAs.isSuperuser(callerId))
+        val wanted = rolesToWrite(callerId, targetId, beforeRoles, request.roles)
         replaceMembershipsInTransaction(callerId, targetId, wanted, beforeRoles)
         if (createdNew) {
             UserAudit.userInserted(
@@ -271,31 +272,34 @@ object UserService {
         targetUserId: UUID,
         roleNames: List<String>,
     ) {
-        val callerIsSuperuser = ViewAs.isSuperuser(callerId)
         transaction {
             if (!UserRepository.acquireLockInTransaction(targetUserId)) {
                 throw NotFoundException("User not found")
             }
             val before = RoleRepository.findRoleNamesForUserInTransaction(targetUserId)
-            val wanted = rolesToWrite(before, roleNames, callerIsSuperuser)
+            val wanted = rolesToWrite(callerId, targetUserId, before, roleNames)
             replaceMembershipsInTransaction(callerId, targetUserId, wanted, before)
         }
         logger.info { "[USER-ROLES-REPLACE] Role replace processed for ${targetUserId.toString().maskUUID()}" }
     }
 
+    /** Transaction-local: the roles to save for [targetId], refused when [RankRule] forbids the change. */
     private fun rolesToWrite(
+        callerId: UUID,
+        targetId: UUID,
         before: List<String>,
         requested: List<String>,
-        callerIsSuperuser: Boolean,
     ): List<String> {
+        val callerRoles = RoleRepository.findRoleNamesForUserInTransaction(callerId)
         val isSuperuser = SUPERUSER_ROLE in before
         val wanted =
-            if (isSuperuser && !callerIsSuperuser) {
+            if (isSuperuser && SUPERUSER_ROLE !in callerRoles) {
                 requested.filterNot { it == PRACTITIONER_ROLE && it !in before } + SUPERUSER_ROLE
             } else {
                 requested
             }
         if ((SUPERUSER_ROLE in wanted) != isSuperuser) throw ValidationException(SUPERUSER_GUARD_MESSAGE)
+        RankRule.roleChange(callerId == targetId, callerRoles, before, wanted)?.let { throw ForbiddenException(it) }
         return wanted
     }
 
@@ -347,6 +351,7 @@ object UserService {
             throw ValidationException(SELF_DEACTIVATE_MESSAGE)
         }
         transaction {
+            requireMayChangeStatusInTransaction(callerId, targetUserId)
             val t =
                 UserRepository.deactivateInTransaction(targetUserId)
                     ?: throw NotFoundException("User not found")
@@ -357,11 +362,23 @@ object UserService {
         logger.info { "[DEACTIVATE] Deactivation request processed" }
     }
 
+    private fun requireMayChangeStatusInTransaction(
+        callerId: UUID,
+        targetUserId: UUID,
+    ) {
+        RankRule
+            .statusChange(
+                RoleRepository.findRoleNamesForUserInTransaction(callerId),
+                RoleRepository.findRoleNamesForUserInTransaction(targetUserId),
+            )?.let { throw ForbiddenException(it) }
+    }
+
     fun reactivate(
         callerId: UUID,
         targetUserId: UUID,
     ) {
         transaction {
+            requireMayChangeStatusInTransaction(callerId, targetUserId)
             val t =
                 UserRepository.reactivateInTransaction(targetUserId)
                     ?: throw NotFoundException("User not found")

@@ -3,6 +3,10 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
+import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.workforce.AttendanceMarkResponse
 import com.companyb.companyapp.contracts.workforce.ClockInRequest
 import com.companyb.companyapp.contracts.workforce.ClockInResponse
@@ -114,6 +118,14 @@ object AttendanceRoutes {
 
             val attendanceId = uuidOrThrow(request.attendanceId, "attendance id")
             val branchId = uuidOrThrow(request.branchId, "branch id")
+            BranchService.findById(branchId)
+            // Audit M3 (user, message 13675): a role at the branch, or an approved relief request.
+            Access.require(
+                callerId,
+                Act.WORK_DAY,
+                Place.today(branchId),
+                "Only this branch's staff, or relief approved for today, can clock in here",
+            )
 
             val result = AttendanceService.clockIn(attendanceId, branchId, callerId)
 

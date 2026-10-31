@@ -72,6 +72,8 @@ class AccessTableTest : BasePostgresTest() {
     private val missionId = TestFixtures.uuid()
     private val people = Who.entries.associateWith { TestFixtures.uuid() }
     private val payees = Who.entries.associateWith { TestFixtures.uuid() }
+    private val reliefPayees = Who.entries.associateWith { TestFixtures.uuid() }
+    private val strangers = Who.entries.associateWith { TestFixtures.uuid() }
     private val soap = TestFixtures.uuid()
     private lateinit var days: Map<Day, UUID>
 
@@ -109,7 +111,7 @@ class AccessTableTest : BasePostgresTest() {
             }
         }
         people.values.forEach { BranchWorkforceFixtures.insertTestAttendance(day(Day.TODAY), it) }
-        payees.values.forEach { IdentityFixtures.insertTestUser(it, "payee") }
+        seedPayees()
         SessionClientFixtures.insertTestBaseRate(TestFixtures.uuid(), branchId, person(Who.COORDINATOR))
         IdentityFixtures.grantCapability(
             person(Who.RELIEF),
@@ -134,6 +136,39 @@ class AccessTableTest : BasePostgresTest() {
             unitPrice = BigDecimal("100.00"),
         )
         CommerceFinanceFixtures.insertTestCard(branchId, soap, STOCK)
+    }
+
+    /**
+     * Audit M4 (user, message 13675): "you only get paid if you belong to that branch or you were
+     * relief that day. With or without clock in." Payees here belong to the branch, relief payees
+     * hold today's relief grant, strangers neither.
+     */
+    private fun seedPayees() {
+        payees.values.forEachIndexed { i, id ->
+            IdentityFixtures.insertTestUser(id, "payee")
+            assignRole(id, "PRACTITIONER")
+            BranchWorkforceFixtures.insertTestAssignment(
+                userId = id,
+                branchId = branchId,
+                slot = (PAYEE_SLOT + i).toShort(),
+                assignedBy = id,
+            )
+        }
+        reliefPayees.values.forEach { id ->
+            IdentityFixtures.insertTestUser(id, "relief-payee")
+            assignRole(id, "PRACTITIONER")
+            IdentityFixtures.grantCapability(
+                id,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                CapabilityContextType.BRANCH_DAY,
+                day(Day.TODAY),
+                TestFixtures.uuid(),
+            )
+        }
+        strangers.values.forEach { id ->
+            IdentityFixtures.insertTestUser(id, "stranger")
+            assignRole(id, "PRACTITIONER")
+        }
     }
 
     @Test
@@ -172,6 +207,22 @@ class AccessTableTest : BasePostgresTest() {
         }
 
     private fun person(who: Who) = people.getValue(who)
+
+    private fun pay(
+        who: Who,
+        payee: UUID,
+    ) = post(
+        ApiRoutes.COMPENSATION,
+        mapOf(
+            "id" to TestFixtures.uuid().toString(),
+            "workBranchDayId" to day(Day.TODAY).toString(),
+            "payingBranchDayId" to day(Day.TODAY).toString(),
+            "userId" to payee.toString(),
+            "amount" to "100.00",
+            "reason" to REASON,
+        ),
+        who,
+    )
 
     fun day(d: Day) = days.getValue(d)
 
@@ -351,6 +402,7 @@ class AccessTableTest : BasePostgresTest() {
     companion object {
         private const val REASON = "table check"
         private const val STOCK = 1000
+        private const val PAYEE_SLOT = 50
 
         private fun daily(
             name: String,
@@ -435,6 +487,8 @@ class AccessTableTest : BasePostgresTest() {
                         who,
                     )
                 } +
+                once("pay.add relief") { who -> pay(who, reliefPayees.getValue(who)) } +
+                once("pay.add stranger") { who -> pay(who, strangers.getValue(who)) } +
                 daily("pay.list") { who, d -> get("${ApiRoutes.COMPENSATIONS}?branchDayId=${day(d)}", who) } +
                 daily(
                     "commission.recalc",
@@ -480,6 +534,10 @@ class AccessTableTest : BasePostgresTest() {
                 } +
                 once("remittance.list") { who -> get("${ApiRoutes.REMITTANCES}?branchId=$branchId", who) } +
                 once("client.search") { who -> get("${ApiRoutes.CLIENTS}?q=a", who) } +
+                once("client.erase") { who ->
+                    val client = SessionClientFixtures.insertTestClient()
+                    post("${ApiRoutes.CLIENTS}/$client/anonymize", emptyMap<String, String>(), who)
+                } +
                 once("stock.list") { who -> get("${ApiRoutes.BRANCHES}/$branchId/inventory", who) } +
                 once("rates.list") { who -> get("${ApiRoutes.BRANCHES}/$branchId/rates", who) } +
                 once("catalog.add") { who ->
@@ -566,6 +624,8 @@ class AccessTableTest : BasePostgresTest() {
             pay.add today                  Y    N    N    Y    Y    Y    Y    Y    N    N    N    N    N
             pay.add earlier                Y    N    N    Y    Y    Y    Y    Y    N    N    N    N    N
             pay.add remitted               N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
+            pay.add relief                 Y    N    N    Y    Y    Y    Y    Y    N    N    N    N    N
+            pay.add stranger               N    N    N    N    N    N    N    N    N    N    N    N    N
             pay.list today                 Y    N    N    Y    Y    Y    Y    Y    N    N    N    N    N
             pay.list earlier               Y    N    N    Y    Y    Y    Y    Y    N    N    N    N    N
             pay.list remitted              Y    N    N    Y    Y    Y    Y    Y    N    N    N    N    N
@@ -584,6 +644,7 @@ class AccessTableTest : BasePostgresTest() {
             remittance.draft               N    N    N    Y    Y    Y    N    Y    N    N    N    N    N
             remittance.list                Y    Y    N    Y    Y    Y    Y    Y    N    N    N    N    N
             client.search                  Y    Y    Y    Y    Y    Y    Y    Y    Y    N    Y    Y    N
+            client.erase                   Y    N    N    Y    Y    Y    Y    Y    N    N    N    N    N
             stock.list                     Y    Y    Y    Y    Y    Y    Y    Y    Y    N    N    Y    N
             rates.list                     Y    Y    Y    Y    Y    Y    Y    Y    N    N    N    Y    N
             catalog.add                    Y    N    Y    Y    Y    Y    Y    Y    Y    N    Y    Y    Y

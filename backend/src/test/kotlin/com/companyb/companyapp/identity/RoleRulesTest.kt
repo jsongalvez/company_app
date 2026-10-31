@@ -105,15 +105,16 @@ class RoleRulesTest : BasePostgresTest() {
     }
 
     @Test
-    fun `an Owner adding a role to a Superuser adds it and keeps Superuser`() {
+    fun `an Owner cannot change a Superuser's roles`() {
+        // Audit H1, accepted by the user (message 13675): only a Superuser changes a Superuser.
         val r =
             testServer.client.put(
                 "${ApiRoutes.USERS}/$superuser/roles",
                 mapOf("roles" to listOf("PRACTITIONER", "MANAGER")),
                 asUser(owner),
             )
-        assertEquals(204, r.code, r.body.string())
-        assertEquals(listOf("MANAGER", "SUPERUSER"), rolesOf(superuser))
+        assertEquals(403, r.code, r.body.string())
+        assertEquals(listOf("SUPERUSER"), rolesOf(superuser))
     }
 
     private fun listedRoles(

@@ -65,6 +65,9 @@ enum class Act(
     MANAGE_STOCK(CapabilityCodes.MANAGE_PRODUCTS, Reach.HOME),
     MANAGE_CATALOG(CapabilityCodes.MANAGE_CATALOG, Reach.EVERYWHERE),
     MANAGE_USERS(CapabilityCodes.MANAGE_USERS, Reach.EVERYWHERE),
+
+    /** "Erase personal details": Coordinator and up, member or not (audit L2, user message 13675). */
+    ERASE_CLIENT(CapabilityCodes.ERASE_CLIENT, Reach.EVERYWHERE),
     ASSIGN_DELEGATE(CapabilityCodes.ASSIGN_DELEGATE, Reach.EVERYWHERE),
     ;
 
@@ -152,6 +155,20 @@ object Access {
             !allows(userId, act, place)
         ) {
             throw ForbiddenException(defaultMessage(seeing))
+        }
+    }
+
+    /**
+     * Audit M4 (user, message 13675): "you only get paid if you belong to that branch or you were relief
+     * that day. With or without clock in." So [payee], whoever pays them, must work at [day]: a member,
+     * a helper, or relief granted for it, the same grants [Act.WORK_DAY] counts.
+     */
+    fun requirePayable(
+        payee: UUID,
+        day: Place.Day,
+    ) {
+        if (!allows(payee, Act.WORK_DAY, day)) {
+            throw ForbiddenException("Only this branch's staff, or that day's relief, can be paid for this day")
         }
     }
 

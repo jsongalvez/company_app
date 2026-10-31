@@ -122,6 +122,7 @@ object CompensationRoutes {
             val userId = uuidOrThrow(request.userId, "user id")
             val amount = parseNonNegativeBigDecimal(request.amount, "amount")
             requireMoneyAmount(amount, "amount")
+            Access.requirePayable(userId, Place.day(workBranchDayId))
 
             val compensation =
                 CompensationService.create(
