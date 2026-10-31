@@ -175,8 +175,15 @@ object BranchRoutes {
     /** The branches in the caller's read window (all of them for a global viewer). */
     internal fun accessibleBranches(callerId: UUID): List<BranchResponse> {
         val window = BranchReadScope.windowBranchIds(callerId)
-        val allBranches = BranchService.findAll()
-        return (if (window == null) allBranches else allBranches.filter { it.id in window }).map { it.toResponse() }
+        return (
+            if (window ==
+                null
+            ) {
+                BranchService.findAll()
+            } else {
+                BranchService.findByIds(window)
+            }
+        ).map { it.toResponse() }
     }
 
     internal fun Branch.toResponse(): BranchResponse =

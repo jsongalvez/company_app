@@ -44,6 +44,30 @@ class LoginUsernameLimitRoutesTest : BasePostgresTest() {
         assertEquals(401, signIn("someone-else", "198.51.100.202"), "other accounts keep their own budget")
     }
 
+    private fun signInBody(
+        username: String,
+        address: String,
+    ): Pair<Int, String> =
+        testServer.client
+            .post("/auth/login", mapOf("username" to username, "password" to "wrong-password")) {
+                it.header("X-Forwarded-For", address)
+            }.let { it.code to it.body.string() }
+
+    @Test
+    fun `each refusal says why, so the app never shows a wrong password as signed out`() {
+        assertEquals(401 to """{"error":"Wrong username or password."}""", signInBody("msg-account", "203.0.113.1"))
+        repeat(9) { signIn("msg-account", "203.0.113.${it + 2}") }
+        assertEquals(
+            429 to """{"error":"Too many wrong passwords. Try again in 15 minutes."}""",
+            signInBody("msg-account", "203.0.113.50"),
+        )
+        repeat(10) { signIn("addr-$it", "203.0.113.99") }
+        assertEquals(
+            429 to """{"error":"Too many tries. Wait a minute and try again."}""",
+            signInBody("addr-fresh", "203.0.113.99"),
+        )
+    }
+
     companion object {
         @JvmField
         @ClassRule

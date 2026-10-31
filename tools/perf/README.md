@@ -1,7 +1,7 @@
 # Latency probe
 
 Every 5 minutes `probe.sh` signs in as the `probe` user on the `probe` branch, loads Today, saves one session and voids it, and loads Finance.
-Each step writes a row to `~/logs/company_app/probe.jsonl` with the client time and the server's `Server-Timing` split (database ms, code ms).
+Each step writes a row to `~/logs/company_app/probe.jsonl` with the client time and the server's `Server-Timing` split (database ms, code ms). Sign-in is anonymous and gets no `Server-Timing`, so its rows carry null splits and the alert uses its client time.
 `check-latency.py` runs inside the one-minute alert timer (`company-app-alert.sh latency`) and sends a phone alert through ntfy.
 
 | Rule | Value |
@@ -13,7 +13,7 @@ Each step writes a row to `~/logs/company_app/probe.jsonl` with the client time 
 
 The alert ends with `perf-slow <traceId>`: the request's log lines, its slow statements, and the three statements that added the most database time around it (from the probe's `pg_stat_statements` snapshots). When the time was in code and the route is still slow, it starts 60s of JFR on the app.
 
-`install-probe.sh` puts the scripts in `~/.local/share/company-app-perf`, enables `company-app-probe.timer` and adds `check_latency` to `~/bin/company-app-alert.sh`. `seed-probe.sql` creates the probe user and branch (it holds only view, edit and void rights on the probe branch). Settings live in `~/.config/company-app-probe.env`: `PROBE_USER`, `PROBE_PASS`, `PROBE_DB_CONTAINER`.
+`install-probe.sh` puts the scripts in `~/.local/share/company-app-perf`, enables `company-app-probe.timer` and adds `check_latency` to `~/bin/company-app-alert.sh`. `seed-probe.sh` runs `seed-probe.sql` on the prod database: the probe user and its branch (it holds only view, edit and void rights there). Rerun it after any database reset; a second run changes nothing. The branch is hidden (`branch.hidden`, V5): branch lists, the all-branches export and a global viewer's audit leave it out. The probe user and its "Probe Client" still show in Users and Clients. Settings live in `~/.config/company-app-probe.env`: `PROBE_USER`, `PROBE_PASS`, `PROBE_DB_CONTAINER`.
 Test: `tools/perf/test/alert.test.sh`.
 
 The prod database container does not load `pg_stat_statements` (checked 2026-10-27: `shared_preload_libraries` is empty), so on prod `perf-slow` prints the request's `slow_statement` lines (over 200ms) instead of the top-3 table. Loading it needs `shared_preload_libraries=pg_stat_statements` and a database restart, left for the owner.

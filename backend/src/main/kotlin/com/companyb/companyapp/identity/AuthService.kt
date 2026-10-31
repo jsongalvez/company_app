@@ -75,9 +75,15 @@ object AuthService {
         logger.info { "[LOGIN] Login attempt from $ip" }
 
         // Per address, then per account: many addresses must not add up to unlimited guesses at one account.
-        if (!RateLimiter.isAllowed(ip) || LoginFailures.isLocked(username)) {
-            logger.warn { "[LOGIN] Rate limiting $ip" }
-            return LoginResult.RateLimited
+        val refusal =
+            when {
+                !RateLimiter.isAllowed(ip) -> LoginResult.RateLimited
+                LoginFailures.isLocked(username) -> LoginResult.AccountLocked
+                else -> null
+            }
+        if (refusal != null) {
+            logger.warn { "[LOGIN] Refused $ip: $refusal" }
+            return refusal
         }
 
         logger.info { "[LOGIN] Verifying user login" }

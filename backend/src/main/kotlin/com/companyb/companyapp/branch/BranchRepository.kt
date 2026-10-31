@@ -6,6 +6,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -72,13 +73,29 @@ internal object BranchRepository {
             findByIdInTransaction(id)
         }.also { logger.debug { "[FIND-BRANCH] Branch ${id.toString().maskUUID()} found=${it != null}" } }
 
+    /** Every branch people see; a hidden branch (the latency probe's) is left out. */
     fun findAll(): List<Branch> =
         transaction {
             BranchTable
                 .selectAll()
+                .where { BranchTable.hidden eq false }
                 .orderBy(BranchTable.name to SortOrder.ASC, BranchTable.id to SortOrder.ASC)
                 .map { it.toBranch() }
         }.also { logger.info { "[FIND-BRANCHES] Fetched ${it.size} branch(es)" } }
+
+    /** The given branches, hidden ones included: a member of a hidden branch still reaches it. */
+    fun findByIds(ids: List<UUID>): List<Branch> =
+        if (ids.isEmpty()) {
+            emptyList()
+        } else {
+            transaction {
+                BranchTable
+                    .selectAll()
+                    .where { BranchTable.id inList ids }
+                    .orderBy(BranchTable.name to SortOrder.ASC, BranchTable.id to SortOrder.ASC)
+                    .map { it.toBranch() }
+            }
+        }
 
     private fun findByIdInTransaction(id: UUID): Branch? =
         BranchTable

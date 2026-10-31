@@ -33,6 +33,7 @@ import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.leftJoin
 import org.jetbrains.exposed.v1.core.less
+import org.jetbrains.exposed.v1.core.notInSubQuery
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.Query
@@ -327,6 +328,9 @@ internal object AuditLogStore {
         return redacted
     }
 
+    // A global viewer's "every branch" stops short of hidden ones: the latency probe saves and voids every 5 minutes.
+    private fun hiddenBranches() = BranchTable.select(BranchTable.id).where { BranchTable.hidden eq true }
+
     /**
      * Scope predicate: branch rows must be in the caller's window (null window =
      * all branches — GLOBAL VIEW_BRANCH_DATA holder); NULL-branch rows are
@@ -341,7 +345,7 @@ internal object AuditLogStore {
     ): Op<Boolean> {
         val branchWindowOp: Op<Boolean> =
             when {
-                windowBranchIds == null -> Op.TRUE
+                windowBranchIds == null -> AuditLogTable.branchId notInSubQuery hiddenBranches()
                 windowBranchIds.isEmpty() -> Op.FALSE
                 else -> AuditLogTable.branchId inList windowBranchIds
             }

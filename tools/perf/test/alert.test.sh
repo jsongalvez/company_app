@@ -96,4 +96,12 @@ expect "20 fresh fast requests clear it with one recovery" 2
 NOW="2026-10-27T10:31:00Z" run
 expect "and nothing repeats" 2
 
+# Sign-in answers anonymous callers without Server-Timing, so its probe rows carry only the client time.
+reset
+printf '{"ts":"2026-10-27T09:50:00Z","route":"signin","ok":true,"clientMs":%d,"dbMs":null,"appMs":null,"trace":"%s"}\n' 3100 NS1 >>"$PROBE_LOG"; run
+expect "one slow sign-in without a server split sends nothing" 0
+printf '{"ts":"2026-10-27T09:55:00Z","route":"signin","ok":true,"clientMs":%d,"dbMs":null,"appMs":null,"trace":"%s"}\n' 3300 NS2 >>"$PROBE_LOG"; run
+expect "two slow sign-ins without a server split alert once" 1
+grep -q "3300ms" "$SENT" && grep -q "perf-slow NS2" "$SENT" && ok "it names the client time and trace" || { bad "no-split alert text"; cat "$SENT"; }
+
 [ "$fails" = 0 ] && echo "all alert tests passed" || { echo "$fails failed"; exit 1; }

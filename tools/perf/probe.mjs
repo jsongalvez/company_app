@@ -45,8 +45,10 @@ const call = async (method, path, token, body) => {
 const rows = [];
 const record = (route, r) => {
     // A removed route falls through to the app's HTML page with a 200, so a JSON answer is part of "ok".
-    const good = r.status >= 200 && r.status < 300 && r.isJson && Number.isFinite(r.dbMs) && Number.isFinite(r.appMs);
-    rows.push({ ts: new Date().toISOString(), route, ok: good, status: r.status, clientMs: r.clientMs, dbMs: good ? r.dbMs : 0, appMs: good ? r.appMs : 0, trace: r.trace });
+    // Sign-in is anonymous and gets no Server-Timing: its row has null db and app times (check-latency uses the client time).
+    const good = r.status >= 200 && r.status < 300 && r.isJson;
+    const split = good && Number.isFinite(r.dbMs) && Number.isFinite(r.appMs);
+    rows.push({ ts: new Date().toISOString(), route, ok: good, status: r.status, clientMs: r.clientMs, dbMs: split ? r.dbMs : null, appMs: split ? r.appMs : null, trace: r.trace });
     return good;
 };
 const flush = () => appendFileSync(LOG, rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
@@ -96,7 +98,7 @@ try {
     }
 }
 flush();
-for (const r of rows) console.log(`${r.route.padEnd(8)} ${r.ok ? "ok  " : "FAIL"} client ${r.clientMs}ms db ${r.dbMs}ms app ${r.appMs}ms trace ${r.trace}`);
+for (const r of rows) console.log(`${r.route.padEnd(8)} ${r.ok ? "ok  " : "FAIL"} client ${r.clientMs}ms db ${r.dbMs ?? "-"}ms app ${r.appMs ?? "-"}ms trace ${r.trace}`);
 if (failed) {
     console.error(`probe failed: ${failed.message}`);
     process.exit(1);

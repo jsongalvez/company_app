@@ -1,8 +1,10 @@
 -- The probe's own branch and staff user, nothing else: it can reach the probe branch only.
--- Safe to rerun. Usage: psql -v ON_ERROR_STOP=1 -v pass_hash="'<bcrypt>'" -f seed-probe.sql
-INSERT INTO branch (name, branch_type) VALUES ('probe', 'CLINIC') ON CONFLICT DO NOTHING;
+-- The branch is hidden (V5), so people never see it in branch lists, the all-branches export or the audit.
+-- Safe to rerun. Run it through seed-probe.sh, which sets pass_hash.
+INSERT INTO branch (name, branch_type, hidden) VALUES ('probe', 'CLINIC', true)
+  ON CONFLICT (branch_type, name) DO UPDATE SET hidden = true WHERE branch.hidden IS DISTINCT FROM true;
 INSERT INTO app_user (username, password_hash, display_name, email)
-  VALUES ('probe', :pass_hash, 'Latency probe', 'probe@example.com') ON CONFLICT DO NOTHING;
+  VALUES ('probe', :'pass_hash', 'Latency probe', 'probe@example.com') ON CONFLICT DO NOTHING;
 -- Every session type gets a rate, as on a branch made in the app (BranchService.create): with REGULAR
 -- only, opening New session for a returning client got 400 "No base rate" (Sentry COMPANY-APP-7).
 INSERT INTO session_base_rate (set_by, branch_id, session_type, rate, effective_from, effective_until)
@@ -21,4 +23,4 @@ INSERT INTO user_branch_assignment (user_id, branch_id, slot, assigned_by)
   SELECT u.id, b.id, 0, u.id FROM app_user u, branch b
   WHERE u.username = 'probe' AND b.name = 'probe'
     AND NOT EXISTS (SELECT 1 FROM user_branch_assignment x WHERE x.user_id = u.id);
-SELECT u.username, b.name AS branch FROM app_user u, branch b WHERE u.username = 'probe' AND b.name = 'probe';
+SELECT u.username, b.name AS branch, b.hidden FROM app_user u, branch b WHERE u.username = 'probe' AND b.name = 'probe';

@@ -35,6 +35,7 @@ object BranchTable : Table("branch") {
             },
         ).default(BranchType.CLINIC)
     val name = text("name")
+    val hidden = bool("hidden").default(false)
 
     override val primaryKey = PrimaryKey(id)
 

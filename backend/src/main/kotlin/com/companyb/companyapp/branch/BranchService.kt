@@ -56,6 +56,8 @@ object BranchService {
 
     fun findAll(): List<Branch> = BranchRepository.findAll()
 
+    fun findByIds(ids: List<UUID>): List<Branch> = BranchRepository.findByIds(ids)
+
     fun findById(branchId: UUID): Branch =
         BranchRepository.findById(branchId) ?: throw NotFoundException("Branch not found")
 

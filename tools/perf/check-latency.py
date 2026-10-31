@@ -111,19 +111,25 @@ def split(db_ms, total_ms):
     return f"{max(total_ms - db_ms, 0)}ms in code, {db_ms}ms in database", where
 
 
+def server_ms(r):
+    # Sign-in answers anonymous callers without Server-Timing; the probe calls the app container directly, so
+    # its client time is the server time plus a local hop.
+    return r["clientMs"] if r.get("dbMs") is None or r.get("appMs") is None else r["dbMs"] + r["appMs"]
+
+
 def evaluate(route, spec, since):
     """Returns (breach_or_None, probe_under). A breach is (reason, text, trace id), reason probe or real."""
     limit = spec["limitMs"]
     runs = probe_runs(route)
     last = [r for r in runs[-RUNS_IN_A_ROW:] if r["ok"]]
-    probe_over = len(last) == RUNS_IN_A_ROW and all(r["dbMs"] + r["appMs"] > limit for r in last)
-    probe_under = len(last) == RUNS_IN_A_ROW and all(r["dbMs"] + r["appMs"] <= limit for r in last)
+    probe_over = len(last) == RUNS_IN_A_ROW and all(server_ms(r) > limit for r in last)
+    probe_under = len(last) == RUNS_IN_A_ROW and all(server_ms(r) <= limit for r in last)
     real = real_requests(spec, since)
     real_over = len(real) >= MIN_REAL and p95([e["elapsedMs"] for e in real]) > limit
     if probe_over:
-        worst = max(last, key=lambda r: r["dbMs"] + r["appMs"])
-        total = worst["dbMs"] + worst["appMs"]
-        shares, where = split(worst["dbMs"], total)
+        worst = max(last, key=server_ms)
+        total = server_ms(worst)
+        shares, where = split(worst["dbMs"], total) if worst.get("dbMs") is not None else ("no server split", "code")
         return ("probe", f"p95 {total}ms over {limit}ms limit in {RUNS_IN_A_ROW} probe runs. {shares}.", worst["trace"]), probe_under
     if real_over:
         worst = max(real, key=lambda e: e["elapsedMs"])

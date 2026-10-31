@@ -102,12 +102,23 @@ object AuthRoutes {
                     context.json(LoginResponse(loginResult.token, start))
                 }
 
+                // Each refusal carries its words: a bare 401 reads as "You were signed out" in the app.
                 LoginResult.RateLimited -> {
-                    context.status(HttpStatus.TOO_MANY_REQUESTS)
+                    context
+                        .status(
+                            HttpStatus.TOO_MANY_REQUESTS,
+                        ).json(ErrorResponse("Too many tries. Wait a minute and try again."))
+                }
+
+                LoginResult.AccountLocked -> {
+                    val minutes = LoginFailures.WINDOW.inWholeMinutes
+                    context
+                        .status(HttpStatus.TOO_MANY_REQUESTS)
+                        .json(ErrorResponse("Too many wrong passwords. Try again in $minutes minutes."))
                 }
 
                 LoginResult.InvalidCredentials -> {
-                    context.status(HttpStatus.UNAUTHORIZED)
+                    context.status(HttpStatus.UNAUTHORIZED).json(ErrorResponse("Wrong username or password."))
                 }
             }
         }
