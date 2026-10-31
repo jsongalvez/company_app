@@ -37,6 +37,8 @@ class LoginClientIpRoutesTest : BasePostgresTest() {
         RateLimiter.resetForTest()
     }
 
+    private var names = 0
+
     private fun forwardedFor(address: String): Consumer<Request.Builder> =
         Consumer { it.header("X-Forwarded-For", address) }
 
@@ -47,7 +49,8 @@ class LoginClientIpRoutesTest : BasePostgresTest() {
         client
             .post(
                 "/auth/login",
-                mapOf("username" to "nobody", "password" to "wrong-password"),
+                // A name per call, so only the per-address budget is under test, not the per-account one.
+                mapOf("username" to "nobody-${names++}", "password" to "wrong-password"),
                 forwardedFor(address),
             ).code
 

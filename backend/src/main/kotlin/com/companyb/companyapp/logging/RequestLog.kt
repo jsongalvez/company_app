@@ -84,7 +84,10 @@ object RequestLog {
         val status = runCatching { context.statusCode() }.getOrDefault(STATUS_UNKNOWN)
         val elapsedMs = RequestElapsedConverter.currentElapsedMs()
         val db = RequestQueryTally.snapshot()
-        context.header(SERVER_TIMING_HEADER, "db;dur=${db.dbMs}, app;dur=${(elapsedMs - db.dbMs).coerceAtLeast(0)}")
+        // Signed-in calls only: the app's own telemetry reads it, and a stranger learns nothing from sign-in timings.
+        if (context.attribute<String>("userId") != null) {
+            context.header(SERVER_TIMING_HEADER, "db;dur=${db.dbMs}, app;dur=${(elapsedMs - db.dbMs).coerceAtLeast(0)}")
+        }
         val event =
             RequestCompletedEvent(
                 event = EVENT_COMPLETED,

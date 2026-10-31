@@ -54,5 +54,6 @@ object RateLimiter {
     /** Test-only: clears all windows so rate-budget tests are order-independent. */
     internal fun resetForTest() {
         synchronized(list) { list.clear() }
+        LoginFailures.resetForTest()
     }
 }

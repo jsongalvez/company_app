@@ -74,7 +74,8 @@ object AuthService {
     ): LoginResult {
         logger.info { "[LOGIN] Login attempt from $ip" }
 
-        if (!RateLimiter.isAllowed(ip)) {
+        // Per address, then per account: many addresses must not add up to unlimited guesses at one account.
+        if (!RateLimiter.isAllowed(ip) || LoginFailures.isLocked(username)) {
             logger.warn { "[LOGIN] Rate limiting $ip" }
             return LoginResult.RateLimited
         }
@@ -117,8 +118,10 @@ object AuthService {
             if (preliminaryOk) {
                 logger.warn { "[LOGIN] Credential rotated or account inactive" }
             }
+            LoginFailures.failed(username)
             LoginResult.InvalidCredentials
         } else {
+            LoginFailures.succeeded(username)
             logger.info { "[LOGIN] User has logged in successfully " }
             LoginResult.Success(token, userId)
         }

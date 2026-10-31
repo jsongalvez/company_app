@@ -66,7 +66,8 @@ up() {
   # Backend: Flyway migrates the empty DB, DevMain seeds owner/staff/relief logins and fixture branch.
   # Env vars win over .env, so the dev instance's settings are not used.
   cd "$ROOT" || return 1
-  APP_PORT=$PORT WEB_DIR="$RUN/dist" POSTGRES_DB=$DB \
+  # API_DOCS off like prod, so tools/verify/headers.sh checks the same surface.
+  APP_PORT=$PORT WEB_DIR="$RUN/dist" POSTGRES_DB=$DB API_DOCS= \
     TEST_USERNAME=owner TEST_PASSWORD=owner-dev-pass SCOPED_USERNAME=staff SCOPED_PASSWORD=staff-dev-pass \
     RELIEF_USERNAME=relief RELIEF_PASSWORD=relief-dev-pass \
     setsid nohup ./gradlew :backend:run -q >"$RUN/backend.log" 2>&1 &

@@ -26,6 +26,7 @@ import com.companyb.companyapp.finance.AllowanceRoutes
 import com.companyb.companyapp.finance.CompensationRoutes
 import com.companyb.companyapp.finance.ExpenseRoutes
 import com.companyb.companyapp.http.KotlinxSerializationMapper
+import com.companyb.companyapp.http.SecurityHeaders
 import com.companyb.companyapp.http.openapi.OpenApiCanonical
 import com.companyb.companyapp.identity.AuthRoutes
 import com.companyb.companyapp.identity.JwtService
@@ -94,22 +95,26 @@ fun initializeJavalin(config: AppConfig) {
 
     Javalin
         .create { cfg ->
-            configureJavalin(cfg)
-            config.webDir?.let { configureWebApp(cfg, it) }
+            configureHttpSurface(cfg, config)
+            configureEvents(cfg)
+            configureAuth(cfg)
+            registerExceptionHandlers(cfg)
+            registerServerErrorHandler(cfg)
+            registerAllRoutes(cfg)
         }.start(config.appPort)
     logger.info { "[INITIALIZE-JAVALIN] Application started" }
 }
 
-private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
-    config.jsonMapper(KotlinxSerializationMapper())
-    configurePlugins(config)
-    config.http.maxRequestSize = MAX_REQUEST_SIZE_KB * KB
-    configureFilters(config)
-    configureEvents(config)
-    configureAuth(config)
-    registerExceptionHandlers(config)
-    registerServerErrorHandler(config)
-    registerAllRoutes(config)
+/** What every response shares before any route: mapper, size limit, filters, headers, dev API map, web app. */
+fun configureHttpSurface(
+    cfg: io.javalin.config.JavalinConfig,
+    config: AppConfig,
+) {
+    cfg.jsonMapper(KotlinxSerializationMapper())
+    if (config.apiDocs) configureApiDocs(cfg)
+    cfg.http.maxRequestSize = MAX_REQUEST_SIZE_KB * KB
+    configureFilters(cfg, SecurityHeaders(config.webDir, config.errorTracker))
+    config.webDir?.let { configureWebApp(cfg, it) }
 }
 
 private fun configureWebApp(
@@ -133,7 +138,7 @@ private fun configureWebApp(
     // because phones keep built files by name and a page saved as a script stays broken. "/" is the static index.html.
 }
 
-private fun configurePlugins(config: io.javalin.config.JavalinConfig) {
+private fun configureApiDocs(config: io.javalin.config.JavalinConfig) {
     config.registerPlugin(
         OpenApiPlugin { openapi ->
             openapi.withDefinitionConfiguration { _, builder ->
@@ -151,8 +156,12 @@ private fun configurePlugins(config: io.javalin.config.JavalinConfig) {
     config.registerPlugin(SwaggerPlugin())
 }
 
-private fun configureFilters(config: io.javalin.config.JavalinConfig) {
+private fun configureFilters(
+    config: io.javalin.config.JavalinConfig,
+    headers: SecurityHeaders,
+) {
     config.routes.before {
+        headers.apply(it)
         // logback.xml %X{traceId} %X == %mdc
         RequestElapsedConverter.startRequest()
         DeltaTimeConverter.startRequest()

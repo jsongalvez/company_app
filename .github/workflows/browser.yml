@@ -107,6 +107,9 @@ jobs:
         run: |
           for f in tools/seed/*.sql; do psql -h localhost -U company_user -d company_app -v ON_ERROR_STOP=1 -f "$f"; done
 
+      - name: Security headers and hidden API map (tools/verify/headers.sh)
+        run: tools/verify/headers.sh http://localhost:18080
+
       - name: Run browser tests (slice ${{ matrix.shard }} of 2)
         working-directory: web
         run: npm run e2e -- --shard ${{ matrix.shard }}/2

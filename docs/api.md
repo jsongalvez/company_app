@@ -3,7 +3,8 @@
 The canonical OpenAPI document is the single source for inspecting and importing
 the API (#495 contract; the old Node source parser and the hand-maintained
 Postman endpoint catalog were deleted in #496). Interactive docs are served by
-the backend itself at `/swagger` (JSON at `/openapi.json`).
+the backend itself at `/swagger` (JSON at `/openapi`), only when `API_DOCS=on`.
+Prod leaves it unset, so the API map is not public.
 
 ## Export
 
