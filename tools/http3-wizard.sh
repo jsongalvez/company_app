@@ -200,7 +200,7 @@ finish() {
 # network firewall most likely drops UDP 443. Nothing on the server changes.
 
 TOTAL_STAGES=3
-APP_HOST="api.140.245.56.102.nip.io"
+APP_HOST="api.kiel.party"
 REGION="ap-singapore-2"
 
 banner "company_app: turn on HTTP/3 for phones"

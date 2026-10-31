@@ -4,7 +4,7 @@
 
 ```
 node tools/perf/vitals.mjs --base http://127.0.0.1:18181 --runs 5
-HOTSPOT_USER=probe HOTSPOT_PASS=... node tools/perf/vitals.mjs --base https://api.140.245.56.102.nip.io --runs 5
+HOTSPOT_USER=probe HOTSPOT_PASS=... node tools/perf/vitals.mjs --base https://api.kiel.party --runs 5
 ```
 
 | Setting | Value |

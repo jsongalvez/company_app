@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Checks a running app's browser hardening: security headers on the page and the API, a script-src hash for
 # every inline script the page really serves, no public API map, no Server-Timing for strangers.
-#   tools/verify/headers.sh https://api.140.245.56.102.nip.io     (prod, after a deploy)
+#   tools/verify/headers.sh https://api.kiel.party     (prod, after a deploy)
 #   tools/verify/headers.sh http://127.0.0.1:18181                (the verify copy; HSTS is still sent over http)
 set -euo pipefail
 BASE=${1:?usage: headers.sh <base-url>}
