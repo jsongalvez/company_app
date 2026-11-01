@@ -1,5 +1,6 @@
 <script lang="ts">
     import { viewSetting } from "../lib/router.svelte";
+    import { rolesToSave } from "../lib/roles-to-save";
     import { api, ok, type S } from "../api/client";
     import { app, startViewAs } from "../lib/app.svelte";
     import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
@@ -53,7 +54,7 @@
     async function saveRoles() {
         const u = who;
         if (!u) return;
-        const body = { roles: picked.length ? picked : ["ONBOARDING"] };
+        const body = { roles: rolesToSave(picked, u.roles ?? [], assignable) };
         if (await ra.run(() => ok(api.PUT("/api/users/{userId}/roles", { params: { path: { userId: u.id } }, body })), "Roles saved")) {
             rOpen = false;
             refresh();

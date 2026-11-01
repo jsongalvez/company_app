@@ -43,6 +43,7 @@ class RoleRulesTest : BasePostgresTest() {
     private val member = TestFixtures.uuid()
     private val accountant = TestFixtures.uuid()
     private val loner = TestFixtures.uuid()
+    private val dual = TestFixtures.uuid()
 
     override fun initTestData() {
         BranchWorkforceFixtures.insertTestBranch(branchId)
@@ -56,6 +57,9 @@ class RoleRulesTest : BasePostgresTest() {
             IdentityFixtures.insertTestUser(id, "u${id.toString().take(8)}")
             assignRole(id, role)
         }
+        IdentityFixtures.insertTestUser(dual, "u${dual.toString().take(8)}")
+        assignRole(dual, "SUPERUSER")
+        assignRole(dual, "PRACTITIONER")
         BranchWorkforceFixtures.insertTestAssignment(userId = member, branchId = branchId, slot = 1, assignedBy = owner)
     }
 
@@ -94,6 +98,18 @@ class RoleRulesTest : BasePostgresTest() {
     fun `an Owner sees a Superuser as a Practitioner, a Superuser sees the truth`() {
         assertEquals(listOf("PRACTITIONER"), listedRoles(superuser, asUser(owner)))
         assertEquals(listOf("SUPERUSER"), listedRoles(superuser, asUser(superuser)))
+    }
+
+    @Test
+    fun `a Superuser takes Practitioner off another Superuser`() {
+        val r =
+            testServer.client.put(
+                "${ApiRoutes.USERS}/$dual/roles",
+                mapOf("roles" to listOf("SUPERUSER")),
+                asUser(superuser),
+            )
+        assertEquals(204, r.code, r.body.string())
+        assertEquals(listOf("SUPERUSER"), rolesOf(dual))
     }
 
     @Test
