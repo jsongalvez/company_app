@@ -4,7 +4,7 @@
     import { rememberClient } from "../lib/clientdir.svelte";
     import { app, can } from "../lib/app.svelte";
     import { fetchCached, invalidate } from "../lib/cache.svelte";
-    import { load } from "../lib/data";
+    import { load, seedTodayScreen } from "../lib/data";
     import { Action } from "../lib/act.svelte";
     import { label, peso, operationalDate, shortDay } from "../lib/format";
     import { createBody, emptyDraft } from "../lib/client-draft";
@@ -156,8 +156,12 @@
                     if (known) ids.add(known.id);
                     else fresh.push(name);
                 }
+                // Today comes back with the save, so Today's lists redraw without a second request.
+                // Not when a booking also changes: Today would then miss it.
+                const withToday = !date && !booking && !nextDate;
                 const s = await ok(
                     api.POST("/api/sessions", {
+                        params: { query: { withToday } },
                         body: {
                             id: uuid(),
                             clientId: c.id,
@@ -191,6 +195,7 @@
                         : null,
                 ]);
                 invalidate("bookings:");
+                if (withToday && s.todayScreen) seedTodayScreen(app.branchId, Promise.resolve(s.todayScreen));
                 invalidate("dash:", "dsess:", "dsum:", "clients:", `client:${c.id}`, `session:${s.id}`);
                 open = false;
                 onsaved();

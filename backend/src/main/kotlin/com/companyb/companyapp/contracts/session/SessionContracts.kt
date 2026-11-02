@@ -151,6 +151,8 @@ data class SessionResponse(
     val nextAppointmentDate: String?,
     val version: Int,
     val concerns: List<ConcernResponse> = emptyList(),
+    /** Only on a create asked with `?withToday=true`: Today after the save, so the phone needs no second request. */
+    val todayScreen: TodayScreenResponse? = null,
 )
 
 @Serializable

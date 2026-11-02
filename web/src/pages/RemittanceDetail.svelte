@@ -43,9 +43,17 @@
         if (!r) return;
         picking = true;
         const p = { path: { branchId: r.branchId }, query: { from: r.dateRangeStart, to: r.dateRangeEnd } };
-        days = await ok(api.GET("/api/branches/{branchId}/remittance-days", { params: p })).catch(() => []);
-        if (r.type === "PRODUCT") sales = await ok(api.GET("/api/branches/{branchId}/remittance-product-sales", { params: p })).catch(() => []);
-        else sessions = await ok(api.GET("/api/branches/{branchId}/remittance-sessions", { params: p })).catch(() => []);
+        // Days and items don't depend on each other: ask for both at once.
+        const product = r.type === "PRODUCT";
+        const [d, items] = await Promise.all([
+            ok(api.GET("/api/branches/{branchId}/remittance-days", { params: p })).catch(() => []),
+            product
+                ? ok(api.GET("/api/branches/{branchId}/remittance-product-sales", { params: p })).catch(() => [])
+                : ok(api.GET("/api/branches/{branchId}/remittance-sessions", { params: p })).catch(() => []),
+        ]);
+        days = d;
+        if (product) sales = items as Sale[];
+        else sessions = items as Sess[];
         picking = false;
     }
 

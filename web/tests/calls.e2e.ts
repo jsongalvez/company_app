@@ -200,8 +200,8 @@ test("marking a session Done does not re-read Today's lists", { session: "owner"
     const reads = await watchReads(browser, { lists: /^\/api\/branches\/[^/?]+\/today-screen/ });
     await addDoneSessionForNewClient(screen);
     await new Promise((r) => setTimeout(r, 1500));
-    // One read follows the save (a new row's details come from the server); none follows the mark.
-    expect(reads.lists).toBe(1);
+    // Today comes back with the save (withToday), and the mark changes the row in place: no read at all.
+    expect(reads.lists).toBe(0);
 });
 
 // Ticked and typed illnesses go in the save itself: one write, however many are ticked.

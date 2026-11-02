@@ -30,6 +30,9 @@ import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -75,6 +78,13 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
         IdentityFixtures.grantCapability(
             userId = callerId,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+        IdentityFixtures.grantCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
             contextId = branchId,
             sourceId = sourceId,
@@ -168,6 +178,30 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
             assertTrue(SessionTable.selectAll().where { SessionTable.id eq sessionId }.empty())
             assertTrue(AuditLogTable.selectAll().where { AuditLogTable.recordId eq sessionId }.empty())
         }
+    }
+
+    @Test
+    fun `create with withToday returns Today holding the new session, without it returns no Today`() {
+        val sessionId = TestFixtures.uuid()
+        val with =
+            testServer.client.post(
+                "${ApiRoutes.SESSIONS}?withToday=true",
+                sessionBody(sessionId, bookedClientId, isWalkIn = false),
+                asUser(callerId),
+            )
+        assertEquals(201, with.code)
+        val body = json.parseToJsonElement(with.body.string()).jsonObject
+        val sessions = assertNotNull(body["todayScreen"]).jsonObject["dashboard"]!!.jsonObject["sessions"]!!.jsonArray
+        assertTrue(sessions.any { it.jsonObject["id"]!!.jsonPrimitive.content == sessionId.toString() })
+
+        val without =
+            testServer.client.post(
+                ApiRoutes.SESSIONS,
+                sessionBody(TestFixtures.uuid(), walkInClientId, isWalkIn = true),
+                asUser(callerId),
+            )
+        assertEquals(201, without.code)
+        assertNull(json.parseToJsonElement(without.body.string()).jsonObject["todayScreen"])
     }
 
     private fun sessionBody(

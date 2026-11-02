@@ -37,6 +37,8 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.session.dashboard.DashboardService
 import com.companyb.companyapp.session.dashboard.DashboardSessionEnrichment
+import com.companyb.companyapp.session.dashboard.TodayScreenRoutes
+import com.companyb.companyapp.session.dashboard.TodayScreenService
 import com.companyb.companyapp.session.dashboard.mapDashboardSession
 import com.companyb.companyapp.session.dashboard.toResponse
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -100,6 +102,7 @@ private fun requireSessionMoney(
     path = ApiRoutes.SESSIONS,
     methods = [HttpMethod.POST],
     operationId = "sessions",
+    queryParams = [OpenApiParam(name = "withToday", type = Boolean::class, required = false)],
     security = [OpenApiSecurity(name = "BearerAuth")],
     requestBody = OpenApiRequestBody(content = [OpenApiContent(from = CreateSessionRequest::class)]),
     responses = [
@@ -456,8 +459,14 @@ object SessionRoutes {
         val ticked = request.concernIds.isNotEmpty() || request.newConcerns.isNotEmpty()
         val savedConcerns = if (ticked) SessionConcernService.getForSession(callerId, sessionId) else saved.concerns
         val concerns = savedConcerns.map { it.toResponse() }
+        val today =
+            if (context.queryParam("withToday") == "true") {
+                TodayScreenRoutes.response(TodayScreenService.get(callerId, branchId))
+            } else {
+                null
+            }
         context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
-        context.json(result.session.toResponse(concerns))
+        context.json(result.session.toResponse(concerns).copy(todayScreen = today))
     }
 
     private fun parseDay(

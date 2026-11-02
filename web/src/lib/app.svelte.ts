@@ -259,8 +259,7 @@ function applyHeldClock() {
 }
 
 export async function refreshCaps() {
-    app.caps = await ok(api.GET("/api/me/capabilities"));
-    app.branches = await ok(api.GET("/api/me/branches"));
+    [app.caps, app.branches] = await Promise.all([ok(api.GET("/api/me/capabilities")), ok(api.GET("/api/me/branches"))]);
     invalidate("");
 }
 

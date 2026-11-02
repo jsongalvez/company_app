@@ -3096,6 +3096,16 @@ export interface components {
             nextAppointmentDate: string | null;
             version: number;
             concerns?: components["schemas"]["ConcernResponse"][];
+            todayScreen?: {
+                dashboard: {
+                    sessions: components["schemas"]["DashboardSessionResponse"][];
+                    commission: components["schemas"]["DashboardCommissionResponse"];
+                } | null;
+                dashboardRefusal: string | null;
+                bookings: components["schemas"]["BookingResponse"][] | null;
+                roster: components["schemas"]["MemberAttendanceResponse"][] | null;
+                earlierWaitingDays?: string[] | null;
+            } | null;
         };
         SessionVoidResponse: {
             id: string;
@@ -9387,7 +9397,9 @@ export interface operations {
     };
     sessions: {
         parameters: {
-            query?: never;
+            query?: {
+                withToday?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;

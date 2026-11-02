@@ -53,3 +53,7 @@ PROBE_USER=probe PROBE_PASS=... node tools/perf/clean-fixtures.mjs --base https:
 # Web vitals
 
 `vitals.mjs` gives LCP, INP, CLS, FCP, TTFB, TBT, script and style bytes and cache hits for a cold and a warm open, through `shaper.mjs` (a TCP relay that slows every byte, handshakes and service-worker fetches included). See [vitals.md](vitals.md) for the profile and the baseline.
+
+# Statements per request
+
+`SLOW_STATEMENT_MS=0 tools/verify/verify.sh up` logs every SQL statement with its trace id. Drive the app (`calls.mjs`, `hotspot.mjs`), then `python3 tools/perf/sql-trace.py /tmp/verify-run-18181/backend.log [--route clock-in]` lists, per route, the statements of its biggest request and how often each ran, so a lookup repeated per row (`5x`) stands out.

@@ -32,6 +32,12 @@ data class SlowStatementEvent(
 object RequestQueryTally {
     const val SLOW_STATEMENT_MS = 200L
 
+    /**
+     * `SLOW_STATEMENT_MS=0` in the environment logs every statement with its trace id:
+     * a local way to see which queries a request repeats (`tools/perf/sql-trace.py`).
+     */
+    private val slowMs: Long = System.getenv("SLOW_STATEMENT_MS")?.toLongOrNull() ?: SLOW_STATEMENT_MS
+
     private const val EVENT_SLOW = "slow_statement"
     private const val TRACE_UNKNOWN = "unknown"
     private const val NANOS_PER_MILLI = 1_000_000L
@@ -74,7 +80,7 @@ object RequestQueryTally {
             it.queries++
         }
         val ms = nanos / NANOS_PER_MILLI
-        if (ms >= SLOW_STATEMENT_MS) {
+        if (ms >= slowMs) {
             val traceId = MDC.get(TraceIdFilter.ATTRIBUTE) ?: TRACE_UNKNOWN
             logger.warn { Json.encodeToString(SlowStatementEvent(EVENT_SLOW, traceId, ms, maskedSql(sql))) }
         }
